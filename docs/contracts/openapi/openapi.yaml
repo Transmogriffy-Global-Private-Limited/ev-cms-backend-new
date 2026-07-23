@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
-  title: TransEV EV CMS Administrative API
-  version: 0.3.0
+  title: TransEV EV CMS API
+  version: 0.5.0
   description: |
     Canonical machine-readable contract for the endpoints currently implemented
     by `ev-cms-backend-new`.
@@ -11,9 +11,11 @@ info:
     require `X-CPO-App-ID`; that header is checked only after the bearer token
     establishes the CPO and never selects a tenant.
 
-    Authentication, platform control-plane, health, and documentation routes do
-    not require `X-CPO-App-ID`. Request bodies reject unknown properties and are
-    limited to 32 KiB by the server.
+    Public customer signup requires `X-CPO-App-ID` to resolve an active CPO, but
+    the header remains public routing metadata rather than authentication.
+    Administrative authentication, platform control-plane, health, and
+    documentation routes do not require it. Request bodies reject unknown
+    properties and are limited to 32 KiB by the server.
   contact:
     name: TransEV Engineering
 servers:
@@ -24,6 +26,8 @@ tags:
     description: Process liveness and PostgreSQL readiness.
   - name: Authentication
     description: Password, email OTP, token, password, and session operations.
+  - name: App User Authentication
+    description: Public signup and complete customer credential/session operations.
   - name: Platform CPOs
     description: Platform-superadmin CPO provisioning and lifecycle control.
   - name: CPO Integrations
@@ -71,6 +75,547 @@ paths:
                 $ref: "#/components/schemas/ReadinessResponse"
               example:
                 status: not_ready
+
+  /api/v1/app/auth/signup:
+    post:
+      tags: [App User Authentication]
+      operationId: startCustomerSignup
+      summary: Start CPO-scoped customer signup
+      description: |
+        Resolves an active CPO from its current app ID, validates the proposed
+        profile and password, stores only an Argon2id password hash, and queues
+        an encrypted email-OTP job. No identity or customer exists yet.
+      parameters:
+        - $ref: "#/components/parameters/CPOAppIDHeader"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CustomerSignupRequest"
+      responses:
+        "202":
+          description: Durable signup challenge and mail job created.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChallengeResponse"
+        "400":
+          description: Invalid JSON, app-ID header, email, password, name, or phone.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "403":
+          description: "`signup_unavailable` — app ID does not resolve an active CPO."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "503":
+          $ref: "#/components/responses/MailUnavailable"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /api/v1/app/auth/signup/verify:
+    post:
+      tags: [App User Authentication]
+      operationId: verifyCustomerSignup
+      summary: Verify email and create the CPO customer
+      description: |
+        Verifies and consumes the CPO-bound OTP. In one transaction it creates
+        a global identity or safely reuses an active one, creates the
+        CPO-scoped customer and zero-balance INR wallet, and records an audit
+        event. Existing identity credentials and profile are never overwritten.
+        This endpoint does not issue customer login tokens.
+      parameters:
+        - $ref: "#/components/parameters/CPOAppIDHeader"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ChallengeVerificationRequest"
+      responses:
+        "201":
+          description: Customer and wallet created.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CustomerSignupResponse"
+        "400":
+          $ref: "#/components/responses/InvalidRequest"
+        "401":
+          $ref: "#/components/responses/InvalidChallenge"
+        "403":
+          description: "`signup_unavailable` — CPO or existing identity is inactive."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "409":
+          description: "`customer_already_registered` — verified identity is already this CPO's customer."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /api/v1/app/auth/signup/resend:
+    post:
+      tags: [App User Authentication]
+      operationId: resendCustomerSignupOTP
+      summary: Replace an eligible signup challenge
+      description: |
+        After the cooldown, invalidates an unconsumed challenge and creates a
+        replacement carrying the same password hash and proposed profile. CPO
+        app identity and active lifecycle are revalidated.
+      parameters:
+        - $ref: "#/components/parameters/CPOAppIDHeader"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ChallengeResendRequest"
+      responses:
+        "202":
+          description: Replacement challenge and mail job created.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChallengeResponse"
+        "400":
+          $ref: "#/components/responses/InvalidRequest"
+        "401":
+          $ref: "#/components/responses/InvalidChallenge"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "503":
+          $ref: "#/components/responses/MailUnavailable"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /api/v1/app/auth/login:
+    post:
+      tags: [App User Authentication]
+      operationId: startCustomerLogin
+      summary: Validate a customer password and start mail OTP
+      description: |
+        Resolves the active CPO by app ID, validates the global password and an
+        active customer relationship, then durably queues a customer login OTP.
+        Invalid identity, password, customer membership, lockout, and customer
+        status collapse to `invalid_credentials`.
+      parameters:
+        - $ref: "#/components/parameters/CPOAppIDHeader"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CustomerLoginRequest"
+      responses:
+        "202":
+          description: Customer login challenge and encrypted mail job created.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChallengeResponse"
+        "400":
+          $ref: "#/components/responses/InvalidRequest"
+        "401":
+          description: "`invalid_credentials` — credentials or customer authority are invalid."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "403":
+          description: "`signup_unavailable` — app ID does not resolve an active CPO."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "503":
+          $ref: "#/components/responses/MailUnavailable"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /api/v1/app/auth/login/verify:
+    post:
+      tags: [App User Authentication]
+      operationId: verifyCustomerLogin
+      summary: Verify customer login OTP and create a session
+      parameters:
+        - $ref: "#/components/parameters/CPOAppIDHeader"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ChallengeVerificationRequest"
+      responses:
+        "200":
+          description: Customer session and rotating refresh lineage created.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CustomerTokenResponse"
+        "400":
+          $ref: "#/components/responses/InvalidRequest"
+        "401":
+          $ref: "#/components/responses/InvalidChallenge"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /api/v1/app/auth/login/resend:
+    post:
+      tags: [App User Authentication]
+      operationId: resendCustomerLoginOTP
+      summary: Replace an eligible customer login challenge
+      parameters:
+        - $ref: "#/components/parameters/CPOAppIDHeader"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ChallengeResendRequest"
+      responses:
+        "202":
+          description: Replacement customer login challenge created.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChallengeResponse"
+        "400":
+          $ref: "#/components/responses/InvalidRequest"
+        "401":
+          $ref: "#/components/responses/InvalidChallenge"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "503":
+          $ref: "#/components/responses/MailUnavailable"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /api/v1/app/auth/refresh:
+    post:
+      tags: [App User Authentication]
+      operationId: rotateCustomerRefreshToken
+      summary: Rotate a customer refresh token
+      description: |
+        Accepts the current opaque token once, revalidates user, customer, CPO,
+        session, and app-ID state, and atomically returns a replacement.
+        Consumed-token reuse revokes the complete customer session.
+      parameters:
+        - $ref: "#/components/parameters/CPOAppIDHeader"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RefreshRequest"
+      responses:
+        "200":
+          description: Customer refresh token rotated.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CustomerTokenResponse"
+        "400":
+          $ref: "#/components/responses/InvalidRequest"
+        "401":
+          description: "`invalid_refresh_token` — invalid, expired, revoked, reused, or no longer authorized."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /api/v1/app/auth/password/forgot:
+    post:
+      tags: [App User Authentication]
+      operationId: startCustomerPasswordRecovery
+      summary: Start enumeration-safe customer password recovery
+      parameters:
+        - $ref: "#/components/parameters/CPOAppIDHeader"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ForgotPasswordRequest"
+      responses:
+        "202":
+          description: Generic response whether or not an eligible customer exists.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+        "400":
+          $ref: "#/components/responses/InvalidRequest"
+        "403":
+          description: App ID does not resolve an active CPO.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "503":
+          $ref: "#/components/responses/MailUnavailable"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /api/v1/app/auth/password/reset/resend:
+    post:
+      tags: [App User Authentication]
+      operationId: resendCustomerPasswordResetOTP
+      summary: Replace an eligible customer password-reset challenge
+      parameters:
+        - $ref: "#/components/parameters/CPOAppIDHeader"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ChallengeResendRequest"
+      responses:
+        "202":
+          description: Replacement password-reset challenge created.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChallengeResponse"
+        "400":
+          $ref: "#/components/responses/InvalidRequest"
+        "401":
+          $ref: "#/components/responses/InvalidChallenge"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "503":
+          $ref: "#/components/responses/MailUnavailable"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /api/v1/app/auth/password/reset:
+    post:
+      tags: [App User Authentication]
+      operationId: resetCustomerPassword
+      summary: Consume a customer reset OTP and replace the global password
+      description: Success revokes every session for the global identity.
+      parameters:
+        - $ref: "#/components/parameters/CPOAppIDHeader"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ResetPasswordRequest"
+      responses:
+        "200":
+          description: Password replaced and every identity session revoked.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+        "400":
+          description: Invalid request or password policy.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "401":
+          $ref: "#/components/responses/InvalidChallenge"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /api/v1/app/auth/me:
+    get:
+      tags: [App User Authentication]
+      operationId: getCurrentCustomer
+      summary: Get the current app-user bootstrap payload
+      description: |
+        Returns the validated global identity, CPO customer relationship, CPO
+        application identity, and customer wallet. Backend handlers obtain the
+        same trusted IDs through the `customerauth.Current*` helpers.
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/CPOAppIDHeader"
+      responses:
+        "200":
+          description: Current customer application context.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CustomerMeResponse"
+        "400":
+          $ref: "#/components/responses/MissingCPOAppID"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          description: "`cpo_app_id_mismatch` or wrong session plane."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /api/v1/app/auth/sessions:
+    get:
+      tags: [App User Authentication]
+      operationId: listCustomerSessions
+      summary: List active sessions for this CPO customer
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/CPOAppIDHeader"
+      responses:
+        "200":
+          description: Only sessions for the current customer and CPO.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CustomerSessionListResponse"
+        "400":
+          $ref: "#/components/responses/MissingCPOAppID"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/CPOIntegrationForbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /api/v1/app/auth/sessions/{session_id}:
+    delete:
+      tags: [App User Authentication]
+      operationId: revokeCustomerSession
+      summary: Revoke an owned session for this CPO customer
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/CPOAppIDHeader"
+        - $ref: "#/components/parameters/SessionID"
+      responses:
+        "204":
+          description: Session and unused refresh token revoked.
+        "400":
+          description: Missing app ID or invalid session UUID.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/CPOIntegrationForbidden"
+        "404":
+          description: Session absent or belongs to another customer/CPO.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /api/v1/app/auth/logout:
+    post:
+      tags: [App User Authentication]
+      operationId: logoutCustomerSession
+      summary: Revoke the current customer session
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/CPOAppIDHeader"
+      responses:
+        "204":
+          description: Current customer session revoked.
+        "400":
+          $ref: "#/components/responses/MissingCPOAppID"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/CPOIntegrationForbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /api/v1/app/auth/logout-all:
+    post:
+      tags: [App User Authentication]
+      operationId: logoutAllCustomerSessions
+      summary: Revoke every session for this customer in this CPO
+      description: Administrative and other-CPO customer sessions are not revoked.
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/CPOAppIDHeader"
+      responses:
+        "204":
+          description: All sessions for the current CPO customer revoked.
+        "400":
+          $ref: "#/components/responses/MissingCPOAppID"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/CPOIntegrationForbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /api/v1/app/auth/password/change:
+    post:
+      tags: [App User Authentication]
+      operationId: changeCustomerPassword
+      summary: Change the global identity password
+      description: Success revokes every session for the identity in every plane.
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/CPOAppIDHeader"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ChangePasswordRequest"
+      responses:
+        "200":
+          description: Password changed and every identity session revoked.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+        "400":
+          description: Invalid JSON, password policy, or reused password.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "401":
+          description: Missing/invalid session or incorrect current password.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "403":
+          $ref: "#/components/responses/CPOIntegrationForbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
 
   /api/v1/auth/login:
     post:
@@ -812,6 +1357,17 @@ components:
         routing metadata, not an authentication secret or tenant selector.
 
   parameters:
+    CPOAppIDHeader:
+      name: X-CPO-App-ID
+      in: header
+      required: true
+      description: |
+        Current dummy or live app ID of the intended active CPO. It is public
+        routing metadata, not a secret or user credential.
+      schema:
+        type: string
+        minLength: 16
+        maxLength: 100
     CPOID:
       name: cpo_id
       in: path
@@ -930,6 +1486,236 @@ components:
         status:
           type: string
           enum: [ready, not_ready]
+
+    CustomerSignupRequest:
+      type: object
+      additionalProperties: false
+      required: [email, password, full_name]
+      properties:
+        email:
+          type: string
+          format: email
+          maxLength: 320
+        password:
+          type: string
+          minLength: 10
+          maxLength: 128
+          writeOnly: true
+        full_name:
+          type: string
+          minLength: 1
+          maxLength: 255
+        phone:
+          type: string
+          pattern: "^\\+?[0-9]{7,15}$"
+          maxLength: 16
+
+    CustomerSignupResponse:
+      type: object
+      additionalProperties: false
+      required:
+        - customer_id
+        - user_id
+        - cpo_id
+        - wallet_id
+        - identity_created
+        - use_existing_credentials
+      properties:
+        customer_id:
+          type: string
+          format: uuid
+        user_id:
+          type: string
+          format: uuid
+        cpo_id:
+          type: string
+          format: uuid
+        wallet_id:
+          type: string
+          format: uuid
+        identity_created:
+          type: boolean
+        use_existing_credentials:
+          type: boolean
+          description: |
+            True when the email already owned a global identity. The submitted
+            signup password was discarded and the customer must use their
+            existing credentials during customer login.
+
+    CustomerLoginRequest:
+      type: object
+      additionalProperties: false
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+          maxLength: 320
+        password:
+          type: string
+          minLength: 1
+          maxLength: 128
+          writeOnly: true
+
+    CustomerTokenResponse:
+      type: object
+      additionalProperties: false
+      required:
+        - access_token
+        - access_token_expires_at
+        - refresh_token
+        - session_expires_at
+        - token_type
+        - customer_id
+        - cpo_id
+        - cpo_app_id
+      properties:
+        access_token:
+          type: string
+          description: Signed-then-encrypted CUSTOMER-scope access JWT.
+        access_token_expires_at:
+          type: string
+          format: date-time
+        refresh_token:
+          type: string
+          writeOnly: true
+          description: Opaque one-time refresh token.
+        session_expires_at:
+          type: string
+          format: date-time
+        token_type:
+          type: string
+          enum: [Bearer]
+        customer_id:
+          type: string
+          format: uuid
+        cpo_id:
+          type: string
+          format: uuid
+        cpo_app_id:
+          type: string
+
+    CustomerMeResponse:
+      type: object
+      additionalProperties: false
+      required: [user, customer, cpo, wallet]
+      properties:
+        user:
+          $ref: "#/components/schemas/CustomerUser"
+        customer:
+          $ref: "#/components/schemas/CustomerRelationship"
+        cpo:
+          $ref: "#/components/schemas/CustomerCPO"
+        wallet:
+          $ref: "#/components/schemas/CustomerWallet"
+
+    CustomerUser:
+      type: object
+      additionalProperties: false
+      required: [id, email, full_name, is_verified]
+      properties:
+        id:
+          type: string
+          format: uuid
+        email:
+          type: string
+          format: email
+        full_name:
+          type: string
+        phone:
+          type: string
+        is_verified:
+          type: boolean
+        last_login_at:
+          type: string
+          format: date-time
+
+    CustomerRelationship:
+      type: object
+      additionalProperties: false
+      required: [id, status]
+      properties:
+        id:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum: [ACTIVE, BLOCKED]
+        user_group_id:
+          type: string
+          format: uuid
+
+    CustomerCPO:
+      type: object
+      additionalProperties: false
+      required: [id, business_name, app_id, app_id_mode]
+      properties:
+        id:
+          type: string
+          format: uuid
+        business_name:
+          type: string
+        app_id:
+          type: string
+        app_id_mode:
+          $ref: "#/components/schemas/CPOAppIDMode"
+
+    CustomerWallet:
+      type: object
+      additionalProperties: false
+      required: [id, balance, currency]
+      properties:
+        id:
+          type: string
+          format: uuid
+        balance:
+          type: string
+          pattern: "^[0-9]+\\.[0-9]{2}$"
+          description: Exact decimal rendered as a string.
+        currency:
+          type: string
+          pattern: "^[A-Z]{3}$"
+
+    CustomerSession:
+      type: object
+      additionalProperties: false
+      required:
+        - id
+        - user_agent
+        - created_at
+        - last_seen_at
+        - expires_at
+        - is_current
+      properties:
+        id:
+          type: string
+          format: uuid
+        ip_address:
+          type: string
+        user_agent:
+          type: string
+          maxLength: 512
+        created_at:
+          type: string
+          format: date-time
+        last_seen_at:
+          type: string
+          format: date-time
+        expires_at:
+          type: string
+          format: date-time
+        is_current:
+          type: boolean
+
+    CustomerSessionListResponse:
+      type: object
+      additionalProperties: false
+      required: [sessions]
+      properties:
+        sessions:
+          type: array
+          items:
+            $ref: "#/components/schemas/CustomerSession"
 
     PlatformLoginRequest:
       type: object
@@ -1422,7 +2208,7 @@ components:
 
     AuthScope:
       type: string
-      enum: [PLATFORM, CPO]
+      enum: [PLATFORM, CPO, CUSTOMER]
 
     CPORole:
       type: string

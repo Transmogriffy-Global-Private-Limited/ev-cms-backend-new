@@ -2,6 +2,60 @@
 
 ## 2026-07-23
 
+### Complete app-user authentication boundary implemented and verified
+
+- Approved a distinct `CUSTOMER` session scope tied to one CPO customer.
+- Defined app password-plus-mail-OTP login, encrypted access tokens, rotating
+  refresh tokens, `me`, scoped session management, logout, and password
+  operations.
+- Defined trusted backend helpers for current user, customer, CPO, and app
+  identity.
+- Kept customer session operations isolated from administrative and other-CPO
+  sessions while retaining global password revocation semantics.
+- Added the `000005_customer_authentication` migration with a database-enforced
+  user/customer/CPO session identity and customer challenge/mail contracts.
+- Added customer login verify/resend, refresh, `me`, session
+  list/revoke/logout, password recovery/reset/resend/change, and protected app
+  middleware.
+- Added trusted `customerauth.CurrentPrincipal`, `CurrentUserID`,
+  `CurrentCustomerID`, `CurrentCPOID`, and `CurrentCPOAppID` helpers.
+- Expanded the human API contract and canonical OpenAPI to all 40 operations.
+
+Verification:
+
+- Migration down, up, and idempotent-up passed in PostgreSQL 17.
+- Customer authentication lifecycle passed for login OTP, encrypted access,
+  `me`, refresh rotation/reuse, session isolation/revocation, recovery/change,
+  and global password session revocation.
+- Documentation verification and all 40 runtime/OpenAPI operation matches
+  passed.
+- `go test ./...`, `go vet ./...`, and `git diff --check` passed.
+
+### CPO-scoped customer signup implemented and verified
+
+- Approved public email-verified signup under an active CPO app identity.
+- Kept `X-CPO-App-ID` as public routing metadata rather than authentication.
+- Defined durable pending challenges that retain only a password hash and
+  HMAC-protected OTP.
+- Defined safe global identity reuse without password or profile overwrite.
+- Defined transactional customer and zero-balance INR wallet creation without
+  a subscription dependency.
+- Kept customer login and session issuance outside this slice.
+- Added the `000004_customer_signup` up/down migration, CPO-bound challenge
+  model, public start/verify/resend handlers, mail template, audit write, and
+  transactional customer/wallet creation.
+- Added explicit human and OpenAPI contracts plus runtime/spec drift coverage.
+
+Verification:
+
+- PostgreSQL migration down, up, and idempotent-up passed.
+- PostgreSQL signup lifecycle passed for resend invalidation, replay rejection,
+  global identity creation/reuse, password/profile preservation, CPO isolation,
+  and zero-balance INR wallet creation.
+- Documentation verification and all 27 runtime/OpenAPI operation matches
+  passed.
+- `go test ./...`, `go vet ./...`, and `git diff --check` passed.
+
 ### Hostinger SMTP contract and durable documentation surfaces
 
 - Replaced the string SMTP mode with mutually exclusive

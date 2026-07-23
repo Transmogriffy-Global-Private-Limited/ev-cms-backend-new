@@ -1,0 +1,498 @@
+package customerauth
+
+import (
+	"context"
+	"crypto/hmac"
+	"crypto/sha256"
+	"database/sql"
+	"encoding/hex"
+	"errors"
+	"fmt"
+	"net/http"
+	netmail "net/mail"
+	"regexp"
+	"strings"
+	"time"
+
+	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/config"
+	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/constants"
+	cmsmail "github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/mail"
+	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/models"
+	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/security"
+	"github.com/google/uuid"
+	"github.com/shopspring/decimal"
+	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
+)
+
+const signupMailTemplate = "CUSTOMER_SIGNUP_OTP"
+
+var phonePattern = regexp.MustCompile(`^\+?[0-9]{7,15}$`)
+
+var (
+	errInvalidChallenge  = &APIError{http.StatusUnauthorized, "invalid_challenge", "The verification challenge or code is invalid."}
+	errMailUnavailable   = &APIError{http.StatusServiceUnavailable, "mail_unavailable", "Email verification is temporarily unavailable."}
+	errRateLimited       = &APIError{http.StatusTooManyRequests, "rate_limited", "Too many attempts. Try again later."}
+	errSignupUnavailable = &APIError{
+		http.StatusForbidden, "signup_unavailable",
+		"Customer signup is not available for this application.",
+	}
+	errAlreadyRegistered = &APIError{
+		http.StatusConflict, "customer_already_registered",
+		"This email is already registered with this charging provider.",
+	}
+)
+
+type Service struct {
+	database    *gorm.DB
+	config      config.Auth
+	mailEnabled bool
+	outbox      *cmsmail.Outbox
+	tokens      *security.TokenManager
+	dummyHash   string
+	now         func() time.Time
+}
+
+func NewService(
+	database *gorm.DB,
+	cfg config.Auth,
+	mailEnabled bool,
+	outbox *cmsmail.Outbox,
+	tokens *security.TokenManager,
+) (*Service, error) {
+	dummyHash, err := security.HashPassword("invalid-customer-login-password")
+	if err != nil {
+		return nil, fmt.Errorf("initialize customer password verifier: %w", err)
+	}
+	return &Service{
+		database: database, config: cfg, mailEnabled: mailEnabled, outbox: outbox,
+		tokens: tokens, dummyHash: dummyHash,
+		now: func() time.Time { return time.Now().UTC() },
+	}, nil
+}
+
+func (service *Service) Start(
+	ctx context.Context,
+	appID string,
+	request SignupRequest,
+	metadata RequestMetadata,
+) (ChallengeResponse, error) {
+	appID = strings.TrimSpace(appID)
+	email := strings.ToLower(strings.TrimSpace(request.Email))
+	fullName := strings.TrimSpace(request.FullName)
+	phone, err := normalizePhone(request.Phone)
+	if appID == "" {
+		return ChallengeResponse{}, &APIError{http.StatusBadRequest, "missing_cpo_app_id", "X-CPO-App-ID is required."}
+	}
+	if !validEmail(email) {
+		return ChallengeResponse{}, &APIError{http.StatusBadRequest, "invalid_email", "A valid email address is required."}
+	}
+	if fullName == "" || len(fullName) > 255 {
+		return ChallengeResponse{}, &APIError{http.StatusBadRequest, "invalid_full_name", "Full name must contain 1 to 255 characters."}
+	}
+	if err != nil {
+		return ChallengeResponse{}, err
+	}
+	if err := security.ValidatePassword(request.Password); err != nil {
+		return ChallengeResponse{}, &APIError{http.StatusBadRequest, "invalid_password", err.Error()}
+	}
+	if !service.mailEnabled {
+		return ChallengeResponse{}, errMailUnavailable
+	}
+	if err := service.checkRateLimit(ctx, "CUSTOMER_SIGNUP_IP", rateLimitAddress(metadata)); err != nil {
+		return ChallengeResponse{}, err
+	}
+	if err := service.checkRateLimit(ctx, "CUSTOMER_SIGNUP_EMAIL", appID+"\x00"+email); err != nil {
+		return ChallengeResponse{}, err
+	}
+	passwordHash, err := security.HashPassword(request.Password)
+	if err != nil {
+		return ChallengeResponse{}, fmt.Errorf("hash signup password: %w", err)
+	}
+
+	var response ChallengeResponse
+	err = service.database.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		cpo, err := activeCPO(tx, appID)
+		if err != nil {
+			return err
+		}
+		response, err = service.createChallenge(
+			tx, cpo.ID, email, passwordHash, fullName, phone, metadata, service.now(),
+		)
+		return err
+	})
+	return response, err
+}
+
+func (service *Service) Verify(
+	ctx context.Context,
+	appID string,
+	request ChallengeRequest,
+	metadata RequestMetadata,
+) (SignupResponse, error) {
+	if strings.TrimSpace(appID) == "" {
+		return SignupResponse{}, &APIError{http.StatusBadRequest, "missing_cpo_app_id", "X-CPO-App-ID is required."}
+	}
+	if request.ChallengeID == uuid.Nil || !validOTP(request.Code) {
+		return SignupResponse{}, errInvalidChallenge
+	}
+	if err := service.checkRateLimit(ctx, "VERIFY_CUSTOMER_SIGNUP", rateLimitAddress(metadata)); err != nil {
+		return SignupResponse{}, err
+	}
+
+	var response SignupResponse
+	var outcome error
+	err := service.database.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		challenge, err := service.lockChallenge(tx, request.ChallengeID)
+		if err != nil {
+			outcome = err
+			return nil
+		}
+		cpo, err := activeCPO(tx, strings.TrimSpace(appID))
+		if err != nil || cpo.ID != challenge.CPOID {
+			outcome = errInvalidChallenge
+			return nil
+		}
+		now := service.now()
+		if !challengeUsable(challenge, now) {
+			outcome = errInvalidChallenge
+			return nil
+		}
+		if !service.verifyOTP(challenge, request.Code) {
+			if err := recordChallengeFailure(tx, challenge, now); err != nil {
+				return err
+			}
+			outcome = errInvalidChallenge
+			return nil
+		}
+		if err := tx.Model(&models.CustomerSignupChallenge{}).
+			Where("id = ? AND consumed_at IS NULL", challenge.ID).
+			Updates(map[string]any{
+				"consumed_at":   now,
+				"password_hash": "CONSUMED",
+			}).Error; err != nil {
+			return fmt.Errorf("consume signup challenge: %w", err)
+		}
+		if err := tx.Exec(
+			"SELECT pg_advisory_xact_lock(hashtext(?))",
+			strings.ToLower(strings.TrimSpace(challenge.Email)),
+		).Error; err != nil {
+			return fmt.Errorf("lock signup identity: %w", err)
+		}
+
+		user, identityCreated, err := resolveIdentity(tx, challenge, now)
+		if err != nil {
+			outcome = err
+			return nil
+		}
+		var existing int64
+		if err := tx.Model(&models.Customer{}).
+			Where("cpo_id = ? AND user_id = ?", challenge.CPOID, user.ID).
+			Count(&existing).Error; err != nil {
+			return fmt.Errorf("check existing customer: %w", err)
+		}
+		if existing != 0 {
+			outcome = errAlreadyRegistered
+			return nil
+		}
+		customer := models.Customer{
+			ID: uuid.New(), CPOID: challenge.CPOID, UserID: user.ID,
+			Status: constants.CustomerStatusActive, CreatedAt: now, UpdatedAt: now,
+		}
+		if err := tx.Create(&customer).Error; err != nil {
+			return fmt.Errorf("create customer: %w", err)
+		}
+		wallet := models.Wallet{
+			ID: uuid.New(), CPOID: challenge.CPOID, CustomerID: customer.ID,
+			Balance: decimal.Zero, Currency: "INR", CreatedAt: now, UpdatedAt: now,
+		}
+		if err := tx.Create(&wallet).Error; err != nil {
+			return fmt.Errorf("create customer wallet: %w", err)
+		}
+		audit := models.AuditLog{
+			ID: uuid.New(), CPOID: &challenge.CPOID, UserID: &user.ID,
+			Action: "CUSTOMER_SIGNED_UP", Entity: "CUSTOMER", EntityID: &customer.ID,
+			Details: models.JSONB{"identity_created": identityCreated}, CreatedAt: now,
+		}
+		if err := tx.Create(&audit).Error; err != nil {
+			return fmt.Errorf("record customer signup audit: %w", err)
+		}
+		response = SignupResponse{
+			CustomerID: customer.ID, UserID: user.ID, CPOID: challenge.CPOID,
+			WalletID: wallet.ID, IdentityCreated: identityCreated,
+			ExistingPassword: !identityCreated,
+		}
+		return nil
+	})
+	if err != nil {
+		return SignupResponse{}, err
+	}
+	if outcome != nil {
+		return SignupResponse{}, outcome
+	}
+	return response, nil
+}
+
+func (service *Service) Resend(
+	ctx context.Context,
+	appID string,
+	request ResendRequest,
+	metadata RequestMetadata,
+) (ChallengeResponse, error) {
+	if strings.TrimSpace(appID) == "" {
+		return ChallengeResponse{}, &APIError{http.StatusBadRequest, "missing_cpo_app_id", "X-CPO-App-ID is required."}
+	}
+	if request.ChallengeID == uuid.Nil {
+		return ChallengeResponse{}, errInvalidChallenge
+	}
+	if !service.mailEnabled {
+		return ChallengeResponse{}, errMailUnavailable
+	}
+	if err := service.checkRateLimit(ctx, "RESEND_CUSTOMER_SIGNUP", rateLimitAddress(metadata)); err != nil {
+		return ChallengeResponse{}, err
+	}
+	var response ChallengeResponse
+	var outcome error
+	err := service.database.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		challenge, err := service.lockChallenge(tx, request.ChallengeID)
+		if err != nil {
+			outcome = err
+			return nil
+		}
+		cpo, err := activeCPO(tx, strings.TrimSpace(appID))
+		now := service.now()
+		if err != nil || cpo.ID != challenge.CPOID || challenge.ConsumedAt != nil ||
+			challenge.InvalidatedAt != nil || !now.Before(challenge.ExpiresAt) ||
+			now.Before(challenge.ResendAvailableAt) {
+			outcome = errInvalidChallenge
+			return nil
+		}
+		if err := tx.Model(&models.CustomerSignupChallenge{}).
+			Where("id = ?", challenge.ID).
+			Updates(map[string]any{
+				"invalidated_at": now,
+				"password_hash":  "INVALIDATED",
+			}).Error; err != nil {
+			return fmt.Errorf("invalidate signup challenge: %w", err)
+		}
+		response, err = service.createChallenge(
+			tx, challenge.CPOID, challenge.Email, challenge.PasswordHash,
+			challenge.FullName, challenge.Phone, metadata, now,
+		)
+		return err
+	})
+	if err != nil {
+		return ChallengeResponse{}, err
+	}
+	if outcome != nil {
+		return ChallengeResponse{}, outcome
+	}
+	return response, nil
+}
+
+func (service *Service) createChallenge(
+	tx *gorm.DB,
+	cpoID uuid.UUID,
+	email, passwordHash, fullName string,
+	phone *string,
+	metadata RequestMetadata,
+	now time.Time,
+) (ChallengeResponse, error) {
+	code, err := security.RandomDigits(6)
+	if err != nil {
+		return ChallengeResponse{}, err
+	}
+	challenge := models.CustomerSignupChallenge{
+		ID: uuid.New(), CPOID: cpoID, Email: email, PasswordHash: passwordHash,
+		FullName: fullName, Phone: phone, ExpiresAt: now.Add(service.config.OTPExpiry),
+		MaxAttempts: 5, ResendAvailableAt: now.Add(service.config.OTPResendCooldown),
+		RequestIP: metadata.IPAddress, UserAgent: boundedUserAgent(metadata.UserAgent),
+		CreatedAt: now,
+	}
+	challenge.CodeHash = service.otpHash(challenge.ID, code)
+	if err := tx.Create(&challenge).Error; err != nil {
+		return ChallengeResponse{}, fmt.Errorf("create customer signup challenge: %w", err)
+	}
+	if err := service.outbox.EnqueueOTP(tx, email, signupMailTemplate, cmsmail.OTPPayload{
+		RecipientName: fullName, Code: code, ExpiresAt: challenge.ExpiresAt,
+	}); err != nil {
+		return ChallengeResponse{}, err
+	}
+	return ChallengeResponse{
+		ChallengeID: challenge.ID, ExpiresAt: challenge.ExpiresAt,
+		ResendAvailableAt: challenge.ResendAvailableAt,
+	}, nil
+}
+
+func (service *Service) lockChallenge(tx *gorm.DB, id uuid.UUID) (models.CustomerSignupChallenge, error) {
+	var challenge models.CustomerSignupChallenge
+	err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&challenge, "id = ?", id).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return challenge, errInvalidChallenge
+	}
+	if err != nil {
+		return challenge, fmt.Errorf("lock customer signup challenge: %w", err)
+	}
+	return challenge, nil
+}
+
+func activeCPO(tx *gorm.DB, appID string) (models.CPO, error) {
+	var cpo models.CPO
+	err := tx.Where("app_id = ? AND status = ?", appID, constants.CPOStatusActive).First(&cpo).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return cpo, errSignupUnavailable
+	}
+	if err != nil {
+		return cpo, fmt.Errorf("resolve CPO application: %w", err)
+	}
+	return cpo, nil
+}
+
+func resolveIdentity(
+	tx *gorm.DB,
+	challenge models.CustomerSignupChallenge,
+	now time.Time,
+) (models.User, bool, error) {
+	var user models.User
+	err := tx.Where("lower(btrim(email)) = ?", challenge.Email).First(&user).Error
+	if err == nil {
+		if !user.IsActive {
+			return user, false, errSignupUnavailable
+		}
+		if !user.IsVerified {
+			if err := tx.Model(&models.User{}).Where("id = ?", user.ID).
+				Updates(map[string]any{"is_verified": true, "updated_at": now}).Error; err != nil {
+				return user, false, fmt.Errorf("verify existing identity: %w", err)
+			}
+			user.IsVerified = true
+		}
+		return user, false, nil
+	}
+	if !errors.Is(err, gorm.ErrRecordNotFound) {
+		return user, false, fmt.Errorf("find signup identity: %w", err)
+	}
+	user = models.User{
+		ID: uuid.New(), Email: challenge.Email, PasswordHash: challenge.PasswordHash,
+		FullName: challenge.FullName, Phone: challenge.Phone, IsActive: true,
+		IsVerified: true, PasswordChangedAt: now, CreatedAt: now, UpdatedAt: now,
+	}
+	if err := tx.Create(&user).Error; err != nil {
+		return user, false, fmt.Errorf("create signup identity: %w", err)
+	}
+	return user, true, nil
+}
+
+func (service *Service) otpHash(id uuid.UUID, code string) []byte {
+	mac := hmac.New(sha256.New, service.config.OTPHMACKey)
+	_, _ = mac.Write([]byte(id.String()))
+	_, _ = mac.Write([]byte{0})
+	_, _ = mac.Write([]byte("CUSTOMER_SIGNUP"))
+	_, _ = mac.Write([]byte{0})
+	_, _ = mac.Write([]byte(code))
+	return mac.Sum(nil)
+}
+
+func (service *Service) verifyOTP(challenge models.CustomerSignupChallenge, code string) bool {
+	return hmac.Equal(service.otpHash(challenge.ID, code), challenge.CodeHash)
+}
+
+func challengeUsable(challenge models.CustomerSignupChallenge, now time.Time) bool {
+	return challenge.ConsumedAt == nil && challenge.InvalidatedAt == nil &&
+		challenge.Attempts < challenge.MaxAttempts && now.Before(challenge.ExpiresAt)
+}
+
+func recordChallengeFailure(tx *gorm.DB, challenge models.CustomerSignupChallenge, now time.Time) error {
+	updates := map[string]any{"attempts": challenge.Attempts + 1}
+	if challenge.Attempts+1 >= challenge.MaxAttempts {
+		updates["invalidated_at"] = now
+		updates["password_hash"] = "INVALIDATED"
+	}
+	return tx.Model(&models.CustomerSignupChallenge{}).
+		Where("id = ?", challenge.ID).Updates(updates).Error
+}
+
+func (service *Service) checkRateLimit(ctx context.Context, action, material string) error {
+	sum := sha256.Sum256([]byte(material))
+	scopeKey := hex.EncodeToString(sum[:])
+	now := service.now()
+	var blockedUntil sql.NullTime
+	result := service.database.WithContext(ctx).Raw(`
+		INSERT INTO auth_rate_limits (
+		    scope_key, action, window_started_at, attempt_count, blocked_until, updated_at
+		) VALUES (?, ?, ?, 1, NULL, ?)
+		ON CONFLICT (scope_key, action) DO UPDATE
+		SET window_started_at = CASE WHEN auth_rate_limits.window_started_at <= ? THEN excluded.window_started_at ELSE auth_rate_limits.window_started_at END,
+		    attempt_count = CASE WHEN auth_rate_limits.window_started_at <= ? THEN 1 ELSE auth_rate_limits.attempt_count + 1 END,
+		    blocked_until = CASE
+		        WHEN auth_rate_limits.blocked_until > ? THEN auth_rate_limits.blocked_until
+		        WHEN auth_rate_limits.window_started_at > ? AND auth_rate_limits.attempt_count + 1 > ? THEN ?
+		        ELSE NULL
+		    END,
+		    updated_at = excluded.updated_at
+		RETURNING blocked_until
+	`, scopeKey, action, now, now, now.Add(-service.config.RateLimitWindow),
+		now.Add(-service.config.RateLimitWindow), now, now.Add(-service.config.RateLimitWindow),
+		service.config.RateLimitMax, now.Add(service.config.RateLimitWindow)).Scan(&blockedUntil)
+	if result.Error != nil {
+		return fmt.Errorf("apply customer signup rate limit: %w", result.Error)
+	}
+	if err := service.database.WithContext(ctx).
+		Where(
+			"updated_at < ? AND (blocked_until IS NULL OR blocked_until < ?)",
+			now.Add(-7*24*time.Hour),
+			now,
+		).
+		Delete(&models.AuthRateLimit{}).Error; err != nil {
+		return fmt.Errorf("prune customer signup rate limits: %w", err)
+	}
+	if blockedUntil.Valid && blockedUntil.Time.After(now) {
+		return errRateLimited
+	}
+	return nil
+}
+
+func validEmail(value string) bool {
+	if value == "" || len(value) > 320 {
+		return false
+	}
+	address, err := netmail.ParseAddress(value)
+	return err == nil && strings.EqualFold(address.Address, value)
+}
+
+func normalizePhone(value *string) (*string, error) {
+	if value == nil {
+		return nil, nil
+	}
+	phone := strings.TrimSpace(*value)
+	if !phonePattern.MatchString(phone) {
+		return nil, &APIError{http.StatusBadRequest, "invalid_phone", "Phone must contain 7 to 15 digits with an optional leading +."}
+	}
+	return &phone, nil
+}
+
+func validOTP(code string) bool {
+	if len(code) != 6 {
+		return false
+	}
+	for _, character := range code {
+		if character < '0' || character > '9' {
+			return false
+		}
+	}
+	return true
+}
+
+func rateLimitAddress(metadata RequestMetadata) string {
+	if metadata.IPAddress == nil {
+		return "unknown"
+	}
+	return *metadata.IPAddress
+}
+
+func boundedUserAgent(value string) string {
+	value = strings.TrimSpace(value)
+	if len(value) > 512 {
+		return value[:512]
+	}
+	return value
+}

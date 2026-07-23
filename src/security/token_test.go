@@ -91,6 +91,29 @@ func TestEncryptedAccessTokenRejectsWrongAudienceAndTampering(t *testing.T) {
 	}
 }
 
+func TestEncryptedCustomerAccessTokenContext(t *testing.T) {
+	t.Parallel()
+
+	manager := testTokenManager(t, "ev-cms-api")
+	now := time.Date(2026, 7, 23, 10, 0, 0, 0, time.UTC)
+	cpoID := uuid.New()
+	token, _, err := manager.Issue(
+		now, uuid.New(), uuid.New(), constants.AuthScopeCustomer,
+		&cpoID, nil, 1,
+	)
+	if err != nil {
+		t.Fatalf("issue customer token: %v", err)
+	}
+	claims, err := manager.Parse(token, now.Add(time.Minute))
+	if err != nil {
+		t.Fatalf("parse customer token: %v", err)
+	}
+	if claims.Scope != constants.AuthScopeCustomer ||
+		claims.CPOID == nil || *claims.CPOID != cpoID || claims.Role != nil {
+		t.Fatalf("unexpected customer claims: %#v", claims)
+	}
+}
+
 func testTokenManager(t *testing.T, audience string) *TokenManager {
 	t.Helper()
 	manager, err := NewTokenManager(

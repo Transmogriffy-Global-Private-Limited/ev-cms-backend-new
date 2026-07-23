@@ -16,6 +16,9 @@ Supported templates and payload fields:
 | `CPO_ADMIN_WELCOME` | recipient name, temporary password, CPO name, CPO ID, app ID |
 | `CPO_MEMBERSHIP_ASSIGNED` | recipient name, CPO name, CPO ID, app ID |
 | `PASSWORD_CHANGE_REMINDER` | recipient name |
+| `CUSTOMER_SIGNUP_OTP` | recipient name, code, expiry |
+| `CUSTOMER_LOGIN_OTP` | recipient name, code, expiry |
+| `CUSTOMER_PASSWORD_RESET_OTP` | recipient name, code, expiry |
 
 The JSON payload is encrypted with AES-256-GCM and authenticated using:
 

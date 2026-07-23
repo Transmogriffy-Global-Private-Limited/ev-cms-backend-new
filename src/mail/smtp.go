@@ -67,6 +67,27 @@ func (sender *SMTPSender) SendMessage(
 	subject := "Your TransEV CMS verification code"
 	body := ""
 	switch template {
+	case "CUSTOMER_LOGIN_OTP":
+		subject = "Your charging app sign-in code"
+		body = fmt.Sprintf(
+			"Use %s to sign in to your charging account. It expires at %s.",
+			payload.Code,
+			payload.ExpiresAt.UTC().Format("02 Jan 2006 15:04 UTC"),
+		)
+	case "CUSTOMER_PASSWORD_RESET_OTP":
+		subject = "Reset your charging account password"
+		body = fmt.Sprintf(
+			"Use %s to reset your charging account password. It expires at %s.",
+			payload.Code,
+			payload.ExpiresAt.UTC().Format("02 Jan 2006 15:04 UTC"),
+		)
+	case "CUSTOMER_SIGNUP_OTP":
+		subject = "Verify your charging account"
+		body = fmt.Sprintf(
+			"Use %s to verify your charging account. It expires at %s.",
+			payload.Code,
+			payload.ExpiresAt.UTC().Format("02 Jan 2006 15:04 UTC"),
+		)
 	case "PASSWORD_RESET_OTP":
 		subject = "Reset your TransEV CMS password"
 		body = fmt.Sprintf(

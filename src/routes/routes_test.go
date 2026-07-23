@@ -16,6 +16,7 @@ import (
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/auth"
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/config"
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/cpo"
+	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/customerauth"
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/integrations"
 	cmsmail "github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/mail"
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/security"
@@ -52,6 +53,12 @@ func TestCredentialRoutesAreRegisteredAndProtected(t *testing.T) {
 		{http.MethodGet, "/api/v1/cpo/integrations/RAZORPAY"},
 		{http.MethodPut, "/api/v1/cpo/integrations/RAZORPAY"},
 		{http.MethodDelete, "/api/v1/cpo/integrations/RAZORPAY"},
+		{http.MethodGet, "/api/v1/app/auth/me"},
+		{http.MethodGet, "/api/v1/app/auth/sessions"},
+		{http.MethodDelete, "/api/v1/app/auth/sessions/00000000-0000-0000-0000-000000000001"},
+		{http.MethodPost, "/api/v1/app/auth/logout"},
+		{http.MethodPost, "/api/v1/app/auth/logout-all"},
+		{http.MethodPost, "/api/v1/app/auth/password/change"},
 	}
 	for _, route := range protected {
 		recorder := httptest.NewRecorder()
@@ -78,6 +85,16 @@ func TestCredentialRoutesAreRegisteredAndProtected(t *testing.T) {
 		"/api/v1/auth/refresh",
 		"/api/v1/auth/password/forgot",
 		"/api/v1/auth/password/reset",
+		"/api/v1/app/auth/signup",
+		"/api/v1/app/auth/signup/verify",
+		"/api/v1/app/auth/signup/resend",
+		"/api/v1/app/auth/login",
+		"/api/v1/app/auth/login/verify",
+		"/api/v1/app/auth/login/resend",
+		"/api/v1/app/auth/refresh",
+		"/api/v1/app/auth/password/forgot",
+		"/api/v1/app/auth/password/reset/resend",
+		"/api/v1/app/auth/password/reset",
 	}
 	for _, path := range public {
 		recorder := httptest.NewRecorder()
@@ -142,9 +159,16 @@ func newCredentialRouteTestRouter(t *testing.T) *gin.Engine {
 	if err != nil {
 		t.Fatalf("create credential secret box: %v", err)
 	}
+	customerAuthService, err := customerauth.NewService(
+		nil, config.Auth{}, false, cmsmail.NewOutbox(mailBox), tokenManager,
+	)
+	if err != nil {
+		t.Fatalf("create customer auth service: %v", err)
+	}
 	router := New(
 		pingerStub{},
 		authService,
+		customerAuthService,
 		cpo.NewService(nil, cmsmail.NewOutbox(mailBox), true),
 		integrations.NewService(nil, credentialBox),
 	)
@@ -271,7 +295,7 @@ func TestHealthRoutes(t *testing.T) {
 
 			recorder := httptest.NewRecorder()
 			request := httptest.NewRequest(http.MethodGet, test.path, nil)
-			New(test.pinger, nil, nil, nil).ServeHTTP(recorder, request)
+			New(test.pinger, nil, nil, nil, nil).ServeHTTP(recorder, request)
 
 			if recorder.Code != test.wantStatus {
 				t.Fatalf("got status %d, want %d", recorder.Code, test.wantStatus)

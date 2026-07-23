@@ -15,6 +15,7 @@ import (
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/auth"
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/config"
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/cpo"
+	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/customerauth"
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/integrations"
 	cmsmail "github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/mail"
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/routes"
@@ -89,6 +90,12 @@ func run() error {
 		return err
 	}
 	cpoService := cpo.NewService(gormDB, outbox, cfg.Mail.Enabled)
+	customerAuthService, err := customerauth.NewService(
+		gormDB, cfg.Auth, cfg.Mail.Enabled, outbox, tokenManager,
+	)
+	if err != nil {
+		return err
+	}
 	integrationService := integrations.NewService(gormDB, credentialSecretBox)
 
 	if cfg.Mail.Enabled {
@@ -107,8 +114,14 @@ func run() error {
 	}
 
 	server := &http.Server{
-		Addr:              cfg.HTTPAddress,
-		Handler:           routes.New(sqlDB, authService, cpoService, integrationService),
+		Addr: cfg.HTTPAddress,
+		Handler: routes.New(
+			sqlDB,
+			authService,
+			customerAuthService,
+			cpoService,
+			integrationService,
+		),
 		ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout:       15 * time.Second,
 		WriteTimeout:      15 * time.Second,

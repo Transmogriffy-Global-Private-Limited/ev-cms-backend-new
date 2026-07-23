@@ -182,3 +182,57 @@ func TestCPOProvisioningMigrationContainsAppIdentityAndOnboarding(t *testing.T) 
 		}
 	}
 }
+
+func TestCustomerSignupMigrationContainsDurableChallenge(t *testing.T) {
+	t.Parallel()
+
+	upBody, err := migrationFiles.ReadFile("migrations/000004_customer_signup.up.sql")
+	if err != nil {
+		t.Fatalf("read customer signup up migration: %v", err)
+	}
+	downBody, err := migrationFiles.ReadFile("migrations/000004_customer_signup.down.sql")
+	if err != nil {
+		t.Fatalf("read customer signup down migration: %v", err)
+	}
+	upSQL := string(upBody)
+	downSQL := string(downBody)
+	if !strings.Contains(upSQL, "CREATE TABLE customer_signup_challenges") {
+		t.Error("up migration does not create customer_signup_challenges")
+	}
+	if !strings.Contains(downSQL, "DROP TABLE IF EXISTS customer_signup_challenges") {
+		t.Error("down migration does not drop customer_signup_challenges")
+	}
+	if !strings.Contains(upSQL, "CUSTOMER_SIGNUP_OTP") {
+		t.Error("up migration does not allow CUSTOMER_SIGNUP_OTP")
+	}
+}
+
+func TestCustomerAuthenticationMigrationContainsSessionScope(t *testing.T) {
+	t.Parallel()
+
+	upBody, err := migrationFiles.ReadFile("migrations/000005_customer_authentication.up.sql")
+	if err != nil {
+		t.Fatalf("read customer authentication up migration: %v", err)
+	}
+	downBody, err := migrationFiles.ReadFile("migrations/000005_customer_authentication.down.sql")
+	if err != nil {
+		t.Fatalf("read customer authentication down migration: %v", err)
+	}
+	upSQL := string(upBody)
+	downSQL := string(downBody)
+	for _, required := range []string{
+		"ADD COLUMN customer_id",
+		"scope = 'CUSTOMER'",
+		"CUSTOMER_LOGIN_2FA",
+		"CUSTOMER_PASSWORD_RESET",
+		"CUSTOMER_LOGIN_OTP",
+		"CUSTOMER_PASSWORD_RESET_OTP",
+	} {
+		if !strings.Contains(upSQL, required) {
+			t.Errorf("customer authentication up migration missing %q", required)
+		}
+	}
+	if !strings.Contains(downSQL, "DROP COLUMN customer_id") {
+		t.Error("customer authentication down migration does not remove customer_id")
+	}
+}

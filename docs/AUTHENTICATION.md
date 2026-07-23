@@ -18,8 +18,12 @@ Every administrative login requires password plus email OTP. A client cannot
 choose tenant authority through a header: protected code reads user ID, session
 ID, CPO ID, and role from the validated principal.
 
-Customer/app-user authentication, public signup, staff invitations, social
-login, SMS, TOTP, and passkeys are not part of this surface.
+Customer/app-user authentication is a separate `CUSTOMER` session plane under
+`/api/v1/app/auth`. It includes email-verified signup, password-plus-mail-OTP
+login, encrypted access tokens, rotating refresh tokens, `me`, customer-scoped
+session management, logout, and password recovery/change. Customer tokens
+cannot authorize the administrative routes documented below. Staff
+invitations, social login, SMS, TOTP, and passkeys are not implemented.
 
 ## Required Configuration
 

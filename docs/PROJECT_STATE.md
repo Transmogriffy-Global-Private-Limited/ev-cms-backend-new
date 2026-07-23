@@ -42,11 +42,23 @@ provides:
   startup rejection of plaintext or ambiguous SMTP modes;
 - registered educational, integration, API, internal-message, and
   configuration documentation under `docs/`.
-- canonical OpenAPI 3.1 for all 24 implemented business/health operations;
+- canonical OpenAPI 3.1 for all 40 implemented business/health operations;
 - embedded same-origin Swagger UI at `/docs/` and raw OpenAPI at
   `/openapi.yaml`;
 - bidirectional verification that Gin and OpenAPI expose the same operation
-  set.
+  set;
+- public CPO-scoped customer signup start, verify, and resend APIs;
+- durable signup challenges with hashed pending passwords and HMAC-protected
+  OTPs;
+- transactional global identity creation/reuse, tenant customer creation, and
+  zero-balance INR wallet creation;
+- a separate `CUSTOMER` session scope bound to one global user, customer, and
+  CPO without a staff role;
+- customer password-plus-mail-OTP login, signed/encrypted access tokens, and
+  rotating/reuse-detecting refresh tokens;
+- app-user `me`, customer-scoped session listing/revocation/logout, and global
+  password recovery/change;
+- trusted backend current-principal, user, customer, CPO, and app-ID helpers.
 
 No inventory API, HAL integration, charging workflow, billing orchestration,
 payment workflow, or reporting behavior is implemented yet.
@@ -74,7 +86,7 @@ payment workflow, or reporting behavior is implemented yet.
   construction tests passed without exposing a real mailbox password.
 - The required documentation, administrative route coverage, and removed SMTP
   configuration residue checks passed.
-- OpenAPI parsing, semantic validation, all 24 Gin/OpenAPI operation matches,
+- OpenAPI parsing, semantic validation, all 40 Gin/OpenAPI operation matches,
   and docs/raw-spec HTTP smoke tests passed.
 - Razorpay secrets remained encrypted in storage, resolved only internally for
   the correct CPO, and were unavailable to a platform principal.
@@ -86,6 +98,18 @@ payment workflow, or reporting behavior is implemented yet.
   concurrent and sequential identity reuse, repeated-login reminders,
   business-API password gate, password change, activation, dummy-to-live
   app-ID rotation, and suspension passed in PostgreSQL lifecycle tests.
+- The customer-signup migration rolled down, up, and idempotently up in
+  PostgreSQL 17.
+- Customer signup resend rotation, old/replayed challenge rejection, new
+  identity/password creation, cross-CPO identity reuse without credential or
+  profile overwrite, and zero-balance INR wallet creation passed in a
+  PostgreSQL lifecycle test.
+- The customer-authentication migration rolled down, up, and idempotently up
+  in PostgreSQL 17.
+- Customer login OTP, encrypted access validation, `me`, refresh rotation and
+  reuse revocation, customer-scoped session listing/revocation/logout,
+  password recovery, password change, and global session revocation passed in
+  PostgreSQL lifecycle tests.
 
 ## Current Access Model
 
@@ -114,8 +138,8 @@ repository. The integration contract has not been implemented yet.
 ## Known Limitations
 
 - Domain tables have no repositories or handlers yet.
-- Public customer login, signup, CPO staff invitation after the first admin,
-  and email-change workflows are not implemented.
+- CPO staff invitation after the first admin and customer email/profile-change
+  workflows are not implemented.
 - Automatic encryption-key rotation is not implemented; data must be
   re-encrypted before an old key is removed.
 - SMTP delivery logic is implemented and worker-tested, but real Hostinger

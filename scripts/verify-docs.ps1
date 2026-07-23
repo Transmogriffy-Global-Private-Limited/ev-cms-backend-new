@@ -14,6 +14,7 @@ $requiredFiles = @(
     'docs/CPO_ADMINISTRATION.md',
     'docs/guides/concepts/identity-tenancy-and-application-identity.md',
     'docs/guides/workflows/cpo-onboarding.md',
+    'docs/guides/workflows/app-user-authentication.md',
     'docs/guides/troubleshooting/authentication-and-mail.md',
     'docs/integrations/smtp-mail-delivery.md',
     'docs/integrations/razorpay-credential-storage.md',
@@ -23,7 +24,11 @@ $requiredFiles = @(
     'docs/contracts/configuration.md',
     'docs/contracts/openapi/openapi.yaml',
     'docs/decisions/0004-openapi-and-embedded-api-explorer.md',
-    'docs/plans/api-documentation-and-openapi.md'
+    'docs/decisions/0005-cpo-scoped-customer-signup.md',
+    'docs/decisions/0006-customer-session-plane.md',
+    'docs/plans/api-documentation-and-openapi.md',
+    'docs/plans/customer-signup.md',
+    'docs/plans/customer-authentication.md'
 )
 
 $missing = @(
@@ -42,6 +47,9 @@ $routeContract = Get-Content -Raw -LiteralPath (
 )
 $requiredRoutes = @(
     '/api/v1/auth/login',
+    '/api/v1/app/auth/signup',
+    '/api/v1/app/auth/login',
+    '/api/v1/app/auth/me',
     '/api/v1/auth/password/change',
     '/api/v1/platform/cpos',
     '/api/v1/cpo/integrations',

@@ -158,5 +158,9 @@ func (manager *TokenManager) Parse(raw string, now time.Time) (AccessClaims, err
 		(claims.CPOID == nil || *claims.CPOID == uuid.Nil || claims.Role == nil || !claims.Role.Valid()) {
 		return AccessClaims{}, errors.New("invalid CPO token context")
 	}
+	if claims.Scope == constants.AuthScopeCustomer &&
+		(claims.CPOID == nil || *claims.CPOID == uuid.Nil || claims.Role != nil) {
+		return AccessClaims{}, errors.New("invalid customer token context")
+	}
 	return claims, nil
 }

@@ -397,11 +397,87 @@ Verification:
 - `go vet ./...`
 - `git diff --check`
 
+### Feature: CPO-scoped customer signup
+
+Status: Verified
+
+Phase: Phase 4: Customers, access tokens, and tariffs
+
+Depends on:
+
+- Authentication and credential boundary
+- Subscription-independent CPO provisioning and app identity
+
+Objective:
+
+Allow a customer to verify their email and create a tenant-scoped customer
+account and wallet through an active CPO application.
+
+Scope:
+
+- Public start, verify, and resend endpoints
+- Active-CPO resolution through current `X-CPO-App-ID`
+- Durable OTP and encrypted mail delivery
+- Safe global identity creation or reuse
+- Transactional customer and INR wallet creation
+
+Non-goals:
+
+- Customer login or session issuance
+- Subscription checks
+- Social login, SMS OTP, or app attestation
+
+Acceptance criteria:
+
+- Verification creates exactly one tenant customer and wallet.
+- Existing identities are attached without credential or profile overwrite.
+- OTP, rate-limit, replay, concurrency, CPO lifecycle, and tenant boundaries
+  are enforced durably.
+
+Detailed plan:
+
+- `docs/plans/customer-signup.md`
+
+### Feature: Complete app-user authentication boundary
+
+Status: Verified
+
+Phase: Phase 4: Customers, access tokens, and tariffs
+
+Depends on:
+
+- CPO-scoped customer signup
+- Authentication and credential boundary
+
+Objective:
+
+Give each active CPO customer a complete, isolated app session lifecycle and
+trusted backend principal helpers.
+
+Scope:
+
+- Password plus mail-OTP login
+- Signed/encrypted access tokens and rotating refresh tokens
+- Customer `me`, session listing/revocation, and logout
+- Customer-scoped password recovery and authenticated password change
+- Trusted user/customer/CPO/app-ID handler helpers
+
+Non-goals:
+
+- Social login, SMS, TOTP, passkeys, or device attestation
+- Customer profile editing
+- Staff/customer impersonation
+
+Detailed plan:
+
+- `docs/plans/customer-authentication.md`
+
 ## Current Execution
 
 Current phase:
 
-- Phase 2: Authentication and CPO administration
+- Phase 2: Authentication and CPO administration, with the approved customer
+  signup slice from Phase 4 completed early
 
 Active feature:
 
@@ -413,8 +489,7 @@ Current implementation slice:
 
 Last completed slice:
 
-- Complete granular developer documentation, OpenAPI 3.1, embedded Swagger UI,
-  and runtime-contract drift verification
+- Complete app-user authentication and backend customer-principal helpers
 
 Next expected slice:
 
@@ -453,14 +528,21 @@ Blocked by:
 
 Run focused unit tests first, then `go test ./...`, `go vet ./...`,
 `git diff --check`, and `git status --short`. Database integration tests will be
-run with an explicitly selected disposable `TEST_DATABASE_URL`. All three
+run with an explicitly selected disposable `TEST_DATABASE_URL`. All five
 migrations have been verified up, idempotently up again, and down against
 disposable local PostgreSQL 17 databases. The credential boundary has
 PostgreSQL integration coverage for bootstrap, platform/CPO login, refresh
 reuse, recovery, mail outbox, and tenant integration secrets. The third
 migration has been verified down, up, and idempotently up; its PostgreSQL
 lifecycle test covers first-admin onboarding, password enforcement, activation,
-app-ID rotation, identity reuse, and suspension.
+app-ID rotation, identity reuse, and suspension. The fourth migration has been
+verified down, up, and idempotently up; its lifecycle test covers customer
+signup resend, replay rejection, identity creation/reuse, tenant isolation, and
+wallet creation.
+
+The fifth migration has been verified down, up, and idempotently up; its
+lifecycle test covers customer login, access/refresh validation, `me`, scoped
+session management, password recovery/change, and revocation.
 
 ## Completion Criteria
 

@@ -30,6 +30,7 @@ type AuthSession struct {
 	UserID       uuid.UUID           `gorm:"type:uuid;not null;index" json:"user_id"`
 	Scope        constants.AuthScope `gorm:"type:varchar(20);not null" json:"scope"`
 	CPOID        *uuid.UUID          `gorm:"type:uuid;index" json:"cpo_id,omitempty"`
+	CustomerID   *uuid.UUID          `gorm:"type:uuid;index" json:"customer_id,omitempty"`
 	Role         *constants.CPORole  `gorm:"type:varchar(20)" json:"role,omitempty"`
 	TokenVersion int                 `gorm:"not null;default:1" json:"-"`
 	IPAddress    *string             `gorm:"type:inet" json:"ip_address,omitempty"`
@@ -80,6 +81,25 @@ type AuthRateLimit struct {
 	AttemptCount    int        `gorm:"not null;default:0" json:"-"`
 	BlockedUntil    *time.Time `json:"-"`
 	UpdatedAt       time.Time  `gorm:"not null" json:"-"`
+}
+
+type CustomerSignupChallenge struct {
+	ID                uuid.UUID `gorm:"type:uuid;primaryKey;default:gen_random_uuid()" json:"id"`
+	CPOID             uuid.UUID `gorm:"type:uuid;not null;index" json:"cpo_id"`
+	Email             string    `gorm:"type:varchar(320);not null" json:"email"`
+	PasswordHash      string    `gorm:"type:varchar(255);not null" json:"-"`
+	FullName          string    `gorm:"type:varchar(255);not null" json:"full_name"`
+	Phone             *string   `gorm:"type:varchar(32)" json:"phone,omitempty"`
+	CodeHash          []byte    `gorm:"type:bytea;not null" json:"-"`
+	ExpiresAt         time.Time `gorm:"not null;index" json:"expires_at"`
+	ConsumedAt        *time.Time
+	InvalidatedAt     *time.Time
+	Attempts          int       `gorm:"not null;default:0"`
+	MaxAttempts       int       `gorm:"not null"`
+	ResendAvailableAt time.Time `gorm:"not null" json:"resend_available_at"`
+	RequestIP         *string   `gorm:"type:inet" json:"-"`
+	UserAgent         string    `gorm:"type:varchar(512);not null;default:''" json:"-"`
+	CreatedAt         time.Time `gorm:"not null" json:"created_at"`
 }
 
 type CPOIntegration struct {

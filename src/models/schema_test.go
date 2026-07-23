@@ -67,6 +67,7 @@ func TestGORMModelsParse(t *testing.T) {
 		&AuthRefreshToken{},
 		&MailOutbox{},
 		&AuthRateLimit{},
+		&CustomerSignupChallenge{},
 		&CPOIntegration{},
 	}
 

@@ -155,7 +155,7 @@ return `cpo_app_id_mismatch`.
 
 Health, `/api/v1/auth/*`, and `/api/v1/platform/*` are exempt to prevent login,
 recovery, password-change, session-control, and app-ID-rotation deadlocks.
-Future customer/app-user and independently authenticated callback surfaces
+Customer/app-user and future independently authenticated callback surfaces
 must apply the equivalent boundary appropriate to their own authentication
 model.
 

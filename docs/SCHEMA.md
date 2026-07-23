@@ -13,6 +13,10 @@ Migration files:
 - `db/migrations/000002_auth_credentials.down.sql`
 - `db/migrations/000003_cpo_provisioning.up.sql`
 - `db/migrations/000003_cpo_provisioning.down.sql`
+- `db/migrations/000004_customer_signup.up.sql`
+- `db/migrations/000004_customer_signup.down.sql`
+- `db/migrations/000005_customer_authentication.up.sql`
+- `db/migrations/000005_customer_authentication.down.sql`
 
 ## Supplied Model Mapping
 
@@ -95,3 +99,26 @@ Existing CPOs are backfilled with unique dummy IDs. Dummy IDs use the reserved
 `cpo_dummy_` prefix. Live IDs cannot use that prefix. CPO lifecycle remains
 independent from app-ID mode, and no subscription table or subscription
 foreign key is introduced.
+
+## Customer Signup
+
+The fourth migration adds `customer_signup_challenges`. Pending registrations
+are CPO-scoped and contain an Argon2id password hash plus HMAC-protected OTP,
+never plaintext credentials. Successful verification creates or reuses
+`users`, then creates the tenant `customers` relationship and its `wallet` in
+one transaction. The migration also admits `CUSTOMER_SIGNUP_OTP` in the
+encrypted mail outbox.
+
+## Customer Authentication
+
+The fifth migration adds a nullable `auth_sessions.customer_id`, enforced
+against the session CPO through a composite foreign key. The session context
+constraint permits exactly:
+
+- `PLATFORM` with no CPO, role, or customer;
+- `CPO` with a CPO and fixed staff role but no customer;
+- `CUSTOMER` with a CPO and customer but no staff role.
+
+It also admits CPO-bound customer login/password-reset challenges and their
+encrypted mail templates. The same refresh-token lineage remains shared while
+customer authorization is revalidated through the tenant customer record.

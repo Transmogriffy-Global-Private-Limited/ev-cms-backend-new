@@ -53,7 +53,9 @@ Health endpoints:
 
 Authentication and tenant integration endpoints are documented in
 `docs/AUTHENTICATION.md`. Platform CPO management is documented in
-`docs/CPO_ADMINISTRATION.md`.
+`docs/CPO_ADMINISTRATION.md`. Public CPO-scoped customer signup is documented
+with the complete app-user login, session, `me`, and password surface in the
+HTTP contract and OpenAPI explorer.
 
 Interactive API documentation is served from the same loopback listener:
 

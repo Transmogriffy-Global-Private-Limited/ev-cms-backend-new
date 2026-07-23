@@ -1,8 +1,9 @@
 # Administrative HTTP API: Complete Developer Contract
 
 This is the human-readable contract for every currently implemented HTTP
-endpoint. It is intended to be sufficient for frontend, QA, mobile, and backend
-integration without reading Go source.
+endpoint, including public customer signup and administrative APIs. It is
+intended to be sufficient for frontend, QA, mobile, and backend integration
+without reading Go source.
 
 The machine-readable equivalent is `../openapi/openapi.yaml`. While the service
 is running:
@@ -151,9 +152,399 @@ Authentication: none. `/docs` redirects temporarily to `/docs/`. The latter
 serves embedded Swagger UI assets and loads `/openapi.yaml`. No public CDN is
 required.
 
-## 4. Authentication Workflow
+## 4. Customer/App-User Authentication
 
-### 4.1 `POST /api/v1/auth/login`
+These endpoints are public and do not accept a bearer token. Every request
+requires:
+
+```http
+X-CPO-App-ID: <current-dummy-or-live-app-id>
+```
+
+The header resolves the intended active CPO. It may be hardcoded into that
+CPO's frontend because it is not a secret, but it does not authenticate a
+person or protect against abuse. The server uses durable source/email rate
+limits independently.
+
+Signup has no subscription check. Customer authentication uses a distinct
+`CUSTOMER` session scope; customer tokens are not CPO-staff or platform tokens.
+
+### 4.1 `POST /api/v1/app/auth/signup`
+
+Request:
+
+```json
+{
+  "email": "driver@example.com",
+  "password": "<10-to-128-character-password>",
+  "full_name": "Example Driver",
+  "phone": "+919876543210"
+}
+```
+
+Validation and normalization:
+
+- email is trimmed, lowercased, syntactically valid, and at most 320
+  characters;
+- password is 10 to 128 characters;
+- full name is trimmed and contains 1 to 255 characters;
+- phone is optional; when supplied it is 7 to 15 digits with an optional
+  leading `+`;
+- unknown fields, multiple JSON objects, and bodies over 32 KiB are rejected;
+- the app ID must currently belong to an `ACTIVE` CPO.
+
+`202 Accepted`:
+
+```json
+{
+  "challenge_id": "5cef4c95-a1da-448e-bd7c-19d570cd4497",
+  "expires_at": "2026-07-23T12:10:00Z",
+  "resend_available_at": "2026-07-23T12:01:00Z"
+}
+```
+
+The transaction stores the proposed profile and an Argon2id password hash,
+never the plaintext password, and queues an encrypted `CUSTOMER_SIGNUP_OTP`
+mail job. It deliberately does not create a `users` row yet. Consumed,
+attempt-exhausted, and resend-invalidated challenges scrub their obsolete
+password-hash copy.
+
+Errors:
+
+- `400 invalid_request`, `missing_cpo_app_id`, `invalid_email`,
+  `invalid_password`, `invalid_full_name`, or `invalid_phone`;
+- `403 signup_unavailable` for an unknown, stale, pending, or suspended CPO app
+  identity;
+- `429 rate_limited`;
+- `503 mail_unavailable`;
+- `500 internal_error`.
+
+### 4.2 `POST /api/v1/app/auth/signup/verify`
+
+Request:
+
+```json
+{
+  "challenge_id": "5cef4c95-a1da-448e-bd7c-19d570cd4497",
+  "code": "123456"
+}
+```
+
+`201 Created`:
+
+```json
+{
+  "customer_id": "e8a751ff-d7d4-4ce8-ab30-cdd8c8111363",
+  "user_id": "cf3eb59a-e766-47e7-98d6-af27b49bf129",
+  "cpo_id": "c821a013-5041-42f7-80c8-aa153cf9d455",
+  "wallet_id": "5bd431a7-63f0-4df7-a2f5-1b55112df560",
+  "identity_created": true,
+  "use_existing_credentials": false
+}
+```
+
+The server locks the challenge, revalidates the same active CPO/app ID, checks
+the single-use OTP and attempt/expiry limits, and serializes work for the
+normalized email. One transaction then:
+
+1. creates an active, verified global identity from the pending profile and
+   password hash; or reuses an existing active global identity;
+2. creates the CPO-scoped `customers` relationship;
+3. creates its zero-balance `INR` wallet;
+4. consumes the challenge;
+5. writes a tenant audit event.
+
+For an existing identity, the submitted password, full name, and phone are
+discarded. The existing password/profile remain authoritative, and the
+response has `identity_created:false` and
+`use_existing_credentials:true`.
+
+Errors:
+
+- `400 invalid_request` or `missing_cpo_app_id`;
+- `401 invalid_challenge` for bad, expired, consumed, invalidated, exhausted,
+  or cross-CPO challenge/code;
+- `403 signup_unavailable` if the CPO or an existing identity is inactive;
+- `409 customer_already_registered` after verified ownership when the identity
+  is already this CPO's customer;
+- `429 rate_limited`;
+- `500 internal_error`.
+
+### 4.3 `POST /api/v1/app/auth/signup/resend`
+
+Request:
+
+```json
+{
+  "challenge_id": "5cef4c95-a1da-448e-bd7c-19d570cd4497"
+}
+```
+
+After the reported cooldown, `202 Accepted` invalidates the prior challenge and
+returns a replacement `ChallengeResponse`. The replacement keeps the same
+pending profile and password hash, generates a new OTP, and revalidates the
+active CPO/app ID. The old OTP is unusable.
+
+Errors: `400 invalid_request` or `missing_cpo_app_id`,
+`401 invalid_challenge`, `429 rate_limited`, `503 mail_unavailable`, or
+`500 internal_error`.
+
+### 4.4 `POST /api/v1/app/auth/login`
+
+Request:
+
+```json
+{
+  "email": "driver@example.com",
+  "password": "<password>"
+}
+```
+
+Requires the current `X-CPO-App-ID`. The server resolves that active CPO,
+verifies the global identity password and lockout state, and requires an
+`ACTIVE` customer relationship in that same CPO. Invalid email, password,
+identity state, lockout, customer status, and missing customer relationship
+share `401 invalid_credentials`.
+
+`202 Accepted` returns `ChallengeResponse` and queues encrypted
+`CUSTOMER_LOGIN_OTP` mail. No session exists yet.
+
+Other errors: `400 invalid_request` or `missing_cpo_app_id`,
+`403 signup_unavailable` for an unknown/inactive CPO app ID,
+`429 rate_limited`, `503 mail_unavailable`, or `500 internal_error`.
+
+### 4.5 `POST /api/v1/app/auth/login/verify`
+
+Request:
+
+```json
+{
+  "challenge_id": "5cef4c95-a1da-448e-bd7c-19d570cd4497",
+  "code": "123456"
+}
+```
+
+The challenge, global identity, active customer relationship, active CPO, and
+same current app ID are revalidated transactionally. Success consumes the OTP,
+creates a durable `CUSTOMER` session tied to `customer_id` and `cpo_id`, stores
+one hashed refresh token, and returns:
+
+```json
+{
+  "access_token": "<signed-and-encrypted-JWT>",
+  "access_token_expires_at": "2026-07-23T12:15:00Z",
+  "refresh_token": "<opaque-one-time-token>",
+  "session_expires_at": "2026-08-22T12:00:00Z",
+  "token_type": "Bearer",
+  "customer_id": "e8a751ff-d7d4-4ce8-ab30-cdd8c8111363",
+  "cpo_id": "c821a013-5041-42f7-80c8-aa153cf9d455",
+  "cpo_app_id": "cpo_dummy_735f36a898b84ce68a350db38c90bf9b"
+}
+```
+
+The JWT contains `CUSTOMER` scope and CPO context but not a staff role.
+Customer authority remains the durable session/customer record.
+
+Errors: `400 invalid_request` or `missing_cpo_app_id`,
+`401 invalid_challenge`, `429 rate_limited`, or `500 internal_error`.
+
+### 4.6 `POST /api/v1/app/auth/login/resend`
+
+Body: `{"challenge_id":"<uuid>"}`.
+
+After the cooldown, `202 Accepted` invalidates the old login challenge and
+returns a replacement `ChallengeResponse`. It revalidates the identity,
+customer, CPO, and app ID. The old OTP cannot be used.
+
+Errors: `400 invalid_request` or `missing_cpo_app_id`,
+`401 invalid_challenge`, `429 rate_limited`, `503 mail_unavailable`, or
+`500 internal_error`.
+
+### 4.7 `POST /api/v1/app/auth/refresh`
+
+Request:
+
+```json
+{"refresh_token":"<current-opaque-refresh-token>"}
+```
+
+Requires the CPO app ID but no bearer token. Success returns the same customer
+token response as login verification and atomically replaces the refresh
+token. The client must discard the submitted token. Reuse of a consumed token
+revokes that entire customer session.
+
+Every refresh revalidates the active user, customer relationship, CPO,
+customer-bound session, and current app ID.
+
+Errors: `400 invalid_request` or `missing_cpo_app_id`,
+`401 invalid_refresh_token`, `429 rate_limited`, or `500 internal_error`.
+
+### 4.8 `GET /api/v1/app/auth/me`
+
+Requires bearer customer access token plus matching `X-CPO-App-ID`.
+
+`200 OK`:
+
+```json
+{
+  "user": {
+    "id": "cf3eb59a-e766-47e7-98d6-af27b49bf129",
+    "email": "driver@example.com",
+    "full_name": "Example Driver",
+    "phone": "+919876543210",
+    "is_verified": true,
+    "last_login_at": "2026-07-23T12:00:00Z"
+  },
+  "customer": {
+    "id": "e8a751ff-d7d4-4ce8-ab30-cdd8c8111363",
+    "status": "ACTIVE",
+    "user_group_id": "b82f047f-8ab6-4fbd-a7ba-b646f434eb01"
+  },
+  "cpo": {
+    "id": "c821a013-5041-42f7-80c8-aa153cf9d455",
+    "business_name": "Example Charging Private Limited",
+    "app_id": "cpo_dummy_735f36a898b84ce68a350db38c90bf9b",
+    "app_id_mode": "DUMMY"
+  },
+  "wallet": {
+    "id": "5bd431a7-63f0-4df7-a2f5-1b55112df560",
+    "balance": "0.00",
+    "currency": "INR"
+  }
+}
+```
+
+Optional `phone`, `last_login_at`, and `user_group_id` are omitted when absent.
+Money is an exact decimal string, not a JSON float.
+
+Errors: `400 missing_cpo_app_id`, `401 unauthorized`,
+`403 cpo_app_id_mismatch`, or `500 internal_error`.
+
+### 4.9 Backend current-customer helpers
+
+After `service.Authenticate()` and `customerauth.RequireAppID()` succeed,
+backend app handlers use:
+
+```go
+principal, ok := customerauth.CurrentPrincipal(ctx)
+userID, ok := customerauth.CurrentUserID(ctx)
+customerID, ok := customerauth.CurrentCustomerID(ctx)
+cpoID, ok := customerauth.CurrentCPOID(ctx)
+appID, ok := customerauth.CurrentCPOAppID(ctx)
+```
+
+`Principal` already contains the trusted user, customer, CPO, wallet, and
+session context used by the `me` response. These values come from the encrypted
+token plus authoritative PostgreSQL revalidation. An app handler must not take
+`customer_id` or `cpo_id` from its request body to establish ownership.
+
+### 4.10 `GET /api/v1/app/auth/sessions`
+
+Requires customer bearer token and matching app ID. Returns only active,
+unexpired `CUSTOMER` sessions for the current `customer_id` in the current CPO:
+
+```json
+{
+  "sessions": [
+    {
+      "id": "5cef4c95-a1da-448e-bd7c-19d570cd4497",
+      "ip_address": "127.0.0.1",
+      "user_agent": "Example Mobile App",
+      "created_at": "2026-07-23T12:00:00Z",
+      "last_seen_at": "2026-07-23T12:05:00Z",
+      "expires_at": "2026-08-22T12:00:00Z",
+      "is_current": true
+    }
+  ]
+}
+```
+
+It does not expose platform, CPO-staff, or another CPO's customer sessions.
+
+### 4.11 `DELETE /api/v1/app/auth/sessions/{session_id}`
+
+Requires customer bearer token and matching app ID. `204 No Content` revokes
+the selected session and unused refresh token only when it belongs to this
+customer/CPO. The current session may revoke itself.
+
+Errors: `400 invalid_session_id` or `missing_cpo_app_id`,
+`401 unauthorized`, `403 cpo_app_id_mismatch`, `404 session_not_found`, or
+`500 internal_error`.
+
+### 4.12 `POST /api/v1/app/auth/logout`
+
+Requires customer bearer token and matching app ID.
+
+`204 No Content` revokes the current session and unused refresh token.
+
+### 4.13 `POST /api/v1/app/auth/logout-all`
+
+Requires customer bearer token and matching app ID.
+
+`204 No Content` revokes every customer session for this exact customer/CPO.
+It deliberately does not revoke platform sessions, CPO-staff sessions, or
+customer sessions for another CPO.
+
+### 4.14 `POST /api/v1/app/auth/password/forgot`
+
+Request: `{"email":"driver@example.com"}` plus the app-ID header.
+
+For a valid active CPO, malformed, unknown, non-customer, and eligible emails
+all return the same `202 Accepted` message:
+
+```json
+{
+  "message": "If the customer account is eligible, a password reset code will be sent."
+}
+```
+
+Only an active customer receives an encrypted
+`CUSTOMER_PASSWORD_RESET_OTP` job. Account lockout does not prevent recovery.
+
+### 4.15 Customer password-reset resend and completion
+
+`POST /api/v1/app/auth/password/reset/resend`
+
+```json
+{"challenge_id":"<uuid>"}
+```
+
+Returns a replacement `ChallengeResponse` after cooldown.
+
+`POST /api/v1/app/auth/password/reset`
+
+```json
+{
+  "challenge_id": "<uuid>",
+  "code": "123456",
+  "new_password": "<10-to-128-character-password>"
+}
+```
+
+Success returns `200 OK`, replaces the global identity password, clears
+lockout/temporary-password state, and revokes every platform, CPO-staff, and
+customer session for that global identity.
+
+### 4.16 `POST /api/v1/app/auth/password/change`
+
+Requires customer bearer token and matching app ID.
+
+```json
+{
+  "current_password": "<current-password>",
+  "new_password": "<10-to-128-character-password>"
+}
+```
+
+Success returns `200 OK` and revokes every session for the global identity,
+including the current customer session. Errors include
+`400 invalid_password`, `400 password_reused`,
+`401 invalid_current_password`, normal bearer/app-ID errors, and
+`500 internal_error`.
+
+## 5. Authentication Workflow
+
+### 5.1 `POST /api/v1/auth/login`
 
 Purpose: validate a password and selected authority, then queue an email OTP.
 
@@ -222,7 +613,7 @@ Errors:
 Do not use the HTTP response to infer that SMTP has delivered the OTP. It means
 the challenge and job were committed.
 
-### 4.2 `POST /api/v1/auth/2fa/verify`
+### 5.2 `POST /api/v1/auth/2fa/verify`
 
 Purpose: consume the login challenge and create a durable session.
 
@@ -288,7 +679,7 @@ Errors: `400 invalid_request`, `401 invalid_challenge`,
 The refresh token is shown only in this response. Replace the stored value on
 every successful refresh.
 
-### 4.3 `POST /api/v1/auth/2fa/resend`
+### 5.3 `POST /api/v1/auth/2fa/resend`
 
 Purpose: invalidate an eligible login challenge and queue a replacement.
 
@@ -314,7 +705,7 @@ become unusable.
 Errors: `400 invalid_request`, `401 invalid_challenge`,
 `429 rate_limited`, `503 mail_unavailable`, or `500 internal_error`.
 
-### 4.4 `POST /api/v1/auth/refresh`
+### 5.4 `POST /api/v1/auth/refresh`
 
 Purpose: rotate the opaque refresh token and issue a fresh access token.
 
@@ -343,9 +734,9 @@ and returns `401 invalid_refresh_token`.
 Other errors: `400 invalid_request`, `429 rate_limited`, or
 `500 internal_error`.
 
-## 5. Password Operations
+## 6. Password Operations
 
-### 5.1 `POST /api/v1/auth/password/forgot`
+### 6.1 `POST /api/v1/auth/password/forgot`
 
 Request:
 
@@ -368,7 +759,7 @@ share that response. An eligible identity receives a single-use encrypted
 Operational errors: `400 invalid_request`, `429 rate_limited`,
 `503 mail_unavailable`, or `500 internal_error`.
 
-### 5.2 `POST /api/v1/auth/password/reset`
+### 6.2 `POST /api/v1/auth/password/reset`
 
 Request:
 
@@ -397,7 +788,7 @@ Errors:
 - `429 rate_limited`;
 - `500 internal_error`.
 
-### 5.3 `POST /api/v1/auth/password/change`
+### 6.3 `POST /api/v1/auth/password/change`
 
 Authentication: bearer session. No app-ID header is required, allowing a
 temporary-password user to complete the mandated change.
@@ -431,9 +822,9 @@ Errors:
 - `401 invalid_current_password`;
 - `500 internal_error`.
 
-## 6. Identity and Sessions
+## 7. Identity and Sessions
 
-### 6.1 `GET /api/v1/auth/me`
+### 7.1 `GET /api/v1/auth/me`
 
 Authentication: bearer session.
 
@@ -471,7 +862,7 @@ Use it to bootstrap the authenticated UI and recover current app identity.
 
 Errors: `401 unauthorized` or `500 internal_error`.
 
-### 6.2 `GET /api/v1/auth/sessions`
+### 7.2 `GET /api/v1/auth/sessions`
 
 Authentication: bearer session.
 
@@ -499,7 +890,7 @@ Authentication: bearer session.
 Only active, unexpired sessions owned by the current global identity are
 returned, newest first.
 
-### 6.3 `DELETE /api/v1/auth/sessions/{session_id}`
+### 7.3 `DELETE /api/v1/auth/sessions/{session_id}`
 
 Authentication: bearer session.
 
@@ -513,27 +904,27 @@ Errors:
 - `404 session_not_found`: missing or owned by another identity;
 - `500 internal_error`.
 
-### 6.4 `POST /api/v1/auth/logout`
+### 7.4 `POST /api/v1/auth/logout`
 
 Authentication: bearer session.
 
 `204 No Content` revokes the current session and its unused refresh tokens.
 The current access token becomes unusable on the next request.
 
-### 6.5 `POST /api/v1/auth/logout-all`
+### 7.5 `POST /api/v1/auth/logout-all`
 
 Authentication: bearer session.
 
 `204 No Content` revokes every platform and CPO session for the current global
 identity, plus all unused refresh tokens.
 
-## 7. Platform CPO Control Plane
+## 8. Platform CPO Control Plane
 
 All endpoints in this section require a bearer token whose durable session has
 `PLATFORM` scope. `X-CPO-App-ID` is neither required nor accepted as tenant
 authority.
 
-### 7.1 `POST /api/v1/platform/cpos`
+### 8.1 `POST /api/v1/platform/cpos`
 
 Request:
 
@@ -618,7 +1009,7 @@ Errors:
 - `503 mail_unavailable`;
 - `500 internal_error`.
 
-### 7.2 `GET /api/v1/platform/cpos`
+### 8.2 `GET /api/v1/platform/cpos`
 
 Returns:
 
@@ -629,14 +1020,14 @@ Returns:
 The collection contains at most the 100 newest CPOs. No query filters,
 pagination cursor, subscription, or entitlement data exists.
 
-### 7.3 `GET /api/v1/platform/cpos/{cpo_id}`
+### 8.3 `GET /api/v1/platform/cpos/{cpo_id}`
 
 Returns one CPO object.
 
 Errors: `400 invalid_cpo_id`, `401 unauthorized`, `403 forbidden`,
 `404 cpo_not_found`, or `500 internal_error`.
 
-### 7.4 `POST /api/v1/platform/cpos/{cpo_id}/activate`
+### 8.4 `POST /api/v1/platform/cpos/{cpo_id}/activate`
 
 No body.
 
@@ -644,7 +1035,7 @@ Sets status to `ACTIVE` and returns the CPO object. Calling it on an already
 active CPO is idempotent. It does not create/check a subscription and does not
 require a live app ID.
 
-### 7.5 `POST /api/v1/platform/cpos/{cpo_id}/suspend`
+### 8.5 `POST /api/v1/platform/cpos/{cpo_id}/suspend`
 
 No body.
 
@@ -652,7 +1043,7 @@ Sets status to `SUSPENDED`, revokes every active CPO session and unused refresh
 token for that tenant, records audit state, and returns the CPO. Repeated calls
 are lifecycle-idempotent. Platform sessions are unaffected.
 
-### 7.6 `PUT /api/v1/platform/cpos/{cpo_id}/app-id`
+### 8.6 `PUT /api/v1/platform/cpos/{cpo_id}/app-id`
 
 Request:
 
@@ -671,7 +1062,7 @@ Errors: `400 invalid_request`, `400 invalid_cpo_id`,
 `400 invalid_cpo_app_id`, `401 unauthorized`, `403 forbidden`,
 `404 cpo_not_found`, `409 cpo_conflict`, or `500 internal_error`.
 
-## 8. CPO Integration Credentials
+## 9. CPO Integration Credentials
 
 All endpoints require:
 
@@ -691,7 +1082,7 @@ Shared middleware failures:
 - `403 password_change_required`;
 - `403 cpo_app_id_mismatch`.
 
-### 8.1 `GET /api/v1/cpo/integrations`
+### 9.1 `GET /api/v1/cpo/integrations`
 
 `200 OK`:
 
@@ -711,7 +1102,7 @@ Shared middleware failures:
 
 Returns only rows for the authenticated CPO.
 
-### 8.2 `GET /api/v1/cpo/integrations/{provider}`
+### 9.2 `GET /api/v1/cpo/integrations/{provider}`
 
 Returns the same metadata object.
 
@@ -720,7 +1111,7 @@ Additional errors:
 - `400 unsupported_integration_provider`;
 - `404 integration_not_found`.
 
-### 8.3 `PUT /api/v1/cpo/integrations/{provider}`
+### 9.3 `PUT /api/v1/cpo/integrations/{provider}`
 
 Request:
 
@@ -752,14 +1143,14 @@ Additional errors: `400 invalid_request`,
 `400 unsupported_integration_provider`, and
 `400 invalid_integration_credentials`.
 
-### 8.4 `DELETE /api/v1/cpo/integrations/{provider}`
+### 9.4 `DELETE /api/v1/cpo/integrations/{provider}`
 
 `204 No Content` deletes the encrypted row and records an audit event.
 
 Additional errors: `400 unsupported_integration_provider` and
 `404 integration_not_found`.
 
-## 9. Client State Machine
+## 10. Client State Machine
 
 Recommended frontend sequence:
 
@@ -783,11 +1174,11 @@ entire local session and require login. On `cpo_app_id_mismatch`, refresh or cal
 `/auth/me` to recover the current ID; never let a user type a CPO ID to change
 scope.
 
-## 10. Explicitly Unimplemented
+## 11. Explicitly Unimplemented
 
 The contract does not provide:
 
-- public customer signup/login;
+- customer profile/email editing;
 - CPO staff invitation after the first administrator;
 - custom roles or permission APIs;
 - hub, charger, connector, tariff, wallet, charging, payment, or reporting
