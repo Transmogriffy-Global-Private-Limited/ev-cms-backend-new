@@ -12,10 +12,14 @@ import (
 	"time"
 
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/db"
+	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/auth"
+	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/config"
+	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/cpo"
+	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/integrations"
+	cmsmail "github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/mail"
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/routes"
+	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/security"
 )
-
-const defaultHTTPAddress = "127.0.0.1:8080"
 
 func main() {
 	if err := run(); err != nil {
@@ -31,7 +35,12 @@ func run() error {
 	)
 	defer stop()
 
-	_, sqlDB, err := db.Open(ctx, os.Getenv("DATABASE_URL"))
+	cfg, err := config.Load()
+	if err != nil {
+		return fmt.Errorf("load configuration: %w", err)
+	}
+
+	gormDB, sqlDB, err := db.Open(ctx, cfg.DatabaseURL)
 	if err != nil {
 		return err
 	}
@@ -40,15 +49,66 @@ func run() error {
 	if err := db.ApplyMigrations(ctx, sqlDB); err != nil {
 		return fmt.Errorf("apply database migrations: %w", err)
 	}
+	if err := db.SeedSuperadmin(ctx, gormDB, cfg.Superadmin); err != nil {
+		return fmt.Errorf("seed initial superadmin: %w", err)
+	}
 
-	address := os.Getenv("HTTP_ADDR")
-	if address == "" {
-		address = defaultHTTPAddress
+	tokenManager, err := security.NewTokenManager(
+		cfg.Auth.Issuer,
+		cfg.Auth.Audience,
+		cfg.Auth.AccessTTL,
+		cfg.Auth.SigningKey,
+		cfg.Auth.EncryptionKey,
+	)
+	if err != nil {
+		return err
+	}
+	mailSecretBox, err := security.NewSecretBox(
+		cfg.Auth.MailOutbox.KeyID,
+		cfg.Auth.MailOutbox.Key,
+	)
+	if err != nil {
+		return fmt.Errorf("initialize mail payload encryption: %w", err)
+	}
+	credentialSecretBox, err := security.NewSecretBox(
+		cfg.Credentials.KeyID,
+		cfg.Credentials.Key,
+	)
+	if err != nil {
+		return fmt.Errorf("initialize credential encryption: %w", err)
+	}
+	outbox := cmsmail.NewOutbox(mailSecretBox)
+	authService, err := auth.NewService(
+		gormDB,
+		cfg.Auth,
+		cfg.Mail.Enabled,
+		outbox,
+		tokenManager,
+	)
+	if err != nil {
+		return err
+	}
+	cpoService := cpo.NewService(gormDB, outbox, cfg.Mail.Enabled)
+	integrationService := integrations.NewService(gormDB, credentialSecretBox)
+
+	if cfg.Mail.Enabled {
+		sender, err := cmsmail.NewSMTPSender(cfg.Mail)
+		if err != nil {
+			return err
+		}
+		worker := cmsmail.NewWorker(
+			gormDB,
+			mailSecretBox,
+			sender,
+			cfg.Mail.WorkerPoll,
+			cfg.Mail.SendTimeout,
+		)
+		go worker.Run(ctx)
 	}
 
 	server := &http.Server{
-		Addr:              address,
-		Handler:           routes.New(sqlDB),
+		Addr:              cfg.HTTPAddress,
+		Handler:           routes.New(sqlDB, authService, cpoService, integrationService),
 		ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout:       15 * time.Second,
 		WriteTimeout:      15 * time.Second,
@@ -57,7 +117,7 @@ func run() error {
 
 	serverErrors := make(chan error, 1)
 	go func() {
-		log.Printf("EV CMS listening on http://%s", address)
+		log.Printf("EV CMS listening on http://%s", cfg.HTTPAddress)
 		serverErrors <- server.ListenAndServe()
 	}()
 

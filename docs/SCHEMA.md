@@ -9,6 +9,10 @@ Migration files:
 
 - `db/migrations/000001_cms_schema.up.sql`
 - `db/migrations/000001_cms_schema.down.sql`
+- `db/migrations/000002_auth_credentials.up.sql`
+- `db/migrations/000002_auth_credentials.down.sql`
+- `db/migrations/000003_cpo_provisioning.up.sql`
+- `db/migrations/000003_cpo_provisioning.down.sql`
 
 ## Supplied Model Mapping
 
@@ -58,3 +62,36 @@ The application never executes a down migration automatically.
 The up migration, idempotent reapplication, and matching down migration were
 verified against a disposable loopback-only PostgreSQL 17 database. The test
 database and its local data directory were removed after verification.
+
+## Authentication and Credential Tables
+
+The second migration adds:
+
+- user lockout, MFA, password-change, and last-login state;
+- single-use `auth_challenges`;
+- scope-bound `auth_sessions`;
+- hashed, rotating `auth_refresh_tokens`;
+- encrypted durable `mail_outbox` jobs;
+- database-backed `auth_rate_limits`;
+- encrypted tenant-owned `cpo_integrations`.
+
+Session constraints distinguish platform sessions from CPO sessions. CPO
+sessions require a CPO and fixed role; platform sessions permit neither.
+Integration credentials are restricted to the supported provider allowlist and
+are never stored in plaintext.
+
+## CPO Provisioning and App Identity
+
+The third migration adds:
+
+- `users.must_change_password` for temporary-password onboarding;
+- unique `cpos.app_id`;
+- `cpos.app_id_mode`, constrained to `DUMMY` or `LIVE`;
+- `cpos.app_id_updated_at`;
+- encrypted mail-outbox templates for CPO onboarding, membership assignment,
+  and password-change reminders.
+
+Existing CPOs are backfilled with unique dummy IDs. Dummy IDs use the reserved
+`cpo_dummy_` prefix. Live IDs cannot use that prefix. CPO lifecycle remains
+independent from app-ID mode, and no subscription table or subscription
+foreign key is introduced.

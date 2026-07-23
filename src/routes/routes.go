@@ -5,6 +5,9 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/auth"
+	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/cpo"
+	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/integrations"
 	"github.com/gin-gonic/gin"
 )
 
@@ -12,9 +15,15 @@ type DatabasePinger interface {
 	PingContext(context.Context) error
 }
 
-func New(database DatabasePinger) *gin.Engine {
+func New(
+	database DatabasePinger,
+	authService *auth.Service,
+	cpoService *cpo.Service,
+	integrationService *integrations.Service,
+) *gin.Engine {
 	router := gin.New()
 	router.Use(gin.Recovery())
+	_ = router.SetTrustedProxies(nil)
 
 	router.GET("/health/live", func(ctx *gin.Context) {
 		ctx.JSON(http.StatusOK, gin.H{"status": "ok"})
@@ -29,6 +38,24 @@ func New(database DatabasePinger) *gin.Engine {
 		}
 		ctx.JSON(http.StatusOK, gin.H{"status": "ready"})
 	})
+
+	if authService != nil {
+		auth.RegisterRoutes(router.Group("/api/v1/auth"), authService)
+	}
+	if authService != nil && cpoService != nil {
+		cpo.RegisterPlatformRoutes(
+			router.Group("/api/v1/platform/cpos"),
+			authService,
+			cpoService,
+		)
+	}
+	if authService != nil && integrationService != nil {
+		integrations.RegisterRoutes(
+			router.Group("/api/v1/cpo/integrations"),
+			authService,
+			integrationService,
+		)
+	}
 
 	return router
 }

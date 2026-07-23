@@ -98,3 +98,87 @@ func TestInitialMigrationContainsCompleteCMSDomain(t *testing.T) {
 		}
 	}
 }
+
+func TestAuthMigrationContainsCredentialBoundary(t *testing.T) {
+	t.Parallel()
+
+	upBody, err := migrationFiles.ReadFile("migrations/000002_auth_credentials.up.sql")
+	if err != nil {
+		t.Fatalf("read auth up migration: %v", err)
+	}
+	downBody, err := migrationFiles.ReadFile("migrations/000002_auth_credentials.down.sql")
+	if err != nil {
+		t.Fatalf("read auth down migration: %v", err)
+	}
+
+	tables := []string{
+		"auth_challenges",
+		"auth_sessions",
+		"auth_refresh_tokens",
+		"mail_outbox",
+		"auth_rate_limits",
+		"cpo_integrations",
+	}
+	upSQL := string(upBody)
+	downSQL := string(downBody)
+	for _, table := range tables {
+		if !strings.Contains(upSQL, "CREATE TABLE "+table) {
+			t.Errorf("up migration does not create table %q", table)
+		}
+		if !strings.Contains(downSQL, "DROP TABLE IF EXISTS "+table) {
+			t.Errorf("down migration does not drop table %q", table)
+		}
+	}
+
+	for _, column := range []string{
+		"mfa_enabled",
+		"password_changed_at",
+		"failed_login_attempts",
+		"locked_until",
+		"last_login_at",
+	} {
+		if !strings.Contains(upSQL, "ADD COLUMN "+column) {
+			t.Errorf("up migration does not add users.%s", column)
+		}
+		if !strings.Contains(downSQL, "DROP COLUMN IF EXISTS "+column) {
+			t.Errorf("down migration does not remove users.%s", column)
+		}
+	}
+}
+
+func TestCPOProvisioningMigrationContainsAppIdentityAndOnboarding(t *testing.T) {
+	t.Parallel()
+
+	upBody, err := migrationFiles.ReadFile("migrations/000003_cpo_provisioning.up.sql")
+	if err != nil {
+		t.Fatalf("read CPO provisioning up migration: %v", err)
+	}
+	downBody, err := migrationFiles.ReadFile("migrations/000003_cpo_provisioning.down.sql")
+	if err != nil {
+		t.Fatalf("read CPO provisioning down migration: %v", err)
+	}
+	upSQL := string(upBody)
+	downSQL := string(downBody)
+	for _, column := range []string{
+		"must_change_password",
+		"app_id",
+		"app_id_mode",
+		"app_id_updated_at",
+	} {
+		if !strings.Contains(upSQL, "ADD COLUMN "+column) {
+			t.Errorf("up migration does not add %s", column)
+		}
+		if !strings.Contains(downSQL, "DROP COLUMN IF EXISTS "+column) {
+			t.Errorf("down migration does not remove %s", column)
+		}
+	}
+	for _, template := range []string{
+		"CPO_ADMIN_WELCOME",
+		"CPO_MEMBERSHIP_ASSIGNED",
+		"PASSWORD_CHANGE_REMINDER",
+	} {
+		if !strings.Contains(upSQL, template) {
+			t.Errorf("up migration does not allow mail template %s", template)
+		}
+	}
+}

@@ -62,6 +62,12 @@ func TestGORMModelsParse(t *testing.T) {
 		&WalletTransaction{},
 		&Payment{},
 		&AuditLog{},
+		&AuthChallenge{},
+		&AuthSession{},
+		&AuthRefreshToken{},
+		&MailOutbox{},
+		&AuthRateLimit{},
+		&CPOIntegration{},
 	}
 
 	cache := &sync.Map{}

@@ -10,6 +10,7 @@ import (
 	"syscall"
 
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/db"
+	"github.com/joho/godotenv"
 )
 
 func main() {
@@ -19,6 +20,10 @@ func main() {
 }
 
 func run() error {
+	if err := godotenv.Load(); err != nil && !os.IsNotExist(err) {
+		return fmt.Errorf("load .env: %w", err)
+	}
+
 	direction := flag.String("direction", "up", "migration direction: up or down")
 	flag.Parse()
 

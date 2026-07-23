@@ -195,11 +195,168 @@ Verification:
 - `go vet ./...`
 - `git diff --check`
 
+### Feature: Authentication and credential boundary
+
+Status: Verified
+
+Phase: Authentication and CPO administration
+
+Depends on:
+
+- Lean tenancy and access foundation
+
+Enables:
+
+- Superadmin CPO provisioning
+- CPO staff administration
+- Every later tenant-scoped API
+- Payment-provider integration without exposing provider secrets
+
+Objective:
+
+Provide one secure authentication boundary for global identities, platform
+superadmins, and CPO staff, including idempotent superadmin bootstrap, mandatory
+email OTP for administrative login, encrypted access tokens, rotating sessions,
+password recovery, authorization helpers, and encrypted tenant integration
+credentials.
+
+Scope:
+
+- Environment-only, idempotent first-superadmin bootstrap
+- Argon2id password hashing and bounded account lockout
+- Platform and CPO administrative login scopes
+- Durable email OTP challenges and SMTP outbox worker
+- Signed-then-encrypted short-lived access tokens
+- Opaque, hashed, one-time rotating refresh tokens
+- Session listing, current/all/specific-session revocation, and password change
+- Enumeration-safe password recovery
+- Trusted principal, user, CPO, and role helpers for later APIs
+- CPO-admin write-only Razorpay credentials encrypted at rest
+- Privileged-operation audit records
+
+Non-goals:
+
+- Public signup, social login, SMS OTP, passkeys, or authenticator-app TOTP
+- Custom roles, per-hub staff scope, or a general secret vault
+- Payment execution or Razorpay API calls
+- Redis, an external queue, or a separate identity service
+- Platform-superadmin access to tenant secret plaintext
+
+Acceptance criteria:
+
+- Repeated startup does not duplicate or overwrite the configured superadmin.
+- Administrative access requires password plus an unexpired, single-use email
+  OTP.
+- A protected request uses a fully validated encrypted token and an active
+  durable session.
+- Refresh-token rotation detects reuse and revokes the affected session.
+- Password reset is enumeration-safe and revokes existing sessions on success.
+- Tenant context comes from the verified session, not a client-supplied CPO
+  header.
+- CPO integration secrets are never returned by an API or stored as plaintext.
+- Mail delivery survives process failure and can retry without logging OTPs.
+
+Verification:
+
+- Password, encryption, token, OTP, session, middleware, and credential tests
+- Embedded migration discovery and up/down pairing tests
+- PostgreSQL migration and repository integration verification
+- Route-level authentication and authorization tests
+- `go test ./...`
+- `go vet ./...`
+- `git diff --check`
+
+Detailed plan:
+
+- `docs/plans/authentication-and-credentials.md`
+
+### Feature: Subscription-independent CPO provisioning and app identity
+
+Status: Verified
+
+Phase: Authentication and CPO administration
+
+Depends on:
+
+- Authentication and credential boundary
+
+Enables:
+
+- CPO owner staff invitation and membership management
+- Trusted routing for every tenant business API
+- Separate onboarding and production application identities
+
+Objective:
+
+Allow platform superadmins to create and control CPO tenants without requiring a
+subscription, assign an opaque dummy application ID at creation, replace it
+with a live application ID, and require the current ID on authenticated
+CPO-scoped business requests.
+
+Scope:
+
+- Create, list, and inspect CPO tenants through platform-only APIs
+- Create or attach the first CPO admin identity and membership transactionally
+- Encrypted email delivery of a generated temporary password for a new identity
+- Existing global identity reuse without password reset
+- Durable first-login password-change requirement and login reminders
+- Server-generated unique dummy app ID on every CPO
+- Independent pending, active, and suspended CPO lifecycle
+- Superadmin activation and suspension
+- Superadmin replacement/rotation of the live app ID
+- `X-CPO-App-ID` validation against the authenticated CPO
+- Current app ID returned by CPO authentication bootstrap responses
+- Audit records for lifecycle and app-ID changes without treating app IDs as
+  credentials
+
+Non-goals:
+
+- Subscription plans, billing entitlements, or feature matrices
+- CPO self-provisioning
+- General CPO owner/staff invitation after the first admin
+- App ID as an authentication secret
+- HAL or payment-provider callback authentication
+
+Acceptance criteria:
+
+- A CPO is created without any subscription record or subscription check.
+- CPO, first admin identity/membership, audit records, and onboarding mail are
+  committed atomically.
+- A new first admin receives a generated temporary password whose plaintext is
+  present only in the encrypted mail job and worker memory.
+- An existing identity is attached without changing its password.
+- A new first admin must change the temporary password before tenant business
+  APIs are allowed; login reminders continue without a password-expiry timeout.
+- Creation always assigns a unique dummy app ID and a pending lifecycle status.
+- Activation permits CPO administrative login while retaining the dummy app ID.
+- Superadmin can replace the dummy/current app ID with a validated live ID.
+- Only the current app ID is accepted on CPO-scoped business APIs.
+- Platform and authentication endpoints do not require a CPO app ID.
+- CPO login verification, refresh, and `me` expose the current app ID so a
+  client can recover from rotation.
+- App ID mismatch never changes the authenticated CPO context.
+
+Verification:
+
+- App-ID generation and validation tests
+- Platform route and authorization tests
+- Tenant app-ID middleware tests
+- PostgreSQL provisioning, activation, suspension, and rotation integration
+  tests
+- Migration up/down verification
+- `go test ./...`
+- `go vet ./...`
+- `git diff --check`
+
+Detailed plan:
+
+- `docs/plans/cpo-provisioning-and-app-identity.md`
+
 ## Current Execution
 
 Current phase:
 
-- Phase 1: Foundation (verified)
+- Phase 2: Authentication and CPO administration
 
 Active feature:
 
@@ -211,11 +368,12 @@ Current implementation slice:
 
 Last completed slice:
 
-- Complete supplied CMS domain mapped and verified through PostgreSQL up/down
+- Subscription-independent CPO provisioning and app identity, verified through
+  focused and full PostgreSQL-backed tests
 
 Next expected slice:
 
-- Authentication and initial-superadmin bootstrap design
+- CPO owner staff invitation and membership management
 
 Blocked by:
 
@@ -223,9 +381,7 @@ Blocked by:
 
 ## Next Approved Work
 
-1. Design the authentication and initial-superadmin bootstrap flow.
-2. Add superadmin-controlled CPO provisioning and activation.
-3. Add CPO owner staff invitation and membership management.
+1. Add CPO owner staff invitation and membership management.
 
 ## Deferred Work
 
@@ -238,10 +394,13 @@ Blocked by:
 
 ## Risks and Unresolved Decisions
 
-- The authentication and first-superadmin bootstrap mechanism is not yet
-  approved.
-- Commercial subscription rules are unknown; CPO activation is intentionally a
-  simple manual platform action for now.
+- Key rotation will initially require an explicit re-encryption operation before
+  removing an old encryption key; automatic key rotation is deferred until a
+  concrete operational requirement exists.
+- SMTP availability is an operational dependency for administrative login and
+  password recovery.
+- Commercial subscription rules remain intentionally outside CPO creation and
+  authorization; CPO activation is a manual platform action.
 - The exact CMS/HAL API contract will be defined with the charging-network and
   charging-lifecycle phases.
 
@@ -249,9 +408,14 @@ Blocked by:
 
 Run focused unit tests first, then `go test ./...`, `go vet ./...`,
 `git diff --check`, and `git status --short`. Database integration tests will be
-added when the first repository operation is implemented. The initial migration
-has been verified up, idempotently up again, and down against a disposable local
-PostgreSQL 17 database.
+run with an explicitly selected disposable `TEST_DATABASE_URL`. All three
+migrations have been verified up, idempotently up again, and down against
+disposable local PostgreSQL 17 databases. The credential boundary has
+PostgreSQL integration coverage for bootstrap, platform/CPO login, refresh
+reuse, recovery, mail outbox, and tenant integration secrets. The third
+migration has been verified down, up, and idempotently up; its PostgreSQL
+lifecycle test covers first-admin onboarding, password enforcement, activation,
+app-ID rotation, identity reuse, and suspension.
 
 ## Completion Criteria
 

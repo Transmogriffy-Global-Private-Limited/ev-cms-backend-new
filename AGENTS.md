@@ -11,8 +11,11 @@ Before planning or changing code, read:
 - `docs/DEVELOPMENT_PLAN.md`
 - `docs/PROJECT_STATE.md`
 - `docs/SCHEMA.md`
+- `docs/AUTHENTICATION.md`
+- `docs/CPO_ADMINISTRATION.md`
 - `docs/AI_CHANGELOG.md`
 - relevant records under `docs/decisions/`
+- relevant active plans under `docs/plans/`
 
 Keep those documents synchronized with meaningful implementation and
 verification changes.

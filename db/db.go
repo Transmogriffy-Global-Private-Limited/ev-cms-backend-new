@@ -5,10 +5,13 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"log"
+	"os"
 	"time"
 
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
+	"gorm.io/gorm/logger"
 )
 
 func Open(ctx context.Context, databaseURL string) (*gorm.DB, *sql.DB, error) {
@@ -16,7 +19,19 @@ func Open(ctx context.Context, databaseURL string) (*gorm.DB, *sql.DB, error) {
 		return nil, nil, errors.New("DATABASE_URL is required")
 	}
 
-	gormDB, err := gorm.Open(postgres.Open(databaseURL), &gorm.Config{})
+	databaseLogger := logger.New(
+		log.New(os.Stderr, "database ", log.LstdFlags),
+		logger.Config{
+			SlowThreshold:             time.Second,
+			LogLevel:                  logger.Warn,
+			IgnoreRecordNotFoundError: true,
+			ParameterizedQueries:      true,
+			Colorful:                  false,
+		},
+	)
+	gormDB, err := gorm.Open(postgres.Open(databaseURL), &gorm.Config{
+		Logger: databaseLogger,
+	})
 	if err != nil {
 		return nil, nil, fmt.Errorf("open PostgreSQL connection: %w", err)
 	}

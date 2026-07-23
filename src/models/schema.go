@@ -44,19 +44,25 @@ func (value *JSONB) Scan(source any) error {
 // User is a login identity. Platform, CPO staff, and CPO customer authority are
 // separate relationships.
 type User struct {
-	ID             uuid.UUID       `gorm:"type:uuid;primaryKey;default:gen_random_uuid()" json:"id"`
-	Email          string          `gorm:"type:varchar(320);not null" json:"email"`
-	PasswordHash   string          `gorm:"type:varchar(255);not null" json:"-"`
-	FullName       string          `gorm:"type:varchar(255);not null" json:"full_name"`
-	Phone          *string         `gorm:"type:varchar(32)" json:"phone,omitempty"`
-	IsActive       bool            `gorm:"not null;default:true" json:"is_active"`
-	IsVerified     bool            `gorm:"not null;default:false" json:"is_verified"`
-	Settings       *UserSetting    `gorm:"foreignKey:UserID" json:"settings,omitempty"`
-	PlatformAdmin  *PlatformAdmin  `gorm:"foreignKey:UserID" json:"platform_admin,omitempty"`
-	CPOMemberships []CPOMembership `gorm:"foreignKey:UserID" json:"cpo_memberships,omitempty"`
-	Customers      []Customer      `gorm:"foreignKey:UserID" json:"customers,omitempty"`
-	CreatedAt      time.Time       `gorm:"not null" json:"created_at"`
-	UpdatedAt      time.Time       `gorm:"not null" json:"updated_at"`
+	ID                  uuid.UUID       `gorm:"type:uuid;primaryKey;default:gen_random_uuid()" json:"id"`
+	Email               string          `gorm:"type:varchar(320);not null" json:"email"`
+	PasswordHash        string          `gorm:"type:varchar(255);not null" json:"-"`
+	FullName            string          `gorm:"type:varchar(255);not null" json:"full_name"`
+	Phone               *string         `gorm:"type:varchar(32)" json:"phone,omitempty"`
+	IsActive            bool            `gorm:"not null;default:true" json:"is_active"`
+	IsVerified          bool            `gorm:"not null;default:false" json:"is_verified"`
+	MFAEnabled          bool            `gorm:"not null;default:false" json:"mfa_enabled"`
+	MustChangePassword  bool            `gorm:"not null;default:false" json:"must_change_password"`
+	PasswordChangedAt   time.Time       `gorm:"not null" json:"password_changed_at"`
+	FailedLoginAttempts int             `gorm:"not null;default:0" json:"-"`
+	LockedUntil         *time.Time      `json:"-"`
+	LastLoginAt         *time.Time      `json:"last_login_at,omitempty"`
+	Settings            *UserSetting    `gorm:"foreignKey:UserID" json:"settings,omitempty"`
+	PlatformAdmin       *PlatformAdmin  `gorm:"foreignKey:UserID" json:"platform_admin,omitempty"`
+	CPOMemberships      []CPOMembership `gorm:"foreignKey:UserID" json:"cpo_memberships,omitempty"`
+	Customers           []Customer      `gorm:"foreignKey:UserID" json:"customers,omitempty"`
+	CreatedAt           time.Time       `gorm:"not null" json:"created_at"`
+	UpdatedAt           time.Time       `gorm:"not null" json:"updated_at"`
 }
 
 type UserSetting struct {
@@ -74,27 +80,30 @@ type PlatformAdmin struct {
 	CreatedAt time.Time `gorm:"not null" json:"created_at"`
 }
 
-// CPO is both the subscribing organization and tenant data boundary. It carries
+// CPO is the tenant organization and data boundary. It carries
 // the business-profile fields that were previously modeled as CPOProfile.
 type CPO struct {
-	ID           uuid.UUID                `gorm:"type:uuid;primaryKey;default:gen_random_uuid()" json:"id"`
-	Slug         string                   `gorm:"type:varchar(80);not null" json:"slug"`
-	BusinessName string                   `gorm:"type:varchar(255);not null" json:"business_name"`
-	CompanyType  constants.CPOCompanyType `gorm:"type:varchar(20);not null" json:"company_type"`
-	GSTIN        *string                  `gorm:"type:varchar(15)" json:"gstin,omitempty"`
-	Address      string                   `gorm:"type:text;not null;default:''" json:"address"`
-	City         string                   `gorm:"type:varchar(100);not null;default:''" json:"city"`
-	State        string                   `gorm:"type:varchar(100);not null;default:''" json:"state"`
-	Pincode      string                   `gorm:"type:varchar(10);not null;default:''" json:"pincode"`
-	Status       constants.CPOStatus      `gorm:"type:varchar(20);not null;default:'PENDING'" json:"status"`
-	Memberships  []CPOMembership          `gorm:"foreignKey:CPOID" json:"memberships,omitempty"`
-	UserGroups   []UserGroup              `gorm:"foreignKey:CPOID" json:"user_groups,omitempty"`
-	Customers    []Customer               `gorm:"foreignKey:CPOID" json:"customers,omitempty"`
-	Hubs         []Hub                    `gorm:"foreignKey:CPOID" json:"hubs,omitempty"`
-	GSTProfiles  []GST                    `gorm:"foreignKey:CPOID" json:"gst_profiles,omitempty"`
-	Tariffs      []Tariff                 `gorm:"foreignKey:CPOID" json:"tariffs,omitempty"`
-	CreatedAt    time.Time                `gorm:"not null" json:"created_at"`
-	UpdatedAt    time.Time                `gorm:"not null" json:"updated_at"`
+	ID             uuid.UUID                `gorm:"type:uuid;primaryKey;default:gen_random_uuid()" json:"id"`
+	Slug           string                   `gorm:"type:varchar(80);not null" json:"slug"`
+	BusinessName   string                   `gorm:"type:varchar(255);not null" json:"business_name"`
+	CompanyType    constants.CPOCompanyType `gorm:"type:varchar(20);not null" json:"company_type"`
+	GSTIN          *string                  `gorm:"type:varchar(15)" json:"gstin,omitempty"`
+	Address        string                   `gorm:"type:text;not null;default:''" json:"address"`
+	City           string                   `gorm:"type:varchar(100);not null;default:''" json:"city"`
+	State          string                   `gorm:"type:varchar(100);not null;default:''" json:"state"`
+	Pincode        string                   `gorm:"type:varchar(10);not null;default:''" json:"pincode"`
+	Status         constants.CPOStatus      `gorm:"type:varchar(20);not null;default:'PENDING'" json:"status"`
+	AppID          string                   `gorm:"type:varchar(100);not null;uniqueIndex" json:"app_id"`
+	AppIDMode      constants.CPOAppIDMode   `gorm:"type:varchar(20);not null;default:'DUMMY'" json:"app_id_mode"`
+	AppIDUpdatedAt time.Time                `gorm:"not null" json:"app_id_updated_at"`
+	Memberships    []CPOMembership          `gorm:"foreignKey:CPOID" json:"memberships,omitempty"`
+	UserGroups     []UserGroup              `gorm:"foreignKey:CPOID" json:"user_groups,omitempty"`
+	Customers      []Customer               `gorm:"foreignKey:CPOID" json:"customers,omitempty"`
+	Hubs           []Hub                    `gorm:"foreignKey:CPOID" json:"hubs,omitempty"`
+	GSTProfiles    []GST                    `gorm:"foreignKey:CPOID" json:"gst_profiles,omitempty"`
+	Tariffs        []Tariff                 `gorm:"foreignKey:CPOID" json:"tariffs,omitempty"`
+	CreatedAt      time.Time                `gorm:"not null" json:"created_at"`
+	UpdatedAt      time.Time                `gorm:"not null" json:"updated_at"`
 }
 
 func (CPO) TableName() string {
