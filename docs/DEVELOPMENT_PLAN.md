@@ -512,7 +512,8 @@ Current implementation slice:
 
 Last completed slice:
 
-- Temporary unrestricted development listener and CORS configuration
+- Development VPS migration, activation, superadmin bootstrap, public health,
+  and real SMTP delivery verification
 
 Next expected slice:
 
