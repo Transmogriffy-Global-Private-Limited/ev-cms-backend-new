@@ -1,0 +1,128 @@
+# Configuration Contract
+
+## Loading and Precedence
+
+The service attempts to load `.env`; existing process environment values take
+precedence because they are not overwritten. `.env.example` is the checked-in
+inventory. Real secrets belong only in the ignored `.env`, process environment,
+or deployment secret store.
+
+Configuration is loaded and fully validated before database connection,
+migrations, bootstrap, workers, or HTTP listening. A configuration error is a
+startup failure; the server does not run partially.
+
+## Core and Bootstrap
+
+| Variable | Requirement / default |
+|---|---|
+| `DATABASE_URL` | Required |
+| `HTTP_ADDR` | Default `127.0.0.1:8080`; keep local development loopback-only |
+| `SUPERADMIN_EMAIL` | Required valid email |
+| `SUPERADMIN_PASSWORD` | Required, 10 to 128 characters; existing password is never overwritten |
+| `SUPERADMIN_FULL_NAME` | Default `Platform Superadmin` |
+
+## Authentication
+
+| Variable | Default / validation |
+|---|---|
+| `AUTH_ISSUER` | `ev-cms` |
+| `AUTH_AUDIENCE` | `ev-cms-api` |
+| `AUTH_ACCESS_TTL` | `15m`, positive |
+| `AUTH_SESSION_TTL` | `720h`, longer than access TTL |
+| `AUTH_OTP_TTL` | `10m`, positive |
+| `AUTH_OTP_RESEND_COOLDOWN` | `1m`, positive |
+| `AUTH_LOGIN_MAX_ATTEMPTS` | `5`, positive |
+| `AUTH_LOGIN_LOCK_DURATION` | `15m` |
+| `AUTH_RATE_LIMIT_WINDOW` | `15m` |
+| `AUTH_RATE_LIMIT_MAX` | `100`, positive |
+
+Durations use Go duration syntax.
+
+Invalid duration text is converted to a validation failure. Session TTL must be
+strictly longer than access TTL. Attempt/rate limits and mail worker durations
+must be positive.
+
+## Cryptographic Keys
+
+| Variable | Requirement |
+|---|---|
+| `JWT_SIGNING_KEY_B64` | Standard base64 decoding to at least 32 bytes |
+| `JWT_ENCRYPTION_KEY_B64` | Standard base64 decoding to exactly 32 bytes |
+| `OTP_HMAC_KEY_B64` | Standard base64 decoding to at least 32 bytes |
+| `MAIL_OUTBOX_ENCRYPTION_KEY_B64` | Standard base64 decoding to exactly 32 bytes |
+| `MAIL_OUTBOX_ENCRYPTION_KEY_ID` | Default `v1` |
+| `CREDENTIAL_ENCRYPTION_KEY_B64` | Standard base64 decoding to exactly 32 bytes |
+| `CREDENTIAL_ENCRYPTION_KEY_ID` | Default `v1` |
+
+Use independent random keys. A key ID is not a key. Existing encrypted rows
+must be re-encrypted before an old key is removed; automatic rotation is not
+implemented.
+
+## Mail and Hostinger
+
+| Variable | Requirement / current value |
+|---|---|
+| `MAIL_ENABLED` | Default false; must be true for administrative login and recovery |
+| `SMTP_HOST` | Required when enabled; current `smtp.hostinger.com` |
+| `SMTP_PORT` | 1-65535; current `465` |
+| `SMTP_USERNAME` | Current `team@transev.in`; must be paired with password |
+| `SMTP_PASSWORD` | Secret; required when username is set |
+| `SMTP_FROM_ADDRESS` | Required valid email; current `team@transev.in` |
+| `SMTP_FROM_NAME` | Default `TransEV CMS` |
+| `SMTP_USE_SSL` | Implicit TLS from connection start |
+| `SMTP_USE_TLS` | Mandatory STARTTLS |
+| `MAIL_WORKER_POLL_INTERVAL` | Default `2s`, positive |
+| `MAIL_SEND_TIMEOUT` | Default `15s`, positive |
+
+When mail is enabled, exactly one of `SMTP_USE_SSL` or `SMTP_USE_TLS` must be
+true. The current Hostinger port-465 contract is:
+
+```dotenv
+SMTP_USE_TLS=false
+SMTP_USE_SSL=true
+```
+
+`SMTP_TLS_MODE` is removed and ignored. Deployments must migrate to the two
+explicit boolean flags. Plaintext SMTP is intentionally unavailable.
+
+## Secret Handling
+
+Never log, commit, document, or return:
+
+- superadmin or SMTP passwords;
+- signing, encryption, or HMAC keys;
+- OTPs, refresh tokens, or access tokens;
+- Razorpay secrets.
+
+The non-secret Hostinger username, sender address, host, port, and transport
+selection may be checked in.
+
+## Rotation and Deployment Procedure
+
+- JWT signing/encryption key changes invalidate existing access tokens.
+- Refresh tokens and durable sessions remain database records, but a client
+  needs a newly issued access token under the available keys.
+- Mail/credential encryption keys use key IDs stored beside ciphertext.
+- Automatic multi-key lookup and re-encryption are not implemented.
+- Do not remove an old encryption key until a reviewed re-encryption operation
+  has migrated every referenced row.
+- Restart is required for environment changes; configuration is not hot
+  reloaded.
+
+## Failure Reference
+
+| Failure | Meaning |
+|---|---|
+| required variable error | Missing startup dependency |
+| base64 error | Key is not standard base64 |
+| decoded-length error | Cryptographic key has wrong byte length |
+| TTL relationship error | Session lifetime cannot safely contain access lifetime |
+| SMTP transport error | Neither or both encrypted modes selected |
+| SMTP credential-pair error | Username/password only partly configured |
+| email validation error | Bootstrap or sender address is not a normalized valid address |
+
+## Local Safety
+
+Keep `HTTP_ADDR=127.0.0.1:8080` for local work. The interactive API explorer is
+available on that same loopback listener at `/docs/`; no second listener,
+container, public binding, or callback tunnel is required.

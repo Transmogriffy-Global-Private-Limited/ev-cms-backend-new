@@ -6,16 +6,21 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"regexp"
+	"sort"
 	"strings"
 	"testing"
 	"time"
 
+	apidocs "github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/docs/contracts/openapi"
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/auth"
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/config"
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/cpo"
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/integrations"
 	cmsmail "github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/mail"
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/security"
+	"github.com/getkin/kin-openapi/openapi3"
+	"github.com/gin-gonic/gin"
 )
 
 type pingerStub struct {
@@ -25,56 +30,7 @@ type pingerStub struct {
 func TestCredentialRoutesAreRegisteredAndProtected(t *testing.T) {
 	t.Parallel()
 
-	tokenManager, err := security.NewTokenManager(
-		"routes-test",
-		"routes-test-api",
-		15*time.Minute,
-		[]byte(strings.Repeat("s", 32)),
-		[]byte(strings.Repeat("e", 32)),
-	)
-	if err != nil {
-		t.Fatalf("create token manager: %v", err)
-	}
-	mailBox, err := security.NewSecretBox(
-		"routes-test-v1",
-		[]byte(strings.Repeat("m", 32)),
-	)
-	if err != nil {
-		t.Fatalf("create mail secret box: %v", err)
-	}
-	authService, err := auth.NewService(
-		nil,
-		config.Auth{
-			AccessTTL:         15 * time.Minute,
-			SessionTTL:        24 * time.Hour,
-			OTPExpiry:         10 * time.Minute,
-			OTPResendCooldown: time.Minute,
-			OTPHMACKey:        []byte(strings.Repeat("o", 32)),
-			LoginMaxAttempts:  5,
-			LoginLockDuration: 15 * time.Minute,
-			RateLimitWindow:   15 * time.Minute,
-			RateLimitMax:      20,
-		},
-		false,
-		cmsmail.NewOutbox(mailBox),
-		tokenManager,
-	)
-	if err != nil {
-		t.Fatalf("create auth service: %v", err)
-	}
-	credentialBox, err := security.NewSecretBox(
-		"routes-test-v1",
-		[]byte(strings.Repeat("c", 32)),
-	)
-	if err != nil {
-		t.Fatalf("create credential secret box: %v", err)
-	}
-	router := New(
-		pingerStub{},
-		authService,
-		cpo.NewService(nil, cmsmail.NewOutbox(mailBox), true),
-		integrations.NewService(nil, credentialBox),
-	)
+	router := newCredentialRouteTestRouter(t)
 
 	protected := []struct {
 		method string
@@ -138,6 +94,141 @@ func TestCredentialRoutesAreRegisteredAndProtected(t *testing.T) {
 			t.Errorf("POST %s did not set no-store", path)
 		}
 	}
+}
+
+func newCredentialRouteTestRouter(t *testing.T) *gin.Engine {
+	t.Helper()
+	tokenManager, err := security.NewTokenManager(
+		"routes-test",
+		"routes-test-api",
+		15*time.Minute,
+		[]byte(strings.Repeat("s", 32)),
+		[]byte(strings.Repeat("e", 32)),
+	)
+	if err != nil {
+		t.Fatalf("create token manager: %v", err)
+	}
+	mailBox, err := security.NewSecretBox(
+		"routes-test-v1",
+		[]byte(strings.Repeat("m", 32)),
+	)
+	if err != nil {
+		t.Fatalf("create mail secret box: %v", err)
+	}
+	authService, err := auth.NewService(
+		nil,
+		config.Auth{
+			AccessTTL:         15 * time.Minute,
+			SessionTTL:        24 * time.Hour,
+			OTPExpiry:         10 * time.Minute,
+			OTPResendCooldown: time.Minute,
+			OTPHMACKey:        []byte(strings.Repeat("o", 32)),
+			LoginMaxAttempts:  5,
+			LoginLockDuration: 15 * time.Minute,
+			RateLimitWindow:   15 * time.Minute,
+			RateLimitMax:      20,
+		},
+		false,
+		cmsmail.NewOutbox(mailBox),
+		tokenManager,
+	)
+	if err != nil {
+		t.Fatalf("create auth service: %v", err)
+	}
+	credentialBox, err := security.NewSecretBox(
+		"routes-test-v1",
+		[]byte(strings.Repeat("c", 32)),
+	)
+	if err != nil {
+		t.Fatalf("create credential secret box: %v", err)
+	}
+	router := New(
+		pingerStub{},
+		authService,
+		cpo.NewService(nil, cmsmail.NewOutbox(mailBox), true),
+		integrations.NewService(nil, credentialBox),
+	)
+	return router
+}
+
+func TestOpenAPIContractMatchesRuntimeRoutesAndServesUI(t *testing.T) {
+	t.Parallel()
+
+	loader := openapi3.NewLoader()
+	document, err := loader.LoadFromData(apidocs.Specification())
+	if err != nil {
+		t.Fatalf("parse embedded OpenAPI contract: %v", err)
+	}
+	if err := document.Validate(context.Background()); err != nil {
+		t.Fatalf("validate embedded OpenAPI contract: %v", err)
+	}
+
+	router := newCredentialRouteTestRouter(t)
+	runtimeOperations := make(map[string]struct{})
+	parameter := regexp.MustCompile(`:([A-Za-z0-9_]+)`)
+	for _, route := range router.Routes() {
+		if route.Path == "/openapi.yaml" ||
+			route.Path == "/docs" ||
+			strings.HasPrefix(route.Path, "/docs/") {
+			continue
+		}
+		path := parameter.ReplaceAllString(route.Path, `{$1}`)
+		runtimeOperations[route.Method+" "+path] = struct{}{}
+	}
+
+	specOperations := make(map[string]struct{})
+	for path, item := range document.Paths.Map() {
+		operations := map[string]bool{
+			http.MethodGet:    item.Get != nil,
+			http.MethodPost:   item.Post != nil,
+			http.MethodPut:    item.Put != nil,
+			http.MethodDelete: item.Delete != nil,
+			http.MethodPatch:  item.Patch != nil,
+		}
+		for method, present := range operations {
+			if present {
+				specOperations[method+" "+path] = struct{}{}
+			}
+		}
+	}
+	if difference := operationDifference(runtimeOperations, specOperations); len(difference) > 0 {
+		t.Fatalf("runtime routes missing from OpenAPI: %s", strings.Join(difference, ", "))
+	}
+	if difference := operationDifference(specOperations, runtimeOperations); len(difference) > 0 {
+		t.Fatalf("OpenAPI operations missing from runtime: %s", strings.Join(difference, ", "))
+	}
+
+	tests := []struct {
+		path       string
+		wantStatus int
+		contains   string
+	}{
+		{"/openapi.yaml", http.StatusOK, "openapi: 3.1.0"},
+		{"/docs", http.StatusTemporaryRedirect, ""},
+		{"/docs/", http.StatusOK, "Swagger UI"},
+	}
+	for _, test := range tests {
+		recorder := httptest.NewRecorder()
+		request := httptest.NewRequest(http.MethodGet, test.path, nil)
+		router.ServeHTTP(recorder, request)
+		if recorder.Code != test.wantStatus {
+			t.Errorf("GET %s got status %d, want %d", test.path, recorder.Code, test.wantStatus)
+		}
+		if test.contains != "" && !strings.Contains(recorder.Body.String(), test.contains) {
+			t.Errorf("GET %s response did not contain %q", test.path, test.contains)
+		}
+	}
+}
+
+func operationDifference(left, right map[string]struct{}) []string {
+	result := make([]string, 0)
+	for operation := range left {
+		if _, exists := right[operation]; !exists {
+			result = append(result, operation)
+		}
+	}
+	sort.Strings(result)
+	return result
 }
 
 func (stub pingerStub) PingContext(context.Context) error {

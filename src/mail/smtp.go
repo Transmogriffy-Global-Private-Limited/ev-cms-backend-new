@@ -2,6 +2,7 @@ package mail
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -19,10 +20,15 @@ func NewSMTPSender(cfg config.Mail) (*SMTPSender, error) {
 	options := []gomail.Option{
 		gomail.WithPort(cfg.Port),
 	}
-	if cfg.TLSMode == "TLS" {
+	switch {
+	case cfg.UseSSL && !cfg.UseTLS:
 		options = append(options, gomail.WithSSL())
-	} else {
+	case cfg.UseTLS && !cfg.UseSSL:
 		options = append(options, gomail.WithTLSPortPolicy(gomail.TLSMandatory))
+	default:
+		return nil, errors.New(
+			"exactly one SMTP transport must be enabled: STARTTLS or implicit SSL",
+		)
 	}
 	if cfg.Username != "" {
 		options = append(

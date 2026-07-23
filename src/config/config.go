@@ -60,7 +60,8 @@ type Mail struct {
 	Password    string
 	FromAddress string
 	FromName    string
-	TLSMode     string
+	UseTLS      bool
+	UseSSL      bool
 	WorkerPoll  time.Duration
 	SendTimeout time.Duration
 }
@@ -70,6 +71,14 @@ func Load() (Config, error) {
 		return Config{}, fmt.Errorf("load .env: %w", err)
 	}
 	mailEnabled, err := boolOrDefault("MAIL_ENABLED", false)
+	if err != nil {
+		return Config{}, err
+	}
+	smtpUseTLS, err := boolOrDefault("SMTP_USE_TLS", false)
+	if err != nil {
+		return Config{}, err
+	}
+	smtpUseSSL, err := boolOrDefault("SMTP_USE_SSL", false)
 	if err != nil {
 		return Config{}, err
 	}
@@ -102,7 +111,8 @@ func Load() (Config, error) {
 			Password:    os.Getenv("SMTP_PASSWORD"),
 			FromAddress: normalizeEmail(os.Getenv("SMTP_FROM_ADDRESS")),
 			FromName:    envOrDefault("SMTP_FROM_NAME", "TransEV CMS"),
-			TLSMode:     strings.ToUpper(envOrDefault("SMTP_TLS_MODE", "STARTTLS")),
+			UseTLS:      smtpUseTLS,
+			UseSSL:      smtpUseSSL,
 			WorkerPoll:  durationOrDefault("MAIL_WORKER_POLL_INTERVAL", 2*time.Second),
 			SendTimeout: durationOrDefault("MAIL_SEND_TIMEOUT", 15*time.Second),
 		},
@@ -166,10 +176,10 @@ func (cfg Config) Validate() error {
 			return errors.New("SMTP_FROM_ADDRESS is required when MAIL_ENABLED=true")
 		case !validEmail(cfg.Mail.FromAddress):
 			return errors.New("SMTP_FROM_ADDRESS must be a valid email address")
-		case cfg.Mail.TLSMode != "STARTTLS" && cfg.Mail.TLSMode != "TLS":
-			return errors.New("SMTP_TLS_MODE must be STARTTLS or TLS")
-		case cfg.Mail.Username != "" && cfg.Mail.Password == "":
-			return errors.New("SMTP_PASSWORD is required when SMTP_USERNAME is set")
+		case cfg.Mail.UseTLS == cfg.Mail.UseSSL:
+			return errors.New("exactly one of SMTP_USE_TLS or SMTP_USE_SSL must be true")
+		case (cfg.Mail.Username == "") != (cfg.Mail.Password == ""):
+			return errors.New("SMTP_USERNAME and SMTP_PASSWORD must be set together")
 		}
 	}
 	return nil

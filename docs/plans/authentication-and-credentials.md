@@ -52,8 +52,11 @@ from process environment or the ignored `.env` file.
 
 OTP-producing commands write an encrypted mail payload to a PostgreSQL outbox in
 the same transaction as the challenge. A worker claims jobs using row locking,
-delivers through explicitly configured SMTP TLS, records success, and retries
-temporary failure with bounded backoff. No Redis or separate broker is needed
+delivers through exactly one explicitly configured encrypted SMTP transport,
+records success, and retries temporary failure with bounded backoff. The
+current Hostinger configuration uses implicit TLS on port 465. Mandatory
+STARTTLS remains supported as a separate mode; plaintext and ambiguous
+transport configuration are rejected. No Redis or separate broker is needed
 for this workload.
 
 If mail delivery is disabled or unavailable, commands that require a new OTP
@@ -142,5 +145,6 @@ timestamps. Secret plaintext has no read API.
   refresh rotation and reuse revocation, password recovery, durable mail-worker
   claiming/decryption/completion, and encrypted Razorpay credential isolation.
 - `go test ./...`, `go vet ./...`, and `git diff --check` passed.
-- Delivery through a real SMTP provider remains an environment configuration
-  check because no SMTP credentials were supplied.
+- Hostinger implicit-TLS client construction and configuration validation
+  passed. Delivery through the real mailbox remains operationally unverified;
+  no credential was placed in the repository or test output.

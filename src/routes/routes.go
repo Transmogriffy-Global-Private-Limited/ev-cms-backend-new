@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"time"
 
+	apidocs "github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/docs/contracts/openapi"
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/auth"
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/cpo"
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/integrations"
@@ -24,6 +25,7 @@ func New(
 	router := gin.New()
 	router.Use(gin.Recovery())
 	_ = router.SetTrustedProxies(nil)
+	apidocs.Register(router)
 
 	router.GET("/health/live", func(ctx *gin.Context) {
 		ctx.JSON(http.StatusOK, gin.H{"status": "ok"})

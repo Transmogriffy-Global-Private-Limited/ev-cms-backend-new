@@ -26,6 +26,8 @@ message broker.
   opaque refresh tokens.
 - Validate durable session and authorization state on protected requests.
 - Use a PostgreSQL mail outbox with an in-process SMTP worker.
+- Require one explicit encrypted SMTP transport: implicit TLS or mandatory
+  STARTTLS. Reject plaintext and conflicting transport configuration.
 - Encrypt tenant provider credentials using authenticated encryption bound to
   the CPO and provider; expose metadata only.
 - Audit privileged authentication and provider-credential mutations without
@@ -34,6 +36,7 @@ message broker.
 ## Consequences
 
 - SMTP is required for new administrative logins and password recovery.
+- The current provider contract uses Hostinger implicit TLS on port 465.
 - Database availability is intentionally required for protected requests so
   revocation and tenant suspension are authoritative.
 - Access tokens are confidential in addition to being integrity protected, but

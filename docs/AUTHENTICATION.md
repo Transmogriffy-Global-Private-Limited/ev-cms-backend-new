@@ -1,5 +1,10 @@
 # Authentication and Credential API
 
+For a complete endpoint-by-endpoint contract, use
+`docs/contracts/api/administrative-http-api.md`. The validated machine-readable
+contract is `docs/contracts/openapi/openapi.yaml`; while the service runs it is
+available through Swagger UI at `/docs/` and directly at `/openapi.yaml`.
+
 ## Boundary
 
 This API authenticates administrative identities in one of two explicit
@@ -37,8 +42,16 @@ When `MAIL_ENABLED=true`, also configure:
 - `SMTP_HOST`
 - `SMTP_PORT`
 - `SMTP_FROM_ADDRESS`
-- optional `SMTP_USERNAME` plus required `SMTP_PASSWORD`
-- `SMTP_TLS_MODE=STARTTLS` for explicit TLS or `TLS` for implicit TLS
+- `SMTP_USERNAME` and `SMTP_PASSWORD` together, or neither
+- exactly one encrypted transport:
+  - `SMTP_USE_SSL=true` and `SMTP_USE_TLS=false` for implicit TLS from
+    connection start;
+  - `SMTP_USE_TLS=true` and `SMTP_USE_SSL=false` for mandatory STARTTLS.
+
+The deployed Hostinger contract uses `smtp.hostinger.com:465`, implicit TLS,
+and the `team@transev.in` mailbox. Its password remains only in the ignored
+`.env` file or process environment. Plaintext SMTP and ambiguous transport
+configuration are rejected at startup.
 
 Use independent random key values. Never reuse the JWT signing key as an
 encryption or OTP key.
@@ -351,7 +364,7 @@ The worker:
 1. claims one eligible job with `FOR UPDATE SKIP LOCKED`;
 2. reclaims processing jobs abandoned for five minutes;
 3. decrypts only in worker memory;
-4. sends over mandatory SMTP TLS;
+4. sends over the configured mandatory encrypted SMTP transport;
 5. records success or bounded exponential retry;
 6. stops after eight failed attempts.
 

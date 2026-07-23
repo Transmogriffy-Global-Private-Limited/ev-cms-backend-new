@@ -26,7 +26,8 @@ provides:
 - durable sessions with list/current/all/specific revocation APIs;
 - enumeration-safe password recovery and authenticated password change;
 - trusted principal, user ID, CPO ID, platform, and CPO-role helpers;
-- encrypted PostgreSQL mail outbox with retrying SMTP TLS worker;
+- encrypted PostgreSQL mail outbox with a retrying, encrypted-transport SMTP
+  worker;
 - write-only encrypted Razorpay credentials for CPO owners/admins;
 - platform-only CPO create, list, inspect, activate, suspend, and app-ID APIs;
 - subscription-independent pending CPO creation with unique dummy app IDs;
@@ -37,8 +38,15 @@ provides:
 - current dummy/live app identity in CPO login, refresh, and `me` responses;
 - `X-CPO-App-ID` enforcement on tenant business APIs without trusting it as
   tenant authority;
-- API and operational documentation in `docs/AUTHENTICATION.md` and
-  `docs/CPO_ADMINISTRATION.md`.
+- Hostinger implicit-TLS configuration on `smtp.hostinger.com:465`, with
+  startup rejection of plaintext or ambiguous SMTP modes;
+- registered educational, integration, API, internal-message, and
+  configuration documentation under `docs/`.
+- canonical OpenAPI 3.1 for all 24 implemented business/health operations;
+- embedded same-origin Swagger UI at `/docs/` and raw OpenAPI at
+  `/openapi.yaml`;
+- bidirectional verification that Gin and OpenAPI expose the same operation
+  set.
 
 No inventory API, HAL integration, charging workflow, billing orchestration,
 payment workflow, or reporting behavior is implemented yet.
@@ -62,6 +70,12 @@ payment workflow, or reporting behavior is implemented yet.
   revocation, and password recovery passed.
 - The mail worker claimed, decrypted, delivered through a test sender, and
   completed a durable job.
+- Hostinger implicit-TLS configuration loaded successfully and the SMTP sender
+  construction tests passed without exposing a real mailbox password.
+- The required documentation, administrative route coverage, and removed SMTP
+  configuration residue checks passed.
+- OpenAPI parsing, semantic validation, all 24 Gin/OpenAPI operation matches,
+  and docs/raw-spec HTTP smoke tests passed.
 - Razorpay secrets remained encrypted in storage, resolved only internally for
   the correct CPO, and were unavailable to a platform principal.
 - Route registration, unauthenticated rejection, request validation, and
@@ -104,5 +118,8 @@ repository. The integration contract has not been implemented yet.
   and email-change workflows are not implemented.
 - Automatic encryption-key rotation is not implemented; data must be
   re-encrypted before an old key is removed.
-- SMTP delivery logic is implemented and worker-tested, but no real provider
-  delivery was attempted because provider credentials were not supplied.
+- SMTP delivery logic is implemented and worker-tested, but real Hostinger
+  delivery remains operationally unverified. The mailbox password is not stored
+  in the repository.
+- No generated frontend SDK exists yet; consumers use the reviewed OpenAPI
+  contract directly.

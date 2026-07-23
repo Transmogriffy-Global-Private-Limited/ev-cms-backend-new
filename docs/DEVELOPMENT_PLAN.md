@@ -352,6 +352,51 @@ Detailed plan:
 
 - `docs/plans/cpo-provisioning-and-app-identity.md`
 
+### Feature: Documentation system, OpenAPI explorer, and Hostinger SMTP contract
+
+Status: Verified
+
+Phase: Phase 2: Authentication and CPO administration
+
+Objective:
+
+Make the implemented credential boundary operable without chat history and
+configure the production mailbox through an explicit encrypted SMTP transport.
+
+Scope:
+
+- Hostinger implicit TLS on port 465
+- Mutually exclusive implicit-TLS and mandatory-STARTTLS configuration
+- Educational identity, onboarding, and troubleshooting guides
+- SMTP, Razorpay-storage, and HAL-boundary integration records
+- Consolidated HTTP, mail-outbox, and environment contracts
+- Complete OpenAPI 3.1 schemas for every implemented endpoint
+- Embedded same-origin Swagger UI and raw OpenAPI routes
+- Bidirectional runtime/OpenAPI operation drift verification
+- Repository documentation registration and automated residue checks
+
+Acceptance criteria:
+
+- Mail-enabled startup rejects plaintext, ambiguous, or unpaired credential
+  configuration.
+- The checked-in example contains only non-secret Hostinger values.
+- Documentation separates implemented behavior from future HAL and payment
+  orchestration.
+- Required documentation and removed configuration names are automatically
+  checked.
+- `/docs/` permits interactive testing without a CDN and `/openapi.yaml`
+  exposes the validated source contract.
+- Runtime and OpenAPI method/path sets agree exactly.
+
+Verification:
+
+- `go test ./src/config ./src/mail -count=1`
+- `go test ./src/routes -run TestOpenAPIContractMatchesRuntimeRoutesAndServesUI -count=1`
+- `.\scripts\verify-docs.ps1`
+- `go test ./...`
+- `go vet ./...`
+- `git diff --check`
+
 ## Current Execution
 
 Current phase:
@@ -368,8 +413,8 @@ Current implementation slice:
 
 Last completed slice:
 
-- Subscription-independent CPO provisioning and app identity, verified through
-  focused and full PostgreSQL-backed tests
+- Complete granular developer documentation, OpenAPI 3.1, embedded Swagger UI,
+  and runtime-contract drift verification
 
 Next expected slice:
 

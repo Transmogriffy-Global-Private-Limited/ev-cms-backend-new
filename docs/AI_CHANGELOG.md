@@ -2,6 +2,39 @@
 
 ## 2026-07-23
 
+### Hostinger SMTP contract and durable documentation surfaces
+
+- Replaced the string SMTP mode with mutually exclusive
+  `SMTP_USE_SSL`/`SMTP_USE_TLS` flags.
+- Configured the checked-in example for `team@transev.in` through
+  `smtp.hostinger.com:465` using implicit TLS, while keeping the password
+  environment-only.
+- Rejected plaintext, conflicting transport modes, and half-configured SMTP
+  credentials during startup validation.
+- Added focused Hostinger configuration and SMTP-construction tests.
+- Added a canonical documentation map, educational identity/onboarding/support
+  guides, external integration records, and API/internal/configuration
+  contracts.
+- Registered the new documentation surfaces in repository instructions and
+  added a PowerShell documentation verifier.
+- Expanded the human API contract to document every implemented endpoint,
+  request/response, authorization rule, validation, state effect, and error.
+- Added canonical OpenAPI 3.1, embedded same-origin Swagger UI, raw spec
+  serving, semantic validation, and bidirectional runtime-route drift tests.
+- Expanded educational, SMTP, Razorpay, HAL, mail-outbox, and configuration
+  documentation to integration-handoff detail.
+
+Verification:
+
+- Focused configuration and mail tests passed.
+- Documentation contract and removed-configuration residue checks passed.
+- OpenAPI parsed and passed semantic validation.
+- All 24 implemented business/health operations matched the runtime router and
+  OpenAPI in both directions.
+- Embedded Swagger UI, redirect, and raw-spec endpoints passed HTTP smoke tests.
+- `go test ./...`, `go vet ./...`, and `git diff --check` passed.
+- Real Hostinger delivery was not attempted and remains an operational check.
+
 ### CPO provisioning and app identity verified
 
 - Approved CPO creation without a subscription dependency.

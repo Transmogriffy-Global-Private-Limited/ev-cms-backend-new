@@ -14,11 +14,34 @@ Before planning or changing code, read:
 - `docs/AUTHENTICATION.md`
 - `docs/CPO_ADMINISTRATION.md`
 - `docs/AI_CHANGELOG.md`
+- `docs/README.md`
+- relevant educational guides under `docs/guides/`
+- relevant integration records under `docs/integrations/`
+- relevant contracts under `docs/contracts/`
 - relevant records under `docs/decisions/`
 - relevant active plans under `docs/plans/`
 
 Keep those documents synchronized with meaningful implementation and
 verification changes.
+
+## Required Documentation Surfaces
+
+- Educational documentation lives under `docs/guides/`.
+- External integration boundaries live under `docs/integrations/`.
+- Stable HTTP, internal message, and configuration contracts live under
+  `docs/contracts/`.
+- `docs/AUTHENTICATION.md` and `docs/CPO_ADMINISTRATION.md` remain the detailed
+  workflow references. `docs/contracts/api/administrative-http-api.md` is the
+  complete human endpoint contract.
+- `docs/contracts/openapi/openapi.yaml` is the canonical machine-readable HTTP
+  contract. It is embedded and served at `/openapi.yaml`; Swagger UI is served
+  at `/docs/`.
+- Every route or payload change must update handlers, the human API contract,
+  OpenAPI, tests/fixtures, and consumer guidance in one slice.
+- No generated API client currently exists. Do not claim an SDK is current
+  until generation and drift verification are implemented.
+- Run `.\scripts\verify-docs.ps1` after meaningful documentation, route, or
+  configuration changes.
 
 ## Permanent Boundaries
 
@@ -40,6 +63,8 @@ For every meaningful slice, run:
 
 ```powershell
 gofmt -w <changed-go-files>
+.\scripts\verify-docs.ps1
+go test ./src/routes -run TestOpenAPIContractMatchesRuntimeRoutesAndServesUI -count=1
 go test ./...
 go vet ./...
 git diff --check

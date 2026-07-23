@@ -1,0 +1,1450 @@
+openapi: 3.1.0
+info:
+  title: TransEV EV CMS Administrative API
+  version: 0.3.0
+  description: |
+    Canonical machine-readable contract for the endpoints currently implemented
+    by `ev-cms-backend-new`.
+
+    Authentication uses a signed-then-encrypted bearer access token. Platform
+    sessions and CPO sessions are separate. CPO integration operations also
+    require `X-CPO-App-ID`; that header is checked only after the bearer token
+    establishes the CPO and never selects a tenant.
+
+    Authentication, platform control-plane, health, and documentation routes do
+    not require `X-CPO-App-ID`. Request bodies reject unknown properties and are
+    limited to 32 KiB by the server.
+  contact:
+    name: TransEV Engineering
+servers:
+  - url: /
+    description: Same origin as the API documentation page
+tags:
+  - name: Health
+    description: Process liveness and PostgreSQL readiness.
+  - name: Authentication
+    description: Password, email OTP, token, password, and session operations.
+  - name: Platform CPOs
+    description: Platform-superadmin CPO provisioning and lifecycle control.
+  - name: CPO Integrations
+    description: CPO owner/admin write-only integration credential management.
+
+paths:
+  /health/live:
+    get:
+      tags: [Health]
+      operationId: getLiveness
+      summary: Check process liveness
+      description: |
+        Returns success when the HTTP process is running. It does not query
+        PostgreSQL and must not be used as a database-readiness signal.
+      responses:
+        "200":
+          description: The process is alive.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthResponse"
+              example:
+                status: ok
+
+  /health/ready:
+    get:
+      tags: [Health]
+      operationId: getReadiness
+      summary: Check PostgreSQL readiness
+      description: Queries PostgreSQL with a two-second timeout.
+      responses:
+        "200":
+          description: PostgreSQL is reachable.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReadinessResponse"
+              example:
+                status: ready
+        "503":
+          description: PostgreSQL is absent, unavailable, or did not respond.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReadinessResponse"
+              example:
+                status: not_ready
+
+  /api/v1/auth/login:
+    post:
+      tags: [Authentication]
+      operationId: startAdministrativeLogin
+      summary: Validate password and start an email-OTP challenge
+      description: |
+        Starts either a platform or a single-CPO administrative login. Platform
+        login must omit `cpo_id`; CPO login must include a non-zero `cpo_id`.
+        Invalid email, password, scope, identity state, platform authority,
+        membership, CPO status, and lockout all collapse to
+        `invalid_credentials` to avoid authority enumeration.
+
+        A successful response means the encrypted OTP mail job and challenge
+        were committed. It does not mean the provider has delivered the email.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              oneOf:
+                - $ref: "#/components/schemas/PlatformLoginRequest"
+                - $ref: "#/components/schemas/CPOLoginRequest"
+            examples:
+              platform:
+                value:
+                  email: superadmin@example.com
+                  password: ExampleOnly-Change-Me
+                  scope: PLATFORM
+              cpo:
+                value:
+                  email: admin@example.com
+                  password: ExampleOnly-Change-Me
+                  scope: CPO
+                  cpo_id: c821a013-5041-42f7-80c8-aa153cf9d455
+      responses:
+        "202":
+          description: OTP challenge created and mail queued.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChallengeResponse"
+        "400":
+          $ref: "#/components/responses/InvalidRequest"
+        "401":
+          description: "`invalid_credentials` — credentials or requested authority are invalid."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "503":
+          $ref: "#/components/responses/MailUnavailable"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /api/v1/auth/2fa/verify:
+    post:
+      tags: [Authentication]
+      operationId: verifyAdministrativeLoginOTP
+      summary: Consume a login OTP and create a session
+      description: |
+        Verifies a six-digit OTP against an unconsumed, unexpired LOGIN_2FA
+        challenge. Revalidates the requested platform/CPO authority inside the
+        session-creation transaction. Success consumes the challenge, creates a
+        durable session and one-time refresh token, and returns an encrypted
+        access token. A temporary-password identity also queues a reminder.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ChallengeVerificationRequest"
+            example:
+              challenge_id: 5cef4c95-a1da-448e-bd7c-19d570cd4497
+              code: "123456"
+      responses:
+        "200":
+          description: Challenge consumed and session created.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TokenResponse"
+        "400":
+          $ref: "#/components/responses/InvalidRequest"
+        "401":
+          $ref: "#/components/responses/InvalidChallenge"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /api/v1/auth/2fa/resend:
+    post:
+      tags: [Authentication]
+      operationId: resendAdministrativeLoginOTP
+      summary: Replace an eligible login challenge
+      description: |
+        Replaces an unconsumed, unexpired LOGIN_2FA challenge after its resend
+        cooldown. The previous challenge is invalidated transactionally and a
+        new encrypted mail job is queued. The old OTP becomes unusable.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ChallengeResendRequest"
+      responses:
+        "202":
+          description: Previous challenge invalidated and replacement created.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChallengeResponse"
+        "400":
+          $ref: "#/components/responses/InvalidRequest"
+        "401":
+          $ref: "#/components/responses/InvalidChallenge"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "503":
+          $ref: "#/components/responses/MailUnavailable"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /api/v1/auth/refresh:
+    post:
+      tags: [Authentication]
+      operationId: rotateRefreshToken
+      summary: Rotate a refresh token and issue a new access token
+      description: |
+        Accepts the current opaque refresh token once. Success stores a
+        replacement, marks the submitted token used, updates safe client
+        metadata, revalidates identity/session/authority/CPO state, and returns
+        the replacement. Reuse of a consumed token revokes the whole session.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RefreshRequest"
+      responses:
+        "200":
+          description: Refresh token rotated.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TokenResponse"
+        "400":
+          $ref: "#/components/responses/InvalidRequest"
+        "401":
+          description: "`invalid_refresh_token` — token invalid, expired, revoked, reused, or authority changed."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /api/v1/auth/password/forgot:
+    post:
+      tags: [Authentication]
+      operationId: startPasswordRecovery
+      summary: Request a password-reset OTP
+      description: |
+        Always returns the same accepted response for malformed, unknown, and
+        eligible emails, except for operational mail/rate-limit failures.
+        Eligible active identities receive a PASSWORD_RESET challenge and
+        encrypted outbox job.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ForgotPasswordRequest"
+      responses:
+        "202":
+          description: Enumeration-safe recovery acknowledgement.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+              example:
+                message: If the account is eligible, a password reset code will be sent.
+        "400":
+          $ref: "#/components/responses/InvalidRequest"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "503":
+          $ref: "#/components/responses/MailUnavailable"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /api/v1/auth/password/reset:
+    post:
+      tags: [Authentication]
+      operationId: resetPassword
+      summary: Consume a recovery OTP and replace the password
+      description: |
+        Validates and consumes a PASSWORD_RESET challenge, stores a new Argon2id
+        password hash, clears login lockout and temporary-password state, and
+        revokes every session and refresh token for the identity. The user must
+        sign in again.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ResetPasswordRequest"
+      responses:
+        "200":
+          description: Password replaced and sessions revoked.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+              example:
+                message: Password reset. Sign in again.
+        "400":
+          description: "`invalid_request` or `invalid_password`."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "401":
+          $ref: "#/components/responses/InvalidChallenge"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /api/v1/auth/me:
+    get:
+      tags: [Authentication]
+      operationId: getCurrentPrincipal
+      summary: Get the current identity and selected authority
+      description: |
+        Returns global user metadata and the authority selected by this session.
+        CPO sessions include CPO ID, role, current app ID, and app-ID mode;
+        platform sessions omit those tenant fields.
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Current validated principal.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MeResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /api/v1/auth/sessions:
+    get:
+      tags: [Authentication]
+      operationId: listSessions
+      summary: List the identity's active unexpired sessions
+      description: |
+        Returns active platform and CPO sessions for the current global
+        identity, newest first. `is_current` identifies the bearer session.
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Active sessions.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SessionListResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /api/v1/auth/sessions/{session_id}:
+    delete:
+      tags: [Authentication]
+      operationId: revokeSession
+      summary: Revoke one session owned by the current identity
+      description: |
+        Revokes the selected session and all of its unused refresh tokens. The
+        target may be the current session. A session belonging to another user
+        is returned as not found.
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/SessionID"
+      responses:
+        "204":
+          description: Session revoked. No response body.
+        "400":
+          description: "`invalid_request` for a malformed path UUID."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          description: "`session_not_found` — no session owned by this identity."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /api/v1/auth/logout:
+    post:
+      tags: [Authentication]
+      operationId: logoutCurrentSession
+      summary: Revoke the current session
+      description: Revokes the bearer session and all its unused refresh tokens.
+      security:
+        - BearerAuth: []
+      responses:
+        "204":
+          description: Current session revoked. No response body.
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /api/v1/auth/logout-all:
+    post:
+      tags: [Authentication]
+      operationId: logoutAllSessions
+      summary: Revoke every session for the current identity
+      description: |
+        Revokes every active platform and CPO session and every unused refresh
+        token belonging to the current global identity.
+      security:
+        - BearerAuth: []
+      responses:
+        "204":
+          description: All sessions revoked. No response body.
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /api/v1/auth/password/change:
+    post:
+      tags: [Authentication]
+      operationId: changePassword
+      summary: Change the authenticated identity's password
+      description: |
+        Requires the current password. The new password must contain 10 to 128
+        characters and differ from the current request value. Success clears
+        temporary-password state and revokes all sessions, including the one
+        used for this request.
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ChangePasswordRequest"
+      responses:
+        "200":
+          description: Password changed and all sessions revoked.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+              example:
+                message: Password changed. All sessions were revoked; sign in again.
+        "400":
+          description: "`invalid_request`, `invalid_password`, or `password_reused`."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "401":
+          description: "`unauthorized` or `invalid_current_password`."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /api/v1/platform/cpos:
+    post:
+      tags: [Platform CPOs]
+      operationId: createCPO
+      summary: Create a pending CPO and its first administrator
+      description: |
+        Atomically creates a subscription-independent pending CPO, a unique
+        dummy app ID, an ADMIN membership, audit data, and an encrypted
+        onboarding mail job. A new email receives a generated temporary
+        password; an existing active identity keeps its password. The temporary
+        password never appears in the response.
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateCPORequest"
+      responses:
+        "201":
+          description: CPO and first administrator created or attached.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CreateCPOResponse"
+        "400":
+          description: |
+            `invalid_request`, `invalid_slug`, `invalid_business_name`,
+            `invalid_company_type`, `invalid_gstin`, `invalid_profile`,
+            `invalid_admin_email`, or `invalid_admin_full_name`.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          description: "`cpo_conflict` or `admin_identity_inactive`."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "503":
+          $ref: "#/components/responses/MailUnavailable"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    get:
+      tags: [Platform CPOs]
+      operationId: listCPOs
+      summary: List the 100 newest CPOs
+      description: |
+        Returns up to 100 CPO records ordered by creation time descending.
+        Pagination and filtering are not implemented.
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: CPO collection.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CPOListResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /api/v1/platform/cpos/{cpo_id}:
+    get:
+      tags: [Platform CPOs]
+      operationId: getCPO
+      summary: Get one CPO
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/CPOID"
+      responses:
+        "200":
+          description: CPO record.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CPO"
+        "400":
+          $ref: "#/components/responses/InvalidCPOID"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/CPONotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /api/v1/platform/cpos/{cpo_id}/activate:
+    post:
+      tags: [Platform CPOs]
+      operationId: activateCPO
+      summary: Set a CPO active
+      description: |
+        Idempotently sets the CPO lifecycle status to ACTIVE. A subscription and
+        live app ID are not required. CPO administrative login becomes eligible.
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/CPOID"
+      responses:
+        "200":
+          description: Current active CPO record.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CPO"
+        "400":
+          $ref: "#/components/responses/InvalidCPOID"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/CPONotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /api/v1/platform/cpos/{cpo_id}/suspend:
+    post:
+      tags: [Platform CPOs]
+      operationId: suspendCPO
+      summary: Suspend a CPO and revoke its sessions
+      description: |
+        Idempotently sets status to SUSPENDED and revokes every active CPO
+        session and unused refresh token for the tenant. New CPO login is
+        blocked. Platform sessions are unaffected.
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/CPOID"
+      responses:
+        "200":
+          description: Current suspended CPO record.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CPO"
+        "400":
+          $ref: "#/components/responses/InvalidCPOID"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/CPONotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /api/v1/platform/cpos/{cpo_id}/app-id:
+    put:
+      tags: [Platform CPOs]
+      operationId: setLiveCPOAppID
+      summary: Assign or rotate the live CPO app ID
+      description: |
+        Normalizes the supplied value to lowercase and replaces the current
+        dummy or live ID immediately. Existing sessions stay valid, but tenant
+        business requests must use the new header value. The reserved
+        `cpo_dummy_` prefix is forbidden.
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/CPOID"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SetCPOAppIDRequest"
+      responses:
+        "200":
+          description: CPO with current LIVE app identity.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CPO"
+        "400":
+          description: "`invalid_request`, `invalid_cpo_id`, or `invalid_cpo_app_id`."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/CPONotFound"
+        "409":
+          description: "`cpo_conflict` — app ID is already assigned."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /api/v1/cpo/integrations:
+    get:
+      tags: [CPO Integrations]
+      operationId: listCPOIntegrations
+      summary: List configured integration metadata
+      description: |
+        Returns metadata only for the authenticated CPO. Secret plaintext is
+        never returned. Requires a CPO OWNER or ADMIN session, a changed initial
+        password, and the current app-ID header.
+      security:
+        - BearerAuth: []
+          CPOAppID: []
+      responses:
+        "200":
+          description: Configured integration metadata.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/IntegrationListResponse"
+        "400":
+          $ref: "#/components/responses/MissingCPOAppID"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          description: |
+            `forbidden`, `password_change_required`, or `cpo_app_id_mismatch`.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /api/v1/cpo/integrations/{provider}:
+    parameters:
+      - $ref: "#/components/parameters/IntegrationProvider"
+    get:
+      tags: [CPO Integrations]
+      operationId: getCPOIntegration
+      summary: Get one integration's metadata
+      security:
+        - BearerAuth: []
+          CPOAppID: []
+      responses:
+        "200":
+          description: Integration metadata without secret fields.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Integration"
+        "400":
+          description: "`missing_cpo_app_id` or `unsupported_integration_provider`."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/CPOIntegrationForbidden"
+        "404":
+          $ref: "#/components/responses/IntegrationNotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    put:
+      tags: [CPO Integrations]
+      operationId: putCPOIntegration
+      summary: Configure or atomically rotate Razorpay credentials
+      description: |
+        Stores one encrypted credential object for the authenticated CPO.
+        Associated authenticated-encryption data binds it to CPO and provider.
+        The response and audit log contain metadata only.
+      security:
+        - BearerAuth: []
+          CPOAppID: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RazorpayCredentialsRequest"
+      responses:
+        "200":
+          description: Stored integration metadata.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Integration"
+        "400":
+          description: |
+            `invalid_request`, `missing_cpo_app_id`,
+            `unsupported_integration_provider`, or
+            `invalid_integration_credentials`.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/CPOIntegrationForbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    delete:
+      tags: [CPO Integrations]
+      operationId: deleteCPOIntegration
+      summary: Remove the CPO's provider credentials
+      description: Deletes the encrypted credential row and records a safe audit event.
+      security:
+        - BearerAuth: []
+          CPOAppID: []
+      responses:
+        "204":
+          description: Credentials removed. No response body.
+        "400":
+          description: "`missing_cpo_app_id` or `unsupported_integration_provider`."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/CPOIntegrationForbidden"
+        "404":
+          $ref: "#/components/responses/IntegrationNotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWE
+      description: Short-lived signed-then-encrypted administrative access token.
+    CPOAppID:
+      type: apiKey
+      in: header
+      name: X-CPO-App-ID
+      description: |
+        Current app ID for the CPO already established by BearerAuth. This is
+        routing metadata, not an authentication secret or tenant selector.
+
+  parameters:
+    CPOID:
+      name: cpo_id
+      in: path
+      required: true
+      description: Non-zero CPO UUID.
+      schema:
+        type: string
+        format: uuid
+    SessionID:
+      name: session_id
+      in: path
+      required: true
+      description: Session UUID owned by the current identity.
+      schema:
+        type: string
+        format: uuid
+    IntegrationProvider:
+      name: provider
+      in: path
+      required: true
+      description: Provider name. Input is normalized to uppercase.
+      schema:
+        type: string
+        enum: [RAZORPAY]
+
+  responses:
+    InvalidRequest:
+      description: "`invalid_request` — malformed, oversized, unknown-field, or multiple-object JSON."
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorEnvelope"
+    InvalidChallenge:
+      description: "`invalid_challenge` — challenge or OTP invalid, expired, consumed, invalidated, or not eligible."
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorEnvelope"
+    Unauthorized:
+      description: "`unauthorized` — bearer token absent, invalid, expired, revoked, or no longer authorized."
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorEnvelope"
+    Forbidden:
+      description: "`forbidden` — current session lacks platform authority."
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorEnvelope"
+    RateLimited:
+      description: "`rate_limited` — durable source-address limit exceeded."
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorEnvelope"
+    MailUnavailable:
+      description: "`mail_unavailable` — required mail production is disabled."
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorEnvelope"
+    InternalError:
+      description: "`internal_error` — operation failed without exposing internals."
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorEnvelope"
+    InvalidCPOID:
+      description: "`invalid_cpo_id` — path value is not a non-zero UUID."
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorEnvelope"
+    CPONotFound:
+      description: "`cpo_not_found` — no CPO has the supplied ID."
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorEnvelope"
+    MissingCPOAppID:
+      description: "`missing_cpo_app_id` — X-CPO-App-ID is absent or blank."
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorEnvelope"
+    CPOIntegrationForbidden:
+      description: |
+        `forbidden`, `password_change_required`, or `cpo_app_id_mismatch`.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorEnvelope"
+    IntegrationNotFound:
+      description: "`integration_not_found` — provider credentials are not configured."
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorEnvelope"
+
+  schemas:
+    HealthResponse:
+      type: object
+      additionalProperties: false
+      required: [status]
+      properties:
+        status:
+          type: string
+          enum: [ok]
+
+    ReadinessResponse:
+      type: object
+      additionalProperties: false
+      required: [status]
+      properties:
+        status:
+          type: string
+          enum: [ready, not_ready]
+
+    PlatformLoginRequest:
+      type: object
+      additionalProperties: false
+      required: [email, password, scope]
+      properties:
+        email:
+          type: string
+          format: email
+          maxLength: 320
+        password:
+          type: string
+          minLength: 1
+          maxLength: 128
+          writeOnly: true
+        scope:
+          type: string
+          enum: [PLATFORM]
+
+    CPOLoginRequest:
+      type: object
+      additionalProperties: false
+      required: [email, password, scope, cpo_id]
+      properties:
+        email:
+          type: string
+          format: email
+          maxLength: 320
+        password:
+          type: string
+          minLength: 1
+          maxLength: 128
+          writeOnly: true
+        scope:
+          type: string
+          enum: [CPO]
+        cpo_id:
+          type: string
+          format: uuid
+
+    ChallengeVerificationRequest:
+      type: object
+      additionalProperties: false
+      required: [challenge_id, code]
+      properties:
+        challenge_id:
+          type: string
+          format: uuid
+        code:
+          type: string
+          pattern: "^[0-9]{6}$"
+          writeOnly: true
+
+    ChallengeResendRequest:
+      type: object
+      additionalProperties: false
+      required: [challenge_id]
+      properties:
+        challenge_id:
+          type: string
+          format: uuid
+
+    ChallengeResponse:
+      type: object
+      additionalProperties: false
+      required: [challenge_id, expires_at, resend_available_at]
+      properties:
+        challenge_id:
+          type: string
+          format: uuid
+        expires_at:
+          type: string
+          format: date-time
+        resend_available_at:
+          type: string
+          format: date-time
+
+    RefreshRequest:
+      type: object
+      additionalProperties: false
+      required: [refresh_token]
+      properties:
+        refresh_token:
+          type: string
+          minLength: 1
+          maxLength: 256
+          writeOnly: true
+
+    ForgotPasswordRequest:
+      type: object
+      additionalProperties: false
+      required: [email]
+      properties:
+        email:
+          type: string
+          format: email
+          maxLength: 320
+
+    ResetPasswordRequest:
+      type: object
+      additionalProperties: false
+      required: [challenge_id, code, new_password]
+      properties:
+        challenge_id:
+          type: string
+          format: uuid
+        code:
+          type: string
+          pattern: "^[0-9]{6}$"
+          writeOnly: true
+        new_password:
+          type: string
+          minLength: 10
+          maxLength: 128
+          writeOnly: true
+
+    ChangePasswordRequest:
+      type: object
+      additionalProperties: false
+      required: [current_password, new_password]
+      properties:
+        current_password:
+          type: string
+          minLength: 1
+          maxLength: 128
+          writeOnly: true
+        new_password:
+          type: string
+          minLength: 10
+          maxLength: 128
+          writeOnly: true
+
+    TokenResponse:
+      type: object
+      additionalProperties: false
+      required:
+        - access_token
+        - access_token_expires_at
+        - refresh_token
+        - session_expires_at
+        - token_type
+        - must_change_password
+      properties:
+        access_token:
+          type: string
+          description: Compact signed-then-encrypted JWT.
+        access_token_expires_at:
+          type: string
+          format: date-time
+        refresh_token:
+          type: string
+          description: Opaque one-time token. Store securely and replace after refresh.
+        session_expires_at:
+          type: string
+          format: date-time
+        token_type:
+          type: string
+          enum: [Bearer]
+        cpo_app_id:
+          type: string
+          description: Present only for CPO scope.
+        cpo_app_id_mode:
+          $ref: "#/components/schemas/CPOAppIDMode"
+        must_change_password:
+          type: boolean
+
+    User:
+      type: object
+      additionalProperties: false
+      required:
+        - id
+        - email
+        - full_name
+        - is_verified
+        - mfa_enabled
+        - must_change_password
+      properties:
+        id:
+          type: string
+          format: uuid
+        email:
+          type: string
+          format: email
+        full_name:
+          type: string
+        is_verified:
+          type: boolean
+        mfa_enabled:
+          type: boolean
+        must_change_password:
+          type: boolean
+        last_login_at:
+          type: string
+          format: date-time
+
+    MeResponse:
+      type: object
+      additionalProperties: false
+      required: [user, scope]
+      properties:
+        user:
+          $ref: "#/components/schemas/User"
+        scope:
+          $ref: "#/components/schemas/AuthScope"
+        cpo_id:
+          type: string
+          format: uuid
+        role:
+          $ref: "#/components/schemas/CPORole"
+        cpo_app_id:
+          type: string
+        cpo_app_id_mode:
+          $ref: "#/components/schemas/CPOAppIDMode"
+
+    Session:
+      type: object
+      additionalProperties: false
+      required:
+        - id
+        - scope
+        - user_agent
+        - created_at
+        - last_seen_at
+        - expires_at
+        - is_current
+      properties:
+        id:
+          type: string
+          format: uuid
+        scope:
+          $ref: "#/components/schemas/AuthScope"
+        cpo_id:
+          type: string
+          format: uuid
+        role:
+          $ref: "#/components/schemas/CPORole"
+        ip_address:
+          type: string
+        user_agent:
+          type: string
+          maxLength: 500
+        created_at:
+          type: string
+          format: date-time
+        last_seen_at:
+          type: string
+          format: date-time
+        expires_at:
+          type: string
+          format: date-time
+        is_current:
+          type: boolean
+
+    SessionListResponse:
+      type: object
+      additionalProperties: false
+      required: [sessions]
+      properties:
+        sessions:
+          type: array
+          items:
+            $ref: "#/components/schemas/Session"
+
+    MessageResponse:
+      type: object
+      additionalProperties: false
+      required: [message]
+      properties:
+        message:
+          type: string
+
+    CreateCPORequest:
+      type: object
+      additionalProperties: false
+      required:
+        - slug
+        - business_name
+        - company_type
+        - admin
+      properties:
+        slug:
+          type: string
+          maxLength: 80
+          pattern: "^[A-Za-z0-9]+(?:-[A-Za-z0-9]+)*$"
+          description: Trimmed/lowercased by the server; words separated by single hyphens.
+        business_name:
+          type: string
+          minLength: 1
+          maxLength: 255
+        company_type:
+          type: string
+          enum: [INDIVIDUAL, COMPANY]
+        gstin:
+          type: string
+          pattern: "^[0-9A-Za-z]{15}$"
+          description: Trimmed and uppercased by the server.
+        address:
+          type: string
+          maxLength: 5000
+        city:
+          type: string
+          maxLength: 100
+        state:
+          type: string
+          maxLength: 100
+        pincode:
+          type: string
+          maxLength: 10
+        admin:
+          $ref: "#/components/schemas/InitialAdminRequest"
+
+    InitialAdminRequest:
+      type: object
+      additionalProperties: false
+      required: [email, full_name]
+      properties:
+        email:
+          type: string
+          format: email
+          maxLength: 320
+        full_name:
+          type: string
+          minLength: 1
+          maxLength: 255
+
+    SetCPOAppIDRequest:
+      type: object
+      additionalProperties: false
+      required: [app_id]
+      properties:
+        app_id:
+          type: string
+          minLength: 16
+          maxLength: 100
+          pattern: "^[A-Za-z0-9_-]{16,100}$"
+          description: Lowercased by the server; must not start with cpo_dummy_.
+
+    CPO:
+      type: object
+      additionalProperties: false
+      required:
+        - id
+        - slug
+        - business_name
+        - company_type
+        - address
+        - city
+        - state
+        - pincode
+        - status
+        - app_id
+        - app_id_mode
+        - app_id_updated_at
+        - created_at
+        - updated_at
+      properties:
+        id:
+          type: string
+          format: uuid
+        slug:
+          type: string
+        business_name:
+          type: string
+        company_type:
+          type: string
+          enum: [INDIVIDUAL, COMPANY]
+        gstin:
+          type: string
+        address:
+          type: string
+        city:
+          type: string
+        state:
+          type: string
+        pincode:
+          type: string
+        status:
+          type: string
+          enum: [PENDING, ACTIVE, SUSPENDED]
+        app_id:
+          type: string
+        app_id_mode:
+          $ref: "#/components/schemas/CPOAppIDMode"
+        app_id_updated_at:
+          type: string
+          format: date-time
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    InitialAdmin:
+      type: object
+      additionalProperties: false
+      required: [user_id, email, full_name, role, identity_created]
+      properties:
+        user_id:
+          type: string
+          format: uuid
+        email:
+          type: string
+          format: email
+        full_name:
+          type: string
+        role:
+          type: string
+          enum: [ADMIN]
+        identity_created:
+          type: boolean
+          description: True when the CMS created a new global identity.
+
+    CreateCPOResponse:
+      type: object
+      additionalProperties: false
+      required: [cpo, admin]
+      properties:
+        cpo:
+          $ref: "#/components/schemas/CPO"
+        admin:
+          $ref: "#/components/schemas/InitialAdmin"
+
+    CPOListResponse:
+      type: object
+      additionalProperties: false
+      required: [cpos]
+      properties:
+        cpos:
+          type: array
+          maxItems: 100
+          items:
+            $ref: "#/components/schemas/CPO"
+
+    RazorpayCredentialsRequest:
+      type: object
+      additionalProperties: false
+      required: [key_id, key_secret]
+      properties:
+        key_id:
+          type: string
+          minLength: 8
+          maxLength: 100
+          writeOnly: true
+        key_secret:
+          type: string
+          minLength: 16
+          maxLength: 255
+          writeOnly: true
+        webhook_secret:
+          type: string
+          maxLength: 255
+          writeOnly: true
+
+    Integration:
+      type: object
+      additionalProperties: false
+      required:
+        - provider
+        - display_hint
+        - is_active
+        - configured_at
+        - updated_at
+      properties:
+        provider:
+          type: string
+          enum: [RAZORPAY]
+        display_hint:
+          type: string
+          description: Masked key-ID suffix, never a secret.
+          example: "****5678"
+        is_active:
+          type: boolean
+        configured_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    IntegrationListResponse:
+      type: object
+      additionalProperties: false
+      required: [integrations]
+      properties:
+        integrations:
+          type: array
+          items:
+            $ref: "#/components/schemas/Integration"
+
+    AuthScope:
+      type: string
+      enum: [PLATFORM, CPO]
+
+    CPORole:
+      type: string
+      enum: [OWNER, ADMIN, OPERATOR, VIEWER]
+
+    CPOAppIDMode:
+      type: string
+      enum: [DUMMY, LIVE]
+
+    ErrorEnvelope:
+      type: object
+      additionalProperties: false
+      required: [error]
+      properties:
+        error:
+          type: object
+          additionalProperties: false
+          required: [code, message]
+          properties:
+            code:
+              type: string
+              description: Stable machine-readable code.
+            message:
+              type: string
+              description: Safe human-readable explanation.

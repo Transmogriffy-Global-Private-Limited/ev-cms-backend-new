@@ -30,7 +30,10 @@ Copy-Item .env.example .env
 The initial superadmin email and password, independent authentication and
 encryption keys, and SMTP settings are required by the credential surface.
 `MAIL_ENABLED=true` is required for administrative login and password recovery.
-Do not commit `.env` or real credentials.
+The checked-in example selects Hostinger implicit TLS on
+`smtp.hostinger.com:465` with `team@transev.in`; supply only the mailbox
+password in the ignored `.env` or process environment. Do not commit `.env` or
+real credentials.
 
 ## Run
 
@@ -52,6 +55,14 @@ Authentication and tenant integration endpoints are documented in
 `docs/AUTHENTICATION.md`. Platform CPO management is documented in
 `docs/CPO_ADMINISTRATION.md`.
 
+Interactive API documentation is served from the same loopback listener:
+
+- `http://127.0.0.1:8080/docs/` — embedded Swagger UI with **Try it out**
+- `http://127.0.0.1:8080/openapi.yaml` — canonical OpenAPI 3.1 contract
+
+The complete human endpoint handoff is
+`docs/contracts/api/administrative-http-api.md`.
+
 ## Migrations
 
 Run all pending up migrations:
@@ -72,6 +83,7 @@ running them. The application never runs a down migration automatically.
 ## Verify
 
 ```powershell
+.\scripts\verify-docs.ps1
 go test ./...
 go vet ./...
 ```

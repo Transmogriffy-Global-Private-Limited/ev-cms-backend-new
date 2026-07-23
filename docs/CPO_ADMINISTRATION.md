@@ -1,5 +1,9 @@
 # CPO Administration API
 
+For exhaustive headers, schemas, errors, state effects, and client sequencing,
+use `docs/contracts/api/administrative-http-api.md`. The same operations are
+executable from the embedded Swagger UI at `/docs/`.
+
 ## Boundary
 
 Base path: `/api/v1/platform/cpos`
