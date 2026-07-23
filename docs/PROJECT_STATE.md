@@ -58,7 +58,10 @@ provides:
   rotating/reuse-detecting refresh tokens;
 - app-user `me`, customer-scoped session listing/revocation/logout, and global
   password recovery/change;
-- trusted backend current-principal, user, customer, CPO, and app-ID helpers.
+- trusted backend current-principal, user, customer, CPO, and app-ID helpers;
+- environment-controlled permissive CORS middleware and a current development
+  configuration that listens on all IPv4 interfaces for access from other
+  machines.
 
 No inventory API, HAL integration, charging workflow, billing orchestration,
 payment workflow, or reporting behavior is implemented yet.
@@ -110,6 +113,8 @@ payment workflow, or reporting behavior is implemented yet.
   reuse revocation, customer-scoped session listing/revocation/logout,
   password recovery, password change, and global session revocation passed in
   PostgreSQL lifecycle tests.
+- Permissive CORS preflight behavior and the disabled-CORS path passed focused
+  route tests; authentication and authorization remain active in either mode.
 
 ## Current Access Model
 

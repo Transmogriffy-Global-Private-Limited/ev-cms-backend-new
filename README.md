@@ -44,7 +44,16 @@ go run .
 
 Startup connects to PostgreSQL and applies embedded versioned up migrations
 before idempotently bootstrapping the configured initial superadmin and serving
-requests. Local HTTP defaults to `127.0.0.1:8080`.
+requests. The code default remains `127.0.0.1:8080`; the current development
+example opts into temporary unrestricted network access with:
+
+```dotenv
+HTTP_ADDR=0.0.0.0:8080
+CORS_ALLOW_ALL=true
+```
+
+Other machines use `http://<server-ip>:8080`, not `http://0.0.0.0:8080`.
+Authentication and tenant authorization remain enforced.
 
 Health endpoints:
 
@@ -57,10 +66,10 @@ Authentication and tenant integration endpoints are documented in
 with the complete app-user login, session, `me`, and password surface in the
 HTTP contract and OpenAPI explorer.
 
-Interactive API documentation is served from the same loopback listener:
+Interactive API documentation is served from the same listener:
 
-- `http://127.0.0.1:8080/docs/` — embedded Swagger UI with **Try it out**
-- `http://127.0.0.1:8080/openapi.yaml` — canonical OpenAPI 3.1 contract
+- `http://<server-ip>:8080/docs/` — embedded Swagger UI with **Try it out**
+- `http://<server-ip>:8080/openapi.yaml` — canonical OpenAPI 3.1 contract
 
 The complete human endpoint handoff is
 `docs/contracts/api/administrative-http-api.md`.

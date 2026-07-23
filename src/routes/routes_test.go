@@ -171,8 +171,55 @@ func newCredentialRouteTestRouter(t *testing.T) *gin.Engine {
 		customerAuthService,
 		cpo.NewService(nil, cmsmail.NewOutbox(mailBox), true),
 		integrations.NewService(nil, credentialBox),
+		true,
 	)
 	return router
+}
+
+func TestPermissiveCORSAllowsRemoteBrowserPreflight(t *testing.T) {
+	t.Parallel()
+
+	router := newCredentialRouteTestRouter(t)
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodOptions, "/api/v1/app/auth/login", nil)
+	request.Header.Set("Origin", "http://192.0.2.10:5173")
+	request.Header.Set("Access-Control-Request-Method", http.MethodPost)
+	request.Header.Set(
+		"Access-Control-Request-Headers",
+		"authorization,content-type,x-cpo-app-id,x-client-version",
+	)
+
+	router.ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusNoContent {
+		t.Fatalf("preflight got status %d, want 204", recorder.Code)
+	}
+	if got := recorder.Header().Get("Access-Control-Allow-Origin"); got != "*" {
+		t.Errorf("allow origin = %q, want *", got)
+	}
+	if got := recorder.Header().Get("Access-Control-Allow-Headers"); got !=
+		"authorization,content-type,x-cpo-app-id,x-client-version" {
+		t.Errorf("allow headers = %q, want requested headers", got)
+	}
+}
+
+func TestDisabledCORSDoesNotAddCrossOriginHeaders(t *testing.T) {
+	t.Parallel()
+
+	router := gin.New()
+	router.Use(permissiveCORSMiddleware(false))
+	router.GET("/test", func(ctx *gin.Context) {
+		ctx.Status(http.StatusNoContent)
+	})
+
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodGet, "/test", nil)
+	request.Header.Set("Origin", "http://192.0.2.10:5173")
+	router.ServeHTTP(recorder, request)
+
+	if got := recorder.Header().Get("Access-Control-Allow-Origin"); got != "" {
+		t.Errorf("disabled CORS set allow origin %q", got)
+	}
 }
 
 func TestOpenAPIContractMatchesRuntimeRoutesAndServesUI(t *testing.T) {
@@ -295,7 +342,7 @@ func TestHealthRoutes(t *testing.T) {
 
 			recorder := httptest.NewRecorder()
 			request := httptest.NewRequest(http.MethodGet, test.path, nil)
-			New(test.pinger, nil, nil, nil, nil).ServeHTTP(recorder, request)
+			New(test.pinger, nil, nil, nil, nil, false).ServeHTTP(recorder, request)
 
 			if recorder.Code != test.wantStatus {
 				t.Fatalf("got status %d, want %d", recorder.Code, test.wantStatus)

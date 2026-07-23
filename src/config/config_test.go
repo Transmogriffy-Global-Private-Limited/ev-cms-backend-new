@@ -51,6 +51,7 @@ func TestLoadHostingerImplicitSSLConfiguration(t *testing.T) {
 	key := base64.StdEncoding.EncodeToString([]byte(strings.Repeat("k", 32)))
 	environment := map[string]string{
 		"DATABASE_URL":                   "postgres://localhost/test",
+		"CORS_ALLOW_ALL":                 "true",
 		"SUPERADMIN_EMAIL":               "admin@example.com",
 		"SUPERADMIN_PASSWORD":            "a-long-password",
 		"JWT_SIGNING_KEY_B64":            key,
@@ -80,6 +81,9 @@ func TestLoadHostingerImplicitSSLConfiguration(t *testing.T) {
 		cfg.Mail.UseTLS ||
 		!cfg.Mail.UseSSL {
 		t.Fatalf("unexpected Hostinger SMTP transport: %#v", cfg.Mail)
+	}
+	if !cfg.CORSAllowAll {
+		t.Fatal("expected CORS_ALLOW_ALL=true to enable permissive CORS")
 	}
 }
 

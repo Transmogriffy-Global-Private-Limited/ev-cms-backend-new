@@ -2,6 +2,24 @@
 
 ## 2026-07-23
 
+### Temporary remote-development access implemented
+
+- Added environment-controlled permissive CORS middleware with preflight
+  handling for remote browser frontends.
+- Set the current ignored `.env` and checked-in `.env.example` to listen on
+  `0.0.0.0:8080` with `CORS_ALLOW_ALL=true`.
+- Kept the code defaults at loopback-only and CORS-disabled when those
+  variables are absent.
+- Preserved authentication, CPO app-ID validation, tenant isolation, and
+  authorization for all actual API requests.
+- Documented the remote client URL, operational risk, and production rollback.
+
+Verification:
+
+- Configuration and route tests cover enabled and disabled CORS behavior.
+- Documentation verification, runtime/OpenAPI route matching, `go test ./...`,
+  and `go vet ./...` passed.
+
 ### Complete app-user authentication boundary implemented and verified
 
 - Approved a distinct `CUSTOMER` session scope tied to one CPO customer.

@@ -16,7 +16,8 @@ startup failure; the server does not run partially.
 | Variable | Requirement / default |
 |---|---|
 | `DATABASE_URL` | Required |
-| `HTTP_ADDR` | Default `127.0.0.1:8080`; keep local development loopback-only |
+| `HTTP_ADDR` | Code default `127.0.0.1:8080`; current development example uses `0.0.0.0:8080` for access from other machines |
+| `CORS_ALLOW_ALL` | Default `false`; current development example sets `true` to allow every browser origin and requested header |
 | `SUPERADMIN_EMAIL` | Required valid email |
 | `SUPERADMIN_PASSWORD` | Required, 10 to 128 characters; existing password is never overwritten |
 | `SUPERADMIN_FULL_NAME` | Default `Platform Superadmin` |
@@ -121,8 +122,22 @@ selection may be checked in.
 | SMTP credential-pair error | Username/password only partly configured |
 | email validation error | Bootstrap or sender address is not a normalized valid address |
 
-## Local Safety
+## Temporary Unrestricted Development Access
 
-Keep `HTTP_ADDR=127.0.0.1:8080` for local work. The interactive API explorer is
-available on that same loopback listener at `/docs/`; no second listener,
-container, public binding, or callback tunnel is required.
+The current `.env.example` intentionally opts into:
+
+```dotenv
+HTTP_ADDR=0.0.0.0:8080
+CORS_ALLOW_ALL=true
+```
+
+`HTTP_ADDR=0.0.0.0:8080` listens on every IPv4 interface.
+`CORS_ALLOW_ALL=true` returns `Access-Control-Allow-Origin: *`, accepts browser
+preflight requests for the API methods, and reflects requested preflight
+headers. It does not disable authentication, app-ID validation, tenant scope,
+or authorization.
+
+Clients on another machine use `http://<server-ip>:8080`. This temporary mode
+must be replaced with an explicit origin allowlist and an HTTPS reverse proxy
+before production exposure. Set `HTTP_ADDR=127.0.0.1:8080` and
+`CORS_ALLOW_ALL=false` to restore loopback-only, same-origin behavior.

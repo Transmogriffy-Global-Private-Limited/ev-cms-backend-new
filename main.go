@@ -121,6 +121,7 @@ func run() error {
 			customerAuthService,
 			cpoService,
 			integrationService,
+			cfg.CORSAllowAll,
 		),
 		ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout:       15 * time.Second,

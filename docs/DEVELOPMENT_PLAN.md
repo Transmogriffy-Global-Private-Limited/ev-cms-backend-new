@@ -472,6 +472,29 @@ Detailed plan:
 
 - `docs/plans/customer-authentication.md`
 
+### Feature: Temporary unrestricted development listener
+
+Status: Verified
+
+Phase: Phase 2: Authentication and CPO administration
+
+Objective:
+
+Allow frontend developers on other machines to reach the CMS and use its APIs
+from arbitrary browser origins during the current integration period.
+
+Scope:
+
+- All-interface IPv4 listener through `HTTP_ADDR=0.0.0.0:8080`
+- Environment-controlled permissive origins and preflight headers
+- Focused enabled/disabled CORS route tests
+- Explicit production rollback guidance
+
+Non-goals:
+
+- Disabling authentication, authorization, app-ID, or tenant boundaries
+- Production TLS termination or a permanent origin policy
+
 ## Current Execution
 
 Current phase:
@@ -489,7 +512,7 @@ Current implementation slice:
 
 Last completed slice:
 
-- Complete app-user authentication and backend customer-principal helpers
+- Temporary unrestricted development listener and CORS configuration
 
 Next expected slice:
 

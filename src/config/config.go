@@ -16,12 +16,13 @@ import (
 const defaultHTTPAddress = "127.0.0.1:8080"
 
 type Config struct {
-	DatabaseURL string
-	HTTPAddress string
-	Superadmin  Superadmin
-	Auth        Auth
-	Mail        Mail
-	Credentials Encryption
+	DatabaseURL  string
+	HTTPAddress  string
+	CORSAllowAll bool
+	Superadmin   Superadmin
+	Auth         Auth
+	Mail         Mail
+	Credentials  Encryption
 }
 
 type Superadmin struct {
@@ -74,6 +75,10 @@ func Load() (Config, error) {
 	if err != nil {
 		return Config{}, err
 	}
+	corsAllowAll, err := boolOrDefault("CORS_ALLOW_ALL", false)
+	if err != nil {
+		return Config{}, err
+	}
 	smtpUseTLS, err := boolOrDefault("SMTP_USE_TLS", false)
 	if err != nil {
 		return Config{}, err
@@ -84,8 +89,9 @@ func Load() (Config, error) {
 	}
 
 	cfg := Config{
-		DatabaseURL: strings.TrimSpace(os.Getenv("DATABASE_URL")),
-		HTTPAddress: envOrDefault("HTTP_ADDR", defaultHTTPAddress),
+		DatabaseURL:  strings.TrimSpace(os.Getenv("DATABASE_URL")),
+		HTTPAddress:  envOrDefault("HTTP_ADDR", defaultHTTPAddress),
+		CORSAllowAll: corsAllowAll,
 		Superadmin: Superadmin{
 			Email:    normalizeEmail(os.Getenv("SUPERADMIN_EMAIL")),
 			Password: os.Getenv("SUPERADMIN_PASSWORD"),

@@ -8,7 +8,7 @@ or full provider errors containing sensitive values.
 | Symptom | Likely layer | First safe check |
 |---|---|---|
 | Process exits before listening | Configuration | Startup error and `.env.example` names |
-| `/health/live` fails | HTTP process | Listener and loopback address |
+| `/health/live` fails | HTTP process | Listener address, server IP, and firewall |
 | live works, ready is 503 | PostgreSQL | `DATABASE_URL` target and database reachability |
 | login is 503 | Mail feature | `MAIL_ENABLED` and SMTP validation |
 | login is 202, no email | Outbox/SMTP | Job status, attempts, bounded error |
@@ -21,8 +21,8 @@ or full provider errors containing sensitive values.
 - `/docs` should return a temporary redirect to `/docs/`.
 - `/docs/` and its assets are embedded; no CDN is required.
 - `/openapi.yaml` should return the specification.
-- The UI uses the same origin as the API, so local CORS configuration is not
-  required.
+- With `CORS_ALLOW_ALL=true`, remote browser origins and their requested
+  preflight headers are accepted. Without it, use the same origin as the API.
 - Use Swagger UI **Authorize** for bearer and CPO app-ID values. Do not paste a
   refresh token into the bearer field.
 

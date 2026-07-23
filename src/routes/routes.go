@@ -23,9 +23,11 @@ func New(
 	customerAuthService *customerauth.Service,
 	cpoService *cpo.Service,
 	integrationService *integrations.Service,
+	corsAllowAll bool,
 ) *gin.Engine {
 	router := gin.New()
 	router.Use(gin.Recovery())
+	router.Use(permissiveCORSMiddleware(corsAllowAll))
 	_ = router.SetTrustedProxies(nil)
 	apidocs.Register(router)
 
