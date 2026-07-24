@@ -1,8 +1,13 @@
 # ADR 0007: Complete Superadmin Control Plane
 
-Status: Accepted
+Status: Superseded in part by ADR 0008
 
 Date: 2026-07-24
+
+ADR 0008 removes the subscription, entitlement, platform-invoice, and
+platform-payment decision. The CPO lifecycle, governance, audit, worker,
+notification, overview, PostgreSQL-event, SSE, REST-recovery, and tenant-data
+boundaries in this record remain accepted.
 
 ## Context
 

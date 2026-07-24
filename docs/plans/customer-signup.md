@@ -39,7 +39,7 @@ web application without weakening the global-identity and tenant boundaries.
 ## Non-goals
 
 - Customer login, access/refresh tokens, social login, SMS OTP, or app attestation
-- Subscription or entitlement checks
+- Commercial access or payment checks
 - Customer profile editing
 - Automatic assignment to a customer group
 

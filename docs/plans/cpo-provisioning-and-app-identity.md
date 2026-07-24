@@ -4,8 +4,8 @@ Status: Verified
 
 ## Objective
 
-Provision CPO tenants without coupling their existence or authorization to a
-commercial subscription. Give each CPO a stable application identifier for
+Provision CPO tenants through explicit manual platform lifecycle control.
+Give each CPO a stable application identifier for
 tenant request routing, beginning with a dummy onboarding ID and changing to a
 superadmin-assigned live ID when its application goes live.
 
@@ -26,11 +26,12 @@ App identity:  DUMMY -> LIVE -> LIVE (rotation)
   live app ID.
 - Suspension blocks new CPO administrative operations regardless of app-ID
   mode.
-- Assigning a live app ID does not imply a subscription.
+- Assigning a live app ID does not imply commercial or payment state.
 - App-ID rotation invalidates the old header value immediately.
 
-There is deliberately no subscription table, foreign key, entitlement check,
-or feature matrix in this slice.
+There is deliberately no active subscription table, foreign key, entitlement
+check, or feature matrix. The retired migration-seven/eight prototype is
+archived outside the runtime schema by migration nine.
 
 ## First CPO Administrator
 
@@ -104,8 +105,8 @@ without already knowing it.
 - `PUT /api/v1/platform/cpos/:cpo_id/app-id`
 
 Creation accepts the existing CPO business-profile fields but not status,
-subscription, or app ID. It also accepts the first administrator's email and
-name. The server owns lifecycle and app-ID values.
+commercial state, or app ID. It also accepts the first administrator's email
+and name. The server owns lifecycle and app-ID values.
 
 Live app IDs are 16 to 100 lowercase URL/header-safe characters. Dummy IDs use
 the reserved `cpo_dummy_` prefix; superadmin-supplied live IDs cannot use it.
@@ -131,7 +132,7 @@ the reserved `cpo_dummy_` prefix; superadmin-supplied live IDs cannot use it.
 - Migration contains matching additive up/down behavior.
 - Unit tests cover generation, validation, middleware mismatch, and platform
   authorization.
-- PostgreSQL integration tests cover creation without subscription, unique
+- PostgreSQL integration tests cover creation without a commercial prerequisite, unique
   dummy ID, concurrent and sequential new/existing first-admin behavior,
   encrypted temporary-password delivery, repeated login reminders,
   password-change enforcement, activation, dummy-header access, live-ID

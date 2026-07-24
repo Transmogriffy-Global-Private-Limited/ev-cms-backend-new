@@ -2,6 +2,28 @@
 
 ## 2026-07-24
 
+### Tenant commercial management retired
+
+- Replaced the tenant subscription, entitlement, platform-invoice, and
+  platform-payment direction with manual superadmin CPO activation/suspension.
+- Removed the subscription and platform-billing runtime modules, routes,
+  models, workers, mail producers, OpenAPI operations, and active contracts.
+- Added migration nine, which preserves the already-deployed prototype tables
+  in `retired_commercial` rather than dropping data.
+- Migration nine disables retired worker requirements and refuses to proceed
+  while a related mail job is pending or processing.
+- Added ADR 0008 and rewrote the superadmin plan, concepts, API handoff, schema
+  ownership, and project state around the simpler access model.
+
+Verification:
+
+- Migration nine passed disposable PostgreSQL 17 up, pending-mail guard,
+  preserved-row archival, worker disablement, down restoration, and worker
+  re-enable checks.
+- Retired routes return `404`; all 44 runtime/OpenAPI operations match.
+- Focused tests, full `go test ./...`, `go vet ./...`, documentation
+  verification, residue scans, and `git diff --check` passed.
+
 ### Development VPS updated to the control-plane release
 
 - Fast-forwarded the clean `main` checkout from `d610efe` to `e15699d`.

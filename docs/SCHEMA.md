@@ -23,6 +23,8 @@ Migration files:
 - `db/migrations/000007_subscriptions.down.sql`
 - `db/migrations/000008_platform_billing.up.sql`
 - `db/migrations/000008_platform_billing.down.sql`
+- `db/migrations/000009_retire_subscriptions_and_platform_billing.up.sql`
+- `db/migrations/000009_retire_subscriptions_and_platform_billing.down.sql`
 
 ## Supplied Model Mapping
 
@@ -151,54 +153,28 @@ worker rows with a non-healthy reported status or a heartbeat older than
 has not registered a worker row is not inferred from this table; startup owns
 registration by sending an immediate heartbeat.
 
-## Platform Subscriptions and Entitlements
+## Retired Commercial Prototype
 
-The seventh migration adds:
+Migrations seven and eight historically created subscription, entitlement,
+platform-invoice, and platform-payment tables. They remain unchanged because
+both migrations reached the development VPS.
 
-- `subscription_plans`, stable commercial catalog identities;
-- `subscription_plan_versions`, exact versioned currency/minor-unit price,
-  billing interval, and trial terms;
-- `subscription_plan_entitlements`, structured feature flags, limits, and
-  non-secret JSON configuration owned by one version;
-- `cpo_subscriptions`, the optional current and historical CPO commercial
-  relationship;
-- `cpo_subscription_history`, immutable, reasoned, idempotent lifecycle facts;
-- `cpo_entitlement_overrides`, explicit reasoned CPO exceptions with optional
-  expiry.
+The ninth migration implements the approved product reversal:
 
-A partial unique index permits at most one `TRIAL`, `ACTIVE`, `PAUSED`, or
-`PAST_DUE` subscription per CPO while allowing later assignments after a
-terminal `CANCELLED` or `EXPIRED` record. CPO creation has no subscription
-foreign key and remains valid without any subscription row.
+- it refuses to proceed while a related subscription/invoice mail job is
+  `PENDING` or `PROCESSING`;
+- it removes commercial immutability triggers and moves all eleven prototype
+  tables from `public` into `retired_commercial`;
+- it preserves every row rather than dropping commercial history;
+- it marks `subscription-lifecycle` and `billing-maintenance` worker records
+  non-required and `DISABLED`, preventing stale retired workers from degrading
+  readiness;
+- its down migration restores the tables, triggers, and worker requirements.
 
-Publishing a plan version records publisher/time. Database triggers reject
-later update or deletion of that published version and its entitlement
-snapshot. Scheduled plan changes and period-end cancellation retain their
-operator identity so the lifecycle worker can write accountable history,
-audit, event, and mail records when the boundary becomes due.
+No active model, repository, route, worker, or OpenAPI operation reads or writes
+`retired_commercial`. Manual CPO `ACTIVE`/`SUSPENDED` lifecycle state is the
+only platform-access control.
 
-The migration also admits `CPO_SUBSCRIPTION_CHANGED` to the encrypted mail
-outbox allowlist. Subscription mail payloads contain CPO/plan/status metadata,
-never provider credentials or platform payment secrets.
-
-## Provider-Neutral Platform Billing
-
-The eighth migration adds one optional CPO billing account, exact platform
-invoices and ordered lines, provider-neutral payments, and immutable payment
-allocations. Actor-scoped idempotency keys protect invoice and payment
-commands. External references are unique when supplied.
-
-Invoice/payment CPO and currency equality, allocation bounds, and aggregate
-paid/due transitions are enforced inside locked application transactions.
-Database checks enforce exact minor-unit amount identities. After issue,
-triggers reject changes to invoice commercial terms and lines while permitting
-status and paid/due transitions.
-
-Payment voiding retains allocation history but reverses its invoice-balance
-effects atomically. A durable worker derives overdue status from due time and
-remaining balance. These records describe what a CPO owes TransEV for the
-platform; tenant Razorpay credentials and charging-customer payments remain
-outside these tables.
-
-The migration also admits encrypted `CPO_PLATFORM_INVOICE_ISSUED` mail work to
-the explicit billing-account address.
+Migration nine was verified up and down against disposable loopback PostgreSQL
+17, including pending-mail refusal, preserved-row archival/restoration, and
+retired-worker disable/restore behavior.

@@ -15,7 +15,7 @@ Authorization: Bearer <encrypted-platform-access-token>
 ```
 
 `X-CPO-App-ID` is deliberately not required on this control-plane API. CPO
-creation and lifecycle have no subscription dependency. The app ID is
+creation and lifecycle have no commercial-management dependency. The app ID is
 application-routing metadata, not a credential.
 
 ## Create a CPO and Initial Administrator
@@ -97,7 +97,8 @@ superadmin activates it.
   newest CPOs.
 - `GET /api/v1/platform/cpos/{cpo_id}` returns one CPO.
 
-No subscription record is read or returned.
+No subscription, entitlement, platform-invoice, or platform-payment record is
+read or returned.
 
 ## Activate and Suspend
 
@@ -107,7 +108,7 @@ No subscription record is read or returned.
 Both return the updated CPO and are idempotent for their requested state.
 Activation permits CPO login with either a dummy or live app ID. Suspension
 blocks new CPO login and invalidates current CPO sessions and refresh tokens.
-Neither operation creates or checks a subscription.
+Neither operation creates or checks commercial or payment state.
 
 ## Assign or Rotate the Live App ID
 

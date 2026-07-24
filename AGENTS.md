@@ -37,10 +37,9 @@ verification changes.
 - `docs/AUTHENTICATION.md` and `docs/CPO_ADMINISTRATION.md` remain the detailed
   workflow references. `docs/contracts/api/administrative-http-api.md` is the
   complete human endpoint contract.
-- `docs/contracts/api/subscriptions.md` is the granular platform subscription
-  and entitlement contract.
-- `docs/contracts/api/platform-billing.md` is the granular provider-neutral
-  platform billing-record contract.
+- CPO access is controlled manually by platform superadmins through CPO
+  activation and suspension. Do not add tenant subscriptions, platform
+  invoices, or platform payment management without a new explicit decision.
 - `docs/contracts/openapi/openapi.yaml` is the canonical machine-readable HTTP
   contract. It is embedded and served at `/openapi.yaml`; Swagger UI is served
   at `/docs/`.

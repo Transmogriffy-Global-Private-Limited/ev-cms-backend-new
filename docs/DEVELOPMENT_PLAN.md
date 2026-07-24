@@ -270,7 +270,7 @@ Detailed plan:
 
 - `docs/plans/authentication-and-credentials.md`
 
-### Feature: Subscription-independent CPO provisioning and app identity
+### Feature: Manual CPO provisioning and app identity
 
 Status: Verified
 
@@ -288,10 +288,10 @@ Enables:
 
 Objective:
 
-Allow platform superadmins to create and control CPO tenants without requiring a
-subscription, assign an opaque dummy application ID at creation, replace it
-with a live application ID, and require the current ID on authenticated
-CPO-scoped business requests.
+Allow platform superadmins to create and control CPO tenants through explicit
+manual lifecycle decisions, assign an opaque dummy application ID at creation,
+replace it with a live application ID, and require the current ID on
+authenticated CPO-scoped business requests.
 
 Scope:
 
@@ -311,7 +311,7 @@ Scope:
 
 Non-goals:
 
-- Subscription plans, billing entitlements, or feature matrices
+- Tenant subscriptions, platform invoices/payments, or feature matrices
 - CPO self-provisioning
 - General CPO owner/staff invitation after the first admin
 - App ID as an authentication secret
@@ -319,7 +319,7 @@ Non-goals:
 
 Acceptance criteria:
 
-- A CPO is created without any subscription record or subscription check.
+- A CPO is created without any commercial access record or payment check.
 - CPO, first admin identity/membership, audit records, and onboarding mail are
   committed atomically.
 - A new first admin receives a generated temporary password whose plaintext is
@@ -406,7 +406,7 @@ Phase: Phase 4: Customers, access tokens, and tariffs
 Depends on:
 
 - Authentication and credential boundary
-- Subscription-independent CPO provisioning and app identity
+- Manual CPO provisioning and app identity
 
 Objective:
 
@@ -424,7 +424,7 @@ Scope:
 Non-goals:
 
 - Customer login or session issuance
-- Subscription checks
+- Commercial access or payment checks
 - Social login, SMS OTP, or app attestation
 
 Acceptance criteria:
@@ -504,28 +504,27 @@ Phase: Phase 2: Authentication and CPO administration
 Depends on:
 
 - Authentication and credential boundary
-- Subscription-independent CPO provisioning and app identity
+- Manual CPO provisioning and app identity
 - Durable encrypted mail outbox
 
 Enables:
 
 - Complete platform operations without tenant-data bypass
-- Provider-neutral CPO licensing and billing records
 - Recoverable mail, notifications, and worker operations
 - Reconnect-safe platform realtime
 - Operational superadmin frontend
 
 Objective:
 
-Finish the platform-management plane across CPO lifecycle, subscriptions,
-entitlements, billing records, platform administrators, audit/security,
-mail/notifications, workers, announcements, overview, status, and durable
-realtime delivery.
+Finish the platform-management plane across manual CPO lifecycle, platform
+administrators, audit/security, mail/notifications, workers, announcements,
+overview, status, and durable realtime delivery.
 
 Non-goals:
 
 - Superadmin access to tenant business data or tenant secret plaintext
-- Automatic subscription payment collection before provider approval
+- Tenant subscription, entitlement, platform-invoice, or platform-payment
+  management
 - Redis, NATS, or a separate realtime service
 
 Detailed plan:
@@ -534,7 +533,8 @@ Detailed plan:
 
 Architecture decision:
 
-- `docs/decisions/0007-complete-superadmin-control-plane.md`
+- `docs/decisions/0007-complete-superadmin-control-plane.md`, as revised by
+  `docs/decisions/0008-manual-cpo-access-without-commercial-management.md`
 
 ## Current Execution
 
@@ -553,8 +553,9 @@ Current implementation slice:
 
 Last completed slice:
 
-- Provider-neutral platform billing accounts, immutable invoices/lines,
-  payments, allocation reversal, overdue worker, and complete contracts
+- Verified retirement of tenant subscriptions and platform billing, including
+  reversible data archival, worker disablement, route/OpenAPI removal, and
+  manual superadmin access documentation
 
 Last deployment milestone:
 
@@ -565,7 +566,7 @@ Last deployment milestone:
 
 Next expected slice:
 
-- Mail/security operations followed by notifications and announcements
+- Platform-superadmin governance followed by mail/security operations
 
 Blocked by:
 
@@ -592,8 +593,8 @@ Blocked by:
   concrete operational requirement exists.
 - SMTP availability is an operational dependency for administrative login and
   password recovery.
-- Commercial subscription rules remain intentionally outside CPO creation and
-  authorization; CPO activation is a manual platform action.
+- CPO access is an explicit platform-superadmin activation/suspension decision;
+  no commercial or payment state controls tenant authorization.
 - The exact CMS/HAL API contract will be defined with the charging-network and
   charging-lifecycle phases.
 
@@ -617,10 +618,11 @@ The fifth migration has been verified down, up, and idempotently up; its
 lifecycle test covers customer login, access/refresh validation, `me`, scoped
 session management, password recovery/change, and revocation.
 
-Migrations six through eight, platform operations, subscriptions, and platform
-billing have focused compile/model/migration-discovery/route/OpenAPI tests.
-Their disposable PostgreSQL migration and lifecycle verification is still
-pending.
+Migration six and platform operations have focused
+compile/model/migration-discovery/route/OpenAPI tests. Migrations seven and
+eight are retained as immutable deployment history only. Migration nine
+retires their tables into `retired_commercial`; its disposable PostgreSQL 17
+up/guard/data-preservation/worker-disable/down lifecycle passed.
 
 ## Completion Criteria
 

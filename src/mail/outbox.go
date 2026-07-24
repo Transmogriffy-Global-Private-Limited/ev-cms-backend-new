@@ -18,20 +18,13 @@ import (
 const staleJobAge = 5 * time.Minute
 
 type MessagePayload struct {
-	RecipientName      string    `json:"recipient_name"`
-	Code               string    `json:"code,omitempty"`
-	ExpiresAt          time.Time `json:"expires_at,omitempty"`
-	TemporaryPassword  string    `json:"temporary_password,omitempty"`
-	CPOName            string    `json:"cpo_name,omitempty"`
-	CPOID              string    `json:"cpo_id,omitempty"`
-	CPOAppID           string    `json:"cpo_app_id,omitempty"`
-	SubscriptionStatus string    `json:"subscription_status,omitempty"`
-	SubscriptionChange string    `json:"subscription_change,omitempty"`
-	PlanVersionID      string    `json:"plan_version_id,omitempty"`
-	InvoiceNumber      string    `json:"invoice_number,omitempty"`
-	InvoiceCurrency    string    `json:"invoice_currency,omitempty"`
-	InvoiceTotalMinor  int64     `json:"invoice_total_minor,omitempty"`
-	InvoiceDueAt       time.Time `json:"invoice_due_at,omitempty"`
+	RecipientName     string    `json:"recipient_name"`
+	Code              string    `json:"code,omitempty"`
+	ExpiresAt         time.Time `json:"expires_at,omitempty"`
+	TemporaryPassword string    `json:"temporary_password,omitempty"`
+	CPOName           string    `json:"cpo_name,omitempty"`
+	CPOID             string    `json:"cpo_id,omitempty"`
+	CPOAppID          string    `json:"cpo_app_id,omitempty"`
 }
 
 type Outbox struct {

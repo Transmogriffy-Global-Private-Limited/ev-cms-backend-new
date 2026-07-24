@@ -91,7 +91,7 @@ platform control-plane, and health routes do not require it, avoiding a
 catch-22 when a client does not yet know the current value.
 
 Every CPO starts with a globally unique `cpo_dummy_...` app ID. A superadmin can
-later assign or rotate a live app ID without adding a subscription dependency.
+later assign or rotate a live app ID without adding a commercial dependency.
 Login verification, refresh, and `GET /api/v1/auth/me` return the current ID so
 a legitimate client can recover after rotation.
 

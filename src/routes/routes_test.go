@@ -14,7 +14,6 @@ import (
 
 	apidocs "github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/docs/contracts/openapi"
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/auth"
-	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/billing"
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/config"
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/cpo"
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/customerauth"
@@ -22,7 +21,6 @@ import (
 	cmsmail "github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/mail"
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/platformops"
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/security"
-	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/subscriptions"
 	"github.com/getkin/kin-openapi/openapi3"
 	"github.com/gin-gonic/gin"
 )
@@ -56,36 +54,6 @@ func TestCredentialRoutesAreRegisteredAndProtected(t *testing.T) {
 		{http.MethodGet, "/api/v1/platform/realtime/stream"},
 		{http.MethodGet, "/api/v1/platform/audit-logs"},
 		{http.MethodGet, "/api/v1/platform/workers"},
-		{http.MethodPost, "/api/v1/platform/plans"},
-		{http.MethodGet, "/api/v1/platform/plans"},
-		{http.MethodGet, "/api/v1/platform/plans/00000000-0000-0000-0000-000000000001"},
-		{http.MethodPut, "/api/v1/platform/plans/00000000-0000-0000-0000-000000000001/draft"},
-		{http.MethodPost, "/api/v1/platform/plans/00000000-0000-0000-0000-000000000001/publish"},
-		{http.MethodPost, "/api/v1/platform/plans/00000000-0000-0000-0000-000000000001/archive"},
-		{http.MethodPost, "/api/v1/platform/cpos/00000000-0000-0000-0000-000000000001/subscription"},
-		{http.MethodGet, "/api/v1/platform/cpos/00000000-0000-0000-0000-000000000001/subscription"},
-		{http.MethodPost, "/api/v1/platform/cpos/00000000-0000-0000-0000-000000000001/subscription/change-plan"},
-		{http.MethodPost, "/api/v1/platform/cpos/00000000-0000-0000-0000-000000000001/subscription/pause"},
-		{http.MethodPost, "/api/v1/platform/cpos/00000000-0000-0000-0000-000000000001/subscription/resume"},
-		{http.MethodPost, "/api/v1/platform/cpos/00000000-0000-0000-0000-000000000001/subscription/mark-past-due"},
-		{http.MethodPost, "/api/v1/platform/cpos/00000000-0000-0000-0000-000000000001/subscription/expire"},
-		{http.MethodPost, "/api/v1/platform/cpos/00000000-0000-0000-0000-000000000001/subscription/cancel"},
-		{http.MethodGet, "/api/v1/platform/cpos/00000000-0000-0000-0000-000000000001/subscription/history"},
-		{http.MethodGet, "/api/v1/platform/cpos/00000000-0000-0000-0000-000000000001/entitlements"},
-		{http.MethodPut, "/api/v1/platform/cpos/00000000-0000-0000-0000-000000000001/entitlement-overrides/chargers.manage"},
-		{http.MethodDelete, "/api/v1/platform/cpos/00000000-0000-0000-0000-000000000001/entitlement-overrides/chargers.manage"},
-		{http.MethodGet, "/api/v1/platform/cpos/00000000-0000-0000-0000-000000000001/billing-account"},
-		{http.MethodPut, "/api/v1/platform/cpos/00000000-0000-0000-0000-000000000001/billing-account"},
-		{http.MethodPost, "/api/v1/platform/cpos/00000000-0000-0000-0000-000000000001/invoices"},
-		{http.MethodGet, "/api/v1/platform/cpos/00000000-0000-0000-0000-000000000001/invoices"},
-		{http.MethodGet, "/api/v1/platform/invoices/00000000-0000-0000-0000-000000000001"},
-		{http.MethodPost, "/api/v1/platform/invoices/00000000-0000-0000-0000-000000000001/issue"},
-		{http.MethodPost, "/api/v1/platform/invoices/00000000-0000-0000-0000-000000000001/void"},
-		{http.MethodPost, "/api/v1/platform/cpos/00000000-0000-0000-0000-000000000001/payments"},
-		{http.MethodGet, "/api/v1/platform/cpos/00000000-0000-0000-0000-000000000001/payments"},
-		{http.MethodGet, "/api/v1/platform/payments/00000000-0000-0000-0000-000000000001"},
-		{http.MethodPost, "/api/v1/platform/payments/00000000-0000-0000-0000-000000000001/void"},
-		{http.MethodGet, "/api/v1/platform/cpos/00000000-0000-0000-0000-000000000001/billing-timeline"},
 		{http.MethodGet, "/api/v1/cpo/integrations"},
 		{http.MethodGet, "/api/v1/cpo/integrations/RAZORPAY"},
 		{http.MethodPut, "/api/v1/cpo/integrations/RAZORPAY"},
@@ -150,6 +118,37 @@ func TestCredentialRoutesAreRegisteredAndProtected(t *testing.T) {
 	}
 }
 
+func TestRetiredCommercialRoutesAreNotRegistered(t *testing.T) {
+	t.Parallel()
+
+	router := newCredentialRouteTestRouter(t)
+	routes := []struct {
+		method string
+		path   string
+	}{
+		{http.MethodGet, "/api/v1/platform/plans"},
+		{http.MethodGet, "/api/v1/platform/cpos/00000000-0000-0000-0000-000000000001/subscription"},
+		{http.MethodGet, "/api/v1/platform/cpos/00000000-0000-0000-0000-000000000001/entitlements"},
+		{http.MethodGet, "/api/v1/platform/cpos/00000000-0000-0000-0000-000000000001/billing-account"},
+		{http.MethodGet, "/api/v1/platform/cpos/00000000-0000-0000-0000-000000000001/invoices"},
+		{http.MethodGet, "/api/v1/platform/cpos/00000000-0000-0000-0000-000000000001/payments"},
+		{http.MethodGet, "/api/v1/platform/cpos/00000000-0000-0000-0000-000000000001/billing-timeline"},
+	}
+	for _, route := range routes {
+		recorder := httptest.NewRecorder()
+		request := httptest.NewRequest(route.method, route.path, nil)
+		router.ServeHTTP(recorder, request)
+		if recorder.Code != http.StatusNotFound {
+			t.Errorf(
+				"%s %s got status %d, want 404",
+				route.method,
+				route.path,
+				recorder.Code,
+			)
+		}
+	}
+}
+
 func newCredentialRouteTestRouter(t *testing.T) *gin.Engine {
 	t.Helper()
 	tokenManager, err := security.NewTokenManager(
@@ -209,18 +208,6 @@ func newCredentialRouteTestRouter(t *testing.T) *gin.Engine {
 		cpo.NewService(nil, cmsmail.NewOutbox(mailBox), true),
 		integrations.NewService(nil, credentialBox),
 		platformops.NewService(nil, config.Platform{}),
-		subscriptions.NewService(
-			nil,
-			cmsmail.NewOutbox(mailBox),
-			true,
-			nil,
-		),
-		billing.NewService(
-			nil,
-			cmsmail.NewOutbox(mailBox),
-			true,
-			nil,
-		),
 		true,
 		true,
 	)
@@ -393,7 +380,7 @@ func TestHealthRoutes(t *testing.T) {
 
 			recorder := httptest.NewRecorder()
 			request := httptest.NewRequest(http.MethodGet, test.path, nil)
-			New(test.pinger, nil, nil, nil, nil, nil, nil, nil, false, false).ServeHTTP(recorder, request)
+			New(test.pinger, nil, nil, nil, nil, nil, false, false).ServeHTTP(recorder, request)
 
 			if recorder.Code != test.wantStatus {
 				t.Fatalf("got status %d, want %d", recorder.Code, test.wantStatus)
@@ -405,7 +392,7 @@ func TestHealthRoutes(t *testing.T) {
 func TestAPIDocumentationRoutesCanBeDisabled(t *testing.T) {
 	t.Parallel()
 
-	router := New(pingerStub{}, nil, nil, nil, nil, nil, nil, nil, false, false)
+	router := New(pingerStub{}, nil, nil, nil, nil, nil, false, false)
 	for _, path := range []string{"/docs", "/docs/", "/openapi.yaml"} {
 		recorder := httptest.NewRecorder()
 		request := httptest.NewRequest(http.MethodGet, path, nil)

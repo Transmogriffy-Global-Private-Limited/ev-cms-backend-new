@@ -1,89 +1,91 @@
 # Superadmin Control Plane
 
-## What It Owns
+## Purpose
 
-The superadmin plane owns TransEV platform administration:
+The platform superadmin operates the CMS itself. The role provisions CPOs,
+controls their access, observes platform health, and performs explicit recovery
+or governance actions. It does not silently become a user inside a CPO or gain
+access to tenant business data and secrets.
 
-- CPO provisioning and lifecycle;
-- platform administrator governance;
-- software plans, subscriptions, entitlements, and platform billing records;
-- operational audit and security recovery;
-- durable mail and notification operations;
-- worker visibility;
-- platform announcements;
-- platform-level overview and non-secret status;
-- realtime facts for superadmin clients.
+## Manual CPO Access
 
-It does not own CPO charger inventory, customers, wallets, charging sessions,
-tenant payment operations, or tenant integration-secret plaintext.
-
-## Why Legacy Admin Routes Are Not the Design
-
-The legacy CMS was inspected only as a coverage inventory. Its admin route
-group mixed platform creation of administrators with tenant charger, wallet,
-vehicle, support, payment, and charging operations. Loose
-`associatedadminid` fields were used as several different ownership concepts.
-
-The new CMS does not preserve those route names, trust assumptions, or data
-relationships. Each legacy data area is placed under its actual owner:
-
-- platform licensing and CPO lifecycle belong to the superadmin plane;
-- tenant business operations belong to the authenticated CPO;
-- protocol state and OCPP commands belong to the separate HAL;
-- customer authentication and customer-owned state remain CPO-scoped.
-
-## Command and Realtime Flow
+CPO access is intentionally simple:
 
 ```text
-superadmin REST command
-→ encrypted platform session validation
-→ platform authorization
-→ request validation
-→ PostgreSQL transaction
-→ durable state + audit + platform event + applicable queued delivery
-→ commit
-→ SSE announces the committed fact
-→ frontend refreshes authoritative REST state
+create CPO
+→ PENDING
+→ superadmin activates
+→ ACTIVE
+→ superadmin may suspend
+→ SUSPENDED
 ```
 
-Retries are safe only where the command contract defines idempotency. Realtime
-may duplicate an event, so clients deduplicate using the event ID.
+- `PENDING` retains onboarding state but does not permit CPO administrative
+  login.
+- `ACTIVE` permits eligible CPO staff authentication and tenant operations.
+- `SUSPENDED` blocks new tenant access while preserving the tenant and its
+  historical data.
 
-## Subscription Boundary
+There is no tenant subscription, plan catalog, entitlement package,
+platform-invoice, or platform-payment state machine. Access never changes
+automatically because of a billing event. Activation and suspension are
+explicit platform-superadmin decisions and are audited.
 
-A CPO can exist without a subscription. The subscription controls licensed
-product capabilities, not tenant identity or ownership. Expiry never deletes
-tenant data and never prevents completion or reconciliation of active charging
-operations.
+The CPO app ID remains separate from lifecycle:
 
-The platform subscription design is provider-neutral. CPO-owned Razorpay
-credentials remain dedicated to that CPO's own payment operations and are not
-reused for TransEV subscription collection.
+- every new CPO receives a generated dummy app ID;
+- activation does not require a live app ID;
+- the superadmin may replace it with a real integration ID when the CPO's app
+  goes live;
+- an app ID is routing metadata, not authority and not commercial access.
 
-## Operational Recovery
+## Implemented Operations
 
-Superadmins may inspect safe metadata and recover failed durable work through
-explicit APIs. They do not receive:
+The current platform-management surface includes:
 
-- arbitrary email execution;
-- raw queue-payload editing;
-- worker process kill/restart endpoints;
-- direct password assignment;
-- tenant secret decryption;
-- silent impersonation.
+- CPO create/list/detail/activate/suspend/app-ID replacement;
+- durable platform event replay and authenticated SSE;
+- filtered platform audit queries;
+- registered worker-health visibility and readiness degradation;
+- encrypted mail-outbox observation through worker status;
+- CPO-owned Razorpay credential storage without platform plaintext access.
 
-Every recovery action requires an authenticated platform actor and becomes an
-audit/event fact.
+The current source does not yet include complete CPO-admin recovery,
+platform-admin governance, mail job administration, notification/announcement,
+or overview/status command surfaces. Those remain planned in the active
+superadmin plan.
 
-## Canonical References
+## Realtime and Recovery
 
-- implementation plan:
-  `docs/plans/superadmin-control-plane.md`;
-- architecture decision:
-  `docs/decisions/0007-complete-superadmin-control-plane.md`;
-- HTTP contract:
-  `docs/contracts/api/administrative-http-api.md`;
-- realtime contract:
-  `docs/contracts/realtime/platform-events.md`;
-- machine-readable contract:
-  `docs/contracts/openapi/openapi.yaml`.
+PostgreSQL remains authoritative. Platform events announce committed facts and
+use an ordered numeric cursor. SSE is a low-latency view invalidation channel,
+not durable truth.
+
+```text
+committed platform change
+→ platform_events row in the same transaction
+→ SSE delivery when connected
+→ REST replay after reconnect
+→ authoritative REST resource refresh
+```
+
+Clients deduplicate using the event ID. Missing or expired event history is
+recovered by reloading authoritative REST state.
+
+## Security Boundary
+
+- Platform sessions and CPO sessions are different authorization planes.
+- Tenant context comes from a verified CPO session, never from a client-chosen
+  tenant header.
+- A superadmin cannot resolve CPO Razorpay secret plaintext.
+- Support or impersonation access is not implemented.
+- CPO access changes must remain explicit, reasoned where the endpoint contract
+  requires it, and auditable.
+
+## Retired Commercial Prototype
+
+Migrations seven and eight previously introduced tenant subscription and
+platform-billing prototypes. They were deployed before the product decision
+changed. Migration nine moves those tables, without deleting their data, into
+the non-runtime `retired_commercial` schema and disables their worker records.
+No route or active application module reads or writes that schema.

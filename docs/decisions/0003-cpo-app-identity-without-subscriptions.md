@@ -1,6 +1,6 @@
 # 0003: CPO App Identity Is Independent of Subscription
 
-Status: Accepted
+Status: Accepted; commercial expansion superseded by ADR 0008
 
 Date: 2026-07-23
 
@@ -44,5 +44,5 @@ already knowing it.
   account recovery and session-control endpoints.
 - The app ID can be distributed to tenant clients and must not be described or
   handled as a secret.
-- Subscription and entitlement behavior can be added later without changing
-  tenant identity semantics.
+- Any future commercial-management behavior requires a new explicit decision;
+  it cannot be inferred from or coupled to tenant identity semantics.

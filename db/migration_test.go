@@ -351,3 +351,56 @@ func TestPlatformBillingMigrationContainsExactImmutableRecords(t *testing.T) {
 		}
 	}
 }
+
+func TestCommercialRetirementMigrationArchivesWithoutDeletingData(t *testing.T) {
+	t.Parallel()
+
+	upBody, err := migrationFiles.ReadFile(
+		"migrations/000009_retire_subscriptions_and_platform_billing.up.sql",
+	)
+	if err != nil {
+		t.Fatalf("read commercial retirement up migration: %v", err)
+	}
+	downBody, err := migrationFiles.ReadFile(
+		"migrations/000009_retire_subscriptions_and_platform_billing.down.sql",
+	)
+	if err != nil {
+		t.Fatalf("read commercial retirement down migration: %v", err)
+	}
+	upSQL := string(upBody)
+	downSQL := string(downBody)
+	if !strings.Contains(upSQL, "CREATE SCHEMA retired_commercial") {
+		t.Error("commercial retirement must preserve tables in an archive schema")
+	}
+	for _, table := range []string{
+		"subscription_plans",
+		"cpo_subscriptions",
+		"cpo_entitlement_overrides",
+		"cpo_billing_accounts",
+		"platform_invoices",
+		"platform_payments",
+	} {
+		if !strings.Contains(upSQL, "ALTER TABLE "+table) ||
+			!strings.Contains(upSQL, "SET SCHEMA retired_commercial") {
+			t.Errorf("retirement migration does not archive %s", table)
+		}
+		if !strings.Contains(
+			downSQL,
+			"ALTER TABLE retired_commercial."+table,
+		) || !strings.Contains(downSQL, "SET SCHEMA public") {
+			t.Errorf("retirement down migration does not restore %s", table)
+		}
+	}
+	for _, required := range []string{
+		"status IN ('PENDING', 'PROCESSING')",
+		"'subscription-lifecycle', 'billing-maintenance'",
+		"reported_status = 'DISABLED'",
+	} {
+		if !strings.Contains(upSQL, required) {
+			t.Errorf("commercial retirement migration missing %q", required)
+		}
+	}
+	if strings.Contains(upSQL, "DROP TABLE") {
+		t.Error("commercial retirement must not drop historical data tables")
+	}
+}

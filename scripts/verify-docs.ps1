@@ -21,8 +21,6 @@ $requiredFiles = @(
     'docs/integrations/razorpay-credential-storage.md',
     'docs/integrations/ocpp-hal-boundary.md',
     'docs/contracts/api/administrative-http-api.md',
-    'docs/contracts/api/subscriptions.md',
-    'docs/contracts/api/platform-billing.md',
     'docs/contracts/internal/mail-outbox.md',
     'docs/contracts/realtime/platform-events.md',
     'docs/contracts/configuration.md',
@@ -31,6 +29,7 @@ $requiredFiles = @(
     'docs/decisions/0005-cpo-scoped-customer-signup.md',
     'docs/decisions/0006-customer-session-plane.md',
     'docs/decisions/0007-complete-superadmin-control-plane.md',
+    'docs/decisions/0008-manual-cpo-access-without-commercial-management.md',
     'docs/plans/api-documentation-and-openapi.md',
     'docs/plans/customer-signup.md',
     'docs/plans/customer-authentication.md',
@@ -51,12 +50,6 @@ if ($missing.Count -gt 0) {
 $routeContract = Get-Content -Raw -LiteralPath (
     Join-Path $repositoryRoot 'docs/contracts/api/administrative-http-api.md'
 )
-$routeContract += Get-Content -Raw -LiteralPath (
-    Join-Path $repositoryRoot 'docs/contracts/api/subscriptions.md'
-)
-$routeContract += Get-Content -Raw -LiteralPath (
-    Join-Path $repositoryRoot 'docs/contracts/api/platform-billing.md'
-)
 $requiredRoutes = @(
     '/api/v1/auth/login',
     '/api/v1/app/auth/signup',
@@ -68,13 +61,6 @@ $requiredRoutes = @(
     '/api/v1/platform/realtime/stream',
     '/api/v1/platform/audit-logs',
     '/api/v1/platform/workers',
-    '/api/v1/platform/plans',
-    '/subscription/change-plan',
-    '/entitlement-overrides/',
-    '/billing-account',
-    '/invoices',
-    '/payments',
-    '/billing-timeline',
     '/api/v1/cpo/integrations',
     '/docs/',
     '/openapi.yaml'
@@ -82,6 +68,24 @@ $requiredRoutes = @(
 foreach ($route in $requiredRoutes) {
     if (-not $routeContract.Contains($route)) {
         throw "Administrative API contract does not contain route $route"
+    }
+}
+
+$openAPI = Get-Content -Raw -LiteralPath (
+    Join-Path $repositoryRoot 'docs/contracts/openapi/openapi.yaml'
+)
+$retiredRoutes = @(
+    '/api/v1/platform/plans',
+    '/subscription',
+    '/entitlement-overrides/',
+    '/billing-account',
+    '/invoices',
+    '/payments',
+    '/billing-timeline'
+)
+foreach ($route in $retiredRoutes) {
+    if ($openAPI.Contains($route)) {
+        throw "Retired commercial route remains in OpenAPI: $route"
     }
 }
 

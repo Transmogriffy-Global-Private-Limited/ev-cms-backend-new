@@ -11,6 +11,10 @@ administrative authentication and credential boundary. See
 `docs/PROJECT_STATE.md` for implemented behavior, and
 `docs/DEVELOPMENT_PLAN.md` for approved sequencing.
 
+CPO access is granted or removed manually by platform superadmins through
+activation and suspension. This CMS does not expose tenant subscription,
+entitlement, platform-invoice, or platform-payment management APIs.
+
 ## Local requirements
 
 - Go 1.25 or later

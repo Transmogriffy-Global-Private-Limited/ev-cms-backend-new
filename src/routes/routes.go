@@ -7,12 +7,10 @@ import (
 
 	apidocs "github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/docs/contracts/openapi"
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/auth"
-	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/billing"
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/cpo"
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/customerauth"
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/integrations"
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/platformops"
-	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/subscriptions"
 	"github.com/gin-gonic/gin"
 )
 
@@ -27,8 +25,6 @@ func New(
 	cpoService *cpo.Service,
 	integrationService *integrations.Service,
 	platformService *platformops.Service,
-	subscriptionService *subscriptions.Service,
-	billingService *billing.Service,
 	corsAllowAll bool,
 	apiDocsEnabled bool,
 ) *gin.Engine {
@@ -91,20 +87,5 @@ func New(
 			platformService,
 		)
 	}
-	if authService != nil && subscriptionService != nil {
-		subscriptions.RegisterRoutes(
-			router.Group("/api/v1/platform"),
-			authService,
-			subscriptionService,
-		)
-	}
-	if authService != nil && billingService != nil {
-		billing.RegisterRoutes(
-			router.Group("/api/v1/platform"),
-			authService,
-			billingService,
-		)
-	}
-
 	return router
 }

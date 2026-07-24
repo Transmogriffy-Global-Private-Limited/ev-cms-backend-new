@@ -14,8 +14,7 @@ This directory is the durable project memory for the EV CMS backend.
 | Detailed platform CPO API semantics | `CPO_ADMINISTRATION.md` |
 | Complete superadmin architecture and boundaries | `guides/concepts/superadmin-control-plane.md` |
 | Platform realtime event contract | `contracts/realtime/platform-events.md` |
-| Subscription and entitlement endpoints | `contracts/api/subscriptions.md` |
-| Platform subscription billing endpoints | `contracts/api/platform-billing.md` |
+| Manual CPO access workflow | `guides/workflows/cpo-onboarding.md` |
 | Architectural decisions | `decisions/` |
 | Detailed approved plans | `plans/` |
 | Learning and operational workflows | `guides/` |
@@ -25,7 +24,7 @@ This directory is the durable project memory for the EV CMS backend.
 | Development VPS hosting and activation | `guides/operations/dev-hosting.md` |
 
 `contracts/api/administrative-http-api.md` is the complete endpoint index and
-auth/control-plane handoff; it links the granular subscription contract.
+auth/control-plane handoff, including manual CPO activation and suspension.
 `contracts/openapi/openapi.yaml` is the machine-readable contract
 embedded into the service. The app serves it at `/openapi.yaml` and serves
 self-contained Swagger UI at `/docs/` only when `API_DOCS_ENABLED=true`.

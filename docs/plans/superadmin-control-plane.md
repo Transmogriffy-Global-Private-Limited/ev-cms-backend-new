@@ -1,357 +1,157 @@
-# Complete Superadmin Control Plane
+# Complete Superadmin Control Plane Plan
 
 Status: In Progress
 
+Approved direction updated: 2026-07-24
+
 ## Objective
 
-Finish the CMS platform-management plane so platform superadmins can provision,
-license, support, secure, communicate with, and operate CPO tenants without
-receiving silent access to tenant business data.
-
-This plan is the binding implementation map for the feature. It replaces the
-legacy CMS pattern where platform administration and tenant operations shared
-one unscoped "admin" surface.
-
-## Evidence and Existing State
-
-The new CMS already implements:
-
-- platform authentication, email OTP, encrypted access tokens, and sessions;
-- CPO creation, inspection, activation, suspension, and app-ID rotation;
-- transactional initial-CPO-admin onboarding;
-- an encrypted PostgreSQL mail outbox and retrying SMTP worker;
-- privileged audit writes for implemented credential and CPO operations;
-- canonical OpenAPI and embedded Swagger UI.
-
-The legacy CMS data model contains identities, admin profiles, tenant-associated
-chargers, hubs, wallets, payments, logs, support, disputes, feedback, and
-billing jobs, but no durable software-subscription model. Its route names mix
-platform and tenant operations and are not a safe contract to preserve.
+Complete the platform-management surface so a superadmin can provision and
+govern CPO access, recover administrators, manage platform administrators,
+observe security/mail/workers, communicate with CPOs, and operate the CMS
+without accessing tenant business data.
 
 ## Permanent Boundaries
 
-- A CPO may exist with no subscription.
-- Platform superadmins manage the platform and tenant lifecycle; they do not
-  automatically read or mutate tenant customers, wallets, charging sessions,
-  charger state, payment credentials, or other CPO business records.
-- Subscription state and CPO lifecycle are independent. Suspension is an
-  explicit platform action; subscription expiry does not silently destroy or
-  rewrite tenant data.
-- Subscription enforcement must never prevent completion, callback ingestion,
-  reconciliation, or billing of already-active charging sessions.
-- Tenant Razorpay credentials remain CPO-owned and unavailable to platform
-  superadmins. Platform subscription billing is provider-neutral until a
-  separate platform-billing provider is approved.
-- Administrative commands use REST. Realtime announces committed facts and
-  supports view invalidation; it is never authoritative state.
-- PostgreSQL is authoritative for subscriptions, entitlements, events, mail,
-  notifications, worker heartbeats, audit records, and delivery state.
-- Durable event and work records are inserted in the same transaction as the
-  state change that caused them.
-- No endpoint returns OTPs, temporary passwords, token material, decrypted mail
-  payloads, provider secrets, or cryptographic keys.
+- CPO access is manually controlled through `PENDING`, `ACTIVE`, and
+  `SUSPENDED` lifecycle state.
+- The CMS does not manage tenant subscriptions, plan entitlements, platform
+  invoices, or platform payments.
+- No payment event automatically activates or suspends a CPO.
+- Platform-superadmin authority is separate from CPO membership.
+- A platform superadmin does not receive tenant Razorpay secret plaintext or
+  unrestricted tenant business-data access.
+- PostgreSQL is authoritative. Realtime events announce committed facts and
+  support replay; they do not replace REST recovery.
+- Privileged recovery and governance actions require an actor, reason, audit,
+  and durable event where applicable.
 
-## Surface Map
+## Implemented Foundation
 
-### Platform overview and system status
+- CPO create/list/detail/activate/suspend/app-ID replacement
+- Generated dummy app IDs and first-admin onboarding
+- Durable platform audit query
+- Durable ordered platform events
+- Authenticated SSE plus REST replay
+- Worker registration, health views, and readiness degradation
+- Platform-maintenance and observed mail-outbox workers
+- API documentation toggle and runtime/OpenAPI drift verification
 
-- `GET /api/v1/platform/overview`
-- `GET /api/v1/platform/system/status`
+## Retired Prototype
 
-Overview exposes platform aggregates and operational counts, not tenant
-business data. System status exposes only non-secret runtime/configuration
-metadata.
+The subscription, entitlement, platform-invoice, and platform-payment modules
+are no longer product surfaces. Because migrations seven and eight reached the
+development VPS, migration nine preserves their tables in
+`retired_commercial` instead of deleting data. It disables the retired worker
+records and blocks retirement while related mail is pending. No active route,
+model, worker, or OpenAPI operation uses those records.
 
-### CPO lifecycle and administrator recovery
+## Remaining Implementation Slices
 
-- existing create, list, get, activate, suspend, and app-ID endpoints;
-- paginated/filterable CPO listing;
-- `PATCH /api/v1/platform/cpos/{cpo_id}`;
-- `POST /api/v1/platform/cpos/{cpo_id}/restore-pending`;
-- `POST /api/v1/platform/cpos/{cpo_id}/app-id/regenerate-dummy`;
-- list/assign initial or replacement CPO administrators;
-- resend onboarding and revoke a CPO administrator's sessions.
+### 1. CPO lifecycle and first-admin recovery
 
-Routine CPO staff management remains a tenant-owner/admin responsibility.
+- search/filter/paginate CPOs;
+- reasoned activation and suspension;
+- restore or replace the first administrator safely;
+- resend onboarding for eligible unsent/recoverable cases;
+- revoke CPO administrative sessions when access is suspended;
+- preserve tenant data and already-started operational recovery paths.
 
-### Platform-superadmin governance
+### 2. Platform-superadmin governance
 
 - list platform administrators;
-- invite or grant verified platform authority;
-- deactivate/reactivate authority;
-- revoke platform sessions;
-- remove authority while preventing removal of the final active superadmin.
+- invite or grant authority through an explicit verified flow;
+- deactivate or remove authority without deleting the global identity;
+- prevent removal of the last active platform administrator;
+- revoke affected platform sessions transactionally;
+- audit every authority change.
 
-Sensitive authority changes require a reason, recent authentication, audit, and
-realtime security events.
+### 3. Security operations
 
-### Subscription catalog and entitlements
-
-- immutable/versioned plan catalog;
-- plan draft, publish, archive, list, and inspect operations;
-- exact minor-unit pricing with currency and billing interval;
-- structured feature entitlements and numeric limits;
-- optional CPO subscription assignment;
-- trial, active, paused, past-due, cancelled, and expired lifecycle;
-- scheduled effective changes and cancellation-at-period-end;
-- immutable subscription history;
-- effective-entitlement query for each CPO;
-- explicit per-CPO entitlement overrides with reason and expiry.
-
-Plan publication snapshots a version. Existing subscriptions never change
-because a draft plan is edited.
-
-### Platform subscription billing records
-
-- billing-account metadata for a CPO;
-- immutable invoices and invoice line items;
-- manual/provider-neutral payment records;
-- payment allocation and invoice status;
-- external-provider references and idempotency keys without embedding a
-  provider SDK;
-- billing timeline and export-safe queries.
-
-Automatic payment collection and provider webhooks remain disabled until a
-platform billing provider and credentials are separately approved.
-
-### Audit and security operations
-
-- paginated/filterable platform audit query;
-- audit detail with sanitized structured data;
-- locked-identity query and explicit unlock;
+- paginated/filterable platform audit detail;
+- locked-identity query and explicit reasoned unlock;
 - user- and CPO-scoped administrative session revocation;
-- security event visibility;
-- mandatory operator reason for recovery or revocation actions.
+- security-event visibility without exposing tokens, OTPs, or secret payloads.
 
-### Mail operations
+### 4. Mail operations
 
-- mail overview;
-- paginated/filterable outbox job metadata;
-- individual job metadata;
-- failed-job retry and unsent-job cancellation;
-- immutable attempt history;
-- masked recipient by default;
-- no arbitrary raw-email endpoint and no payload decryption endpoint.
+- mail overview and filtered job metadata;
+- individual job metadata without decrypted bodies;
+- retry failed jobs and cancel eligible unsent jobs;
+- template-level delivery metrics;
+- bounded retention/reconciliation.
 
-### Notifications and announcements
+### 5. Notifications and announcements
 
-- durable platform-admin notification inbox with read/unread state;
-- versioned, allowlisted communication templates;
-- draft/preview/schedule/publish/cancel platform announcements;
-- audience snapshot for all CPO admins, selected CPOs, or CPO lifecycle groups;
-- per-recipient delivery records and aggregate progress;
-- email as the initial outbound channel;
-- realtime notification of operational and announcement state.
+- platform-owned notification records;
+- CPO-targeted and platform-wide announcements;
+- explicit audience snapshots;
+- durable delivery/retry state;
+- REST recovery and realtime invalidation;
+- no tenant-business-data payloads.
 
-Tenant marketing, arbitrary customer segmentation, SMS, and push delivery are
-not part of this feature.
+### 6. Overview and system status
 
-### Workers and durable jobs
+- bounded aggregate CPO/access/session/mail/worker counts;
+- service/database/worker state;
+- current deployment/version metadata where safely available;
+- no unbounded tenant-data aggregation.
 
-- durable worker-instance heartbeats;
-- healthy, degraded, stale, and disabled states;
-- worker/job overview and detail;
-- retry/cancel operations only for explicitly recoverable durable work;
-- no HTTP endpoint to start, stop, or kill a process;
-- readiness degradation for required stale workers;
-- stale-claim recovery and at-least-once processing.
-
-### Realtime and event recovery
-
-- durable `platform_events` sequence;
-- authenticated SSE stream for platform sessions;
-- REST catch-up endpoint using an event cursor;
-- `Last-Event-ID` recovery;
-- heartbeat frames and session-revocation termination;
-- at-least-once delivery, stable IDs, ordered replay, and client deduplication;
-- cursor-expired response requiring a REST state refresh;
-- event retention and cleanup worker.
-
-Initial event families:
-
-- `platform.cpo.*`
-- `platform.subscription.*`
-- `platform.invoice.*`
-- `platform.mail.*`
-- `platform.worker.*`
-- `platform.security.*`
-- `platform.announcement.*`
-- `platform.system.*`
-
-Events contain resource identifiers and safe state-transition metadata, never
-secrets or decrypted payloads.
-
-### API documentation control
-
-- `API_DOCS_ENABLED` controls both `/docs` and `/openapi.yaml`;
-- enabled and disabled route-registration tests;
-- ordinary API routes work in both states;
-- OpenAPI remains the authoritative REST contract;
-- SSE operations and event envelopes are documented in OpenAPI plus a focused
-  realtime contract.
-
-## Persistence
-
-The implementation will add versioned migrations for:
-
-- platform events and retention metadata;
-- worker instances and worker/job attempts where not already owned elsewhere;
-- subscription plans and immutable plan versions;
-- plan entitlements and limits;
-- CPO subscriptions, lifecycle history, and overrides;
-- CPO billing accounts, invoices, line items, payments, and allocations;
-- platform notifications and recipient read state;
-- announcement campaigns, audience snapshots, and delivery records;
-- mail-attempt history and operator recovery metadata.
-
-Constraints and indexes must enforce:
-
-- at most one current non-terminal subscription per CPO;
-- immutable published plan versions;
-- exact currency/minor-unit pricing;
-- valid lifecycle transitions;
-- idempotent external references and operator commands;
-- tenant-safe CPO foreign keys;
-- one delivery per campaign recipient/channel;
-- one platform event ID ordering sequence;
-- one live worker heartbeat identity per process instance;
-- no removal of the final platform administrator through application
-  transactions.
-
-## Realtime Delivery Model
+## Realtime Contract
 
 ```text
-REST command
-→ validate platform principal and request
-→ authorize operation
-→ database transaction
-→ state transition + audit + platform event + queued notification
-→ commit
-→ SSE dispatcher observes committed event
-→ connected platform clients receive safe event
-→ frontend refreshes authoritative REST resource
+state-changing transaction
+→ durable platform event
+→ authenticated SSE
+→ client deduplication by event ID
+→ REST refresh
 ```
 
-Reconnect:
+Connection requirements:
 
-```text
-client reconnects with Last-Event-ID
-→ server validates platform session
-→ query durable events after cursor
-→ replay in ID order
-→ continue live delivery
-```
+- platform bearer authentication;
+- heartbeat;
+- cursor replay;
+- bounded retention and explicit cursor-expiry recovery;
+- revoked sessions lose access;
+- no secret or tenant-business payloads.
 
-## Subscription Lifecycle
+## Implementation Order
 
-```text
-NONE
-→ TRIAL
-→ ACTIVE
-→ PAST_DUE
-→ ACTIVE
-→ CANCELLED or EXPIRED
-```
-
-`PAUSED` is an explicit operator action. Scheduled plan changes apply at a
-recorded effective boundary. Cancellation may be immediate or at period end.
-Every transition stores actor, reason, previous state, next state, effective
-time, and idempotency key.
-
-Effective entitlements are resolved as:
-
-```text
-published plan-version snapshot
-→ active CPO-specific overrides
-→ safe no-subscription baseline
-```
-
-The safe baseline permits authentication, account recovery, completion and
-reconciliation of existing operations, and access to subscription/billing
-status. Product-feature enforcement is added only as each tenant feature is
-implemented.
-
-## Implementation Slices
-
-1. API-docs toggle remediation and platform module wiring.
-2. Durable platform events, audit query, worker heartbeats, catch-up API, and
-   authenticated SSE.
-3. Plan catalog, plan versions, entitlements, CPO subscriptions, overrides,
-   lifecycle history, mail, audit, and realtime events.
-4. Platform billing accounts, invoices, payments, allocations, and billing
-   timeline.
-5. Complete CPO lifecycle/admin recovery and platform-admin governance.
-6. Mail operations, attempt history, worker operations, and security recovery.
-7. Notifications, announcements, audience snapshots, delivery worker, and
-   realtime progress.
-8. Overview, system status, residue scan, full contract completion, and
-   end-to-end verification.
-
-Each slice must update migrations, models, services, authorization, routes,
-OpenAPI, human contracts, tests, verification, project state, this plan, and
-the changelog together.
-
-## Implementation Progress
-
-- Slice 1 implemented and verified: API documentation registration toggle.
-- Slice 2 implemented and Go-verified: durable events, audit query, worker
-  health/readiness, REST replay, and authenticated SSE.
-- Slice 3 implemented and Go-verified: immutable plan versions, CPO
-  subscriptions, lifecycle reconciliation, entitlements, overrides, mail,
-  audit, and events.
-- Slice 4 implemented and Go-verified: provider-neutral billing accounts,
-  immutable issued invoice terms/lines, payment allocation/reversal, billing
-  timeline, overdue reconciliation, mail, audit, and events.
-- Slices 5 through 8 remain pending.
-- PostgreSQL execution of migrations 6 through 8 and their lifecycle tests
-  remains pending until a disposable `TEST_DATABASE_URL` is explicitly
-  selected.
+1. Retire subscription/platform-billing runtime and contracts safely.
+2. Complete CPO lifecycle and first-admin recovery.
+3. Complete platform-administrator governance.
+4. Complete security and mail operations.
+5. Add notifications and announcements.
+6. Add overview and system-status queries.
+7. Complete residue, recovery, concurrency, and operational verification.
 
 ## Acceptance Criteria
 
-- Every platform endpoint requires a validated `PLATFORM` principal unless it
-  is an existing authentication or health endpoint.
-- A CPO can be created, activated, and operated with no subscription record.
-- Superadmin can create/version/publish plans and manage the complete
-  subscription lifecycle without accessing tenant secrets or business data.
-- Published subscription terms and invoices are immutable and exact.
-- Every privileged mutation records audit, durable event, and applicable
-  notification work atomically.
-- Failed mail and notification delivery is visible and safely recoverable.
-- Worker health is based on durable heartbeats, not only process memory.
-- Realtime reconnect recovers committed events without making SSE a source of
-  truth.
-- Revoked platform sessions lose REST and realtime access.
-- The last active platform administrator cannot be removed or deactivated.
-- OpenAPI and runtime routes agree exactly, including API-docs enabled and
-  disabled behavior.
-- Focused PostgreSQL lifecycle tests and the full repository verification pass.
+- Superadmins can grant and remove CPO access manually without commercial
+  records.
+- Retired subscription/billing routes return `404` and are absent from
+  OpenAPI/Swagger.
+- Retired tables are preserved outside the runtime schema and no worker keeps
+  readiness unhealthy.
+- Privileged actions are authenticated, authorized, auditable, and tenant-safe.
+- Realtime loss is recoverable through cursor replay or REST refresh.
+- Documentation alone describes the implemented and remaining control plane.
 
 ## Verification
 
-- migration discovery, up/down pairing, clean up/down/up, and idempotent up;
-- constraint and concurrency tests against disposable PostgreSQL;
-- subscription lifecycle and entitlement-resolution tests;
-- invoice/payment exactness and idempotency tests;
-- platform authorization and tenant-boundary route tests;
-- mail/notification retry, duplicate, stale-claim, and cancellation tests;
-- worker heartbeat degradation/recovery tests;
-- SSE replay, ordering, duplicate, cursor expiry, heartbeat, and revoked-session
-  tests;
-- OpenAPI validation and runtime-operation drift checks;
-- API-docs enabled and disabled route tests;
-- documentation verification;
-- `go test ./...`, `go vet ./...`, `git diff --check`, and residue scans.
+- migration discovery, archive/restore, and no-drop assertions;
+- route/OpenAPI bidirectional coverage;
+- explicit retired-route absence tests;
+- platform authorization and tenant-boundary tests;
+- worker readiness after retirement;
+- mail pending-job retirement guard;
+- documentation drift verification;
+- `go test ./...`;
+- `go vet ./...`;
+- `git diff --check`.
 
-## Risks and Decisions
-
-- Automatic subscription payment collection remains provider-neutral until the
-  human approves a platform billing provider and credential boundary.
-- CPO subscription entitlements must not become a hidden bypass into tenant
-  data.
-- Realtime volume must remain operationally bounded; routine high-volume tenant
-  facts are not platform events.
-- Mail and events are at-least-once. Templates and clients must tolerate
-  duplicates.
-- Retention and cleanup require conservative defaults until production volume
-  is observed.
+Disposable PostgreSQL execution of migration nine must be completed before it
+is applied to a non-disposable database. The development deployment must not be
+updated if the pending-mail guard fails; an operator must inspect and resolve
+those jobs deliberately.

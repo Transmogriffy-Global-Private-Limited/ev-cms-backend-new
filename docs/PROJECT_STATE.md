@@ -30,7 +30,7 @@ provides:
   worker;
 - write-only encrypted Razorpay credentials for CPO owners/admins;
 - platform-only CPO create, list, inspect, activate, suspend, and app-ID APIs;
-- subscription-independent pending CPO creation with unique dummy app IDs;
+- manually controlled pending CPO creation with unique dummy app IDs;
 - transactional first-CPO-admin creation or safe existing-identity attachment;
 - encrypted welcome email with CPO ID, app ID, and generated temporary
   password for new identities;
@@ -42,7 +42,7 @@ provides:
   startup rejection of plaintext or ambiguous SMTP modes;
 - registered educational, integration, API, internal-message, and
   configuration documentation under `docs/`;
-- canonical OpenAPI 3.1 for all 74 implemented business/health operations;
+- canonical OpenAPI 3.1 for all 44 implemented business/health operations;
 - embedded same-origin Swagger UI at `/docs/` and raw OpenAPI at
   `/openapi.yaml`;
 - `API_DOCS_ENABLED` registration control for both documentation surfaces,
@@ -66,19 +66,11 @@ provides:
   machines;
 - durable platform event replay, authenticated SSE, filtered audit query, and
   registered worker-health/readiness APIs;
-- immutable published subscription-plan versions with exact minor-unit terms
-  and structured entitlement snapshots;
-- optional CPO subscription assignment, immediate and period-boundary plan
-  changes, trial/active/paused/past-due/cancelled/expired transitions, and
-  immutable idempotent lifecycle history;
-- explicit expiring CPO entitlement overrides and effective-entitlement
-  resolution from plan snapshot to override to safe no-subscription baseline;
-- transactional subscription audit, durable events, encrypted CPO-admin mail,
-  and a restart-safe lifecycle reconciliation worker;
-- provider-neutral billing accounts, exact platform invoices/lines, payments,
-  allocations, retained-history payment reversal, and billing timeline;
-- transactional billing audit/events, encrypted invoice mail, and a
-  restart-safe overdue worker;
+- manual superadmin CPO access through explicit activation and suspension, with
+  no tenant subscription, entitlement, platform-invoice, or platform-payment
+  runtime;
+- a reversible migration-nine retirement boundary that preserves the removed
+  prototype tables in `retired_commercial` and disables their worker records;
 - an active VPS deployment at `dev-evcmsnew.transev.site`, with Caddy proxying
   to the loopback-only listener `127.0.0.1:18080`;
 - an enabled and active `evcmsnew-dev.service`, ignored mode-0600 deployment
@@ -87,12 +79,13 @@ provides:
 - the additive PostgreSQL database `devevcmsnewdb`, owned by `postgres`.
 
 The active VPS runs source revision `e15699d` with migrations one through eight
-and the 74-operation control-plane contract. The July 24 deployment was
-rebuilt, migrated, rehosted, and verified over loopback and public HTTPS.
+and the former 74-operation control-plane contract. The current local source
+removes 30 commercial operations and adds migration nine; it has not yet been
+committed, pushed, or redeployed.
 
 No inventory API, HAL integration, charging workflow, tenant payment workflow,
-automatic platform-subscription collection/provider webhook, or reporting
-behavior is implemented yet.
+tenant commercial-management workflow, or reporting behavior is implemented
+yet.
 
 ## Verification
 
@@ -127,7 +120,8 @@ behavior is implemented yet.
   no-store behavior passed.
 - The CPO provisioning migration rolled down, up, and idempotently up in
   PostgreSQL 17.
-- CPO creation without subscriptions, encrypted temporary-password delivery,
+- CPO creation without commercial prerequisites, encrypted temporary-password
+  delivery,
   concurrent and sequential identity reuse, repeated-login reminders,
   business-API password gate, password change, activation, dummy-to-live
   app-ID rotation, and suspension passed in PostgreSQL lifecycle tests.
@@ -145,25 +139,27 @@ behavior is implemented yet.
   PostgreSQL lifecycle tests.
 - Permissive CORS preflight behavior and the disabled-CORS path passed focused
   route tests; authentication and authorization remain active in either mode.
-- Platform operations and subscription packages compile; model parsing,
-  migration discovery/pairing, mail rendering, all 74 Gin/OpenAPI operation
-  matches, semantic OpenAPI validation, route protection, and focused
-  subscription validation tests pass.
-- Platform billing compilation, exact-math tests, model/migration registration,
-  route protection, and OpenAPI parity pass.
+- Platform operations compile; model parsing, migration discovery/pairing, mail
+  rendering, route protection, and the retained realtime/worker contracts pass.
+- The current 44 Gin/OpenAPI operations match bidirectionally; all retired
+  commercial routes return `404` and are absent from OpenAPI.
+- Migration nine applied against disposable loopback PostgreSQL 17, archived
+  commercial tables without losing a preserved row, blocked pending commercial
+  mail, disabled retired worker records, rolled down with data intact, and
+  restored worker requirements.
 - PostgreSQL execution of migrations six through eight passed against the
-  PostgreSQL 18.4 development deployment. The granular
-  platform/subscription/billing lifecycle integration tests remain pending
-  because no disposable `TEST_DATABASE_URL` was selected.
+  PostgreSQL 18.4 development deployment before the commercial surface was
+  retired.
 - All eight forward migrations are recorded in the active deployment's
   `schema_migrations`; the schema contains 42 public tables.
 - The configured platform superadmin remains bootstrapped exactly once.
 - Loopback and public HTTPS liveness and database-readiness checks passed.
 - Swagger UI and raw OpenAPI return `200`, while an unauthenticated request to
   the new platform worker API returns `401`.
-- Platform maintenance, subscription lifecycle, billing maintenance, and mail
-  outbox workers all registered healthy; the post-rehost journal has no
-  error-level entries.
+- On the currently deployed `e15699d` revision, platform maintenance,
+  subscription lifecycle, billing maintenance, and mail outbox workers all
+  registered healthy. Migration nine will mark the two retired commercial
+  workers non-required before the replacement binary starts.
 - A real platform-login request returned `202`, and its encrypted
   `LOGIN_OTP` outbox job reached `SENT` on the first attempt through the
   configured Hostinger SMTP account.
@@ -197,9 +193,8 @@ repository. The integration contract has not been implemented yet.
 - Domain tables have no repositories or handlers yet.
 - CPO staff invitation after the first admin and customer email/profile-change
   workflows are not implemented.
-- Automatic platform subscription collection and provider webhooks remain
-  intentionally unimplemented pending an approved provider and separate
-  platform-owned credentials.
+- Tenant subscriptions, platform invoices, and platform payments are
+  intentionally unsupported; CPO access is manual.
 - Automatic encryption-key rotation is not implemented; data must be
   re-encrypted before an old key is removed.
 - SMTP delivery logic is implemented, worker-tested, and verified through one

@@ -166,7 +166,7 @@ CPO's frontend because it is not a secret, but it does not authenticate a
 person or protect against abuse. The server uses durable source/email rate
 limits independently.
 
-Signup has no subscription check. Customer authentication uses a distinct
+Signup has no commercial or payment check. Customer authentication uses a distinct
 `CUSTOMER` session scope; customer tokens are not CPO-staff or platform tokens.
 
 ### 4.1 `POST /api/v1/app/auth/signup`
@@ -1018,7 +1018,7 @@ Returns:
 ```
 
 The collection contains at most the 100 newest CPOs. No query filters,
-pagination cursor, subscription, or entitlement data exists.
+pagination cursor or commercial-access data exists.
 
 ### 8.3 `GET /api/v1/platform/cpos/{cpo_id}`
 
@@ -1032,7 +1032,7 @@ Errors: `400 invalid_cpo_id`, `401 unauthorized`, `403 forbidden`,
 No body.
 
 Sets status to `ACTIVE` and returns the CPO object. Calling it on an already
-active CPO is idempotent. It does not create/check a subscription and does not
+active CPO is idempotent. It does not create/check commercial state and does not
 require a live app ID.
 
 ### 8.5 `POST /api/v1/platform/cpos/{cpo_id}/suspend`
@@ -1315,41 +1315,23 @@ cannot start, stop, restart, or kill a process.
 
 Errors: shared `401`, `403`, or `500` responses.
 
-## 11. Subscription and Entitlement Control Plane
+## 11. Manual CPO Platform Access
 
-The complete bodies, validation, lifecycle transitions, idempotency rules,
-responses, error codes, transactional side effects, worker recovery behavior,
-and examples are canonical in
-[`subscriptions.md`](subscriptions.md). The authoritative machine-readable
-operations and schemas are in `../openapi/openapi.yaml`.
+The CMS has no tenant subscription, entitlement, platform-invoice, or
+platform-payment API. A platform superadmin grants or removes CPO access
+directly:
 
-All subscription routes use the `/api/v1/platform` prefix and require a
-validated `PLATFORM` bearer session. CPO existence does not require a
-subscription, published plan versions are immutable, and superadmin
-subscription management does not grant tenant-business-data access.
+```text
+POST /api/v1/platform/cpos/{cpo_id}/activate
+POST /api/v1/platform/cpos/{cpo_id}/suspend
+```
 
-Implemented groups:
+`ACTIVE` permits eligible CPO administrative authentication and tenant
+operations. `SUSPENDED` blocks new tenant access while preserving the CPO and
+its historical data. These actions are explicit, audited platform decisions;
+there is no commercial state machine or automatic payment-driven transition.
 
-- plan create/list/get/draft replacement/publish/archive;
-- CPO assignment/current snapshot/change plan/pause/resume/past-due/expire/
-  cancel/history;
-- effective entitlement resolution;
-- reasoned expiring CPO entitlement override set/removal;
-- durable boundary reconciliation, audit, events, worker heartbeat, and CPO
-  administrator mail.
-
-## 12. Platform Subscription Billing Records
-
-The complete provider-neutral billing-account, invoice, invoice-line, payment,
-allocation, reversal, overdue-worker, recovery, body, response, and error
-contract is canonical in
-[`platform-billing.md`](platform-billing.md).
-
-These records describe what a CPO owes TransEV for using the platform. They are
-not the CPO's charger/customer payments and never use tenant Razorpay
-credentials. Automatic collection and provider webhooks remain unimplemented.
-
-## 13. Client State Machine
+## 12. Client State Machine
 
 Recommended frontend sequence:
 
@@ -1373,7 +1355,7 @@ entire local session and require login. On `cpo_app_id_mismatch`, refresh or cal
 `/auth/me` to recover the current ID; never let a user type a CPO ID to change
 scope.
 
-## 14. Explicitly Unimplemented
+## 13. Explicitly Unimplemented
 
 The contract does not provide:
 
@@ -1384,7 +1366,8 @@ The contract does not provide:
   APIs;
 - payment execution or Razorpay webhook verification;
 - CMS/HAL commands or callbacks;
-- automatic subscription payment collection or provider webhooks;
+- tenant subscriptions, entitlement packages, platform invoices, or platform
+  payment management;
 - OpenAPI-generated SDKs.
 
 Database tables for several future domains do not imply callable APIs.

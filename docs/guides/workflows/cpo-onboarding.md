@@ -2,7 +2,7 @@
 
 ## Outcome
 
-A platform superadmin creates a CPO without a subscription, assigns its first
+A platform superadmin creates a CPO without a commercial prerequisite, assigns its first
 administrator, activates it when ready, and later replaces its dummy app ID
 with the real production identifier.
 
@@ -26,7 +26,7 @@ with the real production identifier.
    mail payload. For an existing active identity, it preserves the password and
    sends an assignment notice.
 4. The superadmin calls the activation endpoint. Activation does not require a
-   subscription or live app ID.
+   commercial record or live app ID.
 5. The CPO administrator signs in with CPO scope, CPO ID, password, and the
    emailed OTP.
 6. A new identity receives `must_change_password: true`. Authentication and
@@ -79,7 +79,8 @@ PLATFORM_LOGIN
 ```
 
 Do not infer readiness from app-ID mode: an active CPO may legitimately use a
-dummy ID. Do not infer lifecycle status from subscriptions: none are consulted.
+dummy ID. Do not infer lifecycle status from payments or commercial records:
+none are consulted.
 
 ## Failure and Recovery
 

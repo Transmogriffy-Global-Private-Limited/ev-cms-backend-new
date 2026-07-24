@@ -13,7 +13,6 @@ import (
 
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/db"
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/auth"
-	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/billing"
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/config"
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/cpo"
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/customerauth"
@@ -22,7 +21,6 @@ import (
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/platformops"
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/routes"
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/security"
-	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/subscriptions"
 	"github.com/google/uuid"
 )
 
@@ -94,18 +92,6 @@ func run() error {
 		return err
 	}
 	platformService := platformops.NewService(gormDB, cfg.Platform)
-	subscriptionService := subscriptions.NewService(
-		gormDB,
-		outbox,
-		cfg.Mail.Enabled,
-		platformService,
-	)
-	billingService := billing.NewService(
-		gormDB,
-		outbox,
-		cfg.Mail.Enabled,
-		platformService,
-	)
 	cpoService := cpo.NewService(gormDB, outbox, cfg.Mail.Enabled).
 		WithPlatformEvents(platformService)
 	customerAuthService, err := customerauth.NewService(
@@ -116,16 +102,6 @@ func run() error {
 	}
 	integrationService := integrations.NewService(gormDB, credentialSecretBox)
 	go platformService.RunMaintenance(ctx, uuid.NewString())
-	go subscriptionService.RunLifecycle(
-		ctx,
-		uuid.NewString(),
-		cfg.Platform.MaintenanceEvery,
-	)
-	go billingService.RunMaintenance(
-		ctx,
-		uuid.NewString(),
-		cfg.Platform.MaintenanceEvery,
-	)
 
 	if cfg.Mail.Enabled {
 		sender, err := cmsmail.NewSMTPSender(cfg.Mail)
@@ -155,8 +131,6 @@ func run() error {
 			cpoService,
 			integrationService,
 			platformService,
-			subscriptionService,
-			billingService,
 			cfg.CORSAllowAll,
 			cfg.APIDocsEnabled,
 		),
