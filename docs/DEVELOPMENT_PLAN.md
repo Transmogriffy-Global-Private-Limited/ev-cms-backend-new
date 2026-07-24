@@ -558,10 +558,10 @@ Last completed slice:
 
 Last deployment milestone:
 
-- The July 23 source snapshot was migrated and activated on the development
-  VPS, including superadmin bootstrap, public health, and real SMTP delivery
-  verification. The July 24 control-plane source changes have not yet been
-  deployed there.
+- Revision `e15699d` was built, migrated through version eight, and rehosted on
+  the development VPS. Public and loopback health, API documentation, protected
+  route behavior, required worker heartbeats, running-binary identity, and
+  error-free startup logs were verified.
 
 Next expected slice:
 

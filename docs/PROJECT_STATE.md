@@ -86,10 +86,9 @@ provides:
   handler;
 - the additive PostgreSQL database `devevcmsnewdb`, owned by `postgres`.
 
-The active VPS is a verified July 23 deployment snapshot with migrations one
-through five. The July 24 source adds migrations six through eight and the
-74-operation control-plane contract; that newer source has not yet been
-deployed or migration-tested against the VPS database.
+The active VPS runs source revision `e15699d` with migrations one through eight
+and the 74-operation control-plane contract. The July 24 deployment was
+rebuilt, migrated, rehosted, and verified over loopback and public HTTPS.
 
 No inventory API, HAL integration, charging workflow, tenant payment workflow,
 automatic platform-subscription collection/provider webhook, or reporting
@@ -152,15 +151,19 @@ behavior is implemented yet.
   subscription validation tests pass.
 - Platform billing compilation, exact-math tests, model/migration registration,
   route protection, and OpenAPI parity pass.
-- PostgreSQL execution of migrations six through eight and their
-  platform/subscription/billing lifecycle tests has not yet run because no
-  disposable `TEST_DATABASE_URL` was selected in this slice.
-- On the July 23 VPS snapshot, all five then-current forward migrations were
-  applied to the PostgreSQL 18.4 development deployment and recorded in
-  `schema_migrations`.
-- The configured platform superadmin was bootstrapped exactly once on that
-  snapshot.
+- PostgreSQL execution of migrations six through eight passed against the
+  PostgreSQL 18.4 development deployment. The granular
+  platform/subscription/billing lifecycle integration tests remain pending
+  because no disposable `TEST_DATABASE_URL` was selected.
+- All eight forward migrations are recorded in the active deployment's
+  `schema_migrations`; the schema contains 42 public tables.
+- The configured platform superadmin remains bootstrapped exactly once.
 - Loopback and public HTTPS liveness and database-readiness checks passed.
+- Swagger UI and raw OpenAPI return `200`, while an unauthenticated request to
+  the new platform worker API returns `401`.
+- Platform maintenance, subscription lifecycle, billing maintenance, and mail
+  outbox workers all registered healthy; the post-rehost journal has no
+  error-level entries.
 - A real platform-login request returned `202`, and its encrypted
   `LOGIN_OTP` outbox job reached `SENT` on the first attempt through the
   configured Hostinger SMTP account.

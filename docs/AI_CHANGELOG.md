@@ -2,6 +2,35 @@
 
 ## 2026-07-24
 
+### Development VPS updated to the control-plane release
+
+- Fast-forwarded the clean `main` checkout from `d610efe` to `e15699d`.
+- Added the new non-secret API documentation and platform worker settings to
+  the ignored deployment environment while preserving its existing secrets.
+- Built and checked a replacement binary before changing the running service.
+- Created a mode-0600 pre-migration PostgreSQL custom-format backup at
+  `/tmp/devevcmsnewdb-pre-e15699d.dump`.
+- Applied forward migrations six through eight, bringing the migration ledger
+  to eight versions and the development schema to 42 public tables.
+- Preserved the previous binary as `builds/evcmsnew.d610efe`, installed the new
+  binary, and invoked the shared `rehost-service` handler.
+
+Verification:
+
+- Deployment configuration loading, focused runtime/OpenAPI verification,
+  `go test ./...`, `go vet ./...`, the Bash-equivalent documentation contract
+  check, and `git diff --check` passed.
+- The service is enabled and active with zero restarts, and systemd is running
+  the exact newly built binary.
+- Loopback and public liveness/readiness, Swagger UI, and raw OpenAPI passed.
+- The new platform worker API rejects unauthenticated access with `401`.
+- Platform maintenance, subscription lifecycle, billing maintenance, and mail
+  outbox workers registered healthy.
+- All representative platform operations, subscription, and billing tables
+  exist, and the post-rehost journal contains no error-level entries.
+- Granular PostgreSQL lifecycle integration tests remain pending because this
+  deployment database is not an authorized disposable test target.
+
 ### Complete superadmin control plane approved and started
 
 - Inventoried the implemented new-CMS platform, auth, CPO, mail, audit, and

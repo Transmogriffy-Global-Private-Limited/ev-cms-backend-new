@@ -20,11 +20,9 @@ The SMTP outbox worker is part of the application process. It must not be
 started as a second systemd service because that would create an unnecessary
 duplicate worker.
 
-This document records the deployment verified on July 23, 2026. That running
-snapshot has migrations one through five. The current repository source also
-contains migrations six through eight and additional control-plane APIs; it
-must be rebuilt, migrated, and reverified before those newer capabilities are
-considered deployed.
+The active deployment was updated on July 24, 2026 to source revision
+`e15699d`. It has migrations one through eight and the complete current
+74-operation control-plane API.
 
 ## Files and Ownership
 
@@ -51,9 +49,12 @@ The deployment copies `.env.example` to `.env`, then overrides:
 - five independently generated 32-byte base64 cryptographic keys.
 
 `DATABASE_URL` and `SMTP_PASSWORD` contain deployment secrets only in the
-ignored environment file. At the July 23 verification point, the service was
-enabled and active, all five then-current forward migrations were recorded,
-and startup idempotently created the configured platform superadmin.
+ignored environment file. The service is enabled and active, all eight forward
+migrations are recorded, and startup idempotently retained the configured
+platform superadmin.
+
+The deployment environment explicitly records `API_DOCS_ENABLED=true` and the
+documented platform event, realtime, worker-staleness, and maintenance defaults.
 
 `CORS_ALLOW_ALL=true` remains enabled for the current cross-origin development
 frontend integration. This is not the intended permanent production CORS
