@@ -59,13 +59,15 @@ must be positive.
 | `PLATFORM_REALTIME_POLL_INTERVAL` | `1s`; positive PostgreSQL catch-up interval |
 | `PLATFORM_REALTIME_HEARTBEAT_INTERVAL` | `15s`; must exceed the polling interval |
 | `PLATFORM_REALTIME_BATCH_SIZE` | `100`; integer from 1 through 500 |
-| `PLATFORM_WORKER_STALE_AFTER` | `30s`; positive heartbeat staleness threshold |
+| `PLATFORM_WORKER_STALE_AFTER` | `2m`; positive and longer than `PLATFORM_MAINTENANCE_INTERVAL` |
 | `PLATFORM_MAINTENANCE_INTERVAL` | `1m`; positive event-cleanup and maintenance heartbeat interval |
 
 The platform-maintenance worker deletes expired event rows and reports a
 durable heartbeat. The mail worker also reports durable heartbeats when mail is
-enabled. Realtime and retention configuration is loaded at startup and requires
-a restart to change.
+enabled. Readiness is evaluated per required worker name: at least one instance
+must be fresh and healthy, so a stale instance from a replaced process does not
+mask a healthy replacement. Realtime and retention configuration is loaded at
+startup and requires a restart to change.
 
 ## Cryptographic Keys
 

@@ -106,6 +106,9 @@ Current producers:
 - CPO activation and suspension;
 - CPO app-ID rotation;
 - worker heartbeat records provide worker-state source data.
+- readiness requires at least one fresh, healthy instance for each required
+  worker name; stale records from replaced instances remain observable but do
+  not make a healthy replacement unavailable.
 
 Planned producers are registered in
 `docs/plans/superadmin-control-plane.md`.

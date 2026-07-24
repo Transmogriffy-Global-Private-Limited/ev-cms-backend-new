@@ -143,7 +143,7 @@ func Load() (Config, error) {
 			RealtimePoll:      durationOrDefault("PLATFORM_REALTIME_POLL_INTERVAL", time.Second),
 			RealtimeHeartbeat: durationOrDefault("PLATFORM_REALTIME_HEARTBEAT_INTERVAL", 15*time.Second),
 			RealtimeBatchSize: intOrDefault("PLATFORM_REALTIME_BATCH_SIZE", 100),
-			WorkerStaleAfter:  durationOrDefault("PLATFORM_WORKER_STALE_AFTER", 30*time.Second),
+			WorkerStaleAfter:  durationOrDefault("PLATFORM_WORKER_STALE_AFTER", 2*time.Minute),
 			MaintenanceEvery:  durationOrDefault("PLATFORM_MAINTENANCE_INTERVAL", time.Minute),
 		},
 	}
@@ -205,6 +205,8 @@ func (cfg Config) Validate() error {
 		return errors.New("PLATFORM_WORKER_STALE_AFTER must be positive")
 	case cfg.Platform.MaintenanceEvery <= 0:
 		return errors.New("PLATFORM_MAINTENANCE_INTERVAL must be positive")
+	case cfg.Platform.WorkerStaleAfter <= cfg.Platform.MaintenanceEvery:
+		return errors.New("PLATFORM_WORKER_STALE_AFTER must be longer than PLATFORM_MAINTENANCE_INTERVAL")
 	}
 
 	if cfg.Mail.Enabled {

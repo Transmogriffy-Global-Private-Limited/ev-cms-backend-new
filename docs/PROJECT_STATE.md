@@ -78,10 +78,10 @@ provides:
   handler;
 - the additive PostgreSQL database `devevcmsnewdb`, owned by `postgres`.
 
-The active VPS runs source revision `e15699d` with migrations one through eight
-and the former 74-operation control-plane contract. The current local source
-removes 30 commercial operations and adds migration nine; it has not yet been
-committed, pushed, or redeployed.
+The active VPS runs revision `b947ae1` plus the locally verified worker
+readiness correction, with migrations one through nine and the current
+44-operation control-plane contract. Migration nine preserves the retired
+commercial prototype under `retired_commercial`.
 
 No inventory API, HAL integration, charging workflow, tenant payment workflow,
 tenant commercial-management workflow, or reporting behavior is implemented
@@ -150,16 +150,19 @@ yet.
 - PostgreSQL execution of migrations six through eight passed against the
   PostgreSQL 18.4 development deployment before the commercial surface was
   retired.
-- All eight forward migrations are recorded in the active deployment's
-  `schema_migrations`; the schema contains 42 public tables.
+- All nine forward migrations are recorded in the active deployment's
+  `schema_migrations`; the runtime `public` schema contains 31 tables and
+  `retired_commercial` contains the 11 archived prototype tables.
 - The configured platform superadmin remains bootstrapped exactly once.
 - Loopback and public HTTPS liveness and database-readiness checks passed.
 - Swagger UI and raw OpenAPI return `200`, while an unauthenticated request to
   the new platform worker API returns `401`.
-- On the currently deployed `e15699d` revision, platform maintenance,
-  subscription lifecycle, billing maintenance, and mail outbox workers all
-  registered healthy. Migration nine will mark the two retired commercial
-  workers non-required before the replacement binary starts.
+- Migration nine marked subscription lifecycle and billing maintenance workers
+  disabled and non-required. Platform maintenance and mail outbox remain the
+  required runtime workers.
+- Readiness is evaluated per required worker name and succeeds when at least
+  one instance is fresh and healthy. Stale records from replaced processes no
+  longer degrade a healthy replacement.
 - A real platform-login request returned `202`, and its encrypted
   `LOGIN_OTP` outbox job reached `SENT` on the first attempt through the
   configured Hostinger SMTP account.

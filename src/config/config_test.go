@@ -132,7 +132,7 @@ func validTestConfig() Config {
 			RealtimePoll:      time.Second,
 			RealtimeHeartbeat: 15 * time.Second,
 			RealtimeBatchSize: 100,
-			WorkerStaleAfter:  30 * time.Second,
+			WorkerStaleAfter:  2 * time.Minute,
 			MaintenanceEvery:  time.Minute,
 		},
 		Credentials: Encryption{
@@ -156,5 +156,12 @@ func TestPlatformOperationalConfigurationValidation(t *testing.T) {
 	if err := cfg.Validate(); err == nil ||
 		!strings.Contains(err.Error(), "BATCH_SIZE") {
 		t.Fatalf("got %v, want realtime batch validation", err)
+	}
+
+	cfg = validTestConfig()
+	cfg.Platform.WorkerStaleAfter = cfg.Platform.MaintenanceEvery
+	if err := cfg.Validate(); err == nil ||
+		!strings.Contains(err.Error(), "WORKER_STALE_AFTER") {
+		t.Fatalf("got %v, want worker stale interval validation", err)
 	}
 }

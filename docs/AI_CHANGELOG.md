@@ -2,6 +2,40 @@
 
 ## 2026-07-24
 
+### Commercial retirement deployed and worker readiness corrected
+
+- Fast-forwarded the clean `main` checkout from `3b01a5d` to `b947ae1`.
+- Confirmed all eleven retiring commercial prototype tables and related pending
+  mail queues were empty before migration.
+- Created the mode-0600 pre-migration backup
+  `/tmp/devevcmsnewdb-pre-b947ae1.dump`.
+- Applied migration nine, preserving the eleven tables under
+  `retired_commercial` and disabling the subscription-lifecycle and
+  billing-maintenance worker records.
+- Rebuilt and rehosted the 44-operation manual-CPO-access release.
+- Diagnosed pre-existing readiness oscillation caused by a `30s` worker stale
+  threshold with a `1m` maintenance heartbeat and by stale required instance
+  rows left by replaced processes.
+- Changed the default and deployment stale threshold to `2m`, required it to
+  exceed the maintenance interval, and made readiness require at least one
+  fresh healthy instance per required worker name.
+
+Verification:
+
+- Deployment configuration, focused route/OpenAPI verification, `go test
+  ./...`, `go vet ./...`, documentation verification, and `git diff --check`
+  passed.
+- The worker replacement behavior passed against an explicitly created and
+  immediately removed disposable PostgreSQL database.
+- All nine migrations are recorded; 31 runtime tables remain in `public` and
+  11 archived tables exist in `retired_commercial`.
+- Retired commercial routes return `404`; the retained worker route returns
+  `401` without authentication.
+- Loopback and public liveness/readiness, Swagger UI, running-binary identity,
+  and zero error-level service logs passed.
+- Public readiness remains healthy while stale historical platform-maintenance
+  and mail-outbox rows coexist with fresh replacement instances.
+
 ### Tenant commercial management retired
 
 - Replaced the tenant subscription, entitlement, platform-invoice, and

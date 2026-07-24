@@ -314,14 +314,19 @@ func (service *Service) ListWorkers(
 func (service *Service) RequiredWorkersReady(ctx context.Context) (bool, error) {
 	var unhealthy int64
 	staleBefore := service.now().Add(-service.config.WorkerStaleAfter)
-	if err := service.database.WithContext(ctx).
-		Model(&models.WorkerInstance{}).
-		Where(
-			"required = TRUE AND (reported_status <> ? OR last_heartbeat_at < ?)",
-			"HEALTHY",
-			staleBefore,
-		).
-		Count(&unhealthy).Error; err != nil {
+	if err := service.database.WithContext(ctx).Raw(`
+		SELECT COUNT(*)
+		  FROM (
+		        SELECT worker_name
+		          FROM worker_instances
+		         WHERE required = TRUE
+		         GROUP BY worker_name
+		        HAVING NOT BOOL_OR(
+		            reported_status = 'HEALTHY'
+		            AND last_heartbeat_at >= ?
+		        )
+		       ) AS unhealthy_workers
+	`, staleBefore).Scan(&unhealthy).Error; err != nil {
 		return false, fmt.Errorf("inspect required worker health: %w", err)
 	}
 	return unhealthy == 0, nil

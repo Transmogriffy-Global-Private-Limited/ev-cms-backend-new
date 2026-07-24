@@ -21,8 +21,10 @@ started as a second systemd service because that would create an unnecessary
 duplicate worker.
 
 The active deployment was updated on July 24, 2026 to source revision
-`e15699d`. It has migrations one through eight and the complete current
-74-operation control-plane API.
+`b947ae1` plus the locally verified worker-readiness correction. It has
+migrations one through nine and the current 44-operation control-plane API.
+The eleven retired commercial prototype tables remain recoverable in the
+`retired_commercial` schema.
 
 ## Files and Ownership
 
@@ -55,6 +57,8 @@ platform superadmin.
 
 The deployment environment explicitly records `API_DOCS_ENABLED=true` and the
 documented platform event, realtime, worker-staleness, and maintenance defaults.
+`PLATFORM_WORKER_STALE_AFTER=2m` intentionally exceeds the `1m` maintenance
+heartbeat so readiness does not oscillate between worker updates.
 
 `CORS_ALLOW_ALL=true` remains enabled for the current cross-origin development
 frontend integration. This is not the intended permanent production CORS

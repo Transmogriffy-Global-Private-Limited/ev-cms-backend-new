@@ -169,13 +169,30 @@ func TestPlatformEventsAuditAndWorkerLifecycleWithPostgreSQL(t *testing.T) {
 		t.Fatalf("stale required worker readiness = %v, %v", ready, err)
 	}
 
+	replacementInstanceKey := uuid.NewString()
+	if err := service.Heartbeat(ctx, "test-worker", replacementInstanceKey); err != nil {
+		t.Fatalf("record replacement worker heartbeat: %v", err)
+	}
+	ready, err = service.RequiredWorkersReady(ctx)
+	if err != nil || !ready {
+		t.Fatalf(
+			"replacement instance must satisfy worker readiness despite stale peer = %v, %v",
+			ready,
+			err,
+		)
+	}
+
 	if err := gormDB.Delete(&models.AuditLog{}, "id = ?", audit.ID).Error; err != nil {
 		t.Fatalf("delete test audit: %v", err)
 	}
 	if err := gormDB.Delete(&models.AuditLog{}, "id = ?", sameTimeAudit.ID).Error; err != nil {
 		t.Fatalf("delete same-time test audit: %v", err)
 	}
-	if err := gormDB.Delete(&models.WorkerInstance{}, "instance_key = ?", instanceKey).Error; err != nil {
+	if err := gormDB.Delete(
+		&models.WorkerInstance{},
+		"instance_key IN ?",
+		[]string{instanceKey, replacementInstanceKey},
+	).Error; err != nil {
 		t.Fatalf("delete test worker: %v", err)
 	}
 	if err := gormDB.Delete(&models.PlatformEvent{}, "id = ?", first.ID).Error; err != nil &&

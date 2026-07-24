@@ -559,10 +559,11 @@ Last completed slice:
 
 Last deployment milestone:
 
-- Revision `e15699d` was built, migrated through version eight, and rehosted on
-  the development VPS. Public and loopback health, API documentation, protected
-  route behavior, required worker heartbeats, running-binary identity, and
-  error-free startup logs were verified.
+- Revision `b947ae1` and the worker-readiness correction were built, migrated
+  through version nine, and rehosted on the development VPS. Commercial tables
+  were reversibly archived, retired workers were disabled, the 44-operation
+  route/OpenAPI surface was verified, and public readiness remains healthy with
+  stale historical instance rows present.
 
 Next expected slice:
 
