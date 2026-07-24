@@ -1,7 +1,5 @@
 # AI Changelog
 
-## 2026-07-23
-
 ## 2026-07-24
 
 ### Complete superadmin control plane approved and started
@@ -22,7 +20,7 @@
   raw OpenAPI route registration while preserving the enabled compatibility
   default.
 
-Verification:
+Implementation:
 
 - Focused configuration and route tests passed for documentation enabled and
   disabled behavior.
@@ -47,6 +45,40 @@ Verification:
   `git diff --check` passed after the billing slice.
 - Disposable PostgreSQL execution for migrations six through eight and their
   lifecycle tests remains pending.
+
+## 2026-07-23
+
+### Development VPS hosting prepared and activated
+
+- Prepared `dev-evcmsnew.transev.site` behind Caddy with an application
+  listener reserved on `127.0.0.1:18080`.
+- Created the additive PostgreSQL database `devevcmsnewdb`, owned by
+  `postgres`.
+- Created an ignored mode-0600 `.env` from `.env.example`, set the requested
+  initial superadmin identity, and generated five independent cryptographic
+  keys.
+- Added `evcmsnew-dev.service`, centralized ignored `builds/` output, and the
+  `rehost-evcmsnew` interactive handler.
+- Added the supplied database and SMTP passwords only to the ignored mode-0600
+  deployment environment.
+- Applied all five forward migrations, bootstrapped the configured platform
+  superadmin, and enabled and started the application service.
+- Added the authoritative development-hosting and activation guide.
+
+Verification:
+
+- Caddy configuration validation and reload completed.
+- The database owner, loopback listener, DNS resolution, binary build,
+  documentation checks, Go tests, and Go vet were verified.
+- PowerShell is not installed on this VPS, so `scripts/verify-docs.ps1` could
+  not run directly; its required-file, route-presence, and removed-setting
+  checks were reproduced in Bash and passed.
+- The migration ledger contains all five versions and 29 public tables.
+- The service is enabled and active; loopback and public HTTPS liveness and
+  database-readiness checks passed.
+- A platform-login request returned `202`, confirmed the bootstrapped
+  superadmin, and produced a real `LOGIN_OTP` delivery that reached `SENT` on
+  the first attempt.
 
 ### Temporary remote-development access implemented
 

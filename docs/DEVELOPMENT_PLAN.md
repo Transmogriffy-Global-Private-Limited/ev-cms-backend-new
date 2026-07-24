@@ -556,6 +556,13 @@ Last completed slice:
 - Provider-neutral platform billing accounts, immutable invoices/lines,
   payments, allocation reversal, overdue worker, and complete contracts
 
+Last deployment milestone:
+
+- The July 23 source snapshot was migrated and activated on the development
+  VPS, including superadmin bootstrap, public health, and real SMTP delivery
+  verification. The July 24 control-plane source changes have not yet been
+  deployed there.
+
 Next expected slice:
 
 - Mail/security operations followed by notifications and announcements

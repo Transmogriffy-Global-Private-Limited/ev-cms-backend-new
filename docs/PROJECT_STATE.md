@@ -41,8 +41,8 @@ provides:
 - Hostinger implicit-TLS configuration on `smtp.hostinger.com:465`, with
   startup rejection of plaintext or ambiguous SMTP modes;
 - registered educational, integration, API, internal-message, and
-  configuration documentation under `docs/`.
-- canonical OpenAPI 3.1 for all 40 implemented business/health operations;
+  configuration documentation under `docs/`;
+- canonical OpenAPI 3.1 for all 74 implemented business/health operations;
 - embedded same-origin Swagger UI at `/docs/` and raw OpenAPI at
   `/openapi.yaml`;
 - `API_DOCS_ENABLED` registration control for both documentation surfaces,
@@ -79,7 +79,17 @@ provides:
   allocations, retained-history payment reversal, and billing timeline;
 - transactional billing audit/events, encrypted invoice mail, and a
   restart-safe overdue worker;
-- canonical OpenAPI 3.1 for all 74 implemented business/health operations.
+- an active VPS deployment at `dev-evcmsnew.transev.site`, with Caddy proxying
+  to the loopback-only listener `127.0.0.1:18080`;
+- an enabled and active `evcmsnew-dev.service`, ignored mode-0600 deployment
+  environment, compiled binary layout, and `rehost-evcmsnew` interactive
+  handler;
+- the additive PostgreSQL database `devevcmsnewdb`, owned by `postgres`.
+
+The active VPS is a verified July 23 deployment snapshot with migrations one
+through five. The July 24 source adds migrations six through eight and the
+74-operation control-plane contract; that newer source has not yet been
+deployed or migration-tested against the VPS database.
 
 No inventory API, HAL integration, charging workflow, tenant payment workflow,
 automatic platform-subscription collection/provider webhook, or reporting
@@ -145,6 +155,15 @@ behavior is implemented yet.
 - PostgreSQL execution of migrations six through eight and their
   platform/subscription/billing lifecycle tests has not yet run because no
   disposable `TEST_DATABASE_URL` was selected in this slice.
+- On the July 23 VPS snapshot, all five then-current forward migrations were
+  applied to the PostgreSQL 18.4 development deployment and recorded in
+  `schema_migrations`.
+- The configured platform superadmin was bootstrapped exactly once on that
+  snapshot.
+- Loopback and public HTTPS liveness and database-readiness checks passed.
+- A real platform-login request returned `202`, and its encrypted
+  `LOGIN_OTP` outbox job reached `SENT` on the first attempt through the
+  configured Hostinger SMTP account.
 
 ## Current Access Model
 
@@ -180,8 +199,8 @@ repository. The integration contract has not been implemented yet.
   platform-owned credentials.
 - Automatic encryption-key rotation is not implemented; data must be
   re-encrypted before an old key is removed.
-- SMTP delivery logic is implemented and worker-tested, but real Hostinger
-  delivery remains operationally unverified. The mailbox password is not stored
-  in the repository.
+- SMTP delivery logic is implemented, worker-tested, and verified through one
+  real Hostinger platform-login OTP delivery. The mailbox password remains only
+  in the ignored deployment environment.
 - No generated frontend SDK exists yet; consumers use the reviewed OpenAPI
   contract directly.

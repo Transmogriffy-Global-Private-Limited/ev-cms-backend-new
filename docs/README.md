@@ -22,6 +22,7 @@ This directory is the durable project memory for the EV CMS backend.
 | External-system boundaries | `integrations/` |
 | Stable external and internal contracts | `contracts/` |
 | Machine-readable HTTP source of truth | `contracts/openapi/openapi.yaml` |
+| Development VPS hosting and activation | `guides/operations/dev-hosting.md` |
 
 `contracts/api/administrative-http-api.md` is the complete endpoint index and
 auth/control-plane handoff; it links the granular subscription contract.
