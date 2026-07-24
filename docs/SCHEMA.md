@@ -17,6 +17,12 @@ Migration files:
 - `db/migrations/000004_customer_signup.down.sql`
 - `db/migrations/000005_customer_authentication.up.sql`
 - `db/migrations/000005_customer_authentication.down.sql`
+- `db/migrations/000006_platform_operations.up.sql`
+- `db/migrations/000006_platform_operations.down.sql`
+- `db/migrations/000007_subscriptions.up.sql`
+- `db/migrations/000007_subscriptions.down.sql`
+- `db/migrations/000008_platform_billing.up.sql`
+- `db/migrations/000008_platform_billing.down.sql`
 
 ## Supplied Model Mapping
 
@@ -122,3 +128,77 @@ constraint permits exactly:
 It also admits CPO-bound customer login/password-reset challenges and their
 encrypted mail templates. The same refresh-token lineage remains shared while
 customer authorization is revalidated through the tenant customer record.
+
+## Platform Operations, Workers, and Realtime
+
+The sixth migration adds:
+
+- `platform_events`, an append-only, monotonically ordered, retention-bounded
+  event log used for superadmin UI invalidation, replay, and SSE delivery; and
+- `worker_instances`, durable process-instance heartbeats used to derive
+  `HEALTHY`, `DEGRADED`, `DISABLED`, or `STALE` operational state.
+
+`platform_events.id` is the canonical replay and deduplication cursor. Events
+are committed in the same database transaction as the state change they
+announce. Their JSON payload is metadata only and must never contain passwords,
+OTPs, tokens, integration credentials, or decrypted mail bodies. Expired rows
+are removed by the platform-maintenance worker; authoritative business state
+remains in the owning tables and must be re-fetched after an event.
+
+Worker identity is the unique `(worker_name, instance_key)` pair. Required
+worker rows with a non-healthy reported status or a heartbeat older than
+`PLATFORM_WORKER_STALE_AFTER` make `/health/ready` unavailable. A process that
+has not registered a worker row is not inferred from this table; startup owns
+registration by sending an immediate heartbeat.
+
+## Platform Subscriptions and Entitlements
+
+The seventh migration adds:
+
+- `subscription_plans`, stable commercial catalog identities;
+- `subscription_plan_versions`, exact versioned currency/minor-unit price,
+  billing interval, and trial terms;
+- `subscription_plan_entitlements`, structured feature flags, limits, and
+  non-secret JSON configuration owned by one version;
+- `cpo_subscriptions`, the optional current and historical CPO commercial
+  relationship;
+- `cpo_subscription_history`, immutable, reasoned, idempotent lifecycle facts;
+- `cpo_entitlement_overrides`, explicit reasoned CPO exceptions with optional
+  expiry.
+
+A partial unique index permits at most one `TRIAL`, `ACTIVE`, `PAUSED`, or
+`PAST_DUE` subscription per CPO while allowing later assignments after a
+terminal `CANCELLED` or `EXPIRED` record. CPO creation has no subscription
+foreign key and remains valid without any subscription row.
+
+Publishing a plan version records publisher/time. Database triggers reject
+later update or deletion of that published version and its entitlement
+snapshot. Scheduled plan changes and period-end cancellation retain their
+operator identity so the lifecycle worker can write accountable history,
+audit, event, and mail records when the boundary becomes due.
+
+The migration also admits `CPO_SUBSCRIPTION_CHANGED` to the encrypted mail
+outbox allowlist. Subscription mail payloads contain CPO/plan/status metadata,
+never provider credentials or platform payment secrets.
+
+## Provider-Neutral Platform Billing
+
+The eighth migration adds one optional CPO billing account, exact platform
+invoices and ordered lines, provider-neutral payments, and immutable payment
+allocations. Actor-scoped idempotency keys protect invoice and payment
+commands. External references are unique when supplied.
+
+Invoice/payment CPO and currency equality, allocation bounds, and aggregate
+paid/due transitions are enforced inside locked application transactions.
+Database checks enforce exact minor-unit amount identities. After issue,
+triggers reject changes to invoice commercial terms and lines while permitting
+status and paid/due transitions.
+
+Payment voiding retains allocation history but reverses its invoice-balance
+effects atomically. A durable worker derives overdue status from due time and
+remaining balance. These records describe what a CPO owes TransEV for the
+platform; tenant Razorpay credentials and charging-customer payments remain
+outside these tables.
+
+The migration also admits encrypted `CPO_PLATFORM_INVOICE_ISSUED` mail work to
+the explicit billing-account address.

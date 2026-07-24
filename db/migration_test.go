@@ -236,3 +236,118 @@ func TestCustomerAuthenticationMigrationContainsSessionScope(t *testing.T) {
 		t.Error("customer authentication down migration does not remove customer_id")
 	}
 }
+
+func TestPlatformOperationsMigrationContainsDurableEventsAndWorkers(t *testing.T) {
+	t.Parallel()
+
+	upBody, err := migrationFiles.ReadFile("migrations/000006_platform_operations.up.sql")
+	if err != nil {
+		t.Fatalf("read platform operations up migration: %v", err)
+	}
+	downBody, err := migrationFiles.ReadFile("migrations/000006_platform_operations.down.sql")
+	if err != nil {
+		t.Fatalf("read platform operations down migration: %v", err)
+	}
+	upSQL := string(upBody)
+	downSQL := string(downBody)
+	for _, table := range []string{"platform_events", "worker_instances"} {
+		if !strings.Contains(upSQL, "CREATE TABLE "+table) {
+			t.Errorf("platform operations up migration does not create %s", table)
+		}
+		if !strings.Contains(downSQL, "DROP TABLE IF EXISTS "+table) {
+			t.Errorf("platform operations down migration does not remove %s", table)
+		}
+	}
+	for _, required := range []string{
+		"GENERATED ALWAYS AS IDENTITY",
+		"expires_at",
+		"last_heartbeat_at",
+		"uq_worker_instances_identity",
+	} {
+		if !strings.Contains(upSQL, required) {
+			t.Errorf("platform operations migration missing %q", required)
+		}
+	}
+}
+
+func TestSubscriptionMigrationContainsVersionedLifecycle(t *testing.T) {
+	t.Parallel()
+
+	upBody, err := migrationFiles.ReadFile("migrations/000007_subscriptions.up.sql")
+	if err != nil {
+		t.Fatalf("read subscriptions up migration: %v", err)
+	}
+	downBody, err := migrationFiles.ReadFile("migrations/000007_subscriptions.down.sql")
+	if err != nil {
+		t.Fatalf("read subscriptions down migration: %v", err)
+	}
+	upSQL := string(upBody)
+	downSQL := string(downBody)
+	for _, table := range []string{
+		"subscription_plans",
+		"subscription_plan_versions",
+		"subscription_plan_entitlements",
+		"cpo_subscriptions",
+		"cpo_subscription_history",
+		"cpo_entitlement_overrides",
+	} {
+		if !strings.Contains(upSQL, "CREATE TABLE "+table) {
+			t.Errorf("subscription up migration does not create %s", table)
+		}
+		if !strings.Contains(downSQL, "DROP TABLE IF EXISTS "+table) {
+			t.Errorf("subscription down migration does not remove %s", table)
+		}
+	}
+	for _, required := range []string{
+		"uq_cpo_subscriptions_current",
+		"reject_published_subscription_version_mutation",
+		"reject_published_entitlement_mutation",
+		"CPO_SUBSCRIPTION_CHANGED",
+		"idempotency_key",
+	} {
+		if !strings.Contains(upSQL, required) {
+			t.Errorf("subscription migration missing %q", required)
+		}
+	}
+}
+
+func TestPlatformBillingMigrationContainsExactImmutableRecords(t *testing.T) {
+	t.Parallel()
+
+	upBody, err := migrationFiles.ReadFile("migrations/000008_platform_billing.up.sql")
+	if err != nil {
+		t.Fatalf("read platform billing up migration: %v", err)
+	}
+	downBody, err := migrationFiles.ReadFile("migrations/000008_platform_billing.down.sql")
+	if err != nil {
+		t.Fatalf("read platform billing down migration: %v", err)
+	}
+	upSQL := string(upBody)
+	downSQL := string(downBody)
+	for _, table := range []string{
+		"cpo_billing_accounts",
+		"platform_invoices",
+		"platform_invoice_lines",
+		"platform_payments",
+		"platform_payment_allocations",
+	} {
+		if !strings.Contains(upSQL, "CREATE TABLE "+table) {
+			t.Errorf("platform billing up migration does not create %s", table)
+		}
+		if !strings.Contains(downSQL, "DROP TABLE IF EXISTS "+table) {
+			t.Errorf("platform billing down migration does not remove %s", table)
+		}
+	}
+	for _, required := range []string{
+		"unit_amount_minor",
+		"protect_issued_platform_invoice",
+		"protect_platform_invoice_line",
+		"uq_platform_invoices_idempotency",
+		"uq_platform_payments_idempotency",
+		"CPO_PLATFORM_INVOICE_ISSUED",
+	} {
+		if !strings.Contains(upSQL, required) {
+			t.Errorf("platform billing migration missing %q", required)
+		}
+	}
+}

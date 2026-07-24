@@ -52,6 +52,7 @@ func TestLoadHostingerImplicitSSLConfiguration(t *testing.T) {
 	environment := map[string]string{
 		"DATABASE_URL":                   "postgres://localhost/test",
 		"CORS_ALLOW_ALL":                 "true",
+		"API_DOCS_ENABLED":               "false",
 		"SUPERADMIN_EMAIL":               "admin@example.com",
 		"SUPERADMIN_PASSWORD":            "a-long-password",
 		"JWT_SIGNING_KEY_B64":            key,
@@ -85,12 +86,25 @@ func TestLoadHostingerImplicitSSLConfiguration(t *testing.T) {
 	if !cfg.CORSAllowAll {
 		t.Fatal("expected CORS_ALLOW_ALL=true to enable permissive CORS")
 	}
+	if cfg.APIDocsEnabled {
+		t.Fatal("expected API_DOCS_ENABLED=false to disable API documentation")
+	}
+}
+
+func TestAPIDocumentationDefaultsEnabled(t *testing.T) {
+	t.Parallel()
+
+	cfg := validTestConfig()
+	if !cfg.APIDocsEnabled {
+		t.Fatal("API documentation must default enabled for backward compatibility")
+	}
 }
 
 func validTestConfig() Config {
 	return Config{
-		DatabaseURL: "postgres://localhost/test",
-		HTTPAddress: "127.0.0.1:8080",
+		DatabaseURL:    "postgres://localhost/test",
+		HTTPAddress:    "127.0.0.1:8080",
+		APIDocsEnabled: true,
 		Superadmin: Superadmin{
 			Email: "admin@example.com", Password: "a-long-password", FullName: "Admin",
 		},
@@ -113,8 +127,34 @@ func validTestConfig() Config {
 		Mail: Mail{
 			UseTLS: true, WorkerPoll: time.Second, SendTimeout: 5 * time.Second,
 		},
+		Platform: Platform{
+			EventRetention:    7 * 24 * time.Hour,
+			RealtimePoll:      time.Second,
+			RealtimeHeartbeat: 15 * time.Second,
+			RealtimeBatchSize: 100,
+			WorkerStaleAfter:  30 * time.Second,
+			MaintenanceEvery:  time.Minute,
+		},
 		Credentials: Encryption{
 			KeyID: "v1", Key: []byte(strings.Repeat("c", 32)),
 		},
+	}
+}
+
+func TestPlatformOperationalConfigurationValidation(t *testing.T) {
+	t.Parallel()
+
+	cfg := validTestConfig()
+	cfg.Platform.RealtimeHeartbeat = cfg.Platform.RealtimePoll
+	if err := cfg.Validate(); err == nil ||
+		!strings.Contains(err.Error(), "HEARTBEAT_INTERVAL") {
+		t.Fatalf("got %v, want realtime interval validation", err)
+	}
+
+	cfg = validTestConfig()
+	cfg.Platform.RealtimeBatchSize = 501
+	if err := cfg.Validate(); err == nil ||
+		!strings.Contains(err.Error(), "BATCH_SIZE") {
+		t.Fatalf("got %v, want realtime batch validation", err)
 	}
 }

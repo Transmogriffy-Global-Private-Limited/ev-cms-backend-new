@@ -13,6 +13,7 @@ $requiredFiles = @(
     'docs/AUTHENTICATION.md',
     'docs/CPO_ADMINISTRATION.md',
     'docs/guides/concepts/identity-tenancy-and-application-identity.md',
+    'docs/guides/concepts/superadmin-control-plane.md',
     'docs/guides/workflows/cpo-onboarding.md',
     'docs/guides/workflows/app-user-authentication.md',
     'docs/guides/troubleshooting/authentication-and-mail.md',
@@ -20,15 +21,20 @@ $requiredFiles = @(
     'docs/integrations/razorpay-credential-storage.md',
     'docs/integrations/ocpp-hal-boundary.md',
     'docs/contracts/api/administrative-http-api.md',
+    'docs/contracts/api/subscriptions.md',
+    'docs/contracts/api/platform-billing.md',
     'docs/contracts/internal/mail-outbox.md',
+    'docs/contracts/realtime/platform-events.md',
     'docs/contracts/configuration.md',
     'docs/contracts/openapi/openapi.yaml',
     'docs/decisions/0004-openapi-and-embedded-api-explorer.md',
     'docs/decisions/0005-cpo-scoped-customer-signup.md',
     'docs/decisions/0006-customer-session-plane.md',
+    'docs/decisions/0007-complete-superadmin-control-plane.md',
     'docs/plans/api-documentation-and-openapi.md',
     'docs/plans/customer-signup.md',
-    'docs/plans/customer-authentication.md'
+    'docs/plans/customer-authentication.md',
+    'docs/plans/superadmin-control-plane.md'
 )
 
 $missing = @(
@@ -45,6 +51,12 @@ if ($missing.Count -gt 0) {
 $routeContract = Get-Content -Raw -LiteralPath (
     Join-Path $repositoryRoot 'docs/contracts/api/administrative-http-api.md'
 )
+$routeContract += Get-Content -Raw -LiteralPath (
+    Join-Path $repositoryRoot 'docs/contracts/api/subscriptions.md'
+)
+$routeContract += Get-Content -Raw -LiteralPath (
+    Join-Path $repositoryRoot 'docs/contracts/api/platform-billing.md'
+)
 $requiredRoutes = @(
     '/api/v1/auth/login',
     '/api/v1/app/auth/signup',
@@ -52,6 +64,17 @@ $requiredRoutes = @(
     '/api/v1/app/auth/me',
     '/api/v1/auth/password/change',
     '/api/v1/platform/cpos',
+    '/api/v1/platform/events',
+    '/api/v1/platform/realtime/stream',
+    '/api/v1/platform/audit-logs',
+    '/api/v1/platform/workers',
+    '/api/v1/platform/plans',
+    '/subscription/change-plan',
+    '/entitlement-overrides/',
+    '/billing-account',
+    '/invoices',
+    '/payments',
+    '/billing-timeline',
     '/api/v1/cpo/integrations',
     '/docs/',
     '/openapi.yaml'

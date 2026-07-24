@@ -18,6 +18,8 @@ or full provider errors containing sensitive values.
 
 ## Interactive API Page Does Not Load
 
+- Confirm `API_DOCS_ENABLED=true`; when false, `/docs`, `/docs/`, and
+  `/openapi.yaml` intentionally return `404`.
 - `/docs` should return a temporary redirect to `/docs/`.
 - `/docs/` and its assets are embedded; no CDN is required.
 - `/openapi.yaml` should return the specification.
@@ -107,6 +109,7 @@ database. A replay/reconciliation tool requires a separately reviewed feature.
 $env:GOCACHE = Join-Path (Get-Location) '.local/go-cache'
 go test ./src/config ./src/mail -count=1
 go test ./src/routes -run TestOpenAPIContractMatchesRuntimeRoutesAndServesUI -count=1
+go test ./src/routes -run TestAPIDocumentationRoutesCanBeDisabled -count=1
 .\scripts\verify-docs.ps1
 ```
 

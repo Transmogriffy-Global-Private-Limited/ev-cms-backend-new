@@ -14,6 +14,7 @@ import (
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/constants"
 	cmsmail "github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/mail"
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/models"
+	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/platformops"
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/security"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgconn"
@@ -33,7 +34,13 @@ type Service struct {
 	database    *gorm.DB
 	outbox      *cmsmail.Outbox
 	mailEnabled bool
+	events      *platformops.Service
 	now         func() time.Time
+}
+
+func (service *Service) WithPlatformEvents(events *platformops.Service) *Service {
+	service.events = events
+	return service
 }
 
 func NewService(
@@ -188,7 +195,7 @@ func (service *Service) Create(
 				return err
 			}
 		}
-		return writeAudit(
+		if err := writeAudit(
 			tx,
 			principal.UserID,
 			cpoRecord.ID,
@@ -199,6 +206,18 @@ func (service *Service) Create(
 				"identity_created": identityCreated,
 			},
 			now,
+		); err != nil {
+			return err
+		}
+		return service.emit(
+			tx,
+			principal.UserID,
+			cpoRecord.ID,
+			"platform.cpo.created",
+			models.JSONB{
+				"status":      cpoRecord.Status,
+				"app_id_mode": cpoRecord.AppIDMode,
+			},
 		)
 	})
 	if err != nil {
@@ -306,13 +325,22 @@ func (service *Service) SetLiveAppID(
 		record.AppIDMode = constants.CPOAppIDModeLive
 		record.AppIDUpdatedAt = now
 		record.UpdatedAt = now
-		return writeAudit(
+		if err := writeAudit(
 			tx,
 			principal.UserID,
 			cpoID,
 			"CPO_APP_ID_SET_LIVE",
 			models.JSONB{"app_id_mode": constants.CPOAppIDModeLive},
 			now,
+		); err != nil {
+			return err
+		}
+		return service.emit(
+			tx,
+			principal.UserID,
+			cpoID,
+			"platform.cpo.app_id_rotated",
+			models.JSONB{"app_id_mode": constants.CPOAppIDModeLive},
 		)
 	})
 	if err != nil {
@@ -337,6 +365,7 @@ func (service *Service) transitionStatus(
 			return mapNotFound(err)
 		}
 		now := service.now()
+		changed := record.Status != status
 		if record.Status != status {
 			if err := tx.Model(&models.CPO{}).
 				Where("id = ?", cpoID).
@@ -371,19 +400,56 @@ func (service *Service) transitionStatus(
 				return fmt.Errorf("revoke suspended CPO refresh tokens: %w", err)
 			}
 		}
-		return writeAudit(
+		if err := writeAudit(
 			tx,
 			principal.UserID,
 			cpoID,
 			"CPO_STATUS_"+string(status),
 			models.JSONB{"status": status},
 			now,
+		); err != nil {
+			return err
+		}
+		if !changed {
+			return nil
+		}
+		eventType := "platform.cpo.activated"
+		if status == constants.CPOStatusSuspended {
+			eventType = "platform.cpo.suspended"
+		}
+		return service.emit(
+			tx,
+			principal.UserID,
+			cpoID,
+			eventType,
+			models.JSONB{"status": status},
 		)
 	})
 	if err != nil {
 		return View{}, err
 	}
 	return view(record), nil
+}
+
+func (service *Service) emit(
+	tx *gorm.DB,
+	actorUserID uuid.UUID,
+	cpoID uuid.UUID,
+	eventType string,
+	data models.JSONB,
+) error {
+	if service.events == nil {
+		return nil
+	}
+	resourceID := cpoID.String()
+	_, err := service.events.Emit(tx, platformops.EventInput{
+		Type:         eventType,
+		ActorUserID:  &actorUserID,
+		ResourceType: "CPO",
+		ResourceID:   &resourceID,
+		Data:         data,
+	})
+	return err
 }
 
 func (service *Service) find(ctx context.Context, cpoID uuid.UUID) (models.CPO, error) {

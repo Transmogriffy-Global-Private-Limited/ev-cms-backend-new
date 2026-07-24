@@ -13,13 +13,17 @@ import (
 
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/db"
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/auth"
+	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/billing"
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/config"
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/cpo"
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/customerauth"
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/integrations"
 	cmsmail "github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/mail"
+	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/platformops"
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/routes"
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/security"
+	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/subscriptions"
+	"github.com/google/uuid"
 )
 
 func main() {
@@ -89,7 +93,21 @@ func run() error {
 	if err != nil {
 		return err
 	}
-	cpoService := cpo.NewService(gormDB, outbox, cfg.Mail.Enabled)
+	platformService := platformops.NewService(gormDB, cfg.Platform)
+	subscriptionService := subscriptions.NewService(
+		gormDB,
+		outbox,
+		cfg.Mail.Enabled,
+		platformService,
+	)
+	billingService := billing.NewService(
+		gormDB,
+		outbox,
+		cfg.Mail.Enabled,
+		platformService,
+	)
+	cpoService := cpo.NewService(gormDB, outbox, cfg.Mail.Enabled).
+		WithPlatformEvents(platformService)
 	customerAuthService, err := customerauth.NewService(
 		gormDB, cfg.Auth, cfg.Mail.Enabled, outbox, tokenManager,
 	)
@@ -97,6 +115,17 @@ func run() error {
 		return err
 	}
 	integrationService := integrations.NewService(gormDB, credentialSecretBox)
+	go platformService.RunMaintenance(ctx, uuid.NewString())
+	go subscriptionService.RunLifecycle(
+		ctx,
+		uuid.NewString(),
+		cfg.Platform.MaintenanceEvery,
+	)
+	go billingService.RunMaintenance(
+		ctx,
+		uuid.NewString(),
+		cfg.Platform.MaintenanceEvery,
+	)
 
 	if cfg.Mail.Enabled {
 		sender, err := cmsmail.NewSMTPSender(cfg.Mail)
@@ -109,6 +138,10 @@ func run() error {
 			sender,
 			cfg.Mail.WorkerPoll,
 			cfg.Mail.SendTimeout,
+		).WithObserver(
+			platformService,
+			"mail-outbox",
+			uuid.NewString(),
 		)
 		go worker.Run(ctx)
 	}
@@ -121,7 +154,11 @@ func run() error {
 			customerAuthService,
 			cpoService,
 			integrationService,
+			platformService,
+			subscriptionService,
+			billingService,
 			cfg.CORSAllowAll,
+			cfg.APIDocsEnabled,
 		),
 		ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout:       15 * time.Second,

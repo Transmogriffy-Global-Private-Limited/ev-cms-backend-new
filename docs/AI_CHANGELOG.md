@@ -2,6 +2,52 @@
 
 ## 2026-07-23
 
+## 2026-07-24
+
+### Complete superadmin control plane approved and started
+
+- Inventoried the implemented new-CMS platform, auth, CPO, mail, audit, and
+  documentation surfaces.
+- Inspected the legacy CMS data model and route behavior instead of treating
+  its mixed admin route names as authoritative.
+- Confirmed the legacy CMS has no durable subscription model to preserve.
+- Approved a provider-neutral subscription and entitlement model in which CPO
+  creation and lifecycle remain independent from subscription state.
+- Approved complete platform operations for CPO/admin recovery, platform
+  administrators, subscription billing records, audit/security, mail,
+  notifications, workers, announcements, overview, system status, and durable
+  SSE realtime with REST replay.
+- Recorded the binding implementation plan and ADR 0007.
+- Added the required `API_DOCS_ENABLED` configuration toggle for Swagger UI and
+  raw OpenAPI route registration while preserving the enabled compatibility
+  default.
+
+Verification:
+
+- Focused configuration and route tests passed for documentation enabled and
+  disabled behavior.
+- Implemented durable platform events, audit queries, worker heartbeats,
+  readiness degradation, REST replay, and authenticated SSE.
+- Added versioned subscription plans, database-immutable published snapshots,
+  exact pricing, entitlements, optional CPO assignments, complete lifecycle
+  transitions, scheduled boundary changes, idempotent history, overrides,
+  CPO-admin mail, audit, events, and lifecycle reconciliation worker.
+- Added provider-neutral platform billing accounts, immutable issued invoice
+  terms/lines, exact arithmetic, payment allocation and reversal, timeline
+  queries, overdue reconciliation, invoice mail, audit, and durable events.
+- Expanded OpenAPI to all 74 runtime operations and added granular realtime,
+  subscription, and platform-billing contracts.
+
+Verification:
+
+- Focused Go tests, OpenAPI semantic validation, route/OpenAPI parity, route
+  protection, model parsing, migration discovery, mail tests, and documentation
+  verification passed.
+- Full `go test ./...`, `go vet ./...`, documentation verification, and
+  `git diff --check` passed after the billing slice.
+- Disposable PostgreSQL execution for migrations six through eight and their
+  lifecycle tests remains pending.
+
 ### Temporary remote-development access implemented
 
 - Added environment-controlled permissive CORS middleware with preflight

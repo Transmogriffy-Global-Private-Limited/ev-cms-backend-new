@@ -71,6 +71,10 @@ Interactive API documentation is served from the same listener:
 - `http://<server-ip>:8080/docs/` — embedded Swagger UI with **Try it out**
 - `http://<server-ip>:8080/openapi.yaml` — canonical OpenAPI 3.1 contract
 
+Both routes are registered only when `API_DOCS_ENABLED=true` (the backward-
+compatible default and current development setting). Set it to `false` in
+sensitive deployments; restart is required.
+
 The complete human endpoint handoff is
 `docs/contracts/api/administrative-http-api.md`.
 

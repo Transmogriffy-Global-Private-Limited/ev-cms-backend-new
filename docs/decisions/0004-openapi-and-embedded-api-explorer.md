@@ -19,6 +19,9 @@ explorer would fail in restricted or offline development environments.
 - Serve the contract publicly at `/openapi.yaml`.
 - Serve embedded Swagger UI assets at `/docs/`, configured against the
   same-origin specification.
+- Register the UI and raw-schema routes only when `API_DOCS_ENABLED=true`.
+  Preserve `true` as the compatibility default; disabled deployments return
+  ordinary `404` responses while application routes remain available.
 - Keep `docs/contracts/api/administrative-http-api.md` as the complete
   human-readable companion.
 - Parse and semantically validate OpenAPI in tests.
@@ -32,6 +35,7 @@ explorer would fail in restricted or offline development environments.
 - Developers can exercise APIs without a separate frontend, Node toolchain,
   container, or CDN.
 - Route additions fail verification until OpenAPI is updated.
+- Enabled and disabled documentation-route behavior is verified independently.
 - Schema accuracy still requires disciplined review because route parity alone
   cannot prove every field; handler/request/response tests remain authoritative
   executable behavior.

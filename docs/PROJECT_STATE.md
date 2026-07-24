@@ -45,6 +45,8 @@ provides:
 - canonical OpenAPI 3.1 for all 40 implemented business/health operations;
 - embedded same-origin Swagger UI at `/docs/` and raw OpenAPI at
   `/openapi.yaml`;
+- `API_DOCS_ENABLED` registration control for both documentation surfaces,
+  defaulting on for compatibility and returning `404` when disabled;
 - bidirectional verification that Gin and OpenAPI expose the same operation
   set;
 - public CPO-scoped customer signup start, verify, and resend APIs;
@@ -61,10 +63,27 @@ provides:
 - trusted backend current-principal, user, customer, CPO, and app-ID helpers;
 - environment-controlled permissive CORS middleware and a current development
   configuration that listens on all IPv4 interfaces for access from other
-  machines.
+  machines;
+- durable platform event replay, authenticated SSE, filtered audit query, and
+  registered worker-health/readiness APIs;
+- immutable published subscription-plan versions with exact minor-unit terms
+  and structured entitlement snapshots;
+- optional CPO subscription assignment, immediate and period-boundary plan
+  changes, trial/active/paused/past-due/cancelled/expired transitions, and
+  immutable idempotent lifecycle history;
+- explicit expiring CPO entitlement overrides and effective-entitlement
+  resolution from plan snapshot to override to safe no-subscription baseline;
+- transactional subscription audit, durable events, encrypted CPO-admin mail,
+  and a restart-safe lifecycle reconciliation worker;
+- provider-neutral billing accounts, exact platform invoices/lines, payments,
+  allocations, retained-history payment reversal, and billing timeline;
+- transactional billing audit/events, encrypted invoice mail, and a
+  restart-safe overdue worker;
+- canonical OpenAPI 3.1 for all 74 implemented business/health operations.
 
-No inventory API, HAL integration, charging workflow, billing orchestration,
-payment workflow, or reporting behavior is implemented yet.
+No inventory API, HAL integration, charging workflow, tenant payment workflow,
+automatic platform-subscription collection/provider webhook, or reporting
+behavior is implemented yet.
 
 ## Verification
 
@@ -91,6 +110,8 @@ payment workflow, or reporting behavior is implemented yet.
   configuration residue checks passed.
 - OpenAPI parsing, semantic validation, all 40 Gin/OpenAPI operation matches,
   and docs/raw-spec HTTP smoke tests passed.
+- Documentation routes were absent while ordinary health routes remained
+  available with `API_DOCS_ENABLED=false`.
 - Razorpay secrets remained encrypted in storage, resolved only internally for
   the correct CPO, and were unavailable to a platform principal.
 - Route registration, unauthenticated rejection, request validation, and
@@ -115,6 +136,15 @@ payment workflow, or reporting behavior is implemented yet.
   PostgreSQL lifecycle tests.
 - Permissive CORS preflight behavior and the disabled-CORS path passed focused
   route tests; authentication and authorization remain active in either mode.
+- Platform operations and subscription packages compile; model parsing,
+  migration discovery/pairing, mail rendering, all 74 Gin/OpenAPI operation
+  matches, semantic OpenAPI validation, route protection, and focused
+  subscription validation tests pass.
+- Platform billing compilation, exact-math tests, model/migration registration,
+  route protection, and OpenAPI parity pass.
+- PostgreSQL execution of migrations six through eight and their
+  platform/subscription/billing lifecycle tests has not yet run because no
+  disposable `TEST_DATABASE_URL` was selected in this slice.
 
 ## Current Access Model
 
@@ -145,6 +175,9 @@ repository. The integration contract has not been implemented yet.
 - Domain tables have no repositories or handlers yet.
 - CPO staff invitation after the first admin and customer email/profile-change
   workflows are not implemented.
+- Automatic platform subscription collection and provider webhooks remain
+  intentionally unimplemented pending an approved provider and separate
+  platform-owned credentials.
 - Automatic encryption-key rotation is not implemented; data must be
   re-encrypted before an old key is removed.
 - SMTP delivery logic is implemented and worker-tested, but real Hostinger

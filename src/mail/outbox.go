@@ -18,13 +18,20 @@ import (
 const staleJobAge = 5 * time.Minute
 
 type MessagePayload struct {
-	RecipientName     string    `json:"recipient_name"`
-	Code              string    `json:"code,omitempty"`
-	ExpiresAt         time.Time `json:"expires_at,omitempty"`
-	TemporaryPassword string    `json:"temporary_password,omitempty"`
-	CPOName           string    `json:"cpo_name,omitempty"`
-	CPOID             string    `json:"cpo_id,omitempty"`
-	CPOAppID          string    `json:"cpo_app_id,omitempty"`
+	RecipientName      string    `json:"recipient_name"`
+	Code               string    `json:"code,omitempty"`
+	ExpiresAt          time.Time `json:"expires_at,omitempty"`
+	TemporaryPassword  string    `json:"temporary_password,omitempty"`
+	CPOName            string    `json:"cpo_name,omitempty"`
+	CPOID              string    `json:"cpo_id,omitempty"`
+	CPOAppID           string    `json:"cpo_app_id,omitempty"`
+	SubscriptionStatus string    `json:"subscription_status,omitempty"`
+	SubscriptionChange string    `json:"subscription_change,omitempty"`
+	PlanVersionID      string    `json:"plan_version_id,omitempty"`
+	InvoiceNumber      string    `json:"invoice_number,omitempty"`
+	InvoiceCurrency    string    `json:"invoice_currency,omitempty"`
+	InvoiceTotalMinor  int64     `json:"invoice_total_minor,omitempty"`
+	InvoiceDueAt       time.Time `json:"invoice_due_at,omitempty"`
 }
 
 type Outbox struct {
@@ -85,12 +92,21 @@ type Sender interface {
 	SendMessage(context.Context, string, string, MessagePayload) error
 }
 
+type WorkerObserver interface {
+	Heartbeat(context.Context, string, string) error
+	JobCompleted(context.Context, string, string) error
+}
+
 type Worker struct {
 	database    *gorm.DB
 	box         *security.SecretBox
 	sender      Sender
 	pollEvery   time.Duration
 	sendTimeout time.Duration
+	observer    WorkerObserver
+	workerName  string
+	instanceKey string
+	lastBeat    time.Time
 }
 
 func NewWorker(
@@ -109,11 +125,23 @@ func NewWorker(
 	}
 }
 
+func (worker *Worker) WithObserver(
+	observer WorkerObserver,
+	workerName string,
+	instanceKey string,
+) *Worker {
+	worker.observer = observer
+	worker.workerName = workerName
+	worker.instanceKey = instanceKey
+	return worker
+}
+
 func (worker *Worker) Run(ctx context.Context) {
 	ticker := time.NewTicker(worker.pollEvery)
 	defer ticker.Stop()
 
 	for {
+		worker.recordHeartbeat(ctx)
 		if err := worker.processOne(ctx); err != nil && ctx.Err() == nil {
 			log.Printf("mail outbox delivery failed: %v", err)
 		}
@@ -123,6 +151,21 @@ func (worker *Worker) Run(ctx context.Context) {
 		case <-ticker.C:
 		}
 	}
+}
+
+func (worker *Worker) recordHeartbeat(ctx context.Context) {
+	if worker.observer == nil || time.Since(worker.lastBeat) < 10*time.Second {
+		return
+	}
+	if err := worker.observer.Heartbeat(
+		ctx,
+		worker.workerName,
+		worker.instanceKey,
+	); err != nil && ctx.Err() == nil {
+		log.Printf("record mail worker heartbeat: %v", err)
+		return
+	}
+	worker.lastBeat = time.Now()
 }
 
 func (worker *Worker) processOne(ctx context.Context) error {
@@ -191,6 +234,15 @@ func (worker *Worker) processOne(ctx context.Context) error {
 		})
 	if result.Error != nil {
 		return fmt.Errorf("mark mail job sent: %w", result.Error)
+	}
+	if worker.observer != nil {
+		if err := worker.observer.JobCompleted(
+			ctx,
+			worker.workerName,
+			worker.instanceKey,
+		); err != nil {
+			log.Printf("record mail worker completion: %v", err)
+		}
 	}
 	return nil
 }

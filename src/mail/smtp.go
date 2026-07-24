@@ -115,6 +115,29 @@ func (sender *SMTPSender) SendMessage(
 	case "PASSWORD_CHANGE_REMINDER":
 		subject = "Change your temporary TransEV CMS password"
 		body = "Your account is still using its temporary password. Change it now from the authenticated password-change screen before using tenant operations."
+	case "CPO_SUBSCRIPTION_CHANGED":
+		subject = "Your TransEV CMS subscription changed"
+		body = fmt.Sprintf(
+			"The subscription for %s was %s.\n\nStatus: %s\nPlan version ID: %s\nCPO ID: %s",
+			payload.CPOName,
+			payload.SubscriptionChange,
+			payload.SubscriptionStatus,
+			payload.PlanVersionID,
+			payload.CPOID,
+		)
+	case "CPO_PLATFORM_INVOICE_ISSUED":
+		subject = fmt.Sprintf(
+			"TransEV CMS platform invoice %s",
+			payload.InvoiceNumber,
+		)
+		body = fmt.Sprintf(
+			"Platform invoice %s has been issued.\n\nAmount: %d %s minor units\nDue at: %s\nCPO ID: %s\n\nThis is the CPO's subscription/platform invoice, not a charging-customer payment request.",
+			payload.InvoiceNumber,
+			payload.InvoiceTotalMinor,
+			payload.InvoiceCurrency,
+			payload.InvoiceDueAt.UTC().Format("02 Jan 2006 15:04 UTC"),
+			payload.CPOID,
+		)
 	default:
 		body = fmt.Sprintf(
 			"Use %s to sign in. It expires at %s.",

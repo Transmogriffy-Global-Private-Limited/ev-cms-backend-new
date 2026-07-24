@@ -20,6 +20,8 @@ Before planning or changing code, read:
 - relevant contracts under `docs/contracts/`
 - relevant records under `docs/decisions/`
 - relevant active plans under `docs/plans/`
+- `docs/plans/superadmin-control-plane.md` while the complete platform control
+  plane is active
 
 Keep those documents synchronized with meaningful implementation and
 verification changes.
@@ -30,12 +32,20 @@ verification changes.
 - External integration boundaries live under `docs/integrations/`.
 - Stable HTTP, internal message, and configuration contracts live under
   `docs/contracts/`.
+- Realtime contracts live under `docs/contracts/realtime/`; platform SSE uses
+  `docs/contracts/realtime/platform-events.md`.
 - `docs/AUTHENTICATION.md` and `docs/CPO_ADMINISTRATION.md` remain the detailed
   workflow references. `docs/contracts/api/administrative-http-api.md` is the
   complete human endpoint contract.
+- `docs/contracts/api/subscriptions.md` is the granular platform subscription
+  and entitlement contract.
+- `docs/contracts/api/platform-billing.md` is the granular provider-neutral
+  platform billing-record contract.
 - `docs/contracts/openapi/openapi.yaml` is the canonical machine-readable HTTP
   contract. It is embedded and served at `/openapi.yaml`; Swagger UI is served
   at `/docs/`.
+- `API_DOCS_ENABLED` must control registration of both documentation routes,
+  and enabled/disabled behavior must be verified.
 - Every route or payload change must update handlers, the human API contract,
   OpenAPI, tests/fixtures, and consumer guidance in one slice.
 - No generated API client currently exists. Do not claim an SDK is current

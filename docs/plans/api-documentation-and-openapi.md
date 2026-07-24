@@ -29,6 +29,8 @@ all implemented APIs.
 5. Expand the human endpoint contract and all educational/integration/internal
    documents to operational handoff quality.
 6. Reconcile repository memory and run focused/full verification.
+7. Register the UI and raw schema only when `API_DOCS_ENABLED=true`, with
+   ordinary application routes unchanged when disabled.
 
 ## Acceptance Criteria
 
@@ -38,6 +40,8 @@ all implemented APIs.
   validation rule, and meaningful error code is documented.
 - `/docs/` loads embedded Swagger UI and can issue same-origin requests.
 - `/openapi.yaml` serves the exact reviewed source file.
+- `API_DOCS_ENABLED=false` removes `/docs`, `/docs/`, and `/openapi.yaml`
+  without removing ordinary application routes.
 - A route/spec mismatch fails tests.
 - Docs distinguish implemented behavior from future domain tables and
   integrations.
@@ -48,6 +52,7 @@ all implemented APIs.
 - OpenAPI parse and semantic validation
 - Runtime/OpenAPI bidirectional operation comparison
 - Swagger UI and raw-contract HTTP smoke tests
+- API-docs enabled and disabled route-registration tests
 - `.\scripts\verify-docs.ps1`
 - `go test ./...`
 - `go vet ./...`

@@ -495,6 +495,47 @@ Non-goals:
 - Disabling authentication, authorization, app-ID, or tenant boundaries
 - Production TLS termination or a permanent origin policy
 
+### Feature: Complete superadmin control plane
+
+Status: In Progress
+
+Phase: Phase 2: Authentication and CPO administration
+
+Depends on:
+
+- Authentication and credential boundary
+- Subscription-independent CPO provisioning and app identity
+- Durable encrypted mail outbox
+
+Enables:
+
+- Complete platform operations without tenant-data bypass
+- Provider-neutral CPO licensing and billing records
+- Recoverable mail, notifications, and worker operations
+- Reconnect-safe platform realtime
+- Operational superadmin frontend
+
+Objective:
+
+Finish the platform-management plane across CPO lifecycle, subscriptions,
+entitlements, billing records, platform administrators, audit/security,
+mail/notifications, workers, announcements, overview, status, and durable
+realtime delivery.
+
+Non-goals:
+
+- Superadmin access to tenant business data or tenant secret plaintext
+- Automatic subscription payment collection before provider approval
+- Redis, NATS, or a separate realtime service
+
+Detailed plan:
+
+- `docs/plans/superadmin-control-plane.md`
+
+Architecture decision:
+
+- `docs/decisions/0007-complete-superadmin-control-plane.md`
+
 ## Current Execution
 
 Current phase:
@@ -504,19 +545,20 @@ Current phase:
 
 Active feature:
 
-- None
+- Complete superadmin control plane
 
 Current implementation slice:
 
-- No active implementation slice
+- Complete CPO lifecycle/admin recovery and platform-superadmin governance
 
 Last completed slice:
 
-- Temporary unrestricted development listener and CORS configuration
+- Provider-neutral platform billing accounts, immutable invoices/lines,
+  payments, allocation reversal, overdue worker, and complete contracts
 
 Next expected slice:
 
-- CPO owner staff invitation and membership management
+- Mail/security operations followed by notifications and announcements
 
 Blocked by:
 
@@ -524,13 +566,14 @@ Blocked by:
 
 ## Next Approved Work
 
-1. Add CPO owner staff invitation and membership management.
+1. Complete the superadmin control-plane slices in
+   `docs/plans/superadmin-control-plane.md`.
+2. Add CPO owner staff invitation and membership management.
 
 ## Deferred Work
 
 - Custom tenant roles and fine-grained permissions
 - Per-hub staff scopes
-- Subscription plans and feature matrices
 - PostgreSQL row-level security
 - Cross-CPO roaming
 - Redis, NATS, and service decomposition
@@ -551,7 +594,7 @@ Blocked by:
 
 Run focused unit tests first, then `go test ./...`, `go vet ./...`,
 `git diff --check`, and `git status --short`. Database integration tests will be
-run with an explicitly selected disposable `TEST_DATABASE_URL`. All five
+run with an explicitly selected disposable `TEST_DATABASE_URL`. The first five
 migrations have been verified up, idempotently up again, and down against
 disposable local PostgreSQL 17 databases. The credential boundary has
 PostgreSQL integration coverage for bootstrap, platform/CPO login, refresh
@@ -566,6 +609,11 @@ wallet creation.
 The fifth migration has been verified down, up, and idempotently up; its
 lifecycle test covers customer login, access/refresh validation, `me`, scoped
 session management, password recovery/change, and revocation.
+
+Migrations six through eight, platform operations, subscriptions, and platform
+billing have focused compile/model/migration-discovery/route/OpenAPI tests.
+Their disposable PostgreSQL migration and lifecycle verification is still
+pending.
 
 ## Completion Criteria
 

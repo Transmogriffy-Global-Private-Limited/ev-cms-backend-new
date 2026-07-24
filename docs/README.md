@@ -12,6 +12,10 @@ This directory is the durable project memory for the EV CMS backend.
 | Database ownership and model mapping | `SCHEMA.md` |
 | Detailed authentication API semantics | `AUTHENTICATION.md` |
 | Detailed platform CPO API semantics | `CPO_ADMINISTRATION.md` |
+| Complete superadmin architecture and boundaries | `guides/concepts/superadmin-control-plane.md` |
+| Platform realtime event contract | `contracts/realtime/platform-events.md` |
+| Subscription and entitlement endpoints | `contracts/api/subscriptions.md` |
+| Platform subscription billing endpoints | `contracts/api/platform-billing.md` |
 | Architectural decisions | `decisions/` |
 | Detailed approved plans | `plans/` |
 | Learning and operational workflows | `guides/` |
@@ -19,10 +23,11 @@ This directory is the durable project memory for the EV CMS backend.
 | Stable external and internal contracts | `contracts/` |
 | Machine-readable HTTP source of truth | `contracts/openapi/openapi.yaml` |
 
-`contracts/api/administrative-http-api.md` is the complete human endpoint
-handoff. `contracts/openapi/openapi.yaml` is the machine-readable contract
+`contracts/api/administrative-http-api.md` is the complete endpoint index and
+auth/control-plane handoff; it links the granular subscription contract.
+`contracts/openapi/openapi.yaml` is the machine-readable contract
 embedded into the service. The app serves it at `/openapi.yaml` and serves
-self-contained Swagger UI at `/docs/`.
+self-contained Swagger UI at `/docs/` only when `API_DOCS_ENABLED=true`.
 
 The route verification test requires every implemented business/health
 method-path pair to exist in OpenAPI and rejects advertised operations absent
@@ -37,6 +42,8 @@ from Gin. No generated SDK is currently committed.
   actual implementation status for every external boundary.
 - `contracts/api/` records externally callable HTTP behavior.
 - `contracts/internal/` records durable internal message and worker contracts.
+- `contracts/realtime/` records streaming, replay, ordering, and reconnect
+  contracts.
 - `contracts/configuration.md` records environment configuration.
 - `contracts/openapi/` owns the embedded OpenAPI source and serving adapter.
 

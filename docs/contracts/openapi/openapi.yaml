@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: TransEV EV CMS API
-  version: 0.5.0
+  version: 0.8.0
   description: |
     Canonical machine-readable contract for the endpoints currently implemented
     by `ev-cms-backend-new`.
@@ -30,6 +30,12 @@ tags:
     description: Public signup and complete customer credential/session operations.
   - name: Platform CPOs
     description: Platform-superadmin CPO provisioning and lifecycle control.
+  - name: Platform Operations
+    description: Durable audit, event recovery, worker health, and realtime operations.
+  - name: Subscriptions
+    description: Versioned plan catalog, CPO subscription lifecycle, and effective entitlements.
+  - name: Platform Billing
+    description: Provider-neutral CPO platform invoices, payments, allocations, and timeline.
   - name: CPO Integrations
     description: CPO owner/admin write-only integration credential management.
 
@@ -1004,6 +1010,946 @@ paths:
         "500":
           $ref: "#/components/responses/InternalError"
 
+  /api/v1/platform/plans:
+    post:
+      tags: [Subscriptions]
+      operationId: createSubscriptionPlan
+      summary: Create a plan and its first draft version
+      security: [{BearerAuth: []}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/CreatePlanRequest"}
+      responses:
+        "201":
+          description: Plan and draft created transactionally.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/PlanView"}
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "500": {$ref: "#/components/responses/InternalError"}
+    get:
+      tags: [Subscriptions]
+      operationId: listSubscriptionPlans
+      summary: List plans with draft and published versions
+      security: [{BearerAuth: []}]
+      responses:
+        "200":
+          description: Complete plan catalog.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [plans]
+                properties:
+                  plans:
+                    type: array
+                    items: {$ref: "#/components/schemas/PlanView"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "500": {$ref: "#/components/responses/InternalError"}
+
+  /api/v1/platform/plans/{plan_id}:
+    parameters:
+      - {$ref: "#/components/parameters/PlanID"}
+    get:
+      tags: [Subscriptions]
+      operationId: getSubscriptionPlan
+      summary: Get one plan and every version snapshot
+      security: [{BearerAuth: []}]
+      responses:
+        "200":
+          description: Plan detail.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/PlanView"}
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "500": {$ref: "#/components/responses/InternalError"}
+
+  /api/v1/platform/plans/{plan_id}/draft:
+    parameters:
+      - {$ref: "#/components/parameters/PlanID"}
+    put:
+      tags: [Subscriptions]
+      operationId: updateSubscriptionPlanDraft
+      summary: Replace the mutable draft terms
+      description: Creates the next draft version when all prior versions are published. Published versions are immutable.
+      security: [{BearerAuth: []}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/UpdatePlanDraftRequest"}
+      responses:
+        "200":
+          description: Updated plan view.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/PlanView"}
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "500": {$ref: "#/components/responses/InternalError"}
+
+  /api/v1/platform/plans/{plan_id}/publish:
+    parameters:
+      - {$ref: "#/components/parameters/PlanID"}
+    post:
+      tags: [Subscriptions]
+      operationId: publishSubscriptionPlan
+      summary: Publish and freeze the current draft
+      security: [{BearerAuth: []}]
+      responses:
+        "200":
+          description: Published plan view.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/PlanView"}
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "500": {$ref: "#/components/responses/InternalError"}
+
+  /api/v1/platform/plans/{plan_id}/archive:
+    parameters:
+      - {$ref: "#/components/parameters/PlanID"}
+    post:
+      tags: [Subscriptions]
+      operationId: archiveSubscriptionPlan
+      summary: Prevent new publication or assignment from a plan
+      description: Existing CPO subscriptions retain their immutable published version.
+      security: [{BearerAuth: []}]
+      responses:
+        "200":
+          description: Archived plan view.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/PlanView"}
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "500": {$ref: "#/components/responses/InternalError"}
+
+  /api/v1/platform/cpos/{cpo_id}/subscription:
+    parameters:
+      - {$ref: "#/components/parameters/CPOID"}
+    post:
+      tags: [Subscriptions]
+      operationId: assignCPOSubscription
+      summary: Assign a published plan version to a CPO with no current subscription
+      security: [{BearerAuth: []}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/AssignSubscriptionRequest"}
+      responses:
+        "201":
+          description: Assigned subscription. Exact replay of the idempotency key returns the original result.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/SubscriptionView"}
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "500": {$ref: "#/components/responses/InternalError"}
+    get:
+      tags: [Subscriptions]
+      operationId: getCurrentCPOSubscription
+      summary: Get the CPO current non-terminal subscription
+      security: [{BearerAuth: []}]
+      responses:
+        "200":
+          description: Current subscription and immutable plan snapshot.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/SubscriptionView"}
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "500": {$ref: "#/components/responses/InternalError"}
+
+  /api/v1/platform/cpos/{cpo_id}/subscription/change-plan:
+    parameters:
+      - {$ref: "#/components/parameters/CPOID"}
+    post:
+      tags: [Subscriptions]
+      operationId: changeCPOSubscriptionPlan
+      summary: Change immediately or schedule at the period boundary
+      security: [{BearerAuth: []}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/ChangeSubscriptionPlanRequest"}
+      responses:
+        "200":
+          description: Updated or scheduled subscription.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/SubscriptionView"}
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "500": {$ref: "#/components/responses/InternalError"}
+
+  /api/v1/platform/cpos/{cpo_id}/subscription/pause:
+    parameters:
+      - {$ref: "#/components/parameters/CPOID"}
+    post:
+      tags: [Subscriptions]
+      operationId: pauseCPOSubscription
+      summary: Explicitly pause a current subscription
+      security: [{BearerAuth: []}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/SubscriptionTransitionRequest"}
+      responses:
+        "200":
+          description: Updated subscription.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/SubscriptionView"}
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "500": {$ref: "#/components/responses/InternalError"}
+
+  /api/v1/platform/cpos/{cpo_id}/subscription/resume:
+    parameters:
+      - {$ref: "#/components/parameters/CPOID"}
+    post:
+      tags: [Subscriptions]
+      operationId: resumeCPOSubscription
+      summary: Resume a paused or past-due subscription
+      security: [{BearerAuth: []}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/SubscriptionTransitionRequest"}
+      responses:
+        "200":
+          description: Updated subscription.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/SubscriptionView"}
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "500": {$ref: "#/components/responses/InternalError"}
+
+  /api/v1/platform/cpos/{cpo_id}/subscription/cancel:
+    parameters:
+      - {$ref: "#/components/parameters/CPOID"}
+    post:
+      tags: [Subscriptions]
+      operationId: cancelCPOSubscription
+      summary: Cancel now or at the current period end
+      security: [{BearerAuth: []}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/SubscriptionTransitionRequest"}
+      responses:
+        "200":
+          description: Updated subscription.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/SubscriptionView"}
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "500": {$ref: "#/components/responses/InternalError"}
+
+  /api/v1/platform/cpos/{cpo_id}/subscription/mark-past-due:
+    parameters:
+      - {$ref: "#/components/parameters/CPOID"}
+    post:
+      tags: [Subscriptions]
+      operationId: markCPOSubscriptionPastDue
+      summary: Explicitly mark a current subscription past due
+      security: [{BearerAuth: []}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/SubscriptionTransitionRequest"}
+      responses:
+        "200":
+          description: Updated subscription.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/SubscriptionView"}
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "500": {$ref: "#/components/responses/InternalError"}
+
+  /api/v1/platform/cpos/{cpo_id}/subscription/expire:
+    parameters:
+      - {$ref: "#/components/parameters/CPOID"}
+    post:
+      tags: [Subscriptions]
+      operationId: expireCPOSubscription
+      summary: Explicitly end a current subscription as expired
+      security: [{BearerAuth: []}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/SubscriptionTransitionRequest"}
+      responses:
+        "200":
+          description: Terminal expired subscription.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/SubscriptionView"}
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "500": {$ref: "#/components/responses/InternalError"}
+
+  /api/v1/platform/cpos/{cpo_id}/subscription/history:
+    parameters:
+      - {$ref: "#/components/parameters/CPOID"}
+    get:
+      tags: [Subscriptions]
+      operationId: listCPOSubscriptionHistory
+      summary: List immutable lifecycle history, newest first
+      security: [{BearerAuth: []}]
+      responses:
+        "200":
+          description: At most 500 transition records.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [history]
+                properties:
+                  history:
+                    type: array
+                    maxItems: 500
+                    items: {$ref: "#/components/schemas/SubscriptionHistory"}
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "500": {$ref: "#/components/responses/InternalError"}
+
+  /api/v1/platform/cpos/{cpo_id}/entitlements:
+    parameters:
+      - {$ref: "#/components/parameters/CPOID"}
+    get:
+      tags: [Subscriptions]
+      operationId: getCPOEffectiveEntitlements
+      summary: Resolve plan entitlements and active CPO overrides
+      description: A CPO without a subscription returns an empty safe baseline plus any active explicit overrides.
+      security: [{BearerAuth: []}]
+      responses:
+        "200":
+          description: Effective sorted feature set with source attribution.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/EffectiveEntitlements"}
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "500": {$ref: "#/components/responses/InternalError"}
+
+  /api/v1/platform/cpos/{cpo_id}/entitlement-overrides/{feature_key}:
+    parameters:
+      - {$ref: "#/components/parameters/CPOID"}
+      - name: feature_key
+        in: path
+        required: true
+        schema:
+          type: string
+          maxLength: 120
+          pattern: "^[a-z0-9]+(?:[._-][a-z0-9]+)*$"
+    put:
+      tags: [Subscriptions]
+      operationId: setCPOEntitlementOverride
+      summary: Create or replace an explicit, reasoned CPO override
+      security: [{BearerAuth: []}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/EntitlementOverrideRequest"}
+      responses:
+        "200":
+          description: Stored override.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/EntitlementOverride"}
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "500": {$ref: "#/components/responses/InternalError"}
+    delete:
+      tags: [Subscriptions]
+      operationId: deleteCPOEntitlementOverride
+      summary: Remove an override and restore plan or baseline resolution
+      security: [{BearerAuth: []}]
+      parameters:
+        - name: reason
+          in: query
+          required: true
+          schema: {type: string, minLength: 1, maxLength: 500}
+      responses:
+        "204": {description: Override removed.}
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "500": {$ref: "#/components/responses/InternalError"}
+
+  /api/v1/platform/cpos/{cpo_id}/billing-account:
+    parameters:
+      - {$ref: "#/components/parameters/CPOID"}
+    get:
+      tags: [Platform Billing]
+      operationId: getCPOBillingAccount
+      summary: Get platform-subscription billing identity for a CPO
+      security: [{BearerAuth: []}]
+      responses:
+        "200":
+          description: Billing account.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/CPOBillingAccount"}
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "500": {$ref: "#/components/responses/InternalError"}
+    put:
+      tags: [Platform Billing]
+      operationId: setCPOBillingAccount
+      summary: Create or replace CPO platform billing metadata
+      security: [{BearerAuth: []}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/BillingAccountRequest"}
+      responses:
+        "200":
+          description: Stored billing account; no provider credential is stored.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/CPOBillingAccount"}
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "500": {$ref: "#/components/responses/InternalError"}
+
+  /api/v1/platform/cpos/{cpo_id}/invoices:
+    parameters:
+      - {$ref: "#/components/parameters/CPOID"}
+    post:
+      tags: [Platform Billing]
+      operationId: createPlatformInvoice
+      summary: Create a draft platform invoice with exact immutable line math
+      security: [{BearerAuth: []}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/CreateInvoiceRequest"}
+      responses:
+        "201":
+          description: Draft invoice and calculated lines.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/InvoiceView"}
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "500": {$ref: "#/components/responses/InternalError"}
+    get:
+      tags: [Platform Billing]
+      operationId: listCPOPlatformInvoices
+      summary: List up to 500 CPO platform invoices newest first
+      security: [{BearerAuth: []}]
+      responses:
+        "200":
+          description: Invoice records without line expansion.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [invoices]
+                properties:
+                  invoices:
+                    type: array
+                    maxItems: 500
+                    items: {$ref: "#/components/schemas/PlatformInvoice"}
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "500": {$ref: "#/components/responses/InternalError"}
+
+  /api/v1/platform/invoices/{invoice_id}:
+    parameters:
+      - {$ref: "#/components/parameters/InvoiceID"}
+    get:
+      tags: [Platform Billing]
+      operationId: getPlatformInvoice
+      summary: Get one platform invoice and its lines
+      security: [{BearerAuth: []}]
+      responses:
+        "200":
+          description: Invoice detail.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/InvoiceView"}
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "500": {$ref: "#/components/responses/InternalError"}
+
+  /api/v1/platform/invoices/{invoice_id}/issue:
+    parameters:
+      - {$ref: "#/components/parameters/InvoiceID"}
+    post:
+      tags: [Platform Billing]
+      operationId: issuePlatformInvoice
+      summary: Issue and freeze a draft invoice
+      security: [{BearerAuth: []}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/IssueInvoiceRequest"}
+      responses:
+        "200":
+          description: Issued invoice and lines; billing email is queued when enabled.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/InvoiceView"}
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "500": {$ref: "#/components/responses/InternalError"}
+
+  /api/v1/platform/invoices/{invoice_id}/void:
+    parameters:
+      - {$ref: "#/components/parameters/InvoiceID"}
+    post:
+      tags: [Platform Billing]
+      operationId: voidPlatformInvoice
+      summary: Void an issued invoice that has no allocations
+      security: [{BearerAuth: []}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/VoidInvoiceRequest"}
+      responses:
+        "200":
+          description: Terminal void invoice.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/InvoiceView"}
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "500": {$ref: "#/components/responses/InternalError"}
+
+  /api/v1/platform/cpos/{cpo_id}/payments:
+    parameters:
+      - {$ref: "#/components/parameters/CPOID"}
+    post:
+      tags: [Platform Billing]
+      operationId: recordPlatformPayment
+      summary: Record a provider-neutral payment and allocate it atomically
+      security: [{BearerAuth: []}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/RecordPaymentRequest"}
+      responses:
+        "201":
+          description: Payment and allocations. Unallocated balance is retained.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/PaymentView"}
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "500": {$ref: "#/components/responses/InternalError"}
+    get:
+      tags: [Platform Billing]
+      operationId: listCPOPlatformPayments
+      summary: List up to 500 CPO platform payments newest first
+      security: [{BearerAuth: []}]
+      responses:
+        "200":
+          description: Platform payment records.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [payments]
+                properties:
+                  payments:
+                    type: array
+                    maxItems: 500
+                    items: {$ref: "#/components/schemas/PlatformPayment"}
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "500": {$ref: "#/components/responses/InternalError"}
+
+  /api/v1/platform/payments/{payment_id}:
+    parameters:
+      - {$ref: "#/components/parameters/PaymentID"}
+    get:
+      tags: [Platform Billing]
+      operationId: getPlatformPayment
+      summary: Get one payment and its immutable allocations
+      security: [{BearerAuth: []}]
+      responses:
+        "200":
+          description: Payment detail.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/PaymentView"}
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "500": {$ref: "#/components/responses/InternalError"}
+
+  /api/v1/platform/payments/{payment_id}/void:
+    parameters:
+      - {$ref: "#/components/parameters/PaymentID"}
+    post:
+      tags: [Platform Billing]
+      operationId: voidPlatformPayment
+      summary: Void a recorded payment and reverse its allocations
+      description: Invoice paid/due state is restored atomically; allocation history is retained.
+      security: [{BearerAuth: []}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/VoidPaymentRequest"}
+      responses:
+        "200":
+          description: Voided payment with retained allocation records.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/PaymentView"}
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "500": {$ref: "#/components/responses/InternalError"}
+
+  /api/v1/platform/cpos/{cpo_id}/billing-timeline:
+    parameters:
+      - {$ref: "#/components/parameters/CPOID"}
+    get:
+      tags: [Platform Billing]
+      operationId: getCPOPlatformBillingTimeline
+      summary: Get billing account plus recent invoice and payment records
+      security: [{BearerAuth: []}]
+      responses:
+        "200":
+          description: Provider-neutral platform billing timeline.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/BillingTimeline"}
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "500": {$ref: "#/components/responses/InternalError"}
+
+  /api/v1/platform/events:
+    get:
+      tags: [Platform Operations]
+      operationId: listPlatformEvents
+      summary: Recover durable platform events after a cursor
+      description: |
+        Returns unexpired committed platform events in ascending ID order.
+        Delivery is at least once; clients deduplicate using the numeric event
+        ID and refresh authoritative REST resources after receiving an event.
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: after_id
+          in: query
+          description: Last processed event ID. Zero starts at the earliest retained event.
+          schema:
+            type: integer
+            format: int64
+            minimum: 0
+            default: 0
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 500
+            default: 50
+        - name: type
+          in: query
+          description: Optional exact event-type filter.
+          schema:
+            type: string
+            maxLength: 150
+      responses:
+        "200":
+          description: Ordered retained event page.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PlatformEventPage"
+        "400":
+          description: "`invalid_after_id` or `invalid_limit`."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          description: "`realtime_cursor_expired` — refresh platform REST state before reconnecting."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /api/v1/platform/realtime/stream:
+    get:
+      tags: [Platform Operations]
+      operationId: streamPlatformEvents
+      summary: Stream durable platform events using SSE
+      description: |
+        Authenticated server-sent event stream for PLATFORM sessions. The
+        bearer token must be sent in the Authorization header, so browser
+        clients use fetch streaming rather than placing a token in the URL.
+        `Last-Event-ID` or `after_id` resumes committed events. Heartbeats
+        revalidate the durable session and the stream closes after revocation.
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: Last-Event-ID
+          in: header
+          description: Last processed numeric event ID.
+          schema:
+            type: integer
+            format: int64
+            minimum: 0
+        - name: after_id
+          in: query
+          description: Cursor fallback when Last-Event-ID is absent.
+          schema:
+            type: integer
+            format: int64
+            minimum: 0
+        - name: type
+          in: query
+          description: Optional exact event-type filter.
+          schema:
+            type: string
+            maxLength: 150
+        - name: limit
+          in: query
+          description: Initial retained-event replay batch size.
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 500
+            default: 50
+      responses:
+        "200":
+          description: |
+            `text/event-stream` containing `id`, `event`, and one-line JSON
+            `data` fields plus heartbeat comments.
+          content:
+            text/event-stream:
+              schema:
+                type: string
+              example: |
+                id: 14582
+                event: platform.worker.status_changed
+                data: {"id":14582,"type":"platform.worker.status_changed","resource_type":"WORKER","resource_id":"mail-outbox","data":{"status":"STALE"},"occurred_at":"2026-07-24T12:14:52Z"}
+
+        "400":
+          description: "`invalid_after_id`."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          description: "`realtime_cursor_expired` before streaming begins."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /api/v1/platform/audit-logs:
+    get:
+      tags: [Platform Operations]
+      operationId: listPlatformAuditLogs
+      summary: Query privileged audit records
+      description: |
+        Returns newest-first immutable audit records. Details are structured
+        operational metadata and must never contain credentials, OTPs, tokens,
+        or decrypted mail payloads.
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: before
+          in: query
+          description: |
+            RFC3339 created-at component of the exclusive cursor. When the
+            preceding response returns `next_before_id`, send both values.
+          schema:
+            type: string
+            format: date-time
+        - name: before_id
+          in: query
+          description: |
+            UUID tie-breaker paired with `before`. It is invalid without
+            `before` and prevents records with identical timestamps being
+            skipped.
+          schema:
+            type: string
+            format: uuid
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 500
+            default: 50
+        - name: action
+          in: query
+          schema:
+            type: string
+            maxLength: 100
+        - name: entity
+          in: query
+          schema:
+            type: string
+            maxLength: 100
+        - name: actor_user_id
+          in: query
+          schema:
+            type: string
+            format: uuid
+        - name: cpo_id
+          in: query
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Newest-first audit page.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuditPage"
+        "400":
+          description: Invalid timestamp, UUID, or limit filter.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /api/v1/platform/workers:
+    get:
+      tags: [Platform Operations]
+      operationId: listPlatformWorkers
+      summary: List durable worker health
+      description: |
+        Reports worker instances from durable heartbeats. STALE is derived when
+        the latest heartbeat exceeds PLATFORM_WORKER_STALE_AFTER. This endpoint
+        cannot start, stop, or kill worker processes.
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Worker instances and derived health.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WorkerListResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
   /api/v1/platform/cpos:
     post:
       tags: [Platform CPOs]
@@ -1376,6 +2322,26 @@ components:
       schema:
         type: string
         format: uuid
+    PlanID:
+      name: plan_id
+      in: path
+      required: true
+      description: Non-zero subscription-plan UUID.
+      schema:
+        type: string
+        format: uuid
+    InvoiceID:
+      name: invoice_id
+      in: path
+      required: true
+      description: Non-zero platform-invoice UUID.
+      schema: {type: string, format: uuid}
+    PaymentID:
+      name: payment_id
+      in: path
+      required: true
+      description: Non-zero platform-payment UUID.
+      schema: {type: string, format: uuid}
     SessionID:
       name: session_id
       in: path
@@ -1396,6 +2362,24 @@ components:
   responses:
     InvalidRequest:
       description: "`invalid_request` — malformed, oversized, unknown-field, or multiple-object JSON."
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorEnvelope"
+    BadRequest:
+      description: Field validation, malformed JSON, or invalid path/query input.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorEnvelope"
+    NotFound:
+      description: Requested plan, plan version, CPO, subscription, or override does not exist.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorEnvelope"
+    Conflict:
+      description: Lifecycle, uniqueness, idempotency, or immutable-state conflict.
       content:
         application/json:
           schema:
@@ -1469,6 +2453,500 @@ components:
             $ref: "#/components/schemas/ErrorEnvelope"
 
   schemas:
+    EntitlementInput:
+      type: object
+      additionalProperties: false
+      required: [feature_key, enabled]
+      properties:
+        feature_key:
+          type: string
+          maxLength: 120
+          pattern: "^[a-z0-9]+(?:[._-][a-z0-9]+)*$"
+        enabled: {type: boolean}
+        limit_value:
+          type: integer
+          format: int64
+          minimum: 0
+        configuration:
+          type: object
+          additionalProperties: true
+          default: {}
+
+    PlanTermsInput:
+      type: object
+      additionalProperties: false
+      required: [currency, price_minor, billing_interval, entitlements]
+      properties:
+        currency:
+          type: string
+          minLength: 3
+          maxLength: 3
+          pattern: "^[A-Z]{3}$"
+          example: INR
+        price_minor:
+          type: integer
+          format: int64
+          minimum: 0
+          description: Exact price in the currency minor unit; never floating point.
+        billing_interval:
+          type: string
+          enum: [MONTHLY, YEARLY]
+        interval_count:
+          type: integer
+          minimum: 1
+          maximum: 120
+          default: 1
+        trial_days:
+          type: integer
+          minimum: 0
+          maximum: 365
+          default: 0
+        entitlements:
+          type: array
+          uniqueItems: true
+          items: {$ref: "#/components/schemas/EntitlementInput"}
+
+    CreatePlanRequest:
+      type: object
+      additionalProperties: false
+      required: [code, name, terms]
+      properties:
+        code:
+          type: string
+          maxLength: 80
+          pattern: "^[a-z0-9]+(?:_[a-z0-9]+)*$"
+        name: {type: string, minLength: 1, maxLength: 150}
+        description: {type: string, maxLength: 2000}
+        terms: {$ref: "#/components/schemas/PlanTermsInput"}
+
+    UpdatePlanDraftRequest:
+      type: object
+      additionalProperties: false
+      required: [name, terms]
+      properties:
+        name: {type: string, minLength: 1, maxLength: 150}
+        description: {type: string, maxLength: 2000}
+        terms: {$ref: "#/components/schemas/PlanTermsInput"}
+
+    SubscriptionPlan:
+      type: object
+      additionalProperties: false
+      required: [id, code, name, description, status, created_by, created_at, updated_at]
+      properties:
+        id: {type: string, format: uuid}
+        code: {type: string, maxLength: 80}
+        name: {type: string, maxLength: 150}
+        description: {type: string, maxLength: 2000}
+        status: {type: string, enum: [DRAFT, PUBLISHED, ARCHIVED]}
+        created_by: {type: string, format: uuid}
+        created_at: {type: string, format: date-time}
+        updated_at: {type: string, format: date-time}
+
+    SubscriptionPlanVersion:
+      type: object
+      additionalProperties: false
+      required: [id, plan_id, version, status, currency, price_minor, billing_interval, interval_count, trial_days, created_at, updated_at]
+      properties:
+        id: {type: string, format: uuid}
+        plan_id: {type: string, format: uuid}
+        version: {type: integer, minimum: 1}
+        status: {type: string, enum: [DRAFT, PUBLISHED]}
+        currency: {type: string, minLength: 3, maxLength: 3}
+        price_minor: {type: integer, format: int64, minimum: 0}
+        billing_interval: {type: string, enum: [MONTHLY, YEARLY]}
+        interval_count: {type: integer, minimum: 1, maximum: 120}
+        trial_days: {type: integer, minimum: 0, maximum: 365}
+        published_at: {type: string, format: date-time}
+        published_by: {type: string, format: uuid}
+        created_at: {type: string, format: date-time}
+        updated_at: {type: string, format: date-time}
+
+    PlanEntitlement:
+      allOf:
+        - {$ref: "#/components/schemas/EntitlementInput"}
+        - type: object
+          required: [id, plan_version_id, created_at, updated_at]
+          properties:
+            id: {type: string, format: uuid}
+            plan_version_id: {type: string, format: uuid}
+            created_at: {type: string, format: date-time}
+            updated_at: {type: string, format: date-time}
+
+    PlanView:
+      type: object
+      additionalProperties: false
+      required: [plan, published_versions, entitlements]
+      properties:
+        plan: {$ref: "#/components/schemas/SubscriptionPlan"}
+        draft: {$ref: "#/components/schemas/SubscriptionPlanVersion"}
+        published_versions:
+          type: array
+          items: {$ref: "#/components/schemas/SubscriptionPlanVersion"}
+        entitlements:
+          type: object
+          description: Entitlement arrays keyed by plan-version UUID.
+          additionalProperties:
+            type: array
+            items: {$ref: "#/components/schemas/PlanEntitlement"}
+
+    AssignSubscriptionRequest:
+      type: object
+      additionalProperties: false
+      required: [plan_version_id, reason, idempotency_key]
+      properties:
+        plan_version_id: {type: string, format: uuid}
+        starts_at:
+          type: string
+          format: date-time
+          description: Optional non-future start; defaults to server time.
+        reason: {type: string, minLength: 1, maxLength: 500}
+        idempotency_key: {type: string, minLength: 1, maxLength: 120}
+
+    ChangeSubscriptionPlanRequest:
+      type: object
+      additionalProperties: false
+      required: [plan_version_id, effective, reason, idempotency_key]
+      properties:
+        plan_version_id: {type: string, format: uuid}
+        effective: {type: string, enum: [IMMEDIATE, PERIOD_END]}
+        reason: {type: string, minLength: 1, maxLength: 500}
+        idempotency_key: {type: string, minLength: 1, maxLength: 120}
+
+    SubscriptionTransitionRequest:
+      type: object
+      additionalProperties: false
+      required: [reason, idempotency_key]
+      properties:
+        reason: {type: string, minLength: 1, maxLength: 500}
+        idempotency_key: {type: string, minLength: 1, maxLength: 120}
+        at_period_end:
+          type: boolean
+          default: false
+          description: Used by cancellation; ignored by pause and resume.
+
+    CPOSubscription:
+      type: object
+      additionalProperties: false
+      required: [id, cpo_id, plan_version_id, status, starts_at, current_period_starts_at, current_period_ends_at, cancel_at_period_end, created_by, created_at, updated_at]
+      properties:
+        id: {type: string, format: uuid}
+        cpo_id: {type: string, format: uuid}
+        plan_version_id: {type: string, format: uuid}
+        status: {type: string, enum: [TRIAL, ACTIVE, PAUSED, PAST_DUE, CANCELLED, EXPIRED]}
+        starts_at: {type: string, format: date-time}
+        trial_ends_at: {type: string, format: date-time}
+        current_period_starts_at: {type: string, format: date-time}
+        current_period_ends_at: {type: string, format: date-time}
+        cancel_at_period_end: {type: boolean}
+        pending_plan_version_id: {type: string, format: uuid}
+        pending_change_at: {type: string, format: date-time}
+        cancelled_at: {type: string, format: date-time}
+        ended_at: {type: string, format: date-time}
+        created_by: {type: string, format: uuid}
+        created_at: {type: string, format: date-time}
+        updated_at: {type: string, format: date-time}
+
+    SubscriptionView:
+      type: object
+      additionalProperties: false
+      required: [subscription, plan, plan_version]
+      properties:
+        subscription: {$ref: "#/components/schemas/CPOSubscription"}
+        plan: {$ref: "#/components/schemas/SubscriptionPlan"}
+        plan_version: {$ref: "#/components/schemas/SubscriptionPlanVersion"}
+
+    SubscriptionHistory:
+      type: object
+      additionalProperties: false
+      required: [id, subscription_id, cpo_id, next_status, next_plan_version_id, actor_user_id, reason, idempotency_key, effective_at, metadata, created_at]
+      properties:
+        id: {type: string, format: uuid}
+        subscription_id: {type: string, format: uuid}
+        cpo_id: {type: string, format: uuid}
+        previous_status: {type: string}
+        next_status: {type: string}
+        previous_plan_version_id: {type: string, format: uuid}
+        next_plan_version_id: {type: string, format: uuid}
+        actor_user_id: {type: string, format: uuid}
+        reason: {type: string, maxLength: 500}
+        idempotency_key: {type: string, maxLength: 120}
+        effective_at: {type: string, format: date-time}
+        metadata: {type: object, additionalProperties: true}
+        created_at: {type: string, format: date-time}
+
+    EntitlementOverrideRequest:
+      type: object
+      additionalProperties: false
+      required: [enabled, reason]
+      properties:
+        enabled: {type: boolean}
+        limit_value: {type: integer, format: int64, minimum: 0}
+        configuration: {type: object, additionalProperties: true}
+        reason: {type: string, minLength: 1, maxLength: 500}
+        expires_at: {type: string, format: date-time}
+
+    EntitlementOverride:
+      type: object
+      additionalProperties: false
+      required: [id, cpo_id, feature_key, enabled, configuration, reason, created_by, created_at, updated_at]
+      properties:
+        id: {type: string, format: uuid}
+        cpo_id: {type: string, format: uuid}
+        feature_key: {type: string, maxLength: 120}
+        enabled: {type: boolean}
+        limit_value: {type: integer, format: int64, minimum: 0}
+        configuration: {type: object, additionalProperties: true}
+        reason: {type: string, maxLength: 500}
+        expires_at: {type: string, format: date-time}
+        created_by: {type: string, format: uuid}
+        created_at: {type: string, format: date-time}
+        updated_at: {type: string, format: date-time}
+
+    EffectiveEntitlement:
+      type: object
+      additionalProperties: false
+      required: [feature_key, enabled, configuration, source]
+      properties:
+        feature_key: {type: string}
+        enabled: {type: boolean}
+        limit_value: {type: integer, format: int64, minimum: 0}
+        configuration: {type: object, additionalProperties: true}
+        source: {type: string, enum: [PLAN, OVERRIDE]}
+        expires_at: {type: string, format: date-time}
+
+    EffectiveEntitlements:
+      type: object
+      additionalProperties: false
+      required: [entitlements]
+      properties:
+        subscription: {$ref: "#/components/schemas/SubscriptionView"}
+        entitlements:
+          type: array
+          items: {$ref: "#/components/schemas/EffectiveEntitlement"}
+
+    BillingAccountRequest:
+      type: object
+      additionalProperties: false
+      required: [legal_name, billing_email, currency]
+      properties:
+        legal_name: {type: string, minLength: 1, maxLength: 255}
+        billing_email: {type: string, format: email, maxLength: 320}
+        tax_id: {type: string, maxLength: 50}
+        currency: {type: string, minLength: 3, maxLength: 3, pattern: "^[A-Z]{3}$"}
+        billing_address: {type: object, additionalProperties: true, default: {}}
+
+    CPOBillingAccount:
+      allOf:
+        - {$ref: "#/components/schemas/BillingAccountRequest"}
+        - type: object
+          required: [id, cpo_id, created_by, created_at, updated_at]
+          properties:
+            id: {type: string, format: uuid}
+            cpo_id: {type: string, format: uuid}
+            created_by: {type: string, format: uuid}
+            created_at: {type: string, format: date-time}
+            updated_at: {type: string, format: date-time}
+
+    InvoiceLineInput:
+      type: object
+      additionalProperties: false
+      required: [description, quantity, unit_amount_minor]
+      properties:
+        description: {type: string, minLength: 1, maxLength: 500}
+        quantity: {type: integer, format: int64, minimum: 1}
+        unit_amount_minor: {type: integer, format: int64, minimum: 0}
+        tax_minor: {type: integer, format: int64, minimum: 0, default: 0}
+        metadata: {type: object, additionalProperties: true, default: {}}
+
+    CreateInvoiceRequest:
+      type: object
+      additionalProperties: false
+      required: [invoice_number, idempotency_key, lines]
+      properties:
+        invoice_number:
+          type: string
+          maxLength: 120
+          pattern: "^[A-Za-z0-9][A-Za-z0-9._/-]{0,119}$"
+        subscription_id: {type: string, format: uuid}
+        period_starts_at: {type: string, format: date-time}
+        period_ends_at: {type: string, format: date-time}
+        external_reference: {type: string, maxLength: 255}
+        idempotency_key: {type: string, minLength: 1, maxLength: 120}
+        lines:
+          type: array
+          minItems: 1
+          maxItems: 500
+          items: {$ref: "#/components/schemas/InvoiceLineInput"}
+
+    IssueInvoiceRequest:
+      type: object
+      additionalProperties: false
+      required: [due_at, reason]
+      properties:
+        due_at:
+          type: string
+          format: date-time
+          description: Must be future at issue time.
+        reason: {type: string, minLength: 1, maxLength: 500}
+
+    VoidInvoiceRequest:
+      type: object
+      additionalProperties: false
+      required: [reason]
+      properties:
+        reason: {type: string, minLength: 1, maxLength: 500}
+
+    VoidPaymentRequest:
+      type: object
+      additionalProperties: false
+      required: [reason]
+      properties:
+        reason: {type: string, minLength: 1, maxLength: 500}
+
+    PlatformInvoice:
+      type: object
+      additionalProperties: false
+      required: [id, invoice_number, cpo_id, billing_account_id, currency, status, subtotal_minor, tax_minor, total_minor, paid_minor, due_minor, idempotency_key, created_by, created_at, updated_at]
+      properties:
+        id: {type: string, format: uuid}
+        invoice_number: {type: string}
+        cpo_id: {type: string, format: uuid}
+        billing_account_id: {type: string, format: uuid}
+        subscription_id: {type: string, format: uuid}
+        currency: {type: string}
+        status: {type: string, enum: [DRAFT, ISSUED, PARTIALLY_PAID, PAID, OVERDUE, VOID]}
+        subtotal_minor: {type: integer, format: int64, minimum: 0}
+        tax_minor: {type: integer, format: int64, minimum: 0}
+        total_minor: {type: integer, format: int64, minimum: 0}
+        paid_minor: {type: integer, format: int64, minimum: 0}
+        due_minor: {type: integer, format: int64, minimum: 0}
+        period_starts_at: {type: string, format: date-time}
+        period_ends_at: {type: string, format: date-time}
+        issued_at: {type: string, format: date-time}
+        due_at: {type: string, format: date-time}
+        voided_at: {type: string, format: date-time}
+        void_reason: {type: string}
+        external_reference: {type: string}
+        idempotency_key: {type: string}
+        created_by: {type: string, format: uuid}
+        created_at: {type: string, format: date-time}
+        updated_at: {type: string, format: date-time}
+
+    PlatformInvoiceLine:
+      allOf:
+        - {$ref: "#/components/schemas/InvoiceLineInput"}
+        - type: object
+          required: [id, invoice_id, line_number, subtotal_minor, total_minor, created_at]
+          properties:
+            id: {type: string, format: uuid}
+            invoice_id: {type: string, format: uuid}
+            line_number: {type: integer, minimum: 1}
+            subtotal_minor: {type: integer, format: int64, minimum: 0}
+            total_minor: {type: integer, format: int64, minimum: 0}
+            created_at: {type: string, format: date-time}
+
+    InvoiceView:
+      type: object
+      additionalProperties: false
+      required: [invoice, lines]
+      properties:
+        invoice: {$ref: "#/components/schemas/PlatformInvoice"}
+        lines:
+          type: array
+          items: {$ref: "#/components/schemas/PlatformInvoiceLine"}
+
+    PaymentAllocationInput:
+      type: object
+      additionalProperties: false
+      required: [invoice_id, amount_minor]
+      properties:
+        invoice_id: {type: string, format: uuid}
+        amount_minor: {type: integer, format: int64, minimum: 1}
+
+    RecordPaymentRequest:
+      type: object
+      additionalProperties: false
+      required: [payment_reference, currency, amount_minor, method, occurred_at, idempotency_key]
+      properties:
+        payment_reference:
+          type: string
+          maxLength: 120
+          pattern: "^[A-Za-z0-9][A-Za-z0-9._/-]{0,119}$"
+        currency: {type: string, minLength: 3, maxLength: 3}
+        amount_minor: {type: integer, format: int64, minimum: 1}
+        method: {type: string, minLength: 1, maxLength: 50}
+        external_reference: {type: string, maxLength: 255}
+        occurred_at:
+          type: string
+          format: date-time
+          description: Cannot be future.
+        notes: {type: string, maxLength: 1000}
+        idempotency_key: {type: string, minLength: 1, maxLength: 120}
+        allocations:
+          type: array
+          maxItems: 500
+          items: {$ref: "#/components/schemas/PaymentAllocationInput"}
+
+    PlatformPayment:
+      type: object
+      additionalProperties: false
+      required: [id, payment_reference, cpo_id, currency, amount_minor, allocated_minor, status, method, occurred_at, notes, idempotency_key, created_by, created_at, updated_at]
+      properties:
+        id: {type: string, format: uuid}
+        payment_reference: {type: string}
+        cpo_id: {type: string, format: uuid}
+        currency: {type: string}
+        amount_minor: {type: integer, format: int64, minimum: 1}
+        allocated_minor: {type: integer, format: int64, minimum: 0}
+        status: {type: string, enum: [RECORDED, VOID]}
+        voided_at: {type: string, format: date-time}
+        void_reason: {type: string, maxLength: 500}
+        method: {type: string}
+        external_reference: {type: string}
+        occurred_at: {type: string, format: date-time}
+        notes: {type: string}
+        idempotency_key: {type: string}
+        created_by: {type: string, format: uuid}
+        created_at: {type: string, format: date-time}
+        updated_at: {type: string, format: date-time}
+
+    PaymentAllocation:
+      type: object
+      additionalProperties: false
+      required: [id, payment_id, invoice_id, amount_minor, created_by, created_at]
+      properties:
+        id: {type: string, format: uuid}
+        payment_id: {type: string, format: uuid}
+        invoice_id: {type: string, format: uuid}
+        amount_minor: {type: integer, format: int64, minimum: 1}
+        created_by: {type: string, format: uuid}
+        created_at: {type: string, format: date-time}
+
+    PaymentView:
+      type: object
+      additionalProperties: false
+      required: [payment, allocations]
+      properties:
+        payment: {$ref: "#/components/schemas/PlatformPayment"}
+        allocations:
+          type: array
+          items: {$ref: "#/components/schemas/PaymentAllocation"}
+
+    BillingTimeline:
+      type: object
+      additionalProperties: false
+      required: [invoices, payments]
+      properties:
+        account: {$ref: "#/components/schemas/CPOBillingAccount"}
+        invoices:
+          type: array
+          maxItems: 500
+          items: {$ref: "#/components/schemas/PlatformInvoice"}
+        payments:
+          type: array
+          maxItems: 500
+          items: {$ref: "#/components/schemas/PlatformPayment"}
+
     HealthResponse:
       type: object
       additionalProperties: false
@@ -2205,6 +3683,157 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/Integration"
+
+    PlatformEvent:
+      type: object
+      additionalProperties: false
+      required: [id, type, resource_type, data, occurred_at]
+      properties:
+        id:
+          type: integer
+          format: int64
+          minimum: 1
+        type:
+          type: string
+          maxLength: 150
+          example: platform.cpo.activated
+        actor_user_id:
+          type: string
+          format: uuid
+        resource_type:
+          type: string
+          maxLength: 100
+          example: CPO
+        resource_id:
+          type: string
+          maxLength: 255
+        data:
+          type: object
+          additionalProperties: true
+          description: Safe event-specific metadata with no credential material.
+        occurred_at:
+          type: string
+          format: date-time
+
+    PlatformEventPage:
+      type: object
+      additionalProperties: false
+      required: [events, next_cursor, has_more]
+      properties:
+        events:
+          type: array
+          maxItems: 500
+          items:
+            $ref: "#/components/schemas/PlatformEvent"
+        next_cursor:
+          type: integer
+          format: int64
+          minimum: 0
+        has_more:
+          type: boolean
+
+    AuditRecord:
+      type: object
+      additionalProperties: false
+      required: [id, action, entity, details, created_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        cpo_id:
+          type: string
+          format: uuid
+        user_id:
+          type: string
+          format: uuid
+          description: Actor identity when retained.
+        action:
+          type: string
+          maxLength: 100
+        entity:
+          type: string
+          maxLength: 100
+        entity_id:
+          type: string
+          format: uuid
+        details:
+          type: object
+          additionalProperties: true
+          description: Sanitized structured metadata; never secret material.
+        created_at:
+          type: string
+          format: date-time
+
+    AuditPage:
+      type: object
+      additionalProperties: false
+      required: [records, has_more]
+      properties:
+        records:
+          type: array
+          maxItems: 500
+          items:
+            $ref: "#/components/schemas/AuditRecord"
+        next_before:
+          type: string
+          format: date-time
+        next_before_id:
+          type: string
+          format: uuid
+        has_more:
+          type: boolean
+
+    Worker:
+      type: object
+      additionalProperties: false
+      required:
+        - id
+        - name
+        - instance_key
+        - status
+        - required
+        - started_at
+        - last_heartbeat_at
+        - metadata
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+          maxLength: 100
+          example: mail-outbox
+        instance_key:
+          type: string
+          maxLength: 255
+          description: Ephemeral process-instance identifier, not a credential.
+        status:
+          type: string
+          enum: [HEALTHY, DEGRADED, STALE, DISABLED]
+        required:
+          type: boolean
+        started_at:
+          type: string
+          format: date-time
+        last_heartbeat_at:
+          type: string
+          format: date-time
+        last_job_completed_at:
+          type: string
+          format: date-time
+        metadata:
+          type: object
+          additionalProperties: true
+
+    WorkerListResponse:
+      type: object
+      additionalProperties: false
+      required: [workers]
+      properties:
+        workers:
+          type: array
+          items:
+            $ref: "#/components/schemas/Worker"
 
     AuthScope:
       type: string

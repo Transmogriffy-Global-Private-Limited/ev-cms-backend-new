@@ -16,13 +16,15 @@ import (
 const defaultHTTPAddress = "127.0.0.1:8080"
 
 type Config struct {
-	DatabaseURL  string
-	HTTPAddress  string
-	CORSAllowAll bool
-	Superadmin   Superadmin
-	Auth         Auth
-	Mail         Mail
-	Credentials  Encryption
+	DatabaseURL    string
+	HTTPAddress    string
+	CORSAllowAll   bool
+	APIDocsEnabled bool
+	Superadmin     Superadmin
+	Auth           Auth
+	Mail           Mail
+	Platform       Platform
+	Credentials    Encryption
 }
 
 type Superadmin struct {
@@ -67,6 +69,15 @@ type Mail struct {
 	SendTimeout time.Duration
 }
 
+type Platform struct {
+	EventRetention    time.Duration
+	RealtimePoll      time.Duration
+	RealtimeHeartbeat time.Duration
+	RealtimeBatchSize int
+	WorkerStaleAfter  time.Duration
+	MaintenanceEvery  time.Duration
+}
+
 func Load() (Config, error) {
 	if err := godotenv.Load(); err != nil && !errors.Is(err, os.ErrNotExist) {
 		return Config{}, fmt.Errorf("load .env: %w", err)
@@ -76,6 +87,10 @@ func Load() (Config, error) {
 		return Config{}, err
 	}
 	corsAllowAll, err := boolOrDefault("CORS_ALLOW_ALL", false)
+	if err != nil {
+		return Config{}, err
+	}
+	apiDocsEnabled, err := boolOrDefault("API_DOCS_ENABLED", true)
 	if err != nil {
 		return Config{}, err
 	}
@@ -89,9 +104,10 @@ func Load() (Config, error) {
 	}
 
 	cfg := Config{
-		DatabaseURL:  strings.TrimSpace(os.Getenv("DATABASE_URL")),
-		HTTPAddress:  envOrDefault("HTTP_ADDR", defaultHTTPAddress),
-		CORSAllowAll: corsAllowAll,
+		DatabaseURL:    strings.TrimSpace(os.Getenv("DATABASE_URL")),
+		HTTPAddress:    envOrDefault("HTTP_ADDR", defaultHTTPAddress),
+		CORSAllowAll:   corsAllowAll,
+		APIDocsEnabled: apiDocsEnabled,
 		Superadmin: Superadmin{
 			Email:    normalizeEmail(os.Getenv("SUPERADMIN_EMAIL")),
 			Password: os.Getenv("SUPERADMIN_PASSWORD"),
@@ -121,6 +137,14 @@ func Load() (Config, error) {
 			UseSSL:      smtpUseSSL,
 			WorkerPoll:  durationOrDefault("MAIL_WORKER_POLL_INTERVAL", 2*time.Second),
 			SendTimeout: durationOrDefault("MAIL_SEND_TIMEOUT", 15*time.Second),
+		},
+		Platform: Platform{
+			EventRetention:    durationOrDefault("PLATFORM_EVENT_RETENTION", 7*24*time.Hour),
+			RealtimePoll:      durationOrDefault("PLATFORM_REALTIME_POLL_INTERVAL", time.Second),
+			RealtimeHeartbeat: durationOrDefault("PLATFORM_REALTIME_HEARTBEAT_INTERVAL", 15*time.Second),
+			RealtimeBatchSize: intOrDefault("PLATFORM_REALTIME_BATCH_SIZE", 100),
+			WorkerStaleAfter:  durationOrDefault("PLATFORM_WORKER_STALE_AFTER", 30*time.Second),
+			MaintenanceEvery:  durationOrDefault("PLATFORM_MAINTENANCE_INTERVAL", time.Minute),
 		},
 	}
 
@@ -170,6 +194,17 @@ func (cfg Config) Validate() error {
 		return errors.New("authentication attempt limits must be positive")
 	case cfg.Mail.WorkerPoll <= 0 || cfg.Mail.SendTimeout <= 0:
 		return errors.New("mail worker durations must be positive")
+	case cfg.Platform.EventRetention <= 0:
+		return errors.New("PLATFORM_EVENT_RETENTION must be positive")
+	case cfg.Platform.RealtimePoll <= 0 ||
+		cfg.Platform.RealtimeHeartbeat <= cfg.Platform.RealtimePoll:
+		return errors.New("PLATFORM_REALTIME_HEARTBEAT_INTERVAL must be longer than positive PLATFORM_REALTIME_POLL_INTERVAL")
+	case cfg.Platform.RealtimeBatchSize < 1 || cfg.Platform.RealtimeBatchSize > 500:
+		return errors.New("PLATFORM_REALTIME_BATCH_SIZE must be between 1 and 500")
+	case cfg.Platform.WorkerStaleAfter <= 0:
+		return errors.New("PLATFORM_WORKER_STALE_AFTER must be positive")
+	case cfg.Platform.MaintenanceEvery <= 0:
+		return errors.New("PLATFORM_MAINTENANCE_INTERVAL must be positive")
 	}
 
 	if cfg.Mail.Enabled {

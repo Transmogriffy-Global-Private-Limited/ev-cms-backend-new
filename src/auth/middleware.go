@@ -14,6 +14,7 @@ import (
 const CPOAppIDHeader = "X-CPO-App-ID"
 
 const principalContextKey = "ev_cms_principal"
+const accessTokenContextKey = "ev_cms_access_token"
 
 func (service *Service) Authenticate() gin.HandlerFunc {
 	return func(ctx *gin.Context) {
@@ -31,8 +32,18 @@ func (service *Service) Authenticate() gin.HandlerFunc {
 			return
 		}
 		ctx.Set(principalContextKey, principal)
+		ctx.Set(accessTokenContextKey, parts[1])
 		ctx.Next()
 	}
+}
+
+func CurrentAccessToken(ctx *gin.Context) (string, bool) {
+	value, exists := ctx.Get(accessTokenContextKey)
+	if !exists {
+		return "", false
+	}
+	token, ok := value.(string)
+	return token, ok && token != ""
 }
 
 func RequirePlatform() gin.HandlerFunc {

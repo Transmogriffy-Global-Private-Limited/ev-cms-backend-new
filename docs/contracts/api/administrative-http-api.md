@@ -1150,7 +1150,206 @@ Additional errors: `400 invalid_request`,
 Additional errors: `400 unsupported_integration_provider` and
 `404 integration_not_found`.
 
-## 10. Client State Machine
+## 10. Platform Operations, Audit, Workers, and Realtime
+
+Every endpoint in this section requires an active bearer token whose durable
+session still resolves to `PLATFORM`. CPO and customer sessions receive `403
+forbidden`. The routes never accept `X-CPO-App-ID` as authority and do not
+grant access to tenant business records.
+
+### 10.1 `GET /api/v1/platform/events`
+
+Purpose: replay committed control-plane facts for UI invalidation and recovery.
+This endpoint is the durable REST fallback for the SSE stream.
+
+Query:
+
+- `after_id`: optional integer greater than or equal to zero; returns IDs
+  strictly greater than this cursor;
+- `limit`: optional integer from 1 through 500, default 50;
+- `type`: optional exact event-type match, at most 150 characters.
+
+`200 OK`:
+
+```json
+{
+  "events": [
+    {
+      "id": 14582,
+      "type": "platform.cpo.suspended",
+      "actor_user_id": "5cef4c95-a1da-448e-bd7c-19d570cd4497",
+      "resource_type": "CPO",
+      "resource_id": "c821a013-5041-42f7-80c8-aa153cf9d455",
+      "data": {"status": "SUSPENDED"},
+      "occurred_at": "2026-07-24T12:14:52Z"
+    }
+  ],
+  "next_cursor": 14582,
+  "has_more": false
+}
+```
+
+Events are ordered by ascending ID and delivered at least once across retries.
+Clients persist `next_cursor`, deduplicate by `id`, and refresh the affected
+REST resource rather than treating event data as authoritative state. An event
+older than retention may no longer be replayable.
+
+Errors:
+
+- `400 invalid_after_id`, `invalid_limit`, or `invalid_type`;
+- `401 unauthorized`;
+- `403 forbidden`;
+- `409 realtime_cursor_expired`: discard the cursor, refresh the relevant REST
+  snapshots, then resume from the current retained event range;
+- `500 internal_error`.
+
+### 10.2 `GET /api/v1/platform/realtime/stream`
+
+Purpose: deliver the same durable platform-event log as server-sent events.
+The response is `text/event-stream`.
+
+Resume input:
+
+- `Last-Event-ID` header: preferred last processed numeric event ID;
+- `after_id`: query fallback when that header is absent;
+- `limit`: initial replay batch size from 1 through 500, default 50;
+- `type`: optional exact event-type filter.
+
+The bearer token must remain in the `Authorization` header. Browser clients
+therefore use authenticated `fetch` streaming; tokens must never be placed in
+the URL. Each fact is framed as:
+
+```text
+id: 14582
+event: platform.cpo.suspended
+data: {"id":14582,"type":"platform.cpo.suspended","resource_type":"CPO","resource_id":"c821a013-5041-42f7-80c8-aa153cf9d455","data":{"status":"SUSPENDED"},"occurred_at":"2026-07-24T12:14:52Z"}
+```
+
+Heartbeat comments keep the connection active and revalidate the durable
+session. Logout, session revocation, authority removal, network failure, or
+server shutdown closes the stream. The client reconnects with its last
+processed ID and uses endpoint 10.1 plus normal resource APIs for missed-event
+recovery. Ordering is ascending event ID; duplicate delivery is possible.
+
+Before streaming begins, errors use the same JSON envelope and status codes as
+endpoint 10.1. After streaming begins, errors close the connection because an
+HTTP status can no longer be replaced.
+
+### 10.3 `GET /api/v1/platform/audit-logs`
+
+Purpose: query immutable privileged-action evidence. Audit records and realtime
+events serve different purposes: audit is security evidence, while events are
+retention-bounded UI/recovery notifications.
+
+Filters:
+
+- `before`: RFC3339 timestamp component of an exclusive newest-first cursor;
+- `before_id`: UUID tie-breaker returned with `next_before`; it is invalid
+  without `before`;
+- `limit`: 1 through 500, default 50;
+- `action`: exact action, at most 100 characters;
+- `entity`: exact entity type, at most 100 characters;
+- `actor_user_id`: exact actor UUID;
+- `cpo_id`: exact affected CPO UUID.
+
+`200 OK`:
+
+```json
+{
+  "records": [
+    {
+      "id": "d77ade2e-3fd2-48b1-9383-cfb9375a659a",
+      "cpo_id": "c821a013-5041-42f7-80c8-aa153cf9d455",
+      "user_id": "5cef4c95-a1da-448e-bd7c-19d570cd4497",
+      "action": "CPO_SUSPENDED",
+      "entity": "CPO",
+      "entity_id": "c821a013-5041-42f7-80c8-aa153cf9d455",
+      "details": {"previous_status": "ACTIVE", "status": "SUSPENDED"},
+      "created_at": "2026-07-24T12:14:52Z"
+    }
+  ],
+  "next_before": "2026-07-24T12:14:52Z",
+  "next_before_id": "d77ade2e-3fd2-48b1-9383-cfb9375a659a",
+  "has_more": true
+}
+```
+
+When `has_more` is true, the next request sends both cursor fields. This pair
+prevents records sharing one timestamp from being skipped. Audit details are
+sanitized metadata and never contain credentials, OTPs, tokens, or mail
+payloads.
+
+Errors: `400 invalid_before`, `invalid_before_id`, `invalid_limit`,
+`invalid_action`, `invalid_entity`, `invalid_actor_user_id`, or
+`invalid_cpo_id`; shared authentication errors; or `500 internal_error`.
+
+### 10.4 `GET /api/v1/platform/workers`
+
+Purpose: show durable health for registered worker process instances.
+
+`200 OK`:
+
+```json
+{
+  "workers": [
+    {
+      "id": "888360ea-15fb-459b-9fb0-12624a81f011",
+      "name": "mail-outbox",
+      "instance_key": "ee16b752-6e12-49fe-b685-cf1431cadf7a",
+      "status": "HEALTHY",
+      "required": true,
+      "started_at": "2026-07-24T12:00:00Z",
+      "last_heartbeat_at": "2026-07-24T12:14:50Z",
+      "last_job_completed_at": "2026-07-24T12:14:48Z",
+      "metadata": {}
+    }
+  ]
+}
+```
+
+`STALE` is derived at read time when the last heartbeat exceeds
+`PLATFORM_WORKER_STALE_AFTER`; it is not a separately reported database state.
+Registered required workers that are stale or report a non-healthy state make
+`GET /health/ready` return `503`. This endpoint is observational only: it
+cannot start, stop, restart, or kill a process.
+
+Errors: shared `401`, `403`, or `500` responses.
+
+## 11. Subscription and Entitlement Control Plane
+
+The complete bodies, validation, lifecycle transitions, idempotency rules,
+responses, error codes, transactional side effects, worker recovery behavior,
+and examples are canonical in
+[`subscriptions.md`](subscriptions.md). The authoritative machine-readable
+operations and schemas are in `../openapi/openapi.yaml`.
+
+All subscription routes use the `/api/v1/platform` prefix and require a
+validated `PLATFORM` bearer session. CPO existence does not require a
+subscription, published plan versions are immutable, and superadmin
+subscription management does not grant tenant-business-data access.
+
+Implemented groups:
+
+- plan create/list/get/draft replacement/publish/archive;
+- CPO assignment/current snapshot/change plan/pause/resume/past-due/expire/
+  cancel/history;
+- effective entitlement resolution;
+- reasoned expiring CPO entitlement override set/removal;
+- durable boundary reconciliation, audit, events, worker heartbeat, and CPO
+  administrator mail.
+
+## 12. Platform Subscription Billing Records
+
+The complete provider-neutral billing-account, invoice, invoice-line, payment,
+allocation, reversal, overdue-worker, recovery, body, response, and error
+contract is canonical in
+[`platform-billing.md`](platform-billing.md).
+
+These records describe what a CPO owes TransEV for using the platform. They are
+not the CPO's charger/customer payments and never use tenant Razorpay
+credentials. Automatic collection and provider webhooks remain unimplemented.
+
+## 13. Client State Machine
 
 Recommended frontend sequence:
 
@@ -1174,7 +1373,7 @@ entire local session and require login. On `cpo_app_id_mismatch`, refresh or cal
 `/auth/me` to recover the current ID; never let a user type a CPO ID to change
 scope.
 
-## 11. Explicitly Unimplemented
+## 14. Explicitly Unimplemented
 
 The contract does not provide:
 
@@ -1185,7 +1384,7 @@ The contract does not provide:
   APIs;
 - payment execution or Razorpay webhook verification;
 - CMS/HAL commands or callbacks;
-- subscriptions or entitlement checks;
+- automatic subscription payment collection or provider webhooks;
 - OpenAPI-generated SDKs.
 
 Database tables for several future domains do not imply callable APIs.
