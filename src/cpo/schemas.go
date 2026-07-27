@@ -84,6 +84,13 @@ type CreateChargerRequest struct {
 	Model        string    `json:"model"`
 	SerialNumber string    `json:"serial_number"`
 	MaxPowerKW   float64   `json:"max_power_kw"`
+
+	Connectors []struct {
+		ConnectorNumber int     `json:"connector_number"`
+		ConnectorType   string  `json:"connector_type"`
+		MaxCurrent      float64 `json:"max_current"`
+		MaxVoltage      float64 `json:"max_voltage"`
+	} `json:"connectors"`
 }
 
 type UpdateChargerRequest struct {
@@ -92,6 +99,15 @@ type UpdateChargerRequest struct {
 	Model        *string    `json:"model,omitempty"`
 	SerialNumber *string    `json:"serial_number,omitempty"`
 	MaxPowerKW   *float64   `json:"max_power_kw,omitempty"`
+
+	Connectors *[]struct {
+		ID              uuid.UUID                `json:"id"`
+		ConnectorNumber *int                     `json:"connector_number,omitempty"`
+		ConnectorType   *string                  `json:"connector_type,omitempty"`
+		MaxCurrent      *float64                 `json:"max_current,omitempty"`
+		MaxVoltage      *float64                 `json:"max_voltage,omitempty"`
+		Status          *constants.ChargerStatus `json:"status,omitempty"`
+	} `json:"connectors,omitempty"`
 }
 
 type DeleteChargerRequest struct {
@@ -111,8 +127,22 @@ type ChargerView struct {
 	Status       constants.ChargerStatus `json:"status"`
 	OCPPVersion  string                  `json:"ocpp_version"`
 	LastSeenAt   *time.Time              `json:"last_seen_at,omitempty"`
-	CreatedAt    time.Time               `json:"created_at"`
-	UpdatedAt    time.Time               `json:"updated_at"`
+
+	Connectors []struct {
+		ID              uuid.UUID               `json:"id"`
+		CPOID           uuid.UUID               `json:"cpo_id"`
+		ChargerID       uuid.UUID               `json:"charger_id"`
+		ConnectorNumber int                     `json:"connector_number"`
+		ConnectorType   string                  `json:"connector_type"`
+		MaxCurrent      float64                 `json:"max_current"`
+		MaxVoltage      float64                 `json:"max_voltage"`
+		Status          constants.ChargerStatus `json:"status"`
+		CreatedAt       time.Time               `json:"created_at"`
+		UpdatedAt       time.Time               `json:"updated_at"`
+	} `json:"connectors"`
+
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
 }
 
 type CreateHubRequest struct {
