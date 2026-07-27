@@ -177,3 +177,89 @@ func noStore(ctx *gin.Context) {
 	ctx.Header("Pragma", "no-cache")
 	ctx.Next()
 }
+func RegisterCPORoutes(
+	group *gin.RouterGroup,
+	authService *auth.Service,
+	service *Service,
+) {
+	handler := &Handler{
+		service: service,
+	}
+
+	group.Use(
+		noStore,
+		authService.Authenticate(),
+		auth.RequireCPOAppID(),
+	)
+
+	group.POST("/profile", handler.createProfile)
+	group.GET("/profile", handler.getProfile)
+	group.PATCH("/profile", handler.updateProfile)
+}
+
+func (handler *Handler) createProfile(ctx *gin.Context) {
+	principal, _ := auth.CurrentPrincipal(ctx)
+
+	var request CreateProfileRequest
+	if err := decodeJSON(ctx, &request); err != nil {
+		writeError(ctx, &auth.APIError{
+			Status:  http.StatusBadRequest,
+			Code:    "invalid_request",
+			Message: "The request body is invalid.",
+		})
+		return
+	}
+
+	record, err := handler.service.CreateProfile(
+		ctx.Request.Context(),
+		principal,
+		request,
+	)
+	if err != nil {
+		writeError(ctx, err)
+		return
+	}
+
+	ctx.JSON(http.StatusCreated, record)
+}
+
+func (handler *Handler) getProfile(ctx *gin.Context) {
+	principal, _ := auth.CurrentPrincipal(ctx)
+
+	record, err := handler.service.GetProfile(
+		ctx.Request.Context(),
+		principal,
+	)
+	if err != nil {
+		writeError(ctx, err)
+		return
+	}
+
+	ctx.JSON(http.StatusOK, record)
+}
+
+func (handler *Handler) updateProfile(ctx *gin.Context) {
+	principal, _ := auth.CurrentPrincipal(ctx)
+
+	var request UpdateProfileRequest
+	if err := decodeJSON(ctx, &request); err != nil {
+		writeError(ctx, &auth.APIError{
+			Status:  http.StatusBadRequest,
+			Code:    "invalid_request",
+			Message: "The request body is invalid.",
+		})
+		return
+	}
+
+	record, err := handler.service.UpdateProfile(
+		ctx.Request.Context(),
+		principal,
+		request,
+	)
+	if err != nil {
+		writeError(ctx, err)
+		return
+	}
+
+	ctx.JSON(http.StatusOK, record)
+}

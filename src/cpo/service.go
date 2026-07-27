@@ -603,3 +603,320 @@ func view(record models.CPO) View {
 		UpdatedAt:      record.UpdatedAt,
 	}
 }
+
+func (service *Service) CreateProfile(
+	ctx context.Context,
+	principal auth.Principal,
+	request CreateProfileRequest,
+) (View, error) {
+	if err := requireCPOProfileAccess(principal); err != nil {
+		return View{}, err
+	}
+
+	cpoID := *principal.CPOID
+
+	request = normalizeCreateProfileRequest(request)
+	if err := validateCreateProfileRequest(request); err != nil {
+		return View{}, err
+	}
+
+	var record models.CPO
+	err := service.database.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+			First(&record, "id = ?", cpoID).Error; err != nil {
+			return mapNotFound(err)
+		}
+
+		if record.BusinessName != "" ||
+			record.Address != "" ||
+			record.City != "" ||
+			record.State != "" ||
+			record.Pincode != "" ||
+			record.CompanyType != "" ||
+			(record.GSTIN != nil && *record.GSTIN != "") {
+			return &auth.APIError{
+				Status:  http.StatusConflict,
+				Code:    "profile_exists",
+				Message: "CPO profile already exists.",
+			}
+		}
+
+		now := service.now()
+
+		gstin := request.GSTIN
+		record.BusinessName = request.BusinessName
+		record.CompanyType = request.CompanyType
+		record.GSTIN = &gstin
+		record.Address = request.Address
+		record.City = request.City
+		record.State = request.State
+		record.Pincode = request.Pincode
+		record.UpdatedAt = now
+
+		if err := tx.Model(&models.CPO{}).
+			Where("id = ?", cpoID).
+			Updates(map[string]any{
+				"business_name": record.BusinessName,
+				"company_type":  record.CompanyType,
+				"gstin":         record.GSTIN,
+				"address":       record.Address,
+				"city":          record.City,
+				"state":         record.State,
+				"pincode":       record.Pincode,
+				"updated_at":    now,
+			}).Error; err != nil {
+			return mapWriteError(err, "create CPO profile")
+		}
+
+		return writeAudit(
+			tx,
+			principal.UserID,
+			cpoID,
+			"CPO_PROFILE_CREATED",
+			models.JSONB{
+				"business_name": record.BusinessName,
+				"company_type":  record.CompanyType,
+			},
+			now,
+		)
+	})
+	if err != nil {
+		return View{}, err
+	}
+
+	return view(record), nil
+}
+
+func (service *Service) GetProfile(
+	ctx context.Context,
+	principal auth.Principal,
+) (View, error) {
+	if err := requireCPOProfileAccess(principal); err != nil {
+		return View{}, err
+	}
+
+	record, err := service.find(ctx, *principal.CPOID)
+	if err != nil {
+		return View{}, err
+	}
+	return view(record), nil
+}
+
+func (service *Service) UpdateProfile(
+	ctx context.Context,
+	principal auth.Principal,
+	request UpdateProfileRequest,
+) (View, error) {
+	if err := requireCPOProfileAccess(principal); err != nil {
+		return View{}, err
+	}
+
+	cpoID := *principal.CPOID
+
+	request = normalizeUpdateProfileRequest(request)
+	if err := validateUpdateProfileRequest(request); err != nil {
+		return View{}, err
+	}
+
+	var record models.CPO
+	err := service.database.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+			First(&record, "id = ?", cpoID).Error; err != nil {
+			return mapNotFound(err)
+		}
+
+		updates := map[string]any{}
+		changedFields := models.JSONB{}
+
+		if request.BusinessName != nil {
+			updates["business_name"] = *request.BusinessName
+			record.BusinessName = *request.BusinessName
+			changedFields["business_name"] = *request.BusinessName
+		}
+		if request.CompanyType != nil {
+			updates["company_type"] = *request.CompanyType
+			record.CompanyType = *request.CompanyType
+			changedFields["company_type"] = *request.CompanyType
+		}
+		if request.GSTIN != nil {
+			updates["gstin"] = *request.GSTIN
+			record.GSTIN = request.GSTIN
+			changedFields["gstin"] = *request.GSTIN
+		}
+		if request.Address != nil {
+			updates["address"] = *request.Address
+			record.Address = *request.Address
+			changedFields["address"] = *request.Address
+		}
+		if request.City != nil {
+			updates["city"] = *request.City
+			record.City = *request.City
+			changedFields["city"] = *request.City
+		}
+		if request.State != nil {
+			updates["state"] = *request.State
+			record.State = *request.State
+			changedFields["state"] = *request.State
+		}
+		if request.Pincode != nil {
+			updates["pincode"] = *request.Pincode
+			record.Pincode = *request.Pincode
+			changedFields["pincode"] = *request.Pincode
+		}
+
+		now := service.now()
+		updates["updated_at"] = now
+		record.UpdatedAt = now
+
+		if len(changedFields) == 0 {
+			return &auth.APIError{
+				Status:  http.StatusBadRequest,
+				Code:    "invalid_request",
+				Message: "At least one profile field must be supplied.",
+			}
+		}
+
+		if err := tx.Model(&models.CPO{}).
+			Where("id = ?", cpoID).
+			Updates(updates).Error; err != nil {
+			return mapWriteError(err, "update CPO profile")
+		}
+
+		return writeAudit(
+			tx,
+			principal.UserID,
+			cpoID,
+			"CPO_PROFILE_UPDATED",
+			models.JSONB{"fields": changedFields},
+			now,
+		)
+	})
+	if err != nil {
+		return View{}, err
+	}
+
+	return view(record), nil
+}
+
+func normalizeCreateProfileRequest(request CreateProfileRequest) CreateProfileRequest {
+	request.BusinessName = strings.TrimSpace(request.BusinessName)
+	request.CompanyType = constants.CPOCompanyType(strings.TrimSpace(string(request.CompanyType)))
+	request.GSTIN = strings.ToUpper(strings.TrimSpace(request.GSTIN))
+	request.Address = strings.TrimSpace(request.Address)
+	request.City = strings.TrimSpace(request.City)
+	request.State = strings.TrimSpace(request.State)
+	request.Pincode = strings.TrimSpace(request.Pincode)
+	return request
+}
+
+func normalizeUpdateProfileRequest(request UpdateProfileRequest) UpdateProfileRequest {
+	request.BusinessName = trimOptionalString(request.BusinessName)
+	request.Address = trimOptionalString(request.Address)
+	request.City = trimOptionalString(request.City)
+	request.State = trimOptionalString(request.State)
+	request.Pincode = trimOptionalString(request.Pincode)
+
+	if request.GSTIN != nil {
+		value := strings.ToUpper(strings.TrimSpace(*request.GSTIN))
+		request.GSTIN = &value
+	}
+
+	return request
+}
+
+func validateCreateProfileRequest(request CreateProfileRequest) error {
+	if request.BusinessName == "" || len(request.BusinessName) > 255 {
+		return invalid("business_name", "Business name is required and must not exceed 255 characters.")
+	}
+	if !request.CompanyType.Valid() {
+		return invalid("company_type", "Company type must be INDIVIDUAL or COMPANY.")
+	}
+	if request.GSTIN == "" || !gstinPattern.MatchString(request.GSTIN) {
+		return invalid("gstin", "GSTIN must contain 15 uppercase letters or digits.")
+	}
+	if request.Address == "" || len(request.Address) > 5000 {
+		return invalid("address", "Address is required and must not exceed 5000 characters.")
+	}
+	if request.City == "" || len(request.City) > 100 {
+		return invalid("city", "City is required and must not exceed 100 characters.")
+	}
+	if request.State == "" || len(request.State) > 100 {
+		return invalid("state", "State is required and must not exceed 100 characters.")
+	}
+	if request.Pincode == "" || len(request.Pincode) > 10 {
+		return invalid("pincode", "Pincode is required and must not exceed 10 characters.")
+	}
+	return nil
+}
+
+func validateUpdateProfileRequest(request UpdateProfileRequest) error {
+	if request.BusinessName == nil &&
+		request.CompanyType == nil &&
+		request.GSTIN == nil &&
+		request.Address == nil &&
+		request.City == nil &&
+		request.State == nil &&
+		request.Pincode == nil {
+		return invalid("profile", "At least one profile field must be supplied.")
+	}
+
+	if request.BusinessName != nil {
+		if *request.BusinessName == "" || len(*request.BusinessName) > 255 {
+			return invalid("business_name", "Business name must not exceed 255 characters.")
+		}
+	}
+	if request.CompanyType != nil && !request.CompanyType.Valid() {
+		return invalid("company_type", "Company type must be INDIVIDUAL or COMPANY.")
+	}
+	if request.GSTIN != nil {
+		if *request.GSTIN == "" || !gstinPattern.MatchString(*request.GSTIN) {
+			return invalid("gstin", "GSTIN must contain 15 uppercase letters or digits.")
+		}
+	}
+	if request.Address != nil && len(*request.Address) > 5000 {
+		return invalid("address", "Address must not exceed 5000 characters.")
+	}
+	if request.City != nil && len(*request.City) > 100 {
+		return invalid("city", "City must not exceed 100 characters.")
+	}
+	if request.State != nil && len(*request.State) > 100 {
+		return invalid("state", "State must not exceed 100 characters.")
+	}
+	if request.Pincode != nil && len(*request.Pincode) > 10 {
+		return invalid("pincode", "Pincode must not exceed 10 characters.")
+	}
+	return nil
+}
+
+func requireCPOProfileAccess(principal auth.Principal) error {
+	if principal.Scope != constants.AuthScopeCPO {
+		return &auth.APIError{
+			Status:  http.StatusForbidden,
+			Code:    "forbidden",
+			Message: "CPO access is required.",
+		}
+	}
+	if principal.CPOID == nil {
+		return &auth.APIError{
+			Status:  http.StatusForbidden,
+			Code:    "forbidden",
+			Message: "CPO tenant context is required.",
+		}
+	}
+	if principal.Role == nil || (*principal.Role != constants.CPORoleOwner && *principal.Role != constants.CPORoleAdmin) {
+		return &auth.APIError{
+			Status:  http.StatusForbidden,
+			Code:    "forbidden",
+			Message: "CPO owner or admin access is required.",
+		}
+	}
+	return nil
+}
+
+func trimOptionalString(value *string) *string {
+	if value == nil {
+		return nil
+	}
+	trimmed := strings.TrimSpace(*value)
+	return &trimmed
+}

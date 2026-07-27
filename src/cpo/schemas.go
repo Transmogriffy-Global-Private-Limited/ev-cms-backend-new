@@ -58,3 +58,21 @@ type CreateResponse struct {
 	CPO   View             `json:"cpo"`
 	Admin InitialAdminView `json:"admin"`
 }
+type UpdateProfileRequest struct {
+	BusinessName *string                   `json:"business_name,omitempty"`
+	CompanyType  *constants.CPOCompanyType `json:"company_type,omitempty"`
+	GSTIN        *string                   `json:"gstin,omitempty"`
+	Address      *string                   `json:"address,omitempty"`
+	City         *string                   `json:"city,omitempty"`
+	State        *string                   `json:"state,omitempty"`
+	Pincode      *string                   `json:"pincode,omitempty"`
+}
+type CreateProfileRequest struct {
+	BusinessName string                   `json:"business_name"`
+	CompanyType  constants.CPOCompanyType `json:"company_type"`
+	GSTIN        string                   `json:"gstin"`
+	Address      string                   `json:"address"`
+	City         string                   `json:"city"`
+	State        string                   `json:"state"`
+	Pincode      string                   `json:"pincode"`
+}
