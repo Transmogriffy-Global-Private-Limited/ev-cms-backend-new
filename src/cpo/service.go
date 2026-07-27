@@ -1688,3 +1688,390 @@ func hubView(record models.Hub) HubView {
 		UpdatedAt:   record.UpdatedAt,
 	}
 }
+
+func (service *Service) CreateTariff(
+	ctx context.Context,
+	principal auth.Principal,
+	request CreateTariffRequest,
+) (TariffView, error) {
+	if err := requireCPOChargerAccess(principal); err != nil {
+		return TariffView{}, err
+	}
+
+	cpoID := *principal.CPOID
+	request = normalizeCreateTariffRequest(request)
+	if err := validateCreateTariffRequest(request); err != nil {
+		return TariffView{}, err
+	}
+
+	var record models.Tariff
+	err := service.database.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var hub models.Hub
+		if err := tx.First(&hub, "id = ? AND cpo_id = ?", request.HubID, cpoID).Error; err != nil {
+			return mapHubNotFound(err)
+		}
+
+		if request.ChargerID != nil {
+			var charger models.Charger
+			if err := tx.First(&charger, "id = ? AND cpo_id = ?", *request.ChargerID, cpoID).Error; err != nil {
+				return mapChargerNotFound(err)
+			}
+			if charger.HubID != request.HubID {
+				return &auth.APIError{
+					Status:  http.StatusBadRequest,
+					Code:    "charger_hub_mismatch",
+					Message: "The charger must belong to the selected hub.",
+				}
+			}
+		}
+
+		if request.GSTID != nil {
+			var gst models.GST
+			if err := tx.First(&gst, "id = ? AND cpo_id = ?", *request.GSTID, cpoID).Error; err != nil {
+				return mapGSTNotFound(err)
+			}
+		}
+
+		if request.UserGroupID != nil {
+			var userGroup models.UserGroup
+			if err := tx.First(&userGroup, "id = ? AND cpo_id = ?", *request.UserGroupID, cpoID).Error; err != nil {
+				return mapUserGroupNotFound(err)
+			}
+		}
+
+		now := service.now()
+		isActive := true
+		if request.IsActive != nil {
+			isActive = *request.IsActive
+		}
+
+		record = models.Tariff{
+			ID:            uuid.New(),
+			CPOID:         cpoID,
+			HubID:         request.HubID,
+			ChargerID:     request.ChargerID,
+			GSTID:         request.GSTID,
+			UserGroupID:   request.UserGroupID,
+			PricePerKWh:   request.PricePerKWh,
+			IdleFeePerMin: request.IdleFeePerMin,
+			Currency:      request.Currency,
+			IsActive:      isActive,
+			CreatedAt:     now,
+			UpdatedAt:     now,
+		}
+
+		if err := tx.Create(&record).Error; err != nil {
+			return mapTariffWriteError(err, "create tariff")
+		}
+
+		return writeAudit(
+			tx,
+			principal.UserID,
+			cpoID,
+			"TARIFF_CREATED",
+			models.JSONB{
+				"tariff_id": record.ID,
+				"hub_id":    record.HubID,
+			},
+			now,
+		)
+	})
+	if err != nil {
+		return TariffView{}, err
+	}
+
+	return tariffView(record), nil
+}
+
+func (service *Service) GetTariff(
+	ctx context.Context,
+	principal auth.Principal,
+	tariffID uuid.UUID,
+) (TariffView, error) {
+	if err := requireCPOChargerAccess(principal); err != nil {
+		return TariffView{}, err
+	}
+
+	var record models.Tariff
+	if err := service.database.WithContext(ctx).
+		First(&record, "cpo_id = ? AND id = ?", *principal.CPOID, tariffID).Error; err != nil {
+		return TariffView{}, mapTariffNotFound(err)
+	}
+
+	return tariffView(record), nil
+}
+
+func (service *Service) UpdateTariff(
+	ctx context.Context,
+	principal auth.Principal,
+	tariffID uuid.UUID,
+	request UpdateTariffRequest,
+) (TariffView, error) {
+	if err := requireCPOChargerAccess(principal); err != nil {
+		return TariffView{}, err
+	}
+
+	request = normalizeUpdateTariffRequest(request)
+	if err := validateUpdateTariffRequest(request); err != nil {
+		return TariffView{}, err
+	}
+
+	cpoID := *principal.CPOID
+	var record models.Tariff
+
+	err := service.database.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+			First(&record, "cpo_id = ? AND id = ?", cpoID, tariffID).Error; err != nil {
+			return mapTariffNotFound(err)
+		}
+
+		updates := map[string]any{}
+		changedFields := models.JSONB{}
+
+		effectiveHubID := record.HubID
+		if request.HubID != nil {
+			var hub models.Hub
+			if err := tx.First(&hub, "id = ? AND cpo_id = ?", *request.HubID, cpoID).Error; err != nil {
+				return mapHubNotFound(err)
+			}
+			effectiveHubID = *request.HubID
+			updates["hub_id"] = *request.HubID
+			record.HubID = *request.HubID
+			changedFields["hub_id"] = *request.HubID
+		}
+
+		effectiveChargerID := record.ChargerID
+		if request.ChargerID != nil {
+			var charger models.Charger
+			if err := tx.First(&charger, "id = ? AND cpo_id = ?", *request.ChargerID, cpoID).Error; err != nil {
+				return mapChargerNotFound(err)
+			}
+			if charger.HubID != effectiveHubID {
+				return &auth.APIError{
+					Status:  http.StatusBadRequest,
+					Code:    "charger_hub_mismatch",
+					Message: "The charger must belong to the selected hub.",
+				}
+			}
+			effectiveChargerID = request.ChargerID
+			updates["charger_id"] = request.ChargerID
+			record.ChargerID = request.ChargerID
+			changedFields["charger_id"] = request.ChargerID
+		} else if effectiveChargerID != nil && request.HubID != nil {
+			var charger models.Charger
+			if err := tx.First(&charger, "id = ? AND cpo_id = ?", *effectiveChargerID, cpoID).Error; err != nil {
+				return mapChargerNotFound(err)
+			}
+			if charger.HubID != effectiveHubID {
+				return &auth.APIError{
+					Status:  http.StatusBadRequest,
+					Code:    "charger_hub_mismatch",
+					Message: "The existing charger must belong to the selected hub.",
+				}
+			}
+		}
+
+		if request.GSTID != nil {
+			var gst models.GST
+			if err := tx.First(&gst, "id = ? AND cpo_id = ?", *request.GSTID, cpoID).Error; err != nil {
+				return mapGSTNotFound(err)
+			}
+			updates["gst_id"] = request.GSTID
+			record.GSTID = request.GSTID
+			changedFields["gst_id"] = request.GSTID
+		}
+
+		if request.UserGroupID != nil {
+			var userGroup models.UserGroup
+			if err := tx.First(&userGroup, "id = ? AND cpo_id = ?", *request.UserGroupID, cpoID).Error; err != nil {
+				return mapUserGroupNotFound(err)
+			}
+			updates["user_group_id"] = request.UserGroupID
+			record.UserGroupID = request.UserGroupID
+			changedFields["user_group_id"] = request.UserGroupID
+		}
+
+		if request.PricePerKWh != nil {
+			updates["price_per_kwh"] = *request.PricePerKWh
+			record.PricePerKWh = *request.PricePerKWh
+			changedFields["price_per_kwh"] = *request.PricePerKWh
+		}
+		if request.IdleFeePerMin != nil {
+			updates["idle_fee_per_min"] = *request.IdleFeePerMin
+			record.IdleFeePerMin = *request.IdleFeePerMin
+			changedFields["idle_fee_per_min"] = *request.IdleFeePerMin
+		}
+		if request.Currency != nil {
+			updates["currency"] = *request.Currency
+			record.Currency = *request.Currency
+			changedFields["currency"] = *request.Currency
+		}
+		if request.IsActive != nil {
+			updates["is_active"] = *request.IsActive
+			record.IsActive = *request.IsActive
+			changedFields["is_active"] = *request.IsActive
+		}
+
+		if len(changedFields) == 0 {
+			return &auth.APIError{
+				Status:  http.StatusBadRequest,
+				Code:    "invalid_request",
+				Message: "At least one tariff field must be supplied.",
+			}
+		}
+
+		now := service.now()
+		updates["updated_at"] = now
+		record.UpdatedAt = now
+
+		if err := tx.Model(&models.Tariff{}).
+			Where("id = ?", record.ID).
+			Updates(updates).Error; err != nil {
+			return mapTariffWriteError(err, "update tariff")
+		}
+
+		return writeAudit(
+			tx,
+			principal.UserID,
+			cpoID,
+			"TARIFF_UPDATED",
+			models.JSONB{
+				"tariff_id":      record.ID,
+				"changed_fields": changedFields,
+			},
+			now,
+		)
+	})
+	if err != nil {
+		return TariffView{}, err
+	}
+
+	return tariffView(record), nil
+}
+
+func normalizeCreateTariffRequest(request CreateTariffRequest) CreateTariffRequest {
+	request.Currency = strings.ToUpper(strings.TrimSpace(request.Currency))
+	return request
+}
+
+func normalizeUpdateTariffRequest(request UpdateTariffRequest) UpdateTariffRequest {
+	if request.Currency != nil {
+		value := strings.ToUpper(strings.TrimSpace(*request.Currency))
+		request.Currency = &value
+	}
+	return request
+}
+
+func validateCreateTariffRequest(request CreateTariffRequest) error {
+	if request.HubID == uuid.Nil {
+		return invalid("hub_id", "Hub ID is required.")
+	}
+	if request.PricePerKWh.Sign() <= 0 {
+		return invalid("price_per_kwh", "Price per kWh must be greater than zero.")
+	}
+	if request.IdleFeePerMin.Sign() < 0 {
+		return invalid("idle_fee_per_min", "Idle fee per minute must not be negative.")
+	}
+	if request.Currency == "" {
+		request.Currency = "INR"
+	}
+	if len(request.Currency) != 3 {
+		return invalid("currency", "Currency must be a 3-letter code.")
+	}
+	return nil
+}
+
+func validateUpdateTariffRequest(request UpdateTariffRequest) error {
+	if request.HubID == nil &&
+		request.ChargerID == nil &&
+		request.GSTID == nil &&
+		request.UserGroupID == nil &&
+		request.PricePerKWh == nil &&
+		request.IdleFeePerMin == nil &&
+		request.Currency == nil &&
+		request.IsActive == nil {
+		return invalid("tariff", "At least one tariff field must be supplied.")
+	}
+
+	if request.PricePerKWh != nil && request.PricePerKWh.Sign() <= 0 {
+		return invalid("price_per_kwh", "Price per kWh must be greater than zero.")
+	}
+	if request.IdleFeePerMin != nil && request.IdleFeePerMin.Sign() < 0 {
+		return invalid("idle_fee_per_min", "Idle fee per minute must not be negative.")
+	}
+	if request.Currency != nil && len(*request.Currency) != 3 {
+		return invalid("currency", "Currency must be a 3-letter code.")
+	}
+	return nil
+}
+
+func mapTariffNotFound(err error) error {
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return &auth.APIError{
+			Status:  http.StatusNotFound,
+			Code:    "tariff_not_found",
+			Message: "The tariff was not found.",
+		}
+	}
+	return fmt.Errorf("load tariff: %w", err)
+}
+
+func mapGSTNotFound(err error) error {
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return &auth.APIError{
+			Status:  http.StatusNotFound,
+			Code:    "gst_not_found",
+			Message: "The GST profile was not found.",
+		}
+	}
+	return fmt.Errorf("load gst: %w", err)
+}
+
+func mapUserGroupNotFound(err error) error {
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return &auth.APIError{
+			Status:  http.StatusNotFound,
+			Code:    "user_group_not_found",
+			Message: "The user group was not found.",
+		}
+	}
+	return fmt.Errorf("load user group: %w", err)
+}
+
+func mapTariffWriteError(err error, operation string) error {
+	var postgresError *pgconn.PgError
+	if errors.As(err, &postgresError) {
+		switch postgresError.Code {
+		case "23505":
+			return &auth.APIError{
+				Status:  http.StatusConflict,
+				Code:    "tariff_conflict",
+				Message: "The tariff already exists or conflicts with another record.",
+			}
+		case "23503":
+			return &auth.APIError{
+				Status:  http.StatusConflict,
+				Code:    "tariff_conflict",
+				Message: "The tariff references an invalid related record.",
+			}
+		}
+	}
+	return fmt.Errorf("%s: %w", operation, err)
+}
+
+func tariffView(record models.Tariff) TariffView {
+	return TariffView{
+		ID:            record.ID,
+		CPOID:         record.CPOID,
+		HubID:         record.HubID,
+		ChargerID:     record.ChargerID,
+		GSTID:         record.GSTID,
+		UserGroupID:   record.UserGroupID,
+		PricePerKWh:   record.PricePerKWh,
+		IdleFeePerMin: record.IdleFeePerMin,
+		Currency:      record.Currency,
+		IsActive:      record.IsActive,
+		CreatedAt:     record.CreatedAt,
+		UpdatedAt:     record.UpdatedAt,
+	}
+}

@@ -5,6 +5,7 @@ import (
 
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/constants"
 	"github.com/google/uuid"
+	"github.com/shopspring/decimal"
 )
 
 type CreateRequest struct {
@@ -140,4 +141,41 @@ type HubView struct {
 	Open24Hours bool      `json:"open_24_hours"`
 	CreatedAt   time.Time `json:"created_at"`
 	UpdatedAt   time.Time `json:"updated_at"`
+}
+
+type CreateTariffRequest struct {
+	HubID         uuid.UUID       `json:"hub_id"`
+	ChargerID     *uuid.UUID      `json:"charger_id,omitempty"`
+	GSTID         *uuid.UUID      `json:"gst_id,omitempty"`
+	UserGroupID   *uuid.UUID      `json:"user_group_id,omitempty"`
+	PricePerKWh   decimal.Decimal `json:"price_per_kwh"`
+	IdleFeePerMin decimal.Decimal `json:"idle_fee_per_min"`
+	Currency      string          `json:"currency"`
+	IsActive      *bool           `json:"is_active,omitempty"`
+}
+
+type UpdateTariffRequest struct {
+	HubID         *uuid.UUID       `json:"hub_id,omitempty"`
+	ChargerID     *uuid.UUID       `json:"charger_id,omitempty"`
+	GSTID         *uuid.UUID       `json:"gst_id,omitempty"`
+	UserGroupID   *uuid.UUID       `json:"user_group_id,omitempty"`
+	PricePerKWh   *decimal.Decimal `json:"price_per_kwh,omitempty"`
+	IdleFeePerMin *decimal.Decimal `json:"idle_fee_per_min,omitempty"`
+	Currency      *string          `json:"currency,omitempty"`
+	IsActive      *bool            `json:"is_active,omitempty"`
+}
+
+type TariffView struct {
+	ID            uuid.UUID       `json:"id"`
+	CPOID         uuid.UUID       `json:"cpo_id"`
+	HubID         uuid.UUID       `json:"hub_id"`
+	ChargerID     *uuid.UUID      `json:"charger_id,omitempty"`
+	GSTID         *uuid.UUID      `json:"gst_id,omitempty"`
+	UserGroupID   *uuid.UUID      `json:"user_group_id,omitempty"`
+	PricePerKWh   decimal.Decimal `json:"price_per_kwh"`
+	IdleFeePerMin decimal.Decimal `json:"idle_fee_per_min"`
+	Currency      string          `json:"currency"`
+	IsActive      bool            `json:"is_active"`
+	CreatedAt     time.Time       `json:"created_at"`
+	UpdatedAt     time.Time       `json:"updated_at"`
 }

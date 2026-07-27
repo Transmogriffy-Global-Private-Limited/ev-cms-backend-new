@@ -204,6 +204,9 @@ func RegisterCPORoutes(
 	group.POST("/hubs", handler.createHub)
 	group.GET("/hubs/:hub_id", handler.getHub)
 	group.PATCH("/hubs/:hub_id", handler.updateHub)
+	group.POST("/tariffs", handler.createTariff)
+	group.GET("/tariffs/:tariff_id", handler.getTariff)
+	group.PATCH("/tariffs/:tariff_id", handler.updateTariff)
 }
 
 func (handler *Handler) createProfile(ctx *gin.Context) {
@@ -460,4 +463,83 @@ func parseHubID(ctx *gin.Context) (uuid.UUID, bool) {
 		return uuid.Nil, false
 	}
 	return hubID, true
+}
+
+func (handler *Handler) createTariff(ctx *gin.Context) {
+	principal, _ := auth.CurrentPrincipal(ctx)
+
+	var request CreateTariffRequest
+	if err := decodeJSON(ctx, &request); err != nil {
+		writeError(ctx, &auth.APIError{
+			Status:  http.StatusBadRequest,
+			Code:    "invalid_request",
+			Message: "The request body is invalid.",
+		})
+		return
+	}
+
+	record, err := handler.service.CreateTariff(ctx.Request.Context(), principal, request)
+	if err != nil {
+		writeError(ctx, err)
+		return
+	}
+
+	ctx.JSON(http.StatusCreated, record)
+}
+
+func (handler *Handler) getTariff(ctx *gin.Context) {
+	principal, _ := auth.CurrentPrincipal(ctx)
+
+	tariffID, ok := parseTariffID(ctx)
+	if !ok {
+		return
+	}
+
+	record, err := handler.service.GetTariff(ctx.Request.Context(), principal, tariffID)
+	if err != nil {
+		writeError(ctx, err)
+		return
+	}
+
+	ctx.JSON(http.StatusOK, record)
+}
+
+func (handler *Handler) updateTariff(ctx *gin.Context) {
+	principal, _ := auth.CurrentPrincipal(ctx)
+
+	tariffID, ok := parseTariffID(ctx)
+	if !ok {
+		return
+	}
+
+	var request UpdateTariffRequest
+	if err := decodeJSON(ctx, &request); err != nil {
+		writeError(ctx, &auth.APIError{
+			Status:  http.StatusBadRequest,
+			Code:    "invalid_request",
+			Message: "The request body is invalid.",
+		})
+		return
+	}
+
+	record, err := handler.service.UpdateTariff(ctx.Request.Context(), principal, tariffID, request)
+	if err != nil {
+		writeError(ctx, err)
+		return
+	}
+
+	ctx.JSON(http.StatusOK, record)
+}
+
+func parseTariffID(ctx *gin.Context) (uuid.UUID, bool) {
+	tariffID, err := uuid.Parse(ctx.Param("tariff_id"))
+	if err != nil || tariffID == uuid.Nil {
+		writeError(ctx, &auth.APIError{
+			Status:  http.StatusBadRequest,
+			Code:    "invalid_tariff_id",
+			Message: "The tariff ID is invalid.",
+		})
+		return uuid.Nil, false
+	}
+	return tariffID, true
 }
