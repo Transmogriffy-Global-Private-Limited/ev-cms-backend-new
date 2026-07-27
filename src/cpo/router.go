@@ -201,6 +201,9 @@ func RegisterCPORoutes(
 	group.GET("/chargers/:charger_id", handler.getCharger)
 	group.PATCH("/chargers/:charger_id", handler.updateCharger)
 	group.DELETE("/chargers", handler.deleteCharger)
+	group.POST("/hubs", handler.createHub)
+	group.GET("/hubs/:hub_id", handler.getHub)
+	group.PATCH("/hubs/:hub_id", handler.updateHub)
 }
 
 func (handler *Handler) createProfile(ctx *gin.Context) {
@@ -378,4 +381,83 @@ func (handler *Handler) deleteCharger(ctx *gin.Context) {
 	}
 
 	ctx.Status(http.StatusNoContent)
+}
+
+func (handler *Handler) createHub(ctx *gin.Context) {
+	principal, _ := auth.CurrentPrincipal(ctx)
+
+	var request CreateHubRequest
+	if err := decodeJSON(ctx, &request); err != nil {
+		writeError(ctx, &auth.APIError{
+			Status:  http.StatusBadRequest,
+			Code:    "invalid_request",
+			Message: "The request body is invalid.",
+		})
+		return
+	}
+
+	record, err := handler.service.CreateHub(ctx.Request.Context(), principal, request)
+	if err != nil {
+		writeError(ctx, err)
+		return
+	}
+
+	ctx.JSON(http.StatusCreated, record)
+}
+
+func (handler *Handler) getHub(ctx *gin.Context) {
+	principal, _ := auth.CurrentPrincipal(ctx)
+
+	hubID, ok := parseHubID(ctx)
+	if !ok {
+		return
+	}
+
+	record, err := handler.service.GetHub(ctx.Request.Context(), principal, hubID)
+	if err != nil {
+		writeError(ctx, err)
+		return
+	}
+
+	ctx.JSON(http.StatusOK, record)
+}
+
+func (handler *Handler) updateHub(ctx *gin.Context) {
+	principal, _ := auth.CurrentPrincipal(ctx)
+
+	hubID, ok := parseHubID(ctx)
+	if !ok {
+		return
+	}
+
+	var request UpdateHubRequest
+	if err := decodeJSON(ctx, &request); err != nil {
+		writeError(ctx, &auth.APIError{
+			Status:  http.StatusBadRequest,
+			Code:    "invalid_request",
+			Message: "The request body is invalid.",
+		})
+		return
+	}
+
+	record, err := handler.service.UpdateHub(ctx.Request.Context(), principal, hubID, request)
+	if err != nil {
+		writeError(ctx, err)
+		return
+	}
+
+	ctx.JSON(http.StatusOK, record)
+}
+
+func parseHubID(ctx *gin.Context) (uuid.UUID, bool) {
+	hubID, err := uuid.Parse(ctx.Param("hub_id"))
+	if err != nil || hubID == uuid.Nil {
+		writeError(ctx, &auth.APIError{
+			Status:  http.StatusBadRequest,
+			Code:    "invalid_hub_id",
+			Message: "The hub ID is invalid.",
+		})
+		return uuid.Nil, false
+	}
+	return hubID, true
 }

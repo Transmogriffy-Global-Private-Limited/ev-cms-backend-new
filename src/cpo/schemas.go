@@ -113,3 +113,31 @@ type ChargerView struct {
 	CreatedAt    time.Time               `json:"created_at"`
 	UpdatedAt    time.Time               `json:"updated_at"`
 }
+
+type CreateHubRequest struct {
+	Name        string  `json:"name"`
+	Address     string  `json:"address"`
+	Latitude    float64 `json:"latitude"`
+	Longitude   float64 `json:"longitude"`
+	Open24Hours *bool   `json:"open_24_hours,omitempty"`
+}
+
+type UpdateHubRequest struct {
+	Name        *string  `json:"name,omitempty"`
+	Address     *string  `json:"address,omitempty"`
+	Latitude    *float64 `json:"latitude,omitempty"`
+	Longitude   *float64 `json:"longitude,omitempty"`
+	Open24Hours *bool    `json:"open_24_hours,omitempty"`
+}
+
+type HubView struct {
+	ID          uuid.UUID `json:"id"`
+	CPOID       uuid.UUID `json:"cpo_id"`
+	Name        string    `json:"name"`
+	Address     string    `json:"address"`
+	Latitude    float64   `json:"latitude"`
+	Longitude   float64   `json:"longitude"`
+	Open24Hours bool      `json:"open_24_hours"`
+	CreatedAt   time.Time `json:"created_at"`
+	UpdatedAt   time.Time `json:"updated_at"`
+}

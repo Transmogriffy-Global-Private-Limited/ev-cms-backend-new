@@ -1432,3 +1432,259 @@ func (service *Service) ListChargers(
 
 	return response, nil
 }
+
+func (service *Service) CreateHub(
+	ctx context.Context,
+	principal auth.Principal,
+	request CreateHubRequest,
+) (HubView, error) {
+	if err := requireCPOChargerAccess(principal); err != nil {
+		return HubView{}, err
+	}
+
+	request = normalizeCreateHubRequest(request)
+	if err := validateCreateHubRequest(request); err != nil {
+		return HubView{}, err
+	}
+
+	open24Hours := true
+	if request.Open24Hours != nil {
+		open24Hours = *request.Open24Hours
+	}
+
+	cpoID := *principal.CPOID
+	var record models.Hub
+
+	err := service.database.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		now := service.now()
+
+		record = models.Hub{
+			ID:          uuid.New(),
+			CPOID:       cpoID,
+			Name:        request.Name,
+			Address:     request.Address,
+			Latitude:    request.Latitude,
+			Longitude:   request.Longitude,
+			Open24Hours: open24Hours,
+			CreatedAt:   now,
+			UpdatedAt:   now,
+		}
+
+		if err := tx.Create(&record).Error; err != nil {
+			return mapHubWriteError(err, "create hub")
+		}
+
+		return writeAudit(
+			tx,
+			principal.UserID,
+			cpoID,
+			"HUB_CREATED",
+			models.JSONB{
+				"hub_id":        record.ID,
+				"name":          record.Name,
+				"open_24_hours": record.Open24Hours,
+			},
+			now,
+		)
+	})
+	if err != nil {
+		return HubView{}, err
+	}
+
+	return hubView(record), nil
+}
+
+func (service *Service) GetHub(
+	ctx context.Context,
+	principal auth.Principal,
+	hubID uuid.UUID,
+) (HubView, error) {
+	if err := requireCPOChargerAccess(principal); err != nil {
+		return HubView{}, err
+	}
+
+	var record models.Hub
+	if err := service.database.WithContext(ctx).
+		First(&record, "cpo_id = ? AND id = ?", *principal.CPOID, hubID).Error; err != nil {
+		return HubView{}, mapHubNotFound(err)
+	}
+
+	return hubView(record), nil
+}
+
+func (service *Service) UpdateHub(
+	ctx context.Context,
+	principal auth.Principal,
+	hubID uuid.UUID,
+	request UpdateHubRequest,
+) (HubView, error) {
+	if err := requireCPOChargerAccess(principal); err != nil {
+		return HubView{}, err
+	}
+
+	request = normalizeUpdateHubRequest(request)
+	if err := validateUpdateHubRequest(request); err != nil {
+		return HubView{}, err
+	}
+
+	cpoID := *principal.CPOID
+	var record models.Hub
+
+	err := service.database.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+			First(&record, "cpo_id = ? AND id = ?", cpoID, hubID).Error; err != nil {
+			return mapHubNotFound(err)
+		}
+
+		updates := map[string]any{}
+		changedFields := models.JSONB{}
+
+		if request.Name != nil {
+			updates["name"] = *request.Name
+			record.Name = *request.Name
+			changedFields["name"] = *request.Name
+		}
+		if request.Address != nil {
+			updates["address"] = *request.Address
+			record.Address = *request.Address
+			changedFields["address"] = *request.Address
+		}
+		if request.Latitude != nil {
+			updates["latitude"] = *request.Latitude
+			record.Latitude = *request.Latitude
+			changedFields["latitude"] = *request.Latitude
+		}
+		if request.Longitude != nil {
+			updates["longitude"] = *request.Longitude
+			record.Longitude = *request.Longitude
+			changedFields["longitude"] = *request.Longitude
+		}
+		if request.Open24Hours != nil {
+			updates["open_24_hours"] = *request.Open24Hours
+			record.Open24Hours = *request.Open24Hours
+			changedFields["open_24_hours"] = *request.Open24Hours
+		}
+
+		if len(changedFields) == 0 {
+			return &auth.APIError{
+				Status:  http.StatusBadRequest,
+				Code:    "invalid_request",
+				Message: "At least one hub field must be supplied.",
+			}
+		}
+
+		now := service.now()
+		updates["updated_at"] = now
+		record.UpdatedAt = now
+
+		if err := tx.Model(&models.Hub{}).
+			Where("id = ?", record.ID).
+			Updates(updates).Error; err != nil {
+			return mapHubWriteError(err, "update hub")
+		}
+
+		return writeAudit(
+			tx,
+			principal.UserID,
+			cpoID,
+			"HUB_UPDATED",
+			models.JSONB{
+				"hub_id":         record.ID,
+				"changed_fields": changedFields,
+			},
+			now,
+		)
+	})
+	if err != nil {
+		return HubView{}, err
+	}
+
+	return hubView(record), nil
+}
+
+func normalizeCreateHubRequest(request CreateHubRequest) CreateHubRequest {
+	request.Name = strings.TrimSpace(request.Name)
+	request.Address = strings.TrimSpace(request.Address)
+	return request
+}
+
+func normalizeUpdateHubRequest(request UpdateHubRequest) UpdateHubRequest {
+	request.Name = trimOptionalString(request.Name)
+	request.Address = trimOptionalString(request.Address)
+	return request
+}
+
+func validateCreateHubRequest(request CreateHubRequest) error {
+	if request.Name == "" || len(request.Name) > 255 {
+		return invalid("name", "Hub name is required and must not exceed 255 characters.")
+	}
+	if request.Address == "" || len(request.Address) > 5000 {
+		return invalid("address", "Hub address is required and must not exceed 5000 characters.")
+	}
+	if request.Latitude < -90 || request.Latitude > 90 {
+		return invalid("latitude", "Latitude must be between -90 and 90.")
+	}
+	if request.Longitude < -180 || request.Longitude > 180 {
+		return invalid("longitude", "Longitude must be between -180 and 180.")
+	}
+	return nil
+}
+
+func validateUpdateHubRequest(request UpdateHubRequest) error {
+	if request.Name == nil &&
+		request.Address == nil &&
+		request.Latitude == nil &&
+		request.Longitude == nil &&
+		request.Open24Hours == nil {
+		return invalid("hub", "At least one hub field must be supplied.")
+	}
+
+	if request.Name != nil && (*request.Name == "" || len(*request.Name) > 255) {
+		return invalid("name", "Hub name must not exceed 255 characters.")
+	}
+	if request.Address != nil && (*request.Address == "" || len(*request.Address) > 5000) {
+		return invalid("address", "Hub address must not exceed 5000 characters.")
+	}
+	if request.Latitude != nil && (*request.Latitude < -90 || *request.Latitude > 90) {
+		return invalid("latitude", "Latitude must be between -90 and 90.")
+	}
+	if request.Longitude != nil && (*request.Longitude < -180 || *request.Longitude > 180) {
+		return invalid("longitude", "Longitude must be between -180 and 180.")
+	}
+	return nil
+}
+
+func mapHubWriteError(err error, operation string) error {
+	var postgresError *pgconn.PgError
+	if errors.As(err, &postgresError) {
+		switch postgresError.Code {
+		case "23505":
+			return &auth.APIError{
+				Status:  http.StatusConflict,
+				Code:    "hub_conflict",
+				Message: "The hub already exists or conflicts with another record.",
+			}
+		case "23503":
+			return &auth.APIError{
+				Status:  http.StatusConflict,
+				Code:    "hub_conflict",
+				Message: "The hub references an invalid related record.",
+			}
+		}
+	}
+	return fmt.Errorf("%s: %w", operation, err)
+}
+
+func hubView(record models.Hub) HubView {
+	return HubView{
+		ID:          record.ID,
+		CPOID:       record.CPOID,
+		Name:        record.Name,
+		Address:     record.Address,
+		Latitude:    record.Latitude,
+		Longitude:   record.Longitude,
+		Open24Hours: record.Open24Hours,
+		CreatedAt:   record.CreatedAt,
+		UpdatedAt:   record.UpdatedAt,
+	}
+}
