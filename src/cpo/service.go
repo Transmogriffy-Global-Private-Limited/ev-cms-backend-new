@@ -20,6 +20,7 @@ import (
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/security"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/shopspring/decimal"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
@@ -2073,5 +2074,286 @@ func tariffView(record models.Tariff) TariffView {
 		IsActive:      record.IsActive,
 		CreatedAt:     record.CreatedAt,
 		UpdatedAt:     record.UpdatedAt,
+	}
+}
+
+func (service *Service) CreateGST(
+	ctx context.Context,
+	principal auth.Principal,
+	request CreateGSTRequest,
+) (GSTView, error) {
+	if err := requireCPOChargerAccess(principal); err != nil {
+		return GSTView{}, err
+	}
+
+	cpoID := *principal.CPOID
+	request = normalizeCreateGSTRequest(request)
+	if err := validateCreateGSTRequest(request); err != nil {
+		return GSTView{}, err
+	}
+
+	var record models.GST
+	err := service.database.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		now := service.now()
+
+		isActive := true
+		if request.IsActive != nil {
+			isActive = *request.IsActive
+		}
+
+		record = models.GST{
+			ID:        uuid.New(),
+			CPOID:     cpoID,
+			Name:      request.Name,
+			SGSTRate:  request.SGSTRate,
+			CGSTRate:  request.CGSTRate,
+			IGSTRate:  request.IGSTRate,
+			IsActive:  isActive,
+			CreatedAt: now,
+			UpdatedAt: now,
+		}
+
+		if err := tx.Create(&record).Error; err != nil {
+			return mapGSTWriteError(err, "create gst")
+		}
+
+		return writeAudit(
+			tx,
+			principal.UserID,
+			cpoID,
+			"GST_CREATED",
+			models.JSONB{
+				"gst_id":    record.ID,
+				"name":      record.Name,
+				"sgst_rate": record.SGSTRate,
+				"cgst_rate": record.CGSTRate,
+				"igst_rate": record.IGSTRate,
+			},
+			now,
+		)
+	})
+	if err != nil {
+		return GSTView{}, err
+	}
+
+	return gstView(record), nil
+}
+
+func (service *Service) GetGST(
+	ctx context.Context,
+	principal auth.Principal,
+	gstID uuid.UUID,
+) (GSTView, error) {
+	if err := requireCPOChargerAccess(principal); err != nil {
+		return GSTView{}, err
+	}
+
+	var record models.GST
+	if err := service.database.WithContext(ctx).
+		First(&record, "cpo_id = ? AND id = ?", *principal.CPOID, gstID).Error; err != nil {
+		return GSTView{}, mapGSTNotFound(err)
+	}
+
+	return gstView(record), nil
+}
+
+func (service *Service) UpdateGST(
+	ctx context.Context,
+	principal auth.Principal,
+	gstID uuid.UUID,
+	request UpdateGSTRequest,
+) (GSTView, error) {
+	if err := requireCPOChargerAccess(principal); err != nil {
+		return GSTView{}, err
+	}
+
+	request = normalizeUpdateGSTRequest(request)
+	if err := validateUpdateGSTRequest(request); err != nil {
+		return GSTView{}, err
+	}
+
+	cpoID := *principal.CPOID
+	var record models.GST
+
+	err := service.database.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+			First(&record, "cpo_id = ? AND id = ?", cpoID, gstID).Error; err != nil {
+			return mapGSTNotFound(err)
+		}
+
+		updates := map[string]any{}
+		changedFields := models.JSONB{}
+
+		if request.Name != nil {
+			updates["name"] = *request.Name
+			record.Name = *request.Name
+			changedFields["name"] = *request.Name
+		}
+		if request.SGSTRate != nil {
+			updates["sgst_rate"] = *request.SGSTRate
+			record.SGSTRate = *request.SGSTRate
+			changedFields["sgst_rate"] = *request.SGSTRate
+		}
+		if request.CGSTRate != nil {
+			updates["cgst_rate"] = *request.CGSTRate
+			record.CGSTRate = *request.CGSTRate
+			changedFields["cgst_rate"] = *request.CGSTRate
+		}
+		if request.IGSTRate != nil {
+			updates["igst_rate"] = *request.IGSTRate
+			record.IGSTRate = *request.IGSTRate
+			changedFields["igst_rate"] = *request.IGSTRate
+		}
+		if request.IsActive != nil {
+			updates["is_active"] = *request.IsActive
+			record.IsActive = *request.IsActive
+			changedFields["is_active"] = *request.IsActive
+		}
+
+		if len(changedFields) == 0 {
+			return &auth.APIError{
+				Status:  http.StatusBadRequest,
+				Code:    "invalid_request",
+				Message: "At least one GST field must be supplied.",
+			}
+		}
+
+		now := service.now()
+		updates["updated_at"] = now
+		record.UpdatedAt = now
+
+		if err := tx.Model(&models.GST{}).
+			Where("id = ?", record.ID).
+			Updates(updates).Error; err != nil {
+			return mapGSTWriteError(err, "update gst")
+		}
+
+		return writeAudit(
+			tx,
+			principal.UserID,
+			cpoID,
+			"GST_UPDATED",
+			models.JSONB{
+				"gst_id":         record.ID,
+				"changed_fields": changedFields,
+			},
+			now,
+		)
+	})
+	if err != nil {
+		return GSTView{}, err
+	}
+
+	return gstView(record), nil
+}
+
+func normalizeCreateGSTRequest(request CreateGSTRequest) CreateGSTRequest {
+	request.Name = strings.TrimSpace(request.Name)
+	return request
+}
+
+func normalizeUpdateGSTRequest(request UpdateGSTRequest) UpdateGSTRequest {
+	request.Name = trimOptionalString(request.Name)
+	return request
+}
+
+func validateCreateGSTRequest(request CreateGSTRequest) error {
+	if request.Name == "" || len(request.Name) > 100 {
+		return invalid("name", "GST name is required and must not exceed 100 characters.")
+	}
+	if request.SGSTRate.Sign() < 0 {
+		return invalid("sgst_rate", "SGST rate must not be negative.")
+	}
+	if request.CGSTRate.Sign() < 0 {
+		return invalid("cgst_rate", "CGST rate must not be negative.")
+	}
+	if request.IGSTRate.Sign() < 0 {
+		return invalid("igst_rate", "IGST rate must not be negative.")
+	}
+	if request.SGSTRate.Cmp(decimal.NewFromInt(100)) > 0 {
+		return invalid("sgst_rate", "SGST rate must not exceed 100.")
+	}
+	if request.CGSTRate.Cmp(decimal.NewFromInt(100)) > 0 {
+		return invalid("cgst_rate", "CGST rate must not exceed 100.")
+	}
+	if request.IGSTRate.Cmp(decimal.NewFromInt(100)) > 0 {
+		return invalid("igst_rate", "IGST rate must not exceed 100.")
+	}
+	return nil
+}
+
+func validateUpdateGSTRequest(request UpdateGSTRequest) error {
+	if request.Name == nil &&
+		request.SGSTRate == nil &&
+		request.CGSTRate == nil &&
+		request.IGSTRate == nil &&
+		request.IsActive == nil {
+		return invalid("gst", "At least one GST field must be supplied.")
+	}
+
+	if request.Name != nil && (*request.Name == "" || len(*request.Name) > 100) {
+		return invalid("name", "GST name must not exceed 100 characters.")
+	}
+	if request.SGSTRate != nil {
+		if request.SGSTRate.Sign() < 0 || request.SGSTRate.Cmp(decimal.NewFromInt(100)) > 0 {
+			return invalid("sgst_rate", "SGST rate must be between 0 and 100.")
+		}
+	}
+	if request.CGSTRate != nil {
+		if request.CGSTRate.Sign() < 0 || request.CGSTRate.Cmp(decimal.NewFromInt(100)) > 0 {
+			return invalid("cgst_rate", "CGST rate must be between 0 and 100.")
+		}
+	}
+	if request.IGSTRate != nil {
+		if request.IGSTRate.Sign() < 0 || request.IGSTRate.Cmp(decimal.NewFromInt(100)) > 0 {
+			return invalid("igst_rate", "IGST rate must be between 0 and 100.")
+		}
+	}
+	return nil
+}
+
+// func mapGSTNotFound(err error) error {
+// 	if errors.Is(err, gorm.ErrRecordNotFound) {
+// 		return &auth.APIError{
+// 			Status:  http.StatusNotFound,
+// 			Code:    "gst_not_found",
+// 			Message: "The GST profile was not found.",
+// 		}
+// 	}
+// 	return fmt.Errorf("load gst: %w", err)
+// }
+
+func mapGSTWriteError(err error, operation string) error {
+	var postgresError *pgconn.PgError
+	if errors.As(err, &postgresError) {
+		switch postgresError.Code {
+		case "23505":
+			return &auth.APIError{
+				Status:  http.StatusConflict,
+				Code:    "gst_conflict",
+				Message: "The GST profile already exists or conflicts with another record.",
+			}
+		case "23503":
+			return &auth.APIError{
+				Status:  http.StatusConflict,
+				Code:    "gst_conflict",
+				Message: "The GST profile references an invalid related record.",
+			}
+		}
+	}
+	return fmt.Errorf("%s: %w", operation, err)
+}
+
+func gstView(record models.GST) GSTView {
+	return GSTView{
+		ID:        record.ID,
+		CPOID:     record.CPOID,
+		Name:      record.Name,
+		SGSTRate:  record.SGSTRate,
+		CGSTRate:  record.CGSTRate,
+		IGSTRate:  record.IGSTRate,
+		IsActive:  record.IsActive,
+		CreatedAt: record.CreatedAt,
+		UpdatedAt: record.UpdatedAt,
 	}
 }

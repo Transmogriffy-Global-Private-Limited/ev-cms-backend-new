@@ -207,6 +207,9 @@ func RegisterCPORoutes(
 	group.POST("/tariffs", handler.createTariff)
 	group.GET("/tariffs/:tariff_id", handler.getTariff)
 	group.PATCH("/tariffs/:tariff_id", handler.updateTariff)
+	group.POST("/gsts", handler.createGST)
+	group.GET("/gsts/:gst_id", handler.getGST)
+	group.PATCH("/gsts/:gst_id", handler.updateGST)
 }
 
 func (handler *Handler) createProfile(ctx *gin.Context) {
@@ -542,4 +545,83 @@ func parseTariffID(ctx *gin.Context) (uuid.UUID, bool) {
 		return uuid.Nil, false
 	}
 	return tariffID, true
+}
+
+func (handler *Handler) createGST(ctx *gin.Context) {
+	principal, _ := auth.CurrentPrincipal(ctx)
+
+	var request CreateGSTRequest
+	if err := decodeJSON(ctx, &request); err != nil {
+		writeError(ctx, &auth.APIError{
+			Status:  http.StatusBadRequest,
+			Code:    "invalid_request",
+			Message: "The request body is invalid.",
+		})
+		return
+	}
+
+	record, err := handler.service.CreateGST(ctx.Request.Context(), principal, request)
+	if err != nil {
+		writeError(ctx, err)
+		return
+	}
+
+	ctx.JSON(http.StatusCreated, record)
+}
+
+func (handler *Handler) getGST(ctx *gin.Context) {
+	principal, _ := auth.CurrentPrincipal(ctx)
+
+	gstID, ok := parseGSTID(ctx)
+	if !ok {
+		return
+	}
+
+	record, err := handler.service.GetGST(ctx.Request.Context(), principal, gstID)
+	if err != nil {
+		writeError(ctx, err)
+		return
+	}
+
+	ctx.JSON(http.StatusOK, record)
+}
+
+func (handler *Handler) updateGST(ctx *gin.Context) {
+	principal, _ := auth.CurrentPrincipal(ctx)
+
+	gstID, ok := parseGSTID(ctx)
+	if !ok {
+		return
+	}
+
+	var request UpdateGSTRequest
+	if err := decodeJSON(ctx, &request); err != nil {
+		writeError(ctx, &auth.APIError{
+			Status:  http.StatusBadRequest,
+			Code:    "invalid_request",
+			Message: "The request body is invalid.",
+		})
+		return
+	}
+
+	record, err := handler.service.UpdateGST(ctx.Request.Context(), principal, gstID, request)
+	if err != nil {
+		writeError(ctx, err)
+		return
+	}
+
+	ctx.JSON(http.StatusOK, record)
+}
+
+func parseGSTID(ctx *gin.Context) (uuid.UUID, bool) {
+	gstID, err := uuid.Parse(ctx.Param("gst_id"))
+	if err != nil || gstID == uuid.Nil {
+		writeError(ctx, &auth.APIError{
+			Status:  http.StatusBadRequest,
+			Code:    "invalid_gst_id",
+			Message: "The GST ID is invalid.",
+		})
+		return uuid.Nil, false
+	}
+	return gstID, true
 }

@@ -179,3 +179,31 @@ type TariffView struct {
 	CreatedAt     time.Time       `json:"created_at"`
 	UpdatedAt     time.Time       `json:"updated_at"`
 }
+
+type CreateGSTRequest struct {
+	Name     string          `json:"name"`
+	SGSTRate decimal.Decimal `json:"sgst_rate"`
+	CGSTRate decimal.Decimal `json:"cgst_rate"`
+	IGSTRate decimal.Decimal `json:"igst_rate"`
+	IsActive *bool           `json:"is_active,omitempty"`
+}
+
+type UpdateGSTRequest struct {
+	Name     *string          `json:"name,omitempty"`
+	SGSTRate *decimal.Decimal `json:"sgst_rate,omitempty"`
+	CGSTRate *decimal.Decimal `json:"cgst_rate,omitempty"`
+	IGSTRate *decimal.Decimal `json:"igst_rate,omitempty"`
+	IsActive *bool            `json:"is_active,omitempty"`
+}
+
+type GSTView struct {
+	ID        uuid.UUID       `json:"id"`
+	CPOID     uuid.UUID       `json:"cpo_id"`
+	Name      string          `json:"name"`
+	SGSTRate  decimal.Decimal `json:"sgst_rate"`
+	CGSTRate  decimal.Decimal `json:"cgst_rate"`
+	IGSTRate  decimal.Decimal `json:"igst_rate"`
+	IsActive  bool            `json:"is_active"`
+	CreatedAt time.Time       `json:"created_at"`
+	UpdatedAt time.Time       `json:"updated_at"`
+}
