@@ -2,8 +2,10 @@ package cpo
 
 import (
 	"context"
+	"crypto/rand"
 	"errors"
 	"fmt"
+	"math/big"
 	"net/http"
 	netmail "net/mail"
 	"regexp"
@@ -21,6 +23,19 @@ import (
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
+
+const chars = "abcdefghijklmnopqrstuvwxyz0123456789"
+
+func randomChargerID() string {
+	b := make([]byte, 6)
+
+	for i := range b {
+		n, _ := rand.Int(rand.Reader, big.NewInt(int64(len(chars))))
+		b[i] = chars[n.Int64()]
+	}
+
+	return string(b)
+}
 
 const dummyAppIDPrefix = "cpo_dummy_"
 
@@ -919,4 +934,501 @@ func trimOptionalString(value *string) *string {
 	}
 	trimmed := strings.TrimSpace(*value)
 	return &trimmed
+}
+
+var chargerIDPattern = regexp.MustCompile(`^[a-z0-9]{6}$`)
+
+func (service *Service) CreateCharger(
+	ctx context.Context,
+	principal auth.Principal,
+	request CreateChargerRequest,
+) (ChargerView, error) {
+	if err := requireCPOChargerAccess(principal); err != nil {
+		return ChargerView{}, err
+	}
+
+	cpoID := *principal.CPOID
+	request = normalizeCreateChargerRequest(request)
+	if err := validateCreateChargerRequest(request); err != nil {
+		return ChargerView{}, err
+	}
+
+	var record models.Charger
+	err := service.database.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var hub models.Hub
+		if err := tx.First(&hub, "id = ? AND cpo_id = ?", request.HubID, cpoID).Error; err != nil {
+			return mapHubNotFound(err)
+		}
+
+		chargerID, err := generateUniqueChargerIDTx(tx)
+		if err != nil {
+			return err
+		}
+
+		ocppIdentity, err := generateUniqueOCPPIdentityTx(tx)
+		if err != nil {
+			return err
+		}
+
+		now := service.now()
+		record = models.Charger{
+			ID:           uuid.New(),
+			CPOID:        cpoID,
+			HubID:        request.HubID,
+			ChargerID:    chargerID,
+			OCPPIdentity: ocppIdentity,
+			Vendor:       request.Vendor,
+			Model:        request.Model,
+			SerialNumber: request.SerialNumber,
+			MaxPowerKW:   request.MaxPowerKW,
+			Status:       constants.ChargerStatus("OFFLINE"),
+			OCPPVersion:  "1.6J",
+			CreatedAt:    now,
+			UpdatedAt:    now,
+		}
+
+		if err := tx.Create(&record).Error; err != nil {
+			return mapChargerWriteError(err, "create charger")
+		}
+
+		return writeAudit(
+			tx,
+			principal.UserID,
+			cpoID,
+			"CHARGER_CREATED",
+			models.JSONB{
+				"charger_id":    record.ChargerID,
+				"ocpp_identity": record.OCPPIdentity,
+				"hub_id":        record.HubID,
+			},
+			now,
+		)
+	})
+	if err != nil {
+		return ChargerView{}, err
+	}
+
+	return chargerView(record), nil
+}
+
+func (service *Service) GetCharger(
+	ctx context.Context,
+	principal auth.Principal,
+	chargerID string,
+) (ChargerView, error) {
+	if err := requireCPOChargerAccess(principal); err != nil {
+		return ChargerView{}, err
+	}
+
+	chargerID = normalizeChargerID(chargerID)
+	if !chargerIDPattern.MatchString(chargerID) {
+		return ChargerView{}, &auth.APIError{
+			Status:  http.StatusBadRequest,
+			Code:    "invalid_charger_id",
+			Message: "The charger ID is invalid.",
+		}
+	}
+
+	var record models.Charger
+	if err := service.database.WithContext(ctx).
+		First(&record, "cpo_id = ? AND charger_id = ?", *principal.CPOID, chargerID).Error; err != nil {
+		return ChargerView{}, mapChargerNotFound(err)
+	}
+	return chargerView(record), nil
+}
+
+func (service *Service) UpdateCharger(
+	ctx context.Context,
+	principal auth.Principal,
+	chargerID string,
+	request UpdateChargerRequest,
+) (ChargerView, error) {
+	if err := requireCPOChargerAccess(principal); err != nil {
+		return ChargerView{}, err
+	}
+
+	chargerID = normalizeChargerID(chargerID)
+	if !chargerIDPattern.MatchString(chargerID) {
+		return ChargerView{}, &auth.APIError{
+			Status:  http.StatusBadRequest,
+			Code:    "invalid_charger_id",
+			Message: "The charger ID is invalid.",
+		}
+	}
+
+	request = normalizeUpdateChargerRequest(request)
+	if err := validateUpdateChargerRequest(request); err != nil {
+		return ChargerView{}, err
+	}
+
+	cpoID := *principal.CPOID
+	var record models.Charger
+
+	err := service.database.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+			First(&record, "cpo_id = ? AND charger_id = ?", cpoID, chargerID).Error; err != nil {
+			return mapChargerNotFound(err)
+		}
+
+		updates := map[string]any{}
+		changedFields := models.JSONB{}
+
+		if request.HubID != nil {
+			var hub models.Hub
+			if err := tx.First(&hub, "id = ? AND cpo_id = ?", *request.HubID, cpoID).Error; err != nil {
+				return mapHubNotFound(err)
+			}
+			updates["hub_id"] = *request.HubID
+			record.HubID = *request.HubID
+			changedFields["hub_id"] = *request.HubID
+		}
+		if request.Vendor != nil {
+			updates["vendor"] = *request.Vendor
+			record.Vendor = *request.Vendor
+			changedFields["vendor"] = *request.Vendor
+		}
+		if request.Model != nil {
+			updates["model"] = *request.Model
+			record.Model = *request.Model
+			changedFields["model"] = *request.Model
+		}
+		if request.SerialNumber != nil {
+			updates["serial_number"] = *request.SerialNumber
+			record.SerialNumber = *request.SerialNumber
+			changedFields["serial_number"] = *request.SerialNumber
+		}
+		if request.MaxPowerKW != nil {
+			updates["max_power_kw"] = *request.MaxPowerKW
+			record.MaxPowerKW = *request.MaxPowerKW
+			changedFields["max_power_kw"] = *request.MaxPowerKW
+		}
+
+		if len(changedFields) == 0 {
+			return &auth.APIError{
+				Status:  http.StatusBadRequest,
+				Code:    "invalid_request",
+				Message: "At least one charger field must be supplied.",
+			}
+		}
+
+		now := service.now()
+		updates["updated_at"] = now
+		record.UpdatedAt = now
+
+		if err := tx.Model(&models.Charger{}).
+			Where("id = ?", record.ID).
+			Updates(updates).Error; err != nil {
+			return mapChargerWriteError(err, "update charger")
+		}
+
+		return writeAudit(
+			tx,
+			principal.UserID,
+			cpoID,
+			"CHARGER_UPDATED",
+			models.JSONB{
+				"charger_id":     record.ChargerID,
+				"changed_fields": changedFields,
+			},
+			now,
+		)
+	})
+	if err != nil {
+		return ChargerView{}, err
+	}
+
+	return chargerView(record), nil
+}
+
+func (service *Service) DeleteCharger(
+	ctx context.Context,
+	principal auth.Principal,
+	request DeleteChargerRequest,
+) error {
+	if err := requireCPOChargerAccess(principal); err != nil {
+		return err
+	}
+
+	chargerID := normalizeChargerID(request.ChargerID)
+	if !chargerIDPattern.MatchString(chargerID) {
+		return &auth.APIError{
+			Status:  http.StatusBadRequest,
+			Code:    "invalid_charger_id",
+			Message: "The charger ID is invalid.",
+		}
+	}
+
+	cpoID := *principal.CPOID
+	return service.database.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var record models.Charger
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+			First(&record, "cpo_id = ? AND charger_id = ?", cpoID, chargerID).Error; err != nil {
+			return mapChargerNotFound(err)
+		}
+
+		if err := tx.Delete(&record).Error; err != nil {
+			return mapChargerDeleteError(err)
+		}
+
+		return writeAudit(
+			tx,
+			principal.UserID,
+			cpoID,
+			"CHARGER_DELETED",
+			models.JSONB{
+				"charger_id":    record.ChargerID,
+				"ocpp_identity": record.OCPPIdentity,
+				"hub_id":        record.HubID,
+			},
+			service.now(),
+		)
+	})
+}
+
+func normalizeCreateChargerRequest(request CreateChargerRequest) CreateChargerRequest {
+	request.Vendor = strings.TrimSpace(request.Vendor)
+	request.Model = strings.TrimSpace(request.Model)
+	request.SerialNumber = strings.TrimSpace(request.SerialNumber)
+	return request
+}
+
+func normalizeUpdateChargerRequest(request UpdateChargerRequest) UpdateChargerRequest {
+	request.Vendor = trimOptionalString(request.Vendor)
+	request.Model = trimOptionalString(request.Model)
+	request.SerialNumber = trimOptionalString(request.SerialNumber)
+	return request
+}
+
+func normalizeChargerID(value string) string {
+	return strings.ToLower(strings.TrimSpace(value))
+}
+
+func validateCreateChargerRequest(request CreateChargerRequest) error {
+	if request.HubID == uuid.Nil {
+		return invalid("hub_id", "Hub ID is required.")
+	}
+	if request.Vendor == "" || len(request.Vendor) > 100 {
+		return invalid("vendor", "Vendor is required and must not exceed 100 characters.")
+	}
+	if request.Model == "" || len(request.Model) > 100 {
+		return invalid("model", "Model is required and must not exceed 100 characters.")
+	}
+	if request.SerialNumber == "" || len(request.SerialNumber) > 100 {
+		return invalid("serial_number", "Serial number is required and must not exceed 100 characters.")
+	}
+	if request.MaxPowerKW < 0 {
+		return invalid("max_power_kw", "Max power kW must not be negative.")
+	}
+	return nil
+}
+
+func validateUpdateChargerRequest(request UpdateChargerRequest) error {
+	if request.HubID == nil &&
+		request.Vendor == nil &&
+		request.Model == nil &&
+		request.SerialNumber == nil &&
+		request.MaxPowerKW == nil {
+		return invalid("charger", "At least one charger field must be supplied.")
+	}
+	if request.Vendor != nil && (*request.Vendor == "" || len(*request.Vendor) > 100) {
+		return invalid("vendor", "Vendor must not exceed 100 characters.")
+	}
+	if request.Model != nil && (*request.Model == "" || len(*request.Model) > 100) {
+		return invalid("model", "Model must not exceed 100 characters.")
+	}
+	if request.SerialNumber != nil && (*request.SerialNumber == "" || len(*request.SerialNumber) > 100) {
+		return invalid("serial_number", "Serial number must not exceed 100 characters.")
+	}
+	if request.MaxPowerKW != nil && *request.MaxPowerKW < 0 {
+		return invalid("max_power_kw", "Max power kW must not be negative.")
+	}
+	return nil
+}
+
+func requireCPOChargerAccess(principal auth.Principal) error {
+	if principal.Scope != constants.AuthScopeCPO {
+		return &auth.APIError{
+			Status:  http.StatusForbidden,
+			Code:    "forbidden",
+			Message: "CPO access is required.",
+		}
+	}
+	if principal.CPOID == nil {
+		return &auth.APIError{
+			Status:  http.StatusForbidden,
+			Code:    "forbidden",
+			Message: "CPO tenant context is required.",
+		}
+	}
+	if principal.Role == nil {
+		return &auth.APIError{
+			Status:  http.StatusForbidden,
+			Code:    "forbidden",
+			Message: "CPO role is required.",
+		}
+	}
+	switch *principal.Role {
+	case constants.CPORoleOwner, constants.CPORoleAdmin, constants.CPORoleOperator:
+		return nil
+	default:
+		return &auth.APIError{
+			Status:  http.StatusForbidden,
+			Code:    "forbidden",
+			Message: "CPO owner, admin, or operator access is required.",
+		}
+	}
+}
+
+func generateUniqueChargerIDTx(tx *gorm.DB) (string, error) {
+	for i := 0; i < 32; i++ {
+		candidate, err := security.RandomHex(3)
+		if err != nil {
+			return "", err
+		}
+		candidate = strings.ToLower(candidate)
+		if !chargerIDPattern.MatchString(candidate) {
+			continue
+		}
+
+		var existing models.Charger
+		err = tx.Select("id").Where("charger_id = ?", candidate).Take(&existing).Error
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return candidate, nil
+		}
+		if err != nil {
+			return "", fmt.Errorf("check charger id uniqueness: %w", err)
+		}
+	}
+	return "", &auth.APIError{
+		Status:  http.StatusConflict,
+		Code:    "charger_conflict",
+		Message: "Unable to generate a unique charger ID.",
+	}
+}
+
+func generateUniqueOCPPIdentityTx(tx *gorm.DB) (string, error) {
+	for i := 0; i < 32; i++ {
+
+		chargerID := randomChargerID()
+		candidate := "ocpp_" + strings.ToLower(chargerID)
+
+		var existing models.Charger
+		err := tx.Select("id").
+			Where("ocpp_identity = ?", candidate).
+			Take(&existing).Error
+
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return candidate, nil
+		}
+		if err != nil {
+			return "", fmt.Errorf("check ocpp identity uniqueness: %w", err)
+		}
+	}
+
+	return "", &auth.APIError{
+		Status:  http.StatusConflict,
+		Code:    "charger_conflict",
+		Message: "Unable to generate a unique OCPP identity.",
+	}
+}
+
+func mapChargerNotFound(err error) error {
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return &auth.APIError{
+			Status:  http.StatusNotFound,
+			Code:    "charger_not_found",
+			Message: "The charger was not found.",
+		}
+	}
+	return fmt.Errorf("load charger: %w", err)
+}
+
+func mapHubNotFound(err error) error {
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return &auth.APIError{
+			Status:  http.StatusNotFound,
+			Code:    "hub_not_found",
+			Message: "The hub was not found.",
+		}
+	}
+	return fmt.Errorf("load hub: %w", err)
+}
+
+func mapChargerWriteError(err error, operation string) error {
+	var postgresError *pgconn.PgError
+	if errors.As(err, &postgresError) {
+		switch postgresError.Code {
+		case "23505":
+			return &auth.APIError{
+				Status:  http.StatusConflict,
+				Code:    "charger_conflict",
+				Message: "The charger ID, OCPP identity, or related unique value already exists.",
+			}
+		case "23503":
+			return &auth.APIError{
+				Status:  http.StatusConflict,
+				Code:    "charger_conflict",
+				Message: "The charger references an invalid related record.",
+			}
+		}
+	}
+	return fmt.Errorf("%s: %w", operation, err)
+}
+
+func mapChargerDeleteError(err error) error {
+	var postgresError *pgconn.PgError
+	if errors.As(err, &postgresError) && postgresError.Code == "23503" {
+		return &auth.APIError{
+			Status:  http.StatusConflict,
+			Code:    "charger_conflict",
+			Message: "The charger cannot be deleted because it has dependent records.",
+		}
+	}
+	return fmt.Errorf("delete charger: %w", err)
+}
+
+func chargerView(record models.Charger) ChargerView {
+	return ChargerView{
+		ID:           record.ID,
+		CPOID:        record.CPOID,
+		HubID:        record.HubID,
+		ChargerID:    record.ChargerID,
+		OCPPIdentity: record.OCPPIdentity,
+		Vendor:       record.Vendor,
+		Model:        record.Model,
+		SerialNumber: record.SerialNumber,
+		MaxPowerKW:   record.MaxPowerKW,
+		Status:       record.Status,
+		OCPPVersion:  record.OCPPVersion,
+		LastSeenAt:   record.LastSeenAt,
+		CreatedAt:    record.CreatedAt,
+		UpdatedAt:    record.UpdatedAt,
+	}
+}
+
+func (service *Service) ListChargers(
+	ctx context.Context,
+	principal auth.Principal,
+) ([]ChargerView, error) {
+
+	if err := requireCPOChargerAccess(principal); err != nil {
+		return nil, err
+	}
+
+	var chargers []models.Charger
+
+	if err := service.database.WithContext(ctx).
+		Where("cpo_id = ?", *principal.CPOID).
+		Order("created_at DESC").
+		Find(&chargers).Error; err != nil {
+		return nil, mapChargerWriteError(err, "list chargers")
+	}
+
+	response := make([]ChargerView, 0, len(chargers))
+
+	for _, charger := range chargers {
+		response = append(response, chargerView(charger))
+	}
+
+	return response, nil
 }

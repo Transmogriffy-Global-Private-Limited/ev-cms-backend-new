@@ -177,6 +177,7 @@ func noStore(ctx *gin.Context) {
 	ctx.Header("Pragma", "no-cache")
 	ctx.Next()
 }
+
 func RegisterCPORoutes(
 	group *gin.RouterGroup,
 	authService *auth.Service,
@@ -195,6 +196,11 @@ func RegisterCPORoutes(
 	group.POST("/profile", handler.createProfile)
 	group.GET("/profile", handler.getProfile)
 	group.PATCH("/profile", handler.updateProfile)
+	group.POST("/chargers", handler.createCharger)
+	group.GET("/chargers", handler.listChargers)
+	group.GET("/chargers/:charger_id", handler.getCharger)
+	group.PATCH("/chargers/:charger_id", handler.updateCharger)
+	group.DELETE("/chargers", handler.deleteCharger)
 }
 
 func (handler *Handler) createProfile(ctx *gin.Context) {
@@ -262,4 +268,114 @@ func (handler *Handler) updateProfile(ctx *gin.Context) {
 	}
 
 	ctx.JSON(http.StatusOK, record)
+}
+func (handler *Handler) createCharger(ctx *gin.Context) {
+	principal, _ := auth.CurrentPrincipal(ctx)
+
+	var request CreateChargerRequest
+	if err := decodeJSON(ctx, &request); err != nil {
+		writeError(ctx, &auth.APIError{
+			Status:  http.StatusBadRequest,
+			Code:    "invalid_request",
+			Message: "The request body is invalid.",
+		})
+		return
+	}
+
+	record, err := handler.service.CreateCharger(
+		ctx.Request.Context(),
+		principal,
+		request,
+	)
+	if err != nil {
+		writeError(ctx, err)
+		return
+	}
+
+	ctx.JSON(http.StatusCreated, record)
+}
+
+func (handler *Handler) listChargers(ctx *gin.Context) {
+	principal, _ := auth.CurrentPrincipal(ctx)
+
+	records, err := handler.service.ListChargers(
+		ctx.Request.Context(),
+		principal,
+	)
+	if err != nil {
+		writeError(ctx, err)
+		return
+	}
+
+	ctx.JSON(http.StatusOK, gin.H{
+		"chargers": records,
+	})
+}
+
+func (handler *Handler) getCharger(ctx *gin.Context) {
+	principal, _ := auth.CurrentPrincipal(ctx)
+
+	record, err := handler.service.GetCharger(
+		ctx.Request.Context(),
+		principal,
+		ctx.Param("charger_id"),
+	)
+	if err != nil {
+		writeError(ctx, err)
+		return
+	}
+
+	ctx.JSON(http.StatusOK, record)
+}
+
+func (handler *Handler) updateCharger(ctx *gin.Context) {
+	principal, _ := auth.CurrentPrincipal(ctx)
+
+	var request UpdateChargerRequest
+	if err := decodeJSON(ctx, &request); err != nil {
+		writeError(ctx, &auth.APIError{
+			Status:  http.StatusBadRequest,
+			Code:    "invalid_request",
+			Message: "The request body is invalid.",
+		})
+		return
+	}
+
+	record, err := handler.service.UpdateCharger(
+		ctx.Request.Context(),
+		principal,
+		ctx.Param("charger_id"),
+		request,
+	)
+	if err != nil {
+		writeError(ctx, err)
+		return
+	}
+
+	ctx.JSON(http.StatusOK, record)
+}
+
+func (handler *Handler) deleteCharger(ctx *gin.Context) {
+	principal, _ := auth.CurrentPrincipal(ctx)
+
+	var request DeleteChargerRequest
+	if err := decodeJSON(ctx, &request); err != nil {
+		writeError(ctx, &auth.APIError{
+			Status:  http.StatusBadRequest,
+			Code:    "invalid_request",
+			Message: "The request body is invalid.",
+		})
+		return
+	}
+
+	if err := handler.service.DeleteCharger(
+		ctx.Request.Context(),
+		principal,
+		request,
+	); err != nil {
+		writeError(ctx, err)
+		return
+	}
+
+	ctx.Status(http.StatusNoContent)
 }

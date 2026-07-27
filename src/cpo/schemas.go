@@ -76,3 +76,40 @@ type CreateProfileRequest struct {
 	State        string                   `json:"state"`
 	Pincode      string                   `json:"pincode"`
 }
+
+type CreateChargerRequest struct {
+	HubID        uuid.UUID `json:"hub_id"`
+	Vendor       string    `json:"vendor"`
+	Model        string    `json:"model"`
+	SerialNumber string    `json:"serial_number"`
+	MaxPowerKW   float64   `json:"max_power_kw"`
+}
+
+type UpdateChargerRequest struct {
+	HubID        *uuid.UUID `json:"hub_id,omitempty"`
+	Vendor       *string    `json:"vendor,omitempty"`
+	Model        *string    `json:"model,omitempty"`
+	SerialNumber *string    `json:"serial_number,omitempty"`
+	MaxPowerKW   *float64   `json:"max_power_kw,omitempty"`
+}
+
+type DeleteChargerRequest struct {
+	ChargerID string `json:"charger_id"`
+}
+
+type ChargerView struct {
+	ID           uuid.UUID               `json:"id"`
+	CPOID        uuid.UUID               `json:"cpo_id"`
+	HubID        uuid.UUID               `json:"hub_id"`
+	ChargerID    string                  `json:"charger_id"`
+	OCPPIdentity string                  `json:"ocpp_identity"`
+	Vendor       string                  `json:"vendor"`
+	Model        string                  `json:"model"`
+	SerialNumber string                  `json:"serial_number"`
+	MaxPowerKW   float64                 `json:"max_power_kw"`
+	Status       constants.ChargerStatus `json:"status"`
+	OCPPVersion  string                  `json:"ocpp_version"`
+	LastSeenAt   *time.Time              `json:"last_seen_at,omitempty"`
+	CreatedAt    time.Time               `json:"created_at"`
+	UpdatedAt    time.Time               `json:"updated_at"`
+}
