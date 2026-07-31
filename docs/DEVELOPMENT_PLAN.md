@@ -541,7 +541,7 @@ Architecture decision:
 
 ### Feature: CPO administrator and initial network configuration
 
-Status: Implemented
+Status: Verified
 
 Phase: Phases 2, 3, and the GST/tariff foundation of Phase 4
 
@@ -621,11 +621,14 @@ Last completed slice:
 
 Last deployment milestone:
 
-- Revision `91cc5ba` was built, migrated through version ten, and rehosted on
-  the development VPS. The live 49-operation route/OpenAPI surface, new
-  protected CPO dependency routes, required workers, running-binary identity,
-  loopback/public readiness, and warning-free startup journal were verified.
-  Migration nine's retired commercial archive remains intact.
+- A candidate based on revision `407ec07` plus local PostgreSQL compatibility
+  corrections was built and rehosted on the development VPS. Migration ten was
+  already current, so no schema change was required. The disposable
+  PostgreSQL lifecycle, live 69-operation route/OpenAPI surface, protected CPO
+  routes, required workers, running-binary identity, and loopback/public
+  readiness were verified. Migration nine's retired commercial archive remains
+  intact. The compatibility corrections and deployment record are included in
+  this verified slice.
 
 Next expected slice:
 

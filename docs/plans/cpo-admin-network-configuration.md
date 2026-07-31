@@ -1,6 +1,6 @@
 # CPO Administrator and Initial Network Configuration Plan
 
-Status: Implemented
+Status: Verified
 
 ## Objective
 
@@ -106,10 +106,14 @@ Completed evidence:
 - Focused protected-route, tenant-safe organization projection,
   absent-mutable-organization-profile, and runtime/OpenAPI parity tests passed.
 - `go test ./...`, `go vet ./...`, and `git diff --check` passed.
-- PostgreSQL tests compile and are registered but did not execute locally
-  because no disposable `TEST_DATABASE_URL` is configured. Do not promote this
-  feature to `Verified` until that test runs against an explicitly disposable
-  PostgreSQL database.
+- The complete PostgreSQL lifecycle passed against an explicitly created and
+  removed disposable database. It covers organization/profile reads and
+  updates, hub/charger/connector/GST/tariff writes, generated identifiers,
+  ADMIN-only enforcement, audit evidence, and dependency-safe charger delete.
+- PostgreSQL verification exposed and fixed explicit `open_24_hours` and
+  `price_per_kwh` GORM mappings plus SQLSTATE `23001` handling for the
+  documented `charger_in_use` conflict. Focused regression tests cover these
+  database compatibility boundaries.
 
 ## Remaining Decisions
 

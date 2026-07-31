@@ -167,7 +167,7 @@ type Hub struct {
 	Address     string    `gorm:"type:text;not null" json:"address"`
 	Latitude    float64   `gorm:"type:numeric(10,8);not null" json:"latitude"`
 	Longitude   float64   `gorm:"type:numeric(11,8);not null" json:"longitude"`
-	Open24Hours bool      `gorm:"not null;default:true" json:"open_24_hours"`
+	Open24Hours bool      `gorm:"column:open_24_hours;not null;default:true" json:"open_24_hours"`
 	Chargers    []Charger `gorm:"foreignKey:HubID" json:"chargers,omitempty"`
 	Tariffs     []Tariff  `gorm:"foreignKey:HubID" json:"tariffs,omitempty"`
 	CreatedAt   time.Time `gorm:"not null" json:"created_at"`
@@ -264,7 +264,7 @@ type Tariff struct {
 	GST           *GST            `gorm:"foreignKey:GSTID;constraint:OnUpdate:CASCADE,OnDelete:RESTRICT" json:"gst,omitempty"`
 	UserGroupID   *uuid.UUID      `gorm:"type:uuid;index" json:"user_group_id,omitempty"`
 	UserGroup     *UserGroup      `gorm:"foreignKey:UserGroupID;constraint:OnUpdate:CASCADE,OnDelete:RESTRICT" json:"user_group,omitempty"`
-	PricePerKWh   decimal.Decimal `gorm:"type:numeric(12,4);not null" json:"price_per_kwh"`
+	PricePerKWh   decimal.Decimal `gorm:"column:price_per_kwh;type:numeric(12,4);not null" json:"price_per_kwh"`
 	IdleFeePerMin decimal.Decimal `gorm:"type:numeric(12,4);not null;default:0" json:"idle_fee_per_min"`
 	Currency      string          `gorm:"type:char(3);not null;default:'INR'" json:"currency"`
 	IsActive      bool            `gorm:"not null;default:true" json:"is_active"`

@@ -20,10 +20,13 @@ The SMTP outbox worker is part of the application process. It must not be
 started as a second systemd service because that would create an unnecessary
 duplicate worker.
 
-The active deployment was updated on July 31, 2026 to source revision
-`91cc5ba`. It has migrations one through ten and the current 49-operation
-control-plane API. The eleven retired commercial prototype tables remain
-recoverable in the `retired_commercial` schema.
+The active deployment was updated on July 31, 2026 to a candidate based on
+source revision `407ec07` plus local PostgreSQL compatibility corrections. It
+has migrations one through ten and the current 69-operation API. No new
+migration was required for the ADMIN-only CPO organization/profile/network and
+pricing surface. The eleven retired commercial prototype tables remain
+recoverable in the `retired_commercial` schema. The compatibility corrections
+and deployment record are included in the published source state.
 
 ## Files and Ownership
 

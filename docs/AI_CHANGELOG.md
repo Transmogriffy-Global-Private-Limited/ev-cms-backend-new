@@ -2,6 +2,38 @@
 
 ## 2026-07-31
 
+### CPO administrator network release verified and deployed
+
+- Reviewed revision `407ec07` and confirmed that its 20 new ADMIN-only CPO
+  operations require no database migration beyond the existing migration ten.
+- Ran the complete CPO organization/profile/network/pricing lifecycle against
+  an explicitly disposable PostgreSQL database. That verification exposed and
+  corrected the `open_24_hours` and `price_per_kwh` GORM column mappings and
+  PostgreSQL `23001` dependency-violation handling for `charger_in_use`.
+- Added focused regression coverage for the migration-aligned column mappings
+  and both PostgreSQL dependency-violation codes.
+- Created the validated mode-0600 rollback dump
+  `/tmp/devevcmsnewdb-pre-407ec07.dump`, preserved the previous binary as
+  `builds/evcmsnew.pre-407ec07`, confirmed migration ten remained current, and
+  rehosted `evcmsnew-dev.service` through the shared handler.
+
+Verification:
+
+- The disposable PostgreSQL lifecycle, focused model/error tests, route/OpenAPI
+  parity, documentation verification, `go test ./...`, `go vet ./...`, and
+  `git diff --check` passed.
+- The installed binary hash matches the separately built candidate based on
+  revision `407ec07` plus the local compatibility corrections. Those
+  corrections and this deployment record are published together in this
+  changeset.
+- Systemd is enabled and active with zero restarts. Loopback and public
+  liveness/readiness, Swagger UI, raw OpenAPI, the live 69-operation contract,
+  new-route authentication rejection, retired-route absence, and both required
+  logical workers passed.
+- All ten migrations remain recorded, with 31 public runtime tables and all 11
+  retired commercial tables preserved. The development service emits Gin's
+  expected debug-mode warning at startup and no application error or panic.
+
 ### CPO organization registration details exposed read-only
 
 - Added `GET /api/v1/cpo/organization` for the current CPO ADMIN to read the
@@ -24,9 +56,8 @@ Verification:
 - Documentation verification and bidirectional runtime/OpenAPI parity passed
   at 69 operations; `go test ./...`, `go vet ./...`, and `git diff --check`
   passed.
-- The PostgreSQL lifecycle verifier includes the new organization read but did
-  not execute because no explicitly disposable `TEST_DATABASE_URL` is
-  configured.
+- The PostgreSQL lifecycle verifier, including the organization read, passed
+  against an explicitly created and removed disposable database.
 
 ### Contributed CPO work reconciled into an ADMIN-only tenant surface
 
@@ -58,10 +89,10 @@ Verification:
   absent-organization-profile, and runtime/OpenAPI tests passed.
 - Documentation verification passed at 68 operations; `go test ./...`,
   `go vet ./...`, residue scanning, and `git diff --check` passed.
-- The PostgreSQL end-to-end verifier compiles and is registered but was not
-  executed because no explicitly disposable `TEST_DATABASE_URL` is configured.
-  The source feature is therefore `Implemented`, not `Verified`.
-- The deployed VPS remains revision `91cc5ba` with 49 operations.
+- The PostgreSQL end-to-end verifier passed against an explicitly disposable
+  database. The source feature is therefore `Verified`.
+- The development VPS now serves the 69-operation candidate based on revision
+  `407ec07` plus the local PostgreSQL compatibility corrections.
 
 ### CPO dependency release deployed to the development VPS
 

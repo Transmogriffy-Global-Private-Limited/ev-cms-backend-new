@@ -80,3 +80,42 @@ func TestGORMModelsParse(t *testing.T) {
 		}
 	}
 }
+
+func TestGORMColumnMappingsMatchMigration(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		model    any
+		field    string
+		database string
+	}{
+		{model: &Hub{}, field: "Open24Hours", database: "open_24_hours"},
+		{model: &Charger{}, field: "OCPPIdentity", database: "ocpp_identity"},
+		{model: &Charger{}, field: "MaxPowerKW", database: "max_power_kw"},
+		{model: &Charger{}, field: "OCPPVersion", database: "ocpp_version"},
+		{model: &GST{}, field: "SGSTRate", database: "sgst_rate"},
+		{model: &GST{}, field: "CGSTRate", database: "cgst_rate"},
+		{model: &GST{}, field: "IGSTRate", database: "igst_rate"},
+		{model: &Tariff{}, field: "PricePerKWh", database: "price_per_kwh"},
+	}
+
+	for _, test := range tests {
+		parsed, err := schema.Parse(test.model, &sync.Map{}, schema.NamingStrategy{})
+		if err != nil {
+			t.Fatalf("parse GORM model %T: %v", test.model, err)
+		}
+		field := parsed.LookUpField(test.field)
+		if field == nil {
+			t.Fatalf("model %T has no field %s", test.model, test.field)
+		}
+		if field.DBName != test.database {
+			t.Errorf(
+				"model %T field %s maps to %q, want %q",
+				test.model,
+				test.field,
+				field.DBName,
+				test.database,
+			)
+		}
+	}
+}

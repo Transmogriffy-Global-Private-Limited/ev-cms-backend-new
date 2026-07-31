@@ -11,6 +11,7 @@ import (
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/constants"
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/models"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/shopspring/decimal"
 )
 
@@ -289,5 +290,19 @@ func TestChargerListRejectsInvalidCursorBeforeDatabaseAccess(t *testing.T) {
 	var apiErr *auth.APIError
 	if !errors.As(err, &apiErr) || apiErr.Code != "invalid_cursor" {
 		t.Fatalf("got error %v, want invalid_cursor", err)
+	}
+}
+
+func TestMapChargerDeleteErrorRecognizesPostgresDependencyViolations(t *testing.T) {
+	t.Parallel()
+
+	for _, code := range []string{"23001", "23503"} {
+		t.Run(code, func(t *testing.T) {
+			err := mapChargerDeleteError(&pgconn.PgError{Code: code})
+			var apiErr *auth.APIError
+			if !errors.As(err, &apiErr) || apiErr.Status != 409 || apiErr.Code != "charger_in_use" {
+				t.Fatalf("got error %v, want 409 charger_in_use", err)
+			}
+		})
 	}
 }

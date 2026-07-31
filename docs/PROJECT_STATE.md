@@ -94,11 +94,15 @@ provides:
   handler;
 - the additive PostgreSQL database `devevcmsnewdb`, owned by `postgres`.
 
-The active development VPS still runs source revision `91cc5ba`, with migration
-ten recorded and the deployed 49-operation contract. The unreleased
-authoritative source adds 20 ADMIN-only organization/profile/network/pricing operations and
-does not require a database migration. Migration nine continues to preserve the
-retired commercial prototype under `retired_commercial`.
+The active development VPS runs a candidate based on source revision `407ec07`
+plus local PostgreSQL compatibility corrections, with migration ten recorded
+and the deployed 69-operation contract. The 20 ADMIN-only
+organization/profile/network/pricing operations required no new migration.
+The corrections align GORM with the existing `open_24_hours` and
+`price_per_kwh` columns and map PostgreSQL dependency violations to the
+documented `charger_in_use` conflict. The deployed corrections are recorded in
+the repository state. Migration nine continues to preserve the retired
+commercial prototype under `retired_commercial`.
 
 No CMS/HAL transport or handshake, live charger state ingestion, charging
 workflow, tenant payment workflow, tenant commercial-management workflow,
@@ -112,9 +116,10 @@ yet.
 - `go vet ./...` passed.
 - `git diff --check` passed.
 - The read-only CPO organization projection, privileged-field omission,
-  protected route, 69-operation OpenAPI parity, and documentation contract
-  checks passed. Its PostgreSQL lifecycle assertion is registered but skipped
-  locally because no disposable `TEST_DATABASE_URL` is configured.
+  protected route, 69-operation OpenAPI parity, documentation contract, and
+  complete CPO organization/profile/network/pricing lifecycle passed. The
+  lifecycle used an explicitly created and removed disposable PostgreSQL
+  database.
 - The embedded up migration created all 21 domain tables in a disposable local
   PostgreSQL 17 database.
 - Reapplying up was idempotent and retained one migration version.

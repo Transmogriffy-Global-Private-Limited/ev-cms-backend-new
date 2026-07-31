@@ -2281,7 +2281,7 @@ func mapConnectorWriteError(err error, operation string) error {
 
 func mapChargerDeleteError(err error) error {
 	var postgresError *pgconn.PgError
-	if errors.As(err, &postgresError) && postgresError.Code == "23503" {
+	if errors.As(err, &postgresError) && (postgresError.Code == "23001" || postgresError.Code == "23503") {
 		return &auth.APIError{
 			Status:  http.StatusConflict,
 			Code:    "charger_in_use",
