@@ -388,3 +388,487 @@ func noStore(ctx *gin.Context) {
 	ctx.Header("Pragma", "no-cache")
 	ctx.Next()
 }
+
+func RegisterCPORoutes(
+	group *gin.RouterGroup,
+	authService *auth.Service,
+	service *Service,
+) {
+	handler := &Handler{
+		service: service,
+	}
+
+	group.Use(
+		noStore,
+		authService.Authenticate(),
+		auth.RequireCPOAppID(),
+		auth.RequireCPORoles(constants.CPORoleAdmin),
+	)
+
+	group.GET("/admin/profile", handler.getAdminProfile)
+	group.PATCH("/admin/profile", handler.updateAdminProfile)
+	group.POST("/chargers", handler.createCharger)
+	group.GET("/chargers", handler.listChargers)
+	group.GET("/chargers/:charger_id", handler.getCharger)
+	group.PATCH("/chargers/:charger_id", handler.updateCharger)
+	group.DELETE("/chargers/:charger_id", handler.deleteCharger)
+	group.POST("/hubs", handler.createHub)
+	group.GET("/hubs", handler.listHubs)
+	group.GET("/hubs/:hub_id", handler.getHub)
+	group.PATCH("/hubs/:hub_id", handler.updateHub)
+	group.POST("/tariffs", handler.createTariff)
+	group.GET("/tariffs", handler.listTariffs)
+	group.GET("/tariffs/:tariff_id", handler.getTariff)
+	group.PATCH("/tariffs/:tariff_id", handler.updateTariff)
+	group.POST("/gsts", handler.createGST)
+	group.GET("/gsts", handler.listGSTs)
+	group.GET("/gsts/:gst_id", handler.getGST)
+	group.PATCH("/gsts/:gst_id", handler.updateGST)
+}
+
+func (handler *Handler) getAdminProfile(ctx *gin.Context) {
+	principal, _ := auth.CurrentPrincipal(ctx)
+	record, err := handler.service.GetAdminProfile(ctx.Request.Context(), principal)
+	if err != nil {
+		writeError(ctx, err)
+		return
+	}
+	ctx.JSON(http.StatusOK, record)
+}
+
+func (handler *Handler) updateAdminProfile(ctx *gin.Context) {
+	principal, _ := auth.CurrentPrincipal(ctx)
+	var request UpdateAdminProfileRequest
+	if err := decodeJSON(ctx, &request); err != nil {
+		writeError(ctx, &auth.APIError{
+			Status:  http.StatusBadRequest,
+			Code:    "invalid_request",
+			Message: "The request body is invalid.",
+		})
+		return
+	}
+	record, err := handler.service.UpdateAdminProfile(
+		ctx.Request.Context(),
+		principal,
+		request,
+	)
+	if err != nil {
+		writeError(ctx, err)
+		return
+	}
+	ctx.JSON(http.StatusOK, record)
+}
+
+func (handler *Handler) createCharger(ctx *gin.Context) {
+	principal, _ := auth.CurrentPrincipal(ctx)
+
+	var request CreateChargerRequest
+	if err := decodeJSON(ctx, &request); err != nil {
+		writeError(ctx, &auth.APIError{
+			Status:  http.StatusBadRequest,
+			Code:    "invalid_request",
+			Message: "The request body is invalid.",
+		})
+		return
+	}
+
+	record, err := handler.service.CreateCharger(
+		ctx.Request.Context(),
+		principal,
+		request,
+	)
+	if err != nil {
+		writeError(ctx, err)
+		return
+	}
+
+	ctx.JSON(http.StatusCreated, record)
+}
+
+func (handler *Handler) listChargers(ctx *gin.Context) {
+	principal, _ := auth.CurrentPrincipal(ctx)
+	query, ok := parseTenantListQuery(ctx)
+	if !ok {
+		return
+	}
+
+	records, err := handler.service.ListChargers(
+		ctx.Request.Context(),
+		principal,
+		query,
+	)
+	if err != nil {
+		writeError(ctx, err)
+		return
+	}
+
+	ctx.JSON(http.StatusOK, records)
+}
+
+func parseTenantListQuery(ctx *gin.Context) (TenantListQuery, bool) {
+	query := TenantListQuery{}
+	if limitText := strings.TrimSpace(ctx.Query("limit")); limitText != "" {
+		limit, err := strconv.Atoi(limitText)
+		if err != nil {
+			writeError(ctx, invalid("limit", "Limit must be an integer."))
+			return TenantListQuery{}, false
+		}
+		query.Limit = limit
+	}
+	beforeText := strings.TrimSpace(ctx.Query("before"))
+	beforeIDText := strings.TrimSpace(ctx.Query("before_id"))
+	if beforeText != "" {
+		before, err := time.Parse(time.RFC3339, beforeText)
+		if err != nil {
+			writeError(ctx, invalid("before", "Before must be an RFC3339 timestamp."))
+			return TenantListQuery{}, false
+		}
+		query.Before = &before
+	}
+	if beforeIDText != "" {
+		beforeID, err := uuid.Parse(beforeIDText)
+		if err != nil || beforeID == uuid.Nil {
+			writeError(ctx, invalid("before_id", "Before ID must be a non-zero UUID."))
+			return TenantListQuery{}, false
+		}
+		query.BeforeID = &beforeID
+	}
+	return query, true
+}
+
+func (handler *Handler) getCharger(ctx *gin.Context) {
+	principal, _ := auth.CurrentPrincipal(ctx)
+
+	record, err := handler.service.GetCharger(
+		ctx.Request.Context(),
+		principal,
+		ctx.Param("charger_id"),
+	)
+	if err != nil {
+		writeError(ctx, err)
+		return
+	}
+
+	ctx.JSON(http.StatusOK, record)
+}
+
+func (handler *Handler) updateCharger(ctx *gin.Context) {
+	principal, _ := auth.CurrentPrincipal(ctx)
+
+	var request UpdateChargerRequest
+	if err := decodeJSON(ctx, &request); err != nil {
+		writeError(ctx, &auth.APIError{
+			Status:  http.StatusBadRequest,
+			Code:    "invalid_request",
+			Message: "The request body is invalid.",
+		})
+		return
+	}
+
+	record, err := handler.service.UpdateCharger(
+		ctx.Request.Context(),
+		principal,
+		ctx.Param("charger_id"),
+		request,
+	)
+	if err != nil {
+		writeError(ctx, err)
+		return
+	}
+
+	ctx.JSON(http.StatusOK, record)
+}
+
+func (handler *Handler) deleteCharger(ctx *gin.Context) {
+	principal, _ := auth.CurrentPrincipal(ctx)
+
+	if err := handler.service.DeleteCharger(
+		ctx.Request.Context(),
+		principal,
+		ctx.Param("charger_id"),
+	); err != nil {
+		writeError(ctx, err)
+		return
+	}
+
+	ctx.Status(http.StatusNoContent)
+}
+
+func (handler *Handler) createHub(ctx *gin.Context) {
+	principal, _ := auth.CurrentPrincipal(ctx)
+
+	var request CreateHubRequest
+	if err := decodeJSON(ctx, &request); err != nil {
+		writeError(ctx, &auth.APIError{
+			Status:  http.StatusBadRequest,
+			Code:    "invalid_request",
+			Message: "The request body is invalid.",
+		})
+		return
+	}
+
+	record, err := handler.service.CreateHub(ctx.Request.Context(), principal, request)
+	if err != nil {
+		writeError(ctx, err)
+		return
+	}
+
+	ctx.JSON(http.StatusCreated, record)
+}
+
+func (handler *Handler) listHubs(ctx *gin.Context) {
+	principal, _ := auth.CurrentPrincipal(ctx)
+	query, ok := parseTenantListQuery(ctx)
+	if !ok {
+		return
+	}
+	records, err := handler.service.ListHubs(ctx.Request.Context(), principal, query)
+	if err != nil {
+		writeError(ctx, err)
+		return
+	}
+	ctx.JSON(http.StatusOK, records)
+}
+
+func (handler *Handler) getHub(ctx *gin.Context) {
+	principal, _ := auth.CurrentPrincipal(ctx)
+
+	hubID, ok := parseHubID(ctx)
+	if !ok {
+		return
+	}
+
+	record, err := handler.service.GetHub(ctx.Request.Context(), principal, hubID)
+	if err != nil {
+		writeError(ctx, err)
+		return
+	}
+
+	ctx.JSON(http.StatusOK, record)
+}
+
+func (handler *Handler) updateHub(ctx *gin.Context) {
+	principal, _ := auth.CurrentPrincipal(ctx)
+
+	hubID, ok := parseHubID(ctx)
+	if !ok {
+		return
+	}
+
+	var request UpdateHubRequest
+	if err := decodeJSON(ctx, &request); err != nil {
+		writeError(ctx, &auth.APIError{
+			Status:  http.StatusBadRequest,
+			Code:    "invalid_request",
+			Message: "The request body is invalid.",
+		})
+		return
+	}
+
+	record, err := handler.service.UpdateHub(ctx.Request.Context(), principal, hubID, request)
+	if err != nil {
+		writeError(ctx, err)
+		return
+	}
+
+	ctx.JSON(http.StatusOK, record)
+}
+
+func parseHubID(ctx *gin.Context) (uuid.UUID, bool) {
+	hubID, err := uuid.Parse(ctx.Param("hub_id"))
+	if err != nil || hubID == uuid.Nil {
+		writeError(ctx, &auth.APIError{
+			Status:  http.StatusBadRequest,
+			Code:    "invalid_hub_id",
+			Message: "The hub ID is invalid.",
+		})
+		return uuid.Nil, false
+	}
+	return hubID, true
+}
+
+func (handler *Handler) createTariff(ctx *gin.Context) {
+	principal, _ := auth.CurrentPrincipal(ctx)
+
+	var request CreateTariffRequest
+	if err := decodeJSON(ctx, &request); err != nil {
+		writeError(ctx, &auth.APIError{
+			Status:  http.StatusBadRequest,
+			Code:    "invalid_request",
+			Message: "The request body is invalid.",
+		})
+		return
+	}
+
+	record, err := handler.service.CreateTariff(ctx.Request.Context(), principal, request)
+	if err != nil {
+		writeError(ctx, err)
+		return
+	}
+
+	ctx.JSON(http.StatusCreated, record)
+}
+
+func (handler *Handler) listTariffs(ctx *gin.Context) {
+	principal, _ := auth.CurrentPrincipal(ctx)
+	query, ok := parseTenantListQuery(ctx)
+	if !ok {
+		return
+	}
+	records, err := handler.service.ListTariffs(ctx.Request.Context(), principal, query)
+	if err != nil {
+		writeError(ctx, err)
+		return
+	}
+	ctx.JSON(http.StatusOK, records)
+}
+
+func (handler *Handler) getTariff(ctx *gin.Context) {
+	principal, _ := auth.CurrentPrincipal(ctx)
+
+	tariffID, ok := parseTariffID(ctx)
+	if !ok {
+		return
+	}
+
+	record, err := handler.service.GetTariff(ctx.Request.Context(), principal, tariffID)
+	if err != nil {
+		writeError(ctx, err)
+		return
+	}
+
+	ctx.JSON(http.StatusOK, record)
+}
+
+func (handler *Handler) updateTariff(ctx *gin.Context) {
+	principal, _ := auth.CurrentPrincipal(ctx)
+
+	tariffID, ok := parseTariffID(ctx)
+	if !ok {
+		return
+	}
+
+	var request UpdateTariffRequest
+	if err := decodeJSON(ctx, &request); err != nil {
+		writeError(ctx, &auth.APIError{
+			Status:  http.StatusBadRequest,
+			Code:    "invalid_request",
+			Message: "The request body is invalid.",
+		})
+		return
+	}
+
+	record, err := handler.service.UpdateTariff(ctx.Request.Context(), principal, tariffID, request)
+	if err != nil {
+		writeError(ctx, err)
+		return
+	}
+
+	ctx.JSON(http.StatusOK, record)
+}
+
+func parseTariffID(ctx *gin.Context) (uuid.UUID, bool) {
+	tariffID, err := uuid.Parse(ctx.Param("tariff_id"))
+	if err != nil || tariffID == uuid.Nil {
+		writeError(ctx, &auth.APIError{
+			Status:  http.StatusBadRequest,
+			Code:    "invalid_tariff_id",
+			Message: "The tariff ID is invalid.",
+		})
+		return uuid.Nil, false
+	}
+	return tariffID, true
+}
+
+func (handler *Handler) createGST(ctx *gin.Context) {
+	principal, _ := auth.CurrentPrincipal(ctx)
+
+	var request CreateGSTRequest
+	if err := decodeJSON(ctx, &request); err != nil {
+		writeError(ctx, &auth.APIError{
+			Status:  http.StatusBadRequest,
+			Code:    "invalid_request",
+			Message: "The request body is invalid.",
+		})
+		return
+	}
+
+	record, err := handler.service.CreateGST(ctx.Request.Context(), principal, request)
+	if err != nil {
+		writeError(ctx, err)
+		return
+	}
+
+	ctx.JSON(http.StatusCreated, record)
+}
+
+func (handler *Handler) listGSTs(ctx *gin.Context) {
+	principal, _ := auth.CurrentPrincipal(ctx)
+	query, ok := parseTenantListQuery(ctx)
+	if !ok {
+		return
+	}
+	records, err := handler.service.ListGSTs(ctx.Request.Context(), principal, query)
+	if err != nil {
+		writeError(ctx, err)
+		return
+	}
+	ctx.JSON(http.StatusOK, records)
+}
+
+func (handler *Handler) getGST(ctx *gin.Context) {
+	principal, _ := auth.CurrentPrincipal(ctx)
+
+	gstID, ok := parseGSTID(ctx)
+	if !ok {
+		return
+	}
+
+	record, err := handler.service.GetGST(ctx.Request.Context(), principal, gstID)
+	if err != nil {
+		writeError(ctx, err)
+		return
+	}
+
+	ctx.JSON(http.StatusOK, record)
+}
+
+func (handler *Handler) updateGST(ctx *gin.Context) {
+	principal, _ := auth.CurrentPrincipal(ctx)
+
+	gstID, ok := parseGSTID(ctx)
+	if !ok {
+		return
+	}
+
+	var request UpdateGSTRequest
+	if err := decodeJSON(ctx, &request); err != nil {
+		writeError(ctx, &auth.APIError{
+			Status:  http.StatusBadRequest,
+			Code:    "invalid_request",
+			Message: "The request body is invalid.",
+		})
+		return
+	}
+
+	record, err := handler.service.UpdateGST(ctx.Request.Context(), principal, gstID, request)
+	if err != nil {
+		writeError(ctx, err)
+		return
+	}
+
+	ctx.JSON(http.StatusOK, record)
+}
+
+func parseGSTID(ctx *gin.Context) (uuid.UUID, bool) {
+	gstID, err := uuid.Parse(ctx.Param("gst_id"))
+	if err != nil || gstID == uuid.Nil {
+		writeError(ctx, &auth.APIError{
+			Status:  http.StatusBadRequest,
+			Code:    "invalid_gst_id",
+			Message: "The GST ID is invalid.",
+		})
+		return uuid.Nil, false
+	}
+	return gstID, true
+}

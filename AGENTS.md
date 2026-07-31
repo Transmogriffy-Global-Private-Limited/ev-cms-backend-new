@@ -22,6 +22,8 @@ Before planning or changing code, read:
 - relevant active plans under `docs/plans/`
 - `docs/plans/superadmin-control-plane.md` while the complete platform control
   plane is active
+- `docs/plans/cpo-admin-network-configuration.md` while the reconciled initial
+  CPO operations slice is active
 
 Keep those documents synchronized with meaningful implementation and
 verification changes.
@@ -40,6 +42,9 @@ verification changes.
 - CPO access is controlled manually by platform superadmins through CPO
   activation and suspension. Do not add tenant subscriptions, platform
   invoices, or platform payment management without a new explicit decision.
+- Current tenant administrative authority is `ADMIN` only. `OWNER`, `OPERATOR`,
+  and `VIEWER` are dormant schema values until a complete staff-management
+  decision activates them.
 - `docs/contracts/openapi/openapi.yaml` is the canonical machine-readable HTTP
   contract. It is embedded and served at `/openapi.yaml`; Swagger UI is served
   at `/docs/`.

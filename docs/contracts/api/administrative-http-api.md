@@ -1218,8 +1218,8 @@ primary membership:
 - the previous primary membership becomes `REVOKED` and non-primary;
 - the previous primary's CPO sessions and refresh tokens for this CPO are
   revoked;
-- the target membership is created, restored, or promoted to `ADMIN` while an
-  existing `OWNER` remains `OWNER`;
+- the target membership is created, restored, or normalized to the currently
+  supported `ADMIN` role;
 - audit `CPO_PRIMARY_ADMIN_CHANGED`, event
   `platform.cpo.primary_admin_changed`, and applicable mail commit atomically.
 
@@ -1279,12 +1279,462 @@ zero-count command records its reason/counts in audit action
 Errors: `400 invalid_reason` or `invalid_cpo_id`; shared authentication errors;
 `404 cpo_not_found`; or `500 internal_error`.
 
-## 9. CPO Integration Credentials
+## 9. CPO Charging Network and Pricing
+
+These routes are tenant business operations, not platform-superadmin routes.
+Every request requires:
+
+- an active CPO bearer session;
+- `must_change_password=false`;
+- the current `X-CPO-App-ID`;
+- an active fixed CPO membership role.
+
+The trusted CPO ID comes only from the verified session. No request body, path,
+or header can select another CPO. A platform session cannot invoke these routes.
+
+There is deliberately no `/api/v1/cpo/profile` organization route. CPO
+business/company details remain part of the platform-managed CPO record and are
+changed by a Superadmin through
+`PUT /api/v1/platform/cpos/{cpo_id}/profile`.
+
+Only the first/primary CPO `ADMIN` authority is callable in the current release.
+The database keeps `OWNER`, `OPERATOR`, and `VIEWER` enum capacity so a later
+staff-management slice can extend the policy without replacing tenant keys or
+business records, but those values cannot currently authenticate a CPO
+administrative session or invoke CPO operations. No API creates them.
+
+### 9.1 `GET /api/v1/cpo/admin/profile`
+
+Returns the global identity profile used by the authenticated CPO ADMIN:
+
+```json
+{
+  "user_id": "e5288707-7266-44d4-b5a2-a87d06f1f2b7",
+  "cpo_id": "c821a013-5041-42f7-80c8-aa153cf9d455",
+  "email": "admin@example.com",
+  "full_name": "CPO Administrator",
+  "phone": "+919876543210",
+  "role": "ADMIN",
+  "is_verified": true,
+  "created_at": "2026-07-31T11:00:00Z",
+  "updated_at": "2026-07-31T12:00:00Z"
+}
+```
+
+`phone` is absent when unset. `/api/v1/auth/me` remains the canonical
+authentication/bootstrap response and additionally carries session scope,
+CPO/app IDs, and password-change state. This profile route does not return the
+CPO organization profile.
+
+### 9.2 `PATCH /api/v1/cpo/admin/profile`
+
+Updates the global login identity used by the current ADMIN session:
+
+```json
+{
+  "full_name": "CPO Administrator",
+  "phone": "+919876543210"
+}
+```
+
+At least one field is required. Full name is trimmed, required when supplied,
+and at most 255 characters. Phone is trimmed and at most 32 characters; a blank
+phone clears it. Email, role, CPO membership, password, and verification state
+cannot be changed here. Password changes remain under
+`POST /api/v1/auth/password/change`.
+
+The user update and `CPO_ADMIN_PROFILE_UPDATED` audit evidence commit
+atomically. Audit details record field names only, not phone/name values.
+`200 OK` returns the updated profile.
+
+All create and update request bodies reject unknown properties, multiple JSON
+objects, malformed JSON, and bodies over 32 KiB. Mutations are transactional
+with their audit record. No route in this section contacts the OCPP HAL, creates
+an OCPP socket, reports live connectivity, or delivers a remote command.
+
+Shared middleware errors:
+
+- `400 missing_cpo_app_id`;
+- `401 unauthorized`;
+- `403 forbidden`;
+- `403 password_change_required`;
+- `403 cpo_app_id_mismatch`;
+- `500 internal_error`.
+
+### 9.3 `POST /api/v1/cpo/hubs`
+
+Creates a commercial charging location. The server sources `id`, `cpo_id`, and
+timestamps.
+
+```json
+{
+  "name": "Park Street Hub",
+  "address": "12 Park Street, Kolkata",
+  "latitude": 22.5524,
+  "longitude": 88.3521,
+  "open_24_hours": true
+}
+```
+
+Rules:
+
+- `name`: required after trimming, 1–255 characters;
+- `address`: required after trimming, 1–5000 characters;
+- `latitude`: required, -90 through 90;
+- `longitude`: required, -180 through 180;
+- `open_24_hours`: optional, defaults to `true`.
+
+`201 Created` returns:
+
+```json
+{
+  "id": "8b80ef78-7799-4a09-a0d5-73ac944aa6e0",
+  "cpo_id": "c821a013-5041-42f7-80c8-aa153cf9d455",
+  "name": "Park Street Hub",
+  "address": "12 Park Street, Kolkata",
+  "latitude": 22.5524,
+  "longitude": 88.3521,
+  "open_24_hours": true,
+  "created_at": "2026-07-31T12:00:00Z",
+  "updated_at": "2026-07-31T12:00:00Z"
+}
+```
+
+The transaction writes audit action `HUB_CREATED`. Additional errors are
+field-specific `400 invalid_*` responses and `409 hub_conflict`.
+
+### 9.4 `GET /api/v1/cpo/hubs`
+
+Returns hubs in descending `(created_at, id)` order. `limit` is 1–200 and
+defaults to 50. When `has_more=true`, send both returned `next_before` and
+`next_before_id` as `before` and `before_id` on the next request. The response:
+
+```json
+{
+  "hubs": [],
+  "next_before": "2026-07-31T12:00:00Z",
+  "next_before_id": "8b80ef78-7799-4a09-a0d5-73ac944aa6e0",
+  "has_more": true
+}
+```
+
+Cursor fields are omitted when no next page exists. Errors:
+`400 invalid_limit`, `400 invalid_before`, `400 invalid_before_id`, or
+`400 invalid_cursor`.
+
+### 9.5 `GET /api/v1/cpo/hubs/{hub_id}`
+
+`hub_id` must be a non-zero UUID. `200 OK` returns the Hub object from 9.3 only
+when it belongs to the authenticated CPO. A cross-tenant or unknown ID returns
+`404 hub_not_found`; malformed input returns `400 invalid_hub_id`.
+
+### 9.6 `PATCH /api/v1/cpo/hubs/{hub_id}`
+
+Accepts any non-empty subset of the five create fields using the same
+validation. Omitted fields are unchanged.
+
+```json
+{
+  "address": "12A Park Street, Kolkata",
+  "open_24_hours": false
+}
+```
+
+`200 OK` returns the updated Hub. The transaction writes `HUB_UPDATED` with
+changed-field metadata. Additional errors: `400 invalid_hub`,
+`400 invalid_hub_id`, `404 hub_not_found`, or `409 hub_conflict`.
+
+There is currently no hub delete route. Durable charger/tariff relationships
+must not be erased through implicit cascading behavior.
+
+### 9.7 `POST /api/v1/cpo/chargers`
+
+Creates one CMS charger projection and all initial connectors atomically.
+
+```json
+{
+  "hub_id": "8b80ef78-7799-4a09-a0d5-73ac944aa6e0",
+  "vendor": "Delta",
+  "model": "DC Wallbox",
+  "serial_number": "SN-001",
+  "max_power_kw": 25,
+  "connectors": [
+    {
+      "connector_number": 1,
+      "connector_type": "CCS2",
+      "max_current": 60,
+      "max_voltage": 500
+    }
+  ]
+}
+```
+
+Rules:
+
+- `hub_id` is a required UUID owned by this CPO;
+- vendor, model, and serial number are required, trimmed, and at most 100
+  characters each;
+- `max_power_kw` is optional/default zero and cannot be negative;
+- at least one connector is required;
+- connector numbers are positive and unique within this request;
+- connector type is required and at most 50 characters;
+- current and voltage are optional/default zero and cannot be negative.
+
+The server generates:
+
+- the charger row UUID;
+- a globally unique six-character lowercase `charger_id`;
+- a globally unique `ocpp_identity`;
+- each connector UUID;
+- initial charger status `OFFLINE`;
+- initial connector status `AVAILABLE`;
+- OCPP version projection `1.6J`;
+- timestamps.
+
+`201 Created` returns:
+
+```json
+{
+  "id": "7cc2d481-3ccb-4336-b03c-c8851a59ff9a",
+  "cpo_id": "c821a013-5041-42f7-80c8-aa153cf9d455",
+  "hub_id": "8b80ef78-7799-4a09-a0d5-73ac944aa6e0",
+  "charger_id": "a1b2c3",
+  "ocpp_identity": "CMS-4a58ce2df470b2b1",
+  "vendor": "Delta",
+  "model": "DC Wallbox",
+  "serial_number": "SN-001",
+  "max_power_kw": 25,
+  "status": "OFFLINE",
+  "ocpp_version": "1.6J",
+  "connectors": [
+    {
+      "id": "540b3214-bd67-4f61-9134-ab462168fd92",
+      "cpo_id": "c821a013-5041-42f7-80c8-aa153cf9d455",
+      "charger_id": "7cc2d481-3ccb-4336-b03c-c8851a59ff9a",
+      "connector_number": 1,
+      "connector_type": "CCS2",
+      "max_current": 60,
+      "max_voltage": 500,
+      "status": "AVAILABLE",
+      "created_at": "2026-07-31T12:05:00Z",
+      "updated_at": "2026-07-31T12:05:00Z"
+    }
+  ],
+  "created_at": "2026-07-31T12:05:00Z",
+  "updated_at": "2026-07-31T12:05:00Z"
+}
+```
+
+`last_seen_at` is omitted until available. The transaction writes
+`CHARGER_CREATED`. Additional errors: field-specific `400 invalid_*`,
+`404 hub_not_found`, `409 charger_conflict`, or `409 connector_conflict`.
+
+`ocpp_identity` is only a future CMS/HAL mapping value. Its creation does not
+register a charger in the HAL or prove the charger is online.
+
+### 9.8 `GET /api/v1/cpo/chargers`
+
+Returns tenant chargers and connectors in descending `(created_at, id)` order.
+
+Query:
+
+- `limit`: 1–200, default 50;
+- `before`: exclusive RFC3339 timestamp from `next_before`;
+- `before_id`: UUID tie-breaker from `next_before_id`.
+
+Both cursor fields must be supplied together. `200 OK`:
+
+```json
+{
+  "chargers": [],
+  "next_before": "2026-07-31T12:05:00Z",
+  "next_before_id": "7cc2d481-3ccb-4336-b03c-c8851a59ff9a",
+  "has_more": true
+}
+```
+
+The cursor fields are omitted when `has_more` is false. Errors:
+`400 invalid_limit`, `400 invalid_before`, `400 invalid_before_id`, or
+`400 invalid_cursor`.
+
+### 9.9 `GET /api/v1/cpo/chargers/{charger_id}`
+
+Uses the six-character public charger ID, not the charger UUID. Input is trimmed
+and lowercased before validation. `200 OK` returns the Charger object including
+connectors ordered by connector number. Unknown or cross-tenant IDs return
+`404 charger_not_found`; malformed IDs return `400 invalid_charger_id`.
+
+### 9.10 `PATCH /api/v1/cpo/chargers/{charger_id}`
+
+Updates any non-empty subset of:
+
+```json
+{
+  "hub_id": "8b80ef78-7799-4a09-a0d5-73ac944aa6e0",
+  "vendor": "Delta",
+  "model": "DC Wallbox V2",
+  "serial_number": "SN-001",
+  "max_power_kw": 30,
+  "connectors": [
+    {
+      "id": "540b3214-bd67-4f61-9134-ab462168fd92",
+      "connector_number": 1,
+      "connector_type": "CCS2",
+      "max_current": 75,
+      "max_voltage": 500
+    }
+  ]
+}
+```
+
+Each supplied connector must be an existing connector UUID on this charger and
+must include at least one changed field. Connector IDs cannot repeat in one
+request.
+
+This route does not add or remove connectors and cannot change public
+`charger_id`, `ocpp_identity`, charger or connector status, OCPP version, or
+`last_seen_at`. Runtime status is reserved for the future HAL projection.
+`200 OK` returns the updated Charger. The transaction writes `CHARGER_UPDATED`.
+Additional errors include `404 charger_not_found`,
+`404 connector_not_found`, `404 hub_not_found`, and uniqueness/reference
+conflicts.
+
+### 9.11 `DELETE /api/v1/cpo/chargers/{charger_id}`
+
+Takes no body. It locks the charger, deletes its connectors and charger
+transactionally, then writes `CHARGER_DELETED`. `204 No Content` means success.
+
+PostgreSQL rejects deletion with `409 charger_in_use` while a tariff, charging
+session, favorite, user-group access link, or another durable record references
+the charger. The caller must explicitly remove or retire those dependent
+records through their owning workflow; the API does not cascade business data.
+
+### 9.12 `POST /api/v1/cpo/gsts`
+
+Creates a named tenant GST profile.
+
+```json
+{
+  "name": "Standard GST",
+  "sgst_rate": "9.00",
+  "cgst_rate": "9.00",
+  "igst_rate": "18.00",
+  "is_active": true
+}
+```
+
+All four non-boolean fields are required. The name is trimmed and limited to
+100 characters. Each exact decimal rate is 0–100 inclusive. Decimal JSON
+strings are recommended; JSON numbers are also accepted. `is_active` defaults
+to true. The normalized name is unique per CPO.
+
+`201 Created` returns the generated UUID, trusted CPO ID, exact decimal rates
+as JSON strings, active state, and timestamps. The transaction writes
+`GST_CREATED`. Additional errors: field-specific `400 invalid_*` and
+`409 gst_conflict`.
+
+### 9.13 `GET /api/v1/cpo/gsts`
+
+Returns bounded GST pages using the same `limit`, `before`, `before_id`,
+`next_before`, `next_before_id`, and `has_more` semantics as hub listing:
+
+```json
+{
+  "gsts": [],
+  "has_more": false
+}
+```
+
+Both cursor inputs are required together.
+
+### 9.14 `GET /api/v1/cpo/gsts/{gst_id}`
+
+Returns one GST profile by server-generated UUID. Cross-tenant and unknown IDs
+return `404 gst_not_found`; malformed UUIDs return `400 invalid_gst_id`.
+
+### 9.15 `PATCH /api/v1/cpo/gsts/{gst_id}`
+
+Accepts any non-empty subset of `name`, `sgst_rate`, `cgst_rate`, `igst_rate`,
+and `is_active`, using the create validation. Omission preserves a field.
+`200 OK` returns the updated GST profile and writes `GST_UPDATED`.
+
+There is currently no GST delete route. An inactive profile remains durable for
+historical references.
+
+### 9.16 `POST /api/v1/cpo/tariffs`
+
+Creates a tenant tariff:
+
+```json
+{
+  "hub_id": "8b80ef78-7799-4a09-a0d5-73ac944aa6e0",
+  "charger_id": "7cc2d481-3ccb-4336-b03c-c8851a59ff9a",
+  "gst_id": "3e38d953-fe0a-4bfa-a11c-356c92bba7e9",
+  "user_group_id": "2f4fd182-ef98-4cce-a3e7-6480cc1f4b19",
+  "price_per_kwh": "18.5000",
+  "idle_fee_per_min": "1.0000",
+  "currency": "INR",
+  "is_active": true
+}
+```
+
+Rules:
+
+- `hub_id` is required and tenant-owned;
+- `charger_id`, `gst_id`, and `user_group_id` are optional tenant-owned UUIDs;
+- a supplied charger must belong to the supplied hub;
+- `price_per_kwh` is required and greater than zero;
+- idle fee is optional/default zero and cannot be negative;
+- currency is optional/default `INR`, normalized uppercase, and exactly three
+  letters;
+- `is_active` is optional/default true.
+
+Exact decimal strings are recommended. `201 Created` returns the generated
+tariff UUID, relations, exact decimal strings, currency, active state, and
+timestamps. The transaction writes `TARIFF_CREATED`.
+
+Errors include `400 charger_hub_mismatch`, field-specific `400 invalid_*`,
+relation-specific `404` responses, and `409 tariff_conflict`.
+
+### 9.17 `GET /api/v1/cpo/tariffs`
+
+Returns bounded tariff pages using the same keyset pagination:
+
+```json
+{
+  "tariffs": [],
+  "has_more": false
+}
+```
+
+Every row belongs to the authenticated CPO. Current listing returns all active
+and inactive tariffs; the frontend filters the bounded result for display and
+retains cursor order while requesting additional pages.
+
+### 9.18 `GET /api/v1/cpo/tariffs/{tariff_id}`
+
+Returns one tenant tariff by UUID. Cross-tenant and unknown IDs return
+`404 tariff_not_found`; malformed UUIDs return `400 invalid_tariff_id`.
+
+### 9.19 `PATCH /api/v1/cpo/tariffs/{tariff_id}`
+
+Accepts any non-empty subset of the create fields. Omitted fields remain
+unchanged. Optional relations cannot currently be cleared to null through this
+route; they can only be omitted or replaced with another owned UUID.
+
+If hub or charger changes, their resulting relationship is revalidated.
+`200 OK` returns the updated Tariff and writes `TARIFF_UPDATED`. Errors match
+creation plus `404 tariff_not_found`.
+
+There is currently no tariff delete route. Deactivation through
+`{"is_active":false}` is the supported retention-safe state change.
+
+## 10. CPO Integration Credentials
 
 All endpoints require:
 
 - bearer CPO session;
-- role `OWNER` or `ADMIN`;
+- role `ADMIN`;
 - `must_change_password=false`;
 - current `X-CPO-App-ID`.
 
@@ -1299,7 +1749,7 @@ Shared middleware failures:
 - `403 password_change_required`;
 - `403 cpo_app_id_mismatch`.
 
-### 9.1 `GET /api/v1/cpo/integrations`
+### 10.1 `GET /api/v1/cpo/integrations`
 
 `200 OK`:
 
@@ -1319,7 +1769,7 @@ Shared middleware failures:
 
 Returns only rows for the authenticated CPO.
 
-### 9.2 `GET /api/v1/cpo/integrations/{provider}`
+### 10.2 `GET /api/v1/cpo/integrations/{provider}`
 
 Returns the same metadata object.
 
@@ -1328,7 +1778,7 @@ Additional errors:
 - `400 unsupported_integration_provider`;
 - `404 integration_not_found`.
 
-### 9.3 `PUT /api/v1/cpo/integrations/{provider}`
+### 10.3 `PUT /api/v1/cpo/integrations/{provider}`
 
 Request:
 
@@ -1360,21 +1810,21 @@ Additional errors: `400 invalid_request`,
 `400 unsupported_integration_provider`, and
 `400 invalid_integration_credentials`.
 
-### 9.4 `DELETE /api/v1/cpo/integrations/{provider}`
+### 10.4 `DELETE /api/v1/cpo/integrations/{provider}`
 
 `204 No Content` deletes the encrypted row and records an audit event.
 
 Additional errors: `400 unsupported_integration_provider` and
 `404 integration_not_found`.
 
-## 10. Platform Operations, Audit, Workers, and Realtime
+## 11. Platform Operations, Audit, Workers, and Realtime
 
 Every endpoint in this section requires an active bearer token whose durable
 session still resolves to `PLATFORM`. CPO and customer sessions receive `403
 forbidden`. The routes never accept `X-CPO-App-ID` as authority and do not
 grant access to tenant business records.
 
-### 10.1 `GET /api/v1/platform/events`
+### 11.1 `GET /api/v1/platform/events`
 
 Purpose: replay committed control-plane facts for UI invalidation and recovery.
 This endpoint is the durable REST fallback for the SSE stream.
@@ -1420,7 +1870,7 @@ Errors:
   snapshots, then resume from the current retained event range;
 - `500 internal_error`.
 
-### 10.2 `GET /api/v1/platform/realtime/stream`
+### 11.2 `GET /api/v1/platform/realtime/stream`
 
 Purpose: deliver the same durable platform-event log as server-sent events.
 The response is `text/event-stream`.
@@ -1452,7 +1902,7 @@ Before streaming begins, errors use the same JSON envelope and status codes as
 endpoint 10.1. After streaming begins, errors close the connection because an
 HTTP status can no longer be replaced.
 
-### 10.3 `GET /api/v1/platform/audit-logs`
+### 11.3 `GET /api/v1/platform/audit-logs`
 
 Purpose: query immutable privileged-action evidence. Audit records and realtime
 events serve different purposes: audit is security evidence, while events are
@@ -1500,7 +1950,7 @@ Errors: `400 invalid_before`, `invalid_before_id`, `invalid_limit`,
 `invalid_action`, `invalid_entity`, `invalid_actor_user_id`, or
 `invalid_cpo_id`; shared authentication errors; or `500 internal_error`.
 
-### 10.4 `GET /api/v1/platform/workers`
+### 11.4 `GET /api/v1/platform/workers`
 
 Purpose: show durable health for registered worker process instances.
 
@@ -1532,7 +1982,7 @@ cannot start, stop, restart, or kill a process.
 
 Errors: shared `401`, `403`, or `500` responses.
 
-## 11. Manual CPO Platform Access
+## 12. Manual CPO Platform Access
 
 The CMS has no tenant subscription, entitlement, platform-invoice, or
 platform-payment API. A platform superadmin grants or removes CPO access
@@ -1548,7 +1998,7 @@ operations. `SUSPENDED` blocks new tenant access while preserving the CPO and
 its historical data. These actions are explicit, audited platform decisions;
 there is no commercial state machine or automatic payment-driven transition.
 
-## 12. Client State Machine
+## 13. Client State Machine
 
 Recommended frontend sequence:
 
@@ -1572,15 +2022,16 @@ entire local session and require login. On `cpo_app_id_mismatch`, refresh or cal
 `/auth/me` to recover the current ID; never let a user type a CPO ID to change
 scope.
 
-## 13. Explicitly Unimplemented
+## 14. Explicitly Unimplemented
 
 The contract does not provide:
 
 - customer profile/email editing;
 - CPO staff invitation after the first administrator;
 - custom roles or permission APIs;
-- hub, charger, connector, tariff, wallet, charging, payment, or reporting
-  APIs;
+- hub deletion; standalone connector creation/deletion; GST or tariff deletion;
+  wallet, charging, payment, or reporting APIs;
+- any tenant-side CPO profile route;
 - payment execution or Razorpay webhook verification;
 - CMS/HAL commands or callbacks;
 - tenant subscriptions, entitlement packages, platform invoices, or platform

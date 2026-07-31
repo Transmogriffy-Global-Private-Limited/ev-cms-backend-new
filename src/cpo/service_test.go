@@ -8,6 +8,7 @@ import (
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/auth"
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/constants"
 	"github.com/google/uuid"
+	"github.com/shopspring/decimal"
 )
 
 func TestValidateCreateRequest(t *testing.T) {
@@ -157,5 +158,96 @@ func TestCPORecoveryOperationsRequirePlatformBeforeDatabaseAccess(t *testing.T) 
 		ReasonRequest{},
 	); err == nil {
 		t.Fatal("CPO principal revoked administrative sessions")
+	}
+}
+
+func TestTenantOperationsCurrentlyRequireAdmin(t *testing.T) {
+	t.Parallel()
+
+	cpoID := uuid.New()
+	principal := func(role constants.CPORole) auth.Principal {
+		return auth.Principal{
+			UserID: uuid.New(),
+			Scope:  constants.AuthScopeCPO,
+			CPOID:  &cpoID,
+			Role:   &role,
+		}
+	}
+
+	if err := requireCPOAdminAccess(principal(constants.CPORoleAdmin)); err != nil {
+		t.Fatalf("administrator access was rejected: %v", err)
+	}
+	for _, role := range []constants.CPORole{
+		constants.CPORoleOwner,
+		constants.CPORoleOperator,
+		constants.CPORoleViewer,
+	} {
+		if err := requireCPOAdminAccess(principal(role)); err == nil {
+			t.Fatalf("dormant %s role was allowed to use CPO operations", role)
+		}
+	}
+}
+
+func TestTenantOperationValidation(t *testing.T) {
+	t.Parallel()
+
+	tariff := normalizeCreateTariffRequest(CreateTariffRequest{
+		HubID:       uuid.New(),
+		PricePerKWh: decimal.RequireFromString("18.5"),
+	})
+	if tariff.Currency != "INR" {
+		t.Fatalf("blank currency normalized to %q, want INR", tariff.Currency)
+	}
+	if err := validateCreateTariffRequest(tariff); err != nil {
+		t.Fatalf("valid tariff was rejected: %v", err)
+	}
+
+	latitude := 22.57
+	hub := CreateHubRequest{
+		Name:      "Central Hub",
+		Address:   "1 Test Road",
+		Latitude:  &latitude,
+		Longitude: nil,
+	}
+	if err := validateCreateHubRequest(hub); err == nil {
+		t.Fatal("hub without longitude was accepted")
+	}
+
+	nine := decimal.NewFromInt(9)
+	eighteen := decimal.NewFromInt(18)
+	gst := CreateGSTRequest{
+		Name:     "Standard GST",
+		SGSTRate: &nine,
+		CGSTRate: &nine,
+		IGSTRate: &eighteen,
+	}
+	if err := validateCreateGSTRequest(gst); err != nil {
+		t.Fatalf("valid GST was rejected: %v", err)
+	}
+	gst.IGSTRate = nil
+	if err := validateCreateGSTRequest(gst); err == nil {
+		t.Fatal("GST without IGST rate was accepted")
+	}
+}
+
+func TestChargerListRejectsInvalidCursorBeforeDatabaseAccess(t *testing.T) {
+	t.Parallel()
+
+	cpoID := uuid.New()
+	role := constants.CPORoleAdmin
+	service := NewService(nil, nil, false)
+	_, err := service.ListChargers(
+		t.Context(),
+		auth.Principal{
+			UserID: uuid.New(),
+			Scope:  constants.AuthScopeCPO,
+			CPOID:  &cpoID,
+			Role:   &role,
+		},
+		TenantListQuery{BeforeID: &cpoID},
+	)
+	var apiErr *auth.APIError
+	if !errors.As(err, &apiErr) || apiErr.Code != "invalid_cursor" {
+		t.Fatalf("got error %v, want invalid_cursor", err)
 	}
 }

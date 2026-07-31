@@ -63,6 +63,25 @@ func TestCredentialRoutesAreRegisteredAndProtected(t *testing.T) {
 		{http.MethodGet, "/api/v1/cpo/integrations/RAZORPAY"},
 		{http.MethodPut, "/api/v1/cpo/integrations/RAZORPAY"},
 		{http.MethodDelete, "/api/v1/cpo/integrations/RAZORPAY"},
+		{http.MethodGet, "/api/v1/cpo/admin/profile"},
+		{http.MethodPatch, "/api/v1/cpo/admin/profile"},
+		{http.MethodPost, "/api/v1/cpo/chargers"},
+		{http.MethodGet, "/api/v1/cpo/chargers"},
+		{http.MethodGet, "/api/v1/cpo/chargers/abc123"},
+		{http.MethodPatch, "/api/v1/cpo/chargers/abc123"},
+		{http.MethodDelete, "/api/v1/cpo/chargers/abc123"},
+		{http.MethodPost, "/api/v1/cpo/hubs"},
+		{http.MethodGet, "/api/v1/cpo/hubs"},
+		{http.MethodGet, "/api/v1/cpo/hubs/00000000-0000-0000-0000-000000000001"},
+		{http.MethodPatch, "/api/v1/cpo/hubs/00000000-0000-0000-0000-000000000001"},
+		{http.MethodPost, "/api/v1/cpo/tariffs"},
+		{http.MethodGet, "/api/v1/cpo/tariffs"},
+		{http.MethodGet, "/api/v1/cpo/tariffs/00000000-0000-0000-0000-000000000001"},
+		{http.MethodPatch, "/api/v1/cpo/tariffs/00000000-0000-0000-0000-000000000001"},
+		{http.MethodPost, "/api/v1/cpo/gsts"},
+		{http.MethodGet, "/api/v1/cpo/gsts"},
+		{http.MethodGet, "/api/v1/cpo/gsts/00000000-0000-0000-0000-000000000001"},
+		{http.MethodPatch, "/api/v1/cpo/gsts/00000000-0000-0000-0000-000000000001"},
 		{http.MethodGet, "/api/v1/app/auth/me"},
 		{http.MethodGet, "/api/v1/app/auth/sessions"},
 		{http.MethodDelete, "/api/v1/app/auth/sessions/00000000-0000-0000-0000-000000000001"},
@@ -148,6 +167,24 @@ func TestRetiredCommercialRoutesAreNotRegistered(t *testing.T) {
 				"%s %s got status %d, want 404",
 				route.method,
 				route.path,
+				recorder.Code,
+			)
+		}
+	}
+}
+
+func TestTenantOrganizationProfileIsNotRegistered(t *testing.T) {
+	t.Parallel()
+
+	router := newCredentialRouteTestRouter(t)
+	for _, method := range []string{http.MethodGet, http.MethodPost, http.MethodPut, http.MethodPatch} {
+		recorder := httptest.NewRecorder()
+		request := httptest.NewRequest(method, "/api/v1/cpo/profile", nil)
+		router.ServeHTTP(recorder, request)
+		if recorder.Code != http.StatusNotFound {
+			t.Errorf(
+				"%s /api/v1/cpo/profile got status %d, want 404",
+				method,
 				recorder.Code,
 			)
 		}

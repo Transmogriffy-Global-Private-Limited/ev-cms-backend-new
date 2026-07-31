@@ -60,8 +60,10 @@ returned by the API, logged, audited, or stored in plaintext.
 The welcome or assignment email includes the CPO ID and current app ID. The
 new-identity welcome additionally includes the temporary password.
 
-One `OWNER` or `ADMIN` membership is durably designated primary for each
-provisioned CPO. Platform APIs expose only safe identity, membership, and
+One `ADMIN` membership is durably designated primary for each provisioned CPO.
+Other fixed-role enum values remain dormant schema capacity until a future
+staff-management plan explicitly activates them. Platform APIs expose only
+safe identity, membership, and
 onboarding-delivery metadata. A platform actor may replace or restore the
 primary with a reason; replacement revokes the previous primary's sessions for
 that CPO without changing an existing replacement identity's password.

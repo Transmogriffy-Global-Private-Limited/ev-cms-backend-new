@@ -2,6 +2,41 @@
 
 ## 2026-07-31
 
+### Contributed CPO work reconciled into an ADMIN-only tenant surface
+
+- Merged the divergent `abhranil_ev_cms_backend_new` history into the
+  authoritative line without rewriting or deleting the contributor branch.
+- Preserved the verified platform CPO control-plane implementation while
+  removing the contributed tenant-side CPO organization profile.
+- Closed CPO authentication, integrations, and tenant business operations to
+  the one currently provisioned `ADMIN` authority. Kept OWNER, OPERATOR, and
+  VIEWER only as dormant future-compatible persisted enum values.
+- Added CPO administrator identity-profile read/update for global full name and
+  phone, keeping `/api/v1/auth/me` as authentication bootstrap and keeping
+  organization fields platform-owned.
+- Corrected and integrated tenant-scoped hub, charger/connector, GST, and tariff
+  operations with server-generated IDs, cross-tenant related-record checks,
+  exact decimals, INR defaulting, connector length validation, bounded
+  hub/charger/GST/tariff pagination, transactional audit evidence, and
+  dependency-safe charger deletion.
+- Kept CMS network inventory separate from the HAL. Generated
+  `ocpp_identity` is a mapping value only; no handshake, protocol state, live
+  status, command, callback, or reconciliation behavior was added.
+- Expanded the source OpenAPI/runtime surface from 49 to 68 operations and
+  added the complete human contract, workflow guide, HAL boundary update,
+  implementation plan, and ADR 0009.
+
+Verification:
+
+- Focused auth, integration-credential, CPO, protected-route,
+  absent-organization-profile, and runtime/OpenAPI tests passed.
+- Documentation verification passed at 68 operations; `go test ./...`,
+  `go vet ./...`, residue scanning, and `git diff --check` passed.
+- The PostgreSQL end-to-end verifier compiles and is registered but was not
+  executed because no explicitly disposable `TEST_DATABASE_URL` is configured.
+  The source feature is therefore `Implemented`, not `Verified`.
+- The deployed VPS remains revision `91cc5ba` with 49 operations.
+
 ### CPO dependency release deployed to the development VPS
 
 - Reviewed source revision `91cc5ba`, the additive migration-ten backfill, the

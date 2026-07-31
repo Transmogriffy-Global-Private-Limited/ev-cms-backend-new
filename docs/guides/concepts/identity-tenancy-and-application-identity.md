@@ -51,14 +51,19 @@ database state, never from an ID supplied by a caller.
 
 ### Implemented authority matrix
 
-| Capability | Public | Platform | CPO owner/admin | Operator/viewer |
+| Capability | Public | Platform | CPO ADMIN | Dormant role values |
 |---|---:|---:|---:|---:|
-| Login and recovery | Yes | Yes | Yes | Yes |
-| Own identity and sessions | No | Yes | Yes | Yes |
+| Login and recovery | Yes | Yes | Yes | No |
+| Own identity, profile, and sessions | No | Yes | Yes | No |
 | Create/activate/suspend CPO | No | Yes | No | No |
 | Assign live CPO app ID | No | Yes | No | No |
+| Manage initial network/GST/tariff records | No | No | Yes | No |
 | Manage Razorpay credential row | No | No | Yes | No |
 | Read Razorpay plaintext over HTTP | No | No | No | No |
+
+The database retains `OWNER`, `OPERATOR`, and `VIEWER` enum values only as
+future-compatible storage capacity. No current API creates those memberships
+and authentication accepts only active `ADMIN` membership for the CPO plane.
 
 ## Session and Token Model
 

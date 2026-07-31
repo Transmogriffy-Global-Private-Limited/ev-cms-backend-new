@@ -32,6 +32,8 @@ tags:
     description: Platform-superadmin CPO provisioning and lifecycle control.
   - name: Platform Operations
     description: Durable audit, event recovery, worker health, and realtime operations.
+  - name: CPO Operations
+    description: Tenant-scoped profile, charging-network inventory, tax, and tariff operations.
   - name: CPO Integrations
     description: CPO owner/admin write-only integration credential management.
 
@@ -1745,6 +1747,749 @@ paths:
         "500":
           $ref: "#/components/responses/InternalError"
 
+  /api/v1/cpo/admin/profile:
+    get:
+      tags: [CPO Operations]
+      operationId: getCPOAdminProfile
+      summary: Read the authenticated CPO administrator profile
+      description: |
+        Returns the global login identity fields used by the current CPO ADMIN
+        session, including optional phone. `/api/v1/auth/me` remains the
+        canonical authentication/bootstrap response. This route does not return
+        or edit the CPO organization record.
+      security:
+        - BearerAuth: []
+          CPOAppID: []
+      responses:
+        "200":
+          description: Current administrator identity profile.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CPOAdminProfile"
+        "400":
+          $ref: "#/components/responses/MissingCPOAppID"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/CPOBusinessForbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    patch:
+      tags: [CPO Operations]
+      operationId: updateCPOAdminProfile
+      summary: Update the authenticated administrator name or phone
+      description: |
+        Updates the global identity used by this ADMIN session and writes
+        `CPO_ADMIN_PROFILE_UPDATED` audit evidence. Email and role are
+        immutable here. A blank phone clears it; blank full name is invalid.
+      security:
+        - BearerAuth: []
+          CPOAppID: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateCPOAdminProfileRequest"
+      responses:
+        "200":
+          description: Updated administrator profile.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CPOAdminProfile"
+        "400":
+          description: Invalid body, profile field, or missing app-ID header.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/CPOBusinessForbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /api/v1/cpo/chargers:
+    post:
+      tags: [CPO Operations]
+      operationId: createCPOCharger
+      summary: Register a CMS charger and its initial connectors
+      description: |
+        Requires the currently supported CPO ADMIN authority. The server generates the six
+        character public `charger_id`, CMS UUIDs, and a globally unique
+        `ocpp_identity`; callers do not source these identifiers. The charger,
+        connectors, and audit record commit atomically. This is commercial CMS
+        inventory only and does not create an OCPP connection in the HAL.
+      security:
+        - BearerAuth: []
+          CPOAppID: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateChargerRequest"
+      responses:
+        "201":
+          description: Charger and connectors created.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Charger"
+        "400":
+          description: Invalid body, field, hub, connector, or app-ID header.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/CPOBusinessForbidden"
+        "404":
+          description: "`hub_not_found` — the tenant does not own the hub."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "409":
+          description: "`charger_conflict` or `connector_conflict`."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    get:
+      tags: [CPO Operations]
+      operationId: listCPOChargers
+      summary: List tenant chargers with connectors
+      description: |
+        Requires the currently supported CPO ADMIN authority. Results use stable descending
+        `(created_at, id)` keyset pagination and never cross the authenticated
+        CPO boundary.
+      security:
+        - BearerAuth: []
+          CPOAppID: []
+      parameters:
+        - $ref: "#/components/parameters/ListBefore"
+        - $ref: "#/components/parameters/ListBeforeID"
+        - $ref: "#/components/parameters/ListLimit"
+      responses:
+        "200":
+          description: One bounded page of chargers.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChargerListResponse"
+        "400":
+          description: Invalid cursor, limit, or missing app-ID header.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/CPOBusinessForbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /api/v1/cpo/chargers/{charger_id}:
+    parameters:
+      - $ref: "#/components/parameters/ChargerPublicID"
+    get:
+      tags: [CPO Operations]
+      operationId: getCPOCharger
+      summary: Get one tenant charger and its connectors
+      security:
+        - BearerAuth: []
+          CPOAppID: []
+      responses:
+        "200":
+          description: Charger detail.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Charger"
+        "400":
+          description: Invalid charger ID or missing app-ID header.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/CPOBusinessForbidden"
+        "404":
+          description: "`charger_not_found` — no charger in this CPO has the ID."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    patch:
+      tags: [CPO Operations]
+      operationId: updateCPOCharger
+      summary: Update a charger and selected existing connectors
+      description: |
+        Requires CPO ADMIN. Connector updates identify existing
+        connectors by server-generated UUID and cannot add or remove
+        connectors. Public charger ID, OCPP identity, OCPP version, charger and
+        connector status, and last-seen time are read-only CMS projection fields.
+      security:
+        - BearerAuth: []
+          CPOAppID: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateChargerRequest"
+      responses:
+        "200":
+          description: Updated charger.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Charger"
+        "400":
+          description: Invalid body, field, connector, charger ID, or app-ID header.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/CPOBusinessForbidden"
+        "404":
+          description: "`charger_not_found`, `connector_not_found`, or `hub_not_found`."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "409":
+          description: Charger or connector uniqueness/reference conflict.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    delete:
+      tags: [CPO Operations]
+      operationId: deleteCPOCharger
+      summary: Delete an unused charger and its connectors
+      description: |
+        Requires CPO ADMIN. The charger and connectors are
+        deleted transactionally and the action is audited. PostgreSQL rejects
+        deletion while tariffs, charging sessions, access links, favourites,
+        or other dependent records still reference the charger.
+      security:
+        - BearerAuth: []
+          CPOAppID: []
+      responses:
+        "204":
+          description: Charger deleted; no response body.
+        "400":
+          description: Invalid charger ID or missing app-ID header.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/CPOBusinessForbidden"
+        "404":
+          description: "`charger_not_found`."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "409":
+          description: "`charger_in_use` — dependent durable records prevent deletion."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /api/v1/cpo/hubs:
+    post:
+      tags: [CPO Operations]
+      operationId: createCPOHub
+      summary: Create a tenant charging hub
+      description: Requires CPO ADMIN and writes audit evidence atomically.
+      security:
+        - BearerAuth: []
+          CPOAppID: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateHubRequest"
+      responses:
+        "201":
+          description: Hub created with a server-generated UUID.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Hub"
+        "400":
+          description: Invalid body, coordinates, fields, or app-ID header.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/CPOBusinessForbidden"
+        "409":
+          description: "`hub_conflict`."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    get:
+      tags: [CPO Operations]
+      operationId: listCPOHubs
+      summary: List tenant hubs
+      description: Requires CPO ADMIN and uses stable descending keyset pagination.
+      security:
+        - BearerAuth: []
+          CPOAppID: []
+      parameters:
+        - $ref: "#/components/parameters/ListBefore"
+        - $ref: "#/components/parameters/ListBeforeID"
+        - $ref: "#/components/parameters/ListLimit"
+      responses:
+        "200":
+          description: One bounded page of hubs.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HubListResponse"
+        "400":
+          description: Invalid cursor, limit, or missing app-ID header.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/CPOBusinessForbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /api/v1/cpo/hubs/{hub_id}:
+    parameters:
+      - $ref: "#/components/parameters/HubID"
+    get:
+      tags: [CPO Operations]
+      operationId: getCPOHub
+      summary: Get one tenant hub
+      security:
+        - BearerAuth: []
+          CPOAppID: []
+      responses:
+        "200":
+          description: Hub detail.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Hub"
+        "400":
+          description: Invalid hub ID or missing app-ID header.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/CPOBusinessForbidden"
+        "404":
+          description: "`hub_not_found`."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    patch:
+      tags: [CPO Operations]
+      operationId: updateCPOHub
+      summary: Update a tenant hub
+      description: Requires CPO ADMIN and at least one mutable field.
+      security:
+        - BearerAuth: []
+          CPOAppID: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateHubRequest"
+      responses:
+        "200":
+          description: Updated hub.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Hub"
+        "400":
+          description: Invalid body, hub ID, coordinates, fields, or app-ID header.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/CPOBusinessForbidden"
+        "404":
+          description: "`hub_not_found`."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "409":
+          description: "`hub_conflict`."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /api/v1/cpo/tariffs:
+    post:
+      tags: [CPO Operations]
+      operationId: createCPOTariff
+      summary: Create a tenant tariff
+      description: |
+        Requires CPO ADMIN. Related hub, optional charger, GST profile,
+        and user group must belong to the authenticated CPO; a selected charger
+        must belong to the selected hub. Currency defaults to INR.
+      security:
+        - BearerAuth: []
+          CPOAppID: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateTariffRequest"
+      responses:
+        "201":
+          description: Tariff created with a server-generated UUID.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Tariff"
+        "400":
+          description: Invalid body, pricing, currency, relation, or app-ID header.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/CPOBusinessForbidden"
+        "404":
+          description: Referenced tenant resource was not found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "409":
+          description: "`tariff_conflict`."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    get:
+      tags: [CPO Operations]
+      operationId: listCPOTariffs
+      summary: List tenant tariffs
+      description: Requires CPO ADMIN and uses stable descending keyset pagination.
+      security:
+        - BearerAuth: []
+          CPOAppID: []
+      parameters:
+        - $ref: "#/components/parameters/ListBefore"
+        - $ref: "#/components/parameters/ListBeforeID"
+        - $ref: "#/components/parameters/ListLimit"
+      responses:
+        "200":
+          description: One bounded page of tariffs.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TariffListResponse"
+        "400":
+          description: Invalid cursor, limit, or missing app-ID header.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/CPOBusinessForbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /api/v1/cpo/tariffs/{tariff_id}:
+    parameters:
+      - $ref: "#/components/parameters/TariffID"
+    get:
+      tags: [CPO Operations]
+      operationId: getCPOTariff
+      summary: Get one tenant tariff
+      security:
+        - BearerAuth: []
+          CPOAppID: []
+      responses:
+        "200":
+          description: Tariff detail.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Tariff"
+        "400":
+          description: Invalid tariff ID or missing app-ID header.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/CPOBusinessForbidden"
+        "404":
+          description: "`tariff_not_found`."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    patch:
+      tags: [CPO Operations]
+      operationId: updateCPOTariff
+      summary: Update a tenant tariff
+      description: Requires CPO ADMIN and at least one mutable field.
+      security:
+        - BearerAuth: []
+          CPOAppID: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateTariffRequest"
+      responses:
+        "200":
+          description: Updated tariff.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Tariff"
+        "400":
+          description: Invalid body, tariff ID, pricing, relation, or app-ID header.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/CPOBusinessForbidden"
+        "404":
+          description: Tariff or referenced tenant resource was not found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "409":
+          description: "`tariff_conflict`."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /api/v1/cpo/gsts:
+    post:
+      tags: [CPO Operations]
+      operationId: createCPOGST
+      summary: Create a tenant GST profile
+      description: Requires CPO ADMIN; rates are exact decimals from 0 through 100.
+      security:
+        - BearerAuth: []
+          CPOAppID: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateGSTRequest"
+      responses:
+        "201":
+          description: GST profile created with a server-generated UUID.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GST"
+        "400":
+          description: Invalid body, rate, name, or app-ID header.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/CPOBusinessForbidden"
+        "409":
+          description: "`gst_conflict` — the CPO already has that normalized name."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    get:
+      tags: [CPO Operations]
+      operationId: listCPOGSTs
+      summary: List tenant GST profiles
+      description: Requires CPO ADMIN and uses stable descending keyset pagination.
+      security:
+        - BearerAuth: []
+          CPOAppID: []
+      parameters:
+        - $ref: "#/components/parameters/ListBefore"
+        - $ref: "#/components/parameters/ListBeforeID"
+        - $ref: "#/components/parameters/ListLimit"
+      responses:
+        "200":
+          description: One bounded page of GST profiles.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GSTListResponse"
+        "400":
+          description: Invalid cursor, limit, or missing app-ID header.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/CPOBusinessForbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /api/v1/cpo/gsts/{gst_id}:
+    parameters:
+      - $ref: "#/components/parameters/GSTID"
+    get:
+      tags: [CPO Operations]
+      operationId: getCPOGST
+      summary: Get one tenant GST profile
+      security:
+        - BearerAuth: []
+          CPOAppID: []
+      responses:
+        "200":
+          description: GST profile detail.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GST"
+        "400":
+          description: Invalid GST ID or missing app-ID header.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/CPOBusinessForbidden"
+        "404":
+          description: "`gst_not_found`."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    patch:
+      tags: [CPO Operations]
+      operationId: updateCPOGST
+      summary: Update a tenant GST profile
+      description: Requires CPO ADMIN and at least one mutable field.
+      security:
+        - BearerAuth: []
+          CPOAppID: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateGSTRequest"
+      responses:
+        "200":
+          description: Updated GST profile.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GST"
+        "400":
+          description: Invalid body, GST ID, field, or app-ID header.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/CPOBusinessForbidden"
+        "404":
+          description: "`gst_not_found`."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "409":
+          description: "`gst_conflict`."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
   /api/v1/cpo/integrations:
     get:
       tags: [CPO Integrations]
@@ -1752,7 +2497,7 @@ paths:
       summary: List configured integration metadata
       description: |
         Returns metadata only for the authenticated CPO. Secret plaintext is
-        never returned. Requires a CPO OWNER or ADMIN session, a changed initial
+        never returned. Requires the currently supported CPO ADMIN session, a changed initial
         password, and the current app-ID header.
       security:
         - BearerAuth: []
@@ -1925,6 +2670,67 @@ components:
       schema:
         type: string
         enum: [RAZORPAY]
+    ChargerPublicID:
+      name: charger_id
+      in: path
+      required: true
+      description: Server-generated six-character lowercase public charger ID.
+      schema:
+        type: string
+        pattern: "^[a-z0-9]{6}$"
+      example: a1b2c3
+    HubID:
+      name: hub_id
+      in: path
+      required: true
+      description: Server-generated hub UUID owned by the authenticated CPO.
+      schema:
+        type: string
+        format: uuid
+    TariffID:
+      name: tariff_id
+      in: path
+      required: true
+      description: Server-generated tariff UUID owned by the authenticated CPO.
+      schema:
+        type: string
+        format: uuid
+    GSTID:
+      name: gst_id
+      in: path
+      required: true
+      description: Server-generated GST-profile UUID owned by the authenticated CPO.
+      schema:
+        type: string
+        format: uuid
+    ListBefore:
+      name: before
+      in: query
+      required: false
+      description: |
+        Exclusive RFC3339 `created_at` cursor. Supply together with
+        `before_id` from the previous response.
+      schema:
+        type: string
+        format: date-time
+    ListBeforeID:
+      name: before_id
+      in: query
+      required: false
+      description: Exclusive UUID tie-breaker supplied together with `before`.
+      schema:
+        type: string
+        format: uuid
+    ListLimit:
+      name: limit
+      in: query
+      required: false
+      description: Page size; defaults to 50.
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 200
+        default: 50
 
   responses:
     InvalidRequest:
@@ -1990,6 +2796,15 @@ components:
     CPOIntegrationForbidden:
       description: |
         `forbidden`, `password_change_required`, or `cpo_app_id_mismatch`.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorEnvelope"
+    CPOBusinessForbidden:
+      description: |
+        `forbidden`, `password_change_required`, or `cpo_app_id_mismatch`.
+        Dormant OWNER, OPERATOR, and VIEWER role values do not grant callable
+        CPO authority in the current ADMIN-only release.
       content:
         application/json:
           schema:
@@ -2847,7 +3662,7 @@ components:
           type: string
         role:
           type: string
-          enum: [OWNER, ADMIN]
+          enum: [ADMIN]
         membership_status:
           type: string
           enum: [ACTIVE, SUSPENDED, REVOKED]
@@ -3084,13 +3899,493 @@ components:
           items:
             $ref: "#/components/schemas/Worker"
 
+    UpdateCPOAdminProfileRequest:
+      type: object
+      additionalProperties: false
+      minProperties: 1
+      properties:
+        full_name:
+          type: string
+          minLength: 1
+          maxLength: 255
+        phone:
+          type: string
+          maxLength: 32
+          description: Blank clears the stored phone value.
+      example:
+        full_name: CPO Administrator
+        phone: "+919876543210"
+
+    CPOAdminProfile:
+      type: object
+      additionalProperties: false
+      required:
+        [user_id, cpo_id, email, full_name, role, is_verified, created_at, updated_at]
+      properties:
+        user_id: {type: string, format: uuid}
+        cpo_id: {type: string, format: uuid}
+        email: {type: string, format: email}
+        full_name: {type: string}
+        phone: {type: string, maxLength: 32}
+        role:
+          type: string
+          enum: [ADMIN]
+        is_verified: {type: boolean}
+        created_at: {type: string, format: date-time}
+        updated_at: {type: string, format: date-time}
+
+    DecimalInput:
+      description: |
+        Exact base-10 decimal. JSON strings are recommended so clients do not
+        introduce binary floating-point rounding; JSON numbers are also accepted.
+      oneOf:
+        - type: string
+          pattern: "^-?[0-9]+(?:\\.[0-9]+)?$"
+        - type: number
+
+    ExactDecimal:
+      type: string
+      pattern: "^-?[0-9]+(?:\\.[0-9]+)?$"
+      description: Exact base-10 decimal serialized as a JSON string.
+
+    CreateConnectorRequest:
+      type: object
+      additionalProperties: false
+      required: [connector_number, connector_type]
+      properties:
+        connector_number:
+          type: integer
+          minimum: 1
+        connector_type:
+          type: string
+          minLength: 1
+          maxLength: 50
+          example: CCS2
+        max_current:
+          type: number
+          minimum: 0
+          default: 0
+        max_voltage:
+          type: number
+          minimum: 0
+          default: 0
+
+    CreateChargerRequest:
+      type: object
+      additionalProperties: false
+      required: [hub_id, vendor, model, serial_number, connectors]
+      properties:
+        hub_id:
+          type: string
+          format: uuid
+        vendor:
+          type: string
+          minLength: 1
+          maxLength: 100
+        model:
+          type: string
+          minLength: 1
+          maxLength: 100
+        serial_number:
+          type: string
+          minLength: 1
+          maxLength: 100
+        max_power_kw:
+          type: number
+          minimum: 0
+          default: 0
+        connectors:
+          type: array
+          minItems: 1
+          items:
+            $ref: "#/components/schemas/CreateConnectorRequest"
+      example:
+        hub_id: 8b80ef78-7799-4a09-a0d5-73ac944aa6e0
+        vendor: Delta
+        model: DC Wallbox
+        serial_number: SN-001
+        max_power_kw: 25
+        connectors:
+          - connector_number: 1
+            connector_type: CCS2
+            max_current: 60
+            max_voltage: 500
+
+    UpdateConnectorRequest:
+      type: object
+      additionalProperties: false
+      required: [id]
+      minProperties: 2
+      properties:
+        id:
+          type: string
+          format: uuid
+        connector_number:
+          type: integer
+          minimum: 1
+        connector_type:
+          type: string
+          minLength: 1
+          maxLength: 50
+        max_current:
+          type: number
+          minimum: 0
+        max_voltage:
+          type: number
+          minimum: 0
+    UpdateChargerRequest:
+      type: object
+      additionalProperties: false
+      minProperties: 1
+      properties:
+        hub_id:
+          type: string
+          format: uuid
+        vendor:
+          type: string
+          minLength: 1
+          maxLength: 100
+        model:
+          type: string
+          minLength: 1
+          maxLength: 100
+        serial_number:
+          type: string
+          minLength: 1
+          maxLength: 100
+        max_power_kw:
+          type: number
+          minimum: 0
+        connectors:
+          type: array
+          minItems: 1
+          items:
+            $ref: "#/components/schemas/UpdateConnectorRequest"
+
+    Connector:
+      type: object
+      additionalProperties: false
+      required:
+        - id
+        - cpo_id
+        - charger_id
+        - connector_number
+        - connector_type
+        - max_current
+        - max_voltage
+        - status
+        - created_at
+        - updated_at
+      properties:
+        id: {type: string, format: uuid}
+        cpo_id: {type: string, format: uuid}
+        charger_id: {type: string, format: uuid}
+        connector_number: {type: integer, minimum: 1}
+        connector_type: {type: string, maxLength: 50}
+        max_current: {type: number, minimum: 0}
+        max_voltage: {type: number, minimum: 0}
+        status:
+          $ref: "#/components/schemas/ChargerStatus"
+        created_at: {type: string, format: date-time}
+        updated_at: {type: string, format: date-time}
+
+    Charger:
+      type: object
+      additionalProperties: false
+      required:
+        - id
+        - cpo_id
+        - hub_id
+        - charger_id
+        - ocpp_identity
+        - vendor
+        - model
+        - serial_number
+        - max_power_kw
+        - status
+        - ocpp_version
+        - connectors
+        - created_at
+        - updated_at
+      properties:
+        id: {type: string, format: uuid}
+        cpo_id: {type: string, format: uuid}
+        hub_id: {type: string, format: uuid}
+        charger_id:
+          type: string
+          pattern: "^[a-z0-9]{6}$"
+        ocpp_identity:
+          type: string
+          maxLength: 255
+          description: CMS mapping value; not proof of a live HAL connection.
+        vendor: {type: string, maxLength: 100}
+        model: {type: string, maxLength: 100}
+        serial_number: {type: string, maxLength: 100}
+        max_power_kw: {type: number, minimum: 0}
+        status:
+          $ref: "#/components/schemas/ChargerStatus"
+        ocpp_version: {type: string, maxLength: 20}
+        last_seen_at:
+          type: string
+          format: date-time
+          nullable: true
+        connectors:
+          type: array
+          items:
+            $ref: "#/components/schemas/Connector"
+        created_at: {type: string, format: date-time}
+        updated_at: {type: string, format: date-time}
+
+    ChargerListResponse:
+      type: object
+      additionalProperties: false
+      required: [chargers, has_more]
+      properties:
+        chargers:
+          type: array
+          items:
+            $ref: "#/components/schemas/Charger"
+        next_before:
+          type: string
+          format: date-time
+        next_before_id:
+          type: string
+          format: uuid
+        has_more:
+          type: boolean
+
+    CreateHubRequest:
+      type: object
+      additionalProperties: false
+      required: [name, address, latitude, longitude]
+      properties:
+        name: {type: string, minLength: 1, maxLength: 255}
+        address: {type: string, minLength: 1, maxLength: 5000}
+        latitude: {type: number, minimum: -90, maximum: 90}
+        longitude: {type: number, minimum: -180, maximum: 180}
+        open_24_hours: {type: boolean, default: true}
+      example:
+        name: Park Street Hub
+        address: 12 Park Street, Kolkata
+        latitude: 22.5524
+        longitude: 88.3521
+        open_24_hours: true
+
+    UpdateHubRequest:
+      type: object
+      additionalProperties: false
+      minProperties: 1
+      properties:
+        name: {type: string, minLength: 1, maxLength: 255}
+        address: {type: string, minLength: 1, maxLength: 5000}
+        latitude: {type: number, minimum: -90, maximum: 90}
+        longitude: {type: number, minimum: -180, maximum: 180}
+        open_24_hours: {type: boolean}
+
+    Hub:
+      type: object
+      additionalProperties: false
+      required:
+        [id, cpo_id, name, address, latitude, longitude, open_24_hours, created_at, updated_at]
+      properties:
+        id: {type: string, format: uuid}
+        cpo_id: {type: string, format: uuid}
+        name: {type: string}
+        address: {type: string}
+        latitude: {type: number}
+        longitude: {type: number}
+        open_24_hours: {type: boolean}
+        created_at: {type: string, format: date-time}
+        updated_at: {type: string, format: date-time}
+
+    HubListResponse:
+      type: object
+      additionalProperties: false
+      required: [hubs, has_more]
+      properties:
+        hubs:
+          type: array
+          items:
+            $ref: "#/components/schemas/Hub"
+        next_before: {type: string, format: date-time}
+        next_before_id: {type: string, format: uuid}
+        has_more: {type: boolean}
+
+    CreateGSTRequest:
+      type: object
+      additionalProperties: false
+      required: [name, sgst_rate, cgst_rate, igst_rate]
+      properties:
+        name: {type: string, minLength: 1, maxLength: 100}
+        sgst_rate:
+          allOf:
+            - $ref: "#/components/schemas/DecimalInput"
+          description: Exact percentage from 0 through 100.
+        cgst_rate:
+          allOf:
+            - $ref: "#/components/schemas/DecimalInput"
+          description: Exact percentage from 0 through 100.
+        igst_rate:
+          allOf:
+            - $ref: "#/components/schemas/DecimalInput"
+          description: Exact percentage from 0 through 100.
+        is_active: {type: boolean, default: true}
+      example:
+        name: Standard GST
+        sgst_rate: "9.00"
+        cgst_rate: "9.00"
+        igst_rate: "18.00"
+        is_active: true
+
+    UpdateGSTRequest:
+      type: object
+      additionalProperties: false
+      minProperties: 1
+      properties:
+        name: {type: string, minLength: 1, maxLength: 100}
+        sgst_rate: {$ref: "#/components/schemas/DecimalInput"}
+        cgst_rate: {$ref: "#/components/schemas/DecimalInput"}
+        igst_rate: {$ref: "#/components/schemas/DecimalInput"}
+        is_active: {type: boolean}
+
+    GST:
+      type: object
+      additionalProperties: false
+      required:
+        [id, cpo_id, name, sgst_rate, cgst_rate, igst_rate, is_active, created_at, updated_at]
+      properties:
+        id: {type: string, format: uuid}
+        cpo_id: {type: string, format: uuid}
+        name: {type: string}
+        sgst_rate: {$ref: "#/components/schemas/ExactDecimal"}
+        cgst_rate: {$ref: "#/components/schemas/ExactDecimal"}
+        igst_rate: {$ref: "#/components/schemas/ExactDecimal"}
+        is_active: {type: boolean}
+        created_at: {type: string, format: date-time}
+        updated_at: {type: string, format: date-time}
+
+    GSTListResponse:
+      type: object
+      additionalProperties: false
+      required: [gsts, has_more]
+      properties:
+        gsts:
+          type: array
+          items:
+            $ref: "#/components/schemas/GST"
+        next_before: {type: string, format: date-time}
+        next_before_id: {type: string, format: uuid}
+        has_more: {type: boolean}
+
+    CreateTariffRequest:
+      type: object
+      additionalProperties: false
+      required: [hub_id, price_per_kwh]
+      properties:
+        hub_id: {type: string, format: uuid}
+        charger_id: {type: string, format: uuid}
+        gst_id: {type: string, format: uuid}
+        user_group_id: {type: string, format: uuid}
+        price_per_kwh:
+          $ref: "#/components/schemas/DecimalInput"
+        idle_fee_per_min:
+          $ref: "#/components/schemas/DecimalInput"
+        currency:
+          type: string
+          pattern: "^[A-Za-z]{3}$"
+          default: INR
+        is_active: {type: boolean, default: true}
+      example:
+        hub_id: 8b80ef78-7799-4a09-a0d5-73ac944aa6e0
+        charger_id: 7cc2d481-3ccb-4336-b03c-c8851a59ff9a
+        gst_id: 3e38d953-fe0a-4bfa-a11c-356c92bba7e9
+        price_per_kwh: "18.5000"
+        idle_fee_per_min: "1.0000"
+        currency: INR
+        is_active: true
+
+    UpdateTariffRequest:
+      type: object
+      additionalProperties: false
+      minProperties: 1
+      properties:
+        hub_id: {type: string, format: uuid}
+        charger_id: {type: string, format: uuid}
+        gst_id: {type: string, format: uuid}
+        user_group_id: {type: string, format: uuid}
+        price_per_kwh: {$ref: "#/components/schemas/DecimalInput"}
+        idle_fee_per_min: {$ref: "#/components/schemas/DecimalInput"}
+        currency:
+          type: string
+          pattern: "^[A-Za-z]{3}$"
+        is_active: {type: boolean}
+
+    Tariff:
+      type: object
+      additionalProperties: false
+      required:
+        - id
+        - cpo_id
+        - hub_id
+        - price_per_kwh
+        - idle_fee_per_min
+        - currency
+        - is_active
+        - created_at
+        - updated_at
+      properties:
+        id: {type: string, format: uuid}
+        cpo_id: {type: string, format: uuid}
+        hub_id: {type: string, format: uuid}
+        charger_id: {type: string, format: uuid}
+        gst_id: {type: string, format: uuid}
+        user_group_id: {type: string, format: uuid}
+        price_per_kwh: {$ref: "#/components/schemas/ExactDecimal"}
+        idle_fee_per_min: {$ref: "#/components/schemas/ExactDecimal"}
+        currency:
+          type: string
+          pattern: "^[A-Z]{3}$"
+        is_active: {type: boolean}
+        created_at: {type: string, format: date-time}
+        updated_at: {type: string, format: date-time}
+
+    TariffListResponse:
+      type: object
+      additionalProperties: false
+      required: [tariffs, has_more]
+      properties:
+        tariffs:
+          type: array
+          items:
+            $ref: "#/components/schemas/Tariff"
+        next_before: {type: string, format: date-time}
+        next_before_id: {type: string, format: uuid}
+        has_more: {type: boolean}
+
+    ChargerStatus:
+      type: string
+      enum:
+        - AVAILABLE
+        - PREPARING
+        - CHARGING
+        - SUSPENDED_EV
+        - SUSPENDED_EVSE
+        - FINISHING
+        - RESERVED
+        - UNAVAILABLE
+        - FAULTED
+        - OFFLINE
+
     AuthScope:
       type: string
       enum: [PLATFORM, CPO, CUSTOMER]
 
     CPORole:
       type: string
-      enum: [OWNER, ADMIN, OPERATOR, VIEWER]
+      enum: [ADMIN]
+      description: |
+        Only ADMIN is callable in the current API. Other persisted membership
+        enum values are dormant until a future staff-management contract.
 
     CPOAppIDMode:
       type: string

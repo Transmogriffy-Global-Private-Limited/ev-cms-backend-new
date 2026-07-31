@@ -18,6 +18,7 @@ import (
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/security"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/shopspring/decimal"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
@@ -679,7 +680,8 @@ func (service *Service) SetPrimaryAdmin(
 
 		samePrimary := currentFound && currentMembership.UserID == targetUser.ID
 		membershipChanged := !samePrimary ||
-			currentMembership.Status != constants.MembershipStatusActive
+			currentMembership.Status != constants.MembershipStatusActive ||
+			currentMembership.Role != constants.CPORoleAdmin
 		if samePrimary && !membershipChanged {
 			return nil
 		}
@@ -713,11 +715,6 @@ func (service *Service) SetPrimaryAdmin(
 		}
 
 		role := constants.CPORoleAdmin
-		if targetFound &&
-			(targetMembership.Role == constants.CPORoleAdmin ||
-				targetMembership.Role == constants.CPORoleOwner) {
-			role = targetMembership.Role
-		}
 		if targetFound {
 			if err := tx.Model(&models.CPOMembership{}).
 				Where("id = ?", targetMembership.ID).
@@ -1430,5 +1427,2002 @@ func view(record models.CPO) View {
 		AppIDUpdatedAt:        record.AppIDUpdatedAt,
 		CreatedAt:             record.CreatedAt,
 		UpdatedAt:             record.UpdatedAt,
+	}
+}
+
+func trimOptionalString(value *string) *string {
+	if value == nil {
+		return nil
+	}
+	trimmed := strings.TrimSpace(*value)
+	return &trimmed
+}
+
+var chargerIDPattern = regexp.MustCompile(`^[a-z0-9]{6}$`)
+
+func (service *Service) GetAdminProfile(
+	ctx context.Context,
+	principal auth.Principal,
+) (AdminProfileView, error) {
+	if err := requireCPOAdminAccess(principal); err != nil {
+		return AdminProfileView{}, err
+	}
+	var user models.User
+	if err := service.database.WithContext(ctx).
+		First(&user, "id = ? AND is_active = true", principal.UserID).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return AdminProfileView{}, &auth.APIError{
+				Status:  http.StatusUnauthorized,
+				Code:    "unauthorized",
+				Message: "The authenticated identity is no longer active.",
+			}
+		}
+		return AdminProfileView{}, fmt.Errorf("load CPO administrator profile: %w", err)
+	}
+	return adminProfileView(user, *principal.CPOID), nil
+}
+
+func (service *Service) UpdateAdminProfile(
+	ctx context.Context,
+	principal auth.Principal,
+	request UpdateAdminProfileRequest,
+) (AdminProfileView, error) {
+	if err := requireCPOAdminAccess(principal); err != nil {
+		return AdminProfileView{}, err
+	}
+	request.FullName = trimOptionalString(request.FullName)
+	request.Phone = trimOptionalString(request.Phone)
+	if request.FullName == nil && request.Phone == nil {
+		return AdminProfileView{}, invalid(
+			"admin_profile",
+			"At least one administrator profile field must be supplied.",
+		)
+	}
+	if request.FullName != nil && (*request.FullName == "" || len(*request.FullName) > 255) {
+		return AdminProfileView{}, invalid(
+			"full_name",
+			"Full name is required and must not exceed 255 characters.",
+		)
+	}
+	if request.Phone != nil && len(*request.Phone) > 32 {
+		return AdminProfileView{}, invalid("phone", "Phone must not exceed 32 characters.")
+	}
+
+	var user models.User
+	cpoID := *principal.CPOID
+	err := service.database.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+			First(&user, "id = ? AND is_active = true", principal.UserID).Error; err != nil {
+			return err
+		}
+		updates := map[string]any{}
+		changedFields := make([]string, 0, 2)
+		if request.FullName != nil {
+			updates["full_name"] = *request.FullName
+			user.FullName = *request.FullName
+			changedFields = append(changedFields, "full_name")
+		}
+		if request.Phone != nil {
+			if *request.Phone == "" {
+				updates["phone"] = nil
+				user.Phone = nil
+			} else {
+				updates["phone"] = *request.Phone
+				user.Phone = request.Phone
+			}
+			changedFields = append(changedFields, "phone")
+		}
+		now := service.now()
+		updates["updated_at"] = now
+		user.UpdatedAt = now
+		if err := tx.Model(&models.User{}).
+			Where("id = ?", user.ID).
+			Updates(updates).Error; err != nil {
+			return fmt.Errorf("update CPO administrator profile: %w", err)
+		}
+		return writeAudit(
+			tx,
+			principal.UserID,
+			cpoID,
+			"CPO_ADMIN_PROFILE_UPDATED",
+			models.JSONB{"changed_fields": changedFields},
+			now,
+		)
+	})
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return AdminProfileView{}, &auth.APIError{
+				Status:  http.StatusUnauthorized,
+				Code:    "unauthorized",
+				Message: "The authenticated identity is no longer active.",
+			}
+		}
+		return AdminProfileView{}, err
+	}
+	return adminProfileView(user, cpoID), nil
+}
+
+func adminProfileView(user models.User, cpoID uuid.UUID) AdminProfileView {
+	return AdminProfileView{
+		UserID:     user.ID,
+		CPOID:      cpoID,
+		Email:      user.Email,
+		FullName:   user.FullName,
+		Phone:      user.Phone,
+		Role:       constants.CPORoleAdmin,
+		IsVerified: user.IsVerified,
+		CreatedAt:  user.CreatedAt,
+		UpdatedAt:  user.UpdatedAt,
+	}
+}
+
+func (service *Service) CreateCharger(
+	ctx context.Context,
+	principal auth.Principal,
+	request CreateChargerRequest,
+) (ChargerView, error) {
+	if err := requireCPOAdminAccess(principal); err != nil {
+		return ChargerView{}, err
+	}
+
+	cpoID := *principal.CPOID
+	request = normalizeCreateChargerRequest(request)
+	if err := validateCreateChargerRequest(request); err != nil {
+		return ChargerView{}, err
+	}
+
+	var record models.Charger
+	err := service.database.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var hub models.Hub
+		if err := tx.First(&hub, "id = ? AND cpo_id = ?", request.HubID, cpoID).Error; err != nil {
+			return mapHubNotFound(err)
+		}
+
+		chargerID, err := generateUniqueChargerIDTx(tx)
+		if err != nil {
+			return err
+		}
+
+		ocppIdentity, err := generateUniqueOCPPIdentityTx(tx)
+		if err != nil {
+			return err
+		}
+
+		now := service.now()
+		record = models.Charger{
+			ID:           uuid.New(),
+			CPOID:        cpoID,
+			HubID:        request.HubID,
+			ChargerID:    chargerID,
+			OCPPIdentity: ocppIdentity,
+			Vendor:       request.Vendor,
+			Model:        request.Model,
+			SerialNumber: request.SerialNumber,
+			MaxPowerKW:   request.MaxPowerKW,
+			Status:       constants.ChargerStatus("OFFLINE"),
+			OCPPVersion:  "1.6J",
+			CreatedAt:    now,
+			UpdatedAt:    now,
+		}
+
+		if err := tx.Create(&record).Error; err != nil {
+			return mapChargerWriteError(err, "create charger")
+		}
+
+		for _, connector := range request.Connectors {
+			connectorType := strings.TrimSpace(connector.ConnectorType)
+			connectorRecord := models.Connector{
+				ID:              uuid.New(),
+				CPOID:           cpoID,
+				ChargerID:       record.ID,
+				ConnectorNumber: connector.ConnectorNumber,
+				ConnectorType:   connectorType,
+				MaxCurrent:      connector.MaxCurrent,
+				MaxVoltage:      connector.MaxVoltage,
+				Status:          constants.ChargerStatus("AVAILABLE"),
+				CreatedAt:       now,
+				UpdatedAt:       now,
+			}
+
+			if err := tx.Create(&connectorRecord).Error; err != nil {
+				return mapConnectorWriteError(err, "create connector")
+			}
+			record.Connectors = append(record.Connectors, connectorRecord)
+		}
+
+		return writeAudit(
+			tx,
+			principal.UserID,
+			cpoID,
+			"CHARGER_CREATED",
+			models.JSONB{
+				"charger_id":    record.ChargerID,
+				"ocpp_identity": record.OCPPIdentity,
+				"hub_id":        record.HubID,
+				"connectors":    len(record.Connectors),
+			},
+			now,
+		)
+	})
+	if err != nil {
+		return ChargerView{}, err
+	}
+
+	return chargerView(record), nil
+}
+
+func (service *Service) GetCharger(
+	ctx context.Context,
+	principal auth.Principal,
+	chargerID string,
+) (ChargerView, error) {
+	if err := requireCPOAdminAccess(principal); err != nil {
+		return ChargerView{}, err
+	}
+
+	chargerID = normalizeChargerID(chargerID)
+	if !chargerIDPattern.MatchString(chargerID) {
+		return ChargerView{}, &auth.APIError{
+			Status:  http.StatusBadRequest,
+			Code:    "invalid_charger_id",
+			Message: "The charger ID is invalid.",
+		}
+	}
+
+	var record models.Charger
+	if err := service.database.WithContext(ctx).
+		Preload("Connectors", func(tx *gorm.DB) *gorm.DB {
+			return tx.Order("connector_number ASC")
+		}).
+		First(&record, "cpo_id = ? AND charger_id = ?", *principal.CPOID, chargerID).Error; err != nil {
+		return ChargerView{}, mapChargerNotFound(err)
+	}
+	return chargerView(record), nil
+}
+
+func (service *Service) UpdateCharger(
+	ctx context.Context,
+	principal auth.Principal,
+	chargerID string,
+	request UpdateChargerRequest,
+) (ChargerView, error) {
+	if err := requireCPOAdminAccess(principal); err != nil {
+		return ChargerView{}, err
+	}
+
+	chargerID = normalizeChargerID(chargerID)
+	if !chargerIDPattern.MatchString(chargerID) {
+		return ChargerView{}, &auth.APIError{
+			Status:  http.StatusBadRequest,
+			Code:    "invalid_charger_id",
+			Message: "The charger ID is invalid.",
+		}
+	}
+
+	request = normalizeUpdateChargerRequest(request)
+	if err := validateUpdateChargerRequest(request); err != nil {
+		return ChargerView{}, err
+	}
+
+	cpoID := *principal.CPOID
+	var record models.Charger
+
+	err := service.database.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+			Preload("Connectors", func(tx *gorm.DB) *gorm.DB {
+				return tx.Order("connector_number ASC")
+			}).
+			First(&record, "cpo_id = ? AND charger_id = ?", cpoID, chargerID).Error; err != nil {
+			return mapChargerNotFound(err)
+		}
+
+		updates := map[string]any{}
+		changedFields := models.JSONB{}
+
+		if request.HubID != nil {
+			var hub models.Hub
+			if err := tx.First(&hub, "id = ? AND cpo_id = ?", *request.HubID, cpoID).Error; err != nil {
+				return mapHubNotFound(err)
+			}
+			updates["hub_id"] = *request.HubID
+			record.HubID = *request.HubID
+			changedFields["hub_id"] = *request.HubID
+		}
+		if request.Vendor != nil {
+			updates["vendor"] = *request.Vendor
+			record.Vendor = *request.Vendor
+			changedFields["vendor"] = *request.Vendor
+		}
+		if request.Model != nil {
+			updates["model"] = *request.Model
+			record.Model = *request.Model
+			changedFields["model"] = *request.Model
+		}
+		if request.SerialNumber != nil {
+			updates["serial_number"] = *request.SerialNumber
+			record.SerialNumber = *request.SerialNumber
+			changedFields["serial_number"] = *request.SerialNumber
+		}
+		if request.MaxPowerKW != nil {
+			updates["max_power_kw"] = *request.MaxPowerKW
+			record.MaxPowerKW = *request.MaxPowerKW
+			changedFields["max_power_kw"] = *request.MaxPowerKW
+		}
+
+		now := service.now()
+
+		if request.Connectors != nil {
+			if len(*request.Connectors) == 0 {
+				return &auth.APIError{
+					Status:  http.StatusBadRequest,
+					Code:    "invalid_request",
+					Message: "Connectors list cannot be empty.",
+				}
+			}
+
+			existingByID := make(map[uuid.UUID]*models.Connector, len(record.Connectors))
+			for i := range record.Connectors {
+				conn := &record.Connectors[i]
+				existingByID[conn.ID] = conn
+			}
+
+			seenIDs := map[uuid.UUID]struct{}{}
+
+			for _, connectorReq := range *request.Connectors {
+				if connectorReq.ID == uuid.Nil {
+					return &auth.APIError{
+						Status:  http.StatusBadRequest,
+						Code:    "invalid_connector_id",
+						Message: "Connector ID is required.",
+					}
+				}
+				if _, dup := seenIDs[connectorReq.ID]; dup {
+					return &auth.APIError{
+						Status:  http.StatusBadRequest,
+						Code:    "duplicate_connector_id",
+						Message: "Connector IDs in the request must be unique.",
+					}
+				}
+				seenIDs[connectorReq.ID] = struct{}{}
+
+				existing, ok := existingByID[connectorReq.ID]
+				if !ok {
+					return mapConnectorNotFound(gorm.ErrRecordNotFound)
+				}
+
+				connUpdates := map[string]any{}
+				connChanged := false
+
+				if connectorReq.ConnectorNumber != nil {
+					if *connectorReq.ConnectorNumber <= 0 {
+						return invalid("connector_number", "Connector number must be greater than zero.")
+					}
+					connUpdates["connector_number"] = *connectorReq.ConnectorNumber
+					existing.ConnectorNumber = *connectorReq.ConnectorNumber
+					connChanged = true
+				}
+				if connectorReq.ConnectorType != nil {
+					connType := strings.TrimSpace(*connectorReq.ConnectorType)
+					if connType == "" {
+						return invalid("connector_type", "Connector type is required.")
+					}
+					connUpdates["connector_type"] = connType
+					existing.ConnectorType = connType
+					connChanged = true
+				}
+				if connectorReq.MaxCurrent != nil {
+					if *connectorReq.MaxCurrent < 0 {
+						return invalid("max_current", "Max current cannot be negative.")
+					}
+					connUpdates["max_current"] = *connectorReq.MaxCurrent
+					existing.MaxCurrent = *connectorReq.MaxCurrent
+					connChanged = true
+				}
+				if connectorReq.MaxVoltage != nil {
+					if *connectorReq.MaxVoltage < 0 {
+						return invalid("max_voltage", "Max voltage cannot be negative.")
+					}
+					connUpdates["max_voltage"] = *connectorReq.MaxVoltage
+					existing.MaxVoltage = *connectorReq.MaxVoltage
+					connChanged = true
+				}
+				if !connChanged {
+					return &auth.APIError{
+						Status:  http.StatusBadRequest,
+						Code:    "invalid_request",
+						Message: "At least one connector field must be supplied.",
+					}
+				}
+
+				connUpdates["updated_at"] = now
+				existing.UpdatedAt = now
+				changedFields["connectors"] = len(*request.Connectors)
+
+				if err := tx.Model(&models.Connector{}).
+					Where("id = ? AND cpo_id = ? AND charger_id = ?", existing.ID, cpoID, record.ID).
+					Updates(connUpdates).Error; err != nil {
+					return mapConnectorWriteError(err, "update connector")
+				}
+			}
+		}
+
+		if len(changedFields) == 0 {
+			return &auth.APIError{
+				Status:  http.StatusBadRequest,
+				Code:    "invalid_request",
+				Message: "At least one charger field must be supplied.",
+			}
+		}
+
+		updates["updated_at"] = now
+		record.UpdatedAt = now
+
+		if len(updates) > 1 {
+			if err := tx.Model(&models.Charger{}).
+				Where("id = ?", record.ID).
+				Updates(updates).Error; err != nil {
+				return mapChargerWriteError(err, "update charger")
+			}
+		}
+
+		return writeAudit(
+			tx,
+			principal.UserID,
+			cpoID,
+			"CHARGER_UPDATED",
+			models.JSONB{
+				"charger_id":     record.ChargerID,
+				"changed_fields": changedFields,
+			},
+			now,
+		)
+	})
+	if err != nil {
+		return ChargerView{}, err
+	}
+
+	return chargerView(record), nil
+}
+
+func (service *Service) DeleteCharger(
+	ctx context.Context,
+	principal auth.Principal,
+	chargerID string,
+) error {
+	if err := requireCPOAdminAccess(principal); err != nil {
+		return err
+	}
+
+	chargerID = normalizeChargerID(chargerID)
+	if !chargerIDPattern.MatchString(chargerID) {
+		return &auth.APIError{
+			Status:  http.StatusBadRequest,
+			Code:    "invalid_charger_id",
+			Message: "The charger ID is invalid.",
+		}
+	}
+
+	cpoID := *principal.CPOID
+	return service.database.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var record models.Charger
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+			Preload("Connectors").
+			First(&record, "cpo_id = ? AND charger_id = ?", cpoID, chargerID).Error; err != nil {
+			return mapChargerNotFound(err)
+		}
+
+		if err := tx.Where("charger_id = ?", record.ID).Delete(&models.Connector{}).Error; err != nil {
+			return mapChargerDeleteError(err)
+		}
+
+		if err := tx.Delete(&record).Error; err != nil {
+			return mapChargerDeleteError(err)
+		}
+
+		return writeAudit(
+			tx,
+			principal.UserID,
+			cpoID,
+			"CHARGER_DELETED",
+			models.JSONB{
+				"charger_id":    record.ChargerID,
+				"ocpp_identity": record.OCPPIdentity,
+				"hub_id":        record.HubID,
+			},
+			service.now(),
+		)
+	})
+}
+
+func normalizeCreateChargerRequest(request CreateChargerRequest) CreateChargerRequest {
+	request.Vendor = strings.TrimSpace(request.Vendor)
+	request.Model = strings.TrimSpace(request.Model)
+	request.SerialNumber = strings.TrimSpace(request.SerialNumber)
+
+	for i := range request.Connectors {
+		request.Connectors[i].ConnectorType = strings.TrimSpace(request.Connectors[i].ConnectorType)
+	}
+	return request
+}
+
+func normalizeUpdateChargerRequest(request UpdateChargerRequest) UpdateChargerRequest {
+	request.Vendor = trimOptionalString(request.Vendor)
+	request.Model = trimOptionalString(request.Model)
+	request.SerialNumber = trimOptionalString(request.SerialNumber)
+
+	if request.Connectors != nil {
+		connectors := *request.Connectors
+		for i := range connectors {
+			if connectors[i].ConnectorType != nil {
+				value := strings.TrimSpace(*connectors[i].ConnectorType)
+				connectors[i].ConnectorType = &value
+			}
+		}
+		request.Connectors = &connectors
+	}
+
+	return request
+}
+
+func normalizeChargerID(value string) string {
+	return strings.ToLower(strings.TrimSpace(value))
+}
+
+func validateCreateChargerRequest(request CreateChargerRequest) error {
+	if request.HubID == uuid.Nil {
+		return invalid("hub_id", "Hub ID is required.")
+	}
+	if request.Vendor == "" || len(request.Vendor) > 100 {
+		return invalid("vendor", "Vendor is required and must not exceed 100 characters.")
+	}
+	if request.Model == "" || len(request.Model) > 100 {
+		return invalid("model", "Model is required and must not exceed 100 characters.")
+	}
+	if request.SerialNumber == "" || len(request.SerialNumber) > 100 {
+		return invalid("serial_number", "Serial number is required and must not exceed 100 characters.")
+	}
+	if request.MaxPowerKW < 0 {
+		return invalid("max_power_kw", "Max power kW must not be negative.")
+	}
+	if len(request.Connectors) == 0 {
+		return invalid("connectors", "At least one connector is required.")
+	}
+
+	seenNumbers := map[int]struct{}{}
+	for _, connector := range request.Connectors {
+		if connector.ConnectorNumber <= 0 {
+			return invalid("connector_number", "Connector number must be greater than zero.")
+		}
+		if strings.TrimSpace(connector.ConnectorType) == "" || len(connector.ConnectorType) > 50 {
+			return invalid("connector_type", "Connector type is required and must not exceed 50 characters.")
+		}
+		if connector.MaxCurrent < 0 {
+			return invalid("max_current", "Max current cannot be negative.")
+		}
+		if connector.MaxVoltage < 0 {
+			return invalid("max_voltage", "Max voltage cannot be negative.")
+		}
+		if _, dup := seenNumbers[connector.ConnectorNumber]; dup {
+			return invalid("connector_number", "Connector numbers must be unique within a charger.")
+		}
+		seenNumbers[connector.ConnectorNumber] = struct{}{}
+	}
+	return nil
+}
+
+func validateUpdateChargerRequest(request UpdateChargerRequest) error {
+	if request.HubID == nil &&
+		request.Vendor == nil &&
+		request.Model == nil &&
+		request.SerialNumber == nil &&
+		request.MaxPowerKW == nil &&
+		request.Connectors == nil {
+		return invalid("charger", "At least one charger field must be supplied.")
+	}
+
+	if request.Vendor != nil && (*request.Vendor == "" || len(*request.Vendor) > 100) {
+		return invalid("vendor", "Vendor must not exceed 100 characters.")
+	}
+	if request.Model != nil && (*request.Model == "" || len(*request.Model) > 100) {
+		return invalid("model", "Model must not exceed 100 characters.")
+	}
+	if request.SerialNumber != nil && (*request.SerialNumber == "" || len(*request.SerialNumber) > 100) {
+		return invalid("serial_number", "Serial number must not exceed 100 characters.")
+	}
+	if request.MaxPowerKW != nil && *request.MaxPowerKW < 0 {
+		return invalid("max_power_kw", "Max power kW must not be negative.")
+	}
+
+	if request.Connectors != nil {
+		if len(*request.Connectors) == 0 {
+			return invalid("connectors", "Connectors list cannot be empty when provided.")
+		}
+
+		seenIDs := map[uuid.UUID]struct{}{}
+		for _, connector := range *request.Connectors {
+			if connector.ID == uuid.Nil {
+				return invalid("connector_id", "Connector ID is required.")
+			}
+			if _, dup := seenIDs[connector.ID]; dup {
+				return invalid("connector_id", "Connector IDs in the request must be unique.")
+			}
+			seenIDs[connector.ID] = struct{}{}
+
+			changed := false
+			if connector.ConnectorNumber != nil {
+				if *connector.ConnectorNumber <= 0 {
+					return invalid("connector_number", "Connector number must be greater than zero.")
+				}
+				changed = true
+			}
+			if connector.ConnectorType != nil {
+				if strings.TrimSpace(*connector.ConnectorType) == "" || len(*connector.ConnectorType) > 50 {
+					return invalid("connector_type", "Connector type must not exceed 50 characters.")
+				}
+				changed = true
+			}
+			if connector.MaxCurrent != nil {
+				if *connector.MaxCurrent < 0 {
+					return invalid("max_current", "Max current cannot be negative.")
+				}
+				changed = true
+			}
+			if connector.MaxVoltage != nil {
+				if *connector.MaxVoltage < 0 {
+					return invalid("max_voltage", "Max voltage cannot be negative.")
+				}
+				changed = true
+			}
+			if !changed {
+				return invalid("connectors", "At least one connector field must be supplied for each connector.")
+			}
+		}
+	}
+
+	return nil
+}
+
+func requireCPOAdminAccess(principal auth.Principal) error {
+	if principal.Scope != constants.AuthScopeCPO {
+		return &auth.APIError{
+			Status:  http.StatusForbidden,
+			Code:    "forbidden",
+			Message: "CPO access is required.",
+		}
+	}
+	if principal.CPOID == nil {
+		return &auth.APIError{
+			Status:  http.StatusForbidden,
+			Code:    "forbidden",
+			Message: "CPO tenant context is required.",
+		}
+	}
+	if principal.Role == nil {
+		return &auth.APIError{
+			Status:  http.StatusForbidden,
+			Code:    "forbidden",
+			Message: "CPO role is required.",
+		}
+	}
+	if *principal.Role == constants.CPORoleAdmin {
+		return nil
+	}
+	return &auth.APIError{
+		Status:  http.StatusForbidden,
+		Code:    "forbidden",
+		Message: "CPO administrator access is required.",
+	}
+}
+
+func generateUniqueChargerIDTx(tx *gorm.DB) (string, error) {
+	for i := 0; i < 32; i++ {
+		candidate, err := security.RandomHex(3)
+		if err != nil {
+			return "", err
+		}
+		candidate = strings.ToLower(candidate)
+		if !chargerIDPattern.MatchString(candidate) {
+			continue
+		}
+
+		var existing models.Charger
+		err = tx.Select("id").Where("charger_id = ?", candidate).Take(&existing).Error
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return candidate, nil
+		}
+		if err != nil {
+			return "", fmt.Errorf("check charger id uniqueness: %w", err)
+		}
+	}
+	return "", &auth.APIError{
+		Status:  http.StatusConflict,
+		Code:    "charger_conflict",
+		Message: "Unable to generate a unique charger ID.",
+	}
+}
+
+func generateUniqueOCPPIdentityTx(tx *gorm.DB) (string, error) {
+	for i := 0; i < 32; i++ {
+		randomHex, err := security.RandomHex(3)
+		if err != nil {
+			return "", err
+		}
+		candidate := "ocpp_" + strings.ToLower(randomHex)
+
+		var existing models.Charger
+		err = tx.Select("id").
+			Where("ocpp_identity = ?", candidate).
+			Take(&existing).Error
+
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return candidate, nil
+		}
+		if err != nil {
+			return "", fmt.Errorf("check ocpp identity uniqueness: %w", err)
+		}
+	}
+
+	return "", &auth.APIError{
+		Status:  http.StatusConflict,
+		Code:    "charger_conflict",
+		Message: "Unable to generate a unique OCPP identity.",
+	}
+}
+
+func mapChargerNotFound(err error) error {
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return &auth.APIError{
+			Status:  http.StatusNotFound,
+			Code:    "charger_not_found",
+			Message: "The charger was not found.",
+		}
+	}
+	return fmt.Errorf("load charger: %w", err)
+}
+
+func mapConnectorNotFound(err error) error {
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return &auth.APIError{
+			Status:  http.StatusNotFound,
+			Code:    "connector_not_found",
+			Message: "The connector was not found.",
+		}
+	}
+	return fmt.Errorf("load connector: %w", err)
+}
+
+func mapHubNotFound(err error) error {
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return &auth.APIError{
+			Status:  http.StatusNotFound,
+			Code:    "hub_not_found",
+			Message: "The hub was not found.",
+		}
+	}
+	return fmt.Errorf("load hub: %w", err)
+}
+
+func mapChargerWriteError(err error, operation string) error {
+	var postgresError *pgconn.PgError
+	if errors.As(err, &postgresError) {
+		switch postgresError.Code {
+		case "23505":
+			return &auth.APIError{
+				Status:  http.StatusConflict,
+				Code:    "charger_conflict",
+				Message: "The charger ID, OCPP identity, or related unique value already exists.",
+			}
+		case "23503":
+			return &auth.APIError{
+				Status:  http.StatusConflict,
+				Code:    "charger_conflict",
+				Message: "The charger references an invalid related record.",
+			}
+		}
+	}
+	return fmt.Errorf("%s: %w", operation, err)
+}
+
+func mapConnectorWriteError(err error, operation string) error {
+	var postgresError *pgconn.PgError
+	if errors.As(err, &postgresError) {
+		switch postgresError.Code {
+		case "23505":
+			return &auth.APIError{
+				Status:  http.StatusConflict,
+				Code:    "connector_conflict",
+				Message: "The connector already exists or conflicts with another record.",
+			}
+		case "23503":
+			return &auth.APIError{
+				Status:  http.StatusConflict,
+				Code:    "connector_conflict",
+				Message: "The connector references an invalid related record.",
+			}
+		}
+	}
+	return fmt.Errorf("%s: %w", operation, err)
+}
+
+func mapChargerDeleteError(err error) error {
+	var postgresError *pgconn.PgError
+	if errors.As(err, &postgresError) && postgresError.Code == "23503" {
+		return &auth.APIError{
+			Status:  http.StatusConflict,
+			Code:    "charger_in_use",
+			Message: "The charger cannot be deleted because it has dependent records.",
+		}
+	}
+	return fmt.Errorf("delete charger: %w", err)
+}
+
+func chargerView(record models.Charger) ChargerView {
+	connectorsView := make([]ConnectorView, 0, len(record.Connectors))
+
+	for _, conn := range record.Connectors {
+		connectorsView = append(connectorsView, ConnectorView{
+			ID:              conn.ID,
+			CPOID:           conn.CPOID,
+			ChargerID:       conn.ChargerID,
+			ConnectorNumber: conn.ConnectorNumber,
+			ConnectorType:   conn.ConnectorType,
+			MaxCurrent:      conn.MaxCurrent,
+			MaxVoltage:      conn.MaxVoltage,
+			Status:          conn.Status,
+			CreatedAt:       conn.CreatedAt,
+			UpdatedAt:       conn.UpdatedAt,
+		})
+	}
+
+	return ChargerView{
+		ID:           record.ID,
+		CPOID:        record.CPOID,
+		HubID:        record.HubID,
+		ChargerID:    record.ChargerID,
+		OCPPIdentity: record.OCPPIdentity,
+		Vendor:       record.Vendor,
+		Model:        record.Model,
+		SerialNumber: record.SerialNumber,
+		MaxPowerKW:   record.MaxPowerKW,
+		Status:       record.Status,
+		OCPPVersion:  record.OCPPVersion,
+		LastSeenAt:   record.LastSeenAt,
+		Connectors:   connectorsView,
+		CreatedAt:    record.CreatedAt,
+		UpdatedAt:    record.UpdatedAt,
+	}
+}
+
+func (service *Service) ListChargers(
+	ctx context.Context,
+	principal auth.Principal,
+	query TenantListQuery,
+) (ChargerListResponse, error) {
+	if err := requireCPOAdminAccess(principal); err != nil {
+		return ChargerListResponse{}, err
+	}
+	query, err := validateTenantListQuery(query)
+	if err != nil {
+		return ChargerListResponse{}, err
+	}
+
+	databaseQuery := service.database.WithContext(ctx).
+		Where("cpo_id = ?", *principal.CPOID)
+	if query.Before != nil {
+		databaseQuery = databaseQuery.Where(
+			"(created_at, id) < (?, ?)",
+			*query.Before,
+			*query.BeforeID,
+		)
+	}
+	var chargers []models.Charger
+	if err := databaseQuery.
+		Preload("Connectors", func(tx *gorm.DB) *gorm.DB {
+			return tx.Order("connector_number ASC")
+		}).
+		Order("created_at DESC, id DESC").
+		Limit(query.Limit + 1).
+		Find(&chargers).Error; err != nil {
+		return ChargerListResponse{}, fmt.Errorf("list chargers: %w", err)
+	}
+
+	hasMore := len(chargers) > query.Limit
+	if hasMore {
+		chargers = chargers[:query.Limit]
+	}
+	response := make([]ChargerView, 0, len(chargers))
+	for _, charger := range chargers {
+		response = append(response, chargerView(charger))
+	}
+
+	result := ChargerListResponse{Chargers: response, HasMore: hasMore}
+	if hasMore && len(chargers) > 0 {
+		nextBefore := chargers[len(chargers)-1].CreatedAt
+		nextBeforeID := chargers[len(chargers)-1].ID
+		result.NextBefore = &nextBefore
+		result.NextBeforeID = &nextBeforeID
+	}
+	return result, nil
+}
+
+func validateTenantListQuery(query TenantListQuery) (TenantListQuery, error) {
+	if query.Limit == 0 {
+		query.Limit = defaultListLimit
+	}
+	if query.Limit < 1 || query.Limit > maxListLimit {
+		return TenantListQuery{}, invalid("limit", "Limit must be between 1 and 200.")
+	}
+	if (query.Before == nil) != (query.BeforeID == nil) {
+		return TenantListQuery{}, invalid(
+			"cursor",
+			"before and before_id must be supplied together.",
+		)
+	}
+	return query, nil
+}
+
+func (service *Service) CreateHub(
+	ctx context.Context,
+	principal auth.Principal,
+	request CreateHubRequest,
+) (HubView, error) {
+	if err := requireCPOAdminAccess(principal); err != nil {
+		return HubView{}, err
+	}
+
+	request = normalizeCreateHubRequest(request)
+	if err := validateCreateHubRequest(request); err != nil {
+		return HubView{}, err
+	}
+
+	open24Hours := true
+	if request.Open24Hours != nil {
+		open24Hours = *request.Open24Hours
+	}
+
+	cpoID := *principal.CPOID
+	var record models.Hub
+
+	err := service.database.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		now := service.now()
+
+		record = models.Hub{
+			ID:          uuid.New(),
+			CPOID:       cpoID,
+			Name:        request.Name,
+			Address:     request.Address,
+			Latitude:    *request.Latitude,
+			Longitude:   *request.Longitude,
+			Open24Hours: open24Hours,
+			CreatedAt:   now,
+			UpdatedAt:   now,
+		}
+
+		if err := tx.Create(&record).Error; err != nil {
+			return mapHubWriteError(err, "create hub")
+		}
+
+		return writeAudit(
+			tx,
+			principal.UserID,
+			cpoID,
+			"HUB_CREATED",
+			models.JSONB{
+				"hub_id":        record.ID,
+				"name":          record.Name,
+				"open_24_hours": record.Open24Hours,
+			},
+			now,
+		)
+	})
+	if err != nil {
+		return HubView{}, err
+	}
+
+	return hubView(record), nil
+}
+
+func (service *Service) ListHubs(
+	ctx context.Context,
+	principal auth.Principal,
+	query TenantListQuery,
+) (HubListResponse, error) {
+	if err := requireCPOAdminAccess(principal); err != nil {
+		return HubListResponse{}, err
+	}
+	query, err := validateTenantListQuery(query)
+	if err != nil {
+		return HubListResponse{}, err
+	}
+	databaseQuery := service.database.WithContext(ctx).
+		Where("cpo_id = ?", *principal.CPOID)
+	if query.Before != nil {
+		databaseQuery = databaseQuery.Where(
+			"(created_at, id) < (?, ?)",
+			*query.Before,
+			*query.BeforeID,
+		)
+	}
+	var records []models.Hub
+	if err := databaseQuery.
+		Order("created_at DESC, id DESC").
+		Limit(query.Limit + 1).
+		Find(&records).Error; err != nil {
+		return HubListResponse{}, fmt.Errorf("list hubs: %w", err)
+	}
+	hasMore := len(records) > query.Limit
+	if hasMore {
+		records = records[:query.Limit]
+	}
+	hubs := make([]HubView, 0, len(records))
+	for _, record := range records {
+		hubs = append(hubs, hubView(record))
+	}
+	response := HubListResponse{Hubs: hubs, HasMore: hasMore}
+	if hasMore && len(records) > 0 {
+		nextBefore := records[len(records)-1].CreatedAt
+		nextBeforeID := records[len(records)-1].ID
+		response.NextBefore = &nextBefore
+		response.NextBeforeID = &nextBeforeID
+	}
+	return response, nil
+}
+
+func (service *Service) GetHub(
+	ctx context.Context,
+	principal auth.Principal,
+	hubID uuid.UUID,
+) (HubView, error) {
+	if err := requireCPOAdminAccess(principal); err != nil {
+		return HubView{}, err
+	}
+
+	var record models.Hub
+	if err := service.database.WithContext(ctx).
+		First(&record, "cpo_id = ? AND id = ?", *principal.CPOID, hubID).Error; err != nil {
+		return HubView{}, mapHubNotFound(err)
+	}
+
+	return hubView(record), nil
+}
+
+func (service *Service) UpdateHub(
+	ctx context.Context,
+	principal auth.Principal,
+	hubID uuid.UUID,
+	request UpdateHubRequest,
+) (HubView, error) {
+	if err := requireCPOAdminAccess(principal); err != nil {
+		return HubView{}, err
+	}
+
+	request = normalizeUpdateHubRequest(request)
+	if err := validateUpdateHubRequest(request); err != nil {
+		return HubView{}, err
+	}
+
+	cpoID := *principal.CPOID
+	var record models.Hub
+
+	err := service.database.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+			First(&record, "cpo_id = ? AND id = ?", cpoID, hubID).Error; err != nil {
+			return mapHubNotFound(err)
+		}
+
+		updates := map[string]any{}
+		changedFields := models.JSONB{}
+
+		if request.Name != nil {
+			updates["name"] = *request.Name
+			record.Name = *request.Name
+			changedFields["name"] = *request.Name
+		}
+		if request.Address != nil {
+			updates["address"] = *request.Address
+			record.Address = *request.Address
+			changedFields["address"] = *request.Address
+		}
+		if request.Latitude != nil {
+			updates["latitude"] = *request.Latitude
+			record.Latitude = *request.Latitude
+			changedFields["latitude"] = *request.Latitude
+		}
+		if request.Longitude != nil {
+			updates["longitude"] = *request.Longitude
+			record.Longitude = *request.Longitude
+			changedFields["longitude"] = *request.Longitude
+		}
+		if request.Open24Hours != nil {
+			updates["open_24_hours"] = *request.Open24Hours
+			record.Open24Hours = *request.Open24Hours
+			changedFields["open_24_hours"] = *request.Open24Hours
+		}
+
+		if len(changedFields) == 0 {
+			return &auth.APIError{
+				Status:  http.StatusBadRequest,
+				Code:    "invalid_request",
+				Message: "At least one hub field must be supplied.",
+			}
+		}
+
+		now := service.now()
+		updates["updated_at"] = now
+		record.UpdatedAt = now
+
+		if err := tx.Model(&models.Hub{}).
+			Where("id = ?", record.ID).
+			Updates(updates).Error; err != nil {
+			return mapHubWriteError(err, "update hub")
+		}
+
+		return writeAudit(
+			tx,
+			principal.UserID,
+			cpoID,
+			"HUB_UPDATED",
+			models.JSONB{
+				"hub_id":         record.ID,
+				"changed_fields": changedFields,
+			},
+			now,
+		)
+	})
+	if err != nil {
+		return HubView{}, err
+	}
+
+	return hubView(record), nil
+}
+
+func normalizeCreateHubRequest(request CreateHubRequest) CreateHubRequest {
+	request.Name = strings.TrimSpace(request.Name)
+	request.Address = strings.TrimSpace(request.Address)
+	return request
+}
+
+func normalizeUpdateHubRequest(request UpdateHubRequest) UpdateHubRequest {
+	request.Name = trimOptionalString(request.Name)
+	request.Address = trimOptionalString(request.Address)
+	return request
+}
+
+func validateCreateHubRequest(request CreateHubRequest) error {
+	if request.Name == "" || len(request.Name) > 255 {
+		return invalid("name", "Hub name is required and must not exceed 255 characters.")
+	}
+	if request.Address == "" || len(request.Address) > 5000 {
+		return invalid("address", "Hub address is required and must not exceed 5000 characters.")
+	}
+	if request.Latitude == nil {
+		return invalid("latitude", "Latitude is required.")
+	}
+	if *request.Latitude < -90 || *request.Latitude > 90 {
+		return invalid("latitude", "Latitude must be between -90 and 90.")
+	}
+	if request.Longitude == nil {
+		return invalid("longitude", "Longitude is required.")
+	}
+	if *request.Longitude < -180 || *request.Longitude > 180 {
+		return invalid("longitude", "Longitude must be between -180 and 180.")
+	}
+	return nil
+}
+
+func validateUpdateHubRequest(request UpdateHubRequest) error {
+	if request.Name == nil &&
+		request.Address == nil &&
+		request.Latitude == nil &&
+		request.Longitude == nil &&
+		request.Open24Hours == nil {
+		return invalid("hub", "At least one hub field must be supplied.")
+	}
+
+	if request.Name != nil && (*request.Name == "" || len(*request.Name) > 255) {
+		return invalid("name", "Hub name must not exceed 255 characters.")
+	}
+	if request.Address != nil && (*request.Address == "" || len(*request.Address) > 5000) {
+		return invalid("address", "Hub address must not exceed 5000 characters.")
+	}
+	if request.Latitude != nil && (*request.Latitude < -90 || *request.Latitude > 90) {
+		return invalid("latitude", "Latitude must be between -90 and 90.")
+	}
+	if request.Longitude != nil && (*request.Longitude < -180 || *request.Longitude > 180) {
+		return invalid("longitude", "Longitude must be between -180 and 180.")
+	}
+	return nil
+}
+
+func mapHubWriteError(err error, operation string) error {
+	var postgresError *pgconn.PgError
+	if errors.As(err, &postgresError) {
+		switch postgresError.Code {
+		case "23505":
+			return &auth.APIError{
+				Status:  http.StatusConflict,
+				Code:    "hub_conflict",
+				Message: "The hub already exists or conflicts with another record.",
+			}
+		case "23503":
+			return &auth.APIError{
+				Status:  http.StatusConflict,
+				Code:    "hub_conflict",
+				Message: "The hub references an invalid related record.",
+			}
+		}
+	}
+	return fmt.Errorf("%s: %w", operation, err)
+}
+
+func hubView(record models.Hub) HubView {
+	return HubView{
+		ID:          record.ID,
+		CPOID:       record.CPOID,
+		Name:        record.Name,
+		Address:     record.Address,
+		Latitude:    record.Latitude,
+		Longitude:   record.Longitude,
+		Open24Hours: record.Open24Hours,
+		CreatedAt:   record.CreatedAt,
+		UpdatedAt:   record.UpdatedAt,
+	}
+}
+
+func (service *Service) CreateTariff(
+	ctx context.Context,
+	principal auth.Principal,
+	request CreateTariffRequest,
+) (TariffView, error) {
+	if err := requireCPOAdminAccess(principal); err != nil {
+		return TariffView{}, err
+	}
+
+	cpoID := *principal.CPOID
+	request = normalizeCreateTariffRequest(request)
+	if err := validateCreateTariffRequest(request); err != nil {
+		return TariffView{}, err
+	}
+
+	var record models.Tariff
+	err := service.database.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var hub models.Hub
+		if err := tx.First(&hub, "id = ? AND cpo_id = ?", request.HubID, cpoID).Error; err != nil {
+			return mapHubNotFound(err)
+		}
+
+		if request.ChargerID != nil {
+			var charger models.Charger
+			if err := tx.First(&charger, "id = ? AND cpo_id = ?", *request.ChargerID, cpoID).Error; err != nil {
+				return mapChargerNotFound(err)
+			}
+			if charger.HubID != request.HubID {
+				return &auth.APIError{
+					Status:  http.StatusBadRequest,
+					Code:    "charger_hub_mismatch",
+					Message: "The charger must belong to the selected hub.",
+				}
+			}
+		}
+
+		if request.GSTID != nil {
+			var gst models.GST
+			if err := tx.First(&gst, "id = ? AND cpo_id = ?", *request.GSTID, cpoID).Error; err != nil {
+				return mapGSTNotFound(err)
+			}
+		}
+
+		if request.UserGroupID != nil {
+			var userGroup models.UserGroup
+			if err := tx.First(&userGroup, "id = ? AND cpo_id = ?", *request.UserGroupID, cpoID).Error; err != nil {
+				return mapUserGroupNotFound(err)
+			}
+		}
+
+		now := service.now()
+		isActive := true
+		if request.IsActive != nil {
+			isActive = *request.IsActive
+		}
+
+		record = models.Tariff{
+			ID:            uuid.New(),
+			CPOID:         cpoID,
+			HubID:         request.HubID,
+			ChargerID:     request.ChargerID,
+			GSTID:         request.GSTID,
+			UserGroupID:   request.UserGroupID,
+			PricePerKWh:   request.PricePerKWh,
+			IdleFeePerMin: request.IdleFeePerMin,
+			Currency:      request.Currency,
+			IsActive:      isActive,
+			CreatedAt:     now,
+			UpdatedAt:     now,
+		}
+
+		if err := tx.Create(&record).Error; err != nil {
+			return mapTariffWriteError(err, "create tariff")
+		}
+
+		return writeAudit(
+			tx,
+			principal.UserID,
+			cpoID,
+			"TARIFF_CREATED",
+			models.JSONB{
+				"tariff_id": record.ID,
+				"hub_id":    record.HubID,
+			},
+			now,
+		)
+	})
+	if err != nil {
+		return TariffView{}, err
+	}
+
+	return tariffView(record), nil
+}
+
+func (service *Service) ListTariffs(
+	ctx context.Context,
+	principal auth.Principal,
+	query TenantListQuery,
+) (TariffListResponse, error) {
+	if err := requireCPOAdminAccess(principal); err != nil {
+		return TariffListResponse{}, err
+	}
+	query, err := validateTenantListQuery(query)
+	if err != nil {
+		return TariffListResponse{}, err
+	}
+	databaseQuery := service.database.WithContext(ctx).
+		Where("cpo_id = ?", *principal.CPOID)
+	if query.Before != nil {
+		databaseQuery = databaseQuery.Where(
+			"(created_at, id) < (?, ?)",
+			*query.Before,
+			*query.BeforeID,
+		)
+	}
+	var records []models.Tariff
+	if err := databaseQuery.
+		Order("created_at DESC, id DESC").
+		Limit(query.Limit + 1).
+		Find(&records).Error; err != nil {
+		return TariffListResponse{}, fmt.Errorf("list tariffs: %w", err)
+	}
+	hasMore := len(records) > query.Limit
+	if hasMore {
+		records = records[:query.Limit]
+	}
+	tariffs := make([]TariffView, 0, len(records))
+	for _, record := range records {
+		tariffs = append(tariffs, tariffView(record))
+	}
+	response := TariffListResponse{Tariffs: tariffs, HasMore: hasMore}
+	if hasMore && len(records) > 0 {
+		nextBefore := records[len(records)-1].CreatedAt
+		nextBeforeID := records[len(records)-1].ID
+		response.NextBefore = &nextBefore
+		response.NextBeforeID = &nextBeforeID
+	}
+	return response, nil
+}
+
+func (service *Service) GetTariff(
+	ctx context.Context,
+	principal auth.Principal,
+	tariffID uuid.UUID,
+) (TariffView, error) {
+	if err := requireCPOAdminAccess(principal); err != nil {
+		return TariffView{}, err
+	}
+
+	var record models.Tariff
+	if err := service.database.WithContext(ctx).
+		First(&record, "cpo_id = ? AND id = ?", *principal.CPOID, tariffID).Error; err != nil {
+		return TariffView{}, mapTariffNotFound(err)
+	}
+
+	return tariffView(record), nil
+}
+
+func (service *Service) UpdateTariff(
+	ctx context.Context,
+	principal auth.Principal,
+	tariffID uuid.UUID,
+	request UpdateTariffRequest,
+) (TariffView, error) {
+	if err := requireCPOAdminAccess(principal); err != nil {
+		return TariffView{}, err
+	}
+
+	request = normalizeUpdateTariffRequest(request)
+	if err := validateUpdateTariffRequest(request); err != nil {
+		return TariffView{}, err
+	}
+
+	cpoID := *principal.CPOID
+	var record models.Tariff
+
+	err := service.database.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+			First(&record, "cpo_id = ? AND id = ?", cpoID, tariffID).Error; err != nil {
+			return mapTariffNotFound(err)
+		}
+
+		updates := map[string]any{}
+		changedFields := models.JSONB{}
+
+		effectiveHubID := record.HubID
+		if request.HubID != nil {
+			var hub models.Hub
+			if err := tx.First(&hub, "id = ? AND cpo_id = ?", *request.HubID, cpoID).Error; err != nil {
+				return mapHubNotFound(err)
+			}
+			effectiveHubID = *request.HubID
+			updates["hub_id"] = *request.HubID
+			record.HubID = *request.HubID
+			changedFields["hub_id"] = *request.HubID
+		}
+
+		effectiveChargerID := record.ChargerID
+		if request.ChargerID != nil {
+			var charger models.Charger
+			if err := tx.First(&charger, "id = ? AND cpo_id = ?", *request.ChargerID, cpoID).Error; err != nil {
+				return mapChargerNotFound(err)
+			}
+			if charger.HubID != effectiveHubID {
+				return &auth.APIError{
+					Status:  http.StatusBadRequest,
+					Code:    "charger_hub_mismatch",
+					Message: "The charger must belong to the selected hub.",
+				}
+			}
+			effectiveChargerID = request.ChargerID
+			updates["charger_id"] = request.ChargerID
+			record.ChargerID = request.ChargerID
+			changedFields["charger_id"] = request.ChargerID
+		} else if effectiveChargerID != nil && request.HubID != nil {
+			var charger models.Charger
+			if err := tx.First(&charger, "id = ? AND cpo_id = ?", *effectiveChargerID, cpoID).Error; err != nil {
+				return mapChargerNotFound(err)
+			}
+			if charger.HubID != effectiveHubID {
+				return &auth.APIError{
+					Status:  http.StatusBadRequest,
+					Code:    "charger_hub_mismatch",
+					Message: "The existing charger must belong to the selected hub.",
+				}
+			}
+		}
+
+		if request.GSTID != nil {
+			var gst models.GST
+			if err := tx.First(&gst, "id = ? AND cpo_id = ?", *request.GSTID, cpoID).Error; err != nil {
+				return mapGSTNotFound(err)
+			}
+			updates["gst_id"] = request.GSTID
+			record.GSTID = request.GSTID
+			changedFields["gst_id"] = request.GSTID
+		}
+
+		if request.UserGroupID != nil {
+			var userGroup models.UserGroup
+			if err := tx.First(&userGroup, "id = ? AND cpo_id = ?", *request.UserGroupID, cpoID).Error; err != nil {
+				return mapUserGroupNotFound(err)
+			}
+			updates["user_group_id"] = request.UserGroupID
+			record.UserGroupID = request.UserGroupID
+			changedFields["user_group_id"] = request.UserGroupID
+		}
+
+		if request.PricePerKWh != nil {
+			updates["price_per_kwh"] = *request.PricePerKWh
+			record.PricePerKWh = *request.PricePerKWh
+			changedFields["price_per_kwh"] = *request.PricePerKWh
+		}
+		if request.IdleFeePerMin != nil {
+			updates["idle_fee_per_min"] = *request.IdleFeePerMin
+			record.IdleFeePerMin = *request.IdleFeePerMin
+			changedFields["idle_fee_per_min"] = *request.IdleFeePerMin
+		}
+		if request.Currency != nil {
+			updates["currency"] = *request.Currency
+			record.Currency = *request.Currency
+			changedFields["currency"] = *request.Currency
+		}
+		if request.IsActive != nil {
+			updates["is_active"] = *request.IsActive
+			record.IsActive = *request.IsActive
+			changedFields["is_active"] = *request.IsActive
+		}
+
+		if len(changedFields) == 0 {
+			return &auth.APIError{
+				Status:  http.StatusBadRequest,
+				Code:    "invalid_request",
+				Message: "At least one tariff field must be supplied.",
+			}
+		}
+
+		now := service.now()
+		updates["updated_at"] = now
+		record.UpdatedAt = now
+
+		if err := tx.Model(&models.Tariff{}).
+			Where("id = ?", record.ID).
+			Updates(updates).Error; err != nil {
+			return mapTariffWriteError(err, "update tariff")
+		}
+
+		return writeAudit(
+			tx,
+			principal.UserID,
+			cpoID,
+			"TARIFF_UPDATED",
+			models.JSONB{
+				"tariff_id":      record.ID,
+				"changed_fields": changedFields,
+			},
+			now,
+		)
+	})
+	if err != nil {
+		return TariffView{}, err
+	}
+
+	return tariffView(record), nil
+}
+
+func normalizeCreateTariffRequest(request CreateTariffRequest) CreateTariffRequest {
+	request.Currency = strings.ToUpper(strings.TrimSpace(request.Currency))
+	if request.Currency == "" {
+		request.Currency = "INR"
+	}
+	return request
+}
+
+func normalizeUpdateTariffRequest(request UpdateTariffRequest) UpdateTariffRequest {
+	if request.Currency != nil {
+		value := strings.ToUpper(strings.TrimSpace(*request.Currency))
+		request.Currency = &value
+	}
+	return request
+}
+
+func validateCreateTariffRequest(request CreateTariffRequest) error {
+	if request.HubID == uuid.Nil {
+		return invalid("hub_id", "Hub ID is required.")
+	}
+	if request.PricePerKWh.Sign() <= 0 {
+		return invalid("price_per_kwh", "Price per kWh must be greater than zero.")
+	}
+	if request.IdleFeePerMin.Sign() < 0 {
+		return invalid("idle_fee_per_min", "Idle fee per minute must not be negative.")
+	}
+	if len(request.Currency) != 3 {
+		return invalid("currency", "Currency must be a 3-letter code.")
+	}
+	return nil
+}
+
+func validateUpdateTariffRequest(request UpdateTariffRequest) error {
+	if request.HubID == nil &&
+		request.ChargerID == nil &&
+		request.GSTID == nil &&
+		request.UserGroupID == nil &&
+		request.PricePerKWh == nil &&
+		request.IdleFeePerMin == nil &&
+		request.Currency == nil &&
+		request.IsActive == nil {
+		return invalid("tariff", "At least one tariff field must be supplied.")
+	}
+
+	if request.PricePerKWh != nil && request.PricePerKWh.Sign() <= 0 {
+		return invalid("price_per_kwh", "Price per kWh must be greater than zero.")
+	}
+	if request.IdleFeePerMin != nil && request.IdleFeePerMin.Sign() < 0 {
+		return invalid("idle_fee_per_min", "Idle fee per minute must not be negative.")
+	}
+	if request.Currency != nil && len(*request.Currency) != 3 {
+		return invalid("currency", "Currency must be a 3-letter code.")
+	}
+	return nil
+}
+
+func mapTariffNotFound(err error) error {
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return &auth.APIError{
+			Status:  http.StatusNotFound,
+			Code:    "tariff_not_found",
+			Message: "The tariff was not found.",
+		}
+	}
+	return fmt.Errorf("load tariff: %w", err)
+}
+
+func mapGSTNotFound(err error) error {
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return &auth.APIError{
+			Status:  http.StatusNotFound,
+			Code:    "gst_not_found",
+			Message: "The GST profile was not found.",
+		}
+	}
+	return fmt.Errorf("load gst: %w", err)
+}
+
+func mapUserGroupNotFound(err error) error {
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return &auth.APIError{
+			Status:  http.StatusNotFound,
+			Code:    "user_group_not_found",
+			Message: "The user group was not found.",
+		}
+	}
+	return fmt.Errorf("load user group: %w", err)
+}
+
+func mapTariffWriteError(err error, operation string) error {
+	var postgresError *pgconn.PgError
+	if errors.As(err, &postgresError) {
+		switch postgresError.Code {
+		case "23505":
+			return &auth.APIError{
+				Status:  http.StatusConflict,
+				Code:    "tariff_conflict",
+				Message: "The tariff already exists or conflicts with another record.",
+			}
+		case "23503":
+			return &auth.APIError{
+				Status:  http.StatusConflict,
+				Code:    "tariff_conflict",
+				Message: "The tariff references an invalid related record.",
+			}
+		}
+	}
+	return fmt.Errorf("%s: %w", operation, err)
+}
+
+func tariffView(record models.Tariff) TariffView {
+	return TariffView{
+		ID:            record.ID,
+		CPOID:         record.CPOID,
+		HubID:         record.HubID,
+		ChargerID:     record.ChargerID,
+		GSTID:         record.GSTID,
+		UserGroupID:   record.UserGroupID,
+		PricePerKWh:   record.PricePerKWh,
+		IdleFeePerMin: record.IdleFeePerMin,
+		Currency:      record.Currency,
+		IsActive:      record.IsActive,
+		CreatedAt:     record.CreatedAt,
+		UpdatedAt:     record.UpdatedAt,
+	}
+}
+
+func (service *Service) CreateGST(
+	ctx context.Context,
+	principal auth.Principal,
+	request CreateGSTRequest,
+) (GSTView, error) {
+	if err := requireCPOAdminAccess(principal); err != nil {
+		return GSTView{}, err
+	}
+
+	cpoID := *principal.CPOID
+	request = normalizeCreateGSTRequest(request)
+	if err := validateCreateGSTRequest(request); err != nil {
+		return GSTView{}, err
+	}
+
+	var record models.GST
+	err := service.database.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		now := service.now()
+
+		isActive := true
+		if request.IsActive != nil {
+			isActive = *request.IsActive
+		}
+
+		record = models.GST{
+			ID:        uuid.New(),
+			CPOID:     cpoID,
+			Name:      request.Name,
+			SGSTRate:  *request.SGSTRate,
+			CGSTRate:  *request.CGSTRate,
+			IGSTRate:  *request.IGSTRate,
+			IsActive:  isActive,
+			CreatedAt: now,
+			UpdatedAt: now,
+		}
+
+		if err := tx.Create(&record).Error; err != nil {
+			return mapGSTWriteError(err, "create gst")
+		}
+
+		return writeAudit(
+			tx,
+			principal.UserID,
+			cpoID,
+			"GST_CREATED",
+			models.JSONB{
+				"gst_id":    record.ID,
+				"name":      record.Name,
+				"sgst_rate": record.SGSTRate,
+				"cgst_rate": record.CGSTRate,
+				"igst_rate": record.IGSTRate,
+			},
+			now,
+		)
+	})
+	if err != nil {
+		return GSTView{}, err
+	}
+
+	return gstView(record), nil
+}
+
+func (service *Service) ListGSTs(
+	ctx context.Context,
+	principal auth.Principal,
+	query TenantListQuery,
+) (GSTListResponse, error) {
+	if err := requireCPOAdminAccess(principal); err != nil {
+		return GSTListResponse{}, err
+	}
+	query, err := validateTenantListQuery(query)
+	if err != nil {
+		return GSTListResponse{}, err
+	}
+	databaseQuery := service.database.WithContext(ctx).
+		Where("cpo_id = ?", *principal.CPOID)
+	if query.Before != nil {
+		databaseQuery = databaseQuery.Where(
+			"(created_at, id) < (?, ?)",
+			*query.Before,
+			*query.BeforeID,
+		)
+	}
+	var records []models.GST
+	if err := databaseQuery.
+		Order("created_at DESC, id DESC").
+		Limit(query.Limit + 1).
+		Find(&records).Error; err != nil {
+		return GSTListResponse{}, fmt.Errorf("list GST profiles: %w", err)
+	}
+	hasMore := len(records) > query.Limit
+	if hasMore {
+		records = records[:query.Limit]
+	}
+	gsts := make([]GSTView, 0, len(records))
+	for _, record := range records {
+		gsts = append(gsts, gstView(record))
+	}
+	response := GSTListResponse{GSTs: gsts, HasMore: hasMore}
+	if hasMore && len(records) > 0 {
+		nextBefore := records[len(records)-1].CreatedAt
+		nextBeforeID := records[len(records)-1].ID
+		response.NextBefore = &nextBefore
+		response.NextBeforeID = &nextBeforeID
+	}
+	return response, nil
+}
+
+func (service *Service) GetGST(
+	ctx context.Context,
+	principal auth.Principal,
+	gstID uuid.UUID,
+) (GSTView, error) {
+	if err := requireCPOAdminAccess(principal); err != nil {
+		return GSTView{}, err
+	}
+
+	var record models.GST
+	if err := service.database.WithContext(ctx).
+		First(&record, "cpo_id = ? AND id = ?", *principal.CPOID, gstID).Error; err != nil {
+		return GSTView{}, mapGSTNotFound(err)
+	}
+
+	return gstView(record), nil
+}
+
+func (service *Service) UpdateGST(
+	ctx context.Context,
+	principal auth.Principal,
+	gstID uuid.UUID,
+	request UpdateGSTRequest,
+) (GSTView, error) {
+	if err := requireCPOAdminAccess(principal); err != nil {
+		return GSTView{}, err
+	}
+
+	request = normalizeUpdateGSTRequest(request)
+	if err := validateUpdateGSTRequest(request); err != nil {
+		return GSTView{}, err
+	}
+
+	cpoID := *principal.CPOID
+	var record models.GST
+
+	err := service.database.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+			First(&record, "cpo_id = ? AND id = ?", cpoID, gstID).Error; err != nil {
+			return mapGSTNotFound(err)
+		}
+
+		updates := map[string]any{}
+		changedFields := models.JSONB{}
+
+		if request.Name != nil {
+			updates["name"] = *request.Name
+			record.Name = *request.Name
+			changedFields["name"] = *request.Name
+		}
+		if request.SGSTRate != nil {
+			updates["sgst_rate"] = *request.SGSTRate
+			record.SGSTRate = *request.SGSTRate
+			changedFields["sgst_rate"] = *request.SGSTRate
+		}
+		if request.CGSTRate != nil {
+			updates["cgst_rate"] = *request.CGSTRate
+			record.CGSTRate = *request.CGSTRate
+			changedFields["cgst_rate"] = *request.CGSTRate
+		}
+		if request.IGSTRate != nil {
+			updates["igst_rate"] = *request.IGSTRate
+			record.IGSTRate = *request.IGSTRate
+			changedFields["igst_rate"] = *request.IGSTRate
+		}
+		if request.IsActive != nil {
+			updates["is_active"] = *request.IsActive
+			record.IsActive = *request.IsActive
+			changedFields["is_active"] = *request.IsActive
+		}
+
+		if len(changedFields) == 0 {
+			return &auth.APIError{
+				Status:  http.StatusBadRequest,
+				Code:    "invalid_request",
+				Message: "At least one GST field must be supplied.",
+			}
+		}
+
+		now := service.now()
+		updates["updated_at"] = now
+		record.UpdatedAt = now
+
+		if err := tx.Model(&models.GST{}).
+			Where("id = ?", record.ID).
+			Updates(updates).Error; err != nil {
+			return mapGSTWriteError(err, "update gst")
+		}
+
+		return writeAudit(
+			tx,
+			principal.UserID,
+			cpoID,
+			"GST_UPDATED",
+			models.JSONB{
+				"gst_id":         record.ID,
+				"changed_fields": changedFields,
+			},
+			now,
+		)
+	})
+	if err != nil {
+		return GSTView{}, err
+	}
+
+	return gstView(record), nil
+}
+
+func normalizeCreateGSTRequest(request CreateGSTRequest) CreateGSTRequest {
+	request.Name = strings.TrimSpace(request.Name)
+	return request
+}
+
+func normalizeUpdateGSTRequest(request UpdateGSTRequest) UpdateGSTRequest {
+	request.Name = trimOptionalString(request.Name)
+	return request
+}
+
+func validateCreateGSTRequest(request CreateGSTRequest) error {
+	if request.Name == "" || len(request.Name) > 100 {
+		return invalid("name", "GST name is required and must not exceed 100 characters.")
+	}
+	if request.SGSTRate == nil {
+		return invalid("sgst_rate", "SGST rate is required.")
+	}
+	if request.CGSTRate == nil {
+		return invalid("cgst_rate", "CGST rate is required.")
+	}
+	if request.IGSTRate == nil {
+		return invalid("igst_rate", "IGST rate is required.")
+	}
+	if request.SGSTRate.Sign() < 0 {
+		return invalid("sgst_rate", "SGST rate must not be negative.")
+	}
+	if request.CGSTRate.Sign() < 0 {
+		return invalid("cgst_rate", "CGST rate must not be negative.")
+	}
+	if request.IGSTRate.Sign() < 0 {
+		return invalid("igst_rate", "IGST rate must not be negative.")
+	}
+	if request.SGSTRate.Cmp(decimal.NewFromInt(100)) > 0 {
+		return invalid("sgst_rate", "SGST rate must not exceed 100.")
+	}
+	if request.CGSTRate.Cmp(decimal.NewFromInt(100)) > 0 {
+		return invalid("cgst_rate", "CGST rate must not exceed 100.")
+	}
+	if request.IGSTRate.Cmp(decimal.NewFromInt(100)) > 0 {
+		return invalid("igst_rate", "IGST rate must not exceed 100.")
+	}
+	return nil
+}
+
+func validateUpdateGSTRequest(request UpdateGSTRequest) error {
+	if request.Name == nil &&
+		request.SGSTRate == nil &&
+		request.CGSTRate == nil &&
+		request.IGSTRate == nil &&
+		request.IsActive == nil {
+		return invalid("gst", "At least one GST field must be supplied.")
+	}
+
+	if request.Name != nil && (*request.Name == "" || len(*request.Name) > 100) {
+		return invalid("name", "GST name must not exceed 100 characters.")
+	}
+	if request.SGSTRate != nil {
+		if request.SGSTRate.Sign() < 0 || request.SGSTRate.Cmp(decimal.NewFromInt(100)) > 0 {
+			return invalid("sgst_rate", "SGST rate must be between 0 and 100.")
+		}
+	}
+	if request.CGSTRate != nil {
+		if request.CGSTRate.Sign() < 0 || request.CGSTRate.Cmp(decimal.NewFromInt(100)) > 0 {
+			return invalid("cgst_rate", "CGST rate must be between 0 and 100.")
+		}
+	}
+	if request.IGSTRate != nil {
+		if request.IGSTRate.Sign() < 0 || request.IGSTRate.Cmp(decimal.NewFromInt(100)) > 0 {
+			return invalid("igst_rate", "IGST rate must be between 0 and 100.")
+		}
+	}
+	return nil
+}
+
+func mapGSTWriteError(err error, operation string) error {
+	var postgresError *pgconn.PgError
+	if errors.As(err, &postgresError) {
+		switch postgresError.Code {
+		case "23505":
+			return &auth.APIError{
+				Status:  http.StatusConflict,
+				Code:    "gst_conflict",
+				Message: "The GST profile already exists or conflicts with another record.",
+			}
+		case "23503":
+			return &auth.APIError{
+				Status:  http.StatusConflict,
+				Code:    "gst_conflict",
+				Message: "The GST profile references an invalid related record.",
+			}
+		}
+	}
+	return fmt.Errorf("%s: %w", operation, err)
+}
+
+func gstView(record models.GST) GSTView {
+	return GSTView{
+		ID:        record.ID,
+		CPOID:     record.CPOID,
+		Name:      record.Name,
+		SGSTRate:  record.SGSTRate,
+		CGSTRate:  record.CGSTRate,
+		IGSTRate:  record.IGSTRate,
+		IsActive:  record.IsActive,
+		CreatedAt: record.CreatedAt,
+		UpdatedAt: record.UpdatedAt,
 	}
 }

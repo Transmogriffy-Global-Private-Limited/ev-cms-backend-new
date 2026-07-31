@@ -24,7 +24,8 @@ and financial operations without accessing another CPO's data.
 - Gin HTTP API
 - GORM for application persistence
 - Explicit versioned SQL migrations
-- Fixed CPO-wide staff roles initially
+- ADMIN-only callable CPO authority initially, with dormant fixed-role enum
+  capacity for a later staff-management design
 - Loopback-only local development listener by default
 
 ## Permanent Engineering Invariants
@@ -63,7 +64,8 @@ Completion criteria:
 Depends on Phase 1.
 
 Objective: authenticate users and allow a platform superadmin to provision,
-activate, and suspend CPOs while CPO owners manage their own staff.
+activate, suspend, and recover CPOs while the first CPO ADMIN manages the
+initial tenant surface. Staff management remains a later explicit feature.
 
 ### Phase 3: Charging network inventory
 
@@ -282,7 +284,8 @@ Depends on:
 
 Enables:
 
-- CPO owner staff invitation and membership management
+- Future CPO staff invitation and membership management after an explicit
+  capability design
 - Trusted routing for every tenant business API
 - Separate onboarding and production application identities
 
@@ -536,12 +539,64 @@ Architecture decision:
 - `docs/decisions/0007-complete-superadmin-control-plane.md`, as revised by
   `docs/decisions/0008-manual-cpo-access-without-commercial-management.md`
 
+### Feature: CPO administrator and initial network configuration
+
+Status: Implemented
+
+Phase: Phases 2, 3, and the GST/tariff foundation of Phase 4
+
+Depends on:
+
+- Authentication and credential boundary
+- Manual CPO provisioning and app identity
+- Complete CMS schema baseline
+- Platform CPO dependency surface
+
+Enables:
+
+- First CPO frontend development against one unambiguous administrator persona
+- Future authenticated CMS/HAL charger-mapping handshake
+- Later customer-directory and pricing consumption
+- Deliberate future staff-management expansion without changing tenant keys
+
+Objective:
+
+Reconcile the contributed CPO implementation into a correct ADMIN-only surface
+for administrator identity profile, hubs, chargers/connectors, GST, and tariffs
+without adding a tenant organization profile or implying HAL integration.
+
+Scope:
+
+- ADMIN-only CPO authentication and authorization
+- CPO administrator identity profile read/update
+- Tenant-scoped network and pricing create/read/update operations
+- Bounded charger listing and dependency-safe charger deletion
+- Server-generated identifiers and exact decimal pricing/tax values
+- Transactional audit evidence
+- OpenAPI, human contract, educational/integration guidance, and verification
+
+Non-goals:
+
+- App-user/customer changes
+- Staff invitation, role management, or callable non-ADMIN roles
+- Tenant-side CPO organization profile
+- Complete CRUD for every table
+- HAL handshake, live charger status, commands, callbacks, or tenant realtime
+
+Detailed plan:
+
+- `docs/plans/cpo-admin-network-configuration.md`
+
+Architecture decision:
+
+- `docs/decisions/0009-admin-only-cpo-authority.md`
+
 ## Current Execution
 
 Current phase:
 
-- Phase 2: Authentication and CPO administration, with the approved customer
-  signup slice from Phase 4 completed early
+- Phase 2: Authentication and CPO administration, with initial Phase 3/4 CPO
+  configuration implemented
 
 Active feature:
 
@@ -554,6 +609,9 @@ Current implementation slice:
 
 Last completed slice:
 
+- Reconciled the contributed CPO branch into an ADMIN-only identity,
+  hub/charger/connector, GST, and tariff surface with 68-operation
+  runtime/OpenAPI parity
 - Verified the complete CPO dependency on Superadmin: searchable/paginated CPO
   administration, mutable business profile, reasoned lifecycle control,
   primary-admin recovery/onboarding resend, and CPO administrative-session
@@ -569,8 +627,7 @@ Last deployment milestone:
 
 Next expected slice:
 
-- Implement the approved platform-superadmin governance slice after its
-  contract and acceptance criteria are reviewed
+- Resume the approved platform-superadmin governance slice
 
 Blocked by:
 
@@ -578,9 +635,10 @@ Blocked by:
 
 ## Next Approved Work
 
-1. Complete the superadmin control-plane slices in
+1. Resume the superadmin control-plane slices in
    `docs/plans/superadmin-control-plane.md`.
-2. Add CPO owner staff invitation and membership management.
+2. Design staff invitation and membership management before activating dormant
+   role values.
 
 ## Deferred Work
 
@@ -601,6 +659,8 @@ Blocked by:
   no commercial or payment state controls tenant authorization.
 - The exact CMS/HAL API contract will be defined with the charging-network and
   charging-lifecycle phases.
+- `OWNER`, `OPERATOR`, and `VIEWER` are dormant schema capacity only. Their
+  authorization semantics require a future approved staff-management plan.
 
 ## Verification Strategy
 

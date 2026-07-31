@@ -15,6 +15,7 @@ $requiredFiles = @(
     'docs/guides/concepts/identity-tenancy-and-application-identity.md',
     'docs/guides/concepts/superadmin-control-plane.md',
     'docs/guides/workflows/cpo-onboarding.md',
+    'docs/guides/workflows/cpo-admin-network-configuration.md',
     'docs/guides/workflows/app-user-authentication.md',
     'docs/guides/troubleshooting/authentication-and-mail.md',
     'docs/integrations/smtp-mail-delivery.md',
@@ -30,10 +31,12 @@ $requiredFiles = @(
     'docs/decisions/0006-customer-session-plane.md',
     'docs/decisions/0007-complete-superadmin-control-plane.md',
     'docs/decisions/0008-manual-cpo-access-without-commercial-management.md',
+    'docs/decisions/0009-admin-only-cpo-authority.md',
     'docs/plans/api-documentation-and-openapi.md',
     'docs/plans/customer-signup.md',
     'docs/plans/customer-authentication.md',
-    'docs/plans/superadmin-control-plane.md'
+    'docs/plans/superadmin-control-plane.md',
+    'docs/plans/cpo-admin-network-configuration.md'
 )
 
 $missing = @(
@@ -66,6 +69,11 @@ $requiredRoutes = @(
     '/api/v1/platform/audit-logs',
     '/api/v1/platform/workers',
     '/api/v1/cpo/integrations',
+    '/api/v1/cpo/admin/profile',
+    '/api/v1/cpo/hubs',
+    '/api/v1/cpo/chargers',
+    '/api/v1/cpo/gsts',
+    '/api/v1/cpo/tariffs',
     '/docs/',
     '/openapi.yaml'
 )
@@ -94,8 +102,12 @@ foreach ($route in $retiredRoutes) {
 }
 
 $operationCount = ([regex]::Matches($openAPI, '(?m)^\s{6}operationId:\s+')).Count
-if ($operationCount -ne 49) {
-    throw "OpenAPI contains $operationCount operations; expected 49."
+if ($operationCount -ne 68) {
+    throw "OpenAPI contains $operationCount operations; expected 68."
+}
+
+if ($openAPI.Contains('/api/v1/cpo/profile')) {
+    throw 'Tenant-side CPO organization profile route remains in OpenAPI.'
 }
 
 $requiredCPOEvents = @(

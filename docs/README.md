@@ -15,6 +15,7 @@ This directory is the durable project memory for the EV CMS backend.
 | Complete superadmin architecture and boundaries | `guides/concepts/superadmin-control-plane.md` |
 | Platform realtime event contract | `contracts/realtime/platform-events.md` |
 | Manual CPO access workflow | `guides/workflows/cpo-onboarding.md` |
+| CPO admin profile and network configuration | `guides/workflows/cpo-admin-network-configuration.md` |
 | Architectural decisions | `decisions/` |
 | Detailed approved plans | `plans/` |
 | Learning and operational workflows | `guides/` |

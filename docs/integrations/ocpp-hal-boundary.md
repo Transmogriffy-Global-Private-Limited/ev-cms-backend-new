@@ -2,9 +2,11 @@
 
 ## Current State
 
-The CMS and `OCPPHAL_Go` are separate applications. This repository does not
-currently implement a CMS-to-HAL API, event transport, shared client, or
-handshake. The existing HAL is not modified by this CMS foundation.
+The CMS and `OCPPHAL_Go` are separate applications. This repository now lets a
+CPO ADMIN create CMS-side hub, charger, and connector inventory, including a
+server-generated `ocpp_identity` mapping value. It still does not implement a
+CMS-to-HAL API, event transport, shared client, registration handshake, live
+status ingestion, or reconciliation. The existing HAL is not modified.
 
 ## Ownership
 
@@ -65,8 +67,28 @@ The charging-network and charging-lifecycle phases must define:
 - audit and observability without leaking credentials.
 
 Until that contract is approved and implemented, documentation and code must
-not imply that charger operations, live status, remote start/stop, or charging
-recovery are available through this CMS.
+not imply that CMS inventory registration registers a device in the HAL, or
+that live status, remote start/stop, or charging recovery are available through
+this CMS.
+
+## Current CMS Inventory Flow
+
+```text
+CPO ADMIN request
+→ verified CPO session and current app ID
+→ tenant-owned hub lookup
+→ CMS generates charger UUID, six-character public ID, OCPP mapping identity,
+  and connector UUIDs
+→ charger, connectors, and audit evidence commit atomically
+→ REST response returns the CMS projection
+→ no HAL communication occurs
+```
+
+The frontend and future integrator must retain the returned identifiers. The
+future handshake must decide which mapping value is sent to the HAL, which
+service confirms acceptance, how duplicate registration is handled, and how
+CMS and HAL reconcile after partial failure. Those semantics are not hidden in
+the current create route.
 
 ## Acceptance Evidence for a Future Handshake
 

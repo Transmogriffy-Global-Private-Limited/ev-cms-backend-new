@@ -126,7 +126,7 @@ against the session CPO through a composite foreign key. The session context
 constraint permits exactly:
 
 - `PLATFORM` with no CPO, role, or customer;
-- `CPO` with a CPO and fixed staff role but no customer;
+- `CPO` with a CPO and the currently callable `ADMIN` role but no customer;
 - `CUSTOMER` with a CPO and customer but no staff role.
 
 It also admits CPO-bound customer login/password-reset challenges and their
@@ -188,8 +188,10 @@ workflow:
 
 - `cpos.status_reason`, `status_changed_at`, and
   `status_changed_by_user_id` retain the current manual lifecycle decision;
-- `cpo_memberships.is_primary_admin` designates one responsible `OWNER` or
-  `ADMIN` membership, enforced by a partial unique index per CPO;
+- `cpo_memberships.is_primary_admin` designates one responsible membership,
+  enforced by a partial unique index per CPO. Current application
+  orchestration normalizes that membership to `ADMIN`; dormant fixed-role enum
+  values remain schema capacity for a later staff-management feature;
 - existing CPOs backfill the oldest eligible staff membership as primary,
   preferring active membership status; a CPO with no eligible membership
   remains explicitly without a primary until the recovery API establishes one;

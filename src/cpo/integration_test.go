@@ -3,6 +3,7 @@ package cpo
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -21,6 +22,7 @@ import (
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/security"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"github.com/shopspring/decimal"
 	"gorm.io/gorm"
 )
 
@@ -1038,6 +1040,202 @@ func TestCPOSuperadminDependencyLifecycleWithPostgreSQL(t *testing.T) {
 	}
 	if platformSession.RevokedAt != nil {
 		t.Fatal("CPO suspension touched a platform session")
+	}
+}
+
+func TestCPOAdminProfileAndNetworkConfigurationWithPostgreSQL(t *testing.T) {
+	databaseURL := os.Getenv("TEST_DATABASE_URL")
+	if databaseURL == "" {
+		t.Skip("TEST_DATABASE_URL is not set")
+	}
+	ctx := context.Background()
+	gormDB, sqlDB, err := db.Open(ctx, databaseURL)
+	if err != nil {
+		t.Fatalf("open test database: %v", err)
+	}
+	defer sqlDB.Close()
+	if err := db.ApplyMigrations(ctx, sqlDB); err != nil {
+		t.Fatalf("apply migrations: %v", err)
+	}
+
+	platformEmail := "network-platform-" + uuid.NewString() + "@example.com"
+	if err := db.SeedSuperadmin(ctx, gormDB, config.Superadmin{
+		Email:    platformEmail,
+		Password: "PlatformPassword!123",
+		FullName: "Network Platform Admin",
+	}); err != nil {
+		t.Fatalf("seed platform administrator: %v", err)
+	}
+	var platformUser models.User
+	if err := gormDB.First(&platformUser, "email = ?", platformEmail).Error; err != nil {
+		t.Fatalf("load platform administrator: %v", err)
+	}
+	platformPrincipal := auth.Principal{
+		UserID: platformUser.ID,
+		Scope:  constants.AuthScopePlatform,
+	}
+	mailBox, err := security.NewSecretBox(
+		"network-config-test-v1",
+		[]byte(strings.Repeat("n", 32)),
+	)
+	if err != nil {
+		t.Fatalf("create mail secret box: %v", err)
+	}
+	service := NewService(gormDB, cmsmail.NewOutbox(mailBox), true)
+	created, err := service.Create(ctx, platformPrincipal, CreateRequest{
+		Slug:         "network-" + strings.ToLower(uuid.NewString()),
+		BusinessName: "Network Configuration CPO",
+		CompanyType:  constants.CPOCompanyTypeCompany,
+		Admin: InitialAdminRequest{
+			Email:    "network-admin-" + uuid.NewString() + "@example.com",
+			FullName: "Network Administrator",
+		},
+	})
+	if err != nil {
+		t.Fatalf("create CPO: %v", err)
+	}
+	if _, err := service.Activate(
+		ctx,
+		platformPrincipal,
+		created.CPO.ID,
+		LifecycleRequest{Reason: "Approved for network configuration"},
+	); err != nil {
+		t.Fatalf("activate CPO: %v", err)
+	}
+
+	adminRole := constants.CPORoleAdmin
+	adminPrincipal := auth.Principal{
+		UserID: created.Admin.UserID,
+		Scope:  constants.AuthScopeCPO,
+		CPOID:  &created.CPO.ID,
+		Role:   &adminRole,
+	}
+	phone := "+919876543210"
+	updatedName := "Updated Network Administrator"
+	profile, err := service.UpdateAdminProfile(
+		ctx,
+		adminPrincipal,
+		UpdateAdminProfileRequest{FullName: &updatedName, Phone: &phone},
+	)
+	if err != nil {
+		t.Fatalf("update administrator profile: %v", err)
+	}
+	if profile.FullName != updatedName || profile.Phone == nil || *profile.Phone != phone {
+		t.Fatalf("unexpected administrator profile: %#v", profile)
+	}
+
+	latitude := 22.5524
+	longitude := 88.3521
+	hub, err := service.CreateHub(ctx, adminPrincipal, CreateHubRequest{
+		Name:      "Park Street Hub",
+		Address:   "12 Park Street, Kolkata",
+		Latitude:  &latitude,
+		Longitude: &longitude,
+	})
+	if err != nil {
+		t.Fatalf("create hub: %v", err)
+	}
+	charger, err := service.CreateCharger(ctx, adminPrincipal, CreateChargerRequest{
+		HubID:        hub.ID,
+		Vendor:       "Delta",
+		Model:        "DC Wallbox",
+		SerialNumber: "SN-" + strings.ToUpper(uuid.NewString()[:8]),
+		MaxPowerKW:   25,
+		Connectors: []CreateConnectorRequest{{
+			ConnectorNumber: 1,
+			ConnectorType:   "CCS2",
+			MaxCurrent:      60,
+			MaxVoltage:      500,
+		}},
+	})
+	if err != nil {
+		t.Fatalf("create charger: %v", err)
+	}
+	if !chargerIDPattern.MatchString(charger.ChargerID) ||
+		charger.OCPPIdentity == "" ||
+		len(charger.Connectors) != 1 {
+		t.Fatalf("server-generated charger identity is incomplete: %#v", charger)
+	}
+
+	nine := decimal.RequireFromString("9.00")
+	eighteen := decimal.RequireFromString("18.00")
+	gst, err := service.CreateGST(ctx, adminPrincipal, CreateGSTRequest{
+		Name:     "Standard GST " + uuid.NewString()[:8],
+		SGSTRate: &nine,
+		CGSTRate: &nine,
+		IGSTRate: &eighteen,
+	})
+	if err != nil {
+		t.Fatalf("create GST: %v", err)
+	}
+	price := decimal.RequireFromString("18.5000")
+	tariff, err := service.CreateTariff(ctx, adminPrincipal, CreateTariffRequest{
+		HubID:       hub.ID,
+		ChargerID:   &charger.ID,
+		GSTID:       &gst.ID,
+		PricePerKWh: price,
+	})
+	if err != nil {
+		t.Fatalf("create tariff: %v", err)
+	}
+	if tariff.Currency != "INR" {
+		t.Fatalf("tariff currency is %q, want INR", tariff.Currency)
+	}
+	hubPage, err := service.ListHubs(ctx, adminPrincipal, TenantListQuery{Limit: 1})
+	if err != nil || len(hubPage.Hubs) != 1 || hubPage.Hubs[0].ID != hub.ID {
+		t.Fatalf("unexpected hub page %#v: %v", hubPage, err)
+	}
+	page, err := service.ListChargers(
+		ctx,
+		adminPrincipal,
+		TenantListQuery{Limit: 1},
+	)
+	if err != nil {
+		t.Fatalf("list chargers: %v", err)
+	}
+	if len(page.Chargers) != 1 || page.Chargers[0].CPOID != created.CPO.ID {
+		t.Fatalf("unexpected charger page: %#v", page)
+	}
+	gstPage, err := service.ListGSTs(ctx, adminPrincipal, TenantListQuery{Limit: 1})
+	if err != nil || len(gstPage.GSTs) != 1 || gstPage.GSTs[0].ID != gst.ID {
+		t.Fatalf("unexpected GST page %#v: %v", gstPage, err)
+	}
+	tariffPage, err := service.ListTariffs(ctx, adminPrincipal, TenantListQuery{Limit: 1})
+	if err != nil || len(tariffPage.Tariffs) != 1 || tariffPage.Tariffs[0].ID != tariff.ID {
+		t.Fatalf("unexpected tariff page %#v: %v", tariffPage, err)
+	}
+
+	err = service.DeleteCharger(ctx, adminPrincipal, charger.ChargerID)
+	var apiErr *auth.APIError
+	if !errors.As(err, &apiErr) || apiErr.Code != "charger_in_use" {
+		t.Fatalf("delete referenced charger got %v, want charger_in_use", err)
+	}
+
+	ownerRole := constants.CPORoleOwner
+	ownerPrincipal := adminPrincipal
+	ownerPrincipal.Role = &ownerRole
+	if _, err := service.GetHub(ctx, ownerPrincipal, hub.ID); err == nil {
+		t.Fatal("dormant OWNER role was allowed to call a CPO operation")
+	}
+
+	var auditCount int64
+	if err := gormDB.Model(&models.AuditLog{}).
+		Where(
+			"cpo_id = ? AND action IN ?",
+			created.CPO.ID,
+			[]string{
+				"CPO_ADMIN_PROFILE_UPDATED",
+				"HUB_CREATED",
+				"CHARGER_CREATED",
+				"GST_CREATED",
+				"TARIFF_CREATED",
+			},
+		).
+		Count(&auditCount).Error; err != nil {
+		t.Fatalf("count configuration audit records: %v", err)
+	}
+	if auditCount != 5 {
+		t.Fatalf("got %d configuration audit records, want 5", auditCount)
 	}
 }
 

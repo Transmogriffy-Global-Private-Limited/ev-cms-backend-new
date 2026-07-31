@@ -73,6 +73,13 @@ func New(
 			cpoService,
 		)
 	}
+	if authService != nil && cpoService != nil {
+		cpo.RegisterCPORoutes(
+			router.Group("/api/v1/cpo"),
+			authService,
+			cpoService,
+		)
+	}
 	if authService != nil && integrationService != nil {
 		integrations.RegisterRoutes(
 			router.Group("/api/v1/cpo/integrations"),

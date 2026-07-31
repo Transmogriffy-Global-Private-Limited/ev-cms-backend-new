@@ -11,7 +11,8 @@ provides:
 - global identities;
 - separate platform-superadmin records;
 - CPO tenant organizations;
-- fixed CPO-wide staff memberships;
+- CPO membership persistence with ADMIN as the only callable tenant authority;
+  OWNER, OPERATOR, and VIEWER remain dormant future-compatible enum values;
 - tenant-scoped customer relationships;
 - user settings and tenant customer groups;
 - hubs, chargers, connectors, favorites, and group access links;
@@ -28,7 +29,7 @@ provides:
 - trusted principal, user ID, CPO ID, platform, and CPO-role helpers;
 - encrypted PostgreSQL mail outbox with a retrying, encrypted-transport SMTP
   worker;
-- write-only encrypted Razorpay credentials for CPO owners/admins;
+- write-only encrypted Razorpay credentials for CPO admins;
 - platform-only CPO create, searchable/filterable/cursor list, inspect, profile,
   reasoned activate/suspend, and app-ID APIs;
 - durable current lifecycle reason, actor, and transition time;
@@ -43,11 +44,20 @@ provides:
 - current dummy/live app identity in CPO login, refresh, and `me` responses;
 - `X-CPO-App-ID` enforcement on tenant business APIs without trusting it as
   tenant authority;
+- CPO ADMIN identity-profile read/update for global full-name and phone fields,
+  with no tenant-side CPO organization profile;
+- tenant-scoped bounded hub create/list/get/update;
+- atomic CMS charger/connector registration with server-generated charger UUID,
+  public charger ID, OCPP mapping identity, and connector UUIDs;
+- bounded charger listing, detail/update, connector update, and dependency-safe
+  charger deletion;
+- exact-decimal, bounded GST and tariff create/list/get/update with cross-CPO
+  relationship rejection and INR defaulting;
 - Hostinger implicit-TLS configuration on `smtp.hostinger.com:465`, with
   startup rejection of plaintext or ambiguous SMTP modes;
 - registered educational, integration, API, internal-message, and
   configuration documentation under `docs/`;
-- canonical OpenAPI 3.1 for all 49 implemented business/health operations;
+- canonical OpenAPI 3.1 for all 68 source-tree business/health operations;
 - embedded same-origin Swagger UI at `/docs/` and raw OpenAPI at
   `/openapi.yaml`;
 - `API_DOCS_ENABLED` registration control for both documentation surfaces,
@@ -83,12 +93,15 @@ provides:
   handler;
 - the additive PostgreSQL database `devevcmsnewdb`, owned by `postgres`.
 
-The active development VPS runs source revision `91cc5ba`, with migration ten
-recorded and the deployed 49-operation contract. Migration nine continues to
-preserve the retired commercial prototype under `retired_commercial`.
+The active development VPS still runs source revision `91cc5ba`, with migration
+ten recorded and the deployed 49-operation contract. The unreleased
+authoritative merge adds 19 ADMIN-only profile/network/pricing operations and
+does not require a database migration. Migration nine continues to preserve the
+retired commercial prototype under `retired_commercial`.
 
-No inventory API, HAL integration, charging workflow, tenant payment workflow,
-tenant commercial-management workflow, or reporting behavior is implemented
+No CMS/HAL transport or handshake, live charger state ingestion, charging
+workflow, tenant payment workflow, tenant commercial-management workflow,
+staff-management workflow, or reporting behavior is implemented
 yet.
 
 ## Verification
@@ -168,8 +181,8 @@ yet.
 - The configured platform superadmin remains bootstrapped exactly once.
 - Loopback and public HTTPS liveness and database-readiness checks passed.
 - Swagger UI and raw OpenAPI return `200`; the live OpenAPI contains all 49
-  operations, while unauthenticated requests to the new CPO profile and
-  primary-administrator APIs return `401`.
+  operations, while unauthenticated requests to the platform-managed CPO
+  profile and primary-administrator APIs return `401`.
 - Migration nine marked subscription lifecycle and billing maintenance workers
   disabled and non-required. Platform maintenance and mail outbox remain the
   required runtime workers.
@@ -185,13 +198,15 @@ yet.
 - `users` represent login identities.
 - `platform_admins` explicitly grant platform-superadmin authority.
 - `cpos` represent tenant/customer organizations.
-- `cpo_memberships` grant a fixed role inside one CPO.
+- `cpo_memberships` store a fixed role inside one CPO; current callable
+  authority requires `ADMIN`.
 - `customers` represent a user's customer relationship with one CPO.
 
 The full mapping from the supplied schema is recorded in `docs/SCHEMA.md`.
 
-The same identity may belong to multiple CPOs. Its staff and customer
-relationships remain distinct and tenant-scoped.
+The same identity may belong to multiple CPOs. Its membership and customer
+relationships remain distinct and tenant-scoped. Only ADMIN membership is
+currently accepted for CPO sessions; other stored role values are dormant.
 
 An administrative session selects exactly one platform or CPO scope. Protected
 requests revalidate the durable session and current authority. Tenant context
@@ -206,7 +221,9 @@ repository. The integration contract has not been implemented yet.
 
 ## Known Limitations
 
-- Domain tables have no repositories or handlers yet.
+- Only the initial administrator profile and network/GST/tariff subset has
+  handlers. Customer directory, access tokens, charging, wallets, payments,
+  reporting, and most other domain tables remain without business APIs.
 - CPO staff invitation after the first admin and customer email/profile-change
   workflows are not implemented.
 - Tenant subscriptions, platform invoices, and platform payments are

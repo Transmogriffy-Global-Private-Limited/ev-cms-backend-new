@@ -21,7 +21,7 @@ func RegisterRoutes(group *gin.RouterGroup, authService *auth.Service, service *
 		noStore,
 		authService.Authenticate(),
 		auth.RequireCPOAppID(),
-		auth.RequireCPORoles(constants.CPORoleOwner, constants.CPORoleAdmin),
+		auth.RequireCPORoles(constants.CPORoleAdmin),
 	)
 	group.GET("", handler.list)
 	group.GET("/:provider", handler.get)

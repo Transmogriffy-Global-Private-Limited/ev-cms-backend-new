@@ -195,6 +195,20 @@ func TestPlatformAuthenticationLifecycleWithPostgreSQL(t *testing.T) {
 		*cpoTokens.CPOAppID != cpo.AppID {
 		t.Fatalf("unexpected CPO principal: %#v", cpoPrincipal)
 	}
+
+	if err := gormDB.Model(&models.CPOMembership{}).
+		Where("id = ?", membership.ID).
+		Update("role", constants.CPORoleOwner).Error; err != nil {
+		t.Fatalf("set dormant membership role: %v", err)
+	}
+	if _, err := authService.ValidateAccess(ctx, cpoTokens.AccessToken); !errors.Is(err, errUnauthorized) {
+		t.Fatalf("dormant role did not invalidate active CPO access: %v", err)
+	}
+	if _, err := authService.Login(ctx, LoginRequest{
+		Email: email, Password: newPassword, Scope: constants.AuthScopeCPO, CPOID: &cpo.ID,
+	}, metadata); !errors.Is(err, errInvalidCredentials) {
+		t.Fatalf("dormant role was allowed to start CPO login: %v", err)
+	}
 }
 
 func newIntegrationAuthService(

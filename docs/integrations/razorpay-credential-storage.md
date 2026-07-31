@@ -9,9 +9,10 @@ through HTTP.
 
 ## Authorization
 
-Only an authenticated CPO session with `OWNER` or `ADMIN` role may use the HTTP
-surface. Every request also requires the current `X-CPO-App-ID`. Platform
-superadmins have no tenant-secret read route.
+Only an authenticated CPO session with the currently supported `ADMIN` role may
+use the HTTP surface. Dormant role enum values grant no access. Every request
+also requires the current `X-CPO-App-ID`. Platform superadmins have no
+tenant-secret read route.
 
 Supported routes:
 
