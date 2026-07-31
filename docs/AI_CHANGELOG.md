@@ -2,6 +2,31 @@
 
 ## 2026-07-31
 
+### Canonical CPO backend AI-agent handoff added
+
+- Added `docs/CPO_BACKEND_AGENT_HANDOFF.md` as the no-chat-history orientation
+  and execution guide for agents assigned to CPO-side backend work.
+- Recorded the current ADMIN-only and CUSTOMER plane split, implemented route
+  inventory, actual code/data ownership, schema-versus-behavior warning,
+  CMS/HAL boundary, exact transaction-ID rule, and explicit unimplemented
+  surfaces.
+- Added dependency-aware customer, network, tariff, HAL, charging, settlement,
+  reporting, realtime, and deferred staff-management guidance without marking
+  any unassigned slice approved.
+- Included mandatory tenant-isolation, endpoint, migration, verification, Git,
+  documentation, definition-of-done, and final-handoff checklists.
+- Registered the guide in repository agent instructions, documentation
+  navigation, development planning, project state, and documentation drift
+  verification.
+
+Verification:
+
+- Documentation registration and mandatory handoff-rule checks passed.
+- Runtime/OpenAPI parity, `go test ./...`, `go vet ./...`, and
+  `git diff --check` passed.
+- This documentation-only slice did not mutate or exercise a database, SMTP,
+  HAL, or deployed service.
+
 ### CPO administrator network release verified and deployed
 
 - Reviewed revision `407ec07` and confirmed that its 20 new ADMIN-only CPO

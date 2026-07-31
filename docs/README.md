@@ -12,6 +12,7 @@ This directory is the durable project memory for the EV CMS backend.
 | Database ownership and model mapping | `SCHEMA.md` |
 | Detailed authentication API semantics | `AUTHENTICATION.md` |
 | Detailed platform CPO API semantics | `CPO_ADMINISTRATION.md` |
+| CPO backend AI-agent orientation and execution | `CPO_BACKEND_AGENT_HANDOFF.md` |
 | Complete superadmin architecture and boundaries | `guides/concepts/superadmin-control-plane.md` |
 | Platform realtime event contract | `contracts/realtime/platform-events.md` |
 | Manual CPO access workflow | `guides/workflows/cpo-onboarding.md` |

@@ -58,6 +58,9 @@ provides:
   startup rejection of plaintext or ambiguous SMTP modes;
 - registered educational, integration, API, internal-message, and
   configuration documentation under `docs/`;
+- a canonical CPO backend AI-agent handoff covering current capability,
+  ownership, tenant/HAL boundaries, remaining dependency order, slice
+  execution, verification, and handoff requirements;
 - canonical OpenAPI 3.1 for all 69 source-tree business/health operations;
 - embedded same-origin Swagger UI at `/docs/` and raw OpenAPI at
   `/openapi.yaml`;

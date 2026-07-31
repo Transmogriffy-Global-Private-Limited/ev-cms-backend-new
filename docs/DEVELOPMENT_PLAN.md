@@ -589,6 +589,10 @@ Detailed plan:
 
 - `docs/plans/cpo-admin-network-configuration.md`
 
+Agent handoff:
+
+- `docs/CPO_BACKEND_AGENT_HANDOFF.md`
+
 Architecture decision:
 
 - `docs/decisions/0009-admin-only-cpo-authority.md`

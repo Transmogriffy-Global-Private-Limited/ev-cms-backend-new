@@ -12,6 +12,7 @@ $requiredFiles = @(
     'docs/AI_CHANGELOG.md',
     'docs/AUTHENTICATION.md',
     'docs/CPO_ADMINISTRATION.md',
+    'docs/CPO_BACKEND_AGENT_HANDOFF.md',
     'docs/guides/concepts/identity-tenancy-and-application-identity.md',
     'docs/guides/concepts/superadmin-control-plane.md',
     'docs/guides/workflows/cpo-onboarding.md',
@@ -48,6 +49,23 @@ $missing = @(
 )
 if ($missing.Count -gt 0) {
     throw "Required documentation is missing: $($missing -join ', ')"
+}
+
+$cpoAgentHandoff = Get-Content -Raw -LiteralPath (
+    Join-Path $repositoryRoot 'docs/CPO_BACKEND_AGENT_HANDOFF.md'
+)
+$requiredCPOAgentRules = @(
+    'Current callable CPO staff authority is `ADMIN` only.',
+    'The presence of a table or Go model does not mean its workflow exists.',
+    '`src/cpo/repository.go` is currently an empty package file.',
+    'Ten migrations are already deployment history.',
+    'do not embed or copy the HAL into this process',
+    'Treat `main` and `anubhab-work` as the authoritative lines'
+)
+foreach ($rule in $requiredCPOAgentRules) {
+    if (-not $cpoAgentHandoff.Contains($rule)) {
+        throw "CPO backend agent handoff is missing required rule: $rule"
+    }
 }
 
 $routeContract = Get-Content -Raw -LiteralPath (

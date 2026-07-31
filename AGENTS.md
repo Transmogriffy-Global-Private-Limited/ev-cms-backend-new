@@ -13,6 +13,7 @@ Before planning or changing code, read:
 - `docs/SCHEMA.md`
 - `docs/AUTHENTICATION.md`
 - `docs/CPO_ADMINISTRATION.md`
+- `docs/CPO_BACKEND_AGENT_HANDOFF.md` for every CPO-side backend task
 - `docs/AI_CHANGELOG.md`
 - `docs/README.md`
 - relevant educational guides under `docs/guides/`
@@ -39,6 +40,9 @@ verification changes.
 - `docs/AUTHENTICATION.md` and `docs/CPO_ADMINISTRATION.md` remain the detailed
   workflow references. `docs/contracts/api/administrative-http-api.md` is the
   complete human endpoint contract.
+- `docs/CPO_BACKEND_AGENT_HANDOFF.md` is the canonical no-chat-history
+  orientation and execution guide for agents assigned to CPO-side backend
+  work. It must stay aligned with routes, ownership, plans, and verification.
 - CPO access is controlled manually by platform superadmins through CPO
   activation and suspension. Do not add tenant subscriptions, platform
   invoices, or platform payment management without a new explicit decision.
