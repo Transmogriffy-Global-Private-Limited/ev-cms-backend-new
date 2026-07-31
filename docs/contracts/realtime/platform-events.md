@@ -103,8 +103,12 @@ cannot announce uncommitted or rolled-back state.
 Current producers:
 
 - CPO creation;
+- CPO business-profile replacement;
 - CPO activation and suspension;
 - CPO app-ID rotation;
+- CPO primary-administrator replacement/restoration;
+- CPO primary-administrator onboarding resend;
+- CPO administrative-session revocation;
 - worker heartbeat records provide worker-state source data.
 - readiness requires at least one fresh, healthy instance for each required
   worker name; stale records from replaced instances remain observable but do
@@ -112,6 +116,22 @@ Current producers:
 
 Planned producers are registered in
 `docs/plans/superadmin-control-plane.md`.
+
+Current CPO event names and safe payload meanings:
+
+| Event | Data | REST refresh |
+| --- | --- | --- |
+| `platform.cpo.created` | CPO ID/status/app-ID mode | collection |
+| `platform.cpo.profile_updated` | changed business-profile fields | collection and CPO detail |
+| `platform.cpo.activated` / `platform.cpo.suspended` | previous status, status, reason | collection and CPO detail |
+| `platform.cpo.app_id_rotated` | current app ID/mode | CPO detail |
+| `platform.cpo.primary_admin_changed` | previous/current user IDs and reason | primary-admin resource |
+| `platform.cpo.primary_admin_onboarding_resent` | primary user ID and reason | primary-admin resource |
+| `platform.cpo.admin_sessions_revoked` | reason and revoked counts | audit/recovery display |
+
+Lifecycle retries that request the already-current state do not create another
+lifecycle event. Explicit session revocation does create an event even when the
+counts are zero because the operator command itself is auditable evidence.
 
 ## Connection Behavior
 

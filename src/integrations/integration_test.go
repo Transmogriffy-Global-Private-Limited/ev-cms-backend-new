@@ -49,16 +49,18 @@ func TestCPOIntegrationCredentialIsolationWithPostgreSQL(t *testing.T) {
 		t.Fatalf("create test user: %v", err)
 	}
 	cpo := models.CPO{
-		ID:             uuid.New(),
-		Slug:           "cpo-" + uuid.NewString(),
-		BusinessName:   "Credential Test CPO",
-		CompanyType:    constants.CPOCompanyTypeCompany,
-		Status:         constants.CPOStatusActive,
-		AppID:          "cpo_dummy_" + strings.ReplaceAll(uuid.NewString(), "-", ""),
-		AppIDMode:      constants.CPOAppIDModeDummy,
-		AppIDUpdatedAt: now,
-		CreatedAt:      now,
-		UpdatedAt:      now,
+		ID:              uuid.New(),
+		Slug:            "cpo-" + uuid.NewString(),
+		BusinessName:    "Credential Test CPO",
+		CompanyType:     constants.CPOCompanyTypeCompany,
+		Status:          constants.CPOStatusActive,
+		StatusReason:    "Integration credential fixture",
+		StatusChangedAt: now,
+		AppID:           "cpo_dummy_" + strings.ReplaceAll(uuid.NewString(), "-", ""),
+		AppIDMode:       constants.CPOAppIDModeDummy,
+		AppIDUpdatedAt:  now,
+		CreatedAt:       now,
+		UpdatedAt:       now,
 	}
 	if err := gormDB.Create(&cpo).Error; err != nil {
 		t.Fatalf("create test CPO: %v", err)

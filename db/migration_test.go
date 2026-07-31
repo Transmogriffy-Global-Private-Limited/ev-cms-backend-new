@@ -404,3 +404,47 @@ func TestCommercialRetirementMigrationArchivesWithoutDeletingData(t *testing.T) 
 		t.Error("commercial retirement must not drop historical data tables")
 	}
 }
+
+func TestCPOSuperadminDependencyMigrationContainsRecoveryInvariants(t *testing.T) {
+	t.Parallel()
+
+	upBody, err := migrationFiles.ReadFile(
+		"migrations/000010_cpo_superadmin_dependency.up.sql",
+	)
+	if err != nil {
+		t.Fatalf("read CPO Superadmin dependency up migration: %v", err)
+	}
+	downBody, err := migrationFiles.ReadFile(
+		"migrations/000010_cpo_superadmin_dependency.down.sql",
+	)
+	if err != nil {
+		t.Fatalf("read CPO Superadmin dependency down migration: %v", err)
+	}
+	upSQL := string(upBody)
+	downSQL := string(downBody)
+	for _, required := range []string{
+		"status_reason",
+		"status_changed_at",
+		"status_changed_by_user_id",
+		"is_primary_admin",
+		"uq_cpo_memberships_primary_admin",
+		"ix_mail_outbox_cpo_user_created",
+		"CPO_ONBOARDING_RESENT",
+	} {
+		if !strings.Contains(upSQL, required) {
+			t.Errorf("CPO Superadmin dependency migration missing %q", required)
+		}
+	}
+	for _, required := range []string{
+		"cannot roll back CPO Superadmin dependency",
+		"DROP COLUMN IF EXISTS is_primary_admin",
+		"DROP COLUMN IF EXISTS status_reason",
+	} {
+		if !strings.Contains(downSQL, required) {
+			t.Errorf(
+				"CPO Superadmin dependency down migration missing %q",
+				required,
+			)
+		}
+	}
+}

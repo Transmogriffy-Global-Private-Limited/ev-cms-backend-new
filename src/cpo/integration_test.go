@@ -17,6 +17,7 @@ import (
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/constants"
 	cmsmail "github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/mail"
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/models"
+	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/platformops"
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/security"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -229,7 +230,12 @@ func TestCPOProvisioningAndFirstAdminLifecycleWithPostgreSQL(t *testing.T) {
 		t.Fatal("pending CPO administrator was allowed to log in")
 	}
 
-	if _, err := service.Activate(ctx, platformPrincipal, created.CPO.ID); err != nil {
+	if _, err := service.Activate(
+		ctx,
+		platformPrincipal,
+		created.CPO.ID,
+		LifecycleRequest{Reason: "CPO onboarding approved"},
+	); err != nil {
 		t.Fatalf("activate CPO: %v", err)
 	}
 	firstChallenge, err := authService.Login(ctx, auth.LoginRequest{
@@ -485,7 +491,12 @@ func TestCPOProvisioningAndFirstAdminLifecycleWithPostgreSQL(t *testing.T) {
 		t.Fatalf("unexpected existing-membership message: %#v", assigned)
 	}
 
-	if _, err := service.Suspend(ctx, platformPrincipal, created.CPO.ID); err != nil {
+	if _, err := service.Suspend(
+		ctx,
+		platformPrincipal,
+		created.CPO.ID,
+		LifecycleRequest{Reason: "Access suspended for lifecycle verification"},
+	); err != nil {
 		t.Fatalf("suspend CPO: %v", err)
 	}
 	if _, err := authService.ValidateAccess(ctx, refreshed.AccessToken); err == nil {
@@ -503,6 +514,530 @@ func TestCPOProvisioningAndFirstAdminLifecycleWithPostgreSQL(t *testing.T) {
 		CPOID:    &created.CPO.ID,
 	}, metadata); err == nil {
 		t.Fatal("suspended CPO administrator was allowed to log in")
+	}
+}
+
+func TestCPOSuperadminDependencyLifecycleWithPostgreSQL(t *testing.T) {
+	databaseURL := os.Getenv("TEST_DATABASE_URL")
+	if databaseURL == "" {
+		t.Skip("TEST_DATABASE_URL is not set")
+	}
+	ctx := context.Background()
+	gormDB, sqlDB, err := db.Open(ctx, databaseURL)
+	if err != nil {
+		t.Fatalf("open test database: %v", err)
+	}
+	defer sqlDB.Close()
+	if err := db.ApplyMigrations(ctx, sqlDB); err != nil {
+		t.Fatalf("apply migrations: %v", err)
+	}
+
+	platformEmail := "cpo-control-platform-" + uuid.NewString() + "@example.com"
+	if err := db.SeedSuperadmin(ctx, gormDB, config.Superadmin{
+		Email:    platformEmail,
+		Password: "PlatformPassword!123",
+		FullName: "CPO Control Platform Admin",
+	}); err != nil {
+		t.Fatalf("seed platform administrator: %v", err)
+	}
+	var platformUser models.User
+	if err := gormDB.First(&platformUser, "email = ?", platformEmail).Error; err != nil {
+		t.Fatalf("load platform administrator: %v", err)
+	}
+	principal := auth.Principal{
+		UserID: platformUser.ID,
+		Scope:  constants.AuthScopePlatform,
+	}
+	mailBox, err := security.NewSecretBox(
+		"cpo-control-test-v1",
+		[]byte(strings.Repeat("r", 32)),
+	)
+	if err != nil {
+		t.Fatalf("create mail secret box: %v", err)
+	}
+	eventService := platformops.NewService(gormDB, config.Platform{
+		EventRetention: 24 * time.Hour,
+	})
+	service := NewService(
+		gormDB,
+		cmsmail.NewOutbox(mailBox),
+		true,
+	).WithPlatformEvents(eventService)
+
+	oldAdminEmail := "primary-old-" + uuid.NewString() + "@example.com"
+	created, err := service.Create(ctx, principal, CreateRequest{
+		Slug:         "control-" + strings.ToLower(uuid.NewString()),
+		BusinessName: "Control Plane Search Target",
+		CompanyType:  constants.CPOCompanyTypeCompany,
+		Admin: InitialAdminRequest{
+			Email:    oldAdminEmail,
+			FullName: "Original Primary Administrator",
+		},
+	})
+	if err != nil {
+		t.Fatalf("create controlled CPO: %v", err)
+	}
+	if created.CPO.StatusReason != "Initial provisioning" ||
+		created.CPO.StatusChangedByUserID == nil ||
+		*created.CPO.StatusChangedByUserID != platformUser.ID {
+		t.Fatalf("creation omitted lifecycle evidence: %#v", created.CPO)
+	}
+	var primaryCount int64
+	if err := gormDB.Model(&models.CPOMembership{}).
+		Where("cpo_id = ? AND is_primary_admin", created.CPO.ID).
+		Count(&primaryCount).Error; err != nil {
+		t.Fatalf("count primary memberships: %v", err)
+	}
+	if primaryCount != 1 {
+		t.Fatalf("got %d primary memberships, want 1", primaryCount)
+	}
+	var correlatedWelcome models.MailOutbox
+	if err := gormDB.
+		Where(
+			"cpo_id = ? AND user_id = ? AND template = ?",
+			created.CPO.ID,
+			created.Admin.UserID,
+			"CPO_ADMIN_WELCOME",
+		).
+		First(&correlatedWelcome).Error; err != nil {
+		t.Fatalf("load correlated onboarding mail: %v", err)
+	}
+
+	second, err := service.Create(ctx, principal, CreateRequest{
+		Slug:         "control-" + strings.ToLower(uuid.NewString()),
+		BusinessName: "Control Plane Cursor Sibling",
+		CompanyType:  constants.CPOCompanyTypeIndividual,
+		Admin: InitialAdminRequest{
+			Email:    "cursor-admin-" + uuid.NewString() + "@example.com",
+			FullName: "Cursor Administrator",
+		},
+	})
+	if err != nil {
+		t.Fatalf("create cursor sibling CPO: %v", err)
+	}
+	page, err := service.List(ctx, principal, ListQuery{
+		Search: oldAdminEmail,
+		Limit:  1,
+	})
+	if err != nil {
+		t.Fatalf("search CPOs by primary administrator: %v", err)
+	}
+	if len(page.CPOs) != 1 || page.CPOs[0].ID != created.CPO.ID {
+		t.Fatalf("unexpected primary-admin search page: %#v", page)
+	}
+	page, err = service.List(ctx, principal, ListQuery{Limit: 1})
+	if err != nil {
+		t.Fatalf("list first cursor page: %v", err)
+	}
+	if !page.HasMore || page.NextBefore == nil || page.NextBeforeID == nil {
+		t.Fatalf("first cursor page omitted continuation: %#v", page)
+	}
+	nextPage, err := service.List(ctx, principal, ListQuery{
+		Before:   page.NextBefore,
+		BeforeID: page.NextBeforeID,
+		Limit:    1,
+	})
+	if err != nil {
+		t.Fatalf("list second cursor page: %v", err)
+	}
+	if len(nextPage.CPOs) != 1 || nextPage.CPOs[0].ID == page.CPOs[0].ID {
+		t.Fatalf("cursor repeated or omitted a CPO: first=%#v next=%#v", page, nextPage)
+	}
+	_ = second
+
+	gstin := "19" + strings.ToUpper(strings.ReplaceAll(uuid.NewString(), "-", ""))[:13]
+	updated, err := service.UpdateProfile(
+		ctx,
+		principal,
+		created.CPO.ID,
+		UpdateProfileRequest{
+			BusinessName: "Updated Control Plane CPO",
+			CompanyType:  constants.CPOCompanyTypeCompany,
+			GSTIN:        &gstin,
+			Address:      "2 Recovery Road",
+			City:         "Kolkata",
+			State:        "West Bengal",
+			Pincode:      "700001",
+		},
+	)
+	if err != nil {
+		t.Fatalf("update CPO profile: %v", err)
+	}
+	if updated.BusinessName != "Updated Control Plane CPO" ||
+		updated.GSTIN == nil || *updated.GSTIN != gstin ||
+		updated.Slug != created.CPO.Slug {
+		t.Fatalf("unexpected profile update: %#v", updated)
+	}
+
+	activated, err := service.Activate(
+		ctx,
+		principal,
+		created.CPO.ID,
+		LifecycleRequest{Reason: "Approved by onboarding operations"},
+	)
+	if err != nil {
+		t.Fatalf("activate controlled CPO: %v", err)
+	}
+	if activated.StatusReason != "Approved by onboarding operations" ||
+		activated.StatusChangedByUserID == nil ||
+		*activated.StatusChangedByUserID != platformUser.ID {
+		t.Fatalf("activation omitted reasoned state: %#v", activated)
+	}
+	var activationEventsBefore int64
+	if err := gormDB.Model(&models.PlatformEvent{}).
+		Where(
+			"event_type = ? AND resource_id = ?",
+			"platform.cpo.activated",
+			created.CPO.ID.String(),
+		).
+		Count(&activationEventsBefore).Error; err != nil {
+		t.Fatalf("count activation events: %v", err)
+	}
+	if _, err := service.Activate(
+		ctx,
+		principal,
+		created.CPO.ID,
+		LifecycleRequest{Reason: "Duplicate delivery retry"},
+	); err != nil {
+		t.Fatalf("repeat activation: %v", err)
+	}
+	var activationEventsAfter int64
+	if err := gormDB.Model(&models.PlatformEvent{}).
+		Where(
+			"event_type = ? AND resource_id = ?",
+			"platform.cpo.activated",
+			created.CPO.ID.String(),
+		).
+		Count(&activationEventsAfter).Error; err != nil {
+		t.Fatalf("recount activation events: %v", err)
+	}
+	if activationEventsAfter != activationEventsBefore {
+		t.Fatal("idempotent activation emitted another transition event")
+	}
+
+	oldSessionID := uuid.New()
+	oldRole := constants.CPORoleAdmin
+	now := time.Now().UTC()
+	if err := gormDB.Create(&models.AuthSession{
+		ID:           oldSessionID,
+		UserID:       created.Admin.UserID,
+		Scope:        constants.AuthScopeCPO,
+		CPOID:        &created.CPO.ID,
+		Role:         &oldRole,
+		TokenVersion: 1,
+		UserAgent:    "primary-replacement-test",
+		CreatedAt:    now,
+		LastSeenAt:   now,
+		ExpiresAt:    now.Add(time.Hour),
+	}).Error; err != nil {
+		t.Fatalf("create previous-primary session: %v", err)
+	}
+	oldRefreshID := uuid.New()
+	oldTokenHash := strings.Repeat(
+		strings.ReplaceAll(uuid.NewString(), "-", ""),
+		2,
+	)
+	if err := gormDB.Create(&models.AuthRefreshToken{
+		ID:        oldRefreshID,
+		SessionID: oldSessionID,
+		TokenHash: oldTokenHash,
+		ExpiresAt: now.Add(time.Hour),
+		CreatedAt: now,
+	}).Error; err != nil {
+		t.Fatalf("create previous-primary refresh token: %v", err)
+	}
+
+	newAdminEmail := "primary-new-" + uuid.NewString() + "@example.com"
+	primary, err := service.SetPrimaryAdmin(
+		ctx,
+		principal,
+		created.CPO.ID,
+		PrimaryAdminRequest{
+			Email:    newAdminEmail,
+			FullName: "Replacement Primary Administrator",
+			Reason:   "Original administrator requested replacement",
+		},
+	)
+	if err != nil {
+		t.Fatalf("replace primary administrator: %v", err)
+	}
+	if primary.Email != newAdminEmail ||
+		primary.MembershipStatus != constants.MembershipStatusActive ||
+		!primary.MustChangePassword {
+		t.Fatalf("unexpected replacement primary administrator: %#v", primary)
+	}
+	if err := gormDB.First(
+		&models.AuthSession{},
+		"id = ? AND revoked_at IS NOT NULL",
+		oldSessionID,
+	).Error; err != nil {
+		t.Fatalf("previous primary session was not revoked: %v", err)
+	}
+	if err := gormDB.First(
+		&models.AuthRefreshToken{},
+		"id = ? AND revoked_at IS NOT NULL",
+		oldRefreshID,
+	).Error; err != nil {
+		t.Fatalf("previous primary refresh token was not revoked: %v", err)
+	}
+	if err := gormDB.Model(&models.CPOMembership{}).
+		Where("cpo_id = ? AND is_primary_admin", created.CPO.ID).
+		Count(&primaryCount).Error; err != nil {
+		t.Fatalf("recount primary memberships: %v", err)
+	}
+	if primaryCount != 1 {
+		t.Fatalf("replacement left %d primary memberships", primaryCount)
+	}
+	replacementWelcome := readMessageFromOutbox(
+		t,
+		gormDB,
+		mailBox,
+		newAdminEmail,
+		"CPO_ADMIN_WELCOME",
+	)
+	if replacementWelcome.TemporaryPassword == "" {
+		t.Fatal("new replacement identity did not receive a temporary password")
+	}
+
+	resent, err := service.ResendPrimaryAdminOnboarding(
+		ctx,
+		principal,
+		created.CPO.ID,
+		ReasonRequest{Reason: "Administrator requested onboarding details again"},
+	)
+	if err != nil {
+		t.Fatalf("resend primary onboarding: %v", err)
+	}
+	if resent.LatestOnboardingDelivery == nil ||
+		resent.LatestOnboardingDelivery.Template != "CPO_ONBOARDING_RESENT" {
+		t.Fatalf("resend did not expose safe delivery metadata: %#v", resent)
+	}
+	resentPayload := readMessageFromOutbox(
+		t,
+		gormDB,
+		mailBox,
+		newAdminEmail,
+		"CPO_ONBOARDING_RESENT",
+	)
+	if resentPayload.TemporaryPassword != "" {
+		t.Fatal("onboarding resend exposed a password")
+	}
+
+	existingEmail := "existing-primary-" + uuid.NewString() + "@example.com"
+	existingHash, err := security.HashPassword("ExistingPassword!123")
+	if err != nil {
+		t.Fatalf("hash existing primary password: %v", err)
+	}
+	existingUser := models.User{
+		ID:                uuid.New(),
+		Email:             existingEmail,
+		PasswordHash:      existingHash,
+		FullName:          "Existing Global Identity",
+		IsActive:          true,
+		IsVerified:        true,
+		PasswordChangedAt: now,
+		CreatedAt:         now,
+		UpdatedAt:         now,
+	}
+	if err := gormDB.Create(&existingUser).Error; err != nil {
+		t.Fatalf("create existing replacement identity: %v", err)
+	}
+	primary, err = service.SetPrimaryAdmin(
+		ctx,
+		principal,
+		created.CPO.ID,
+		PrimaryAdminRequest{
+			Email:    existingEmail,
+			FullName: "Ignored Replacement Name",
+			Reason:   "Use an existing verified global identity",
+		},
+	)
+	if err != nil {
+		t.Fatalf("assign existing primary administrator: %v", err)
+	}
+	var existingAfter models.User
+	if err := gormDB.First(&existingAfter, "id = ?", existingUser.ID).Error; err != nil {
+		t.Fatalf("reload existing replacement identity: %v", err)
+	}
+	if existingAfter.PasswordHash != existingHash ||
+		existingAfter.FullName != existingUser.FullName {
+		t.Fatal("primary replacement overwrote an existing global identity")
+	}
+	assignment := readMessageFromOutbox(
+		t,
+		gormDB,
+		mailBox,
+		existingEmail,
+		"CPO_MEMBERSHIP_ASSIGNED",
+	)
+	if assignment.TemporaryPassword != "" {
+		t.Fatal("existing replacement identity received a temporary password")
+	}
+
+	newRole := constants.CPORoleAdmin
+	newCPOSessionID := uuid.New()
+	platformSessionID := uuid.New()
+	for _, session := range []models.AuthSession{
+		{
+			ID:           newCPOSessionID,
+			UserID:       primary.UserID,
+			Scope:        constants.AuthScopeCPO,
+			CPOID:        &created.CPO.ID,
+			Role:         &newRole,
+			TokenVersion: 1,
+			UserAgent:    "bulk-revocation-cpo",
+			CreatedAt:    now,
+			LastSeenAt:   now,
+			ExpiresAt:    now.Add(time.Hour),
+		},
+		{
+			ID:           platformSessionID,
+			UserID:       primary.UserID,
+			Scope:        constants.AuthScopePlatform,
+			TokenVersion: 1,
+			UserAgent:    "bulk-revocation-platform",
+			CreatedAt:    now,
+			LastSeenAt:   now,
+			ExpiresAt:    now.Add(time.Hour),
+		},
+	} {
+		if err := gormDB.Create(&session).Error; err != nil {
+			t.Fatalf("create scoped session: %v", err)
+		}
+	}
+	revokeResult, err := service.RevokeAdministrativeSessions(
+		ctx,
+		principal,
+		created.CPO.ID,
+		ReasonRequest{Reason: "Forced sign-in refresh after admin recovery"},
+	)
+	if err != nil {
+		t.Fatalf("revoke administrative sessions: %v", err)
+	}
+	if revokeResult.RevokedSessions != 1 {
+		t.Fatalf("revoked %d administrative sessions, want 1", revokeResult.RevokedSessions)
+	}
+	var platformSession models.AuthSession
+	if err := gormDB.First(&platformSession, "id = ?", platformSessionID).Error; err != nil {
+		t.Fatalf("load unaffected platform session: %v", err)
+	}
+	if platformSession.RevokedAt != nil {
+		t.Fatal("CPO administrative revocation touched a platform session")
+	}
+
+	type replacementResult struct {
+		view PrimaryAdminView
+		err  error
+	}
+	concurrentResults := make(chan replacementResult, 2)
+	for index := 0; index < 2; index++ {
+		index := index
+		go func() {
+			view, replaceErr := service.SetPrimaryAdmin(
+				ctx,
+				principal,
+				created.CPO.ID,
+				PrimaryAdminRequest{
+					Email: fmt.Sprintf(
+						"concurrent-primary-%d-%s@example.com",
+						index,
+						uuid.NewString(),
+					),
+					FullName: fmt.Sprintf("Concurrent Primary %d", index),
+					Reason:   "Concurrent primary administrator recovery test",
+				},
+			)
+			concurrentResults <- replacementResult{view: view, err: replaceErr}
+		}()
+	}
+	for index := 0; index < 2; index++ {
+		result := <-concurrentResults
+		if result.err != nil {
+			t.Fatalf("concurrent primary replacement: %v", result.err)
+		}
+	}
+	if err := gormDB.Model(&models.CPOMembership{}).
+		Where("cpo_id = ? AND is_primary_admin", created.CPO.ID).
+		Count(&primaryCount).Error; err != nil {
+		t.Fatalf("count concurrent replacement primary memberships: %v", err)
+	}
+	if primaryCount != 1 {
+		t.Fatalf("concurrent replacement left %d primary memberships", primaryCount)
+	}
+	var changedEvents int64
+	if err := gormDB.Model(&models.PlatformEvent{}).
+		Where(
+			"event_type = ? AND resource_id = ?",
+			"platform.cpo.primary_admin_changed",
+			created.CPO.ID.String(),
+		).
+		Count(&changedEvents).Error; err != nil {
+		t.Fatalf("count primary-admin change events: %v", err)
+	}
+	if changedEvents < 4 {
+		t.Fatalf("got %d canonical primary-admin change events, want at least 4", changedEvents)
+	}
+
+	customerUser := models.User{
+		ID:                uuid.New(),
+		Email:             "suspension-customer-" + uuid.NewString() + "@example.com",
+		PasswordHash:      existingHash,
+		FullName:          "Suspension Customer",
+		IsActive:          true,
+		IsVerified:        true,
+		PasswordChangedAt: now,
+		CreatedAt:         now,
+		UpdatedAt:         now,
+	}
+	if err := gormDB.Create(&customerUser).Error; err != nil {
+		t.Fatalf("create suspension customer identity: %v", err)
+	}
+	customer := models.Customer{
+		ID:        uuid.New(),
+		CPOID:     created.CPO.ID,
+		UserID:    customerUser.ID,
+		Status:    constants.CustomerStatusActive,
+		CreatedAt: now,
+		UpdatedAt: now,
+	}
+	if err := gormDB.Create(&customer).Error; err != nil {
+		t.Fatalf("create suspension customer: %v", err)
+	}
+	customerSessionID := uuid.New()
+	if err := gormDB.Create(&models.AuthSession{
+		ID:           customerSessionID,
+		UserID:       customerUser.ID,
+		Scope:        constants.AuthScopeCustomer,
+		CPOID:        &created.CPO.ID,
+		CustomerID:   &customer.ID,
+		TokenVersion: 1,
+		UserAgent:    "suspension-customer",
+		CreatedAt:    now,
+		LastSeenAt:   now,
+		ExpiresAt:    now.Add(time.Hour),
+	}).Error; err != nil {
+		t.Fatalf("create suspension customer session: %v", err)
+	}
+	if _, err := service.Suspend(
+		ctx,
+		principal,
+		created.CPO.ID,
+		LifecycleRequest{Reason: "Suspend all tenant access after recovery test"},
+	); err != nil {
+		t.Fatalf("suspend CPO after recovery test: %v", err)
+	}
+	var customerSession models.AuthSession
+	if err := gormDB.First(&customerSession, "id = ?", customerSessionID).Error; err != nil {
+		t.Fatalf("load suspended customer session: %v", err)
+	}
+	if customerSession.RevokedAt == nil {
+		t.Fatal("CPO suspension did not revoke a customer session")
+	}
+	if err := gormDB.First(&platformSession, "id = ?", platformSessionID).Error; err != nil {
+		t.Fatalf("reload platform session after suspension: %v", err)
+	}
+	if platformSession.RevokedAt != nil {
+		t.Fatal("CPO suspension touched a platform session")
 	}
 }
 

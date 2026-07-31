@@ -24,7 +24,7 @@ App identity:  DUMMY -> LIVE -> LIVE (rotation)
 - Creation is `PENDING` with a unique server-generated dummy app ID.
 - Activation permits CPO login and tenant operations with the current dummy or
   live app ID.
-- Suspension blocks new CPO administrative operations regardless of app-ID
+- Suspension blocks new CPO-staff and customer operations regardless of app-ID
   mode.
 - Assigning a live app ID does not imply commercial or payment state.
 - App-ID rotation invalidates the old header value immediately.
@@ -59,6 +59,14 @@ returned by the API, logged, audited, or stored in plaintext.
 
 The welcome or assignment email includes the CPO ID and current app ID. The
 new-identity welcome additionally includes the temporary password.
+
+One `OWNER` or `ADMIN` membership is durably designated primary for each
+provisioned CPO. Platform APIs expose only safe identity, membership, and
+onboarding-delivery metadata. A platform actor may replace or restore the
+primary with a reason; replacement revokes the previous primary's sessions for
+that CPO without changing an existing replacement identity's password.
+Onboarding resend is credential-free and directs the recipient to normal
+password recovery.
 
 ## Request Boundary
 
@@ -100,9 +108,13 @@ without already knowing it.
 - `POST /api/v1/platform/cpos`
 - `GET /api/v1/platform/cpos`
 - `GET /api/v1/platform/cpos/:cpo_id`
+- `PUT /api/v1/platform/cpos/:cpo_id/profile`
 - `POST /api/v1/platform/cpos/:cpo_id/activate`
 - `POST /api/v1/platform/cpos/:cpo_id/suspend`
 - `PUT /api/v1/platform/cpos/:cpo_id/app-id`
+- `GET|PUT /api/v1/platform/cpos/:cpo_id/primary-admin`
+- `POST /api/v1/platform/cpos/:cpo_id/primary-admin/resend-onboarding`
+- `POST /api/v1/platform/cpos/:cpo_id/administrative-sessions/revoke`
 
 Creation accepts the existing CPO business-profile fields but not status,
 commercial state, or app ID. It also accepts the first administrator's email
@@ -121,7 +133,10 @@ the reserved `cpo_dummy_` prefix; superadmin-supplied live IDs cannot use it.
 - A mail-disabled deployment rejects creation instead of exposing a temporary
   password through another channel.
 - Existing identities are reused without password mutation.
-- Lifecycle transitions are idempotent for the requested target state.
+- Lifecycle transitions require a reason and are idempotent for the requested
+  target state; repeated suspension still revokes later CPO sessions.
+- Primary-admin replacement is serialized per CPO and normalized email, with a
+  partial unique index enforcing one primary membership.
 - A duplicate live app ID returns conflict without changing the CPO.
 - Rotation preserves sessions but tenant APIs reject the old app ID.
 - Authentication endpoints remain available after rotation and suspension for

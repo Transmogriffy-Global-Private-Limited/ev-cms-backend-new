@@ -57,6 +57,10 @@ $requiredRoutes = @(
     '/api/v1/app/auth/me',
     '/api/v1/auth/password/change',
     '/api/v1/platform/cpos',
+    '/api/v1/platform/cpos/{cpo_id}/profile',
+    '/api/v1/platform/cpos/{cpo_id}/primary-admin',
+    '/api/v1/platform/cpos/{cpo_id}/primary-admin/resend-onboarding',
+    '/api/v1/platform/cpos/{cpo_id}/administrative-sessions/revoke',
     '/api/v1/platform/events',
     '/api/v1/platform/realtime/stream',
     '/api/v1/platform/audit-logs',
@@ -86,6 +90,26 @@ $retiredRoutes = @(
 foreach ($route in $retiredRoutes) {
     if ($openAPI.Contains($route)) {
         throw "Retired commercial route remains in OpenAPI: $route"
+    }
+}
+
+$operationCount = ([regex]::Matches($openAPI, '(?m)^\s{6}operationId:\s+')).Count
+if ($operationCount -ne 49) {
+    throw "OpenAPI contains $operationCount operations; expected 49."
+}
+
+$requiredCPOEvents = @(
+    'platform.cpo.profile_updated',
+    'platform.cpo.primary_admin_changed',
+    'platform.cpo.primary_admin_onboarding_resent',
+    'platform.cpo.admin_sessions_revoked'
+)
+$realtimeContract = Get-Content -Raw -LiteralPath (
+    Join-Path $repositoryRoot 'docs/contracts/realtime/platform-events.md'
+)
+foreach ($eventName in $requiredCPOEvents) {
+    if (-not $realtimeContract.Contains($eventName)) {
+        throw "Realtime contract does not contain CPO event $eventName"
     }
 }
 

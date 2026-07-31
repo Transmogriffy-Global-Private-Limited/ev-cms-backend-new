@@ -1011,39 +1011,132 @@ Errors:
 
 ### 8.2 `GET /api/v1/platform/cpos`
 
-Returns:
+Purpose: drive the Superadmin CPO collection without loading an unbounded
+tenant list.
+
+Optional query:
+
+- `q`: case-insensitive substring across business name, slug, GSTIN, app ID,
+  primary-admin full name, and primary-admin email; at most 200 characters;
+- `status`: exact `PENDING`, `ACTIVE`, or `SUSPENDED`;
+- `app_id_mode`: exact `DUMMY` or `LIVE`;
+- `limit`: 1 through 200, default 50;
+- `before`: RFC3339 creation timestamp component of the exclusive
+  newest-first cursor;
+- `before_id`: UUID tie-breaker returned with `next_before`; it must be supplied
+  together with `before`.
+
+`200 OK`:
 
 ```json
-{"cpos":[/* CPO objects */]}
+{
+  "cpos": [
+    {
+      "id": "c821a013-5041-42f7-80c8-aa153cf9d455",
+      "slug": "example-charging",
+      "business_name": "Example Charging Private Limited",
+      "company_type": "COMPANY",
+      "status": "PENDING",
+      "status_reason": "Initial provisioning",
+      "status_changed_at": "2026-07-31T09:00:00Z",
+      "status_changed_by_user_id": "5cef4c95-a1da-448e-bd7c-19d570cd4497",
+      "app_id": "cpo_dummy_735f36a898b84ce68a350db38c90bf9b",
+      "app_id_mode": "DUMMY",
+      "app_id_updated_at": "2026-07-31T09:00:00Z",
+      "created_at": "2026-07-31T09:00:00Z",
+      "updated_at": "2026-07-31T09:00:00Z"
+    }
+  ],
+  "next_before": "2026-07-31T09:00:00Z",
+  "next_before_id": "c821a013-5041-42f7-80c8-aa153cf9d455",
+  "has_more": true
+}
 ```
 
-The collection contains at most the 100 newest CPOs. No query filters,
-pagination cursor or commercial-access data exists.
+Ordering is newest creation time then descending UUID. If `has_more=true`, the
+client sends both returned cursor fields unchanged. A changed filter/search
+starts over without a cursor. The response contains no commercial-access data.
+
+Errors: `400 invalid_q`, `invalid_status`, `invalid_app_id_mode`,
+`invalid_limit`, `invalid_before`, `invalid_before_id`, or `invalid_cursor`;
+shared authentication errors; or `500 internal_error`.
 
 ### 8.3 `GET /api/v1/platform/cpos/{cpo_id}`
 
-Returns one CPO object.
+Returns one current CPO object, including lifecycle reason/time/actor and app-ID
+metadata. The object deliberately excludes primary-admin and secret-integration
+data; use their owned resources.
 
 Errors: `400 invalid_cpo_id`, `401 unauthorized`, `403 forbidden`,
 `404 cpo_not_found`, or `500 internal_error`.
 
-### 8.4 `POST /api/v1/platform/cpos/{cpo_id}/activate`
+### 8.4 `PUT /api/v1/platform/cpos/{cpo_id}/profile`
 
-No body.
+Purpose: replace the mutable business profile while preserving stable CPO
+identity, lifecycle, app identity, memberships, and tenant data.
 
-Sets status to `ACTIVE` and returns the CPO object. Calling it on an already
-active CPO is idempotent. It does not create/check commercial state and does not
-require a live app ID.
+```json
+{
+  "business_name": "Example Charging Limited",
+  "company_type": "COMPANY",
+  "gstin": "19ABCDE1234F1Z5",
+  "address": "2 Example Road",
+  "city": "Kolkata",
+  "state": "West Bengal",
+  "pincode": "700001"
+}
+```
 
-### 8.5 `POST /api/v1/platform/cpos/{cpo_id}/suspend`
+`business_name` and `company_type` are required. GSTIN is optional, normalized
+uppercase, and cleared by null, blank, or omission. The address fields are
+replacement values and omission clears them. The request cannot mutate slug,
+status, app ID, CPO ID, or audit metadata.
 
-No body.
+The transaction updates the CPO, writes `CPO_PROFILE_UPDATED` audit evidence,
+and emits `platform.cpo.profile_updated`. `200 OK` returns the updated CPO.
 
-Sets status to `SUSPENDED`, revokes every active CPO session and unused refresh
-token for that tenant, records audit state, and returns the CPO. Repeated calls
-are lifecycle-idempotent. Platform sessions are unaffected.
+Errors: field-specific `400` errors from OpenAPI; shared authentication errors;
+`404 cpo_not_found`; `409 cpo_conflict` for a GSTIN collision; or
+`500 internal_error`.
 
-### 8.6 `PUT /api/v1/platform/cpos/{cpo_id}/app-id`
+### 8.5 `POST /api/v1/platform/cpos/{cpo_id}/activate`
+
+Request:
+
+```json
+{"reason":"Approved after onboarding review"}
+```
+
+The trimmed reason must be 3–500 characters. The command stores `ACTIVE`,
+reason, change time, and actor in the same transaction as audit action
+`CPO_STATUS_ACTIVE` and event `platform.cpo.activated`. It does not create/check
+commercial state and does not require a live app ID.
+
+Calling it when already active returns current state without replacing the
+original reason or duplicating audit/event evidence.
+
+Errors: `400 invalid_request`, `invalid_reason`, or `invalid_cpo_id`; shared
+authentication errors; `404 cpo_not_found`; or `500 internal_error`.
+
+### 8.6 `POST /api/v1/platform/cpos/{cpo_id}/suspend`
+
+Request:
+
+```json
+{"reason":"Access paused at operator request"}
+```
+
+The state transition stores reason/time/actor and emits the corresponding audit
+and `platform.cpo.suspended` event atomically. It also revokes active CPO-staff
+and customer sessions and their unused refresh tokens for that CPO. Platform
+sessions have no CPO ID and are unaffected.
+
+Repeated suspension does not duplicate lifecycle audit/event evidence, but it
+still revokes any CPO sessions created since the original suspension.
+
+Errors match activation.
+
+### 8.7 `PUT /api/v1/platform/cpos/{cpo_id}/app-id`
 
 Request:
 
@@ -1061,6 +1154,130 @@ immediate. Existing sessions remain valid, while old app-ID headers fail.
 Errors: `400 invalid_request`, `400 invalid_cpo_id`,
 `400 invalid_cpo_app_id`, `401 unauthorized`, `403 forbidden`,
 `404 cpo_not_found`, `409 cpo_conflict`, or `500 internal_error`.
+
+### 8.8 `GET /api/v1/platform/cpos/{cpo_id}/primary-admin`
+
+Purpose: provide the safe state needed by the Superadmin recovery UI.
+
+`200 OK`:
+
+```json
+{
+  "user_id": "e5288707-7266-44d4-b5a2-a87d06f1f2b7",
+  "email": "admin@example.com",
+  "full_name": "CPO Administrator",
+  "role": "ADMIN",
+  "membership_status": "ACTIVE",
+  "identity_active": true,
+  "identity_verified": true,
+  "must_change_password": true,
+  "last_login_at": null,
+  "latest_onboarding_delivery": {
+    "job_id": "4ccb8733-b2e5-4f35-9953-f0e5f32176f2",
+    "template": "CPO_ADMIN_WELCOME",
+    "status": "PENDING",
+    "attempts": 0,
+    "sent_at": null,
+    "created_at": "2026-07-31T09:00:00Z",
+    "updated_at": "2026-07-31T09:00:00Z"
+  }
+}
+```
+
+`latest_onboarding_delivery` is absent when no correlated delivery exists.
+This resource never exposes a password, OTP, encrypted payload, token, or SMTP
+failure body.
+
+Errors: `400 invalid_cpo_id`; shared authentication errors;
+`404 primary_admin_not_found`; or `500 internal_error`.
+
+### 8.9 `PUT /api/v1/platform/cpos/{cpo_id}/primary-admin`
+
+Purpose: replace a departed primary administrator or restore the existing one.
+
+```json
+{
+  "email": "replacement@example.com",
+  "full_name": "Replacement Administrator",
+  "reason": "Previous administrator left the organization"
+}
+```
+
+Email is normalized lowercase and validated; name is 1–255 characters; reason
+is 3–500 characters. Mail must be enabled.
+
+The transaction is serialized for both CPO and email and guarantees at most one
+primary membership:
+
+- a new email creates a verified active identity with an Argon2id-hashed
+  generated password and `must_change_password=true`; only its encrypted welcome
+  mail contains the temporary plaintext;
+- an existing active identity is reused without changing password, name,
+  verification state, or unrelated memberships;
+- an inactive identity is rejected;
+- the previous primary membership becomes `REVOKED` and non-primary;
+- the previous primary's CPO sessions and refresh tokens for this CPO are
+  revoked;
+- the target membership is created, restored, or promoted to `ADMIN` while an
+  existing `OWNER` remains `OWNER`;
+- audit `CPO_PRIMARY_ADMIN_CHANGED`, event
+  `platform.cpo.primary_admin_changed`, and applicable mail commit atomically.
+
+Assigning the already-active current primary is a side-effect-free retry.
+Assigning the same current identity after its membership was revoked restores
+it and queues credential-free onboarding details.
+
+`200 OK` returns the primary-admin view from endpoint 8.8.
+
+Errors: request-field `400` errors from OpenAPI; shared authentication errors;
+`404 cpo_not_found`; `409 admin_identity_inactive` or membership conflict;
+`503 mail_unavailable`; or `500 internal_error`.
+
+### 8.10 `POST /api/v1/platform/cpos/{cpo_id}/primary-admin/resend-onboarding`
+
+```json
+{"reason":"Administrator requested access instructions again"}
+```
+
+The current identity and membership must both be active. The command queues a
+correlated `CPO_ONBOARDING_RESENT` job containing CPO/app details and
+password-recovery guidance, audit action
+`CPO_PRIMARY_ADMIN_ONBOARDING_RESENT`, and event
+`platform.cpo.primary_admin_onboarding_resent` in one transaction. It never
+reads, regenerates, or sends a password.
+
+`202 Accepted` returns the primary-admin view including the new safe delivery
+job.
+
+Errors: `400 invalid_reason` or `invalid_cpo_id`; shared authentication errors;
+`404 cpo_not_found` or `primary_admin_not_found`;
+`409 primary_admin_unavailable`; `503 mail_unavailable`; or
+`500 internal_error`.
+
+### 8.11 `POST /api/v1/platform/cpos/{cpo_id}/administrative-sessions/revoke`
+
+```json
+{"reason":"Suspected credential exposure"}
+```
+
+`200 OK`:
+
+```json
+{
+  "revoked_sessions": 3,
+  "revoked_refresh_tokens": 2
+}
+```
+
+Only active `CPO` sessions tied to this CPO and their unused refresh tokens are
+revoked. It does not affect customer sessions, platform sessions, identities,
+memberships, or tenant business data. The command is safe to repeat; even a
+zero-count command records its reason/counts in audit action
+`CPO_ADMIN_SESSIONS_REVOKED` and event
+`platform.cpo.admin_sessions_revoked`.
+
+Errors: `400 invalid_reason` or `invalid_cpo_id`; shared authentication errors;
+`404 cpo_not_found`; or `500 internal_error`.
 
 ## 9. CPO Integration Credentials
 

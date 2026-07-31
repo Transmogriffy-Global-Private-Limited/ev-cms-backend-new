@@ -83,27 +83,30 @@ type PlatformAdmin struct {
 // CPO is the tenant organization and data boundary. It carries
 // the business-profile fields that were previously modeled as CPOProfile.
 type CPO struct {
-	ID             uuid.UUID                `gorm:"type:uuid;primaryKey;default:gen_random_uuid()" json:"id"`
-	Slug           string                   `gorm:"type:varchar(80);not null" json:"slug"`
-	BusinessName   string                   `gorm:"type:varchar(255);not null" json:"business_name"`
-	CompanyType    constants.CPOCompanyType `gorm:"type:varchar(20);not null" json:"company_type"`
-	GSTIN          *string                  `gorm:"type:varchar(15)" json:"gstin,omitempty"`
-	Address        string                   `gorm:"type:text;not null;default:''" json:"address"`
-	City           string                   `gorm:"type:varchar(100);not null;default:''" json:"city"`
-	State          string                   `gorm:"type:varchar(100);not null;default:''" json:"state"`
-	Pincode        string                   `gorm:"type:varchar(10);not null;default:''" json:"pincode"`
-	Status         constants.CPOStatus      `gorm:"type:varchar(20);not null;default:'PENDING'" json:"status"`
-	AppID          string                   `gorm:"type:varchar(100);not null;uniqueIndex" json:"app_id"`
-	AppIDMode      constants.CPOAppIDMode   `gorm:"type:varchar(20);not null;default:'DUMMY'" json:"app_id_mode"`
-	AppIDUpdatedAt time.Time                `gorm:"not null" json:"app_id_updated_at"`
-	Memberships    []CPOMembership          `gorm:"foreignKey:CPOID" json:"memberships,omitempty"`
-	UserGroups     []UserGroup              `gorm:"foreignKey:CPOID" json:"user_groups,omitempty"`
-	Customers      []Customer               `gorm:"foreignKey:CPOID" json:"customers,omitempty"`
-	Hubs           []Hub                    `gorm:"foreignKey:CPOID" json:"hubs,omitempty"`
-	GSTProfiles    []GST                    `gorm:"foreignKey:CPOID" json:"gst_profiles,omitempty"`
-	Tariffs        []Tariff                 `gorm:"foreignKey:CPOID" json:"tariffs,omitempty"`
-	CreatedAt      time.Time                `gorm:"not null" json:"created_at"`
-	UpdatedAt      time.Time                `gorm:"not null" json:"updated_at"`
+	ID                    uuid.UUID                `gorm:"type:uuid;primaryKey;default:gen_random_uuid()" json:"id"`
+	Slug                  string                   `gorm:"type:varchar(80);not null" json:"slug"`
+	BusinessName          string                   `gorm:"type:varchar(255);not null" json:"business_name"`
+	CompanyType           constants.CPOCompanyType `gorm:"type:varchar(20);not null" json:"company_type"`
+	GSTIN                 *string                  `gorm:"type:varchar(15)" json:"gstin,omitempty"`
+	Address               string                   `gorm:"type:text;not null;default:''" json:"address"`
+	City                  string                   `gorm:"type:varchar(100);not null;default:''" json:"city"`
+	State                 string                   `gorm:"type:varchar(100);not null;default:''" json:"state"`
+	Pincode               string                   `gorm:"type:varchar(10);not null;default:''" json:"pincode"`
+	Status                constants.CPOStatus      `gorm:"type:varchar(20);not null;default:'PENDING'" json:"status"`
+	StatusReason          string                   `gorm:"type:varchar(500);not null" json:"status_reason"`
+	StatusChangedAt       time.Time                `gorm:"not null" json:"status_changed_at"`
+	StatusChangedByUserID *uuid.UUID               `gorm:"type:uuid;index" json:"status_changed_by_user_id,omitempty"`
+	AppID                 string                   `gorm:"type:varchar(100);not null;uniqueIndex" json:"app_id"`
+	AppIDMode             constants.CPOAppIDMode   `gorm:"type:varchar(20);not null;default:'DUMMY'" json:"app_id_mode"`
+	AppIDUpdatedAt        time.Time                `gorm:"not null" json:"app_id_updated_at"`
+	Memberships           []CPOMembership          `gorm:"foreignKey:CPOID" json:"memberships,omitempty"`
+	UserGroups            []UserGroup              `gorm:"foreignKey:CPOID" json:"user_groups,omitempty"`
+	Customers             []Customer               `gorm:"foreignKey:CPOID" json:"customers,omitempty"`
+	Hubs                  []Hub                    `gorm:"foreignKey:CPOID" json:"hubs,omitempty"`
+	GSTProfiles           []GST                    `gorm:"foreignKey:CPOID" json:"gst_profiles,omitempty"`
+	Tariffs               []Tariff                 `gorm:"foreignKey:CPOID" json:"tariffs,omitempty"`
+	CreatedAt             time.Time                `gorm:"not null" json:"created_at"`
+	UpdatedAt             time.Time                `gorm:"not null" json:"updated_at"`
 }
 
 func (CPO) TableName() string {
@@ -112,15 +115,16 @@ func (CPO) TableName() string {
 
 // CPOMembership grants one fixed CPO-wide staff role to a user.
 type CPOMembership struct {
-	ID        uuid.UUID                  `gorm:"type:uuid;primaryKey;default:gen_random_uuid()" json:"id"`
-	CPOID     uuid.UUID                  `gorm:"type:uuid;not null;uniqueIndex:uq_cpo_membership,priority:1;index" json:"cpo_id"`
-	CPO       CPO                        `gorm:"foreignKey:CPOID;constraint:OnUpdate:CASCADE,OnDelete:RESTRICT" json:"cpo,omitempty"`
-	UserID    uuid.UUID                  `gorm:"type:uuid;not null;uniqueIndex:uq_cpo_membership,priority:2;index" json:"user_id"`
-	User      User                       `gorm:"foreignKey:UserID;constraint:OnUpdate:CASCADE,OnDelete:RESTRICT" json:"user,omitempty"`
-	Role      constants.CPORole          `gorm:"type:varchar(20);not null" json:"role"`
-	Status    constants.MembershipStatus `gorm:"type:varchar(20);not null;default:'ACTIVE'" json:"status"`
-	CreatedAt time.Time                  `gorm:"not null" json:"created_at"`
-	UpdatedAt time.Time                  `gorm:"not null" json:"updated_at"`
+	ID             uuid.UUID                  `gorm:"type:uuid;primaryKey;default:gen_random_uuid()" json:"id"`
+	CPOID          uuid.UUID                  `gorm:"type:uuid;not null;uniqueIndex:uq_cpo_membership,priority:1;index" json:"cpo_id"`
+	CPO            CPO                        `gorm:"foreignKey:CPOID;constraint:OnUpdate:CASCADE,OnDelete:RESTRICT" json:"cpo,omitempty"`
+	UserID         uuid.UUID                  `gorm:"type:uuid;not null;uniqueIndex:uq_cpo_membership,priority:2;index" json:"user_id"`
+	User           User                       `gorm:"foreignKey:UserID;constraint:OnUpdate:CASCADE,OnDelete:RESTRICT" json:"user,omitempty"`
+	Role           constants.CPORole          `gorm:"type:varchar(20);not null" json:"role"`
+	Status         constants.MembershipStatus `gorm:"type:varchar(20);not null;default:'ACTIVE'" json:"status"`
+	IsPrimaryAdmin bool                       `gorm:"not null;default:false" json:"is_primary_admin"`
+	CreatedAt      time.Time                  `gorm:"not null" json:"created_at"`
+	UpdatedAt      time.Time                  `gorm:"not null" json:"updated_at"`
 }
 
 type UserGroup struct {

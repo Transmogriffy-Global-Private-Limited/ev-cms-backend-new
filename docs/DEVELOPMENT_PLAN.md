@@ -549,13 +549,15 @@ Active feature:
 
 Current implementation slice:
 
-- Complete CPO lifecycle/admin recovery and platform-superadmin governance
+- Platform-superadmin governance: define the smallest complete authority grant,
+  removal, last-admin protection, and platform-session revocation flow
 
 Last completed slice:
 
-- Verified retirement of tenant subscriptions and platform billing, including
-  reversible data archival, worker disablement, route/OpenAPI removal, and
-  manual superadmin access documentation
+- Verified the complete CPO dependency on Superadmin: searchable/paginated CPO
+  administration, mutable business profile, reasoned lifecycle control,
+  primary-admin recovery/onboarding resend, and CPO administrative-session
+  revocation
 
 Last deployment milestone:
 
@@ -567,7 +569,8 @@ Last deployment milestone:
 
 Next expected slice:
 
-- Platform-superadmin governance followed by mail/security operations
+- Implement the approved platform-superadmin governance slice after its
+  contract and acceptance criteria are reviewed
 
 Blocked by:
 

@@ -1,5 +1,47 @@
 # AI Changelog
 
+## 2026-07-31
+
+### CPO dependency on Superadmin completed locally
+
+- Added migration ten for durable CPO lifecycle evidence, one primary
+  administrator designation, correlated onboarding-mail metadata, and the
+  credential-free resend template.
+- Added bounded CPO search/filter/cursor listing, mutable business-profile
+  replacement, and reason-required activation/suspension.
+- Added safe primary-admin visibility, transactional replacement/restoration,
+  onboarding resend, and explicit CPO administrative-session revocation.
+- Preserved global identity passwords during reuse, revoked only the replaced
+  primary's selected-CPO sessions, and kept platform/customer scopes isolated.
+- Emitted committed audit records and durable platform events from the owning
+  transactions; no event or API exposes credentials or encrypted mail bodies.
+- Expanded the authoritative OpenAPI and human/FE contracts from 44 to 49
+  operations and documented exact frontend refresh/recovery behavior.
+
+Verification:
+
+- Migration ten completed an up/down lifecycle against disposable
+  loopback-only PostgreSQL 17.
+- PostgreSQL lifecycle tests passed CPO creation/mail correlation,
+  primary-admin uniqueness, searchable/cursor listing, profile replacement,
+  reasoned idempotent lifecycle control, administrator replacement, targeted
+  session/refresh revocation, credential-free resend, and platform-session
+  isolation.
+- Focused CPO, route/OpenAPI, mail, model, and migration tests passed.
+- Documentation verification, `go test ./...`, `go vet ./...`,
+  `git diff --check`, and final status review passed.
+
+Compatibility and deployment:
+
+- Activation and suspension now require `{"reason":"..."}`; this deliberate
+  pre-frontend contract change is documented in OpenAPI.
+- Existing CPO IDs, slugs, app IDs, auth scopes, and tenant boundaries remain
+  unchanged. Existing CPOs are backfilled deterministically where an eligible
+  administrator exists.
+- The verified source slice was published to `main`. It was not deployed; the
+  development VPS remains on migrations one through nine and its deployed
+  44-operation contract.
+
 ## 2026-07-24
 
 ### Commercial retirement deployed and worker readiness corrected

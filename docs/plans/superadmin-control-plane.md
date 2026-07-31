@@ -2,7 +2,7 @@
 
 Status: In Progress
 
-Approved direction updated: 2026-07-24
+Approved direction updated: 2026-07-31
 
 ## Objective
 
@@ -30,6 +30,10 @@ without accessing tenant business data.
 
 - CPO create/list/detail/activate/suspend/app-ID replacement
 - Generated dummy app IDs and first-admin onboarding
+- Search/filter/cursor CPO discovery, mutable business profile, and durable
+  lifecycle reason/actor/time
+- One durable primary administrator with visibility, replacement/restoration,
+  credential-free resend, and CPO administrative-session revocation
 - Durable platform audit query
 - Durable ordered platform events
 - Authenticated SSE plus REST replay
@@ -50,12 +54,66 @@ model, worker, or OpenAPI operation uses those records.
 
 ### 1. CPO lifecycle and first-admin recovery
 
-- search/filter/paginate CPOs;
-- reasoned activation and suspension;
-- restore or replace the first administrator safely;
-- resend onboarding for eligible unsent/recoverable cases;
-- revoke CPO administrative sessions when access is suspended;
+Status: Verified
+
+This is the current implementation slice and the complete Superadmin dependency
+for CPO onboarding and access:
+
+- search/filter/cursor-paginate CPOs by business identity, lifecycle, and app-ID
+  mode, using a stable newest-first cursor;
+- edit the mutable CPO business profile without changing its stable slug,
+  platform-owned lifecycle, or app identity;
+- require a bounded human reason for activation and suspension and retain the
+  current reason, actor, and transition time on the CPO;
+- expose one durable primary-administrator designation per provisioned CPO;
+- restore the current primary administrator or replace it with a new/existing
+  active identity without overwriting an existing password;
+- revoke the replaced administrator's CPO-scoped sessions and refresh tokens in
+  the same transaction;
+- resend onboarding as a safe credential-free recovery message. It directs the
+  recipient to normal password recovery instead of regenerating or disclosing a
+  global identity password;
+- expose the latest correlated onboarding-mail delivery metadata without
+  decrypting payloads;
+- explicitly revoke all active administrative sessions for one CPO;
+- continue revoking all tenant sessions when the CPO is suspended;
+- write state, audit evidence, durable realtime events, and applicable encrypted
+  mail in one PostgreSQL transaction;
 - preserve tenant data and already-started operational recovery paths.
+
+Compatibility:
+
+- the existing CPO collection retains its `cpos` field and adds cursor metadata;
+- lifecycle commands now require a JSON reason, which is a deliberate contract
+  change before the Superadmin frontend is integrated;
+- stable CPO IDs, slugs, app IDs, authentication scopes, and tenant boundaries
+  are unchanged.
+
+Acceptance criteria:
+
+- a frontend can complete CPO creation, discovery, profile maintenance, manual
+  access control, app-ID transition, primary-admin recovery, onboarding resend,
+  and administrative-session invalidation from documented APIs alone;
+- repeated lifecycle requests for an already-matching state do not create a
+  second state transition;
+- only one membership per CPO is designated primary, including under concurrent
+  replacement attempts;
+- replacement never overwrites an existing identity's password and never grants
+  authority outside the selected CPO;
+- no endpoint returns a password, OTP, token, decrypted mail body, or tenant
+  integration secret;
+- reconnecting clients recover every committed mutation through REST snapshots
+  plus ordered platform-event replay.
+
+Verification completed:
+
+- migration ten applied and rolled back on disposable loopback PostgreSQL 17;
+- the PostgreSQL lifecycle test covered correlated onboarding mail, list search
+  and cursor behavior, profile replacement, idempotent reasoned activation,
+  primary-admin replacement, previous-admin session/refresh revocation,
+  credential-free resend, and platform-session isolation;
+- the 49-operation runtime/OpenAPI surface, documentation verification, full Go
+  tests, vet, and diff checks passed.
 
 ### 2. Platform-superadmin governance
 
@@ -151,7 +209,7 @@ Connection requirements:
 - `go vet ./...`;
 - `git diff --check`.
 
-Disposable PostgreSQL execution of migration nine must be completed before it
-is applied to a non-disposable database. The development deployment must not be
-updated if the pending-mail guard fails; an operator must inspect and resolve
-those jobs deliberately.
+Migration nine and migration ten have completed their separate disposable
+PostgreSQL lifecycle checks. Applying migration ten to a non-disposable
+database remains a deployment action requiring explicit human approval, backup,
+and the documented migration workflow.

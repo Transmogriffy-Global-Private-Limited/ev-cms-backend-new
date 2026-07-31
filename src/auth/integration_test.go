@@ -140,16 +140,18 @@ func TestPlatformAuthenticationLifecycleWithPostgreSQL(t *testing.T) {
 
 	now := time.Now().UTC()
 	cpo := models.CPO{
-		ID:             uuid.New(),
-		Slug:           "auth-cpo-" + uuid.NewString(),
-		BusinessName:   "Authentication Test CPO",
-		CompanyType:    constants.CPOCompanyTypeCompany,
-		Status:         constants.CPOStatusActive,
-		AppID:          "cpo_dummy_" + strings.ReplaceAll(uuid.NewString(), "-", ""),
-		AppIDMode:      constants.CPOAppIDModeDummy,
-		AppIDUpdatedAt: now,
-		CreatedAt:      now,
-		UpdatedAt:      now,
+		ID:              uuid.New(),
+		Slug:            "auth-cpo-" + uuid.NewString(),
+		BusinessName:    "Authentication Test CPO",
+		CompanyType:     constants.CPOCompanyTypeCompany,
+		Status:          constants.CPOStatusActive,
+		StatusReason:    "Authentication integration fixture",
+		StatusChangedAt: now,
+		AppID:           "cpo_dummy_" + strings.ReplaceAll(uuid.NewString(), "-", ""),
+		AppIDMode:       constants.CPOAppIDModeDummy,
+		AppIDUpdatedAt:  now,
+		CreatedAt:       now,
+		UpdatedAt:       now,
 	}
 	if err := gormDB.Create(&cpo).Error; err != nil {
 		t.Fatalf("create login test CPO: %v", err)

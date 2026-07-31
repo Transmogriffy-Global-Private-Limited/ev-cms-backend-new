@@ -112,6 +112,14 @@ func (sender *SMTPSender) SendMessage(
 			payload.CPOID,
 			payload.CPOAppID,
 		)
+	case "CPO_ONBOARDING_RESENT":
+		subject = "Your TransEV CMS CPO access details"
+		body = fmt.Sprintf(
+			"Your administrator access details for %s are below.\n\nCPO ID: %s\nCurrent app ID: %s\n\nUse your existing TransEV CMS password. If you do not know it, use the password-recovery flow; passwords are never resent by email.",
+			payload.CPOName,
+			payload.CPOID,
+			payload.CPOAppID,
+		)
 	case "PASSWORD_CHANGE_REMINDER":
 		subject = "Change your temporary TransEV CMS password"
 		body = "Your account is still using its temporary password. Change it now from the authenticated password-change screen before using tenant operations."

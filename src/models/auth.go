@@ -56,6 +56,8 @@ type AuthRefreshToken struct {
 type MailOutbox struct {
 	ID                uuid.UUID                  `gorm:"type:uuid;primaryKey;default:gen_random_uuid()" json:"id"`
 	ToEmail           string                     `gorm:"type:varchar(320);not null" json:"-"`
+	CPOID             *uuid.UUID                 `gorm:"type:uuid;index" json:"cpo_id,omitempty"`
+	UserID            *uuid.UUID                 `gorm:"type:uuid;index" json:"user_id,omitempty"`
 	Template          string                     `gorm:"type:varchar(50);not null" json:"template"`
 	PayloadCiphertext []byte                     `gorm:"type:bytea;not null" json:"-"`
 	EncryptionKeyID   string                     `gorm:"type:varchar(50);not null" json:"-"`

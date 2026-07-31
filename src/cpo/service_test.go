@@ -87,3 +87,75 @@ func TestCreateRejectsMailDisabledBeforeDatabaseAccess(t *testing.T) {
 		t.Fatalf("got error %v, want mail availability failure", err)
 	}
 }
+
+func TestValidateReason(t *testing.T) {
+	t.Parallel()
+
+	for _, reason := range []string{
+		"Approved after onboarding review",
+		"  Access recovery requested by CPO owner  ",
+	} {
+		if err := validateReason(reason); err != nil {
+			t.Fatalf("valid reason %q was rejected: %v", reason, err)
+		}
+	}
+	for _, reason := range []string{"", "  ", "no"} {
+		if err := validateReason(reason); err == nil {
+			t.Fatalf("invalid reason %q was accepted", reason)
+		}
+	}
+}
+
+func TestNormalizeAndValidateProfileRequest(t *testing.T) {
+	t.Parallel()
+
+	blankGSTIN := " "
+	request := normalizeProfileRequest(UpdateProfileRequest{
+		BusinessName: "  Example Charging  ",
+		CompanyType:  constants.CPOCompanyTypeCompany,
+		GSTIN:        &blankGSTIN,
+		City:         " Kolkata ",
+	})
+	if request.BusinessName != "Example Charging" ||
+		request.City != "Kolkata" ||
+		request.GSTIN != nil {
+		t.Fatalf("unexpected normalized profile: %#v", request)
+	}
+	if err := validateProfileRequest(request); err != nil {
+		t.Fatalf("valid profile was rejected: %v", err)
+	}
+	request.BusinessName = ""
+	if err := validateProfileRequest(request); err == nil {
+		t.Fatal("blank business name was accepted")
+	}
+}
+
+func TestCPORecoveryOperationsRequirePlatformBeforeDatabaseAccess(t *testing.T) {
+	t.Parallel()
+
+	service := NewService(nil, nil, true)
+	principal := auth.Principal{
+		UserID: uuid.New(),
+		Scope:  constants.AuthScopeCPO,
+	}
+	cpoID := uuid.New()
+	if _, err := service.GetPrimaryAdmin(t.Context(), principal, cpoID); err == nil {
+		t.Fatal("CPO principal read the primary administrator")
+	}
+	if _, err := service.SetPrimaryAdmin(
+		t.Context(),
+		principal,
+		cpoID,
+		PrimaryAdminRequest{},
+	); err == nil {
+		t.Fatal("CPO principal replaced the primary administrator")
+	}
+	if _, err := service.RevokeAdministrativeSessions(
+		t.Context(),
+		principal,
+		cpoID,
+		ReasonRequest{},
+	); err == nil {
+		t.Fatal("CPO principal revoked administrative sessions")
+	}
+}

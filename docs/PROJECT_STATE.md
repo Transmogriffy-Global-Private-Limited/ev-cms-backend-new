@@ -29,7 +29,12 @@ provides:
 - encrypted PostgreSQL mail outbox with a retrying, encrypted-transport SMTP
   worker;
 - write-only encrypted Razorpay credentials for CPO owners/admins;
-- platform-only CPO create, list, inspect, activate, suspend, and app-ID APIs;
+- platform-only CPO create, searchable/filterable/cursor list, inspect, profile,
+  reasoned activate/suspend, and app-ID APIs;
+- durable current lifecycle reason, actor, and transition time;
+- one durable primary administrator per provisioned CPO, with safe visibility,
+  replacement/restoration, credential-free onboarding resend, and targeted CPO
+  administrative-session revocation;
 - manually controlled pending CPO creation with unique dummy app IDs;
 - transactional first-CPO-admin creation or safe existing-identity attachment;
 - encrypted welcome email with CPO ID, app ID, and generated temporary
@@ -42,7 +47,7 @@ provides:
   startup rejection of plaintext or ambiguous SMTP modes;
 - registered educational, integration, API, internal-message, and
   configuration documentation under `docs/`;
-- canonical OpenAPI 3.1 for all 44 implemented business/health operations;
+- canonical OpenAPI 3.1 for all 49 implemented business/health operations;
 - embedded same-origin Swagger UI at `/docs/` and raw OpenAPI at
   `/openapi.yaml`;
 - `API_DOCS_ENABLED` registration control for both documentation surfaces,
@@ -78,10 +83,14 @@ provides:
   handler;
 - the additive PostgreSQL database `devevcmsnewdb`, owned by `postgres`.
 
-The active VPS runs revision `b947ae1` plus the locally verified worker
-readiness correction, with migrations one through nine and the current
-44-operation control-plane contract. Migration nine preserves the retired
-commercial prototype under `retired_commercial`.
+The source `main` branch includes migration ten and the locally verified
+49-operation contract. This source release has not yet been deployed to the
+development VPS.
+
+The active VPS still runs revision `b947ae1` plus the worker-readiness
+correction, with migrations one through nine and the deployed 44-operation
+contract. Migration nine preserves the retired commercial prototype under
+`retired_commercial`.
 
 No inventory API, HAL integration, charging workflow, tenant payment workflow,
 tenant commercial-management workflow, or reporting behavior is implemented
@@ -141,8 +150,13 @@ yet.
   route tests; authentication and authorization remain active in either mode.
 - Platform operations compile; model parsing, migration discovery/pairing, mail
   rendering, route protection, and the retained realtime/worker contracts pass.
-- The current 44 Gin/OpenAPI operations match bidirectionally; all retired
+- The current 49 Gin/OpenAPI operations match bidirectionally; all retired
   commercial routes return `404` and are absent from OpenAPI.
+- Migration ten applied and rolled back against disposable loopback PostgreSQL
+  17. Its PostgreSQL CPO lifecycle test passed creation correlation,
+  primary-admin uniqueness, search/cursor listing, profile replacement,
+  reasoned idempotent activation, previous-primary session/refresh revocation,
+  credential-free onboarding resend, and platform-session isolation.
 - Migration nine applied against disposable loopback PostgreSQL 17, archived
   commercial tables without losing a preserved row, blocked pending commercial
   mail, disabled retired worker records, rolled down with data intact, and

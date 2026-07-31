@@ -431,6 +431,7 @@ func createActiveTestCPO(t *testing.T, database *gorm.DB) models.CPO {
 	cpo := models.CPO{
 		ID: uuid.New(), Slug: "signup-" + suffix, BusinessName: "Signup Test CPO",
 		CompanyType: constants.CPOCompanyTypeCompany, Status: constants.CPOStatusActive,
+		StatusReason: "Customer authentication fixture", StatusChangedAt: now,
 		AppID: "cpo_dummy_" + suffix, AppIDMode: constants.CPOAppIDModeDummy,
 		AppIDUpdatedAt: now, CreatedAt: now, UpdatedAt: now,
 	}

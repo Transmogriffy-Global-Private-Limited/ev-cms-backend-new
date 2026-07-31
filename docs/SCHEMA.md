@@ -25,6 +25,8 @@ Migration files:
 - `db/migrations/000008_platform_billing.down.sql`
 - `db/migrations/000009_retire_subscriptions_and_platform_billing.up.sql`
 - `db/migrations/000009_retire_subscriptions_and_platform_billing.down.sql`
+- `db/migrations/000010_cpo_superadmin_dependency.up.sql`
+- `db/migrations/000010_cpo_superadmin_dependency.down.sql`
 
 ## Supplied Model Mapping
 
@@ -178,3 +180,30 @@ only platform-access control.
 Migration nine was verified up and down against disposable loopback PostgreSQL
 17, including pending-mail refusal, preserved-row archival/restoration, and
 retired-worker disable/restore behavior.
+
+## CPO Superadmin Dependency
+
+Migration ten completes the durable state required by the CPO control-plane
+workflow:
+
+- `cpos.status_reason`, `status_changed_at`, and
+  `status_changed_by_user_id` retain the current manual lifecycle decision;
+- `cpo_memberships.is_primary_admin` designates one responsible `OWNER` or
+  `ADMIN` membership, enforced by a partial unique index per CPO;
+- existing CPOs backfill the oldest eligible staff membership as primary,
+  preferring active membership status; a CPO with no eligible membership
+  remains explicitly without a primary until the recovery API establishes one;
+- `mail_outbox.cpo_id` and `user_id` correlate safe job metadata with the CPO
+  and recipient identity without exposing the encrypted payload; and
+- the `CPO_ONBOARDING_RESENT` template supports credential-free recovery.
+
+CPO state, primary-membership changes, audit evidence, durable platform events,
+session revocation, and applicable mail jobs share application-owned PostgreSQL
+transactions. The database enforces uniqueness and relationship validity but
+does not hide lifecycle orchestration in triggers.
+
+The migration-ten up and down paths were executed against a disposable
+loopback-only PostgreSQL 17 database. The full CPO lifecycle test covered
+creation correlation, search/cursor behavior, profile replacement, reasoned
+idempotent lifecycle change, administrator replacement, targeted session
+revocation, credential-free resend, and platform-session isolation.

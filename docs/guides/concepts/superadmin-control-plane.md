@@ -43,17 +43,20 @@ The CPO app ID remains separate from lifecycle:
 
 The current platform-management surface includes:
 
-- CPO create/list/detail/activate/suspend/app-ID replacement;
+- searchable/filterable/cursor-paginated CPO collection and CPO detail;
+- CPO creation, business-profile replacement, reasoned activation/suspension,
+  and app-ID replacement;
+- primary-administrator visibility, recovery/replacement, credential-free
+  onboarding resend, and CPO administrative-session revocation;
 - durable platform event replay and authenticated SSE;
 - filtered platform audit queries;
 - registered worker-health visibility and readiness degradation;
 - encrypted mail-outbox observation through worker status;
 - CPO-owned Razorpay credential storage without platform plaintext access.
 
-The current source does not yet include complete CPO-admin recovery,
-platform-admin governance, mail job administration, notification/announcement,
-or overview/status command surfaces. Those remain planned in the active
-superadmin plan.
+The current source does not yet include platform-admin governance, generic mail
+job administration, notification/announcement, or overview/status command
+surfaces. Those remain planned in the active superadmin plan.
 
 ## Realtime and Recovery
 

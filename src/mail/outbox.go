@@ -27,6 +27,11 @@ type MessagePayload struct {
 	CPOAppID          string    `json:"cpo_app_id,omitempty"`
 }
 
+type MessageContext struct {
+	CPOID  *uuid.UUID
+	UserID *uuid.UUID
+}
+
 type Outbox struct {
 	box *security.SecretBox
 }
@@ -56,6 +61,22 @@ func (outbox *Outbox) EnqueueMessage(
 	template string,
 	payload MessagePayload,
 ) error {
+	return outbox.EnqueueMessageWithContext(
+		tx,
+		toEmail,
+		template,
+		payload,
+		MessageContext{},
+	)
+}
+
+func (outbox *Outbox) EnqueueMessageWithContext(
+	tx *gorm.DB,
+	toEmail string,
+	template string,
+	payload MessagePayload,
+	messageContext MessageContext,
+) error {
 	normalizedEmail := strings.ToLower(strings.TrimSpace(toEmail))
 	body, err := json.Marshal(payload)
 	if err != nil {
@@ -68,6 +89,8 @@ func (outbox *Outbox) EnqueueMessage(
 	job := models.MailOutbox{
 		ID:                uuid.New(),
 		ToEmail:           normalizedEmail,
+		CPOID:             messageContext.CPOID,
+		UserID:            messageContext.UserID,
 		Template:          template,
 		PayloadCiphertext: ciphertext,
 		EncryptionKeyID:   outbox.box.KeyID(),

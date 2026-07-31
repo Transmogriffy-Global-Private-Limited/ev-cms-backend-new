@@ -14,6 +14,9 @@ administrative authentication and credential boundary. See
 CPO access is granted or removed manually by platform superadmins through
 activation and suspension. This CMS does not expose tenant subscription,
 entitlement, platform-invoice, or platform-payment management APIs.
+The Superadmin CPO surface also provides collection search/filter/cursors,
+business-profile maintenance, lifecycle decision evidence, primary-admin
+recovery/onboarding status, and scoped CPO administrative-session revocation.
 
 ## Local requirements
 

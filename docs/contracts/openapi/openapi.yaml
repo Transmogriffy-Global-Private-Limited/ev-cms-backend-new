@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: TransEV EV CMS API
-  version: 0.9.0
+  version: 0.10.0
   description: |
     Canonical machine-readable contract for the endpoints currently implemented
     by `ev-cms-backend-new`.
@@ -1293,12 +1293,47 @@ paths:
     get:
       tags: [Platform CPOs]
       operationId: listCPOs
-      summary: List the 100 newest CPOs
+      summary: Search and cursor-page CPOs
       description: |
-        Returns up to 100 CPO records ordered by creation time descending.
-        Pagination and filtering are not implemented.
+        Returns a stable newest-first page. Search matches business name, slug,
+        GSTIN, app ID, and the designated primary administrator's name/email.
+        When `has_more` is true, send both returned cursor fields unchanged.
       security:
         - BearerAuth: []
+      parameters:
+        - name: q
+          in: query
+          schema:
+            type: string
+            maxLength: 200
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [PENDING, ACTIVE, SUSPENDED]
+        - name: app_id_mode
+          in: query
+          schema:
+            $ref: "#/components/schemas/CPOAppIDMode"
+        - name: before
+          in: query
+          description: Exclusive RFC3339 creation-time cursor; requires before_id.
+          schema:
+            type: string
+            format: date-time
+        - name: before_id
+          in: query
+          description: Exclusive UUID tie-breaker; requires before.
+          schema:
+            type: string
+            format: uuid
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 200
+            default: 50
       responses:
         "200":
           description: CPO collection.
@@ -1306,6 +1341,15 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/CPOListResponse"
+        "400":
+          description: |
+            `invalid_q`, `invalid_status`, `invalid_app_id_mode`,
+            `invalid_before`, `invalid_before_id`, `invalid_cursor`, or
+            `invalid_limit`.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
         "401":
           $ref: "#/components/responses/Unauthorized"
         "403":
@@ -1340,6 +1384,55 @@ paths:
         "500":
           $ref: "#/components/responses/InternalError"
 
+  /api/v1/platform/cpos/{cpo_id}/profile:
+    put:
+      tags: [Platform CPOs]
+      operationId: updateCPOProfile
+      summary: Replace the mutable CPO business profile
+      description: |
+        Replaces business-profile fields in one transaction and emits audit and
+        realtime evidence. The stable slug, lifecycle, app ID, and tenant data
+        are not changed.
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/CPOID"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateCPOProfileRequest"
+      responses:
+        "200":
+          description: Updated CPO.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CPO"
+        "400":
+          description: |
+            `invalid_request`, `invalid_cpo_id`, `invalid_business_name`,
+            `invalid_company_type`, `invalid_gstin`, or `invalid_profile`.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/CPONotFound"
+        "409":
+          description: "`cpo_conflict` — GSTIN is already assigned."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
   /api/v1/platform/cpos/{cpo_id}/activate:
     post:
       tags: [Platform CPOs]
@@ -1353,6 +1446,12 @@ paths:
         - BearerAuth: []
       parameters:
         - $ref: "#/components/parameters/CPOID"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReasonRequest"
       responses:
         "200":
           description: Current active CPO record.
@@ -1361,7 +1460,11 @@ paths:
               schema:
                 $ref: "#/components/schemas/CPO"
         "400":
-          $ref: "#/components/responses/InvalidCPOID"
+          description: "`invalid_request`, `invalid_cpo_id`, or `invalid_reason`."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
         "401":
           $ref: "#/components/responses/Unauthorized"
         "403":
@@ -1377,13 +1480,19 @@ paths:
       operationId: suspendCPO
       summary: Suspend a CPO and revoke its sessions
       description: |
-        Idempotently sets status to SUSPENDED and revokes every active CPO
-        session and unused refresh token for the tenant. New CPO login is
-        blocked. Platform sessions are unaffected.
+        Idempotently sets status to SUSPENDED and revokes every active CPO-staff
+        and customer session plus unused refresh tokens for the tenant. New
+        tenant login is blocked. Platform sessions are unaffected.
       security:
         - BearerAuth: []
       parameters:
         - $ref: "#/components/parameters/CPOID"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReasonRequest"
       responses:
         "200":
           description: Current suspended CPO record.
@@ -1392,7 +1501,11 @@ paths:
               schema:
                 $ref: "#/components/schemas/CPO"
         "400":
-          $ref: "#/components/responses/InvalidCPOID"
+          description: "`invalid_request`, `invalid_cpo_id`, or `invalid_reason`."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
         "401":
           $ref: "#/components/responses/Unauthorized"
         "403":
@@ -1447,6 +1560,188 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorEnvelope"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /api/v1/platform/cpos/{cpo_id}/primary-admin:
+    get:
+      tags: [Platform CPOs]
+      operationId: getCPOPrimaryAdmin
+      summary: Get the designated primary administrator
+      description: |
+        Returns identity/membership state and only safe metadata for the latest
+        correlated onboarding mail. Mail ciphertext and delivery errors are not
+        exposed.
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/CPOID"
+      responses:
+        "200":
+          description: Current primary administrator.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PrimaryAdmin"
+        "400":
+          $ref: "#/components/responses/InvalidCPOID"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          description: "`cpo_not_found` or `primary_admin_not_found`."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    put:
+      tags: [Platform CPOs]
+      operationId: setCPOPrimaryAdmin
+      summary: Restore or replace the primary administrator
+      description: |
+        Serializes changes per CPO and normalized email. An existing active
+        identity keeps its password. A new identity receives a generated
+        temporary password only through encrypted onboarding mail. Replacing
+        the administrator revokes the previous administrator's CPO sessions
+        and membership in the same transaction. Repeating the already-active
+        assignment is a side-effect-free success.
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/CPOID"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SetPrimaryAdminRequest"
+      responses:
+        "200":
+          description: Current primary administrator after the operation.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PrimaryAdmin"
+        "400":
+          description: |
+            `invalid_request`, `invalid_cpo_id`, `invalid_email`,
+            `invalid_full_name`, or `invalid_reason`.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/CPONotFound"
+        "409":
+          description: "`admin_identity_inactive` or `cpo_conflict`."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "503":
+          $ref: "#/components/responses/MailUnavailable"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /api/v1/platform/cpos/{cpo_id}/primary-admin/resend-onboarding:
+    post:
+      tags: [Platform CPOs]
+      operationId: resendCPOPrimaryAdminOnboarding
+      summary: Queue a credential-free onboarding recovery email
+      description: |
+        Queues an encrypted mail containing current CPO/app details and directs
+        the active primary administrator to normal password recovery. Existing
+        or generated passwords are never sent by this operation.
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/CPOID"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReasonRequest"
+      responses:
+        "202":
+          description: Mail queued; response contains the resulting safe metadata.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PrimaryAdmin"
+        "400":
+          description: "`invalid_request`, `invalid_cpo_id`, or `invalid_reason`."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          description: "`cpo_not_found` or `primary_admin_not_found`."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "409":
+          description: "`primary_admin_unavailable`."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "503":
+          $ref: "#/components/responses/MailUnavailable"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /api/v1/platform/cpos/{cpo_id}/administrative-sessions/revoke:
+    post:
+      tags: [Platform CPOs]
+      operationId: revokeCPOAdministrativeSessions
+      summary: Revoke every active CPO-staff session
+      description: |
+        Revokes only CPO administrative sessions and their unused refresh
+        tokens. Customer sessions, platform sessions, memberships, CPO
+        lifecycle, and tenant data are unchanged. Repeating the command is safe
+        and returns zero counts when no active sessions remain.
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/CPOID"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReasonRequest"
+      responses:
+        "200":
+          description: Revocation counts.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SessionRevocationResponse"
+        "400":
+          description: "`invalid_request`, `invalid_cpo_id`, or `invalid_reason`."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/CPONotFound"
         "500":
           $ref: "#/components/responses/InternalError"
 
@@ -2310,6 +2605,72 @@ components:
           pattern: "^[A-Za-z0-9_-]{16,100}$"
           description: Lowercased by the server; must not start with cpo_dummy_.
 
+    UpdateCPOProfileRequest:
+      type: object
+      additionalProperties: false
+      required:
+        - business_name
+        - company_type
+      properties:
+        business_name:
+          type: string
+          minLength: 1
+          maxLength: 255
+        company_type:
+          type: string
+          enum: [INDIVIDUAL, COMPANY]
+        gstin:
+          type: string
+          nullable: true
+          pattern: "^[0-9A-Za-z]{15}$"
+          description: Null, omission, or an empty submitted string clears the GSTIN.
+        address:
+          type: string
+          maxLength: 5000
+          description: Omission clears the stored address.
+        city:
+          type: string
+          maxLength: 100
+          description: Omission clears the stored city.
+        state:
+          type: string
+          maxLength: 100
+          description: Omission clears the stored state.
+        pincode:
+          type: string
+          maxLength: 10
+          description: Omission clears the stored pincode.
+
+    ReasonRequest:
+      type: object
+      additionalProperties: false
+      required: [reason]
+      properties:
+        reason:
+          type: string
+          minLength: 3
+          maxLength: 500
+          description: Trimmed human reason retained in privileged audit evidence.
+
+    SetPrimaryAdminRequest:
+      type: object
+      additionalProperties: false
+      required: [email, full_name, reason]
+      properties:
+        email:
+          type: string
+          format: email
+          maxLength: 320
+        full_name:
+          type: string
+          minLength: 1
+          maxLength: 255
+          description: Used only when a new global identity must be created.
+        reason:
+          type: string
+          minLength: 3
+          maxLength: 500
+
     CPO:
       type: object
       additionalProperties: false
@@ -2323,6 +2684,8 @@ components:
         - state
         - pincode
         - status
+        - status_reason
+        - status_changed_at
         - app_id
         - app_id_mode
         - app_id_updated_at
@@ -2352,6 +2715,16 @@ components:
         status:
           type: string
           enum: [PENDING, ACTIVE, SUSPENDED]
+        status_reason:
+          type: string
+          minLength: 3
+          maxLength: 500
+        status_changed_at:
+          type: string
+          format: date-time
+        status_changed_by_user_id:
+          type: string
+          format: uuid
         app_id:
           type: string
         app_id_mode:
@@ -2399,13 +2772,110 @@ components:
     CPOListResponse:
       type: object
       additionalProperties: false
-      required: [cpos]
+      required: [cpos, has_more]
       properties:
         cpos:
           type: array
-          maxItems: 100
+          maxItems: 200
           items:
             $ref: "#/components/schemas/CPO"
+        next_before:
+          type: string
+          format: date-time
+        next_before_id:
+          type: string
+          format: uuid
+        has_more:
+          type: boolean
+
+    OnboardingDelivery:
+      type: object
+      additionalProperties: false
+      required:
+        - job_id
+        - template
+        - status
+        - attempts
+        - created_at
+        - updated_at
+      properties:
+        job_id:
+          type: string
+          format: uuid
+        template:
+          type: string
+          enum:
+            - CPO_ADMIN_WELCOME
+            - CPO_MEMBERSHIP_ASSIGNED
+            - CPO_ONBOARDING_RESENT
+        status:
+          type: string
+          enum: [PENDING, PROCESSING, SENT, FAILED]
+        attempts:
+          type: integer
+          minimum: 0
+        sent_at:
+          type: string
+          format: date-time
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    PrimaryAdmin:
+      type: object
+      additionalProperties: false
+      required:
+        - user_id
+        - email
+        - full_name
+        - role
+        - membership_status
+        - identity_active
+        - identity_verified
+        - must_change_password
+      properties:
+        user_id:
+          type: string
+          format: uuid
+        email:
+          type: string
+          format: email
+        full_name:
+          type: string
+        role:
+          type: string
+          enum: [OWNER, ADMIN]
+        membership_status:
+          type: string
+          enum: [ACTIVE, SUSPENDED, REVOKED]
+        identity_active:
+          type: boolean
+        identity_verified:
+          type: boolean
+        must_change_password:
+          type: boolean
+        last_login_at:
+          type: string
+          format: date-time
+        latest_onboarding_delivery:
+          $ref: "#/components/schemas/OnboardingDelivery"
+
+    SessionRevocationResponse:
+      type: object
+      additionalProperties: false
+      required: [revoked_sessions, revoked_refresh_tokens]
+      properties:
+        revoked_sessions:
+          type: integer
+          format: int64
+          minimum: 0
+        revoked_refresh_tokens:
+          type: integer
+          format: int64
+          minimum: 0
 
     RazorpayCredentialsRequest:
       type: object
