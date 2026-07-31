@@ -561,11 +561,11 @@ Last completed slice:
 
 Last deployment milestone:
 
-- Revision `b947ae1` and the worker-readiness correction were built, migrated
-  through version nine, and rehosted on the development VPS. Commercial tables
-  were reversibly archived, retired workers were disabled, the 44-operation
-  route/OpenAPI surface was verified, and public readiness remains healthy with
-  stale historical instance rows present.
+- Revision `91cc5ba` was built, migrated through version ten, and rehosted on
+  the development VPS. The live 49-operation route/OpenAPI surface, new
+  protected CPO dependency routes, required workers, running-binary identity,
+  loopback/public readiness, and warning-free startup journal were verified.
+  Migration nine's retired commercial archive remains intact.
 
 Next expected slice:
 

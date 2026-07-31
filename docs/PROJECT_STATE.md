@@ -83,14 +83,9 @@ provides:
   handler;
 - the additive PostgreSQL database `devevcmsnewdb`, owned by `postgres`.
 
-The source `main` branch includes migration ten and the locally verified
-49-operation contract. This source release has not yet been deployed to the
-development VPS.
-
-The active VPS still runs revision `b947ae1` plus the worker-readiness
-correction, with migrations one through nine and the deployed 44-operation
-contract. Migration nine preserves the retired commercial prototype under
-`retired_commercial`.
+The active development VPS runs source revision `91cc5ba`, with migration ten
+recorded and the deployed 49-operation contract. Migration nine continues to
+preserve the retired commercial prototype under `retired_commercial`.
 
 No inventory API, HAL integration, charging workflow, tenant payment workflow,
 tenant commercial-management workflow, or reporting behavior is implemented
@@ -164,13 +159,17 @@ yet.
 - PostgreSQL execution of migrations six through eight passed against the
   PostgreSQL 18.4 development deployment before the commercial surface was
   retired.
-- All nine forward migrations are recorded in the active deployment's
+- All ten forward migrations are recorded in the active deployment's
   `schema_migrations`; the runtime `public` schema contains 31 tables and
   `retired_commercial` contains the 11 archived prototype tables.
+- Migration ten added CPO lifecycle evidence, primary-administrator
+  designation, and safe mail-correlation fields without changing existing row
+  counts; the pre-migration database contained no CPO or membership rows.
 - The configured platform superadmin remains bootstrapped exactly once.
 - Loopback and public HTTPS liveness and database-readiness checks passed.
-- Swagger UI and raw OpenAPI return `200`, while an unauthenticated request to
-  the new platform worker API returns `401`.
+- Swagger UI and raw OpenAPI return `200`; the live OpenAPI contains all 49
+  operations, while unauthenticated requests to the new CPO profile and
+  primary-administrator APIs return `401`.
 - Migration nine marked subscription lifecycle and billing maintenance workers
   disabled and non-required. Platform maintenance and mail outbox remain the
   required runtime workers.

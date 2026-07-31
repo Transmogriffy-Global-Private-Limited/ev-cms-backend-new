@@ -2,6 +2,31 @@
 
 ## 2026-07-31
 
+### CPO dependency release deployed to the development VPS
+
+- Reviewed source revision `91cc5ba`, the additive migration-ten backfill, the
+  49-operation HTTP contract, and the existing Caddy/systemd deployment.
+- Confirmed before migration that the development database contained no CPO or
+  membership rows and no pending or processing mail jobs.
+- Created the mode-0600 pre-migration PostgreSQL backup
+  `/tmp/devevcmsnewdb-pre-91cc5ba.dump` and preserved the previous binary as
+  `builds/evcmsnew.pre-91cc5ba`.
+- Applied migration ten, installed the separately verified candidate binary,
+  and rehosted `evcmsnew-dev.service` through the shared handler.
+
+Verification:
+
+- Documentation verification, focused runtime/OpenAPI parity, `go test ./...`,
+  `go vet ./...`, `git diff --check`, and the release build passed.
+- All ten migrations are recorded; 31 runtime tables remain in `public` and
+  the 11 retired commercial tables remain preserved in `retired_commercial`.
+- The running process hash matches the `91cc5ba` candidate, systemd is enabled
+  and active with zero restarts, and the post-rehost journal has no warning or
+  error entries.
+- Loopback and public liveness/readiness, Swagger UI, raw OpenAPI, the live
+  49-operation count, new protected-route rejection, required worker freshness,
+  and retired-route absence passed.
+
 ### CPO dependency on Superadmin completed locally
 
 - Added migration ten for durable CPO lifecycle evidence, one primary

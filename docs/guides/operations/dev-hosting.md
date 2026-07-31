@@ -20,11 +20,10 @@ The SMTP outbox worker is part of the application process. It must not be
 started as a second systemd service because that would create an unnecessary
 duplicate worker.
 
-The active deployment was updated on July 24, 2026 to source revision
-`b947ae1` plus the locally verified worker-readiness correction. It has
-migrations one through nine and the current 44-operation control-plane API.
-The eleven retired commercial prototype tables remain recoverable in the
-`retired_commercial` schema.
+The active deployment was updated on July 31, 2026 to source revision
+`91cc5ba`. It has migrations one through ten and the current 49-operation
+control-plane API. The eleven retired commercial prototype tables remain
+recoverable in the `retired_commercial` schema.
 
 ## Files and Ownership
 
@@ -51,7 +50,7 @@ The deployment copies `.env.example` to `.env`, then overrides:
 - five independently generated 32-byte base64 cryptographic keys.
 
 `DATABASE_URL` and `SMTP_PASSWORD` contain deployment secrets only in the
-ignored environment file. The service is enabled and active, all eight forward
+ignored environment file. The service is enabled and active, all ten forward
 migrations are recorded, and startup idempotently retained the configured
 platform superadmin.
 
