@@ -2,6 +2,32 @@
 
 ## 2026-07-31
 
+### CPO organization registration details exposed read-only
+
+- Added `GET /api/v1/cpo/organization` for the current CPO ADMIN to read the
+  organization data registered and managed by Superadmin.
+- Derived the CPO exclusively from the verified session and retained the
+  existing bearer, current app-ID, active-membership, and ADMIN-only boundary.
+- Returned business/registration fields, lifecycle status/timestamp, current
+  app ID/mode, and record timestamps while omitting the internal platform actor
+  and privileged lifecycle reason.
+- Kept organization mutation exclusively on the platform Superadmin endpoint;
+  the tenant route is side-effect-free and emits no audit event.
+- Expanded the authoritative runtime/OpenAPI surface from 68 to 69 operations
+  and updated the human contract, workflow guide, plan, ADR, project state,
+  route verification, and PostgreSQL lifecycle verifier.
+
+Verification:
+
+- Tenant-safe projection and protected-route tests passed, including explicit
+  checks that privileged lifecycle fields are absent.
+- Documentation verification and bidirectional runtime/OpenAPI parity passed
+  at 69 operations; `go test ./...`, `go vet ./...`, and `git diff --check`
+  passed.
+- The PostgreSQL lifecycle verifier includes the new organization read but did
+  not execute because no explicitly disposable `TEST_DATABASE_URL` is
+  configured.
+
 ### Contributed CPO work reconciled into an ADMIN-only tenant surface
 
 - Merged the divergent `abhranil_ev_cms_backend_new` history into the

@@ -407,6 +407,7 @@ func RegisterCPORoutes(
 
 	group.GET("/admin/profile", handler.getAdminProfile)
 	group.PATCH("/admin/profile", handler.updateAdminProfile)
+	group.GET("/organization", handler.getOrganization)
 	group.POST("/chargers", handler.createCharger)
 	group.GET("/chargers", handler.listChargers)
 	group.GET("/chargers/:charger_id", handler.getCharger)
@@ -452,6 +453,16 @@ func (handler *Handler) updateAdminProfile(ctx *gin.Context) {
 		principal,
 		request,
 	)
+	if err != nil {
+		writeError(ctx, err)
+		return
+	}
+	ctx.JSON(http.StatusOK, record)
+}
+
+func (handler *Handler) getOrganization(ctx *gin.Context) {
+	principal, _ := auth.CurrentPrincipal(ctx)
+	record, err := handler.service.GetOrganization(ctx.Request.Context(), principal)
 	if err != nil {
 		writeError(ctx, err)
 		return

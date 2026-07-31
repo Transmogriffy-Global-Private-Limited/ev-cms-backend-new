@@ -148,6 +148,27 @@ type AdminProfileView struct {
 	UpdatedAt  time.Time         `json:"updated_at"`
 }
 
+// OrganizationView is the tenant-safe, read-only projection of the CPO record.
+// It intentionally omits platform actor IDs and the privileged lifecycle reason.
+type OrganizationView struct {
+	ID              uuid.UUID                `json:"id"`
+	Slug            string                   `json:"slug"`
+	BusinessName    string                   `json:"business_name"`
+	CompanyType     constants.CPOCompanyType `json:"company_type"`
+	GSTIN           *string                  `json:"gstin,omitempty"`
+	Address         string                   `json:"address"`
+	City            string                   `json:"city"`
+	State           string                   `json:"state"`
+	Pincode         string                   `json:"pincode"`
+	Status          constants.CPOStatus      `json:"status"`
+	StatusChangedAt time.Time                `json:"status_changed_at"`
+	AppID           string                   `json:"app_id"`
+	AppIDMode       constants.CPOAppIDMode   `json:"app_id_mode"`
+	AppIDUpdatedAt  time.Time                `json:"app_id_updated_at"`
+	CreatedAt       time.Time                `json:"created_at"`
+	UpdatedAt       time.Time                `json:"updated_at"`
+}
+
 type CreateChargerRequest struct {
 	HubID        uuid.UUID                `json:"hub_id"`
 	Vendor       string                   `json:"vendor"`

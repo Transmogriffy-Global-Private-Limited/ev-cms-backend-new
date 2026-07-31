@@ -562,13 +562,15 @@ Enables:
 Objective:
 
 Reconcile the contributed CPO implementation into a correct ADMIN-only surface
-for administrator identity profile, hubs, chargers/connectors, GST, and tariffs
-without adding a tenant organization profile or implying HAL integration.
+for administrator identity profile, a read-only tenant organization projection,
+hubs, chargers/connectors, GST, and tariffs without adding tenant-side
+organization mutation or implying HAL integration.
 
 Scope:
 
 - ADMIN-only CPO authentication and authorization
 - CPO administrator identity profile read/update
+- Session-bound, read-only CPO organization details
 - Tenant-scoped network and pricing create/read/update operations
 - Bounded charger listing and dependency-safe charger deletion
 - Server-generated identifiers and exact decimal pricing/tax values
@@ -579,7 +581,7 @@ Non-goals:
 
 - App-user/customer changes
 - Staff invitation, role management, or callable non-ADMIN roles
-- Tenant-side CPO organization profile
+- Tenant-side CPO organization mutation
 - Complete CRUD for every table
 - HAL handshake, live charger status, commands, callbacks, or tenant realtime
 
@@ -610,8 +612,8 @@ Current implementation slice:
 Last completed slice:
 
 - Reconciled the contributed CPO branch into an ADMIN-only identity,
-  hub/charger/connector, GST, and tariff surface with 68-operation
-  runtime/OpenAPI parity
+  read-only organization, hub/charger/connector, GST, and tariff surface with
+  69-operation runtime/OpenAPI parity
 - Verified the complete CPO dependency on Superadmin: searchable/paginated CPO
   administration, mutable business profile, reasoned lifecycle control,
   primary-admin recovery/onboarding resend, and CPO administrative-session

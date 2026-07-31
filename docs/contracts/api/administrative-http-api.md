@@ -1292,10 +1292,11 @@ Every request requires:
 The trusted CPO ID comes only from the verified session. No request body, path,
 or header can select another CPO. A platform session cannot invoke these routes.
 
-There is deliberately no `/api/v1/cpo/profile` organization route. CPO
+There is deliberately no mutable `/api/v1/cpo/profile` organization route. CPO
 business/company details remain part of the platform-managed CPO record and are
-changed by a Superadmin through
-`PUT /api/v1/platform/cpos/{cpo_id}/profile`.
+changed only by a Superadmin through
+`PUT /api/v1/platform/cpos/{cpo_id}/profile`. The CPO ADMIN can read a safe
+projection through `GET /api/v1/cpo/organization`.
 
 Only the first/primary CPO `ADMIN` authority is callable in the current release.
 The database keeps `OWNER`, `OPERATOR`, and `VIEWER` enum capacity so a later
@@ -1303,7 +1304,40 @@ staff-management slice can extend the policy without replacing tenant keys or
 business records, but those values cannot currently authenticate a CPO
 administrative session or invoke CPO operations. No API creates them.
 
-### 9.1 `GET /api/v1/cpo/admin/profile`
+### 9.1 `GET /api/v1/cpo/organization`
+
+Returns the authenticated ADMIN's own CPO registration and operational
+identity. The server obtains the CPO ID from the verified session; there is no
+tenant path parameter or client-supplied scope.
+
+```json
+{
+  "id": "c821a013-5041-42f7-80c8-aa153cf9d455",
+  "slug": "example-charging",
+  "business_name": "Example Charging Private Limited",
+  "company_type": "COMPANY",
+  "gstin": "19ABCDE1234F1Z5",
+  "address": "12 Park Street",
+  "city": "Kolkata",
+  "state": "West Bengal",
+  "pincode": "700016",
+  "status": "ACTIVE",
+  "status_changed_at": "2026-07-31T10:00:00Z",
+  "app_id": "example_live_app_id",
+  "app_id_mode": "LIVE",
+  "app_id_updated_at": "2026-07-31T10:00:00Z",
+  "created_at": "2026-07-30T10:00:00Z",
+  "updated_at": "2026-07-31T10:00:00Z"
+}
+```
+
+`gstin` is absent when it was not registered. `app_id` is the current
+non-secret application identifier the frontend sends as `X-CPO-App-ID`.
+Internal Superadmin actor IDs and the privileged lifecycle reason are omitted.
+The endpoint is read-only, has no side effects, writes no audit event, and is
+safe to retry. Organization changes remain Superadmin-only.
+
+### 9.2 `GET /api/v1/cpo/admin/profile`
 
 Returns the global identity profile used by the authenticated CPO ADMIN:
 
@@ -1326,7 +1360,7 @@ authentication/bootstrap response and additionally carries session scope,
 CPO/app IDs, and password-change state. This profile route does not return the
 CPO organization profile.
 
-### 9.2 `PATCH /api/v1/cpo/admin/profile`
+### 9.3 `PATCH /api/v1/cpo/admin/profile`
 
 Updates the global login identity used by the current ADMIN session:
 
@@ -1361,7 +1395,7 @@ Shared middleware errors:
 - `403 cpo_app_id_mismatch`;
 - `500 internal_error`.
 
-### 9.3 `POST /api/v1/cpo/hubs`
+### 9.4 `POST /api/v1/cpo/hubs`
 
 Creates a commercial charging location. The server sources `id`, `cpo_id`, and
 timestamps.
@@ -1403,7 +1437,7 @@ Rules:
 The transaction writes audit action `HUB_CREATED`. Additional errors are
 field-specific `400 invalid_*` responses and `409 hub_conflict`.
 
-### 9.4 `GET /api/v1/cpo/hubs`
+### 9.5 `GET /api/v1/cpo/hubs`
 
 Returns hubs in descending `(created_at, id)` order. `limit` is 1–200 and
 defaults to 50. When `has_more=true`, send both returned `next_before` and
@@ -1422,13 +1456,13 @@ Cursor fields are omitted when no next page exists. Errors:
 `400 invalid_limit`, `400 invalid_before`, `400 invalid_before_id`, or
 `400 invalid_cursor`.
 
-### 9.5 `GET /api/v1/cpo/hubs/{hub_id}`
+### 9.6 `GET /api/v1/cpo/hubs/{hub_id}`
 
 `hub_id` must be a non-zero UUID. `200 OK` returns the Hub object from 9.3 only
 when it belongs to the authenticated CPO. A cross-tenant or unknown ID returns
 `404 hub_not_found`; malformed input returns `400 invalid_hub_id`.
 
-### 9.6 `PATCH /api/v1/cpo/hubs/{hub_id}`
+### 9.7 `PATCH /api/v1/cpo/hubs/{hub_id}`
 
 Accepts any non-empty subset of the five create fields using the same
 validation. Omitted fields are unchanged.
@@ -1447,7 +1481,7 @@ changed-field metadata. Additional errors: `400 invalid_hub`,
 There is currently no hub delete route. Durable charger/tariff relationships
 must not be erased through implicit cascading behavior.
 
-### 9.7 `POST /api/v1/cpo/chargers`
+### 9.8 `POST /api/v1/cpo/chargers`
 
 Creates one CMS charger projection and all initial connectors atomically.
 
@@ -1532,7 +1566,7 @@ The server generates:
 `ocpp_identity` is only a future CMS/HAL mapping value. Its creation does not
 register a charger in the HAL or prove the charger is online.
 
-### 9.8 `GET /api/v1/cpo/chargers`
+### 9.9 `GET /api/v1/cpo/chargers`
 
 Returns tenant chargers and connectors in descending `(created_at, id)` order.
 
@@ -1557,14 +1591,14 @@ The cursor fields are omitted when `has_more` is false. Errors:
 `400 invalid_limit`, `400 invalid_before`, `400 invalid_before_id`, or
 `400 invalid_cursor`.
 
-### 9.9 `GET /api/v1/cpo/chargers/{charger_id}`
+### 9.10 `GET /api/v1/cpo/chargers/{charger_id}`
 
 Uses the six-character public charger ID, not the charger UUID. Input is trimmed
 and lowercased before validation. `200 OK` returns the Charger object including
 connectors ordered by connector number. Unknown or cross-tenant IDs return
 `404 charger_not_found`; malformed IDs return `400 invalid_charger_id`.
 
-### 9.10 `PATCH /api/v1/cpo/chargers/{charger_id}`
+### 9.11 `PATCH /api/v1/cpo/chargers/{charger_id}`
 
 Updates any non-empty subset of:
 
@@ -1599,7 +1633,7 @@ Additional errors include `404 charger_not_found`,
 `404 connector_not_found`, `404 hub_not_found`, and uniqueness/reference
 conflicts.
 
-### 9.11 `DELETE /api/v1/cpo/chargers/{charger_id}`
+### 9.12 `DELETE /api/v1/cpo/chargers/{charger_id}`
 
 Takes no body. It locks the charger, deletes its connectors and charger
 transactionally, then writes `CHARGER_DELETED`. `204 No Content` means success.
@@ -1609,7 +1643,7 @@ session, favorite, user-group access link, or another durable record references
 the charger. The caller must explicitly remove or retire those dependent
 records through their owning workflow; the API does not cascade business data.
 
-### 9.12 `POST /api/v1/cpo/gsts`
+### 9.13 `POST /api/v1/cpo/gsts`
 
 Creates a named tenant GST profile.
 
@@ -1633,7 +1667,7 @@ as JSON strings, active state, and timestamps. The transaction writes
 `GST_CREATED`. Additional errors: field-specific `400 invalid_*` and
 `409 gst_conflict`.
 
-### 9.13 `GET /api/v1/cpo/gsts`
+### 9.14 `GET /api/v1/cpo/gsts`
 
 Returns bounded GST pages using the same `limit`, `before`, `before_id`,
 `next_before`, `next_before_id`, and `has_more` semantics as hub listing:
@@ -1647,12 +1681,12 @@ Returns bounded GST pages using the same `limit`, `before`, `before_id`,
 
 Both cursor inputs are required together.
 
-### 9.14 `GET /api/v1/cpo/gsts/{gst_id}`
+### 9.15 `GET /api/v1/cpo/gsts/{gst_id}`
 
 Returns one GST profile by server-generated UUID. Cross-tenant and unknown IDs
 return `404 gst_not_found`; malformed UUIDs return `400 invalid_gst_id`.
 
-### 9.15 `PATCH /api/v1/cpo/gsts/{gst_id}`
+### 9.16 `PATCH /api/v1/cpo/gsts/{gst_id}`
 
 Accepts any non-empty subset of `name`, `sgst_rate`, `cgst_rate`, `igst_rate`,
 and `is_active`, using the create validation. Omission preserves a field.
@@ -1661,7 +1695,7 @@ and `is_active`, using the create validation. Omission preserves a field.
 There is currently no GST delete route. An inactive profile remains durable for
 historical references.
 
-### 9.16 `POST /api/v1/cpo/tariffs`
+### 9.17 `POST /api/v1/cpo/tariffs`
 
 Creates a tenant tariff:
 
@@ -1696,7 +1730,7 @@ timestamps. The transaction writes `TARIFF_CREATED`.
 Errors include `400 charger_hub_mismatch`, field-specific `400 invalid_*`,
 relation-specific `404` responses, and `409 tariff_conflict`.
 
-### 9.17 `GET /api/v1/cpo/tariffs`
+### 9.18 `GET /api/v1/cpo/tariffs`
 
 Returns bounded tariff pages using the same keyset pagination:
 
@@ -1711,12 +1745,12 @@ Every row belongs to the authenticated CPO. Current listing returns all active
 and inactive tariffs; the frontend filters the bounded result for display and
 retains cursor order while requesting additional pages.
 
-### 9.18 `GET /api/v1/cpo/tariffs/{tariff_id}`
+### 9.19 `GET /api/v1/cpo/tariffs/{tariff_id}`
 
 Returns one tenant tariff by UUID. Cross-tenant and unknown IDs return
 `404 tariff_not_found`; malformed UUIDs return `400 invalid_tariff_id`.
 
-### 9.19 `PATCH /api/v1/cpo/tariffs/{tariff_id}`
+### 9.20 `PATCH /api/v1/cpo/tariffs/{tariff_id}`
 
 Accepts any non-empty subset of the create fields. Omitted fields remain
 unchanged. Optional relations cannot currently be cleared to null through this

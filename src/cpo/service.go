@@ -1556,6 +1556,41 @@ func adminProfileView(user models.User, cpoID uuid.UUID) AdminProfileView {
 	}
 }
 
+func (service *Service) GetOrganization(
+	ctx context.Context,
+	principal auth.Principal,
+) (OrganizationView, error) {
+	if err := requireCPOAdminAccess(principal); err != nil {
+		return OrganizationView{}, err
+	}
+	record, err := service.find(ctx, *principal.CPOID)
+	if err != nil {
+		return OrganizationView{}, err
+	}
+	return organizationView(record), nil
+}
+
+func organizationView(record models.CPO) OrganizationView {
+	return OrganizationView{
+		ID:              record.ID,
+		Slug:            record.Slug,
+		BusinessName:    record.BusinessName,
+		CompanyType:     record.CompanyType,
+		GSTIN:           record.GSTIN,
+		Address:         record.Address,
+		City:            record.City,
+		State:           record.State,
+		Pincode:         record.Pincode,
+		Status:          record.Status,
+		StatusChangedAt: record.StatusChangedAt,
+		AppID:           record.AppID,
+		AppIDMode:       record.AppIDMode,
+		AppIDUpdatedAt:  record.AppIDUpdatedAt,
+		CreatedAt:       record.CreatedAt,
+		UpdatedAt:       record.UpdatedAt,
+	}
+}
+
 func (service *Service) CreateCharger(
 	ctx context.Context,
 	principal auth.Principal,

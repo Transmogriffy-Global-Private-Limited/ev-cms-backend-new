@@ -1,12 +1,15 @@
 package cpo
 
 import (
+	"encoding/json"
 	"errors"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/auth"
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/constants"
+	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/models"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 )
@@ -184,6 +187,43 @@ func TestTenantOperationsCurrentlyRequireAdmin(t *testing.T) {
 	} {
 		if err := requireCPOAdminAccess(principal(role)); err == nil {
 			t.Fatalf("dormant %s role was allowed to use CPO operations", role)
+		}
+	}
+}
+
+func TestOrganizationViewContainsTenantSafeFields(t *testing.T) {
+	t.Parallel()
+
+	now := time.Now().UTC()
+	actorID := uuid.New()
+	record := models.CPO{
+		ID:                    uuid.New(),
+		Slug:                  "example-cpo",
+		BusinessName:          "Example Charging",
+		CompanyType:           constants.CPOCompanyTypeCompany,
+		Status:                constants.CPOStatusActive,
+		StatusReason:          "Internal platform decision",
+		StatusChangedAt:       now,
+		StatusChangedByUserID: &actorID,
+		AppID:                 "example_live_app_id",
+		AppIDMode:             constants.CPOAppIDModeLive,
+		AppIDUpdatedAt:        now,
+		CreatedAt:             now,
+		UpdatedAt:             now,
+	}
+
+	got := organizationView(record)
+	if got.ID != record.ID || got.BusinessName != record.BusinessName ||
+		got.Status != record.Status || got.AppID != record.AppID {
+		t.Fatalf("unexpected organization projection: %#v", got)
+	}
+	encoded, err := json.Marshal(got)
+	if err != nil {
+		t.Fatalf("marshal organization projection: %v", err)
+	}
+	for _, forbiddenField := range []string{"status_reason", "status_changed_by_user_id"} {
+		if strings.Contains(string(encoded), forbiddenField) {
+			t.Fatalf("organization projection exposed %s: %s", forbiddenField, encoded)
 		}
 	}
 }

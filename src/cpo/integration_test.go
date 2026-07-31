@@ -1110,6 +1110,16 @@ func TestCPOAdminProfileAndNetworkConfigurationWithPostgreSQL(t *testing.T) {
 		CPOID:  &created.CPO.ID,
 		Role:   &adminRole,
 	}
+	organization, err := service.GetOrganization(ctx, adminPrincipal)
+	if err != nil {
+		t.Fatalf("get CPO organization: %v", err)
+	}
+	if organization.ID != created.CPO.ID ||
+		organization.BusinessName != created.CPO.BusinessName ||
+		organization.AppID != created.CPO.AppID ||
+		organization.Status != constants.CPOStatusActive {
+		t.Fatalf("unexpected CPO organization: %#v", organization)
+	}
 	phone := "+919876543210"
 	updatedName := "Updated Network Administrator"
 	profile, err := service.UpdateAdminProfile(

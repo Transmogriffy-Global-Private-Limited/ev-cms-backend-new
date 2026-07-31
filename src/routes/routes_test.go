@@ -65,6 +65,7 @@ func TestCredentialRoutesAreRegisteredAndProtected(t *testing.T) {
 		{http.MethodDelete, "/api/v1/cpo/integrations/RAZORPAY"},
 		{http.MethodGet, "/api/v1/cpo/admin/profile"},
 		{http.MethodPatch, "/api/v1/cpo/admin/profile"},
+		{http.MethodGet, "/api/v1/cpo/organization"},
 		{http.MethodPost, "/api/v1/cpo/chargers"},
 		{http.MethodGet, "/api/v1/cpo/chargers"},
 		{http.MethodGet, "/api/v1/cpo/chargers/abc123"},

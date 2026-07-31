@@ -19,6 +19,7 @@ tenant-scoped hubs, chargers/connectors, GST profiles, and tariffs.
 
 - ADMIN-only CPO session authority
 - ADMIN identity profile read and full-name/phone update
+- Read-only tenant-safe CPO organization details
 - Hub create/list/get/update
 - Charger/connector atomic create
 - Bounded charger list
@@ -34,7 +35,7 @@ tenant-scoped hubs, chargers/connectors, GST profiles, and tariffs.
 
 ## Non-goals
 
-- Tenant-side CPO organization profile
+- Tenant-side CPO organization mutation
 - App-user/customer changes
 - Staff invitation, creation, or role management
 - Callable OWNER, OPERATOR, or VIEWER authority
@@ -60,10 +61,10 @@ tenant-scoped hubs, chargers/connectors, GST profiles, and tariffs.
 ## Implementation Slices
 
 1. Reconcile branch conflicts and preserve the platform CPO implementation.
-2. Remove tenant organization profile code and close authority to ADMIN.
+2. Remove tenant organization mutation code and close authority to ADMIN.
 3. Correct validation, generated IDs, exact tariff defaults, pagination, and
    dependency-safe delete behavior.
-4. Add administrator identity profile.
+4. Add administrator identity profile and read-only organization projection.
 5. Add focused/unit/PostgreSQL verification and route/OpenAPI parity.
 6. Update educational, integration, API, architecture, project-state, and
    changelog documentation.
@@ -73,7 +74,8 @@ tenant-scoped hubs, chargers/connectors, GST profiles, and tariffs.
 
 - Platform CPO routes from the authoritative branch still compile and pass.
 - A CPO ADMIN can update their identity profile without changing email or role.
-- No tenant organization profile route is registered or documented.
+- The CPO ADMIN can read only its session-bound organization projection.
+- No tenant organization mutation route is registered or documented.
 - Dormant roles cannot authenticate or invoke current CPO operations.
 - All created records and references remain in the authenticated CPO.
 - Required client identifiers are server-generated.
@@ -99,9 +101,10 @@ tenant-scoped hubs, chargers/connectors, GST profiles, and tariffs.
 
 Completed evidence:
 
-- Documentation verification passed at 68 operations.
-- Focused protected-route, absent-organization-profile, and runtime/OpenAPI
-  parity tests passed.
+- Documentation verification and runtime/OpenAPI parity passed at 69
+  operations.
+- Focused protected-route, tenant-safe organization projection,
+  absent-mutable-organization-profile, and runtime/OpenAPI parity tests passed.
 - `go test ./...`, `go vet ./...`, and `git diff --check` passed.
 - PostgreSQL tests compile and are registered but did not execute locally
   because no disposable `TEST_DATABASE_URL` is configured. Do not promote this

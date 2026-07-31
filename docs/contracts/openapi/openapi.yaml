@@ -1747,6 +1747,38 @@ paths:
         "500":
           $ref: "#/components/responses/InternalError"
 
+  /api/v1/cpo/organization:
+    get:
+      tags: [CPO Operations]
+      operationId: getCPOOrganization
+      summary: Read the authenticated CPO's organization details
+      description: |
+        Returns a tenant-safe, read-only projection of the CPO registration
+        and operational identity managed by the platform. The CPO ID is
+        derived from the verified ADMIN session; callers cannot select another
+        tenant. Internal platform actor IDs and the privileged lifecycle reason
+        are omitted. Organization changes remain Superadmin-only.
+      security:
+        - BearerAuth: []
+          CPOAppID: []
+      responses:
+        "200":
+          description: Current CPO organization details.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CPOOrganization"
+        "400":
+          $ref: "#/components/responses/MissingCPOAppID"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/CPOBusinessForbidden"
+        "404":
+          $ref: "#/components/responses/CPONotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
   /api/v1/cpo/admin/profile:
     get:
       tags: [CPO Operations]
@@ -3931,6 +3963,52 @@ components:
           type: string
           enum: [ADMIN]
         is_verified: {type: boolean}
+        created_at: {type: string, format: date-time}
+        updated_at: {type: string, format: date-time}
+
+    CPOOrganization:
+      type: object
+      additionalProperties: false
+      required:
+        - id
+        - slug
+        - business_name
+        - company_type
+        - address
+        - city
+        - state
+        - pincode
+        - status
+        - status_changed_at
+        - app_id
+        - app_id_mode
+        - app_id_updated_at
+        - created_at
+        - updated_at
+      properties:
+        id: {type: string, format: uuid}
+        slug: {type: string}
+        business_name: {type: string}
+        company_type:
+          type: string
+          enum: [INDIVIDUAL, COMPANY]
+        gstin:
+          type: string
+          description: Omitted when the CPO has no registered GSTIN.
+        address: {type: string}
+        city: {type: string}
+        state: {type: string}
+        pincode: {type: string}
+        status:
+          type: string
+          enum: [PENDING, ACTIVE, SUSPENDED]
+        status_changed_at: {type: string, format: date-time}
+        app_id:
+          type: string
+          description: Current non-secret application identifier required in CPO request headers.
+        app_id_mode:
+          $ref: "#/components/schemas/CPOAppIDMode"
+        app_id_updated_at: {type: string, format: date-time}
         created_at: {type: string, format: date-time}
         updated_at: {type: string, format: date-time}
 

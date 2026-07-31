@@ -16,8 +16,9 @@ would create an authorization contract before the staff lifecycle and its
 frontend requirements are understood.
 
 The CPO organization already stores business/company details managed by the
-platform. A tenant-side organization "profile" would duplicate that authority.
-The human administrator still needs a safe personal identity profile.
+platform. Tenant-side mutation of an organization "profile" would duplicate
+that authority. The human administrator still needs a safe personal identity
+profile and read visibility into the registration data for their own tenant.
 
 ## Decision
 
@@ -28,7 +29,10 @@ The human administrator still needs a safe personal identity profile.
   primary membership to `ADMIN`.
 - `OWNER`, `OPERATOR`, and `VIEWER` remain valid persisted enum values but are
   dormant: no API creates them and they grant no current CPO authority.
-- There is no tenant-side CPO organization profile route.
+- `GET /api/v1/cpo/organization` exposes a tenant-safe, read-only projection
+  selected exclusively from the verified CPO session.
+- There is no tenant-side CPO organization mutation route. Internal platform
+  actor IDs and the privileged lifecycle reason are not exposed.
 - `GET/PATCH /api/v1/cpo/admin/profile` exposes only the authenticated global
   administrator identity. Email and authority are immutable there.
 - `/api/v1/auth/me` remains the canonical session/bootstrap response.
@@ -60,5 +64,5 @@ current endpoint.
 - Removing dormant enum values from migration one: rejected because the
   migration is already deployed and the values provide harmless future storage
   capacity while application authorization remains closed.
-- Adding `/api/v1/cpo/profile` for organization fields: rejected because it
+- Adding mutable `/api/v1/cpo/profile` organization fields: rejected because it
   duplicates the platform-managed CPO record and blurs control-plane ownership.

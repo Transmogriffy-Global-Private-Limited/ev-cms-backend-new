@@ -44,8 +44,9 @@ provides:
 - current dummy/live app identity in CPO login, refresh, and `me` responses;
 - `X-CPO-App-ID` enforcement on tenant business APIs without trusting it as
   tenant authority;
-- CPO ADMIN identity-profile read/update for global full-name and phone fields,
-  with no tenant-side CPO organization profile;
+- CPO ADMIN identity-profile read/update for global full-name and phone fields;
+- session-bound, read-only CPO registration/organization details without
+  exposing internal Superadmin actor metadata or permitting tenant mutation;
 - tenant-scoped bounded hub create/list/get/update;
 - atomic CMS charger/connector registration with server-generated charger UUID,
   public charger ID, OCPP mapping identity, and connector UUIDs;
@@ -57,7 +58,7 @@ provides:
   startup rejection of plaintext or ambiguous SMTP modes;
 - registered educational, integration, API, internal-message, and
   configuration documentation under `docs/`;
-- canonical OpenAPI 3.1 for all 68 source-tree business/health operations;
+- canonical OpenAPI 3.1 for all 69 source-tree business/health operations;
 - embedded same-origin Swagger UI at `/docs/` and raw OpenAPI at
   `/openapi.yaml`;
 - `API_DOCS_ENABLED` registration control for both documentation surfaces,
@@ -95,7 +96,7 @@ provides:
 
 The active development VPS still runs source revision `91cc5ba`, with migration
 ten recorded and the deployed 49-operation contract. The unreleased
-authoritative merge adds 19 ADMIN-only profile/network/pricing operations and
+authoritative source adds 20 ADMIN-only organization/profile/network/pricing operations and
 does not require a database migration. Migration nine continues to preserve the
 retired commercial prototype under `retired_commercial`.
 
@@ -110,6 +111,10 @@ yet.
 - `go test ./...` passed.
 - `go vet ./...` passed.
 - `git diff --check` passed.
+- The read-only CPO organization projection, privileged-field omission,
+  protected route, 69-operation OpenAPI parity, and documentation contract
+  checks passed. Its PostgreSQL lifecycle assertion is registered but skipped
+  locally because no disposable `TEST_DATABASE_URL` is configured.
 - The embedded up migration created all 21 domain tables in a disposable local
   PostgreSQL 17 database.
 - Reapplying up was idempotent and retained one migration version.

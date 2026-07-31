@@ -26,7 +26,8 @@ Platform Superadmin and CPO ADMIN remain separate planes:
 
 - Superadmin creates and activates the CPO, manages its organization fields and
   app ID, and can recover the primary administrator.
-- CPO ADMIN manages only the authenticated tenant's operational records.
+- CPO ADMIN can read the authenticated tenant's organization details and
+  manages only its own identity and tenant operational records.
 - Superadmin authority never grants tenant-business access.
 
 ## Authentication Sequence
@@ -64,9 +65,21 @@ accepted. Role, CPO organization fields, membership, password, and verification
 state are also outside this route. Password changes use
 `POST /api/v1/auth/password/change`.
 
-The profile is identity-owned, not CPO-organization-owned. There is no
+The profile is identity-owned, not CPO-organization-owned. There is no mutable
 `/api/v1/cpo/profile`. Superadmin manages CPO organization details through the
 platform CPO contract.
+
+## CPO Organization Details
+
+`GET /api/v1/cpo/organization` returns the registration/business fields for
+the CPO selected by the authenticated ADMIN session, together with current
+lifecycle status and app-ID information. The request does not accept a CPO ID;
+the frontend cannot use it to inspect another tenant.
+
+This projection omits the internal Superadmin actor and privileged lifecycle
+reason. It is read-only: corrections to business name, company type, GSTIN, or
+address still require the Superadmin platform workflow. The current `app_id`
+is not a credential; the frontend already needs it as `X-CPO-App-ID`.
 
 ## Recommended Configuration Order
 
