@@ -102,7 +102,7 @@ rules as CPO creation. `200 OK` returns:
 
 This check is read-only and advisory. It does not reserve the slug. The create
 transaction and normalized unique index remain authoritative, so the frontend
-must still handle `409 cpo_conflict` after an available result.
+must still handle `409 cpo_slug_conflict` after an available result.
 
 ## Create
 
@@ -323,8 +323,16 @@ The principal UI decisions are:
 - `403 forbidden`: the session is authenticated but not platform-authorized.
 - `404 cpo_not_found` or `primary_admin_not_found`: close stale detail state and
   refresh the collection.
-- `409 cpo_conflict`: show the unique-field conflict without assuming which
-  current record owns it.
+- `409 cpo_slug_conflict`: attach the error to the slug field; a prior
+  availability result was only an advisory snapshot.
+- `409 cpo_gstin_conflict`: attach the error to the GSTIN field.
+- `409 cpo_app_id_conflict`: attach the error to the app-ID field.
+- `409 admin_identity_conflict`: another request created that global identity;
+  retry so the service can safely attach it.
+- `409 cpo_admin_membership_conflict` or `cpo_primary_admin_conflict`: refresh
+  the primary-administrator state before deciding whether to retry.
+- `409 cpo_conflict`: use a form-level fallback for an unrecognized database
+  uniqueness constraint.
 - `409 admin_identity_inactive` or `primary_admin_unavailable`: the platform
   operator must choose or reactivate an eligible identity through a future
   governance surface.

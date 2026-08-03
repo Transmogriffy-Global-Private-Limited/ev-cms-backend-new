@@ -2,6 +2,30 @@
 
 ## 2026-08-03
 
+### SuperAdmin CPO conflicts made field-specific
+
+- Traced the live generic `409 cpo_conflict` to PostgreSQL constraint names;
+  the latest observed failed creation was rejected by normalized GSTIN
+  uniqueness, while earlier attempts included normalized slug collisions.
+- Replaced the generic mapping for known CPO writes with stable
+  `cpo_slug_conflict`, `cpo_gstin_conflict`, `cpo_app_id_conflict`,
+  `admin_identity_conflict`, `cpo_admin_membership_conflict`, and
+  `cpo_primary_admin_conflict` codes and actionable messages.
+- Retained HTTP `409`, the existing error envelope, and `cpo_conflict` as the
+  forward-compatible fallback for an unknown unique constraint.
+- Updated focused tests, PostgreSQL lifecycle expectations, OpenAPI, the human
+  API contract, CPO administration guide, SuperAdmin FE handoff, development
+  plan, active control-plane plan, and project state.
+
+Verification at the time of this entry:
+
+- Constraint-mapping and affected CPO validation tests passed.
+- Documentation verification, focused runtime/OpenAPI/Swagger parity,
+  `go test ./...`, `go vet ./...`, and `git diff --check` passed.
+- Updated PostgreSQL lifecycle assertions compiled but did not execute because
+  no explicitly disposable `TEST_DATABASE_URL` is configured.
+- No commit, push, deployment, or remote mutation was performed.
+
 ### Required CPO registration identity and slug availability implemented
 
 - Made GSTIN, address, city, state, and pincode mandatory for platform CPO

@@ -1416,6 +1416,44 @@ func mapNotFound(err error) error {
 func mapWriteError(err error, operation string) error {
 	var postgresError *pgconn.PgError
 	if errors.As(err, &postgresError) && postgresError.Code == "23505" {
+		switch postgresError.ConstraintName {
+		case "uq_cpos_slug_normalized":
+			return &auth.APIError{
+				Status:  http.StatusConflict,
+				Code:    "cpo_slug_conflict",
+				Message: "The CPO slug is already in use.",
+			}
+		case "uq_cpos_gstin_normalized":
+			return &auth.APIError{
+				Status:  http.StatusConflict,
+				Code:    "cpo_gstin_conflict",
+				Message: "The GSTIN is already assigned to another CPO.",
+			}
+		case "uq_cpos_app_id":
+			return &auth.APIError{
+				Status:  http.StatusConflict,
+				Code:    "cpo_app_id_conflict",
+				Message: "The CPO app ID is already in use.",
+			}
+		case "uq_users_email_normalized":
+			return &auth.APIError{
+				Status:  http.StatusConflict,
+				Code:    "admin_identity_conflict",
+				Message: "An administrator identity with this email was created concurrently. Retry the request.",
+			}
+		case "uq_cpo_membership":
+			return &auth.APIError{
+				Status:  http.StatusConflict,
+				Code:    "cpo_admin_membership_conflict",
+				Message: "The administrator already has a membership for this CPO.",
+			}
+		case "uq_cpo_memberships_primary_admin":
+			return &auth.APIError{
+				Status:  http.StatusConflict,
+				Code:    "cpo_primary_admin_conflict",
+				Message: "The CPO already has a primary administrator.",
+			}
+		}
 		return &auth.APIError{
 			Status:  http.StatusConflict,
 			Code:    "cpo_conflict",

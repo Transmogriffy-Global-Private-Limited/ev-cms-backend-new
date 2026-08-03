@@ -1301,7 +1301,11 @@ paths:
         "403":
           $ref: "#/components/responses/Forbidden"
         "409":
-          description: "`cpo_conflict` or `admin_identity_inactive`."
+          description: |
+            `cpo_slug_conflict`, `cpo_gstin_conflict`,
+            `cpo_app_id_conflict`, `admin_identity_conflict`,
+            `cpo_admin_membership_conflict`, `cpo_primary_admin_conflict`,
+            `admin_identity_inactive`, or the fallback `cpo_conflict`.
           content:
             application/json:
               schema:
@@ -1387,7 +1391,7 @@ paths:
         CPO creation, and reports whether the normalized slug is currently
         unallocated. This read is advisory: concurrent creation can consume an
         available slug, so POST /api/v1/platform/cpos remains authoritative and
-        can still return cpo_conflict.
+        can still return cpo_slug_conflict.
       security:
         - BearerAuth: []
       parameters:
@@ -1488,7 +1492,7 @@ paths:
         "404":
           $ref: "#/components/responses/CPONotFound"
         "409":
-          description: "`cpo_conflict` — GSTIN is already assigned."
+          description: "`cpo_gstin_conflict` — GSTIN is already assigned."
           content:
             application/json:
               schema:
@@ -1618,7 +1622,7 @@ paths:
         "404":
           $ref: "#/components/responses/CPONotFound"
         "409":
-          description: "`cpo_conflict` — app ID is already assigned."
+          description: "`cpo_app_id_conflict` — app ID is already assigned."
           content:
             application/json:
               schema:
@@ -1704,7 +1708,10 @@ paths:
         "404":
           $ref: "#/components/responses/CPONotFound"
         "409":
-          description: "`admin_identity_inactive` or `cpo_conflict`."
+          description: |
+            `admin_identity_inactive`, `admin_identity_conflict`,
+            `cpo_admin_membership_conflict`, `cpo_primary_admin_conflict`,
+            or the fallback `cpo_conflict`.
           content:
             application/json:
               schema:

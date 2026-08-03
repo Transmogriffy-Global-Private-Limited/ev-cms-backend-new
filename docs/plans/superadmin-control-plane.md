@@ -73,6 +73,8 @@ for CPO onboarding and access:
 - require GSTIN plus complete address fields for creation/profile replacement,
   retain normalized uniqueness for GSTIN and slug, and expose an authenticated
   non-reserving slug-availability preflight for the creation form;
+- expose the exact known slug, GSTIN, app-ID, identity, membership, or
+  primary-administrator uniqueness cause through stable `409` codes;
 - require a bounded human reason for activation and suspension and retain the
   current reason, actor, and transition time on the CPO;
 - expose one durable primary-administrator designation per provisioned CPO;
@@ -100,6 +102,8 @@ Compatibility:
   are unchanged.
 - registration/profile clients must now send GSTIN, address, city, state, and
   pincode; this is an intentional validation and persistence contract change.
+- clients may replace generic `cpo_conflict` handling with the documented
+  specific codes while retaining it as a forward-compatible fallback.
 
 Acceptance criteria:
 

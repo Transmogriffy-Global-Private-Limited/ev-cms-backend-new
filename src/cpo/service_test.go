@@ -404,3 +404,72 @@ func TestMapChargerDeleteErrorRecognizesPostgresDependencyViolations(t *testing.
 		})
 	}
 }
+
+func TestMapWriteErrorExplainsKnownCPOUniquenessConflicts(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		constraint string
+		code       string
+		message    string
+	}{
+		{
+			constraint: "uq_cpos_slug_normalized",
+			code:       "cpo_slug_conflict",
+			message:    "The CPO slug is already in use.",
+		},
+		{
+			constraint: "uq_cpos_gstin_normalized",
+			code:       "cpo_gstin_conflict",
+			message:    "The GSTIN is already assigned to another CPO.",
+		},
+		{
+			constraint: "uq_cpos_app_id",
+			code:       "cpo_app_id_conflict",
+			message:    "The CPO app ID is already in use.",
+		},
+		{
+			constraint: "uq_users_email_normalized",
+			code:       "admin_identity_conflict",
+			message:    "An administrator identity with this email was created concurrently. Retry the request.",
+		},
+		{
+			constraint: "uq_cpo_membership",
+			code:       "cpo_admin_membership_conflict",
+			message:    "The administrator already has a membership for this CPO.",
+		},
+		{
+			constraint: "uq_cpo_memberships_primary_admin",
+			code:       "cpo_primary_admin_conflict",
+			message:    "The CPO already has a primary administrator.",
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.constraint, func(t *testing.T) {
+			err := mapWriteError(&pgconn.PgError{
+				Code:           "23505",
+				ConstraintName: test.constraint,
+			}, "test write")
+			var apiErr *auth.APIError
+			if !errors.As(err, &apiErr) {
+				t.Fatalf("got error %v, want API error", err)
+			}
+			if apiErr.Status != 409 || apiErr.Code != test.code || apiErr.Message != test.message {
+				t.Fatalf("got %#v, want 409 %s with message %q", apiErr, test.code, test.message)
+			}
+		})
+	}
+}
+
+func TestMapWriteErrorKeepsGenericFallbackForUnknownUniquenessConflict(t *testing.T) {
+	t.Parallel()
+
+	err := mapWriteError(&pgconn.PgError{
+		Code:           "23505",
+		ConstraintName: "unknown_constraint",
+	}, "test write")
+	var apiErr *auth.APIError
+	if !errors.As(err, &apiErr) || apiErr.Status != 409 || apiErr.Code != "cpo_conflict" {
+		t.Fatalf("got error %v, want 409 cpo_conflict", err)
+	}
+}
