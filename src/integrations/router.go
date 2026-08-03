@@ -8,6 +8,7 @@ import (
 
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/auth"
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/constants"
+	cmsmiddleware "github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/middleware"
 	"github.com/gin-gonic/gin"
 )
 
@@ -92,11 +93,17 @@ func (handler *Handler) delete(ctx *gin.Context) {
 func writeError(ctx *gin.Context, err error) {
 	var apiErr *auth.APIError
 	if errors.As(err, &apiErr) {
+		cmsmiddleware.LogHandledError(
+			ctx, "integrations", apiErr.Code, apiErr.Status, err,
+		)
 		ctx.JSON(apiErr.Status, gin.H{
 			"error": gin.H{"code": apiErr.Code, "message": apiErr.Message},
 		})
 		return
 	}
+	cmsmiddleware.LogHandledError(
+		ctx, "integrations", "internal_error", http.StatusInternalServerError, err,
+	)
 	ctx.JSON(http.StatusInternalServerError, gin.H{
 		"error": gin.H{
 			"code":    "internal_error",

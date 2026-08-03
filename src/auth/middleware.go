@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/constants"
+	cmsmiddleware "github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/middleware"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 )
@@ -33,6 +34,17 @@ func (service *Service) Authenticate() gin.HandlerFunc {
 		}
 		ctx.Set(principalContextKey, principal)
 		ctx.Set(accessTokenContextKey, parts[1])
+		actor := cmsmiddleware.RequestActor{
+			AuthScope: string(principal.Scope),
+			UserID:    principal.UserID.String(),
+		}
+		if principal.CPOID != nil {
+			actor.CPOID = principal.CPOID.String()
+		}
+		if principal.Role != nil {
+			actor.Role = string(*principal.Role)
+		}
+		cmsmiddleware.SetRequestActor(ctx, actor)
 		ctx.Next()
 	}
 }
@@ -165,6 +177,7 @@ func writeError(ctx *gin.Context, err error) {
 			Message: "The request could not be completed.",
 		}
 	}
+	cmsmiddleware.LogHandledError(ctx, "auth", apiErr.Code, apiErr.Status, err)
 	ctx.JSON(apiErr.Status, gin.H{
 		"error": gin.H{
 			"code":    apiErr.Code,

@@ -15,11 +15,19 @@ import (
 
 const defaultHTTPAddress = "127.0.0.1:8080"
 
+type LogLevel string
+
+const (
+	LogLevelDebug LogLevel = "DEBUG"
+	LogLevelInfo  LogLevel = "INFO"
+)
+
 type Config struct {
 	DatabaseURL    string
 	HTTPAddress    string
 	CORSAllowAll   bool
 	APIDocsEnabled bool
+	LogLevel       LogLevel
 	Superadmin     Superadmin
 	Auth           Auth
 	Mail           Mail
@@ -108,6 +116,7 @@ func Load() (Config, error) {
 		HTTPAddress:    envOrDefault("HTTP_ADDR", defaultHTTPAddress),
 		CORSAllowAll:   corsAllowAll,
 		APIDocsEnabled: apiDocsEnabled,
+		LogLevel:       LogLevel(strings.ToUpper(envOrDefault("LOG_LEVEL", string(LogLevelInfo)))),
 		Superadmin: Superadmin{
 			Email:    normalizeEmail(os.Getenv("SUPERADMIN_EMAIL")),
 			Password: os.Getenv("SUPERADMIN_PASSWORD"),
@@ -176,6 +185,8 @@ func (cfg Config) Validate() error {
 	switch {
 	case cfg.DatabaseURL == "":
 		return errors.New("DATABASE_URL is required")
+	case cfg.LogLevel != LogLevelDebug && cfg.LogLevel != LogLevelInfo:
+		return errors.New("LOG_LEVEL must be DEBUG or INFO")
 	case cfg.Superadmin.Email == "":
 		return errors.New("SUPERADMIN_EMAIL is required")
 	case !validEmail(cfg.Superadmin.Email):

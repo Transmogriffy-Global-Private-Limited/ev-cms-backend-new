@@ -19,6 +19,12 @@ func TestConfigValidation(t *testing.T) {
 	if err := cfg.Validate(); err == nil {
 		t.Fatal("expected invalid superadmin email to fail")
 	}
+
+	cfg = validTestConfig()
+	cfg.LogLevel = "TRACE"
+	if err := cfg.Validate(); err == nil || !strings.Contains(err.Error(), "LOG_LEVEL") {
+		t.Fatalf("got %v, want invalid log level error", err)
+	}
 }
 
 func TestMailConfigurationRequiresOneEncryptedTransportAndPairedCredentials(t *testing.T) {
@@ -53,6 +59,7 @@ func TestLoadHostingerImplicitSSLConfiguration(t *testing.T) {
 		"DATABASE_URL":                   "postgres://localhost/test",
 		"CORS_ALLOW_ALL":                 "true",
 		"API_DOCS_ENABLED":               "false",
+		"LOG_LEVEL":                      "DEBUG",
 		"SUPERADMIN_EMAIL":               "admin@example.com",
 		"SUPERADMIN_PASSWORD":            "a-long-password",
 		"JWT_SIGNING_KEY_B64":            key,
@@ -89,6 +96,9 @@ func TestLoadHostingerImplicitSSLConfiguration(t *testing.T) {
 	if cfg.APIDocsEnabled {
 		t.Fatal("expected API_DOCS_ENABLED=false to disable API documentation")
 	}
+	if cfg.LogLevel != LogLevelDebug {
+		t.Fatalf("log level = %q, want DEBUG", cfg.LogLevel)
+	}
 }
 
 func TestAPIDocumentationDefaultsEnabled(t *testing.T) {
@@ -105,6 +115,7 @@ func validTestConfig() Config {
 		DatabaseURL:    "postgres://localhost/test",
 		HTTPAddress:    "127.0.0.1:8080",
 		APIDocsEnabled: true,
+		LogLevel:       LogLevelInfo,
 		Superadmin: Superadmin{
 			Email: "admin@example.com", Password: "a-long-password", FullName: "Admin",
 		},

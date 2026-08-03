@@ -12,6 +12,7 @@ import (
 
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/auth"
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/constants"
+	cmsmiddleware "github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/middleware"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 )
@@ -385,11 +386,15 @@ func decodeJSON(ctx *gin.Context, destination any) error {
 func writeError(ctx *gin.Context, err error) {
 	var apiError *auth.APIError
 	if errors.As(err, &apiError) {
+		cmsmiddleware.LogHandledError(ctx, "cpo", apiError.Code, apiError.Status, err)
 		ctx.JSON(apiError.Status, gin.H{
 			"error": gin.H{"code": apiError.Code, "message": apiError.Message},
 		})
 		return
 	}
+	cmsmiddleware.LogHandledError(
+		ctx, "cpo", "internal_error", http.StatusInternalServerError, err,
+	)
 	ctx.JSON(http.StatusInternalServerError, gin.H{
 		"error": gin.H{
 			"code":    "internal_error",

@@ -133,6 +133,8 @@ func run() error {
 			platformService,
 			cfg.CORSAllowAll,
 			cfg.APIDocsEnabled,
+			os.Stdout,
+			cfg.LogLevel == config.LogLevelDebug,
 		),
 		ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout:       15 * time.Second,

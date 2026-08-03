@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"strings"
 
+	cmsmiddleware "github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/middleware"
 	"github.com/gin-gonic/gin"
 )
 
@@ -18,6 +19,7 @@ func permissiveCORSMiddleware(enabled bool) gin.HandlerFunc {
 
 		ctx.Header("Access-Control-Allow-Origin", "*")
 		ctx.Header("Access-Control-Allow-Methods", allowedCORSMethods)
+		ctx.Header("Access-Control-Expose-Headers", cmsmiddleware.RequestIDHeader)
 		ctx.Header("Access-Control-Max-Age", "600")
 
 		requestedHeaders := strings.TrimSpace(

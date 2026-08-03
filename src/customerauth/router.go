@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"strings"
 
+	cmsmiddleware "github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/middleware"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 )
@@ -337,11 +338,17 @@ func requestMetadata(ctx *gin.Context) RequestMetadata {
 func writeError(ctx *gin.Context, err error) {
 	var apiError *APIError
 	if errors.As(err, &apiError) {
+		cmsmiddleware.LogHandledError(
+			ctx, "customer_auth", apiError.Code, apiError.Status, err,
+		)
 		ctx.JSON(apiError.Status, gin.H{"error": gin.H{
 			"code": apiError.Code, "message": apiError.Message,
 		}})
 		return
 	}
+	cmsmiddleware.LogHandledError(
+		ctx, "customer_auth", "internal_error", http.StatusInternalServerError, err,
+	)
 	ctx.JSON(http.StatusInternalServerError, gin.H{"error": gin.H{
 		"code": "internal_error", "message": "The request could not be completed.",
 	}})

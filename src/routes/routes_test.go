@@ -3,7 +3,9 @@ package routes
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"regexp"
@@ -23,6 +25,7 @@ import (
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/security"
 	"github.com/getkin/kin-openapi/openapi3"
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 )
 
 type pingerStub struct {
@@ -195,6 +198,15 @@ func TestTenantOrganizationProfileIsNotRegistered(t *testing.T) {
 
 func newCredentialRouteTestRouter(t *testing.T) *gin.Engine {
 	t.Helper()
+	return newCredentialRouteTestRouterWithLog(t, io.Discard, false)
+}
+
+func newCredentialRouteTestRouterWithLog(
+	t *testing.T,
+	requestLogWriter io.Writer,
+	debugLogging bool,
+) *gin.Engine {
+	t.Helper()
 	tokenManager, err := security.NewTokenManager(
 		"routes-test",
 		"routes-test-api",
@@ -254,8 +266,51 @@ func newCredentialRouteTestRouter(t *testing.T) *gin.Engine {
 		platformops.NewService(nil, config.Platform{}),
 		true,
 		true,
+		requestLogWriter,
+		debugLogging,
 	)
 	return router
+}
+
+func TestDebugRequestLoggerIncludesHandledAuthenticationFailure(t *testing.T) {
+	var output bytes.Buffer
+	router := newCredentialRouteTestRouterWithLog(t, &output, true)
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodGet, "/api/v1/auth/me", nil)
+
+	router.ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusUnauthorized {
+		t.Fatalf("status = %d, want 401", recorder.Code)
+	}
+	if _, err := uuid.Parse(recorder.Header().Get("X-Request-ID")); err != nil {
+		t.Fatalf("response request ID is not a UUID: %v", err)
+	}
+	lines := bytes.Split(bytes.TrimSpace(output.Bytes()), []byte("\n"))
+	if len(lines) != 3 {
+		t.Fatalf("log lines = %d, want start, handled error, and completion\n%s", len(lines), output.String())
+	}
+	var handled map[string]any
+	if err := json.Unmarshal(lines[1], &handled); err != nil {
+		t.Fatalf("decode handled-error log: %v", err)
+	}
+	if handled["event"] != "http_error_handled" ||
+		handled["component"] != "auth" ||
+		handled["status"] != float64(http.StatusUnauthorized) ||
+		handled["error_code"] != "unauthorized" ||
+		handled["error_type"] != "*auth.APIError" ||
+		handled["error_class"] != "application" {
+		t.Fatalf("unexpected handled authentication log: %#v", handled)
+	}
+	var record map[string]any
+	if err := json.Unmarshal(lines[2], &record); err != nil {
+		t.Fatalf("decode request log: %v", err)
+	}
+	if record["route"] != "/api/v1/auth/me" ||
+		record["status"] != float64(http.StatusUnauthorized) ||
+		record["error_code"] != "unauthorized" {
+		t.Fatalf("unexpected authentication request log: %#v", record)
+	}
 }
 
 func TestPermissiveCORSAllowsRemoteBrowserPreflight(t *testing.T) {
@@ -282,6 +337,9 @@ func TestPermissiveCORSAllowsRemoteBrowserPreflight(t *testing.T) {
 	if got := recorder.Header().Get("Access-Control-Allow-Headers"); got !=
 		"authorization,content-type,x-cpo-app-id,x-client-version" {
 		t.Errorf("allow headers = %q, want requested headers", got)
+	}
+	if got := recorder.Header().Get("Access-Control-Expose-Headers"); got != "X-Request-ID" {
+		t.Errorf("expose headers = %q, want X-Request-ID", got)
 	}
 }
 
@@ -424,7 +482,8 @@ func TestHealthRoutes(t *testing.T) {
 
 			recorder := httptest.NewRecorder()
 			request := httptest.NewRequest(http.MethodGet, test.path, nil)
-			New(test.pinger, nil, nil, nil, nil, nil, false, false).ServeHTTP(recorder, request)
+			New(test.pinger, nil, nil, nil, nil, nil, false, false, io.Discard, false).
+				ServeHTTP(recorder, request)
 
 			if recorder.Code != test.wantStatus {
 				t.Fatalf("got status %d, want %d", recorder.Code, test.wantStatus)
@@ -436,7 +495,7 @@ func TestHealthRoutes(t *testing.T) {
 func TestAPIDocumentationRoutesCanBeDisabled(t *testing.T) {
 	t.Parallel()
 
-	router := New(pingerStub{}, nil, nil, nil, nil, nil, false, false)
+	router := New(pingerStub{}, nil, nil, nil, nil, nil, false, false, io.Discard, false)
 	for _, path := range []string{"/docs", "/docs/", "/openapi.yaml"} {
 		recorder := httptest.NewRecorder()
 		request := httptest.NewRequest(http.MethodGet, path, nil)

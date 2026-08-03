@@ -53,6 +53,21 @@ the same code.
   values.
 - Empty collections are returned as `[]`.
 
+### Request correlation
+
+Every request that reaches Gin receives a new server-generated UUID in the
+`X-Request-ID` response header. Browser clients may read it under the current
+permissive CORS mode. Preserve it with failed-operation diagnostics so an
+operator can find the matching structured completion record; do not attach
+request bodies, credentials, or tokens. Client-supplied request IDs are not
+adopted.
+
+The backend request log records method, matched route template, status,
+latency, response size, safe authenticated identifiers, and the stable handled
+API error code. It deliberately excludes raw paths, queries, bodies, header
+values, API messages, and secrets. The canonical log contract is
+`../internal/http-request-logging.md`.
+
 ### Cache policy
 
 Authentication, platform-CPO, and CPO-integration responses set:

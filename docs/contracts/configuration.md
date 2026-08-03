@@ -18,6 +18,14 @@ the normal Gin `404`. The setting contains no secret but should normally be
 disabled where exposing API shape is not operationally desired. Changes require
 a process restart.
 
+Safe JSON HTTP completion and panic logging is always enabled and writes to
+stdout; the process supervisor owns capture and retention. `LOG_LEVEL` defaults
+to `INFO` and accepts only `INFO` or `DEBUG`. `DEBUG` adds safe request-start
+and handled-error type/classification/SQL-state events; it never enables bodies,
+raw URLs, queries, headers, secrets, personal fields, or raw error values. A
+change requires restart. The fields, proxy trust, and mandatory exclusions are
+defined in `internal/http-request-logging.md`.
+
 ## Core and Bootstrap
 
 | Variable | Requirement / default |
@@ -26,6 +34,7 @@ a process restart.
 | `HTTP_ADDR` | Code default `127.0.0.1:8080`; current development example uses `0.0.0.0:8080` for access from other machines |
 | `CORS_ALLOW_ALL` | Default `false`; current development example sets `true` to allow every browser origin and requested header |
 | `API_DOCS_ENABLED` | Boolean, default `true`; controls registration of `/docs`, `/docs/`, and `/openapi.yaml` |
+| `LOG_LEVEL` | Optional; `INFO` default. `DEBUG` enables additional safe developer diagnostics; no other value is accepted. |
 | `SUPERADMIN_EMAIL` | Required valid email |
 | `SUPERADMIN_PASSWORD` | Required, 10 to 128 characters; existing password is never overwritten |
 | `SUPERADMIN_FULL_NAME` | Default `Platform Superadmin` |

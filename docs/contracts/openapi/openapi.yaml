@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: TransEV EV CMS API
-  version: 0.10.0
+  version: 0.11.0
   description: |
     Canonical machine-readable contract for the endpoints currently implemented
     by `ev-cms-backend-new`.
@@ -16,6 +16,14 @@ info:
     Administrative authentication, platform control-plane, health, and
     documentation routes do not require it. Request bodies reject unknown
     properties and are limited to 32 KiB by the server.
+
+    Every request that reaches Gin returns a server-generated UUID in the
+    `X-Request-ID` response header for correlation with the safe structured
+    completion log. The logger records matched route templates and stable
+    handled error codes, never bodies, raw paths, queries, credentials, tokens,
+    OTPs, email addresses, user agents, app IDs, API messages, or panic values.
+    `LOG_LEVEL=DEBUG` adds request-start and handled-error component/type
+    diagnostics under the same request ID without relaxing those exclusions.
   contact:
     name: TransEV Engineering
 servers:
@@ -2721,6 +2729,13 @@ paths:
           $ref: "#/components/responses/InternalError"
 
 components:
+  headers:
+    RequestID:
+      description: Server-generated UUID for correlation with the HTTP completion log.
+      schema:
+        type: string
+        format: uuid
+
   securitySchemes:
     BearerAuth:
       type: http

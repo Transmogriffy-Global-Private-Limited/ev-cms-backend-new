@@ -404,3 +404,11 @@ OTP values are not logged. SMTP delivery errors are bounded before storage.
 - Database warning/error logging uses parameter placeholders and suppresses
   ordinary record-not-found queries so submitted credentials and identity
   values are not copied into SQL logs.
+- HTTP completion logs contain only the matched route template, status,
+  latency, stable handled error code, and safe opaque auth identifiers. They
+  never contain auth/recovery bodies, raw paths, queries, header values, email,
+  user agents, API messages, tokens, passwords, or OTPs. Use the returned
+  `X-Request-ID` for correlation.
+- Under `LOG_LEVEL=DEBUG`, authentication failures add only the stable API
+  code, owning `auth` component, status, and Go error type. Submitted identity,
+  credential, token, error message, and database/provider values stay excluded.
