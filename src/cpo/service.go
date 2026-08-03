@@ -2777,6 +2777,9 @@ func (service *Service) CreateTariff(
 			UpdatedAt:     now,
 		}
 
+		if err := service.validateTariffDateOverlap(tx, cpoID, record.HubID, record.UserGroupID, record.ChargerID, record.StartDate, record.EndDate, record.ID); err != nil {
+			return err
+		}
 		if err := tx.Create(&record).Error; err != nil {
 			return mapTariffWriteError(err, "create tariff")
 		}
@@ -2969,6 +2972,16 @@ func (service *Service) UpdateTariff(
 			record.Currency = *request.Currency
 			changedFields["currency"] = *request.Currency
 		}
+		if request.StartDate != nil {
+			updates["start_date"] = request.StartDate
+			record.StartDate = request.StartDate
+			changedFields["start_date"] = request.StartDate
+		}
+		if request.EndDate != nil {
+			updates["end_date"] = request.EndDate
+			record.EndDate = request.EndDate
+			changedFields["end_date"] = request.EndDate
+		}
 		if request.IsActive != nil {
 			updates["is_active"] = *request.IsActive
 			record.IsActive = *request.IsActive
@@ -2987,6 +3000,21 @@ func (service *Service) UpdateTariff(
 		updates["updated_at"] = now
 		record.UpdatedAt = now
 
+		effectiveHubIDValue := record.HubID
+		if request.HubID != nil {
+			effectiveHubIDValue = *request.HubID
+		}
+		effectiveChargerIDValue := record.ChargerID
+		if request.ChargerID != nil {
+			effectiveChargerIDValue = request.ChargerID
+		}
+		effectiveUserGroupIDValue := record.UserGroupID
+		if request.UserGroupID != nil {
+			effectiveUserGroupIDValue = request.UserGroupID
+		}
+		if err := service.validateTariffDateOverlap(tx, cpoID, effectiveHubIDValue, effectiveUserGroupIDValue, effectiveChargerIDValue, record.StartDate, record.EndDate, record.ID); err != nil {
+			return err
+		}
 		if err := tx.Model(&models.Tariff{}).
 			Where("id = ?", record.ID).
 			Updates(updates).Error; err != nil {
@@ -3041,7 +3069,7 @@ func validateCreateTariffRequest(request CreateTariffRequest) error {
 	if len(request.Currency) != 3 {
 		return invalid("currency", "Currency must be a 3-letter code.")
 	}
-	return nil
+	return validateTariffDateRange(request.StartDate, request.EndDate)
 }
 
 func validateUpdateTariffRequest(request UpdateTariffRequest) error {
@@ -3052,7 +3080,9 @@ func validateUpdateTariffRequest(request UpdateTariffRequest) error {
 		request.PricePerKWh == nil &&
 		request.IdleFeePerMin == nil &&
 		request.Currency == nil &&
-		request.IsActive == nil {
+		request.IsActive == nil &&
+		request.StartDate == nil &&
+		request.EndDate == nil {
 		return invalid("tariff", "At least one tariff field must be supplied.")
 	}
 
@@ -3064,6 +3094,19 @@ func validateUpdateTariffRequest(request UpdateTariffRequest) error {
 	}
 	if request.Currency != nil && len(*request.Currency) != 3 {
 		return invalid("currency", "Currency must be a 3-letter code.")
+	}
+	return validateTariffDateRange(request.StartDate, request.EndDate)
+}
+
+func validateTariffDateRange(startDate, endDate *time.Time) error {
+	if startDate == nil || endDate == nil {
+		return nil
+	}
+	if endDate.Before(*startDate) {
+		return invalid("date_range", "The tariff end date must be on or after the start date.")
+	}
+	if endDate.Equal(*startDate) {
+		return invalid("date_range", "The tariff date range must span at least one day.")
 	}
 	return nil
 }
@@ -3099,6 +3142,60 @@ func mapUserGroupNotFound(err error) error {
 		}
 	}
 	return fmt.Errorf("load user group: %w", err)
+}
+
+func (service *Service) validateTariffDateOverlap(
+	tx *gorm.DB,
+	cpoID uuid.UUID,
+	hubID uuid.UUID,
+	userGroupID *uuid.UUID,
+	chargerID *uuid.UUID,
+	startDate, endDate *time.Time,
+	selfID uuid.UUID,
+) error {
+	if startDate == nil || endDate == nil {
+		return nil
+	}
+	if endDate.Before(*startDate) || endDate.Equal(*startDate) {
+		return nil
+	}
+
+	var existing []models.Tariff
+	query := tx.Where("cpo_id = ?", cpoID).
+		Where("start_date IS NOT NULL").
+		Where("end_date IS NOT NULL")
+	if selfID != uuid.Nil {
+		query = query.Where("id != ?", selfID)
+	}
+	if hubID != uuid.Nil {
+		query = query.Where("hub_id = ?", hubID)
+	}
+	if userGroupID != nil {
+		query = query.Where("user_group_id = ?", *userGroupID)
+	}
+	if chargerID != nil {
+		query = query.Where("charger_id = ?", *chargerID)
+	}
+	if err := query.Find(&existing).Error; err != nil {
+		return fmt.Errorf("check tariff overlap: %w", err)
+	}
+	for _, record := range existing {
+		if record.StartDate == nil || record.EndDate == nil {
+			continue
+		}
+		if overlaps(*startDate, *endDate, *record.StartDate, *record.EndDate) {
+			return &auth.APIError{
+				Status:  http.StatusConflict,
+				Code:    "tariff_conflict",
+				Message: "A tariff with the same scope already exists for an overlapping date range.",
+			}
+		}
+	}
+	return nil
+}
+
+func overlaps(startA, endA, startB, endB time.Time) bool {
+	return startA.Before(endB) && startB.Before(endA)
 }
 
 func mapTariffWriteError(err error, operation string) error {
@@ -3190,6 +3287,9 @@ func (service *Service) CreateHubTariff(
 			EndDate:       &endDate,
 			CreatedAt:     now,
 			UpdatedAt:     now,
+		}
+		if err := service.validateTariffDateOverlap(tx, cpoID, request.HubID, nil, nil, createdRecord.StartDate, createdRecord.EndDate, createdRecord.ID); err != nil {
+			return err
 		}
 		if err := tx.Create(&createdRecord).Error; err != nil {
 			return mapTariffWriteError(err, "create hub tariff")
@@ -3338,6 +3438,9 @@ func (service *Service) UpdateHubTariff(
 		now := service.now()
 		updates["updated_at"] = now
 		record.UpdatedAt = now
+		if err := service.validateTariffDateOverlap(tx, cpoID, record.HubID, nil, nil, record.StartDate, record.EndDate, record.ID); err != nil {
+			return err
+		}
 		if err := tx.Model(&models.Tariff{}).Where("id = ?", record.ID).Updates(updates).Error; err != nil {
 			return mapTariffWriteError(err, "update hub tariff")
 		}
@@ -3406,6 +3509,9 @@ func (service *Service) CreateUserGroupTariff(
 		}
 		if request.HubID != nil {
 			createdRecord.HubID = *request.HubID
+		}
+		if err := service.validateTariffDateOverlap(tx, cpoID, createdRecord.HubID, &request.UserGroupID, nil, createdRecord.StartDate, createdRecord.EndDate, createdRecord.ID); err != nil {
+			return err
 		}
 		if err := tx.Create(&createdRecord).Error; err != nil {
 			return mapTariffWriteError(err, "create user group tariff")
@@ -3569,6 +3675,9 @@ func (service *Service) UpdateUserGroupTariff(
 		now := service.now()
 		updates["updated_at"] = now
 		record.UpdatedAt = now
+		if err := service.validateTariffDateOverlap(tx, cpoID, record.HubID, record.UserGroupID, nil, record.StartDate, record.EndDate, record.ID); err != nil {
+			return err
+		}
 		if err := tx.Model(&models.Tariff{}).Where("id = ?", record.ID).Updates(updates).Error; err != nil {
 			return mapTariffWriteError(err, "update user group tariff")
 		}

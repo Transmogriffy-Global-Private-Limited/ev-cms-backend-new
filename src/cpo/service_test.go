@@ -271,6 +271,21 @@ func TestTenantOperationValidation(t *testing.T) {
 	}
 }
 
+func TestValidateTariffDateRangeRejectsInvalidRange(t *testing.T) {
+	t.Parallel()
+
+	start := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	end := start.Add(-1 * time.Hour)
+	if err := validateTariffDateRange(&start, &end); err == nil {
+		t.Fatal("invalid date range was accepted")
+	}
+
+	later := start.Add(48 * time.Hour)
+	if err := validateTariffDateRange(&start, &later); err != nil {
+		t.Fatalf("valid date range was rejected: %v", err)
+	}
+}
+
 func TestChargerListRejectsInvalidCursorBeforeDatabaseAccess(t *testing.T) {
 	t.Parallel()
 
