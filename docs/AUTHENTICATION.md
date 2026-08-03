@@ -261,6 +261,13 @@ active identity, the encrypted recovery email supplies the opaque recovery ID
 generic API response for eligible and unknown addresses while giving the
 recipient every input required by reset.
 
+OTP producers call the canonical mail enqueue operation with the complete
+payload, including `challenge_id`, for validation and encrypted outbox storage;
+there is no field-subsetting OTP mapper. The active development VPS revision
+`d27e599` predates this source-tree correction as of 2026-08-03 and can return
+`500 internal_error` for an eligible recovery request until a corrected
+revision is explicitly deployed.
+
 ### Reset password
 
 `POST /api/v1/auth/password/reset`
@@ -379,6 +386,9 @@ the internal, tenant-scoped `ResolveRazorpay` method.
 
 OTP and onboarding-message creation share a transaction with the state change
 that requires the message. Every mail payload is encrypted before insertion.
+OTP producers directly enqueue the complete structured payload so
+template-specific fields such as recovery `challenge_id` cannot be dropped by
+an intermediate mapper.
 The worker:
 
 1. claims one eligible job with `FOR UPDATE SKIP LOCKED`;

@@ -42,21 +42,6 @@ func NewOutbox(box *security.SecretBox) *Outbox {
 	return &Outbox{box: box}
 }
 
-func (outbox *Outbox) EnqueueOTP(
-	tx *gorm.DB,
-	toEmail string,
-	template string,
-	payload OTPPayload,
-) error {
-	return outbox.EnqueueMessage(tx, toEmail, template, MessagePayload{
-		RecipientName: payload.RecipientName,
-		Code:          payload.Code,
-		ExpiresAt:     payload.ExpiresAt,
-	})
-}
-
-type OTPPayload = MessagePayload
-
 func (outbox *Outbox) EnqueueMessage(
 	tx *gorm.DB,
 	toEmail string,

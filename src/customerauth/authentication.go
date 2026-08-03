@@ -419,7 +419,7 @@ func (service *Service) createAuthChallengeTx(
 		return ChallengeResponse{}, fmt.Errorf("create customer authentication challenge: %w", err)
 	}
 	payload := authChallengeOTPPayload(user, challenge, code)
-	if err := service.outbox.EnqueueOTP(tx, user.Email, template, payload); err != nil {
+	if err := service.outbox.EnqueueMessage(tx, user.Email, template, payload); err != nil {
 		return ChallengeResponse{}, err
 	}
 	return ChallengeResponse{
@@ -432,8 +432,8 @@ func authChallengeOTPPayload(
 	user models.User,
 	challenge models.AuthChallenge,
 	code string,
-) cmsmail.OTPPayload {
-	payload := cmsmail.OTPPayload{
+) cmsmail.MessagePayload {
+	payload := cmsmail.MessagePayload{
 		RecipientName: user.FullName, Code: code, ExpiresAt: challenge.ExpiresAt,
 	}
 	if challenge.Purpose == constants.ChallengeCustomerReset {

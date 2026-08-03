@@ -131,12 +131,15 @@ timestamps. Secret plaintext has no read API.
 The forgot response remains generic. Each eligible administrative reset email
 now carries its opaque recovery ID, code, and expiry; lifecycle coverage uses
 those recipient-visible values rather than reading the challenge table. The
-shared mail boundary also rejects a new-CPO-admin welcome payload when the
-generated temporary password is absent.
+lossy OTP-only enqueue wrapper was removed; every OTP producer now calls the
+canonical mail enqueue operation with the complete `MessagePayload`, including
+recovery `challenge_id`. The shared mail boundary also rejects a
+new-CPO-admin welcome payload when the generated temporary password is absent.
 
-The focused payload/renderer tests and full Go suite pass. The changed
-PostgreSQL lifecycle is not marked verified in this slice because no explicitly
-disposable `TEST_DATABASE_URL` was configured.
+The database-free complete-payload validation, focused producer and renderer
+tests, and full Go suite pass. The changed PostgreSQL lifecycle is not marked
+verified in this slice because no explicitly disposable `TEST_DATABASE_URL`
+was configured.
 
 ## Deferred Work
 

@@ -313,7 +313,7 @@ func (service *Service) createChallenge(
 	if err := tx.Create(&challenge).Error; err != nil {
 		return ChallengeResponse{}, fmt.Errorf("create customer signup challenge: %w", err)
 	}
-	if err := service.outbox.EnqueueOTP(tx, email, signupMailTemplate, cmsmail.OTPPayload{
+	if err := service.outbox.EnqueueMessage(tx, email, signupMailTemplate, cmsmail.MessagePayload{
 		RecipientName: fullName, Code: code, ExpiresAt: challenge.ExpiresAt,
 	}); err != nil {
 		return ChallengeResponse{}, err

@@ -263,11 +263,14 @@ Acceptance criteria:
 Current verification limitation:
 
 - Administrative and customer recovery emails now carry the opaque recovery
-  ID, code, and expiry required by reset. Unit/rendering/full-suite checks pass,
-  and lifecycle coverage consumes recipient-visible inputs rather than querying
-  challenge storage. The changed PostgreSQL lifecycle has not run in this slice
-  because no explicitly disposable `TEST_DATABASE_URL` is configured, so the
-  feature remains `Implemented` rather than `Verified`.
+  ID, code, and expiry required by reset. OTP producers now call the canonical
+  mail enqueue operation with the complete payload; the lossy OTP-only wrapper
+  that dropped `challenge_id` no longer exists. Database-free validation,
+  rendering, and full-suite checks pass, and lifecycle coverage consumes
+  recipient-visible inputs rather than querying challenge storage. The changed
+  PostgreSQL lifecycle has not run in this slice because no explicitly
+  disposable `TEST_DATABASE_URL` is configured, so the feature remains
+  `Implemented` rather than `Verified`.
 
 Verification:
 
@@ -737,6 +740,10 @@ Current implementation slice:
 
 Last completed slice:
 
+- Removed the lossy OTP-only outbox wrapper so administrative and customer
+  recovery enqueue the complete canonical payload with `challenge_id`; added
+  database-free validation for both reset templates. The active VPS revision
+  predates this source fix.
 - Implemented safe JSON HTTP completion logging, server-generated response
   request IDs, trusted auth/error-code enrichment, loopback-only forwarding
   trust, CORS exposure, safe DEBUG lifecycle/error classification, and a strict
@@ -771,6 +778,7 @@ Last deployment milestone:
   `LOG_LEVEL=DEBUG`; running-binary identity, the loopback-only listener,
   loopback/public readiness, zero-restart service state, and the post-start
   journal were verified. No migration or live data mutation was required.
+  This deployed revision predates the recovery OTP payload-forwarding fix.
 
 Next expected slice:
 

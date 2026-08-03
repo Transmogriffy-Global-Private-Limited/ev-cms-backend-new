@@ -411,7 +411,7 @@ func readCustomerOTPMessage(
 	box *security.SecretBox,
 	email string,
 	template string,
-) cmsmail.OTPPayload {
+) cmsmail.MessagePayload {
 	t.Helper()
 	var job models.MailOutbox
 	if err := database.Where("to_email = ? AND template = ?", email, template).
@@ -425,7 +425,7 @@ func readCustomerOTPMessage(
 	if err != nil {
 		t.Fatalf("decrypt customer OTP mail: %v", err)
 	}
-	var payload cmsmail.OTPPayload
+	var payload cmsmail.MessagePayload
 	if err := json.Unmarshal(plaintext, &payload); err != nil {
 		t.Fatalf("decode customer OTP mail: %v", err)
 	}
@@ -470,7 +470,7 @@ func readSignupOTP(
 	if err != nil {
 		t.Fatalf("decrypt signup OTP mail: %v", err)
 	}
-	var payload cmsmail.OTPPayload
+	var payload cmsmail.MessagePayload
 	if err := json.Unmarshal(plaintext, &payload); err != nil {
 		t.Fatalf("decode signup OTP mail: %v", err)
 	}

@@ -2,6 +2,28 @@
 
 ## 2026-08-03
 
+### Password-recovery outbox payload forwarding fixed
+
+- Removed the lossy OTP-only enqueue wrapper and made every OTP producer call
+  the canonical mail enqueue operation with the complete structured payload.
+  The old wrapper reconstructed only recipient name, code, and expiry and
+  discarded `challenge_id`, so reset-payload validation returned a plain
+  application error and rolled back eligible administrative and customer
+  forgot-password transactions as `500 internal_error`.
+- Added database-free validation of complete recovery payloads for both
+  `PASSWORD_RESET_OTP` and `CUSTOMER_PASSWORD_RESET_OTP`.
+- No API schema, database migration, stored data, secret, or SMTP transport
+  behavior changed. The active development VPS revision `d27e599` predates
+  this local fix and has not been rehosted in this slice.
+
+Verification:
+
+- Focused mail, administrative-auth, and customer-auth recovery payload tests,
+  documentation verification, route/OpenAPI parity, `go test ./...`,
+  `go vet ./...`, and `git diff --check` passed.
+- No disposable `TEST_DATABASE_URL` was configured, so the changed recovery
+  lifecycle was not executed against PostgreSQL in this slice.
+
 ### Safe HTTP request diagnostics deployed to the development VPS
 
 - Built revision `d27e599`, confirmed it has no migration, dependency, Caddy,

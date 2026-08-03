@@ -123,6 +123,15 @@ foreach ($rule in @('`LOG_LEVEL`', '`INFO`', '`DEBUG`')) {
     }
 }
 
+$mailOutboxContract = Get-Content -Raw -LiteralPath (
+    Join-Path $repositoryRoot 'docs/contracts/internal/mail-outbox.md'
+)
+foreach ($rule in @('canonical enqueue operation', '`challenge_id`')) {
+    if (-not $mailOutboxContract.Contains($rule)) {
+        throw "Mail outbox contract is missing OTP forwarding rule: $rule"
+    }
+}
+
 $routeContract = Get-Content -Raw -LiteralPath (
     Join-Path $repositoryRoot 'docs/contracts/api/administrative-http-api.md'
 )

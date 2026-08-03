@@ -12,6 +12,7 @@ or full provider errors containing sensitive values.
 | live works, ready is 503 | PostgreSQL | `DATABASE_URL` target and database reachability |
 | login is 503 | Mail feature | `MAIL_ENABLED` and SMTP validation |
 | login is 202, no email | Outbox/SMTP | Job status, attempts, bounded error |
+| forgot is 500 with `*errors.errorString` | Recovery producer | Deployed revision and direct complete-payload enqueue |
 | OTP returns 401 | Challenge | Newest challenge, expiry, resend/attempt state |
 | bearer returns 401 | Token/session | Token expiry and durable revocation |
 | tenant operation returns 403 | Role/password/app ID | Error code, `/auth/me`, current app ID |
@@ -49,6 +50,21 @@ Administrative login and recovery require `MAIL_ENABLED=true`. Confirm the
 worker was constructed, the database is reachable, and the Hostinger values
 match `../../integrations/smtp-mail-delivery.md`. Do not bypass email OTP by
 returning or logging the code.
+
+## Forgot Password Returns `500 internal_error`
+
+Under `LOG_LEVEL=DEBUG`, a handled forgot-password failure with Go error type
+`*errors.errorString` can identify an application-contract failure without
+exposing its sensitive message. A deployment that reconstructs the shared OTP
+payload using only recipient name, code, and expiry discards recovery
+`challenge_id`; fail-closed validation then rolls back both the challenge and
+outbox job and returns `500`. Confirm that the deployed revision has no lossy
+OTP-only mapper and directly enqueues the complete `MessagePayload` for both
+administrative and customer recovery. Do not work around this by returning,
+querying, or logging challenge material.
+
+The active development VPS revision `d27e599` predates the source-tree fix as
+of 2026-08-03. Rehosting requires separate deployment authorization.
 
 ## OTP Email Has Not Arrived
 

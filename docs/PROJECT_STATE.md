@@ -33,7 +33,8 @@ provides:
 - durable sessions with list/current/all/specific revocation APIs;
 - enumeration-safe password recovery and authenticated password change;
   eligible reset mail delivers the recovery ID, code, and expiry required by
-  the reset handler while the forgot response remains generic;
+  the reset handler while the forgot response remains generic, and every OTP
+  producer uses the canonical complete mail payload without a lossy wrapper;
 - trusted principal, user ID, CPO ID, platform, and CPO-role helpers;
 - encrypted PostgreSQL mail outbox with a retrying, encrypted-transport SMTP
   worker;
@@ -125,6 +126,12 @@ and preserved during deployment. Migration nine continues to preserve the
 the current development environment uses `LOG_LEVEL=DEBUG` for correlated
 request-start and completion diagnostics.
 
+The source tree now fixes a recovery-specific OTP mapper defect that discarded
+`challenge_id` before outbox validation and caused eligible administrative and
+customer forgot-password transactions to roll back with `500 internal_error`.
+The active `d27e599` deployment predates this correction and remains affected
+until an explicitly authorized corrected revision is deployed.
+
 No CMS/HAL transport or handshake, live charger state ingestion, charging
 workflow, tenant payment workflow, tenant commercial-management workflow,
 staff-management workflow, or reporting behavior is implemented
@@ -139,6 +146,10 @@ yet.
   request-ID exposure have focused test coverage.
 - DEBUG request-start and handled-error diagnostics have focused mode,
   correlation, classification, and secret/content leak coverage.
+- Complete direct OTP payloads and both administrative/customer recovery
+  template validations have database-free regression coverage. The changed
+  PostgreSQL recovery lifecycle was not run because no disposable
+  `TEST_DATABASE_URL` was configured.
 - Known CPO unique-constraint mappings and the unknown-constraint fallback have
   focused unit coverage; PostgreSQL lifecycle assertions now require the exact
   slug and GSTIN conflict codes.

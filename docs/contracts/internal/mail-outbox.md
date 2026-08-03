@@ -35,6 +35,12 @@ recovery challenge ID plus code and expiry. `CPO_ADMIN_WELCOME` requires the
 generated temporary password. Missing required credentials therefore roll back
 the producing transaction instead of committing an unusable message.
 
+OTP producers must call the canonical enqueue operation with the complete
+`MessagePayload`. There is intentionally no OTP-only mapper that can reconstruct
+a template-specific subset: recovery templates depend on `challenge_id` in
+addition to the login-OTP fields. Database-free validation covers complete
+payloads for both reset templates.
+
 ## Stored Job Fields
 
 Each row records job ID, normalized recipient, template, encrypted payload,

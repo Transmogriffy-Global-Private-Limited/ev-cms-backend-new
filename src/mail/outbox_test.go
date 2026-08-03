@@ -63,3 +63,20 @@ func TestValidateMessagePayloadRejectsIncompleteCredentialMail(t *testing.T) {
 		})
 	}
 }
+
+func TestValidateMessagePayloadAcceptsCompletePasswordRecoveryMail(t *testing.T) {
+	t.Parallel()
+
+	payload := MessagePayload{
+		RecipientName: "Recovery Recipient",
+		ChallengeID:   "9c685277-7754-4a6b-a2c5-6d42329759ae",
+		Code:          "123456",
+		ExpiresAt:     time.Date(2026, time.August, 3, 12, 0, 0, 0, time.UTC),
+	}
+
+	for _, template := range []string{"PASSWORD_RESET_OTP", "CUSTOMER_PASSWORD_RESET_OTP"} {
+		if err := validateMessagePayload(template, payload); err != nil {
+			t.Fatalf("complete %s payload must remain valid: %v", template, err)
+		}
+	}
+}

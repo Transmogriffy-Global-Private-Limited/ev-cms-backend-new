@@ -54,13 +54,13 @@ func TestMailWorkerClaimsDecryptsAndCompletesJobWithPostgreSQL(t *testing.T) {
 		t.Fatalf("create mail secret box: %v", err)
 	}
 	recipient := "worker-" + uuid.NewString() + "@example.com"
-	payload := OTPPayload{
+	payload := MessagePayload{
 		RecipientName: "Worker Test",
 		Code:          "846201",
 		ExpiresAt:     time.Now().UTC().Add(10 * time.Minute),
 	}
 	outbox := NewOutbox(box)
-	if err := outbox.EnqueueOTP(
+	if err := outbox.EnqueueMessage(
 		gormDB,
 		recipient,
 		"LOGIN_OTP",

@@ -276,7 +276,7 @@ func readOTPMessageFromOutbox(
 	box *security.SecretBox,
 	email string,
 	template string,
-) cmsmail.OTPPayload {
+) cmsmail.MessagePayload {
 	t.Helper()
 	var job models.MailOutbox
 	if err := database.
@@ -295,7 +295,7 @@ func readOTPMessageFromOutbox(
 	if err != nil {
 		t.Fatalf("decrypt test mail payload: %v", err)
 	}
-	var payload cmsmail.OTPPayload
+	var payload cmsmail.MessagePayload
 	if err := json.Unmarshal(plaintext, &payload); err != nil {
 		t.Fatalf("decode test mail payload: %v", err)
 	}
