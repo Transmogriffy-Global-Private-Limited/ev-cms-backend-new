@@ -268,6 +268,8 @@ type Tariff struct {
 	IdleFeePerMin decimal.Decimal `gorm:"type:numeric(12,4);not null;default:0" json:"idle_fee_per_min"`
 	Currency      string          `gorm:"type:char(3);not null;default:'INR'" json:"currency"`
 	IsActive      bool            `gorm:"not null;default:true" json:"is_active"`
+	StartDate     *time.Time      `gorm:"type:timestamptz;index" json:"start_date,omitempty"`
+	EndDate       *time.Time      `gorm:"type:timestamptz;index" json:"end_date,omitempty"`
 	CreatedAt     time.Time       `gorm:"not null" json:"created_at"`
 	UpdatedAt     time.Time       `gorm:"not null" json:"updated_at"`
 }
