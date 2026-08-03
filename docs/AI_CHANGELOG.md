@@ -2,6 +2,33 @@
 
 ## 2026-08-03
 
+### Required CPO registration release deployed to the development VPS
+
+- Confirmed `main` was already at remote revision `afd90f5`, reviewed migration
+  eleven and the 70-operation contract, and verified all three existing CPOs
+  already satisfied the new GSTIN/address precondition.
+- Created the validated mode-0600 rollback dump
+  `/tmp/devevcmsnewdb-pre-afd90f5.dump` and preserved the previous binary as
+  `builds/evcmsnew.pre-afd90f5`.
+- Applied migration eleven without changing or removing any CPO row, installed
+  the clean candidate, and rehosted `evcmsnew-dev.service` through the shared
+  handler.
+
+Verification:
+
+- Documentation verification, focused migration/CPO/auth/customer/integration/
+  route tests, runtime/OpenAPI/Swagger parity, `go test ./...`, `go vet ./...`,
+  and `git diff --check` passed before activation.
+- The migration ledger records version eleven; GSTIN is non-null, all four
+  address checks are active, and no incomplete CPO exists.
+- The running binary matches the `afd90f5` candidate. Systemd is enabled and
+  active with zero restarts; loopback/public readiness, live 70-operation
+  OpenAPI, protected slug availability, retired-route absence, required-worker
+  freshness, and the post-start journal passed.
+- The disposable PostgreSQL lifecycle was not run because deleting a test
+  database was not authorized. No live CPO mutation or mail delivery was used
+  to exercise the new contract during deployment.
+
 ### Required CPO registration identity and slug availability implemented
 
 - Made GSTIN, address, city, state, and pincode mandatory for platform CPO

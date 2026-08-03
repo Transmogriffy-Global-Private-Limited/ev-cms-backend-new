@@ -21,12 +21,11 @@ started as a second systemd service because that would create an unnecessary
 duplicate worker.
 
 The active deployment was updated on August 3, 2026 to source revision
-`1cec3f3`. It has migrations one through ten and the current 69-operation API.
-The release delivers recovery IDs in newly generated administrative/customer
-reset mail and validates credential-bearing reset/welcome payloads before
-enqueue and SMTP rendering. No database migration or configuration change was
-required. The eleven retired commercial prototype tables remain recoverable in
-the `retired_commercial` schema.
+`afd90f5`. It has migrations one through eleven and the current 70-operation
+API. GSTIN and complete address identity are database-required for CPOs, and
+the authenticated platform slug-availability route is live. The eleven retired
+commercial prototype tables remain recoverable in the `retired_commercial`
+schema.
 
 ## Files and Ownership
 

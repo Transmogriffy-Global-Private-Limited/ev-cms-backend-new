@@ -681,13 +681,13 @@ Last completed slice:
 
 Last deployment milestone:
 
-- Revision `1cec3f3` was built cleanly and rehosted on the development VPS.
-  Migration ten was already current, so no schema change was required. The
-  live 69-operation route/OpenAPI surface, protected and retired routes,
-  required workers, running-binary identity, loopback/public readiness, and
-  post-start journal were verified. No live recovery mail or authenticated
-  reset mutation was triggered; the changed PostgreSQL lifecycle remains
-  unexecuted without authorization to drop a disposable database.
+- Revision `afd90f5` was built cleanly, migrated through version eleven, and
+  rehosted on the development VPS. All three existing CPOs satisfied the new
+  required registration constraints and were preserved. The live 70-operation
+  route/OpenAPI surface, protected slug availability, retired routes, required
+  workers, running-binary identity, loopback/public readiness, and post-start
+  journal were verified. The disposable PostgreSQL lifecycle remains
+  unexecuted without authorization to drop a test database.
 
 Next expected slice:
 

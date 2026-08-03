@@ -47,11 +47,10 @@ the development deployment.
   - 12 platform CPO-control operations;
   - 4 platform operations/realtime queries.
 
-The development origin returned healthy liveness/readiness, Swagger UI, and a
-69-operation OpenAPI document during this reconciliation. It remains on the
-previous contract until this 70-operation source-tree change is deployed, so
-the slug-availability endpoint and mandatory registration fields must not be
-assumed live from the source contract alone.
+The development origin now serves healthy liveness/readiness, Swagger UI, and
+the 70-operation OpenAPI document from revision `afd90f5`. Migration eleven is
+recorded, so the slug-availability endpoint and mandatory registration fields
+are live on the development deployment.
 
 Configure the origin in the frontend environment. Do not hardcode it in API
 modules:

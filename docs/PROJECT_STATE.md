@@ -107,13 +107,11 @@ provides:
   handler;
 - the additive PostgreSQL database `devevcmsnewdb`, owned by `postgres`.
 
-The active development VPS runs source revision `1cec3f3`, with migration ten
-recorded and the deployed 69-operation contract. It does not yet include the
-source-tree migration eleven, mandatory registration contract, or the 70th
-slug-availability operation. The deployed release adds
-recipient-visible recovery IDs for new administrative/customer reset mail and
-fails incomplete reset or new-admin welcome payloads before enqueue/rendering.
-It required no database migration or configuration change. Migration nine
+The active development VPS runs source revision `afd90f5`, with migration
+eleven recorded and the deployed 70-operation contract. CPO GSTIN and address
+identity are now database-required, and authenticated platform clients can use
+the advisory slug-availability operation. All three pre-migration CPOs already
+satisfied the new constraints and were preserved unchanged. Migration nine
 continues to preserve the retired commercial prototype under
 `retired_commercial`.
 
@@ -132,6 +130,10 @@ yet.
 - `go test ./...` passed.
 - `go vet ./...` passed.
 - `git diff --check` passed.
+- Revision `afd90f5` was built cleanly, migrated through version eleven, and
+  rehosted. The installed hash, loopback/public readiness, live 70-operation
+  Swagger/OpenAPI, protected slug route, retired routes, required workers,
+  migration constraints, and journal passed.
 - Revision `1cec3f3` was built cleanly and rehosted. The installed hash,
   loopback/public liveness and readiness, live Swagger/OpenAPI, protected and
   retired routes, required workers, migration ledger, and journal passed.
@@ -276,7 +278,6 @@ repository. The integration contract has not been implemented yet.
   in the ignored deployment environment.
 - No generated frontend SDK exists yet; consumers use the reviewed OpenAPI
   contract directly.
-- Migration eleven and its PostgreSQL availability/uniqueness/constraint
-  lifecycle coverage have not executed because no disposable
-  `TEST_DATABASE_URL` is configured. The live development deployment remains
-  on migration ten and the prior 69-operation contract.
+- Migration eleven's disposable PostgreSQL lifecycle coverage has not executed
+  because deleting a test database was not authorized. The live development
+  deployment is current on migration eleven and the 70-operation contract.
