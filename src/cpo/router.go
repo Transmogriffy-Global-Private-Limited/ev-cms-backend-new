@@ -351,6 +351,19 @@ func parseCPOID(ctx *gin.Context) (uuid.UUID, bool) {
 	return cpoID, true
 }
 
+func parseUserID(ctx *gin.Context) (uuid.UUID, bool) {
+	userID, err := uuid.Parse(ctx.Param("user_id"))
+	if err != nil || userID == uuid.Nil {
+		writeError(ctx, &auth.APIError{
+			Status:  http.StatusBadRequest,
+			Code:    "invalid_user_id",
+			Message: "The user ID is invalid.",
+		})
+		return uuid.Nil, false
+	}
+	return userID, true
+}
+
 func decodeJSON(ctx *gin.Context, destination any) error {
 	ctx.Request.Body = http.MaxBytesReader(ctx.Writer, ctx.Request.Body, 32*1024)
 	decoder := json.NewDecoder(ctx.Request.Body)
@@ -408,6 +421,7 @@ func RegisterCPORoutes(
 	group.GET("/admin/profile", handler.getAdminProfile)
 	group.PATCH("/admin/profile", handler.updateAdminProfile)
 	group.GET("/organization", handler.getOrganization)
+	group.GET("/users/:user_id", handler.getUser)
 	group.POST("/chargers", handler.createCharger)
 	group.GET("/chargers", handler.listChargers)
 	group.GET("/chargers/:charger_id", handler.getCharger)
@@ -471,6 +485,20 @@ func (handler *Handler) updateAdminProfile(ctx *gin.Context) {
 func (handler *Handler) getOrganization(ctx *gin.Context) {
 	principal, _ := auth.CurrentPrincipal(ctx)
 	record, err := handler.service.GetOrganization(ctx.Request.Context(), principal)
+	if err != nil {
+		writeError(ctx, err)
+		return
+	}
+	ctx.JSON(http.StatusOK, record)
+}
+
+func (handler *Handler) getUser(ctx *gin.Context) {
+	principal, _ := auth.CurrentPrincipal(ctx)
+	userID, ok := parseUserID(ctx)
+	if !ok {
+		return
+	}
+	record, err := handler.service.GetUser(ctx.Request.Context(), principal, userID)
 	if err != nil {
 		writeError(ctx, err)
 		return

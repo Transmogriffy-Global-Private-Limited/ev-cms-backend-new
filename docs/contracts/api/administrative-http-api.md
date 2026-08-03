@@ -1413,7 +1413,34 @@ Shared middleware errors:
 - `403 cpo_app_id_mismatch`;
 - `500 internal_error`.
 
-### 9.4 `POST /api/v1/cpo/hubs`
+### 9.4 `GET /api/v1/cpo/users/{user_id}`
+
+Returns the basic identity and relationship details for a user registered to the
+authenticated CPO. The server resolves the CPO from the verified ADMIN session;
+there is no client-supplied tenant path parameter. A user can be returned when
+they are linked through either a CPO membership or a CPO customer relationship.
+
+```json
+{
+  "id": "2fbf7d2e-2ccf-4f71-b3c2-b9502170d900",
+  "cpo_id": "c821a013-5041-42f7-80c8-aa153cf9d455",
+  "email": "driver@example.com",
+  "full_name": "Driver User",
+  "phone": "+919876543210",
+  "is_active": true,
+  "is_verified": true,
+  "role": "ADMIN",
+  "membership_status": "ACTIVE",
+  "created_at": "2026-07-31T11:00:00Z",
+  "updated_at": "2026-07-31T12:00:00Z"
+}
+```
+
+`role`, `membership_status`, and `customer_status` are included only when the
+user is linked through the corresponding CPO relationship. The endpoint is
+read-only and does not write audit evidence.
+
+### 9.5 `POST /api/v1/cpo/hubs`
 
 Creates a commercial charging location. The server sources `id`, `cpo_id`, and
 timestamps.

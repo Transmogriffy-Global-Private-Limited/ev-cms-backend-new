@@ -1859,6 +1859,53 @@ paths:
         "500":
           $ref: "#/components/responses/InternalError"
 
+  /api/v1/cpo/users/{user_id}:
+    get:
+      tags: [CPO Operations]
+      operationId: getCPOUser
+      summary: Read a user registered to this CPO
+      description: |
+        Returns the basic identity and relationship details for a user that is
+        directly linked to the authenticated CPO through either a CPO membership
+        or a CPO customer relationship. The CPO ID is derived from the verified
+        ADMIN session; callers cannot select another tenant.
+      security:
+        - BearerAuth: []
+          CPOAppID: []
+      parameters:
+        - name: user_id
+          in: path
+          required: true
+          description: UUID of the user to read.
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: User details for the authenticated CPO.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CPOUser"
+        "400":
+          description: "`invalid_user_id` or missing app-ID header."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/CPOBusinessForbidden"
+        "404":
+          description: "`user_not_found` — the user is not registered to this CPO."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
   /api/v1/cpo/chargers:
     post:
       tags: [CPO Operations]
@@ -4296,6 +4343,38 @@ components:
           type: string
           enum: [ADMIN]
         is_verified: {type: boolean}
+        created_at: {type: string, format: date-time}
+        updated_at: {type: string, format: date-time}
+
+    CPOUser:
+      type: object
+      additionalProperties: false
+      required:
+        - id
+        - cpo_id
+        - email
+        - full_name
+        - is_active
+        - is_verified
+        - created_at
+        - updated_at
+      properties:
+        id: {type: string, format: uuid}
+        cpo_id: {type: string, format: uuid}
+        email: {type: string, format: email}
+        full_name: {type: string}
+        phone: {type: string, maxLength: 32}
+        is_active: {type: boolean}
+        is_verified: {type: boolean}
+        role:
+          type: string
+          enum: [ADMIN]
+        membership_status:
+          type: string
+          enum: [ACTIVE, SUSPENDED, REVOKED]
+        customer_status:
+          type: string
+          enum: [ACTIVE, SUSPENDED, REVOKED]
         created_at: {type: string, format: date-time}
         updated_at: {type: string, format: date-time}
 

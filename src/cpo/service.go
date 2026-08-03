@@ -1556,6 +1556,87 @@ func adminProfileView(user models.User, cpoID uuid.UUID) AdminProfileView {
 	}
 }
 
+func cpoUserView(
+	user models.User,
+	cpoID uuid.UUID,
+	isMembership bool,
+	isCustomer bool,
+	membership models.CPOMembership,
+	customer models.Customer,
+) CPOUserView {
+	view := CPOUserView{
+		ID:         user.ID,
+		CPOID:      cpoID,
+		Email:      user.Email,
+		FullName:   user.FullName,
+		Phone:      user.Phone,
+		IsActive:   user.IsActive,
+		IsVerified: user.IsVerified,
+		CreatedAt:  user.CreatedAt,
+		UpdatedAt:  user.UpdatedAt,
+	}
+	if isMembership {
+		role := membership.Role
+		view.Role = &role
+		status := membership.Status
+		view.MembershipStatus = &status
+	}
+	if isCustomer {
+		status := customer.Status
+		view.CustomerStatus = &status
+	}
+	return view
+}
+
+func (service *Service) GetUser(
+	ctx context.Context,
+	principal auth.Principal,
+	userID uuid.UUID,
+) (CPOUserView, error) {
+	if err := requireCPOAdminAccess(principal); err != nil {
+		return CPOUserView{}, err
+	}
+
+	cpoID := *principal.CPOID
+	var user models.User
+	if err := service.database.WithContext(ctx).First(&user, "id = ?", userID).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return CPOUserView{}, &auth.APIError{
+				Status:  http.StatusNotFound,
+				Code:    "user_not_found",
+				Message: "The user was not found for this CPO.",
+			}
+		}
+		return CPOUserView{}, fmt.Errorf("load CPO user: %w", err)
+	}
+
+	var membership models.CPOMembership
+	membershipErr := service.database.WithContext(ctx).
+		Where("cpo_id = ? AND user_id = ?", cpoID, user.ID).
+		First(&membership).Error
+	if membershipErr != nil && !errors.Is(membershipErr, gorm.ErrRecordNotFound) {
+		return CPOUserView{}, fmt.Errorf("load CPO membership: %w", membershipErr)
+	}
+
+	var customer models.Customer
+	customerErr := service.database.WithContext(ctx).
+		Where("cpo_id = ? AND user_id = ?", cpoID, user.ID).
+		First(&customer).Error
+	if customerErr != nil && !errors.Is(customerErr, gorm.ErrRecordNotFound) {
+		return CPOUserView{}, fmt.Errorf("load CPO customer: %w", customerErr)
+	}
+
+	if membershipErr != nil && customerErr != nil {
+		return CPOUserView{}, &auth.APIError{
+			Status:  http.StatusNotFound,
+			Code:    "user_not_found",
+			Message: "The user was not found for this CPO.",
+		}
+	}
+
+	return cpoUserView(user, cpoID, membershipErr == nil, customerErr == nil, membership, customer), nil
+}
+
 func (service *Service) GetOrganization(
 	ctx context.Context,
 	principal auth.Principal,

@@ -148,6 +148,21 @@ type AdminProfileView struct {
 	UpdatedAt  time.Time         `json:"updated_at"`
 }
 
+type CPOUserView struct {
+	ID               uuid.UUID                   `json:"id"`
+	CPOID            uuid.UUID                   `json:"cpo_id"`
+	Email            string                      `json:"email"`
+	FullName         string                      `json:"full_name"`
+	Phone            *string                     `json:"phone,omitempty"`
+	IsActive         bool                        `json:"is_active"`
+	IsVerified       bool                        `json:"is_verified"`
+	Role             *constants.CPORole          `json:"role,omitempty"`
+	MembershipStatus *constants.MembershipStatus `json:"membership_status,omitempty"`
+	CustomerStatus   *constants.CustomerStatus   `json:"customer_status,omitempty"`
+	CreatedAt        time.Time                   `json:"created_at"`
+	UpdatedAt        time.Time                   `json:"updated_at"`
+}
+
 // OrganizationView is the tenant-safe, read-only projection of the CPO record.
 // It intentionally omits platform actor IDs and the privileged lifecycle reason.
 type OrganizationView struct {
