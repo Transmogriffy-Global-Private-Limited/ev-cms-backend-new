@@ -644,8 +644,8 @@ func TestCPOSuperadminDependencyLifecycleWithPostgreSQL(t *testing.T) {
 		t.Fatal("case-insensitive duplicate slug was accepted")
 	} else {
 		var apiErr *auth.APIError
-		if !errors.As(err, &apiErr) || apiErr.Code != "cpo_conflict" {
-			t.Fatalf("duplicate slug returned %v, want cpo_conflict", err)
+		if !errors.As(err, &apiErr) || apiErr.Code != "cpo_slug_conflict" {
+			t.Fatalf("duplicate slug returned %v, want cpo_slug_conflict", err)
 		}
 	}
 
@@ -658,8 +658,8 @@ func TestCPOSuperadminDependencyLifecycleWithPostgreSQL(t *testing.T) {
 		t.Fatal("case-insensitive duplicate GSTIN was accepted")
 	} else {
 		var apiErr *auth.APIError
-		if !errors.As(err, &apiErr) || apiErr.Code != "cpo_conflict" {
-			t.Fatalf("duplicate GSTIN returned %v, want cpo_conflict", err)
+		if !errors.As(err, &apiErr) || apiErr.Code != "cpo_gstin_conflict" {
+			t.Fatalf("duplicate GSTIN returned %v, want cpo_gstin_conflict", err)
 		}
 	}
 

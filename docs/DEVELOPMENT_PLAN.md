@@ -313,6 +313,8 @@ Scope:
 - Require GSTIN and complete address fields for creation/profile replacement
 - Enforce normalized global uniqueness for slug and GSTIN
 - Expose an authenticated advisory slug-availability query for FE validation
+- Report the exact known slug, GSTIN, app-ID, identity, or administrator
+  membership uniqueness cause through stable `409` error codes
 - Create or attach the first CPO admin identity and membership transactionally
 - Encrypted email job and SMTP delivery of a generated temporary password for a
   new identity, with fail-closed payload validation
@@ -352,6 +354,8 @@ Acceptance criteria:
   PostgreSQL preserves the same invariant outside the HTTP boundary.
 - Slug availability returns the normalized candidate and current availability,
   while final creation still resolves concurrent uniqueness races.
+- Known uniqueness races return a field- or relationship-specific conflict code
+  instead of collapsing into an ambiguous CPO conflict.
 - Activation permits CPO administrative login while retaining the dummy app ID.
 - Superadmin can replace the dummy/current app ID with a validated live ID.
 - Only the current app ID is accepted on CPO-scoped business APIs.
@@ -660,6 +664,9 @@ Current implementation slice:
 
 Last completed slice:
 
+- Added constraint-aware `409` errors for CPO slug, GSTIN, app ID,
+  administrator identity, membership, and primary-administrator collisions,
+  retaining `cpo_conflict` only as an unknown-constraint fallback
 - Implemented mandatory GSTIN/address registration and profile invariants,
   preserved database-authoritative normalized slug/GSTIN uniqueness, and added
   the authenticated advisory slug-availability contract; PostgreSQL execution

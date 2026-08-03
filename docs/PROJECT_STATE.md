@@ -38,6 +38,8 @@ provides:
   replacement, backed by database constraints and normalized GSTIN uniqueness;
 - authenticated platform slug-availability lookup for responsive FE validation,
   with final creation/database uniqueness remaining authoritative;
+- constraint-aware platform CPO conflict responses that distinguish slug,
+  GSTIN, app ID, administrator identity, membership, and primary-admin races;
 - durable current lifecycle reason, actor, and transition time;
 - one durable primary administrator per provisioned CPO, with safe visibility,
   replacement/restoration, credential-free onboarding resend, and targeted CPO
@@ -123,6 +125,9 @@ yet.
 ## Verification
 
 - Go formatting completed.
+- Known CPO unique-constraint mappings and the unknown-constraint fallback have
+  focused unit coverage; PostgreSQL lifecycle assertions now require the exact
+  slug and GSTIN conflict codes.
 - Required-field validation, slug normalization/authorization, migration
   content, and affected package tests passed for the source-tree change.
 - The 70-operation source OpenAPI and runtime route sets match; documentation

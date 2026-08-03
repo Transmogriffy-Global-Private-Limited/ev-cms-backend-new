@@ -1022,7 +1022,15 @@ Errors:
 - field-specific `400 invalid_*` codes listed in OpenAPI;
 - `401 unauthorized`;
 - `403 forbidden`;
-- `409 cpo_conflict` for unique slug/GSTIN/app-ID/membership collisions;
+- `409 cpo_slug_conflict` when the normalized slug already exists;
+- `409 cpo_gstin_conflict` when the normalized GSTIN is assigned elsewhere;
+- `409 cpo_app_id_conflict` for the generated app-ID collision;
+- `409 admin_identity_conflict` when a concurrent request creates the global
+  administrator identity first;
+- `409 cpo_admin_membership_conflict` or `cpo_primary_admin_conflict` for
+  administrator-membership races;
+- `409 cpo_conflict` only as the safe fallback for an unrecognized unique
+  constraint;
 - `409 admin_identity_inactive`;
 - `503 mail_unavailable`;
 - `500 internal_error`.
@@ -1050,8 +1058,8 @@ the same 80-character, single-hyphen-separated format as creation.
 
 The returned slug is the normalized value. `available` is only a current
 snapshot: another request may create that slug immediately afterward. The FE
-must still handle `409 cpo_conflict` from CPO creation and must not treat this
-GET as a reservation.
+must still handle `409 cpo_slug_conflict` from CPO creation and must not treat
+this GET as a reservation.
 
 Errors: `400 invalid_slug`, `401 unauthorized`, `403 forbidden`, or
 `500 internal_error`. The operation is read-only, side-effect-free, and safe to
@@ -1149,7 +1157,7 @@ The transaction updates the CPO, writes `CPO_PROFILE_UPDATED` audit evidence,
 and emits `platform.cpo.profile_updated`. `200 OK` returns the updated CPO.
 
 Errors: field-specific `400` errors from OpenAPI; shared authentication errors;
-`404 cpo_not_found`; `409 cpo_conflict` for a GSTIN collision; or
+`404 cpo_not_found`; `409 cpo_gstin_conflict` for a GSTIN collision; or
 `500 internal_error`.
 
 ### 8.6 `POST /api/v1/platform/cpos/{cpo_id}/activate`
@@ -1206,7 +1214,7 @@ immediate. Existing sessions remain valid, while old app-ID headers fail.
 
 Errors: `400 invalid_request`, `400 invalid_cpo_id`,
 `400 invalid_cpo_app_id`, `401 unauthorized`, `403 forbidden`,
-`404 cpo_not_found`, `409 cpo_conflict`, or `500 internal_error`.
+`404 cpo_not_found`, `409 cpo_app_id_conflict`, or `500 internal_error`.
 
 ### 8.9 `GET /api/v1/platform/cpos/{cpo_id}/primary-admin`
 
@@ -1282,7 +1290,9 @@ it and queues credential-free onboarding details.
 `200 OK` returns the primary-admin view from endpoint 8.8.
 
 Errors: request-field `400` errors from OpenAPI; shared authentication errors;
-`404 cpo_not_found`; `409 admin_identity_inactive` or membership conflict;
+`404 cpo_not_found`; `409 admin_identity_inactive`,
+`admin_identity_conflict`, `cpo_admin_membership_conflict`, or
+`cpo_primary_admin_conflict`;
 `503 mail_unavailable`; or `500 internal_error`.
 
 ### 8.11 `POST /api/v1/platform/cpos/{cpo_id}/primary-admin/resend-onboarding`

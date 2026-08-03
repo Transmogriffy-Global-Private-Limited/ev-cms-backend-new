@@ -78,7 +78,7 @@ approved origin policy and HTTPS.
 | Authenticated password change | Ready | Success revokes every session and requires login |
 | Forgot/reset password | Ready | Forgot stays generic; an eligible recipient's email contains both recovery ID and code |
 | CPO list/search/filter/cursor | Ready | REST is authoritative; reset cursor when filters change |
-| CPO slug availability | Ready in source; pending deployment | Advisory only; creation can still return `cpo_conflict` |
+| CPO slug availability | Ready in source; pending deployment | Advisory only; creation can still return `cpo_slug_conflict` |
 | CPO create/profile/lifecycle/app ID | Ready | Mutations are platform-only; reasons are required where documented |
 | Primary-admin inspect/replace/recover | Ready | No password, OTP, token, or mail body is returned |
 | CPO administrative-session revocation | Ready | Does not revoke customer or platform sessions |
@@ -682,8 +682,8 @@ The server trims and lowercases the candidate and returns that normalized value:
 
 Only display the result if the response slug still matches the form's current
 normalized slug. `available=true` does not reserve it. Another creation can win
-the race, so keep `409 cpo_conflict` handling on the final POST and present it
-as a fresh uniqueness validation failure.
+the race, so keep `409 cpo_slug_conflict` handling on the final POST and attach
+it to the slug field as a fresh validation failure.
 
 ### Create and onboard
 
@@ -1102,7 +1102,13 @@ the last command failed or that no event committed.
 | `404 cpo_not_found` | Close stale detail and refresh collection |
 | `404 primary_admin_not_found` | Show recovery state; do not fabricate an administrator |
 | `404 session_not_found` | Refresh own sessions; target was absent or not owned |
-| `409 cpo_conflict` | Show authoritative uniqueness/membership conflict; an earlier availability result is not a reservation |
+| `409 cpo_slug_conflict` | Attach to slug; an earlier availability result is not a reservation |
+| `409 cpo_gstin_conflict` | Attach to GSTIN; it is already assigned to another CPO |
+| `409 cpo_app_id_conflict` | Attach to app ID; the requested ID is already assigned |
+| `409 admin_identity_conflict` | A concurrent request created the identity; retry once through the normal mutation flow |
+| `409 cpo_admin_membership_conflict` | Refresh primary-admin state; the identity is already a member of this CPO |
+| `409 cpo_primary_admin_conflict` | Refresh primary-admin state; another primary assignment won the race |
+| `409 cpo_conflict` | Safe form-level fallback for an unrecognized uniqueness constraint |
 | `409 admin_identity_inactive` | Cannot assign this identity with current APIs |
 | `409 primary_admin_unavailable` | Refresh primary admin; active identity/membership is required |
 | `409 realtime_cursor_expired` | Full REST snapshot recovery, then cursor reset |
@@ -1180,7 +1186,7 @@ invalidate them.
 ### CPO control
 
 - [ ] List filters reset both cursor fields.
-- [ ] Slug preflight is debounced/cancelled and final creation still handles `cpo_conflict`.
+- [ ] Slug preflight is debounced/cancelled and final creation still handles `cpo_slug_conflict`.
 - [ ] Detail and primary admin load as separate resources.
 - [ ] Profile form sends a complete replacement snapshot.
 - [ ] GSTIN and every address field are required in create and profile forms.

@@ -30,7 +30,9 @@ cannot reserve a value or remove the concurrency race.
   client a read-only snapshot for a normalized candidate.
 - The availability response is advisory and does not reserve the slug. CPO
   creation and the unique index remain authoritative and can still return
-  `cpo_conflict`.
+  `cpo_slug_conflict`. Known GSTIN, app-ID, identity, membership, and
+  primary-administrator collisions likewise return their documented specific
+  `409` codes; `cpo_conflict` remains only as an unknown-constraint fallback.
 
 ## Consequences
 
