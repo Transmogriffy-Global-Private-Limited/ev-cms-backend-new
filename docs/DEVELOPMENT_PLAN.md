@@ -765,13 +765,12 @@ Last completed slice:
 
 Last deployment milestone:
 
-- Revision `9760523` was built cleanly and rehosted on the development VPS with
-  migration eleven already current and all four CPOs preserved. The live
-  70-operation route/OpenAPI surface advertises the field-specific CPO conflict
-  codes; protected and retired routes, required workers, running-binary
-  identity, loopback/public readiness, and the post-start journal were
-  verified. The disposable PostgreSQL lifecycle remains unexecuted without
-  authorization to drop a test database.
+- Revision `d27e599` was built cleanly and rehosted on the development VPS with
+  migration eleven already current. The live 70-operation route/OpenAPI
+  surface now emits safe correlated HTTP request diagnostics under
+  `LOG_LEVEL=DEBUG`; running-binary identity, the loopback-only listener,
+  loopback/public readiness, zero-restart service state, and the post-start
+  journal were verified. No migration or live data mutation was required.
 
 Next expected slice:
 

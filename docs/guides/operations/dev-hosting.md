@@ -21,12 +21,13 @@ started as a second systemd service because that would create an unnecessary
 duplicate worker.
 
 The active deployment was updated on August 3, 2026 to source revision
-`9760523`. It has migrations one through eleven and the current 70-operation
+`d27e599`. It has migrations one through eleven and the current 70-operation
 API. GSTIN and complete address identity are database-required for CPOs, the
 authenticated platform slug-availability route is live, and known uniqueness
-races return field- or relationship-specific conflict codes. The eleven
-retired commercial prototype tables remain recoverable in the
-`retired_commercial` schema.
+races return field- or relationship-specific conflict codes. Safe structured
+HTTP request diagnostics are active with `LOG_LEVEL=DEBUG`. The eleven retired
+commercial prototype tables remain recoverable in the `retired_commercial`
+schema.
 
 ## Files and Ownership
 
@@ -114,8 +115,7 @@ content exclusions are defined in
 `docs/contracts/internal/http-request-logging.md`. Long-lived SSE requests are
 recorded when they disconnect. A recovered panic first emits a correlated safe
 JSON stack diagnostic without Gin's request dump or the panic value. The
-currently deployed `afd90f5` binary predates this logger until a later
-authorized release replaces it.
+currently deployed `d27e599` binary includes this logger.
 
 For a developer diagnostic session, set `LOG_LEVEL=DEBUG` in the ignored
 deployment environment and rehost. This adds request-start and handled-error

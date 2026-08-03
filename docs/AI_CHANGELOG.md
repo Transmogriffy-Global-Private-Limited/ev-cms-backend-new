@@ -2,6 +2,27 @@
 
 ## 2026-08-03
 
+### Safe HTTP request diagnostics deployed to the development VPS
+
+- Built revision `d27e599`, confirmed it has no migration, dependency, Caddy,
+  or systemd change, and rehosted `evcmsnew-dev.service` through the shared
+  handler with the configured `LOG_LEVEL=DEBUG` environment.
+- Preserved the previously installed binary as
+  `builds/evcmsnew.pre-d27e599`; no database migration or data mutation was
+  required for this logging-only release.
+
+Verification:
+
+- Focused configuration, middleware, and route tests, `go test ./...`,
+  `go vet ./...`, formatting checks, and `git diff --check` passed before
+  activation.
+- The installed binary identifies revision `d27e599`; systemd is enabled and
+  active with zero restarts and listens only on `127.0.0.1:18080`.
+- Loopback and public liveness/readiness passed, Swagger UI and the live
+  70-operation OpenAPI returned `200`, and the journal emitted correlated
+  `http_request_started` and `http_request_completed` JSON records with no
+  startup error or panic.
+
 ### Field-specific CPO conflicts deployed to the development VPS
 
 - Built revision `9760523`, confirmed the release has no migration,

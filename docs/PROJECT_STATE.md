@@ -115,14 +115,15 @@ provides:
   handler;
 - the additive PostgreSQL database `devevcmsnewdb`, owned by `postgres`.
 
-The active development VPS runs source revision `9760523`, with migration
+The active development VPS runs source revision `d27e599`, with migration
 eleven recorded and the deployed 70-operation contract. CPO GSTIN and address
 identity are database-required, authenticated platform clients can use the
 advisory slug-availability operation, and known uniqueness races return
 field- or relationship-specific conflict codes. All four CPOs were complete
 and preserved during deployment. Migration nine continues to preserve the
-`retired_commercial`. The source-tree HTTP request logger is not active on that
-deployment until a later authorized release.
+`retired_commercial` schema. Safe structured HTTP request logging is active;
+the current development environment uses `LOG_LEVEL=DEBUG` for correlated
+request-start and completion diagnostics.
 
 No CMS/HAL transport or handshake, live charger state ingestion, charging
 workflow, tenant payment workflow, tenant commercial-management workflow,
@@ -148,6 +149,10 @@ yet.
 - `go test ./...` passed.
 - `go vet ./...` passed.
 - `git diff --check` passed.
+- Revision `d27e599` was built cleanly and rehosted without a migration. The
+  installed identity, loopback-only listener, loopback/public readiness, live
+  70-operation Swagger/OpenAPI, zero-restart service state, DEBUG request-start
+  and completion records, and absence of startup errors or panics passed.
 - Revision `9760523` was built cleanly and rehosted with migration eleven
   already current. The installed hash, loopback/public readiness, live
   70-operation Swagger/OpenAPI with field-specific conflict codes, protected
