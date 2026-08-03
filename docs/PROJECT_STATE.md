@@ -25,7 +25,9 @@ provides:
 - mandatory email OTP for platform and CPO administrative login;
 - signed-then-encrypted access JWTs and rotating opaque refresh tokens;
 - durable sessions with list/current/all/specific revocation APIs;
-- enumeration-safe password recovery and authenticated password change;
+- enumeration-safe password-recovery start/reset handlers and authenticated
+  password change; frontend reset completion remains blocked because the
+  recovery challenge ID is not delivered to the recipient;
 - trusted principal, user ID, CPO ID, platform, and CPO-role helpers;
 - encrypted PostgreSQL mail outbox with a retrying, encrypted-transport SMTP
   worker;
@@ -61,6 +63,10 @@ provides:
 - a canonical CPO backend AI-agent handoff covering current capability,
   ownership, tenant/HAL boundaries, remaining dependency order, slice
   execution, verification, and handoff requirements;
+- a canonical SuperAdmin frontend handoff covering the 27-operation platform
+  integration surface, TypeScript contracts, auth/token state, CPO workflows,
+  audit/workers, SSE/replay, error UX, security, verification, and explicit
+  blocked/unimplemented behavior;
 - canonical OpenAPI 3.1 for all 69 source-tree business/health operations;
 - embedded same-origin Swagger UI at `/docs/` and raw OpenAPI at
   `/openapi.yaml`;
@@ -77,8 +83,9 @@ provides:
   CPO without a staff role;
 - customer password-plus-mail-OTP login, signed/encrypted access tokens, and
   rotating/reuse-detecting refresh tokens;
-- app-user `me`, customer-scoped session listing/revocation/logout, and global
-  password recovery/change;
+- app-user `me`, customer-scoped session listing/revocation/logout, global
+  password-reset handlers, and password change; customer frontend recovery has
+  the same missing challenge-ID delivery gap as administrative recovery;
 - trusted backend current-principal, user, customer, CPO, and app-ID helpers;
 - environment-controlled permissive CORS middleware and a current development
   configuration that listens on all IPv4 interfaces for access from other
@@ -133,7 +140,9 @@ yet.
   password.
 - Platform and CPO admin email-OTP login passed using encrypted outbox payloads.
 - Encrypted access-token validation, refresh rotation, reuse-triggered session
-  revocation, and password recovery passed.
+  revocation, and backend password-reset handling passed. The password test
+  obtained the challenge ID internally; it did not prove a frontend recipient
+  can obtain that ID from the current forgot response/email.
 - The mail worker claimed, decrypted, delivered through a test sender, and
   completed a durable job.
 - Hostinger implicit-TLS configuration loaded successfully and the SMTP sender
@@ -165,8 +174,9 @@ yet.
   in PostgreSQL 17.
 - Customer login OTP, encrypted access validation, `me`, refresh rotation and
   reuse revocation, customer-scoped session listing/revocation/logout,
-  password recovery, password change, and global session revocation passed in
-  PostgreSQL lifecycle tests.
+  password-reset handling, password change, and global session revocation
+  passed in PostgreSQL lifecycle tests. Recovery tests obtained the challenge
+  ID internally and did not verify recipient delivery.
 - Permissive CORS preflight behavior and the disabled-CORS path passed focused
   route tests; authentication and authorization remain active in either mode.
 - Platform operations compile; model parsing, migration discovery/pairing, mail
@@ -234,6 +244,12 @@ repository. The integration contract has not been implemented yet.
 
 ## Known Limitations
 
+- Administrative forgot-password creates and mails a recovery OTP, but neither
+  its generic response nor the current email delivers the challenge ID required
+  by reset. A frontend cannot complete password recovery until that contract is
+  repaired without weakening enumeration safety.
+- Customer forgot-password has the same challenge-ID delivery gap, so its
+  reset/resend handlers are also not a frontend-complete recovery flow.
 - Only the initial administrator profile and network/GST/tariff subset has
   handlers. Customer directory, access tokens, charging, wallets, payments,
   reporting, and most other domain tables remain without business APIs.

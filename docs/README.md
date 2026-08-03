@@ -12,6 +12,7 @@ This directory is the durable project memory for the EV CMS backend.
 | Database ownership and model mapping | `SCHEMA.md` |
 | Detailed authentication API semantics | `AUTHENTICATION.md` |
 | Detailed platform CPO API semantics | `CPO_ADMINISTRATION.md` |
+| Complete SuperAdmin frontend integration handoff | `SUPERADMIN_FRONTEND_HANDOFF.md` |
 | CPO backend AI-agent orientation and execution | `CPO_BACKEND_AGENT_HANDOFF.md` |
 | Complete superadmin architecture and boundaries | `guides/concepts/superadmin-control-plane.md` |
 | Platform realtime event contract | `contracts/realtime/platform-events.md` |
@@ -27,6 +28,9 @@ This directory is the durable project memory for the EV CMS backend.
 
 `contracts/api/administrative-http-api.md` is the complete endpoint index and
 auth/control-plane handoff, including manual CPO activation and suspension.
+`SUPERADMIN_FRONTEND_HANDOFF.md` turns the implemented platform subset into a
+screen, state-machine, TypeScript, realtime, error, security, and verification
+handoff while explicitly recording blocked and unimplemented FE behavior.
 `contracts/openapi/openapi.yaml` is the machine-readable contract
 embedded into the service. The app serves it at `/openapi.yaml` and serves
 self-contained Swagger UI at `/docs/` only when `API_DOCS_ENABLED=true`.

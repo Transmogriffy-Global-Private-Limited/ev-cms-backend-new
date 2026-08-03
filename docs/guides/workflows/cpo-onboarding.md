@@ -60,7 +60,7 @@ assignment email is queued. An inactive global identity is rejected.
 ```text
 Administrator cannot access CPO
 ├─ still the correct active primary
-│  ├─ forgot password → use normal password recovery
+│  ├─ forgot password → recovery start exists; FE completion is currently blocked
 │  └─ lost CPO/app details → resend onboarding details
 ├─ membership was revoked but same person remains responsible
 │  └─ assign the same email as primary to restore membership
@@ -73,6 +73,11 @@ Administrator cannot access CPO
 Resend uses
 `POST /api/v1/platform/cpos/{cpo_id}/primary-admin/resend-onboarding`.
 It queues only current CPO/app details and password-recovery guidance.
+
+The current password-recovery mail contains the OTP but not the challenge ID
+required by the reset endpoint. Until that backend contract is repaired,
+resending onboarding can provide CPO/app details but cannot by itself make the
+documented password-reset completion usable from a frontend.
 
 Replacement uses
 `PUT /api/v1/platform/cpos/{cpo_id}/primary-admin`. It is transactional and

@@ -4,6 +4,8 @@ For a complete endpoint-by-endpoint contract, use
 `docs/contracts/api/administrative-http-api.md`. The validated machine-readable
 contract is `docs/contracts/openapi/openapi.yaml`; while the service runs it is
 available through Swagger UI at `/docs/` and directly at `/openapi.yaml`.
+SuperAdmin frontend implementers should start with
+`docs/SUPERADMIN_FRONTEND_HANDOFF.md`.
 
 ## Boundary
 
@@ -253,6 +255,13 @@ Successful status: `204 No Content`.
 Always returns the same `202 Accepted` response for eligible and unknown email
 addresses. An eligible identity receives an encrypted-outbox OTP.
 
+Current frontend limitation: the response intentionally omits the challenge
+ID, but the current email also contains only the OTP and expiry. Because reset
+requires both challenge ID and OTP, a browser recipient cannot complete the
+flow yet. Do not advertise end-to-end password recovery until an opaque
+challenge identifier is delivered through the recovery email/link without
+weakening enumeration safety.
+
 ### Reset password
 
 `POST /api/v1/auth/password/reset`
@@ -267,6 +276,10 @@ addresses. An eligible identity receives an encrypted-outbox OTP.
 
 Successful reset consumes the challenge and revokes every existing session and
 refresh token.
+
+The endpoint behavior is implemented and backend-tested when a caller already
+has the internal challenge ID. It is not currently reachable as a complete
+frontend workflow for the reason documented above.
 
 ### Change password
 

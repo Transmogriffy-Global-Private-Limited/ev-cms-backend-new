@@ -13,6 +13,8 @@ Before planning or changing code, read:
 - `docs/SCHEMA.md`
 - `docs/AUTHENTICATION.md`
 - `docs/CPO_ADMINISTRATION.md`
+- `docs/SUPERADMIN_FRONTEND_HANDOFF.md` for every SuperAdmin frontend or
+  frontend-integration task
 - `docs/CPO_BACKEND_AGENT_HANDOFF.md` for every CPO-side backend task
 - `docs/AI_CHANGELOG.md`
 - `docs/README.md`
@@ -40,6 +42,10 @@ verification changes.
 - `docs/AUTHENTICATION.md` and `docs/CPO_ADMINISTRATION.md` remain the detailed
   workflow references. `docs/contracts/api/administrative-http-api.md` is the
   complete human endpoint contract.
+- `docs/SUPERADMIN_FRONTEND_HANDOFF.md` is the canonical no-chat-history
+  integration guide for the platform SuperAdmin frontend. It must distinguish
+  callable, blocked, planned, and intentionally unsupported behavior and stay
+  aligned with auth, CPO, platform-operations, realtime, and OpenAPI contracts.
 - `docs/CPO_BACKEND_AGENT_HANDOFF.md` is the canonical no-chat-history
   orientation and execution guide for agents assigned to CPO-side backend
   work. It must stay aligned with routes, ownership, plans, and verification.

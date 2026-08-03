@@ -12,6 +12,7 @@ $requiredFiles = @(
     'docs/AI_CHANGELOG.md',
     'docs/AUTHENTICATION.md',
     'docs/CPO_ADMINISTRATION.md',
+    'docs/SUPERADMIN_FRONTEND_HANDOFF.md',
     'docs/CPO_BACKEND_AGENT_HANDOFF.md',
     'docs/guides/concepts/identity-tenancy-and-application-identity.md',
     'docs/guides/concepts/superadmin-control-plane.md',
@@ -65,6 +66,23 @@ $requiredCPOAgentRules = @(
 foreach ($rule in $requiredCPOAgentRules) {
     if (-not $cpoAgentHandoff.Contains($rule)) {
         throw "CPO backend agent handoff is missing required rule: $rule"
+    }
+}
+
+$superadminFEHandoff = Get-Content -Raw -LiteralPath (
+    Join-Path $repositoryRoot 'docs/SUPERADMIN_FRONTEND_HANDOFF.md'
+)
+$requiredSuperadminFERules = @(
+    'Send `scope: "PLATFORM"`; omit `cpo_id`',
+    'Use `fetch()` streaming, not native `EventSource`',
+    'Current password-recovery limitation',
+    '`platform.cpo.primary_admin_changed`',
+    'Tenant subscription/billing',
+    'SuperAdmin is not a CPO ADMIN'
+)
+foreach ($rule in $requiredSuperadminFERules) {
+    if (-not $superadminFEHandoff.Contains($rule)) {
+        throw "SuperAdmin frontend handoff is missing required rule: $rule"
     }
 }
 

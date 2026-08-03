@@ -501,7 +501,15 @@ all return the same `202 Accepted` message:
 Only an active customer receives an encrypted
 `CUSTOMER_PASSWORD_RESET_OTP` job. Account lockout does not prevent recovery.
 
+Current frontend limitation: the generic response and current recovery email
+both omit the challenge ID required by resend/completion below. The handlers
+exist, but an app recipient cannot enter this flow from forgot-password yet.
+
 ### 4.15 Customer password-reset resend and completion
+
+Both operations require a challenge ID that the current forgot-password
+response/email does not deliver to the app. Do not advertise this as a
+frontend-complete workflow until that enumeration-safe delivery gap is fixed.
 
 `POST /api/v1/app/auth/password/reset/resend`
 
@@ -756,6 +764,13 @@ Malformed email, unknown email, and eligible active identity intentionally
 share that response. An eligible identity receives a single-use encrypted
 `PASSWORD_RESET_OTP` job.
 
+Frontend limitation: the generic response does not return the challenge ID,
+and the current recovery email contains only the OTP and expiry. Because the
+reset endpoint requires the challenge ID too, a browser recipient cannot
+complete this flow yet. Preserve enumeration safety, but do not advertise
+end-to-end password recovery until the email/link delivers an opaque challenge
+identifier.
+
 Operational errors: `400 invalid_request`, `429 rate_limited`,
 `503 mail_unavailable`, or `500 internal_error`.
 
@@ -779,6 +794,8 @@ Request:
 
 Success consumes the challenge, replaces the Argon2id hash, clears lockout and
 `must_change_password`, and revokes every session and unused refresh token.
+The handler is usable only when the caller already possesses the challenge ID;
+the current frontend flow does not provide it.
 
 Errors:
 
@@ -972,6 +989,9 @@ Normalization and validation:
     "state": "West Bengal",
     "pincode": "700001",
     "status": "PENDING",
+    "status_reason": "Initial provisioning",
+    "status_changed_at": "2026-07-23T12:00:00Z",
+    "status_changed_by_user_id": "5cef4c95-a1da-448e-bd7c-19d570cd4497",
     "app_id": "cpo_dummy_735f36a898b84ce68a350db38c90bf9b",
     "app_id_mode": "DUMMY",
     "app_id_updated_at": "2026-07-23T12:00:00Z",
@@ -1171,13 +1191,11 @@ Purpose: provide the safe state needed by the Superadmin recovery UI.
   "identity_active": true,
   "identity_verified": true,
   "must_change_password": true,
-  "last_login_at": null,
   "latest_onboarding_delivery": {
     "job_id": "4ccb8733-b2e5-4f35-9953-f0e5f32176f2",
     "template": "CPO_ADMIN_WELCOME",
     "status": "PENDING",
     "attempts": 0,
-    "sent_at": null,
     "created_at": "2026-07-31T09:00:00Z",
     "updated_at": "2026-07-31T09:00:00Z"
   }
@@ -1929,11 +1947,11 @@ data: {"id":14582,"type":"platform.cpo.suspended","resource_type":"CPO","resourc
 Heartbeat comments keep the connection active and revalidate the durable
 session. Logout, session revocation, authority removal, network failure, or
 server shutdown closes the stream. The client reconnects with its last
-processed ID and uses endpoint 10.1 plus normal resource APIs for missed-event
+processed ID and uses endpoint 11.1 plus normal resource APIs for missed-event
 recovery. Ordering is ascending event ID; duplicate delivery is possible.
 
 Before streaming begins, errors use the same JSON envelope and status codes as
-endpoint 10.1. After streaming begins, errors close the connection because an
+endpoint 11.1. After streaming begins, errors close the connection because an
 HTTP status can no longer be replaced.
 
 ### 11.3 `GET /api/v1/platform/audit-logs`

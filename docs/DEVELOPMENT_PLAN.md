@@ -199,7 +199,7 @@ Verification:
 
 ### Feature: Authentication and credential boundary
 
-Status: Verified
+Status: Implemented
 
 Phase: Authentication and CPO administration
 
@@ -257,6 +257,14 @@ Acceptance criteria:
   header.
 - CPO integration secrets are never returned by an API or stored as plaintext.
 - Mail delivery survives process failure and can retry without logging OTPs.
+
+Known incomplete criterion:
+
+- Password-reset storage, validation, and revocation behavior is implemented
+  and backend-tested, but the forgot response and current email both omit the
+  challenge ID required by the reset request. Frontend recovery completion is
+  therefore not verified, and this feature must not return to `Verified` until
+  an enumeration-safe challenge-delivery contract and end-to-end test exist.
 
 Verification:
 
@@ -443,7 +451,7 @@ Detailed plan:
 
 ### Feature: Complete app-user authentication boundary
 
-Status: Verified
+Status: Implemented
 
 Phase: Phase 4: Customers, access tokens, and tariffs
 
@@ -470,6 +478,13 @@ Non-goals:
 - Social login, SMS, TOTP, passkeys, or device attestation
 - Customer profile editing
 - Staff/customer impersonation
+
+Known incomplete criterion:
+
+- Customer reset/resend handlers are implemented and backend-tested, but the
+  forgot response and current email do not deliver the required challenge ID.
+  This feature cannot return to `Verified` until an enumeration-safe recovery
+  entry path and frontend end-to-end verification exist.
 
 Detailed plan:
 
@@ -522,6 +537,12 @@ Objective:
 Finish the platform-management plane across manual CPO lifecycle, platform
 administrators, audit/security, mail/notifications, workers, announcements,
 overview, status, and durable realtime delivery.
+
+Current integration contract:
+
+- `docs/SUPERADMIN_FRONTEND_HANDOFF.md` is the canonical no-chat-history FE
+  guide and keeps implemented, blocked, planned, and intentionally unsupported
+  behavior separate.
 
 Non-goals:
 
@@ -615,6 +636,9 @@ Current implementation slice:
 
 Last completed slice:
 
+- Added the canonical exhaustive SuperAdmin frontend integration handoff and
+  corrected current event examples/payload guidance plus the administrative
+  password-recovery readiness claim
 - Reconciled the contributed CPO branch into an ADMIN-only identity,
   read-only organization, hub/charger/connector, GST, and tariff surface with
   69-operation runtime/OpenAPI parity
@@ -659,6 +683,10 @@ Blocked by:
 
 ## Risks and Unresolved Decisions
 
+- Administrative password recovery cannot currently be completed by a
+  frontend because the recipient is not given the challenge ID required by the
+  reset endpoint. A corrective contract must preserve enumeration safety and
+  be approved/implemented as a coherent auth, mail, OpenAPI, FE, and test slice.
 - Key rotation will initially require an explicit re-encryption operation before
   removing an old encryption key; automatic key rotation is deferred until a
   concrete operational requirement exists.

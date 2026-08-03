@@ -40,6 +40,13 @@ without accessing tenant business data.
 - Worker registration, health views, and readiness degradation
 - Platform-maintenance and observed mail-outbox workers
 - API documentation toggle and runtime/OpenAPI drift verification
+- Canonical SuperAdmin frontend handoff across auth, CPO control, audit,
+  workers, replay/SSE, errors, security, verification, and known gaps
+
+Administrative password-reset handlers exist, but the forgot response and
+current email do not deliver the challenge ID required by reset. This is a
+separate frontend-completion gap in the authentication foundation, not an
+implemented SuperAdmin control-plane capability.
 
 ## Retired Prototype
 

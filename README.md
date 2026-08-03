@@ -8,6 +8,8 @@ The current implementation includes the tenancy/schema foundation and the
 administrative authentication and credential boundary. See
 `docs/AUTHENTICATION.md` for the API and configuration contract,
 `docs/CPO_ADMINISTRATION.md` for platform CPO provisioning and app identity,
+`docs/SUPERADMIN_FRONTEND_HANDOFF.md` for the complete SuperAdmin frontend
+integration handoff,
 `docs/PROJECT_STATE.md` for implemented behavior, and
 `docs/DEVELOPMENT_PLAN.md` for approved sequencing.
 
@@ -84,6 +86,8 @@ sensitive deployments; restart is required.
 
 The complete human endpoint handoff is
 `docs/contracts/api/administrative-http-api.md`.
+The focused no-chat-history SuperAdmin frontend handoff is
+`docs/SUPERADMIN_FRONTEND_HANDOFF.md`.
 
 ## Migrations
 
