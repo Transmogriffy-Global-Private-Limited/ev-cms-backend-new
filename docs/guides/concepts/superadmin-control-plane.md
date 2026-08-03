@@ -46,6 +46,9 @@ The current platform-management surface includes:
 - searchable/filterable/cursor-paginated CPO collection and CPO detail;
 - CPO creation, business-profile replacement, reasoned activation/suspension,
   and app-ID replacement;
+- mandatory GSTIN and complete address registration backed by database
+  constraints, normalized unique slug/GSTIN indexes, and an advisory
+  authenticated slug-availability preflight;
 - primary-administrator visibility, recovery/replacement, credential-free
   onboarding resend, and CPO administrative-session revocation;
 - durable platform event replay and authenticated SSE;
@@ -58,9 +61,10 @@ The current source does not yet include platform-admin governance, generic mail
 job administration, notification/announcement, or overview/status command
 surfaces. Those remain planned in the active superadmin plan.
 
-The current administrative forgot/reset endpoints also lack a
-frontend-completable challenge-ID delivery path. The exact SuperAdmin FE-ready
-and blocked surface is recorded in `../../SUPERADMIN_FRONTEND_HANDOFF.md`.
+Administrative forgot/reset keeps its public response generic while the
+eligible recipient's encrypted email supplies the recovery ID, code, and
+expiry needed by reset. The exact SuperAdmin FE-ready and blocked surface is
+recorded in `../../SUPERADMIN_FRONTEND_HANDOFF.md`.
 
 ## Realtime and Recovery
 

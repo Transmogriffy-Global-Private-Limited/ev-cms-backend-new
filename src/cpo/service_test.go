@@ -22,6 +22,11 @@ func TestValidateCreateRequest(t *testing.T) {
 		Slug:         "example-cpo",
 		BusinessName: "Example Charging",
 		CompanyType:  constants.CPOCompanyTypeCompany,
+		GSTIN:        "19ABCDE1234F5Z6",
+		Address:      "1 Test Road",
+		City:         "Kolkata",
+		State:        "West Bengal",
+		Pincode:      "700001",
 		Admin: InitialAdminRequest{
 			Email:    "admin@example.com",
 			FullName: "CPO Admin",
@@ -35,6 +40,27 @@ func TestValidateCreateRequest(t *testing.T) {
 	invalid.Admin.Email = "not-an-email"
 	if err := validateCreateRequest(invalid); err == nil {
 		t.Fatal("invalid administrator email was accepted")
+	}
+
+	for _, test := range []struct {
+		name   string
+		mutate func(*CreateRequest)
+		code   string
+	}{
+		{name: "GSTIN", mutate: func(request *CreateRequest) { request.GSTIN = "" }, code: "invalid_gstin"},
+		{name: "address", mutate: func(request *CreateRequest) { request.Address = "" }, code: "invalid_address"},
+		{name: "city", mutate: func(request *CreateRequest) { request.City = "" }, code: "invalid_city"},
+		{name: "state", mutate: func(request *CreateRequest) { request.State = "" }, code: "invalid_state"},
+		{name: "pincode", mutate: func(request *CreateRequest) { request.Pincode = "" }, code: "invalid_pincode"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			request := valid
+			test.mutate(&request)
+			var apiErr *auth.APIError
+			if err := validateCreateRequest(request); !errors.As(err, &apiErr) || apiErr.Code != test.code {
+				t.Fatalf("got %v, want %s", err, test.code)
+			}
+		})
 	}
 }
 
@@ -114,16 +140,21 @@ func TestValidateReason(t *testing.T) {
 func TestNormalizeAndValidateProfileRequest(t *testing.T) {
 	t.Parallel()
 
-	blankGSTIN := " "
 	request := normalizeProfileRequest(UpdateProfileRequest{
 		BusinessName: "  Example Charging  ",
 		CompanyType:  constants.CPOCompanyTypeCompany,
-		GSTIN:        &blankGSTIN,
+		GSTIN:        " 19abcde1234f5z6 ",
+		Address:      " 1 Test Road ",
 		City:         " Kolkata ",
+		State:        " West Bengal ",
+		Pincode:      " 700001 ",
 	})
 	if request.BusinessName != "Example Charging" ||
 		request.City != "Kolkata" ||
-		request.GSTIN != nil {
+		request.GSTIN != "19ABCDE1234F5Z6" ||
+		request.Address != "1 Test Road" ||
+		request.State != "West Bengal" ||
+		request.Pincode != "700001" {
 		t.Fatalf("unexpected normalized profile: %#v", request)
 	}
 	if err := validateProfileRequest(request); err != nil {
@@ -132,6 +163,68 @@ func TestNormalizeAndValidateProfileRequest(t *testing.T) {
 	request.BusinessName = ""
 	if err := validateProfileRequest(request); err == nil {
 		t.Fatal("blank business name was accepted")
+	}
+
+	valid := normalizeProfileRequest(UpdateProfileRequest{
+		BusinessName: "Example Charging",
+		CompanyType:  constants.CPOCompanyTypeCompany,
+		GSTIN:        "19ABCDE1234F5Z6",
+		Address:      "1 Test Road",
+		City:         "Kolkata",
+		State:        "West Bengal",
+		Pincode:      "700001",
+	})
+	for _, test := range []struct {
+		name   string
+		mutate func(*UpdateProfileRequest)
+		code   string
+	}{
+		{name: "GSTIN", mutate: func(request *UpdateProfileRequest) { request.GSTIN = "" }, code: "invalid_gstin"},
+		{name: "address", mutate: func(request *UpdateProfileRequest) { request.Address = "" }, code: "invalid_address"},
+		{name: "city", mutate: func(request *UpdateProfileRequest) { request.City = "" }, code: "invalid_city"},
+		{name: "state", mutate: func(request *UpdateProfileRequest) { request.State = "" }, code: "invalid_state"},
+		{name: "pincode", mutate: func(request *UpdateProfileRequest) { request.Pincode = "" }, code: "invalid_pincode"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			candidate := valid
+			test.mutate(&candidate)
+			var apiErr *auth.APIError
+			if err := validateProfileRequest(candidate); !errors.As(err, &apiErr) || apiErr.Code != test.code {
+				t.Fatalf("got %v, want %s", err, test.code)
+			}
+		})
+	}
+}
+
+func TestSlugAvailabilityRequiresPlatformBeforeDatabaseAccess(t *testing.T) {
+	t.Parallel()
+
+	service := NewService(nil, nil, true)
+	_, err := service.CheckSlugAvailability(t.Context(), auth.Principal{
+		UserID: uuid.New(),
+		Scope:  constants.AuthScopeCPO,
+	}, "example-cpo")
+	var apiErr *auth.APIError
+	if !errors.As(err, &apiErr) || apiErr.Code != "forbidden" {
+		t.Fatalf("got error %v, want platform authorization failure", err)
+	}
+}
+
+func TestSlugAvailabilityNormalizesAndValidatesBeforeDatabaseAccess(t *testing.T) {
+	t.Parallel()
+
+	if got := normalizeSlug("  Example-CPO  "); got != "example-cpo" {
+		t.Fatalf("normalized slug %q, want example-cpo", got)
+	}
+
+	service := NewService(nil, nil, true)
+	_, err := service.CheckSlugAvailability(t.Context(), auth.Principal{
+		UserID: uuid.New(),
+		Scope:  constants.AuthScopePlatform,
+	}, "not valid")
+	var apiErr *auth.APIError
+	if !errors.As(err, &apiErr) || apiErr.Code != "invalid_slug" {
+		t.Fatalf("got error %v, want invalid_slug", err)
 	}
 }
 
@@ -202,6 +295,11 @@ func TestOrganizationViewContainsTenantSafeFields(t *testing.T) {
 		Slug:                  "example-cpo",
 		BusinessName:          "Example Charging",
 		CompanyType:           constants.CPOCompanyTypeCompany,
+		GSTIN:                 "19ABCDE1234F5Z6",
+		Address:               "1 Test Road",
+		City:                  "Kolkata",
+		State:                 "West Bengal",
+		Pincode:               "700001",
 		Status:                constants.CPOStatusActive,
 		StatusReason:          "Internal platform decision",
 		StatusChangedAt:       now,

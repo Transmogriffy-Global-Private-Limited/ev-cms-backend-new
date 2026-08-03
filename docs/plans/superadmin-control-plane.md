@@ -61,7 +61,7 @@ model, worker, or OpenAPI operation uses those records.
 
 ### 1. CPO lifecycle and first-admin recovery
 
-Status: Verified
+Status: Implemented
 
 This is the current implementation slice and the complete Superadmin dependency
 for CPO onboarding and access:
@@ -70,6 +70,9 @@ for CPO onboarding and access:
   mode, using a stable newest-first cursor;
 - edit the mutable CPO business profile without changing its stable slug,
   platform-owned lifecycle, or app identity;
+- require GSTIN plus complete address fields for creation/profile replacement,
+  retain normalized uniqueness for GSTIN and slug, and expose an authenticated
+  non-reserving slug-availability preflight for the creation form;
 - require a bounded human reason for activation and suspension and retain the
   current reason, actor, and transition time on the CPO;
 - expose one durable primary-administrator designation per provisioned CPO;
@@ -95,6 +98,8 @@ Compatibility:
   change before the Superadmin frontend is integrated;
 - stable CPO IDs, slugs, app IDs, authentication scopes, and tenant boundaries
   are unchanged.
+- registration/profile clients must now send GSTIN, address, city, state, and
+  pincode; this is an intentional validation and persistence contract change.
 
 Acceptance criteria:
 
@@ -119,8 +124,16 @@ Verification completed:
   and cursor behavior, profile replacement, idempotent reasoned activation,
   primary-admin replacement, previous-admin session/refresh revocation,
   credential-free resend, and platform-session isolation;
-- the 49-operation runtime/OpenAPI surface, documentation verification, full Go
-  tests, vet, and diff checks passed.
+- the then-current 49-operation runtime/OpenAPI surface, documentation
+  verification, full Go tests, vet, and diff checks passed.
+
+Current verification limitation:
+
+- The mandatory registration/slug-availability extension has validation,
+  migration-content, route/OpenAPI, and full-source coverage. Its migration
+  eleven and PostgreSQL constraint/uniqueness lifecycle checks have not run
+  because no disposable `TEST_DATABASE_URL` is configured, so this slice is
+  `Implemented` pending that database verification.
 
 ### 2. Platform-superadmin governance
 

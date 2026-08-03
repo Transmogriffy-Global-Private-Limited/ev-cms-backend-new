@@ -1,6 +1,10 @@
 # CPO Provisioning and Application Identity
 
-Status: Verified
+Status: Implemented
+
+Architecture decision:
+
+- `../decisions/0010-required-cpo-registration-identity.md`
 
 ## Objective
 
@@ -22,6 +26,8 @@ App identity:  DUMMY -> LIVE -> LIVE (rotation)
 ```
 
 - Creation is `PENDING` with a unique server-generated dummy app ID.
+- Creation requires a normalized unique slug, normalized unique GSTIN, and
+  nonblank address, city, state, and pincode. PostgreSQL owns these invariants.
 - Activation permits CPO login and tenant operations with the current dummy or
   live app ID.
 - Suspension blocks new CPO-staff and customer operations regardless of app-ID
@@ -113,6 +119,7 @@ without already knowing it.
 
 - `POST /api/v1/platform/cpos`
 - `GET /api/v1/platform/cpos`
+- `GET /api/v1/platform/cpos/slug-availability`
 - `GET /api/v1/platform/cpos/:cpo_id`
 - `PUT /api/v1/platform/cpos/:cpo_id/profile`
 - `POST /api/v1/platform/cpos/:cpo_id/activate`
@@ -122,9 +129,11 @@ without already knowing it.
 - `POST /api/v1/platform/cpos/:cpo_id/primary-admin/resend-onboarding`
 - `POST /api/v1/platform/cpos/:cpo_id/administrative-sessions/revoke`
 
-Creation accepts the existing CPO business-profile fields but not status,
-commercial state, or app ID. It also accepts the first administrator's email
-and name. The server owns lifecycle and app-ID values.
+Creation requires slug, business name, company type, GSTIN, address, city,
+state, pincode, and the first administrator's email/name. It does not accept
+status, commercial state, or app ID. The server owns lifecycle and app-ID
+values. The slug-availability query is a non-reserving frontend preflight; the
+creation transaction remains authoritative under concurrency.
 
 Live app IDs are 16 to 100 lowercase URL/header-safe characters. Dummy IDs use
 the reserved `cpo_dummy_` prefix; superadmin-supplied live IDs cannot use it.
@@ -132,6 +141,8 @@ the reserved `cpo_dummy_` prefix; superadmin-supplied live IDs cannot use it.
 ## Failure and Recovery
 
 - Unique indexes prevent duplicate slug, GSTIN, and app ID values.
+- Database constraints reject null GSTIN and blank address, city, state, or
+  pincode even when an internal caller bypasses HTTP validation.
 - A per-email PostgreSQL advisory transaction lock serializes concurrent
   new-versus-existing first-admin identity decisions.
 - Creation and audit insertion share one transaction.
@@ -161,3 +172,12 @@ the reserved `cpo_dummy_` prefix; superadmin-supplied live IDs cannot use it.
   password-change enforcement, activation, dummy-header access, live-ID
   rotation, old-ID rejection, and suspension.
 - Full Go tests, vet, diff check, and residue scan pass.
+
+Current verification limitation:
+
+- Migration eleven and the PostgreSQL availability/duplicate/mandatory-field
+  lifecycle coverage compile and are source-verified, but have not executed
+  against a disposable PostgreSQL database because `TEST_DATABASE_URL` is not
+  configured. The earlier provisioning/lifecycle behavior remains verified;
+  this strengthened registration contract is therefore `Implemented` pending
+  that database run.

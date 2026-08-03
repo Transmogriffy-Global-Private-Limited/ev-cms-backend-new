@@ -528,6 +528,9 @@ Before completion, prove:
 - PostgreSQL is durable truth.
 - Ten migrations are already deployment history. Do not edit an applied
   migration to change new behavior; add the next forward migration.
+- Migration eleven is the current source-tree forward migration and is not yet
+  part of that deployment history. It requires GSTIN and nonblank address,
+  city, state, and pincode values and fails closed on incomplete legacy rows.
 - Prefer additive, backward-compatible migrations.
 - Never drop, truncate, or broadly delete without explicit human approval.
 - Use composite keys/foreign keys to protect tenant relationships.

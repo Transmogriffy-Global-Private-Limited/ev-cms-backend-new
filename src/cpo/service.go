@@ -380,6 +380,34 @@ func (service *Service) Get(
 	return view(record), nil
 }
 
+func (service *Service) CheckSlugAvailability(
+	ctx context.Context,
+	principal auth.Principal,
+	candidate string,
+) (SlugAvailabilityResponse, error) {
+	if err := requirePlatform(principal); err != nil {
+		return SlugAvailabilityResponse{}, err
+	}
+
+	slug := normalizeSlug(candidate)
+	if err := validateSlug(slug); err != nil {
+		return SlugAvailabilityResponse{}, err
+	}
+
+	var count int64
+	if err := service.database.WithContext(ctx).
+		Model(&models.CPO{}).
+		Where("lower(slug) = ?", slug).
+		Count(&count).Error; err != nil {
+		return SlugAvailabilityResponse{}, fmt.Errorf("check CPO slug availability: %w", err)
+	}
+
+	return SlugAvailabilityResponse{
+		Slug:      slug,
+		Available: count == 0,
+	}, nil
+}
+
 func (service *Service) UpdateProfile(
 	ctx context.Context,
 	principal auth.Principal,
@@ -1227,35 +1255,25 @@ func (service *Service) find(ctx context.Context, cpoID uuid.UUID) (models.CPO, 
 }
 
 func normalizeCreateRequest(request CreateRequest) CreateRequest {
-	request.Slug = strings.ToLower(strings.TrimSpace(request.Slug))
+	request.Slug = normalizeSlug(request.Slug)
 	request.BusinessName = strings.TrimSpace(request.BusinessName)
+	request.GSTIN = strings.ToUpper(strings.TrimSpace(request.GSTIN))
 	request.Address = strings.TrimSpace(request.Address)
 	request.City = strings.TrimSpace(request.City)
 	request.State = strings.TrimSpace(request.State)
 	request.Pincode = strings.TrimSpace(request.Pincode)
 	request.Admin.Email = strings.ToLower(strings.TrimSpace(request.Admin.Email))
 	request.Admin.FullName = strings.TrimSpace(request.Admin.FullName)
-	if request.GSTIN != nil {
-		value := strings.ToUpper(strings.TrimSpace(*request.GSTIN))
-		request.GSTIN = &value
-	}
 	return request
 }
 
 func normalizeProfileRequest(request UpdateProfileRequest) UpdateProfileRequest {
 	request.BusinessName = strings.TrimSpace(request.BusinessName)
+	request.GSTIN = strings.ToUpper(strings.TrimSpace(request.GSTIN))
 	request.Address = strings.TrimSpace(request.Address)
 	request.City = strings.TrimSpace(request.City)
 	request.State = strings.TrimSpace(request.State)
 	request.Pincode = strings.TrimSpace(request.Pincode)
-	if request.GSTIN != nil {
-		value := strings.ToUpper(strings.TrimSpace(*request.GSTIN))
-		if value == "" {
-			request.GSTIN = nil
-		} else {
-			request.GSTIN = &value
-		}
-	}
 	return request
 }
 
@@ -1272,18 +1290,23 @@ func validateProfileRequest(request UpdateProfileRequest) error {
 			"Company type must be INDIVIDUAL or COMPANY.",
 		)
 	}
-	if request.GSTIN != nil && !gstinPattern.MatchString(*request.GSTIN) {
+	if !gstinPattern.MatchString(request.GSTIN) {
 		return invalid(
 			"gstin",
-			"GSTIN must contain 15 uppercase letters or digits.",
+			"GSTIN is required and must contain 15 uppercase letters or digits.",
 		)
 	}
-	if len(request.Address) > 5000 || len(request.City) > 100 ||
-		len(request.State) > 100 || len(request.Pincode) > 10 {
-		return invalid(
-			"profile",
-			"One or more CPO profile fields exceed their maximum length.",
-		)
+	if request.Address == "" || len(request.Address) > 5000 {
+		return invalid("address", "Address is required and must not exceed 5000 characters.")
+	}
+	if request.City == "" || len(request.City) > 100 {
+		return invalid("city", "City is required and must not exceed 100 characters.")
+	}
+	if request.State == "" || len(request.State) > 100 {
+		return invalid("state", "State is required and must not exceed 100 characters.")
+	}
+	if request.Pincode == "" || len(request.Pincode) > 10 {
+		return invalid("pincode", "Pincode is required and must not exceed 10 characters.")
 	}
 	return nil
 }
@@ -1300,8 +1323,8 @@ func validateReason(reason string) error {
 }
 
 func validateCreateRequest(request CreateRequest) error {
-	if len(request.Slug) > 80 || !slugPattern.MatchString(request.Slug) {
-		return invalid("slug", "Slug must contain lowercase words separated by single hyphens.")
+	if err := validateSlug(request.Slug); err != nil {
+		return err
 	}
 	if request.BusinessName == "" || len(request.BusinessName) > 255 {
 		return invalid("business_name", "Business name is required and must not exceed 255 characters.")
@@ -1309,18 +1332,37 @@ func validateCreateRequest(request CreateRequest) error {
 	if !request.CompanyType.Valid() {
 		return invalid("company_type", "Company type must be INDIVIDUAL or COMPANY.")
 	}
-	if request.GSTIN != nil && !gstinPattern.MatchString(*request.GSTIN) {
-		return invalid("gstin", "GSTIN must contain 15 uppercase letters or digits.")
+	if !gstinPattern.MatchString(request.GSTIN) {
+		return invalid("gstin", "GSTIN is required and must contain 15 uppercase letters or digits.")
 	}
-	if len(request.Address) > 5000 || len(request.City) > 100 ||
-		len(request.State) > 100 || len(request.Pincode) > 10 {
-		return invalid("profile", "One or more CPO profile fields exceed their maximum length.")
+	if request.Address == "" || len(request.Address) > 5000 {
+		return invalid("address", "Address is required and must not exceed 5000 characters.")
+	}
+	if request.City == "" || len(request.City) > 100 {
+		return invalid("city", "City is required and must not exceed 100 characters.")
+	}
+	if request.State == "" || len(request.State) > 100 {
+		return invalid("state", "State is required and must not exceed 100 characters.")
+	}
+	if request.Pincode == "" || len(request.Pincode) > 10 {
+		return invalid("pincode", "Pincode is required and must not exceed 10 characters.")
 	}
 	if !validEmail(request.Admin.Email) {
 		return invalid("admin.email", "Administrator email is invalid.")
 	}
 	if request.Admin.FullName == "" || len(request.Admin.FullName) > 255 {
 		return invalid("admin.full_name", "Administrator full name is required and must not exceed 255 characters.")
+	}
+	return nil
+}
+
+func normalizeSlug(candidate string) string {
+	return strings.ToLower(strings.TrimSpace(candidate))
+}
+
+func validateSlug(slug string) error {
+	if len(slug) > 80 || !slugPattern.MatchString(slug) {
+		return invalid("slug", "Slug must contain lowercase words separated by single hyphens.")
 	}
 	return nil
 }

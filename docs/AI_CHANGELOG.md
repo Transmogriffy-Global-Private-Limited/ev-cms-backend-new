@@ -2,6 +2,35 @@
 
 ## 2026-08-03
 
+### Required CPO registration identity and slug availability implemented
+
+- Made GSTIN, address, city, state, and pincode mandatory for platform CPO
+  creation and full profile replacement, with field-specific validation and
+  always-present response fields.
+- Added migration eleven to make GSTIN non-null, remove empty address defaults,
+  and enforce nonblank address fields. The migration fails closed on incomplete
+  existing CPO rows instead of fabricating tenant legal/address data.
+- Preserved the existing normalized unique indexes as the authoritative
+  case-insensitive slug and GSTIN collision guards.
+- Added platform-authenticated
+  `GET /api/v1/platform/cpos/slug-availability?slug=...`, returning the
+  normalized slug and an advisory availability snapshot. Creation still
+  handles the concurrency race with `409 cpo_conflict`.
+- Updated Go models, validation, route protection, PostgreSQL lifecycle
+  coverage, OpenAPI, the human API contract, SuperAdmin FE handoff, CPO guide,
+  schema record, plans, project state, and ADR 0010.
+
+Verification at the time of this entry:
+
+- Changed packages, migration discovery/content, validation, authorization,
+  and compile-time PostgreSQL lifecycle coverage passed.
+- Documentation verification, the focused runtime/OpenAPI/Swagger parity test,
+  `go test ./...`, `go vet ./...`, and `git diff --check` passed.
+- The disposable PostgreSQL path did not execute because `TEST_DATABASE_URL`
+  is not configured; no migration was applied to the live development database.
+- No commit, push, deployment, mail delivery, or remote database mutation was
+  performed.
+
 ### Recovery-mail correction deployed to the development VPS
 
 - Fast-forward checked `main` and confirmed revision `1cec3f3` was already the

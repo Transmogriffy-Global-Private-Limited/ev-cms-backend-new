@@ -64,6 +64,11 @@ Optional query parameters:
       "slug": "example-charging",
       "business_name": "Example Charging Private Limited",
       "company_type": "COMPANY",
+      "gstin": "19ABCDE1234F1Z5",
+      "address": "1 Example Road",
+      "city": "Kolkata",
+      "state": "West Bengal",
+      "pincode": "700001",
       "status": "ACTIVE",
       "status_reason": "Approved after onboarding review",
       "status_changed_at": "2026-07-31T09:30:00Z",
@@ -83,6 +88,21 @@ Optional query parameters:
 
 When `has_more=true`, send both returned cursor fields unchanged. Changing a
 filter or search term starts a new query and discards the previous cursor.
+
+## Slug Availability
+
+`GET /api/v1/platform/cpos/slug-availability?slug=example-charging`
+
+The required candidate is trimmed, lowercased, and validated with the same
+rules as CPO creation. `200 OK` returns:
+
+```json
+{"slug":"example-charging","available":true}
+```
+
+This check is read-only and advisory. It does not reserve the slug. The create
+transaction and normalized unique index remain authoritative, so the frontend
+must still handle `409 cpo_conflict` after an available result.
 
 ## Create
 
@@ -118,6 +138,10 @@ email. `201` proves the mail job committed, not SMTP delivery; use the
 primary-admin delivery status to distinguish `SENT` from pending or failed
 delivery. Mail being disabled fails the command before anything is created.
 
+Slug, business name, company type, GSTIN, address, city, state, pincode, and
+both administrator fields are mandatory. The server normalizes slug lowercase
+and GSTIN uppercase. Normalized slug and GSTIN values are globally unique.
+
 ## Detail and Business Profile
 
 `GET /api/v1/platform/cpos/{cpo_id}` returns the current CPO.
@@ -136,10 +160,10 @@ delivery. Mail being disabled fails the command before anything is created.
 }
 ```
 
-`business_name` and `company_type` are required. `gstin`, `address`, `city`,
-`state`, and `pincode` are replacement fields: null/blank GSTIN or omission
-clears GSTIN; omission clears an address field. The immutable CPO ID, slug, app
-ID, and lifecycle state cannot be changed here.
+Every field shown above is required. GSTIN, address, city, state, and pincode
+cannot be null, blank, or omitted; GSTIN remains normalized and globally
+unique. The immutable CPO ID, slug, app ID, and lifecycle state cannot be
+changed here.
 
 ## Lifecycle
 

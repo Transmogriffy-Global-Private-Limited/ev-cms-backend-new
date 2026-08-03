@@ -87,11 +87,11 @@ type CPO struct {
 	Slug                  string                   `gorm:"type:varchar(80);not null" json:"slug"`
 	BusinessName          string                   `gorm:"type:varchar(255);not null" json:"business_name"`
 	CompanyType           constants.CPOCompanyType `gorm:"type:varchar(20);not null" json:"company_type"`
-	GSTIN                 *string                  `gorm:"type:varchar(15)" json:"gstin,omitempty"`
-	Address               string                   `gorm:"type:text;not null;default:''" json:"address"`
-	City                  string                   `gorm:"type:varchar(100);not null;default:''" json:"city"`
-	State                 string                   `gorm:"type:varchar(100);not null;default:''" json:"state"`
-	Pincode               string                   `gorm:"type:varchar(10);not null;default:''" json:"pincode"`
+	GSTIN                 string                   `gorm:"type:varchar(15);not null" json:"gstin"`
+	Address               string                   `gorm:"type:text;not null" json:"address"`
+	City                  string                   `gorm:"type:varchar(100);not null" json:"city"`
+	State                 string                   `gorm:"type:varchar(100);not null" json:"state"`
+	Pincode               string                   `gorm:"type:varchar(10);not null" json:"pincode"`
 	Status                constants.CPOStatus      `gorm:"type:varchar(20);not null;default:'PENDING'" json:"status"`
 	StatusReason          string                   `gorm:"type:varchar(500);not null" json:"status_reason"`
 	StatusChangedAt       time.Time                `gorm:"not null" json:"status_changed_at"`

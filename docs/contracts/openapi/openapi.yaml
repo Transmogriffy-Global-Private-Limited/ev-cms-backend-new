@@ -1289,7 +1289,8 @@ paths:
         "400":
           description: |
             `invalid_request`, `invalid_slug`, `invalid_business_name`,
-            `invalid_company_type`, `invalid_gstin`, `invalid_profile`,
+            `invalid_company_type`, `invalid_gstin`, `invalid_address`,
+            `invalid_city`, `invalid_state`, `invalid_pincode`,
             `invalid_admin_email`, or `invalid_admin_full_name`.
           content:
             application/json:
@@ -1376,6 +1377,48 @@ paths:
         "500":
           $ref: "#/components/responses/InternalError"
 
+  /api/v1/platform/cpos/slug-availability:
+    get:
+      tags: [Platform CPOs]
+      operationId: checkCPOSlugAvailability
+      summary: Check whether a normalized CPO slug is currently available
+      description: |
+        Trims and lowercases the candidate, validates the same format used by
+        CPO creation, and reports whether the normalized slug is currently
+        unallocated. This read is advisory: concurrent creation can consume an
+        available slug, so POST /api/v1/platform/cpos remains authoritative and
+        can still return cpo_conflict.
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: slug
+          in: query
+          required: true
+          description: Candidate CPO slug. The server trims and lowercases it.
+          schema:
+            type: string
+            maxLength: 80
+            pattern: "^[A-Za-z0-9]+(?:-[A-Za-z0-9]+)*$"
+      responses:
+        "200":
+          description: Current availability of the normalized candidate.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CPOSlugAvailability"
+        "400":
+          description: "`invalid_slug`."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
   /api/v1/platform/cpos/{cpo_id}:
     get:
       tags: [Platform CPOs]
@@ -1432,7 +1475,8 @@ paths:
         "400":
           description: |
             `invalid_request`, `invalid_cpo_id`, `invalid_business_name`,
-            `invalid_company_type`, `invalid_gstin`, or `invalid_profile`.
+            `invalid_company_type`, `invalid_gstin`, `invalid_address`,
+            `invalid_city`, `invalid_state`, or `invalid_pincode`.
           content:
             application/json:
               schema:
@@ -3411,13 +3455,18 @@ components:
         - slug
         - business_name
         - company_type
+        - gstin
+        - address
+        - city
+        - state
+        - pincode
         - admin
       properties:
         slug:
           type: string
           maxLength: 80
           pattern: "^[A-Za-z0-9]+(?:-[A-Za-z0-9]+)*$"
-          description: Trimmed/lowercased by the server; words separated by single hyphens.
+          description: Trimmed/lowercased by the server and globally unique; words separated by single hyphens.
         business_name:
           type: string
           minLength: 1
@@ -3428,18 +3477,22 @@ components:
         gstin:
           type: string
           pattern: "^[0-9A-Za-z]{15}$"
-          description: Trimmed and uppercased by the server.
+          description: Required, globally unique after server-side uppercasing.
         address:
           type: string
+          minLength: 1
           maxLength: 5000
         city:
           type: string
+          minLength: 1
           maxLength: 100
         state:
           type: string
+          minLength: 1
           maxLength: 100
         pincode:
           type: string
+          minLength: 1
           maxLength: 10
         admin:
           $ref: "#/components/schemas/InitialAdminRequest"
@@ -3476,6 +3529,11 @@ components:
       required:
         - business_name
         - company_type
+        - gstin
+        - address
+        - city
+        - state
+        - pincode
       properties:
         business_name:
           type: string
@@ -3486,25 +3544,24 @@ components:
           enum: [INDIVIDUAL, COMPANY]
         gstin:
           type: string
-          nullable: true
           pattern: "^[0-9A-Za-z]{15}$"
-          description: Null, omission, or an empty submitted string clears the GSTIN.
+          description: Required and globally unique after server-side uppercasing.
         address:
           type: string
+          minLength: 1
           maxLength: 5000
-          description: Omission clears the stored address.
         city:
           type: string
+          minLength: 1
           maxLength: 100
-          description: Omission clears the stored city.
         state:
           type: string
+          minLength: 1
           maxLength: 100
-          description: Omission clears the stored state.
         pincode:
           type: string
+          minLength: 1
           maxLength: 10
-          description: Omission clears the stored pincode.
 
     ReasonRequest:
       type: object
@@ -3544,6 +3601,7 @@ components:
         - slug
         - business_name
         - company_type
+        - gstin
         - address
         - city
         - state
@@ -3569,14 +3627,23 @@ components:
           enum: [INDIVIDUAL, COMPANY]
         gstin:
           type: string
+          pattern: "^[0-9A-Z]{15}$"
         address:
           type: string
+          minLength: 1
+          maxLength: 5000
         city:
           type: string
+          minLength: 1
+          maxLength: 100
         state:
           type: string
+          minLength: 1
+          maxLength: 100
         pincode:
           type: string
+          minLength: 1
+          maxLength: 10
         status:
           type: string
           enum: [PENDING, ACTIVE, SUSPENDED]
@@ -3652,6 +3719,20 @@ components:
           format: uuid
         has_more:
           type: boolean
+
+    CPOSlugAvailability:
+      type: object
+      additionalProperties: false
+      required: [slug, available]
+      properties:
+        slug:
+          type: string
+          maxLength: 80
+          pattern: "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+          description: Normalized candidate used for the availability lookup.
+        available:
+          type: boolean
+          description: Snapshot result; creation can still conflict concurrently.
 
     OnboardingDelivery:
       type: object
@@ -3992,6 +4073,7 @@ components:
         - slug
         - business_name
         - company_type
+        - gstin
         - address
         - city
         - state
@@ -4012,11 +4094,11 @@ components:
           enum: [INDIVIDUAL, COMPANY]
         gstin:
           type: string
-          description: Omitted when the CPO has no registered GSTIN.
-        address: {type: string}
-        city: {type: string}
-        state: {type: string}
-        pincode: {type: string}
+          pattern: "^[0-9A-Z]{15}$"
+        address: {type: string, minLength: 1, maxLength: 5000}
+        city: {type: string, minLength: 1, maxLength: 100}
+        state: {type: string, minLength: 1, maxLength: 100}
+        pincode: {type: string, minLength: 1, maxLength: 10}
         status:
           type: string
           enum: [PENDING, ACTIVE, SUSPENDED]

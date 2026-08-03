@@ -285,7 +285,7 @@ Detailed plan:
 
 ### Feature: Manual CPO provisioning and app identity
 
-Status: Verified
+Status: Implemented
 
 Phase: Authentication and CPO administration
 
@@ -310,6 +310,9 @@ authenticated CPO-scoped business requests.
 Scope:
 
 - Create, list, and inspect CPO tenants through platform-only APIs
+- Require GSTIN and complete address fields for creation/profile replacement
+- Enforce normalized global uniqueness for slug and GSTIN
+- Expose an authenticated advisory slug-availability query for FE validation
 - Create or attach the first CPO admin identity and membership transactionally
 - Encrypted email job and SMTP delivery of a generated temporary password for a
   new identity, with fail-closed payload validation
@@ -345,6 +348,10 @@ Acceptance criteria:
 - A new first admin must change the temporary password before tenant business
   APIs are allowed; login reminders continue without a password-expiry timeout.
 - Creation always assigns a unique dummy app ID and a pending lifecycle status.
+- Creation rejects missing/blank GSTIN, address, city, state, or pincode, and
+  PostgreSQL preserves the same invariant outside the HTTP boundary.
+- Slug availability returns the normalized candidate and current availability,
+  while final creation still resolves concurrent uniqueness races.
 - Activation permits CPO administrative login while retaining the dummy app ID.
 - Superadmin can replace the dummy/current app ID with a validated live ID.
 - Only the current app ID is accepted on CPO-scoped business APIs.
@@ -365,9 +372,20 @@ Verification:
 - `go vet ./...`
 - `git diff --check`
 
+Current verification limitation:
+
+- The migration-eleven and PostgreSQL CPO lifecycle additions compile but have
+  not executed because no explicitly disposable `TEST_DATABASE_URL` is set.
+  The strengthened registration contract remains `Implemented` until that
+  database verification passes.
+
 Detailed plan:
 
 - `docs/plans/cpo-provisioning-and-app-identity.md`
+
+Architecture decision:
+
+- `docs/decisions/0010-required-cpo-registration-identity.md`
 
 ### Feature: Documentation system, OpenAPI explorer, and Hostinger SMTP contract
 
@@ -642,6 +660,10 @@ Current implementation slice:
 
 Last completed slice:
 
+- Implemented mandatory GSTIN/address registration and profile invariants,
+  preserved database-authoritative normalized slug/GSTIN uniqueness, and added
+  the authenticated advisory slug-availability contract; PostgreSQL execution
+  remains pending a disposable `TEST_DATABASE_URL`
 - Implemented enumeration-safe recovery-ID delivery for administrative and
   customer reset mail; made credential-bearing reset/welcome payloads fail
   closed; verified reset and first-admin SMTP rendering; and clarified

@@ -34,6 +34,7 @@ $requiredFiles = @(
     'docs/decisions/0007-complete-superadmin-control-plane.md',
     'docs/decisions/0008-manual-cpo-access-without-commercial-management.md',
     'docs/decisions/0009-admin-only-cpo-authority.md',
+    'docs/decisions/0010-required-cpo-registration-identity.md',
     'docs/plans/api-documentation-and-openapi.md',
     'docs/plans/customer-signup.md',
     'docs/plans/customer-authentication.md',
@@ -79,7 +80,9 @@ $requiredSuperadminFERules = @(
     'welcome job is rejected before the CPO transaction commits',
     '`platform.cpo.primary_admin_changed`',
     'Tenant subscription/billing',
-    'SuperAdmin is not a CPO ADMIN'
+    'SuperAdmin is not a CPO ADMIN',
+    '`available=true` does not reserve it',
+    'GSTIN and every address field are required'
 )
 foreach ($rule in $requiredSuperadminFERules) {
     if (-not $superadminFEHandoff.Contains($rule)) {
@@ -97,6 +100,7 @@ $requiredRoutes = @(
     '/api/v1/app/auth/me',
     '/api/v1/auth/password/change',
     '/api/v1/platform/cpos',
+    '/api/v1/platform/cpos/slug-availability',
     '/api/v1/platform/cpos/{cpo_id}/profile',
     '/api/v1/platform/cpos/{cpo_id}/primary-admin',
     '/api/v1/platform/cpos/{cpo_id}/primary-admin/resend-onboarding',
@@ -140,8 +144,8 @@ foreach ($route in $retiredRoutes) {
 }
 
 $operationCount = ([regex]::Matches($openAPI, '(?m)^\s{6}operationId:\s+')).Count
-if ($operationCount -ne 69) {
-    throw "OpenAPI contains $operationCount operations; expected 69."
+if ($operationCount -ne 70) {
+    throw "OpenAPI contains $operationCount operations; expected 70."
 }
 
 if ($openAPI.Contains('/api/v1/cpo/profile')) {

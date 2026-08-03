@@ -34,6 +34,10 @@ provides:
 - write-only encrypted Razorpay credentials for CPO admins;
 - platform-only CPO create, searchable/filterable/cursor list, inspect, profile,
   reasoned activate/suspend, and app-ID APIs;
+- required GSTIN plus complete address fields for CPO creation/profile
+  replacement, backed by database constraints and normalized GSTIN uniqueness;
+- authenticated platform slug-availability lookup for responsive FE validation,
+  with final creation/database uniqueness remaining authoritative;
 - durable current lifecycle reason, actor, and transition time;
 - one durable primary administrator per provisioned CPO, with safe visibility,
   replacement/restoration, credential-free onboarding resend, and targeted CPO
@@ -63,11 +67,11 @@ provides:
 - a canonical CPO backend AI-agent handoff covering current capability,
   ownership, tenant/HAL boundaries, remaining dependency order, slice
   execution, verification, and handoff requirements;
-- a canonical SuperAdmin frontend handoff covering the 27-operation platform
+- a canonical SuperAdmin frontend handoff covering the 28-operation platform
   integration surface, TypeScript contracts, auth/token state, CPO workflows,
   audit/workers, SSE/replay, error UX, security, verification, and explicit
   blocked/unimplemented behavior;
-- canonical OpenAPI 3.1 for all 69 source-tree business/health operations;
+- canonical OpenAPI 3.1 for all 70 source-tree business/health operations;
 - embedded same-origin Swagger UI at `/docs/` and raw OpenAPI at
   `/openapi.yaml`;
 - `API_DOCS_ENABLED` registration control for both documentation surfaces,
@@ -104,7 +108,9 @@ provides:
 - the additive PostgreSQL database `devevcmsnewdb`, owned by `postgres`.
 
 The active development VPS runs source revision `1cec3f3`, with migration ten
-recorded and the deployed 69-operation contract. This release adds
+recorded and the deployed 69-operation contract. It does not yet include the
+source-tree migration eleven, mandatory registration contract, or the 70th
+slug-availability operation. The deployed release adds
 recipient-visible recovery IDs for new administrative/customer reset mail and
 fails incomplete reset or new-admin welcome payloads before enqueue/rendering.
 It required no database migration or configuration change. Migration nine
@@ -119,6 +125,10 @@ yet.
 ## Verification
 
 - Go formatting completed.
+- Required-field validation, slug normalization/authorization, migration
+  content, and affected package tests passed for the source-tree change.
+- The 70-operation source OpenAPI and runtime route sets match; documentation
+  contract verification passed.
 - `go test ./...` passed.
 - `go vet ./...` passed.
 - `git diff --check` passed.
@@ -266,3 +276,7 @@ repository. The integration contract has not been implemented yet.
   in the ignored deployment environment.
 - No generated frontend SDK exists yet; consumers use the reviewed OpenAPI
   contract directly.
+- Migration eleven and its PostgreSQL availability/uniqueness/constraint
+  lifecycle coverage have not executed because no disposable
+  `TEST_DATABASE_URL` is configured. The live development deployment remains
+  on migration ten and the prior 69-operation contract.

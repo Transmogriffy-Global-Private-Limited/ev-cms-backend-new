@@ -41,15 +41,17 @@ the development deployment.
 - API prefix: `/api/v1`
 - Interactive contract: `/docs/`
 - Raw OpenAPI: `/openapi.yaml`
-- Current full backend contract: 69 HTTP operations across every persona
-- Operations used by the SuperAdmin application: 27 API operations
+- Current source-tree backend contract: 70 HTTP operations across every persona
+- Operations used by the SuperAdmin application: 28 API operations
   - 12 shared administrative-authentication operations;
-  - 11 platform CPO-control operations;
+  - 12 platform CPO-control operations;
   - 4 platform operations/realtime queries.
 
 The development origin returned healthy liveness/readiness, Swagger UI, and a
-69-operation OpenAPI document during this reconciliation. That is a dated
-connectivity snapshot, not a substitute for checking health before FE testing.
+69-operation OpenAPI document during this reconciliation. It remains on the
+previous contract until this 70-operation source-tree change is deployed, so
+the slug-availability endpoint and mandatory registration fields must not be
+assumed live from the source contract alone.
 
 Configure the origin in the frontend environment. Do not hardcode it in API
 modules:
@@ -77,6 +79,7 @@ approved origin policy and HTTPS.
 | Authenticated password change | Ready | Success revokes every session and requires login |
 | Forgot/reset password | Ready | Forgot stays generic; an eligible recipient's email contains both recovery ID and code |
 | CPO list/search/filter/cursor | Ready | REST is authoritative; reset cursor when filters change |
+| CPO slug availability | Ready in source; pending deployment | Advisory only; creation can still return `cpo_conflict` |
 | CPO create/profile/lifecycle/app ID | Ready | Mutations are platform-only; reasons are required where documented |
 | Primary-admin inspect/replace/recover | Ready | No password, OTP, token, or mail body is returned |
 | CPO administrative-session revocation | Ready | Does not revoke customer or platform sessions |
@@ -271,7 +274,7 @@ export interface Cpo {
   slug: string;
   business_name: string;
   company_type: CompanyType;
-  gstin?: string;
+  gstin: string;
   address: string;
   city: string;
   state: string;
@@ -305,6 +308,11 @@ export interface CpoListResponse {
   next_before?: RFC3339;
   next_before_id?: UUID;
   has_more: boolean;
+}
+
+export interface CpoSlugAvailability {
+  slug: string;
+  available: boolean;
 }
 
 export interface OnboardingDelivery {
@@ -431,6 +439,7 @@ Every operation below requires a current `PLATFORM` bearer session and no
 | --- | --- | --- |
 | `POST /api/v1/platform/cpos` | `201 CreateCpoResponse` | Provision pending CPO and primary ADMIN |
 | `GET /api/v1/platform/cpos` | `200 CpoListResponse` | Search/filter/cursor collection |
+| `GET /api/v1/platform/cpos/slug-availability?slug=...` | `200 CpoSlugAvailability` | Validate and preflight a normalized slug |
 | `GET /api/v1/platform/cpos/{cpo_id}` | `200 Cpo` | Authoritative detail refresh |
 | `PUT /api/v1/platform/cpos/{cpo_id}/profile` | `200 Cpo` | Replace editable business fields |
 | `POST /api/v1/platform/cpos/{cpo_id}/activate` | `200 Cpo` | Reasoned manual access grant |
@@ -661,6 +670,22 @@ mix a cursor from the old filter/snapshot into the refreshed collection.
 
 ## CPO Workflows
 
+### Slug preflight
+
+Call
+`GET /api/v1/platform/cpos/slug-availability?slug=${encodeURIComponent(candidate)}`
+after a short debounce and cancel the prior request when the field changes.
+The server trims and lowercases the candidate and returns that normalized value:
+
+```json
+{"slug":"example-charging","available":true}
+```
+
+Only display the result if the response slug still matches the form's current
+normalized slug. `available=true` does not reserve it. Another creation can win
+the race, so keep `409 cpo_conflict` handling on the final POST and present it
+as a fresh uniqueness validation failure.
+
 ### Create and onboard
 
 ```json
@@ -685,8 +710,10 @@ Normalization/validation:
 - slug is trimmed/lowercased, max 80, and uses single-hyphen-separated words;
 - business name is required, max 255;
 - company type is `INDIVIDUAL` or `COMPANY`;
-- GSTIN is optional, uppercased, and exactly 15 alphanumeric characters;
-- address/city/state/pincode maxima are 5000/100/100/10;
+- GSTIN is required, uppercased, exactly 15 alphanumeric characters, and
+  globally unique after normalization;
+- address, city, state, and pincode are all required after trimming; their
+  maxima are 5000/100/100/10;
 - admin email is normalized lowercase, valid, max 320;
 - admin full name is required, max 255;
 - status and app-ID fields are server-owned and must not be sent.
@@ -735,10 +762,10 @@ Profile update is replacement-style:
 }
 ```
 
-Critical FE rule: omission/null/blank clears GSTIN, and omission clears each
-address field. Build the request from the complete form snapshot, not only
-dirty fields. The endpoint cannot change slug, ID, lifecycle, app ID,
-membership, or tenant data.
+Critical FE rule: every field shown is required. GSTIN, address, city, state,
+and pincode cannot be null, blank, or omitted. Build the request from the
+complete form snapshot, not only dirty fields. The endpoint cannot change
+slug, ID, lifecycle, app ID, membership, or tenant data.
 
 ### Activate and suspend
 
@@ -1076,7 +1103,7 @@ the last command failed or that no event committed.
 | `404 cpo_not_found` | Close stale detail and refresh collection |
 | `404 primary_admin_not_found` | Show recovery state; do not fabricate an administrator |
 | `404 session_not_found` | Refresh own sessions; target was absent or not owned |
-| `409 cpo_conflict` | Show uniqueness/membership conflict without guessing the owning record |
+| `409 cpo_conflict` | Show authoritative uniqueness/membership conflict; an earlier availability result is not a reservation |
 | `409 admin_identity_inactive` | Cannot assign this identity with current APIs |
 | `409 primary_admin_unavailable` | Refresh primary admin; active identity/membership is required |
 | `409 realtime_cursor_expired` | Full REST snapshot recovery, then cursor reset |
@@ -1135,7 +1162,7 @@ invalidate them.
 
 - [ ] Environment origin loads without a hardcoded `/api/v1` duplication.
 - [ ] `/health/live` and `/health/ready` are handled separately.
-- [ ] `/openapi.yaml` parses and includes the 27 required API operations.
+- [ ] `/openapi.yaml` parses and includes the 28 required SuperAdmin API operations.
 - [ ] Swagger is treated as a development tool, not embedded in the product UI.
 - [ ] Local/mock types preserve optional-field omission.
 
@@ -1149,13 +1176,15 @@ invalidate them.
 - [ ] Shared-tab behavior cannot reuse one consumed refresh token.
 - [ ] Logout/session revocation aborts SSE and clears local state.
 - [ ] Password change routes back to login after global revocation.
-- [ ] Forgot-password UI discloses no account existence and does not claim reset completion currently works.
+- [ ] Forgot-password UI discloses no account existence and collects the recovery ID and code delivered by email.
 
 ### CPO control
 
 - [ ] List filters reset both cursor fields.
+- [ ] Slug preflight is debounced/cancelled and final creation still handles `cpo_conflict`.
 - [ ] Detail and primary admin load as separate resources.
 - [ ] Profile form sends a complete replacement snapshot.
+- [ ] GSTIN and every address field are required in create and profile forms.
 - [ ] Reasons are trimmed and validated at 3–500 characters.
 - [ ] Suspension confirmation explains tenant-session revocation.
 - [ ] App-ID rotation confirmation explains immediate client impact.

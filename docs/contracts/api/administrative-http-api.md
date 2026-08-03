@@ -964,8 +964,10 @@ Normalization and validation:
   hyphen;
 - `business_name`: required, at most 255;
 - `company_type`: `INDIVIDUAL` or `COMPANY`;
-- optional `gstin`: uppercased, exactly 15 uppercase letters/digits;
-- address/city/state/pincode maxima: 5000/100/100/10;
+- `gstin`: required, uppercased, exactly 15 uppercase letters/digits, and
+  globally unique after normalization;
+- `address`, `city`, `state`, and `pincode`: each required after trimming, with
+  maxima 5000/100/100/10;
 - admin email: normalized lowercase valid email, at most 320;
 - admin full name: required, at most 255;
 - status and app-ID fields cannot be supplied.
@@ -1025,7 +1027,37 @@ Errors:
 - `503 mail_unavailable`;
 - `500 internal_error`.
 
-### 8.2 `GET /api/v1/platform/cpos`
+The slug and GSTIN are enforced by normalized PostgreSQL unique indexes. The
+creation transaction is authoritative even if an earlier availability lookup
+reported that a slug was free.
+
+### 8.2 `GET /api/v1/platform/cpos/slug-availability?slug={candidate}`
+
+Purpose: validate and preflight a slug while the Superadmin fills the creation
+form.
+
+The required `slug` query value is trimmed and lowercased, then checked using
+the same 80-character, single-hyphen-separated format as creation.
+
+`200 OK`:
+
+```json
+{
+  "slug": "example-charging",
+  "available": true
+}
+```
+
+The returned slug is the normalized value. `available` is only a current
+snapshot: another request may create that slug immediately afterward. The FE
+must still handle `409 cpo_conflict` from CPO creation and must not treat this
+GET as a reservation.
+
+Errors: `400 invalid_slug`, `401 unauthorized`, `403 forbidden`, or
+`500 internal_error`. The operation is read-only, side-effect-free, and safe to
+retry.
+
+### 8.3 `GET /api/v1/platform/cpos`
 
 Purpose: drive the Superadmin CPO collection without loading an unbounded
 tenant list.
@@ -1052,6 +1084,11 @@ Optional query:
       "slug": "example-charging",
       "business_name": "Example Charging Private Limited",
       "company_type": "COMPANY",
+      "gstin": "19ABCDE1234F1Z5",
+      "address": "1 Example Road",
+      "city": "Kolkata",
+      "state": "West Bengal",
+      "pincode": "700001",
       "status": "PENDING",
       "status_reason": "Initial provisioning",
       "status_changed_at": "2026-07-31T09:00:00Z",
@@ -1077,7 +1114,7 @@ Errors: `400 invalid_q`, `invalid_status`, `invalid_app_id_mode`,
 `invalid_limit`, `invalid_before`, `invalid_before_id`, or `invalid_cursor`;
 shared authentication errors; or `500 internal_error`.
 
-### 8.3 `GET /api/v1/platform/cpos/{cpo_id}`
+### 8.4 `GET /api/v1/platform/cpos/{cpo_id}`
 
 Returns one current CPO object, including lifecycle reason/time/actor and app-ID
 metadata. The object deliberately excludes primary-admin and secret-integration
@@ -1086,7 +1123,7 @@ data; use their owned resources.
 Errors: `400 invalid_cpo_id`, `401 unauthorized`, `403 forbidden`,
 `404 cpo_not_found`, or `500 internal_error`.
 
-### 8.4 `PUT /api/v1/platform/cpos/{cpo_id}/profile`
+### 8.5 `PUT /api/v1/platform/cpos/{cpo_id}/profile`
 
 Purpose: replace the mutable business profile while preserving stable CPO
 identity, lifecycle, app identity, memberships, and tenant data.
@@ -1103,10 +1140,10 @@ identity, lifecycle, app identity, memberships, and tenant data.
 }
 ```
 
-`business_name` and `company_type` are required. GSTIN is optional, normalized
-uppercase, and cleared by null, blank, or omission. The address fields are
-replacement values and omission clears them. The request cannot mutate slug,
-status, app ID, CPO ID, or audit metadata.
+All seven fields shown above are required. GSTIN is normalized uppercase and
+must remain globally unique. GSTIN, address, city, state, and pincode cannot be
+null, blank, or omitted. The request cannot mutate slug, status, app ID, CPO
+ID, or audit metadata.
 
 The transaction updates the CPO, writes `CPO_PROFILE_UPDATED` audit evidence,
 and emits `platform.cpo.profile_updated`. `200 OK` returns the updated CPO.
@@ -1115,7 +1152,7 @@ Errors: field-specific `400` errors from OpenAPI; shared authentication errors;
 `404 cpo_not_found`; `409 cpo_conflict` for a GSTIN collision; or
 `500 internal_error`.
 
-### 8.5 `POST /api/v1/platform/cpos/{cpo_id}/activate`
+### 8.6 `POST /api/v1/platform/cpos/{cpo_id}/activate`
 
 Request:
 
@@ -1134,7 +1171,7 @@ original reason or duplicating audit/event evidence.
 Errors: `400 invalid_request`, `invalid_reason`, or `invalid_cpo_id`; shared
 authentication errors; `404 cpo_not_found`; or `500 internal_error`.
 
-### 8.6 `POST /api/v1/platform/cpos/{cpo_id}/suspend`
+### 8.7 `POST /api/v1/platform/cpos/{cpo_id}/suspend`
 
 Request:
 
@@ -1152,7 +1189,7 @@ still revokes any CPO sessions created since the original suspension.
 
 Errors match activation.
 
-### 8.7 `PUT /api/v1/platform/cpos/{cpo_id}/app-id`
+### 8.8 `PUT /api/v1/platform/cpos/{cpo_id}/app-id`
 
 Request:
 
@@ -1171,7 +1208,7 @@ Errors: `400 invalid_request`, `400 invalid_cpo_id`,
 `400 invalid_cpo_app_id`, `401 unauthorized`, `403 forbidden`,
 `404 cpo_not_found`, `409 cpo_conflict`, or `500 internal_error`.
 
-### 8.8 `GET /api/v1/platform/cpos/{cpo_id}/primary-admin`
+### 8.9 `GET /api/v1/platform/cpos/{cpo_id}/primary-admin`
 
 Purpose: provide the safe state needed by the Superadmin recovery UI.
 
@@ -1205,7 +1242,7 @@ failure body.
 Errors: `400 invalid_cpo_id`; shared authentication errors;
 `404 primary_admin_not_found`; or `500 internal_error`.
 
-### 8.9 `PUT /api/v1/platform/cpos/{cpo_id}/primary-admin`
+### 8.10 `PUT /api/v1/platform/cpos/{cpo_id}/primary-admin`
 
 Purpose: replace a departed primary administrator or restore the existing one.
 
@@ -1248,7 +1285,7 @@ Errors: request-field `400` errors from OpenAPI; shared authentication errors;
 `404 cpo_not_found`; `409 admin_identity_inactive` or membership conflict;
 `503 mail_unavailable`; or `500 internal_error`.
 
-### 8.10 `POST /api/v1/platform/cpos/{cpo_id}/primary-admin/resend-onboarding`
+### 8.11 `POST /api/v1/platform/cpos/{cpo_id}/primary-admin/resend-onboarding`
 
 ```json
 {"reason":"Administrator requested access instructions again"}
@@ -1269,7 +1306,7 @@ Errors: `400 invalid_reason` or `invalid_cpo_id`; shared authentication errors;
 `409 primary_admin_unavailable`; `503 mail_unavailable`; or
 `500 internal_error`.
 
-### 8.11 `POST /api/v1/platform/cpos/{cpo_id}/administrative-sessions/revoke`
+### 8.12 `POST /api/v1/platform/cpos/{cpo_id}/administrative-sessions/revoke`
 
 ```json
 {"reason":"Suspected credential exposure"}
@@ -1346,8 +1383,9 @@ tenant path parameter or client-supplied scope.
 }
 ```
 
-`gstin` is absent when it was not registered. `app_id` is the current
-non-secret application identifier the frontend sends as `X-CPO-App-ID`.
+`gstin` and every address field are always present and nonblank. `app_id` is
+the current non-secret application identifier the frontend sends as
+`X-CPO-App-ID`.
 Internal Superadmin actor IDs and the privileged lifecycle reason are omitted.
 The endpoint is read-only, has no side effects, writes no audit event, and is
 safe to retry. Organization changes remain Superadmin-only.

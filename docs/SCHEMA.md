@@ -27,6 +27,8 @@ Migration files:
 - `db/migrations/000009_retire_subscriptions_and_platform_billing.down.sql`
 - `db/migrations/000010_cpo_superadmin_dependency.up.sql`
 - `db/migrations/000010_cpo_superadmin_dependency.down.sql`
+- `db/migrations/000011_cpo_required_registration_fields.up.sql`
+- `db/migrations/000011_cpo_required_registration_fields.down.sql`
 
 ## Supplied Model Mapping
 
@@ -73,9 +75,12 @@ Service startup applies pending up migrations only. An explicit migration
 command can apply all pending migrations or roll back only the latest migration.
 The application never executes a down migration automatically.
 
-The up migration, idempotent reapplication, and matching down migration were
-verified against a disposable loopback-only PostgreSQL 17 database. The test
-database and its local data directory were removed after verification.
+Migrations through version ten, idempotent reapplication, and matching rollback
+were verified against a disposable loopback-only PostgreSQL 17 database. The
+test database and its local data directory were removed after verification.
+Migration eleven has source and compilation coverage but has not run against a
+disposable PostgreSQL database in the current slice because `TEST_DATABASE_URL`
+is not configured.
 
 ## Authentication and Credential Tables
 
@@ -109,6 +114,24 @@ Existing CPOs are backfilled with unique dummy IDs. Dummy IDs use the reserved
 `cpo_dummy_` prefix. Live IDs cannot use that prefix. CPO lifecycle remains
 independent from app-ID mode, and no subscription table or subscription
 foreign key is introduced.
+
+## Required CPO Registration Identity
+
+Migration eleven strengthens the platform-owned CPO registration record:
+
+- `gstin` becomes `NOT NULL` and retains its 15-character uppercase format
+  check;
+- `address`, `city`, `state`, and `pincode` lose their empty-string defaults
+  and gain nonblank checks;
+- the existing `uq_cpos_slug_normalized` index remains the authoritative
+  case-insensitive slug uniqueness guard;
+- the existing `uq_cpos_gstin_normalized` index covers every row once GSTIN is
+  non-null and remains the authoritative case-insensitive GSTIN uniqueness
+  guard.
+
+The migration performs a preflight and stops if any existing CPO lacks these
+values. It deliberately does not invent a GSTIN or address. Operators must
+correct incomplete records from an authoritative source before applying it.
 
 ## Customer Signup
 

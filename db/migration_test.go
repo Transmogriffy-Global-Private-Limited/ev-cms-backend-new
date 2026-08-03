@@ -448,3 +448,58 @@ func TestCPOSuperadminDependencyMigrationContainsRecoveryInvariants(t *testing.T
 		}
 	}
 }
+
+func TestCPORequiredRegistrationFieldsMigrationContainsDurableInvariants(t *testing.T) {
+	t.Parallel()
+
+	initialBody, err := migrationFiles.ReadFile("migrations/000001_cms_schema.up.sql")
+	if err != nil {
+		t.Fatalf("read initial CPO uniqueness migration: %v", err)
+	}
+	upBody, err := migrationFiles.ReadFile(
+		"migrations/000011_cpo_required_registration_fields.up.sql",
+	)
+	if err != nil {
+		t.Fatalf("read required CPO registration fields up migration: %v", err)
+	}
+	downBody, err := migrationFiles.ReadFile(
+		"migrations/000011_cpo_required_registration_fields.down.sql",
+	)
+	if err != nil {
+		t.Fatalf("read required CPO registration fields down migration: %v", err)
+	}
+
+	upSQL := string(upBody)
+	downSQL := string(downBody)
+	initialSQL := string(initialBody)
+	for _, required := range []string{
+		"CREATE UNIQUE INDEX uq_cpos_slug_normalized ON cpos (lower(slug))",
+		"CREATE UNIQUE INDEX uq_cpos_gstin_normalized",
+		"ON cpos (upper(gstin))",
+	} {
+		if !strings.Contains(initialSQL, required) {
+			t.Errorf("CPO uniqueness migration missing %q", required)
+		}
+	}
+	for _, required := range []string{
+		"cannot require CPO GSTIN and address fields",
+		"ALTER COLUMN gstin SET NOT NULL",
+		"chk_cpos_address_not_blank",
+		"chk_cpos_city_not_blank",
+		"chk_cpos_state_not_blank",
+		"chk_cpos_pincode_not_blank",
+	} {
+		if !strings.Contains(upSQL, required) {
+			t.Errorf("required CPO registration fields migration missing %q", required)
+		}
+	}
+	for _, required := range []string{
+		"ALTER COLUMN gstin DROP NOT NULL",
+		"ALTER COLUMN address SET DEFAULT ''",
+		"gstin IS NULL OR gstin ~ '^[0-9A-Z]{15}$'",
+	} {
+		if !strings.Contains(downSQL, required) {
+			t.Errorf("required CPO registration fields down migration missing %q", required)
+		}
+	}
+}
