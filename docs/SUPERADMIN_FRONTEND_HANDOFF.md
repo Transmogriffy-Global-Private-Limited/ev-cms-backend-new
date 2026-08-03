@@ -75,7 +75,7 @@ approved origin policy and HTTPS.
 | `/auth/me` bootstrap | Ready | Reject any response whose scope is not `PLATFORM` |
 | Own session list/revoke/logout | Ready | Session list spans every scope for the same global identity |
 | Authenticated password change | Ready | Success revokes every session and requires login |
-| Forgot/reset password | Blocked end to end | Forgot returns no challenge ID and the current email contains only the code; reset requires both |
+| Forgot/reset password | Ready | Forgot stays generic; an eligible recipient's email contains both recovery ID and code |
 | CPO list/search/filter/cursor | Ready | REST is authoritative; reset cursor when filters change |
 | CPO create/profile/lifecycle/app ID | Ready | Mutations are platform-only; reasons are required where documented |
 | Primary-admin inspect/replace/recover | Ready | No password, OTP, token, or mail body is returned |
@@ -413,8 +413,8 @@ contract would need a string cursor before IDs exceed JavaScript's safe range.
 | `POST /api/v1/auth/2fa/verify` | challenge ID + 6-digit code | `200 TokenResponse` | `invalid_challenge`; replace local token state |
 | `POST /api/v1/auth/2fa/resend` | challenge ID | `202 ChallengeResponse` | cooldown; old challenge becomes invalid |
 | `POST /api/v1/auth/refresh` | current refresh token | `200 TokenResponse` | one-time rotation; reuse revokes session |
-| `POST /api/v1/auth/password/forgot` | email | `202 generic message` | start works, but current FE completion is blocked |
-| `POST /api/v1/auth/password/reset` | challenge ID + code + new password | `200 message` | caller currently cannot obtain recovery challenge ID |
+| `POST /api/v1/auth/password/forgot` | email | `202 generic message` | eligible recipient gets recovery ID, code, and expiry by email |
+| `POST /api/v1/auth/password/reset` | recovery ID + code + new password | `200 message` | success revokes every session; sign in again |
 | `GET /api/v1/auth/me` | bearer | `200 PlatformMeResponse` | must resolve to `PLATFORM` |
 | `GET /api/v1/auth/sessions` | bearer | `200 {sessions}` | includes the identity's PLATFORM and CPO sessions |
 | `DELETE /api/v1/auth/sessions/{session_id}` | bearer | `204` | owned session only; may revoke current session |
@@ -552,23 +552,26 @@ Abort and reconnect SSE with the new access token after refresh.
 Show `scope`, device/user-agent, IP when present, times, and `is_current` in the
 session UI. Confirm the broader effect before logout-all.
 
-### 6. Current password-recovery limitation
+### 6. Password recovery
 
 `POST /api/v1/auth/password/forgot` is enumeration-safe and returns only a
-generic message. The backend creates a recovery challenge, but:
+generic message. For an eligible active identity, the encrypted
+`PASSWORD_RESET_OTP` mail contains the opaque recovery ID (`challenge_id`),
+six-digit code, and shared expiry. The response deliberately contains none of
+those values, so unknown and eligible emails remain indistinguishable.
 
-- the response does not return `challenge_id`;
-- the current `PASSWORD_RESET_OTP` email includes the code and expiry but not
-  the challenge ID; and
-- `POST /api/v1/auth/password/reset` requires `challenge_id`, code, and new
-  password.
+The FE flow is:
 
-Therefore a frontend recipient cannot currently complete the reset flow. The
-FE may submit the forgot request and show the generic acknowledgement, but it
-must not claim that the reset screen is functional or ask the user to discover
-an internal challenge ID. A backend contract repair is required, normally by
-putting an opaque challenge identifier in the recovery email/link while
-preserving enumeration safety.
+1. submit the email and always show the same acknowledgement;
+2. collect the recovery ID, code, and new password on the reset screen;
+3. send those values to `POST /api/v1/auth/password/reset`;
+4. on success, clear all local authentication state and return to login because
+   every session was revoked.
+
+Treat malformed, expired, superseded, consumed, wrong-code, and attempt-limited
+inputs as the same `invalid_challenge` outcome. A reset email generated before
+this contract was deployed has no recovery ID and cannot be completed; request
+a new reset email instead of attempting to recover internal database state.
 
 ## Reference API Client Behavior
 
@@ -698,9 +701,16 @@ Success creates, atomically:
 - one encrypted onboarding/assignment mail job.
 
 If the email is new, `identity_created=true` and the generated temporary
-password exists only in encrypted welcome mail and worker memory. If the email
-already belongs to an active identity, `identity_created=false`; its password,
-name, verification state, and unrelated memberships are not overwritten.
+password exists only in the encrypted welcome job, SMTP renderer memory, and
+recipient email. The welcome job is rejected before the CPO transaction commits
+if that credential is absent. If the email already belongs to an active global
+identity, `identity_created=false`; no temporary password is generated and its
+password, name, verification state, and unrelated memberships are not
+overwritten.
+
+`201` proves the mail job committed, not that SMTP delivered it. Fetch the
+primary-admin resource and distinguish `PENDING`/`PROCESSING`/`FAILED` from
+`SENT` before telling the operator that credentials were sent.
 
 Mail disabled returns `503 mail_unavailable` before creation. Do not optimistically
 show success until `201` is received.
@@ -816,7 +826,8 @@ Mail status UX:
 - email is normalized lowercase and max 320;
 - full name is 1–255;
 - reason is 3–500;
-- new identity gets a temporary password only through welcome mail;
+- a new identity gets a credential-bearing welcome job; only a `SENT` delivery
+  status proves SMTP accepted the email containing its temporary password;
 - existing active identity is reused without changing its password or global
   profile, so the submitted full name is not an edit for that identity;
 - inactive identity returns `409 admin_identity_inactive`;
@@ -1179,17 +1190,15 @@ mutate the deployed database.
 
 The FE should raise, not paper over, these gaps:
 
-1. Administrative password-reset completion needs a recoverable challenge-ID
-   delivery contract.
-2. Platform-superadmin list/invite/grant/remove/last-admin protection is the
+1. Platform-superadmin list/invite/grant/remove/last-admin protection is the
    next approved backend slice but is not implemented.
-3. There is no locked-identity query/unlock operation.
-4. There is no generic mail queue list/detail/retry/cancel operation.
-5. There is no notification or announcement API.
-6. There is no platform overview/count/version endpoint.
-7. There is no generated frontend SDK or committed generated types.
-8. There is no SuperAdmin tenant impersonation/support-access workflow.
-9. Tenant subscriptions, entitlements, platform invoices, and platform
+2. There is no locked-identity query/unlock operation.
+3. There is no generic mail queue list/detail/retry/cancel operation.
+4. There is no notification or announcement API.
+5. There is no platform overview/count/version endpoint.
+6. There is no generated frontend SDK or committed generated types.
+7. There is no SuperAdmin tenant impersonation/support-access workflow.
+8. Tenant subscriptions, entitlements, platform invoices, and platform
    payments are intentionally retired and must not return as FE placeholders.
 
 If the FE generates types from OpenAPI, pin the generator version in the FE
@@ -1202,6 +1211,8 @@ The current SuperAdmin FE integration is complete when:
 
 - PLATFORM login, OTP, refresh, scope bootstrap, and account-session behavior
   follow the state machine above;
+- forgot/reset consumes only the recovery ID and code delivered to the eligible
+  recipient and preserves the generic start response;
 - every implemented CPO command/query is wired with its exact boundary,
   validation, retry, and recovery behavior;
 - audit and workers are presented as read-only authoritative queries;

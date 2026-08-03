@@ -389,15 +389,12 @@ func (service *Service) createChallengeTx(
 	if err := tx.Create(&challenge).Error; err != nil {
 		return ChallengeResponse{}, fmt.Errorf("create authentication challenge: %w", err)
 	}
+	payload := challengeOTPPayload(user, challenge, code)
 	if err := service.outbox.EnqueueOTP(
 		tx,
 		user.Email,
 		template,
-		cmsmail.OTPPayload{
-			RecipientName: user.FullName,
-			Code:          code,
-			ExpiresAt:     challenge.ExpiresAt,
-		},
+		payload,
 	); err != nil {
 		return ChallengeResponse{}, err
 	}
@@ -406,6 +403,22 @@ func (service *Service) createChallengeTx(
 		ExpiresAt:         challenge.ExpiresAt,
 		ResendAvailableAt: challenge.ResendAvailableAt,
 	}, nil
+}
+
+func challengeOTPPayload(
+	user models.User,
+	challenge models.AuthChallenge,
+	code string,
+) cmsmail.OTPPayload {
+	payload := cmsmail.OTPPayload{
+		RecipientName: user.FullName,
+		Code:          code,
+		ExpiresAt:     challenge.ExpiresAt,
+	}
+	if challenge.Purpose == constants.ChallengePasswordReset {
+		payload.ChallengeID = challenge.ID.String()
+	}
+	return payload
 }
 
 func (service *Service) lockChallenge(

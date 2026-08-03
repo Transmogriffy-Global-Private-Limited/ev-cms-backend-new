@@ -6,6 +6,7 @@ import (
 
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/config"
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/constants"
+	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/models"
 	"github.com/google/uuid"
 )
 
@@ -32,6 +33,24 @@ func TestOTPHashBindsChallengePurposeAndCode(t *testing.T) {
 		service.otpHash(challengeID, constants.ChallengeLogin2FA, "654321"),
 	) {
 		t.Fatal("different OTP produced the same hash")
+	}
+}
+
+func TestChallengeOTPPayloadIncludesRecoveryIDOnlyForPasswordReset(t *testing.T) {
+	t.Parallel()
+
+	user := models.User{FullName: "Recovery Recipient"}
+	reset := models.AuthChallenge{
+		ID: uuid.New(), Purpose: constants.ChallengePasswordReset,
+	}
+	resetPayload := challengeOTPPayload(user, reset, "123456")
+	if resetPayload.ChallengeID != reset.ID.String() || resetPayload.Code != "123456" {
+		t.Fatalf("unexpected reset payload: %#v", resetPayload)
+	}
+
+	login := models.AuthChallenge{ID: uuid.New(), Purpose: constants.ChallengeLogin2FA}
+	if payload := challengeOTPPayload(user, login, "654321"); payload.ChallengeID != "" {
+		t.Fatalf("login payload exposed an unnecessary recovery ID: %#v", payload)
 	}
 }
 

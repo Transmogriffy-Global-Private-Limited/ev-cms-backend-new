@@ -2,6 +2,39 @@
 
 ## 2026-08-03
 
+### Recovery IDs and first-admin credential delivery corrected
+
+- Added the opaque authentication challenge ID to encrypted administrative and
+  customer password-reset mail payloads and rendered it beside the six-digit
+  code and expiry. Forgot-password responses remain unchanged and generic, so
+  the correction does not create an account-enumeration signal.
+- Updated administrative and customer lifecycle coverage to obtain both reset
+  inputs from the recipient-visible encrypted mail payload rather than reading
+  challenge IDs from internal database state.
+- Made credential-bearing mail fail closed before enqueue and again before SMTP
+  rendering: reset mail requires a parseable recovery ID/code/expiry, and
+  `CPO_ADMIN_WELCOME` requires the generated temporary password.
+- Added renderer tests proving both reset templates contain recovery ID/code/
+  expiry and the new-identity CPO welcome contains its temporary password and
+  CPO/app identifiers.
+- Preserved global-identity ownership: only `identity_created=true` receives a
+  temporary password. Reused active identities keep their existing password,
+  and onboarding resend remains credential-free with working recovery guidance.
+- Corrected SuperAdmin/CPO/customer/OpenAPI/mail documentation to distinguish a
+  committed outbox job from confirmed `SENT` delivery and to mark recovery as
+  frontend-completable for newly generated emails.
+
+Verification:
+
+- Focused mail, administrative-auth, customer-auth, and CPO package tests
+  passed.
+- Documentation drift and focused runtime/OpenAPI/Swagger parity checks passed.
+- `go test ./...`, `go vet ./...`, and `git diff --check` passed.
+- Updated PostgreSQL lifecycle tests compiled but did not execute because no
+  explicitly disposable `TEST_DATABASE_URL` was configured.
+- Real SMTP delivery, authenticated live recovery/onboarding, database mutation,
+  commit, push, and deployment were not performed.
+
 ### Exhaustive SuperAdmin frontend integration handoff added
 
 - Added `docs/SUPERADMIN_FRONTEND_HANDOFF.md` as the canonical no-chat-history

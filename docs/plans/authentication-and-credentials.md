@@ -118,21 +118,25 @@ timestamps. Secret plaintext has no read API.
 
 ## Acceptance Criteria
 
-- All criteria in the development-plan feature entry except the discovered
-  frontend password-recovery completion criterion pass.
+- All criteria in the development-plan feature entry pass, including
+  enumeration-safe recipient delivery of every password-reset input.
 - No secret or OTP appears in API output, database plaintext, application logs,
   examples, or committed files.
 - All mutations are transactionally scoped and tenant authorization is derived
   from the verified principal.
 - Focused and repository-wide verification pass.
 
-## Known Incomplete Criterion
+## Implemented Corrective Slice
 
-Administrative reset validation and global session revocation are
-backend-tested, but forgot-password and the current recovery email omit the
-challenge ID required by reset. A frontend recipient cannot complete recovery.
-This plan cannot return to `Verified` until an enumeration-safe challenge
-delivery contract and end-to-end client test exist.
+The forgot response remains generic. Each eligible administrative reset email
+now carries its opaque recovery ID, code, and expiry; lifecycle coverage uses
+those recipient-visible values rather than reading the challenge table. The
+shared mail boundary also rejects a new-CPO-admin welcome payload when the
+generated temporary password is absent.
+
+The focused payload/renderer tests and full Go suite pass. The changed
+PostgreSQL lifecycle is not marked verified in this slice because no explicitly
+disposable `TEST_DATABASE_URL` was configured.
 
 ## Deferred Work
 
@@ -153,8 +157,8 @@ delivery contract and end-to-end client test exist.
   overwrite, platform and CPO email-OTP login, encrypted token validation,
   refresh rotation and reuse revocation, password-reset handling, durable
   mail-worker claiming/decryption/completion, and encrypted Razorpay credential
-  isolation. The reset test obtained the challenge ID internally and did not
-  verify recipient delivery.
+  isolation. The updated reset lifecycle consumes the recovery ID and code from
+  the encrypted recipient payload rather than internal challenge storage.
 - `go test ./...`, `go vet ./...`, and `git diff --check` passed.
 - Hostinger implicit-TLS client construction and configuration validation
   passed. Delivery through the real mailbox remains operationally unverified;

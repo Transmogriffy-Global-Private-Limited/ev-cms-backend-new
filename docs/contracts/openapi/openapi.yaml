@@ -355,8 +355,9 @@ paths:
       summary: Start enumeration-safe customer password recovery
       description: |
         Creates the challenge and encrypted mail job for an eligible customer.
-        The response and current email omit the challenge ID, so a frontend
-        recipient cannot yet enter the reset-resend or completion operations.
+        The generic response contains no challenge material. The eligible
+        recipient's email contains the recovery ID, code, and expiry required
+        by reset-resend or completion.
       parameters:
         - $ref: "#/components/parameters/CPOAppIDHeader"
       requestBody:
@@ -393,9 +394,9 @@ paths:
       operationId: resendCustomerPasswordResetOTP
       summary: Replace an eligible customer password-reset challenge
       description: |
-        Requires a challenge ID. The current forgot-password response/email
-        does not deliver that ID to the app, so this handler is not yet
-        reachable as a complete frontend recovery flow.
+        Requires the recovery ID delivered to the eligible recipient by email.
+        Success invalidates the old pair and returns a replacement challenge;
+        the replacement email carries the new ID and code.
       parameters:
         - $ref: "#/components/parameters/CPOAppIDHeader"
       requestBody:
@@ -428,9 +429,8 @@ paths:
       operationId: resetCustomerPassword
       summary: Consume a customer reset OTP and replace the global password
       description: |
-        Success revokes every session for the global identity. The handler
-        requires a challenge ID that the current forgot-password response/email
-        does not deliver to the app recipient.
+        Uses the recovery ID and code delivered to the eligible recipient by
+        email. Success revokes every session for the global identity.
       parameters:
         - $ref: "#/components/parameters/CPOAppIDHeader"
       requestBody:
@@ -802,9 +802,9 @@ paths:
         Always returns the same accepted response for malformed, unknown, and
         eligible emails, except for operational mail/rate-limit failures.
         Eligible active identities receive a PASSWORD_RESET challenge and
-        encrypted outbox job. The response omits the challenge ID for
-        enumeration safety. The current email also omits that ID, so a
-        frontend cannot yet supply the complete reset request.
+        encrypted outbox job. The response omits challenge material for
+        enumeration safety; the eligible recipient's email contains the
+        recovery ID, code, and expiry required by reset.
       requestBody:
         required: true
         content:
@@ -838,9 +838,8 @@ paths:
         Validates and consumes a PASSWORD_RESET challenge, stores a new Argon2id
         password hash, clears login lockout and temporary-password state, and
         revokes every session and refresh token for the identity. The user must
-        sign in again. The endpoint works for a caller that already has the
-        challenge ID, but the current forgot-password response/email does not
-        deliver that ID to a frontend recipient.
+        sign in again. The caller supplies the recovery ID and code delivered
+        together to the eligible recipient by email.
       requestBody:
         required: true
         content:
@@ -1268,7 +1267,10 @@ paths:
         unique dummy app ID, an ADMIN membership, audit data, and an encrypted
         onboarding mail job. A new email receives a generated temporary
         password; an existing active identity keeps its password. The
-        temporary password never appears in the response.
+        temporary password never appears in the response. The transaction
+        fails rather than queueing a new-identity welcome without that
+        credential; a successful response proves the job committed, not that
+        SMTP has sent it.
       security:
         - BearerAuth: []
       requestBody:
@@ -1621,7 +1623,8 @@ paths:
       description: |
         Serializes changes per CPO and normalized email. An existing active
         identity keeps its password. A new identity receives a generated
-        temporary password only through encrypted onboarding mail. Replacing
+        temporary password only through encrypted onboarding mail, and an
+        incomplete welcome payload fails the transaction. Replacing
         the administrator revokes the previous administrator's CPO sessions
         and membership in the same transaction. Repeating the already-active
         assignment is a side-effect-free success.

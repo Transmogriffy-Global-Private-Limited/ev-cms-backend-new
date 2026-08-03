@@ -501,15 +501,15 @@ all return the same `202 Accepted` message:
 Only an active customer receives an encrypted
 `CUSTOMER_PASSWORD_RESET_OTP` job. Account lockout does not prevent recovery.
 
-Current frontend limitation: the generic response and current recovery email
-both omit the challenge ID required by resend/completion below. The handlers
-exist, but an app recipient cannot enter this flow from forgot-password yet.
+That eligible recipient's encrypted email contains the opaque recovery ID
+(`challenge_id`), six-digit code, and shared expiry. The generic response does
+not expose whether the ID is real, so account enumeration remains blocked.
 
 ### 4.15 Customer password-reset resend and completion
 
-Both operations require a challenge ID that the current forgot-password
-response/email does not deliver to the app. Do not advertise this as a
-frontend-complete workflow until that enumeration-safe delivery gap is fixed.
+Both operations use the recovery ID delivered in the eligible recipient's
+email. Resend returns a replacement challenge response and mails a replacement
+ID/code pair; the old pair is invalidated.
 
 `POST /api/v1/app/auth/password/reset/resend`
 
@@ -762,14 +762,9 @@ Request:
 
 Malformed email, unknown email, and eligible active identity intentionally
 share that response. An eligible identity receives a single-use encrypted
-`PASSWORD_RESET_OTP` job.
-
-Frontend limitation: the generic response does not return the challenge ID,
-and the current recovery email contains only the OTP and expiry. Because the
-reset endpoint requires the challenge ID too, a browser recipient cannot
-complete this flow yet. Preserve enumeration safety, but do not advertise
-end-to-end password recovery until the email/link delivers an opaque challenge
-identifier.
+`PASSWORD_RESET_OTP` job containing the opaque recovery ID (`challenge_id`),
+six-digit code, and shared expiry. The API response intentionally contains none
+of that challenge material, preserving enumeration safety.
 
 Operational errors: `400 invalid_request`, `429 rate_limited`,
 `503 mail_unavailable`, or `500 internal_error`.
@@ -794,8 +789,9 @@ Request:
 
 Success consumes the challenge, replaces the Argon2id hash, clears lockout and
 `must_change_password`, and revokes every session and unused refresh token.
-The handler is usable only when the caller already possesses the challenge ID;
-the current frontend flow does not provide it.
+The frontend obtains both challenge ID and code from the eligible recipient's
+email; it must not query internal storage. Pre-fix emails without a recovery ID
+must be replaced by starting recovery again.
 
 Errors:
 
@@ -1229,7 +1225,8 @@ primary membership:
 
 - a new email creates a verified active identity with an Argon2id-hashed
   generated password and `must_change_password=true`; only its encrypted welcome
-  mail contains the temporary plaintext;
+  job and rendered recipient email contain the temporary plaintext, and the
+  transaction fails if that credential is absent from the welcome payload;
 - an existing active identity is reused without changing password, name,
   verification state, or unrelated memberships;
 - an inactive identity is rejected;
@@ -1259,7 +1256,7 @@ Errors: request-field `400` errors from OpenAPI; shared authentication errors;
 
 The current identity and membership must both be active. The command queues a
 correlated `CPO_ONBOARDING_RESENT` job containing CPO/app details and
-password-recovery guidance, audit action
+working password-recovery guidance, audit action
 `CPO_PRIMARY_ADMIN_ONBOARDING_RESENT`, and event
 `platform.cpo.primary_admin_onboarding_resent` in one transaction. It never
 reads, regenerates, or sends a password.

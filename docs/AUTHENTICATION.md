@@ -255,12 +255,11 @@ Successful status: `204 No Content`.
 Always returns the same `202 Accepted` response for eligible and unknown email
 addresses. An eligible identity receives an encrypted-outbox OTP.
 
-Current frontend limitation: the response intentionally omits the challenge
-ID, but the current email also contains only the OTP and expiry. Because reset
-requires both challenge ID and OTP, a browser recipient cannot complete the
-flow yet. Do not advertise end-to-end password recovery until an opaque
-challenge identifier is delivered through the recovery email/link without
-weakening enumeration safety.
+The response intentionally omits all challenge material. For an eligible
+active identity, the encrypted recovery email supplies the opaque recovery ID
+(`challenge_id`), six-digit code, and shared expiry. This preserves the same
+generic API response for eligible and unknown addresses while giving the
+recipient every input required by reset.
 
 ### Reset password
 
@@ -277,9 +276,10 @@ weakening enumeration safety.
 Successful reset consumes the challenge and revokes every existing session and
 refresh token.
 
-The endpoint behavior is implemented and backend-tested when a caller already
-has the internal challenge ID. It is not currently reachable as a complete
-frontend workflow for the reason documented above.
+Old recovery emails created before recovery-ID delivery was implemented cannot
+complete reset; the user must request a new email. Successful reset consumes
+the emailed ID/code pair, and no internal database lookup is required by the
+client.
 
 ### Change password
 

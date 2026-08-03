@@ -54,13 +54,16 @@ Customer-session operations:
 - `customerauth.CurrentCPOAppID`
 - `customerauth.RequireAppID`
 
-## Known Incomplete Criterion
+## Implemented Corrective Slice
 
-Password-reset validation and global session revocation are backend-tested,
-but the forgot response and current email omit the challenge ID required by
-reset/resend. The customer frontend cannot complete recovery, so this plan
-cannot return to `Verified` until challenge delivery and end-to-end client
-verification are complete without weakening enumeration safety.
+The forgot response remains generic. Each eligible customer reset email now
+carries the opaque recovery ID, code, and expiry required by reset/resend, and
+the lifecycle test consumes those recipient-visible values rather than reading
+the challenge table.
+
+The focused payload/renderer tests and full Go suite pass. The changed
+PostgreSQL lifecycle is not marked verified in this slice because no explicitly
+disposable `TEST_DATABASE_URL` was configured.
 
 ## Verification
 
@@ -78,7 +81,8 @@ Completed evidence:
   17.
 - PostgreSQL lifecycle covered mail OTP login, encrypted access validation,
   `me`, refresh rotation/reuse revocation, customer-scoped session management,
-  password-reset handling/change, and global session revocation. The test read
-  the recovery challenge ID internally and did not verify recipient delivery.
+  password-reset handling/change, and global session revocation. The updated
+  lifecycle obtains the recovery ID and code from the encrypted recipient mail
+  payload.
 - All 40 runtime/OpenAPI operations matched.
 - Documentation verification, `go test ./...`, and `go vet ./...` passed.

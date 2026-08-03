@@ -111,9 +111,12 @@ app ID, and exactly one active primary `ADMIN` membership.
 
 Creation atomically persists the CPO, membership, audit record, platform event,
 and correlated encrypted mail job. A new email receives a generated temporary
-password only through the welcome email; the API never returns it. An existing
+password only through the welcome email; the API never returns it, and the
+transaction fails if the welcome payload lacks that credential. An existing
 active global identity keeps its existing password and receives an assignment
-email. Mail being disabled fails the command before anything is created.
+email. `201` proves the mail job committed, not SMTP delivery; use the
+primary-admin delivery status to distinguish `SENT` from pending or failed
+delivery. Mail being disabled fails the command before anything is created.
 
 ## Detail and Business Profile
 
@@ -221,7 +224,7 @@ primary administrator:
 
 - an existing active identity is reused without changing its password;
 - a new identity gets a generated temporary password through encrypted welcome
-  mail only;
+  mail only, and an incomplete welcome payload fails the transaction;
 - an inactive identity is rejected;
 - the previous primary membership is revoked and its CPO-scoped sessions and
   refresh tokens are revoked;

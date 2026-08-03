@@ -40,7 +40,8 @@ Creation requires the first administrator's email and full name.
 - If the email is new, the backend generates a high-entropy temporary password,
   stores only its Argon2id hash, creates an active identity with
   `must_change_password=true`, grants the CPO `ADMIN` membership, and writes an
-  encrypted welcome-mail job in the same transaction.
+  encrypted welcome-mail job in the same transaction. Missing temporary
+  password data rejects the welcome job and rolls back that transaction.
 - If the global identity already exists, the backend never replaces its
   password. It grants the new CPO `ADMIN` membership and writes an encrypted
   assignment-mail job.
@@ -54,11 +55,14 @@ Creation requires the first administrator's email and full name.
 - Password change/reset clears the flag and revokes every existing session.
 
 Temporary password plaintext exists only in application memory during creation,
-the encrypted mail payload, and mail-worker memory during delivery. It is never
-returned by the API, logged, audited, or stored in plaintext.
+the encrypted mail payload, mail-worker/SMTP renderer memory during delivery,
+and the recipient email. It is never returned by the API, logged, audited, or
+stored as database plaintext.
 
 The welcome or assignment email includes the CPO ID and current app ID. The
 new-identity welcome additionally includes the temporary password.
+The create response proves the encrypted job committed, not that SMTP sent it;
+operators use primary-admin delivery status and reserve “sent” for `SENT`.
 
 One `ADMIN` membership is durably designated primary for each provisioned CPO.
 Other fixed-role enum values remain dormant schema capacity until a future
@@ -132,6 +136,8 @@ the reserved `cpo_dummy_` prefix; superadmin-supplied live IDs cannot use it.
   new-versus-existing first-admin identity decisions.
 - Creation and audit insertion share one transaction.
 - First-admin identity/membership and onboarding mail share that transaction.
+- Credential-bearing welcome payload validation fails closed before enqueue and
+  again before SMTP rendering.
 - A mail-disabled deployment rejects creation instead of exposing a temporary
   password through another channel.
 - Existing identities are reused without password mutation.

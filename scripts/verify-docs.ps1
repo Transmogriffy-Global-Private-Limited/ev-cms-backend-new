@@ -75,7 +75,8 @@ $superadminFEHandoff = Get-Content -Raw -LiteralPath (
 $requiredSuperadminFERules = @(
     'Send `scope: "PLATFORM"`; omit `cpo_id`',
     'Use `fetch()` streaming, not native `EventSource`',
-    'Current password-recovery limitation',
+    'collect the recovery ID, code, and new password',
+    'welcome job is rejected before the CPO transaction commits',
     '`platform.cpo.primary_admin_changed`',
     'Tenant subscription/billing',
     'SuperAdmin is not a CPO ADMIN'

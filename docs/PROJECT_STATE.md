@@ -25,9 +25,9 @@ provides:
 - mandatory email OTP for platform and CPO administrative login;
 - signed-then-encrypted access JWTs and rotating opaque refresh tokens;
 - durable sessions with list/current/all/specific revocation APIs;
-- enumeration-safe password-recovery start/reset handlers and authenticated
-  password change; frontend reset completion remains blocked because the
-  recovery challenge ID is not delivered to the recipient;
+- enumeration-safe password recovery and authenticated password change;
+  eligible reset mail delivers the recovery ID, code, and expiry required by
+  the reset handler while the forgot response remains generic;
 - trusted principal, user ID, CPO ID, platform, and CPO-role helpers;
 - encrypted PostgreSQL mail outbox with a retrying, encrypted-transport SMTP
   worker;
@@ -84,8 +84,7 @@ provides:
 - customer password-plus-mail-OTP login, signed/encrypted access tokens, and
   rotating/reuse-detecting refresh tokens;
 - app-user `me`, customer-scoped session listing/revocation/logout, global
-  password-reset handlers, and password change; customer frontend recovery has
-  the same missing challenge-ID delivery gap as administrative recovery;
+  password reset/change, and eligible-recipient recovery-ID/code delivery;
 - trusted backend current-principal, user, customer, CPO, and app-ID helpers;
 - environment-controlled permissive CORS middleware and a current development
   configuration that listens on all IPv4 interfaces for access from other
@@ -140,9 +139,10 @@ yet.
   password.
 - Platform and CPO admin email-OTP login passed using encrypted outbox payloads.
 - Encrypted access-token validation, refresh rotation, reuse-triggered session
-  revocation, and backend password-reset handling passed. The password test
-  obtained the challenge ID internally; it did not prove a frontend recipient
-  can obtain that ID from the current forgot response/email.
+  revocation, and password reset handling passed. Updated lifecycle coverage
+  obtains both recovery ID and code from the encrypted recipient mail payload
+  rather than internal challenge storage; that changed PostgreSQL lifecycle was
+  not run in this slice because no disposable `TEST_DATABASE_URL` was set.
 - The mail worker claimed, decrypted, delivered through a test sender, and
   completed a durable job.
 - Hostinger implicit-TLS configuration loaded successfully and the SMTP sender
@@ -174,9 +174,10 @@ yet.
   in PostgreSQL 17.
 - Customer login OTP, encrypted access validation, `me`, refresh rotation and
   reuse revocation, customer-scoped session listing/revocation/logout,
-  password-reset handling, password change, and global session revocation
-  passed in PostgreSQL lifecycle tests. Recovery tests obtained the challenge
-  ID internally and did not verify recipient delivery.
+  password reset handling, password change, and global session revocation have
+  PostgreSQL lifecycle coverage. The updated recipient-visible recovery path
+  compiled but was not executed against PostgreSQL in this slice because no
+  disposable `TEST_DATABASE_URL` was set.
 - Permissive CORS preflight behavior and the disabled-CORS path passed focused
   route tests; authentication and authorization remain active in either mode.
 - Platform operations compile; model parsing, migration discovery/pairing, mail
@@ -244,12 +245,12 @@ repository. The integration contract has not been implemented yet.
 
 ## Known Limitations
 
-- Administrative forgot-password creates and mails a recovery OTP, but neither
-  its generic response nor the current email delivers the challenge ID required
-  by reset. A frontend cannot complete password recovery until that contract is
-  repaired without weakening enumeration safety.
-- Customer forgot-password has the same challenge-ID delivery gap, so its
-  reset/resend handlers are also not a frontend-complete recovery flow.
+- Password-recovery emails queued before recovery-ID delivery was implemented
+  contain only the OTP and expiry and cannot complete reset. Users must request
+  a new email; no database challenge lookup is an approved client workflow.
+- A successful CPO-creation response proves its encrypted onboarding job
+  committed, not that SMTP sent it. Operators must use primary-admin delivery
+  status; only a newly created global identity receives a temporary password.
 - Only the initial administrator profile and network/GST/tariff subset has
   handlers. Customer directory, access tokens, charging, wallets, payments,
   reporting, and most other domain tables remain without business APIs.

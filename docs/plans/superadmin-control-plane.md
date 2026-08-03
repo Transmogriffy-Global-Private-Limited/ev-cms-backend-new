@@ -43,10 +43,10 @@ without accessing tenant business data.
 - Canonical SuperAdmin frontend handoff across auth, CPO control, audit,
   workers, replay/SSE, errors, security, verification, and known gaps
 
-Administrative password-reset handlers exist, but the forgot response and
-current email do not deliver the challenge ID required by reset. This is a
-separate frontend-completion gap in the authentication foundation, not an
-implemented SuperAdmin control-plane capability.
+Administrative password recovery remains enumeration-safe while the eligible
+recipient's encrypted email supplies the recovery ID, code, and expiry required
+by reset. It is part of the shared authentication foundation, not a
+SuperAdmin-control-plane governance command.
 
 ## Retired Prototype
 
