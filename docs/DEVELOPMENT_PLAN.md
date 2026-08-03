@@ -688,13 +688,13 @@ Last completed slice:
 
 Last deployment milestone:
 
-- Revision `afd90f5` was built cleanly, migrated through version eleven, and
-  rehosted on the development VPS. All three existing CPOs satisfied the new
-  required registration constraints and were preserved. The live 70-operation
-  route/OpenAPI surface, protected slug availability, retired routes, required
-  workers, running-binary identity, loopback/public readiness, and post-start
-  journal were verified. The disposable PostgreSQL lifecycle remains
-  unexecuted without authorization to drop a test database.
+- Revision `9760523` was built cleanly and rehosted on the development VPS with
+  migration eleven already current and all four CPOs preserved. The live
+  70-operation route/OpenAPI surface advertises the field-specific CPO conflict
+  codes; protected and retired routes, required workers, running-binary
+  identity, loopback/public readiness, and the post-start journal were
+  verified. The disposable PostgreSQL lifecycle remains unexecuted without
+  authorization to drop a test database.
 
 Next expected slice:
 

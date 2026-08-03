@@ -109,13 +109,13 @@ provides:
   handler;
 - the additive PostgreSQL database `devevcmsnewdb`, owned by `postgres`.
 
-The active development VPS runs source revision `afd90f5`, with migration
+The active development VPS runs source revision `9760523`, with migration
 eleven recorded and the deployed 70-operation contract. CPO GSTIN and address
-identity are now database-required, and authenticated platform clients can use
-the advisory slug-availability operation. All three pre-migration CPOs already
-satisfied the new constraints and were preserved unchanged. Migration nine
-continues to preserve the retired commercial prototype under
-`retired_commercial`.
+identity are database-required, authenticated platform clients can use the
+advisory slug-availability operation, and known uniqueness races return
+field- or relationship-specific conflict codes. All four CPOs were complete
+and preserved during deployment. Migration nine continues to preserve the
+retired commercial prototype under `retired_commercial`.
 
 No CMS/HAL transport or handshake, live charger state ingestion, charging
 workflow, tenant payment workflow, tenant commercial-management workflow,
@@ -135,6 +135,10 @@ yet.
 - `go test ./...` passed.
 - `go vet ./...` passed.
 - `git diff --check` passed.
+- Revision `9760523` was built cleanly and rehosted with migration eleven
+  already current. The installed hash, loopback/public readiness, live
+  70-operation Swagger/OpenAPI with field-specific conflict codes, protected
+  and retired routes, required workers, and journal passed.
 - Revision `afd90f5` was built cleanly, migrated through version eleven, and
   rehosted. The installed hash, loopback/public readiness, live 70-operation
   Swagger/OpenAPI, protected slug route, retired routes, required workers,

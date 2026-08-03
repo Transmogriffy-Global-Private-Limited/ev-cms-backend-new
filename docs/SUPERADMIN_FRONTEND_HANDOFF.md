@@ -48,9 +48,9 @@ the development deployment.
   - 4 platform operations/realtime queries.
 
 The development origin now serves healthy liveness/readiness, Swagger UI, and
-the 70-operation OpenAPI document from revision `afd90f5`. Migration eleven is
-recorded, so the slug-availability endpoint and mandatory registration fields
-are live on the development deployment.
+the 70-operation OpenAPI document from revision `9760523`. Migration eleven is
+recorded, so the slug-availability endpoint, mandatory registration fields,
+and field-specific CPO conflict codes are live on the development deployment.
 
 Configure the origin in the frontend environment. Do not hardcode it in API
 modules:
@@ -78,7 +78,7 @@ approved origin policy and HTTPS.
 | Authenticated password change | Ready | Success revokes every session and requires login |
 | Forgot/reset password | Ready | Forgot stays generic; an eligible recipient's email contains both recovery ID and code |
 | CPO list/search/filter/cursor | Ready | REST is authoritative; reset cursor when filters change |
-| CPO slug availability | Ready in source; pending deployment | Advisory only; creation can still return `cpo_slug_conflict` |
+| CPO slug availability | Ready | Advisory only; creation can still return `cpo_slug_conflict` |
 | CPO create/profile/lifecycle/app ID | Ready | Mutations are platform-only; reasons are required where documented |
 | Primary-admin inspect/replace/recover | Ready | No password, OTP, token, or mail body is returned |
 | CPO administrative-session revocation | Ready | Does not revoke customer or platform sessions |

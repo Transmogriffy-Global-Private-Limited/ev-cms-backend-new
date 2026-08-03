@@ -21,11 +21,12 @@ started as a second systemd service because that would create an unnecessary
 duplicate worker.
 
 The active deployment was updated on August 3, 2026 to source revision
-`afd90f5`. It has migrations one through eleven and the current 70-operation
-API. GSTIN and complete address identity are database-required for CPOs, and
-the authenticated platform slug-availability route is live. The eleven retired
-commercial prototype tables remain recoverable in the `retired_commercial`
-schema.
+`9760523`. It has migrations one through eleven and the current 70-operation
+API. GSTIN and complete address identity are database-required for CPOs, the
+authenticated platform slug-availability route is live, and known uniqueness
+races return field- or relationship-specific conflict codes. The eleven
+retired commercial prototype tables remain recoverable in the
+`retired_commercial` schema.
 
 ## Files and Ownership
 
@@ -52,7 +53,7 @@ The deployment copies `.env.example` to `.env`, then overrides:
 - five independently generated 32-byte base64 cryptographic keys.
 
 `DATABASE_URL` and `SMTP_PASSWORD` contain deployment secrets only in the
-ignored environment file. The service is enabled and active, all ten forward
+ignored environment file. The service is enabled and active, all eleven forward
 migrations are recorded, and startup idempotently retained the configured
 platform superadmin.
 

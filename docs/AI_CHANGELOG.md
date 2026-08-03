@@ -2,6 +2,28 @@
 
 ## 2026-08-03
 
+### Field-specific CPO conflicts deployed to the development VPS
+
+- Built revision `9760523`, confirmed the release has no migration,
+  dependency, environment, Caddy, or systemd changes, and rehosted
+  `evcmsnew-dev.service` through the shared handler.
+- Created the validated mode-0600 rollback dump
+  `/tmp/devevcmsnewdb-pre-9760523.dump` and preserved the previous binary as
+  `builds/evcmsnew.pre-9760523`.
+- Ran the forward migrator as a no-op at migration eleven and preserved all
+  four complete CPO records.
+
+Verification:
+
+- Focused conflict mapping and runtime/OpenAPI tests, documentation contract
+  verification, `go test ./...`, `go vet ./...`, and `git diff --check` passed.
+- The installed binary matches the clean `9760523` candidate. Systemd,
+  loopback/public readiness, the live 70-operation OpenAPI and Swagger UI,
+  protected routes, retired-route absence, required workers, and the startup
+  journal passed.
+- The live OpenAPI advertises the field-specific slug and GSTIN conflict codes.
+  No live CPO mutation or mail delivery was used for deployment verification.
+
 ### SuperAdmin CPO conflicts made field-specific
 
 - Traced the live generic `409 cpo_conflict` to PostgreSQL constraint names;
