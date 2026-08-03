@@ -103,15 +103,13 @@ provides:
   handler;
 - the additive PostgreSQL database `devevcmsnewdb`, owned by `postgres`.
 
-The active development VPS runs a candidate based on source revision `407ec07`
-plus local PostgreSQL compatibility corrections, with migration ten recorded
-and the deployed 69-operation contract. The 20 ADMIN-only
-organization/profile/network/pricing operations required no new migration.
-The corrections align GORM with the existing `open_24_hours` and
-`price_per_kwh` columns and map PostgreSQL dependency violations to the
-documented `charger_in_use` conflict. The deployed corrections are recorded in
-the repository state. Migration nine continues to preserve the retired
-commercial prototype under `retired_commercial`.
+The active development VPS runs source revision `1cec3f3`, with migration ten
+recorded and the deployed 69-operation contract. This release adds
+recipient-visible recovery IDs for new administrative/customer reset mail and
+fails incomplete reset or new-admin welcome payloads before enqueue/rendering.
+It required no database migration or configuration change. Migration nine
+continues to preserve the retired commercial prototype under
+`retired_commercial`.
 
 No CMS/HAL transport or handshake, live charger state ingestion, charging
 workflow, tenant payment workflow, tenant commercial-management workflow,
@@ -124,6 +122,9 @@ yet.
 - `go test ./...` passed.
 - `go vet ./...` passed.
 - `git diff --check` passed.
+- Revision `1cec3f3` was built cleanly and rehosted. The installed hash,
+  loopback/public liveness and readiness, live Swagger/OpenAPI, protected and
+  retired routes, required workers, migration ledger, and journal passed.
 - The read-only CPO organization projection, privileged-field omission,
   protected route, 69-operation OpenAPI parity, documentation contract, and
   complete CPO organization/profile/network/pricing lifecycle passed. The

@@ -2,6 +2,32 @@
 
 ## 2026-08-03
 
+### Recovery-mail correction deployed to the development VPS
+
+- Fast-forward checked `main` and confirmed revision `1cec3f3` was already the
+  current remote head.
+- Confirmed the release changes no migration, dependency, or deployment
+  configuration and that no legacy credential-bearing mail job was pending or
+  processing before activation.
+- Created the validated mode-0600 rollback dump
+  `/tmp/devevcmsnewdb-pre-1cec3f3.dump`, preserved the previous binary as
+  `builds/evcmsnew.pre-1cec3f3`, confirmed migration ten remained current, and
+  rehosted `evcmsnew-dev.service` through the shared handler.
+
+Verification:
+
+- Documentation drift checks, focused auth/customer/mail/CPO tests,
+  runtime/OpenAPI/Swagger parity, `go test ./...`, `go vet ./...`, and
+  `git diff --check` passed before activation.
+- The running binary hash and module metadata match the clean `1cec3f3`
+  candidate. Systemd is enabled and active with zero restarts.
+- Loopback and public liveness/readiness, Swagger UI, the live 69-operation
+  OpenAPI document, protected-route rejection, retired-route absence, required
+  worker freshness, migration ledger, and post-start journal passed.
+- No live recovery/onboarding email or authenticated password-reset mutation
+  was triggered during deployment. The changed PostgreSQL lifecycle remains
+  unexecuted because dropping a disposable database was not authorized.
+
 ### Recovery IDs and first-admin credential delivery corrected
 
 - Added the opaque authentication challenge ID to encrypted administrative and

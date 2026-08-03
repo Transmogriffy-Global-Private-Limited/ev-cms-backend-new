@@ -659,14 +659,13 @@ Last completed slice:
 
 Last deployment milestone:
 
-- A candidate based on revision `407ec07` plus local PostgreSQL compatibility
-  corrections was built and rehosted on the development VPS. Migration ten was
-  already current, so no schema change was required. The disposable
-  PostgreSQL lifecycle, live 69-operation route/OpenAPI surface, protected CPO
-  routes, required workers, running-binary identity, and loopback/public
-  readiness were verified. Migration nine's retired commercial archive remains
-  intact. The compatibility corrections and deployment record are included in
-  this verified slice.
+- Revision `1cec3f3` was built cleanly and rehosted on the development VPS.
+  Migration ten was already current, so no schema change was required. The
+  live 69-operation route/OpenAPI surface, protected and retired routes,
+  required workers, running-binary identity, loopback/public readiness, and
+  post-start journal were verified. No live recovery mail or authenticated
+  reset mutation was triggered; the changed PostgreSQL lifecycle remains
+  unexecuted without authorization to drop a disposable database.
 
 Next expected slice:
 
