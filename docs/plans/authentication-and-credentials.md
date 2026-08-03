@@ -1,6 +1,6 @@
 # Authentication and Credential Boundary
 
-Status: Verified
+Status: Implemented
 
 ## Objective
 
@@ -118,12 +118,21 @@ timestamps. Secret plaintext has no read API.
 
 ## Acceptance Criteria
 
-- All criteria in the development-plan feature entry pass.
+- All criteria in the development-plan feature entry except the discovered
+  frontend password-recovery completion criterion pass.
 - No secret or OTP appears in API output, database plaintext, application logs,
   examples, or committed files.
 - All mutations are transactionally scoped and tenant authorization is derived
   from the verified principal.
 - Focused and repository-wide verification pass.
+
+## Known Incomplete Criterion
+
+Administrative reset validation and global session revocation are
+backend-tested, but forgot-password and the current recovery email omit the
+challenge ID required by reset. A frontend recipient cannot complete recovery.
+This plan cannot return to `Verified` until an enumeration-safe challenge
+delivery contract and end-to-end client test exist.
 
 ## Deferred Work
 
@@ -142,8 +151,10 @@ timestamps. Secret plaintext has no read API.
 - PostgreSQL 17 migration down, up, and idempotent up passed.
 - PostgreSQL integration tests passed for idempotent bootstrap without password
   overwrite, platform and CPO email-OTP login, encrypted token validation,
-  refresh rotation and reuse revocation, password recovery, durable mail-worker
-  claiming/decryption/completion, and encrypted Razorpay credential isolation.
+  refresh rotation and reuse revocation, password-reset handling, durable
+  mail-worker claiming/decryption/completion, and encrypted Razorpay credential
+  isolation. The reset test obtained the challenge ID internally and did not
+  verify recipient delivery.
 - `go test ./...`, `go vet ./...`, and `git diff --check` passed.
 - Hostinger implicit-TLS client construction and configuration validation
   passed. Delivery through the real mailbox remains operationally unverified;

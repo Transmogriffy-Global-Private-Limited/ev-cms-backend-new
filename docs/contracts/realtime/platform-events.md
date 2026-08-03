@@ -122,9 +122,9 @@ Current CPO event names and safe payload meanings:
 | Event | Data | REST refresh |
 | --- | --- | --- |
 | `platform.cpo.created` | CPO ID/status/app-ID mode | collection |
-| `platform.cpo.profile_updated` | changed business-profile fields | collection and CPO detail |
+| `platform.cpo.profile_updated` | empty object; refetch the resource | collection and CPO detail |
 | `platform.cpo.activated` / `platform.cpo.suspended` | previous status, status, reason | collection and CPO detail |
-| `platform.cpo.app_id_rotated` | current app ID/mode | CPO detail |
+| `platform.cpo.app_id_rotated` | current app-ID mode; app ID is refetched | CPO detail |
 | `platform.cpo.primary_admin_changed` | previous/current user IDs and reason | primary-admin resource |
 | `platform.cpo.primary_admin_onboarding_resent` | primary user ID and reason | primary-admin resource |
 | `platform.cpo.admin_sessions_revoked` | reason and revoked counts | audit/recovery display |

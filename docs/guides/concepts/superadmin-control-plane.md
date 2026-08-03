@@ -58,6 +58,10 @@ The current source does not yet include platform-admin governance, generic mail
 job administration, notification/announcement, or overview/status command
 surfaces. Those remain planned in the active superadmin plan.
 
+The current administrative forgot/reset endpoints also lack a
+frontend-completable challenge-ID delivery path. The exact SuperAdmin FE-ready
+and blocked surface is recorded in `../../SUPERADMIN_FRONTEND_HANDOFF.md`.
+
 ## Realtime and Recovery
 
 PostgreSQL remains authoritative. Platform events announce committed facts and

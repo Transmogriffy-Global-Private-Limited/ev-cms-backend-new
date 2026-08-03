@@ -216,7 +216,9 @@ Implemented:
 - refresh rotation;
 - current customer (`me`);
 - customer-scoped session listing/revocation/logout/logout-all;
-- password recovery, reset resend/completion, and authenticated change.
+- password-recovery/reset handlers and authenticated change. Recovery
+  completion is currently frontend-blocked because neither forgot-password nor
+  the recovery email supplies the required challenge ID.
 
 Successful signup transactionally creates or reuses the global identity,
 creates one CPO-scoped customer, and creates its zero-balance INR wallet.

@@ -353,6 +353,10 @@ paths:
       tags: [App User Authentication]
       operationId: startCustomerPasswordRecovery
       summary: Start enumeration-safe customer password recovery
+      description: |
+        Creates the challenge and encrypted mail job for an eligible customer.
+        The response and current email omit the challenge ID, so a frontend
+        recipient cannot yet enter the reset-resend or completion operations.
       parameters:
         - $ref: "#/components/parameters/CPOAppIDHeader"
       requestBody:
@@ -388,6 +392,10 @@ paths:
       tags: [App User Authentication]
       operationId: resendCustomerPasswordResetOTP
       summary: Replace an eligible customer password-reset challenge
+      description: |
+        Requires a challenge ID. The current forgot-password response/email
+        does not deliver that ID to the app, so this handler is not yet
+        reachable as a complete frontend recovery flow.
       parameters:
         - $ref: "#/components/parameters/CPOAppIDHeader"
       requestBody:
@@ -419,7 +427,10 @@ paths:
       tags: [App User Authentication]
       operationId: resetCustomerPassword
       summary: Consume a customer reset OTP and replace the global password
-      description: Success revokes every session for the global identity.
+      description: |
+        Success revokes every session for the global identity. The handler
+        requires a challenge ID that the current forgot-password response/email
+        does not deliver to the app recipient.
       parameters:
         - $ref: "#/components/parameters/CPOAppIDHeader"
       requestBody:
@@ -791,7 +802,9 @@ paths:
         Always returns the same accepted response for malformed, unknown, and
         eligible emails, except for operational mail/rate-limit failures.
         Eligible active identities receive a PASSWORD_RESET challenge and
-        encrypted outbox job.
+        encrypted outbox job. The response omits the challenge ID for
+        enumeration safety. The current email also omits that ID, so a
+        frontend cannot yet supply the complete reset request.
       requestBody:
         required: true
         content:
@@ -825,7 +838,9 @@ paths:
         Validates and consumes a PASSWORD_RESET challenge, stores a new Argon2id
         password hash, clears login lockout and temporary-password state, and
         revokes every session and refresh token for the identity. The user must
-        sign in again.
+        sign in again. The endpoint works for a caller that already has the
+        challenge ID, but the current forgot-password response/email does not
+        deliver that ID to a frontend recipient.
       requestBody:
         required: true
         content:
@@ -1120,8 +1135,8 @@ paths:
                 type: string
               example: |
                 id: 14582
-                event: platform.worker.status_changed
-                data: {"id":14582,"type":"platform.worker.status_changed","resource_type":"WORKER","resource_id":"mail-outbox","data":{"status":"STALE"},"occurred_at":"2026-07-24T12:14:52Z"}
+                event: platform.cpo.suspended
+                data: {"id":14582,"type":"platform.cpo.suspended","resource_type":"CPO","resource_id":"c821a013-5041-42f7-80c8-aa153cf9d455","data":{"previous_status":"ACTIVE","status":"SUSPENDED","reason":"Access paused at operator request"},"occurred_at":"2026-07-24T12:14:52Z"}
 
         "400":
           description: "`invalid_after_id`."

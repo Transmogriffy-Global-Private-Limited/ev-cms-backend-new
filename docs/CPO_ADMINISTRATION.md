@@ -5,6 +5,10 @@ machine contract is `contracts/openapi/openapi.yaml`; exhaustive shared API
 semantics are in `contracts/api/administrative-http-api.md`. The same operations
 are executable from `/docs/` when `API_DOCS_ENABLED=true`.
 
+For the complete SuperAdmin application handoff—including authentication,
+TypeScript types, audit/workers, realtime code, error UX, and known gaps—use
+`SUPERADMIN_FRONTEND_HANDOFF.md`.
+
 ## Boundary
 
 Base path: `/api/v1/platform/cpos`.

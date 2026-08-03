@@ -1,6 +1,6 @@
 # Customer Authentication Plan
 
-Status: Verified
+Status: Implemented
 
 ## Objective
 
@@ -54,6 +54,14 @@ Customer-session operations:
 - `customerauth.CurrentCPOAppID`
 - `customerauth.RequireAppID`
 
+## Known Incomplete Criterion
+
+Password-reset validation and global session revocation are backend-tested,
+but the forgot response and current email omit the challenge ID required by
+reset/resend. The customer frontend cannot complete recovery, so this plan
+cannot return to `Verified` until challenge delivery and end-to-end client
+verification are complete without weakening enumeration safety.
+
 ## Verification
 
 - Token-context and helper unit tests
@@ -70,6 +78,7 @@ Completed evidence:
   17.
 - PostgreSQL lifecycle covered mail OTP login, encrypted access validation,
   `me`, refresh rotation/reuse revocation, customer-scoped session management,
-  password recovery/change, and global session revocation.
+  password-reset handling/change, and global session revocation. The test read
+  the recovery challenge ID internally and did not verify recipient delivery.
 - All 40 runtime/OpenAPI operations matched.
 - Documentation verification, `go test ./...`, and `go vet ./...` passed.

@@ -1,5 +1,45 @@
 # AI Changelog
 
+## 2026-08-03
+
+### Exhaustive SuperAdmin frontend integration handoff added
+
+- Added `docs/SUPERADMIN_FRONTEND_HANDOFF.md` as the canonical no-chat-history
+  handoff for the platform SuperAdmin frontend.
+- Covered the 27-operation SuperAdmin integration surface, environment and
+  authorization boundary, screen model, TypeScript request/response types,
+  login/OTP/refresh/session state machine, complete CPO workflows,
+  audit/workers, authenticated fetch-based SSE, REST replay/cursor recovery,
+  event invalidation, error UX, mutation retry rules, security, testing, and
+  definition of done.
+- Explicitly separated callable behavior from planned platform governance,
+  security, generic mail, announcement, and overview surfaces; retained manual
+  CPO access and the prohibition on tenant-data/secret access and
+  subscriptions/platform billing.
+- Registered the handoff in repository instructions, root/documentation
+  indexes, project state, development planning, the active SuperAdmin plan,
+  and documentation drift verification.
+- Reconciled realtime guidance with actual producers: profile-update events
+  carry an empty data object, app-ID events carry only the mode, and the
+  OpenAPI SSE example now uses an emitted CPO event. Corrected optional-field
+  examples and the replay section reference in the human API contract.
+- Found that administrative and customer forgot-password create recovery
+  challenges but neither their response nor current email delivers the
+  challenge ID required by reset/resend. Documented both frontend gaps across
+  OpenAPI, human/workflow contracts, state, and plans; changed the affected
+  feature/plan statuses from `Verified` to `Implemented`. No authentication
+  behavior was changed in this documentation-only slice.
+
+Verification:
+
+- Public development liveness/readiness, Swagger UI, and the deployed
+  69-operation OpenAPI document returned successfully before editing.
+- Documentation registration/drift verification passed.
+- Focused runtime/OpenAPI parity and Swagger-serving verification passed.
+- `go test ./...`, `go vet ./...`, and `git diff --check` passed.
+- No authenticated deployment workflow, database mutation, mail delivery, or
+  deployment was performed.
+
 ## 2026-07-31
 
 ### Canonical CPO backend AI-agent handoff added
