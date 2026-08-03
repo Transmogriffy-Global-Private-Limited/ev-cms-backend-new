@@ -501,15 +501,15 @@ all return the same `202 Accepted` message:
 Only an active customer receives an encrypted
 `CUSTOMER_PASSWORD_RESET_OTP` job. Account lockout does not prevent recovery.
 
-Current frontend limitation: the generic response and current recovery email
-both omit the challenge ID required by resend/completion below. The handlers
-exist, but an app recipient cannot enter this flow from forgot-password yet.
+That eligible recipient's encrypted email contains the opaque recovery ID
+(`challenge_id`), six-digit code, and shared expiry. The generic response does
+not expose whether the ID is real, so account enumeration remains blocked.
 
 ### 4.15 Customer password-reset resend and completion
 
-Both operations require a challenge ID that the current forgot-password
-response/email does not deliver to the app. Do not advertise this as a
-frontend-complete workflow until that enumeration-safe delivery gap is fixed.
+Both operations use the recovery ID delivered in the eligible recipient's
+email. Resend returns a replacement challenge response and mails a replacement
+ID/code pair; the old pair is invalidated.
 
 `POST /api/v1/app/auth/password/reset/resend`
 
@@ -762,14 +762,9 @@ Request:
 
 Malformed email, unknown email, and eligible active identity intentionally
 share that response. An eligible identity receives a single-use encrypted
-`PASSWORD_RESET_OTP` job.
-
-Frontend limitation: the generic response does not return the challenge ID,
-and the current recovery email contains only the OTP and expiry. Because the
-reset endpoint requires the challenge ID too, a browser recipient cannot
-complete this flow yet. Preserve enumeration safety, but do not advertise
-end-to-end password recovery until the email/link delivers an opaque challenge
-identifier.
+`PASSWORD_RESET_OTP` job containing the opaque recovery ID (`challenge_id`),
+six-digit code, and shared expiry. The API response intentionally contains none
+of that challenge material, preserving enumeration safety.
 
 Operational errors: `400 invalid_request`, `429 rate_limited`,
 `503 mail_unavailable`, or `500 internal_error`.
@@ -794,8 +789,9 @@ Request:
 
 Success consumes the challenge, replaces the Argon2id hash, clears lockout and
 `must_change_password`, and revokes every session and unused refresh token.
-The handler is usable only when the caller already possesses the challenge ID;
-the current frontend flow does not provide it.
+The frontend obtains both challenge ID and code from the eligible recipient's
+email; it must not query internal storage. Pre-fix emails without a recovery ID
+must be replaced by starting recovery again.
 
 Errors:
 
@@ -968,8 +964,10 @@ Normalization and validation:
   hyphen;
 - `business_name`: required, at most 255;
 - `company_type`: `INDIVIDUAL` or `COMPANY`;
-- optional `gstin`: uppercased, exactly 15 uppercase letters/digits;
-- address/city/state/pincode maxima: 5000/100/100/10;
+- `gstin`: required, uppercased, exactly 15 uppercase letters/digits, and
+  globally unique after normalization;
+- `address`, `city`, `state`, and `pincode`: each required after trimming, with
+  maxima 5000/100/100/10;
 - admin email: normalized lowercase valid email, at most 320;
 - admin full name: required, at most 255;
 - status and app-ID fields cannot be supplied.
@@ -1024,12 +1022,50 @@ Errors:
 - field-specific `400 invalid_*` codes listed in OpenAPI;
 - `401 unauthorized`;
 - `403 forbidden`;
-- `409 cpo_conflict` for unique slug/GSTIN/app-ID/membership collisions;
+- `409 cpo_slug_conflict` when the normalized slug already exists;
+- `409 cpo_gstin_conflict` when the normalized GSTIN is assigned elsewhere;
+- `409 cpo_app_id_conflict` for the generated app-ID collision;
+- `409 admin_identity_conflict` when a concurrent request creates the global
+  administrator identity first;
+- `409 cpo_admin_membership_conflict` or `cpo_primary_admin_conflict` for
+  administrator-membership races;
+- `409 cpo_conflict` only as the safe fallback for an unrecognized unique
+  constraint;
 - `409 admin_identity_inactive`;
 - `503 mail_unavailable`;
 - `500 internal_error`.
 
-### 8.2 `GET /api/v1/platform/cpos`
+The slug and GSTIN are enforced by normalized PostgreSQL unique indexes. The
+creation transaction is authoritative even if an earlier availability lookup
+reported that a slug was free.
+
+### 8.2 `GET /api/v1/platform/cpos/slug-availability?slug={candidate}`
+
+Purpose: validate and preflight a slug while the Superadmin fills the creation
+form.
+
+The required `slug` query value is trimmed and lowercased, then checked using
+the same 80-character, single-hyphen-separated format as creation.
+
+`200 OK`:
+
+```json
+{
+  "slug": "example-charging",
+  "available": true
+}
+```
+
+The returned slug is the normalized value. `available` is only a current
+snapshot: another request may create that slug immediately afterward. The FE
+must still handle `409 cpo_slug_conflict` from CPO creation and must not treat
+this GET as a reservation.
+
+Errors: `400 invalid_slug`, `401 unauthorized`, `403 forbidden`, or
+`500 internal_error`. The operation is read-only, side-effect-free, and safe to
+retry.
+
+### 8.3 `GET /api/v1/platform/cpos`
 
 Purpose: drive the Superadmin CPO collection without loading an unbounded
 tenant list.
@@ -1056,6 +1092,11 @@ Optional query:
       "slug": "example-charging",
       "business_name": "Example Charging Private Limited",
       "company_type": "COMPANY",
+      "gstin": "19ABCDE1234F1Z5",
+      "address": "1 Example Road",
+      "city": "Kolkata",
+      "state": "West Bengal",
+      "pincode": "700001",
       "status": "PENDING",
       "status_reason": "Initial provisioning",
       "status_changed_at": "2026-07-31T09:00:00Z",
@@ -1081,7 +1122,7 @@ Errors: `400 invalid_q`, `invalid_status`, `invalid_app_id_mode`,
 `invalid_limit`, `invalid_before`, `invalid_before_id`, or `invalid_cursor`;
 shared authentication errors; or `500 internal_error`.
 
-### 8.3 `GET /api/v1/platform/cpos/{cpo_id}`
+### 8.4 `GET /api/v1/platform/cpos/{cpo_id}`
 
 Returns one current CPO object, including lifecycle reason/time/actor and app-ID
 metadata. The object deliberately excludes primary-admin and secret-integration
@@ -1090,7 +1131,7 @@ data; use their owned resources.
 Errors: `400 invalid_cpo_id`, `401 unauthorized`, `403 forbidden`,
 `404 cpo_not_found`, or `500 internal_error`.
 
-### 8.4 `PUT /api/v1/platform/cpos/{cpo_id}/profile`
+### 8.5 `PUT /api/v1/platform/cpos/{cpo_id}/profile`
 
 Purpose: replace the mutable business profile while preserving stable CPO
 identity, lifecycle, app identity, memberships, and tenant data.
@@ -1107,19 +1148,19 @@ identity, lifecycle, app identity, memberships, and tenant data.
 }
 ```
 
-`business_name` and `company_type` are required. GSTIN is optional, normalized
-uppercase, and cleared by null, blank, or omission. The address fields are
-replacement values and omission clears them. The request cannot mutate slug,
-status, app ID, CPO ID, or audit metadata.
+All seven fields shown above are required. GSTIN is normalized uppercase and
+must remain globally unique. GSTIN, address, city, state, and pincode cannot be
+null, blank, or omitted. The request cannot mutate slug, status, app ID, CPO
+ID, or audit metadata.
 
 The transaction updates the CPO, writes `CPO_PROFILE_UPDATED` audit evidence,
 and emits `platform.cpo.profile_updated`. `200 OK` returns the updated CPO.
 
 Errors: field-specific `400` errors from OpenAPI; shared authentication errors;
-`404 cpo_not_found`; `409 cpo_conflict` for a GSTIN collision; or
+`404 cpo_not_found`; `409 cpo_gstin_conflict` for a GSTIN collision; or
 `500 internal_error`.
 
-### 8.5 `POST /api/v1/platform/cpos/{cpo_id}/activate`
+### 8.6 `POST /api/v1/platform/cpos/{cpo_id}/activate`
 
 Request:
 
@@ -1138,7 +1179,7 @@ original reason or duplicating audit/event evidence.
 Errors: `400 invalid_request`, `invalid_reason`, or `invalid_cpo_id`; shared
 authentication errors; `404 cpo_not_found`; or `500 internal_error`.
 
-### 8.6 `POST /api/v1/platform/cpos/{cpo_id}/suspend`
+### 8.7 `POST /api/v1/platform/cpos/{cpo_id}/suspend`
 
 Request:
 
@@ -1156,7 +1197,7 @@ still revokes any CPO sessions created since the original suspension.
 
 Errors match activation.
 
-### 8.7 `PUT /api/v1/platform/cpos/{cpo_id}/app-id`
+### 8.8 `PUT /api/v1/platform/cpos/{cpo_id}/app-id`
 
 Request:
 
@@ -1173,9 +1214,9 @@ immediate. Existing sessions remain valid, while old app-ID headers fail.
 
 Errors: `400 invalid_request`, `400 invalid_cpo_id`,
 `400 invalid_cpo_app_id`, `401 unauthorized`, `403 forbidden`,
-`404 cpo_not_found`, `409 cpo_conflict`, or `500 internal_error`.
+`404 cpo_not_found`, `409 cpo_app_id_conflict`, or `500 internal_error`.
 
-### 8.8 `GET /api/v1/platform/cpos/{cpo_id}/primary-admin`
+### 8.9 `GET /api/v1/platform/cpos/{cpo_id}/primary-admin`
 
 Purpose: provide the safe state needed by the Superadmin recovery UI.
 
@@ -1209,7 +1250,7 @@ failure body.
 Errors: `400 invalid_cpo_id`; shared authentication errors;
 `404 primary_admin_not_found`; or `500 internal_error`.
 
-### 8.9 `PUT /api/v1/platform/cpos/{cpo_id}/primary-admin`
+### 8.10 `PUT /api/v1/platform/cpos/{cpo_id}/primary-admin`
 
 Purpose: replace a departed primary administrator or restore the existing one.
 
@@ -1229,7 +1270,8 @@ primary membership:
 
 - a new email creates a verified active identity with an Argon2id-hashed
   generated password and `must_change_password=true`; only its encrypted welcome
-  mail contains the temporary plaintext;
+  job and rendered recipient email contain the temporary plaintext, and the
+  transaction fails if that credential is absent from the welcome payload;
 - an existing active identity is reused without changing password, name,
   verification state, or unrelated memberships;
 - an inactive identity is rejected;
@@ -1248,10 +1290,12 @@ it and queues credential-free onboarding details.
 `200 OK` returns the primary-admin view from endpoint 8.8.
 
 Errors: request-field `400` errors from OpenAPI; shared authentication errors;
-`404 cpo_not_found`; `409 admin_identity_inactive` or membership conflict;
+`404 cpo_not_found`; `409 admin_identity_inactive`,
+`admin_identity_conflict`, `cpo_admin_membership_conflict`, or
+`cpo_primary_admin_conflict`;
 `503 mail_unavailable`; or `500 internal_error`.
 
-### 8.10 `POST /api/v1/platform/cpos/{cpo_id}/primary-admin/resend-onboarding`
+### 8.11 `POST /api/v1/platform/cpos/{cpo_id}/primary-admin/resend-onboarding`
 
 ```json
 {"reason":"Administrator requested access instructions again"}
@@ -1259,7 +1303,7 @@ Errors: request-field `400` errors from OpenAPI; shared authentication errors;
 
 The current identity and membership must both be active. The command queues a
 correlated `CPO_ONBOARDING_RESENT` job containing CPO/app details and
-password-recovery guidance, audit action
+working password-recovery guidance, audit action
 `CPO_PRIMARY_ADMIN_ONBOARDING_RESENT`, and event
 `platform.cpo.primary_admin_onboarding_resent` in one transaction. It never
 reads, regenerates, or sends a password.
@@ -1272,7 +1316,7 @@ Errors: `400 invalid_reason` or `invalid_cpo_id`; shared authentication errors;
 `409 primary_admin_unavailable`; `503 mail_unavailable`; or
 `500 internal_error`.
 
-### 8.11 `POST /api/v1/platform/cpos/{cpo_id}/administrative-sessions/revoke`
+### 8.12 `POST /api/v1/platform/cpos/{cpo_id}/administrative-sessions/revoke`
 
 ```json
 {"reason":"Suspected credential exposure"}
@@ -1349,8 +1393,9 @@ tenant path parameter or client-supplied scope.
 }
 ```
 
-`gstin` is absent when it was not registered. `app_id` is the current
-non-secret application identifier the frontend sends as `X-CPO-App-ID`.
+`gstin` and every address field are always present and nonblank. `app_id` is
+the current non-secret application identifier the frontend sends as
+`X-CPO-App-ID`.
 Internal Superadmin actor IDs and the privileged lifecycle reason are omitted.
 The endpoint is read-only, has no side effects, writes no audit event, and is
 safe to retry. Organization changes remain Superadmin-only.

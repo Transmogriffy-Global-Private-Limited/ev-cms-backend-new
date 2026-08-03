@@ -5,6 +5,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/constants"
+	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/models"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 )
@@ -19,6 +21,24 @@ func TestNormalizePhone(t *testing.T) {
 	invalid := "9876 abc"
 	if _, err := normalizePhone(&invalid); err == nil {
 		t.Fatal("expected invalid phone to fail")
+	}
+}
+
+func TestAuthChallengeOTPPayloadIncludesRecoveryIDOnlyForPasswordReset(t *testing.T) {
+	t.Parallel()
+
+	user := models.User{FullName: "Customer Recovery Recipient"}
+	reset := models.AuthChallenge{
+		ID: uuid.New(), Purpose: constants.ChallengeCustomerReset,
+	}
+	resetPayload := authChallengeOTPPayload(user, reset, "123456")
+	if resetPayload.ChallengeID != reset.ID.String() || resetPayload.Code != "123456" {
+		t.Fatalf("unexpected customer reset payload: %#v", resetPayload)
+	}
+
+	login := models.AuthChallenge{ID: uuid.New(), Purpose: constants.ChallengeCustomerLogin}
+	if payload := authChallengeOTPPayload(user, login, "654321"); payload.ChallengeID != "" {
+		t.Fatalf("customer login payload exposed an unnecessary recovery ID: %#v", payload)
 	}
 }
 

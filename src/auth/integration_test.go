@@ -108,24 +108,21 @@ func TestPlatformAuthenticationLifecycleWithPostgreSQL(t *testing.T) {
 	if err := authService.ForgotPassword(ctx, ForgotPasswordRequest{Email: email}, metadata); err != nil {
 		t.Fatalf("start password recovery: %v", err)
 	}
-	resetCode := readOTPFromOutbox(
+	resetMail := readOTPMessageFromOutbox(
 		t,
 		gormDB,
 		mailBox,
 		email,
 		passwordResetMailTemplate,
 	)
-	var resetChallenge models.AuthChallenge
-	if err := gormDB.
-		Where("user_id = ? AND purpose = ?", user.ID, constants.ChallengePasswordReset).
-		Order("created_at DESC").
-		First(&resetChallenge).Error; err != nil {
-		t.Fatalf("load password reset challenge: %v", err)
+	resetChallengeID, err := uuid.Parse(resetMail.ChallengeID)
+	if err != nil {
+		t.Fatalf("parse password-recovery ID from recipient mail: %v", err)
 	}
 	newPassword := "ReplacementPassword!789"
 	if err := authService.ResetPassword(ctx, ResetPasswordRequest{
-		ChallengeID: resetChallenge.ID,
-		Code:        resetCode,
+		ChallengeID: resetChallengeID,
+		Code:        resetMail.Code,
 		NewPassword: newPassword,
 	}, metadata); err != nil {
 		t.Fatalf("reset password: %v", err)
@@ -144,6 +141,11 @@ func TestPlatformAuthenticationLifecycleWithPostgreSQL(t *testing.T) {
 		Slug:            "auth-cpo-" + uuid.NewString(),
 		BusinessName:    "Authentication Test CPO",
 		CompanyType:     constants.CPOCompanyTypeCompany,
+		GSTIN:           strings.ToUpper(strings.ReplaceAll(uuid.NewString(), "-", ""))[:15],
+		Address:         "1 Test Road",
+		City:            "Kolkata",
+		State:           "West Bengal",
+		Pincode:         "700001",
 		Status:          constants.CPOStatusActive,
 		StatusReason:    "Authentication integration fixture",
 		StatusChangedAt: now,
@@ -265,6 +267,16 @@ func readOTPFromOutbox(
 	email string,
 	template string,
 ) string {
+	return readOTPMessageFromOutbox(t, database, box, email, template).Code
+}
+
+func readOTPMessageFromOutbox(
+	t *testing.T,
+	database *gorm.DB,
+	box *security.SecretBox,
+	email string,
+	template string,
+) cmsmail.OTPPayload {
 	t.Helper()
 	var job models.MailOutbox
 	if err := database.
@@ -290,5 +302,5 @@ func readOTPFromOutbox(
 	if len(payload.Code) != 6 {
 		t.Fatalf("got invalid OTP shape %q", payload.Code)
 	}
-	return payload.Code
+	return payload
 }

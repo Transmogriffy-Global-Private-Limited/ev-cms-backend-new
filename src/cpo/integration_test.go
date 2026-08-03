@@ -26,6 +26,10 @@ import (
 	"gorm.io/gorm"
 )
 
+func uniqueCPOGSTIN() string {
+	return strings.ToUpper(strings.ReplaceAll(uuid.NewString(), "-", ""))[:15]
+}
+
 func TestConcurrentCPOCreationReusesOneAdminIdentityWithPostgreSQL(t *testing.T) {
 	databaseURL := os.Getenv("TEST_DATABASE_URL")
 	if databaseURL == "" {
@@ -80,6 +84,11 @@ func TestConcurrentCPOCreationReusesOneAdminIdentityWithPostgreSQL(t *testing.T)
 				Slug:         fmt.Sprintf("concurrent-%d-%s", index, suffix),
 				BusinessName: fmt.Sprintf("Concurrent CPO %d", index),
 				CompanyType:  constants.CPOCompanyTypeCompany,
+				GSTIN:        uniqueCPOGSTIN(),
+				Address:      "1 Test Road",
+				City:         "Kolkata",
+				State:        "West Bengal",
+				Pincode:      "700001",
 				Admin: InitialAdminRequest{
 					Email:    adminEmail,
 					FullName: "Concurrent Administrator",
@@ -170,6 +179,7 @@ func TestCPOProvisioningAndFirstAdminLifecycleWithPostgreSQL(t *testing.T) {
 		Slug:         "provisioned-" + strings.ToLower(uuid.NewString()),
 		BusinessName: "Provisioning Test CPO",
 		CompanyType:  constants.CPOCompanyTypeCompany,
+		GSTIN:        uniqueCPOGSTIN(),
 		Address:      "1 Test Road",
 		City:         "Kolkata",
 		State:        "West Bengal",
@@ -463,6 +473,11 @@ func TestCPOProvisioningAndFirstAdminLifecycleWithPostgreSQL(t *testing.T) {
 		Slug:         "reused-" + strings.ToLower(uuid.NewString()),
 		BusinessName: "Existing Identity CPO",
 		CompanyType:  constants.CPOCompanyTypeCompany,
+		GSTIN:        uniqueCPOGSTIN(),
+		Address:      "1 Test Road",
+		City:         "Kolkata",
+		State:        "West Bengal",
+		Pincode:      "700001",
 		Admin: InitialAdminRequest{
 			Email:    adminEmail,
 			FullName: "Ignored Existing Name",
@@ -571,6 +586,11 @@ func TestCPOSuperadminDependencyLifecycleWithPostgreSQL(t *testing.T) {
 		Slug:         "control-" + strings.ToLower(uuid.NewString()),
 		BusinessName: "Control Plane Search Target",
 		CompanyType:  constants.CPOCompanyTypeCompany,
+		GSTIN:        uniqueCPOGSTIN(),
+		Address:      "1 Test Road",
+		City:         "Kolkata",
+		State:        "West Bengal",
+		Pincode:      "700001",
 		Admin: InitialAdminRequest{
 			Email:    oldAdminEmail,
 			FullName: "Original Primary Administrator",
@@ -583,6 +603,77 @@ func TestCPOSuperadminDependencyLifecycleWithPostgreSQL(t *testing.T) {
 		created.CPO.StatusChangedByUserID == nil ||
 		*created.CPO.StatusChangedByUserID != platformUser.ID {
 		t.Fatalf("creation omitted lifecycle evidence: %#v", created.CPO)
+	}
+
+	availableSlug := "available-" + strings.ToLower(uuid.NewString())
+	availability, err := service.CheckSlugAvailability(
+		ctx,
+		principal,
+		"  "+strings.ToUpper(availableSlug)+"  ",
+	)
+	if err != nil {
+		t.Fatalf("check available slug: %v", err)
+	}
+	if availability.Slug != availableSlug || !availability.Available {
+		t.Fatalf("unexpected available slug response: %#v", availability)
+	}
+
+	availability, err = service.CheckSlugAvailability(ctx, principal, created.CPO.Slug)
+	if err != nil {
+		t.Fatalf("check allocated slug: %v", err)
+	}
+	if availability.Slug != created.CPO.Slug || availability.Available {
+		t.Fatalf("unexpected allocated slug response: %#v", availability)
+	}
+
+	duplicateSlugRequest := CreateRequest{
+		Slug:         strings.ToUpper(created.CPO.Slug),
+		BusinessName: "Duplicate Slug CPO",
+		CompanyType:  constants.CPOCompanyTypeCompany,
+		GSTIN:        uniqueCPOGSTIN(),
+		Address:      "3 Test Road",
+		City:         "Kolkata",
+		State:        "West Bengal",
+		Pincode:      "700003",
+		Admin: InitialAdminRequest{
+			Email:    "duplicate-slug-" + uuid.NewString() + "@example.com",
+			FullName: "Duplicate Slug Administrator",
+		},
+	}
+	if _, err := service.Create(ctx, principal, duplicateSlugRequest); err == nil {
+		t.Fatal("case-insensitive duplicate slug was accepted")
+	} else {
+		var apiErr *auth.APIError
+		if !errors.As(err, &apiErr) || apiErr.Code != "cpo_slug_conflict" {
+			t.Fatalf("duplicate slug returned %v, want cpo_slug_conflict", err)
+		}
+	}
+
+	duplicateGSTINRequest := duplicateSlugRequest
+	duplicateGSTINRequest.Slug = "duplicate-gstin-" + strings.ToLower(uuid.NewString())
+	duplicateGSTINRequest.GSTIN = strings.ToLower(created.CPO.GSTIN)
+	duplicateGSTINRequest.Admin.Email = "duplicate-gstin-" + uuid.NewString() + "@example.com"
+	duplicateGSTINRequest.Admin.FullName = "Duplicate GSTIN Administrator"
+	if _, err := service.Create(ctx, principal, duplicateGSTINRequest); err == nil {
+		t.Fatal("case-insensitive duplicate GSTIN was accepted")
+	} else {
+		var apiErr *auth.APIError
+		if !errors.As(err, &apiErr) || apiErr.Code != "cpo_gstin_conflict" {
+			t.Fatalf("duplicate GSTIN returned %v, want cpo_gstin_conflict", err)
+		}
+	}
+
+	if err := gormDB.Exec(
+		"UPDATE cpos SET address = '' WHERE id = ?",
+		created.CPO.ID,
+	).Error; err == nil {
+		t.Fatal("database accepted a blank CPO address")
+	}
+	if err := gormDB.Exec(
+		"UPDATE cpos SET gstin = NULL WHERE id = ?",
+		created.CPO.ID,
+	).Error; err == nil {
+		t.Fatal("database accepted a null CPO GSTIN")
 	}
 	var primaryCount int64
 	if err := gormDB.Model(&models.CPOMembership{}).
@@ -609,6 +700,11 @@ func TestCPOSuperadminDependencyLifecycleWithPostgreSQL(t *testing.T) {
 		Slug:         "control-" + strings.ToLower(uuid.NewString()),
 		BusinessName: "Control Plane Cursor Sibling",
 		CompanyType:  constants.CPOCompanyTypeIndividual,
+		GSTIN:        uniqueCPOGSTIN(),
+		Address:      "2 Test Road",
+		City:         "Kolkata",
+		State:        "West Bengal",
+		Pincode:      "700002",
 		Admin: InitialAdminRequest{
 			Email:    "cursor-admin-" + uuid.NewString() + "@example.com",
 			FullName: "Cursor Administrator",
@@ -655,7 +751,7 @@ func TestCPOSuperadminDependencyLifecycleWithPostgreSQL(t *testing.T) {
 		UpdateProfileRequest{
 			BusinessName: "Updated Control Plane CPO",
 			CompanyType:  constants.CPOCompanyTypeCompany,
-			GSTIN:        &gstin,
+			GSTIN:        gstin,
 			Address:      "2 Recovery Road",
 			City:         "Kolkata",
 			State:        "West Bengal",
@@ -666,7 +762,7 @@ func TestCPOSuperadminDependencyLifecycleWithPostgreSQL(t *testing.T) {
 		t.Fatalf("update CPO profile: %v", err)
 	}
 	if updated.BusinessName != "Updated Control Plane CPO" ||
-		updated.GSTIN == nil || *updated.GSTIN != gstin ||
+		updated.GSTIN != gstin ||
 		updated.Slug != created.CPO.Slug {
 		t.Fatalf("unexpected profile update: %#v", updated)
 	}
@@ -1086,6 +1182,11 @@ func TestCPOAdminProfileAndNetworkConfigurationWithPostgreSQL(t *testing.T) {
 		Slug:         "network-" + strings.ToLower(uuid.NewString()),
 		BusinessName: "Network Configuration CPO",
 		CompanyType:  constants.CPOCompanyTypeCompany,
+		GSTIN:        uniqueCPOGSTIN(),
+		Address:      "1 Test Road",
+		City:         "Kolkata",
+		State:        "West Bengal",
+		Pincode:      "700001",
 		Admin: InitialAdminRequest{
 			Email:    "network-admin-" + uuid.NewString() + "@example.com",
 			FullName: "Network Administrator",

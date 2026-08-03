@@ -64,6 +64,11 @@ Optional query parameters:
       "slug": "example-charging",
       "business_name": "Example Charging Private Limited",
       "company_type": "COMPANY",
+      "gstin": "19ABCDE1234F1Z5",
+      "address": "1 Example Road",
+      "city": "Kolkata",
+      "state": "West Bengal",
+      "pincode": "700001",
       "status": "ACTIVE",
       "status_reason": "Approved after onboarding review",
       "status_changed_at": "2026-07-31T09:30:00Z",
@@ -83,6 +88,21 @@ Optional query parameters:
 
 When `has_more=true`, send both returned cursor fields unchanged. Changing a
 filter or search term starts a new query and discards the previous cursor.
+
+## Slug Availability
+
+`GET /api/v1/platform/cpos/slug-availability?slug=example-charging`
+
+The required candidate is trimmed, lowercased, and validated with the same
+rules as CPO creation. `200 OK` returns:
+
+```json
+{"slug":"example-charging","available":true}
+```
+
+This check is read-only and advisory. It does not reserve the slug. The create
+transaction and normalized unique index remain authoritative, so the frontend
+must still handle `409 cpo_slug_conflict` after an available result.
 
 ## Create
 
@@ -111,9 +131,16 @@ app ID, and exactly one active primary `ADMIN` membership.
 
 Creation atomically persists the CPO, membership, audit record, platform event,
 and correlated encrypted mail job. A new email receives a generated temporary
-password only through the welcome email; the API never returns it. An existing
+password only through the welcome email; the API never returns it, and the
+transaction fails if the welcome payload lacks that credential. An existing
 active global identity keeps its existing password and receives an assignment
-email. Mail being disabled fails the command before anything is created.
+email. `201` proves the mail job committed, not SMTP delivery; use the
+primary-admin delivery status to distinguish `SENT` from pending or failed
+delivery. Mail being disabled fails the command before anything is created.
+
+Slug, business name, company type, GSTIN, address, city, state, pincode, and
+both administrator fields are mandatory. The server normalizes slug lowercase
+and GSTIN uppercase. Normalized slug and GSTIN values are globally unique.
 
 ## Detail and Business Profile
 
@@ -133,10 +160,10 @@ email. Mail being disabled fails the command before anything is created.
 }
 ```
 
-`business_name` and `company_type` are required. `gstin`, `address`, `city`,
-`state`, and `pincode` are replacement fields: null/blank GSTIN or omission
-clears GSTIN; omission clears an address field. The immutable CPO ID, slug, app
-ID, and lifecycle state cannot be changed here.
+Every field shown above is required. GSTIN, address, city, state, and pincode
+cannot be null, blank, or omitted; GSTIN remains normalized and globally
+unique. The immutable CPO ID, slug, app ID, and lifecycle state cannot be
+changed here.
 
 ## Lifecycle
 
@@ -221,7 +248,7 @@ primary administrator:
 
 - an existing active identity is reused without changing its password;
 - a new identity gets a generated temporary password through encrypted welcome
-  mail only;
+  mail only, and an incomplete welcome payload fails the transaction;
 - an inactive identity is rejected;
 - the previous primary membership is revoked and its CPO-scoped sessions and
   refresh tokens are revoked;
@@ -296,8 +323,16 @@ The principal UI decisions are:
 - `403 forbidden`: the session is authenticated but not platform-authorized.
 - `404 cpo_not_found` or `primary_admin_not_found`: close stale detail state and
   refresh the collection.
-- `409 cpo_conflict`: show the unique-field conflict without assuming which
-  current record owns it.
+- `409 cpo_slug_conflict`: attach the error to the slug field; a prior
+  availability result was only an advisory snapshot.
+- `409 cpo_gstin_conflict`: attach the error to the GSTIN field.
+- `409 cpo_app_id_conflict`: attach the error to the app-ID field.
+- `409 admin_identity_conflict`: another request created that global identity;
+  retry so the service can safely attach it.
+- `409 cpo_admin_membership_conflict` or `cpo_primary_admin_conflict`: refresh
+  the primary-administrator state before deciding whether to retry.
+- `409 cpo_conflict`: use a form-level fallback for an unrecognized database
+  uniqueness constraint.
 - `409 admin_identity_inactive` or `primary_admin_unavailable`: the platform
   operator must choose or reactivate an eligible identity through a future
   governance surface.

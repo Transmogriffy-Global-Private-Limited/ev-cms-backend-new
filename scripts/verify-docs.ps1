@@ -34,6 +34,7 @@ $requiredFiles = @(
     'docs/decisions/0007-complete-superadmin-control-plane.md',
     'docs/decisions/0008-manual-cpo-access-without-commercial-management.md',
     'docs/decisions/0009-admin-only-cpo-authority.md',
+    'docs/decisions/0010-required-cpo-registration-identity.md',
     'docs/plans/api-documentation-and-openapi.md',
     'docs/plans/customer-signup.md',
     'docs/plans/customer-authentication.md',
@@ -59,7 +60,7 @@ $requiredCPOAgentRules = @(
     'Current callable CPO staff authority is `ADMIN` only.',
     'The presence of a table or Go model does not mean its workflow exists.',
     '`src/cpo/repository.go` is currently an empty package file.',
-    'Ten migrations are already deployment history.',
+    'Eleven migrations are already deployment history.',
     'do not embed or copy the HAL into this process',
     'Treat `main` and `anubhab-work` as the authoritative lines'
 )
@@ -75,10 +76,13 @@ $superadminFEHandoff = Get-Content -Raw -LiteralPath (
 $requiredSuperadminFERules = @(
     'Send `scope: "PLATFORM"`; omit `cpo_id`',
     'Use `fetch()` streaming, not native `EventSource`',
-    'Current password-recovery limitation',
+    'collect the recovery ID, code, and new password',
+    'welcome job is rejected before the CPO transaction commits',
     '`platform.cpo.primary_admin_changed`',
     'Tenant subscription/billing',
-    'SuperAdmin is not a CPO ADMIN'
+    'SuperAdmin is not a CPO ADMIN',
+    '`available=true` does not reserve it',
+    'GSTIN and every address field are required'
 )
 foreach ($rule in $requiredSuperadminFERules) {
     if (-not $superadminFEHandoff.Contains($rule)) {
@@ -96,6 +100,7 @@ $requiredRoutes = @(
     '/api/v1/app/auth/me',
     '/api/v1/auth/password/change',
     '/api/v1/platform/cpos',
+    '/api/v1/platform/cpos/slug-availability',
     '/api/v1/platform/cpos/{cpo_id}/profile',
     '/api/v1/platform/cpos/{cpo_id}/primary-admin',
     '/api/v1/platform/cpos/{cpo_id}/primary-admin/resend-onboarding',
@@ -140,8 +145,8 @@ foreach ($route in $retiredRoutes) {
 }
 
 $operationCount = ([regex]::Matches($openAPI, '(?m)^\s{6}operationId:\s+')).Count
-if ($operationCount -ne 78) {
-    throw "OpenAPI contains $operationCount operations; expected 78."
+if ($operationCount -ne 69) {
+    throw "OpenAPI contains $operationCount operations; expected 69."
 }
 
 if ($openAPI.Contains('/api/v1/cpo/profile')) {

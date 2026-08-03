@@ -12,7 +12,7 @@ type CreateRequest struct {
 	Slug         string                   `json:"slug"`
 	BusinessName string                   `json:"business_name"`
 	CompanyType  constants.CPOCompanyType `json:"company_type"`
-	GSTIN        *string                  `json:"gstin,omitempty"`
+	GSTIN        string                   `json:"gstin"`
 	Address      string                   `json:"address"`
 	City         string                   `json:"city"`
 	State        string                   `json:"state"`
@@ -32,7 +32,7 @@ type SetAppIDRequest struct {
 type UpdateProfileRequest struct {
 	BusinessName string                   `json:"business_name"`
 	CompanyType  constants.CPOCompanyType `json:"company_type"`
-	GSTIN        *string                  `json:"gstin"`
+	GSTIN        string                   `json:"gstin"`
 	Address      string                   `json:"address"`
 	City         string                   `json:"city"`
 	State        string                   `json:"state"`
@@ -62,12 +62,17 @@ type ListQuery struct {
 	Limit    int
 }
 
+type SlugAvailabilityResponse struct {
+	Slug      string `json:"slug"`
+	Available bool   `json:"available"`
+}
+
 type View struct {
 	ID                    uuid.UUID                `json:"id"`
 	Slug                  string                   `json:"slug"`
 	BusinessName          string                   `json:"business_name"`
 	CompanyType           constants.CPOCompanyType `json:"company_type"`
-	GSTIN                 *string                  `json:"gstin,omitempty"`
+	GSTIN                 string                   `json:"gstin"`
 	Address               string                   `json:"address"`
 	City                  string                   `json:"city"`
 	State                 string                   `json:"state"`
@@ -170,7 +175,7 @@ type OrganizationView struct {
 	Slug            string                   `json:"slug"`
 	BusinessName    string                   `json:"business_name"`
 	CompanyType     constants.CPOCompanyType `json:"company_type"`
-	GSTIN           *string                  `json:"gstin,omitempty"`
+	GSTIN           string                   `json:"gstin"`
 	Address         string                   `json:"address"`
 	City            string                   `json:"city"`
 	State           string                   `json:"state"`

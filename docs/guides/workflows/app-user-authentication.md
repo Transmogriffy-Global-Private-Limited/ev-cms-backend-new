@@ -69,8 +69,8 @@ canonical external response rather than rebuilding its fields ad hoc.
 - Passwords belong to the global identity. Password reset/change therefore
   revokes every session for that identity across every CPO and administrative
   plane.
-- Password-reset handlers exist, but forgot-password and the current recovery
-  email both omit the required challenge ID. Customer frontend recovery cannot
-  complete until that enumeration-safe delivery contract is repaired.
+- Forgot-password remains enumeration-safe while an eligible recipient's
+  encrypted email supplies the recovery ID, code, and expiry required by
+  reset/resend. Pre-fix emails without an ID must be replaced by a new request.
 - A blocked customer or suspended CPO invalidates customer access on the next
   request because PostgreSQL authority is revalidated.

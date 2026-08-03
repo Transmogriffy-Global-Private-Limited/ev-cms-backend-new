@@ -56,6 +56,10 @@ func (sender *SMTPSender) SendMessage(
 	template string,
 	payload MessagePayload,
 ) error {
+	subject, body, err := renderMessageContent(template, payload)
+	if err != nil {
+		return err
+	}
 	message := gomail.NewMsg()
 	if err := message.FromFormat(sender.fromName, sender.fromAddress); err != nil {
 		return fmt.Errorf("set mail sender: %w", err)
@@ -64,6 +68,29 @@ func (sender *SMTPSender) SendMessage(
 		return fmt.Errorf("set mail recipient: %w", err)
 	}
 
+	message.Subject(subject)
+	name := strings.TrimSpace(payload.RecipientName)
+	if name == "" {
+		name = "there"
+	}
+	message.SetBodyString(
+		gomail.TypeTextPlain,
+		fmt.Sprintf(
+			"Hi %s,\n\n%s\n\nIf you did not expect this message, contact your administrator.",
+			name,
+			body,
+		),
+	)
+	if err := sender.client.DialAndSendWithContext(ctx, message); err != nil {
+		return fmt.Errorf("send SMTP message: %w", err)
+	}
+	return nil
+}
+
+func renderMessageContent(template string, payload MessagePayload) (string, string, error) {
+	if err := validateMessagePayload(template, payload); err != nil {
+		return "", "", err
+	}
 	subject := "Your TransEV CMS verification code"
 	body := ""
 	switch template {
@@ -77,8 +104,9 @@ func (sender *SMTPSender) SendMessage(
 	case "CUSTOMER_PASSWORD_RESET_OTP":
 		subject = "Reset your charging account password"
 		body = fmt.Sprintf(
-			"Use %s to reset your charging account password. It expires at %s.",
+			"Use code %s and recovery ID %s to reset your charging account password. They expire at %s.",
 			payload.Code,
+			payload.ChallengeID,
 			payload.ExpiresAt.UTC().Format("02 Jan 2006 15:04 UTC"),
 		)
 	case "CUSTOMER_SIGNUP_OTP":
@@ -91,8 +119,9 @@ func (sender *SMTPSender) SendMessage(
 	case "PASSWORD_RESET_OTP":
 		subject = "Reset your TransEV CMS password"
 		body = fmt.Sprintf(
-			"Use %s to reset your password. It expires at %s.",
+			"Use code %s and recovery ID %s to reset your password. They expire at %s.",
 			payload.Code,
+			payload.ChallengeID,
 			payload.ExpiresAt.UTC().Format("02 Jan 2006 15:04 UTC"),
 		)
 	case "CPO_ADMIN_WELCOME":
@@ -130,21 +159,5 @@ func (sender *SMTPSender) SendMessage(
 			payload.ExpiresAt.UTC().Format("02 Jan 2006 15:04 UTC"),
 		)
 	}
-	message.Subject(subject)
-	name := strings.TrimSpace(payload.RecipientName)
-	if name == "" {
-		name = "there"
-	}
-	message.SetBodyString(
-		gomail.TypeTextPlain,
-		fmt.Sprintf(
-			"Hi %s,\n\n%s\n\nIf you did not expect this message, contact your administrator.",
-			name,
-			body,
-		),
-	)
-	if err := sender.client.DialAndSendWithContext(ctx, message); err != nil {
-		return fmt.Errorf("send SMTP message: %w", err)
-	}
-	return nil
+	return subject, body, nil
 }

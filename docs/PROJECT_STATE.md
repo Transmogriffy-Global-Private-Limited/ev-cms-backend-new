@@ -25,15 +25,21 @@ provides:
 - mandatory email OTP for platform and CPO administrative login;
 - signed-then-encrypted access JWTs and rotating opaque refresh tokens;
 - durable sessions with list/current/all/specific revocation APIs;
-- enumeration-safe password-recovery start/reset handlers and authenticated
-  password change; frontend reset completion remains blocked because the
-  recovery challenge ID is not delivered to the recipient;
+- enumeration-safe password recovery and authenticated password change;
+  eligible reset mail delivers the recovery ID, code, and expiry required by
+  the reset handler while the forgot response remains generic;
 - trusted principal, user ID, CPO ID, platform, and CPO-role helpers;
 - encrypted PostgreSQL mail outbox with a retrying, encrypted-transport SMTP
   worker;
 - write-only encrypted Razorpay credentials for CPO admins;
 - platform-only CPO create, searchable/filterable/cursor list, inspect, profile,
   reasoned activate/suspend, and app-ID APIs;
+- required GSTIN plus complete address fields for CPO creation/profile
+  replacement, backed by database constraints and normalized GSTIN uniqueness;
+- authenticated platform slug-availability lookup for responsive FE validation,
+  with final creation/database uniqueness remaining authoritative;
+- constraint-aware platform CPO conflict responses that distinguish slug,
+  GSTIN, app ID, administrator identity, membership, and primary-admin races;
 - durable current lifecycle reason, actor, and transition time;
 - one durable primary administrator per provisioned CPO, with safe visibility,
   replacement/restoration, credential-free onboarding resend, and targeted CPO
@@ -63,11 +69,11 @@ provides:
 - a canonical CPO backend AI-agent handoff covering current capability,
   ownership, tenant/HAL boundaries, remaining dependency order, slice
   execution, verification, and handoff requirements;
-- a canonical SuperAdmin frontend handoff covering the 27-operation platform
+- a canonical SuperAdmin frontend handoff covering the 28-operation platform
   integration surface, TypeScript contracts, auth/token state, CPO workflows,
   audit/workers, SSE/replay, error UX, security, verification, and explicit
   blocked/unimplemented behavior;
-- canonical OpenAPI 3.1 for all 69 source-tree business/health operations;
+- canonical OpenAPI 3.1 for all 70 source-tree business/health operations;
 - embedded same-origin Swagger UI at `/docs/` and raw OpenAPI at
   `/openapi.yaml`;
   - `API_DOCS_ENABLED` registration control for both documentation surfaces,
@@ -84,8 +90,7 @@ provides:
 - customer password-plus-mail-OTP login, signed/encrypted access tokens, and
   rotating/reuse-detecting refresh tokens;
 - app-user `me`, customer-scoped session listing/revocation/logout, global
-  password-reset handlers, and password change; customer frontend recovery has
-  the same missing challenge-ID delivery gap as administrative recovery;
+  password reset/change, and eligible-recipient recovery-ID/code delivery;
 - trusted backend current-principal, user, customer, CPO, and app-ID helpers;
 - environment-controlled permissive CORS middleware and a current development
   configuration that listens on all IPv4 interfaces for access from other
@@ -111,8 +116,8 @@ organization/profile/network/pricing operations required no new migration.
 The corrections align GORM with the existing `open_24_hours` and
 `price_per_kwh` columns and map PostgreSQL dependency violations to the
 documented `charger_in_use` conflict. The deployed corrections are recorded in
-    the repository state. Migration nine continues to preserve the retired
-  commercial prototype under `retired_commercial`.
+the repository state. Migration nine continues to preserve the retired
+commercial prototype under `retired_commercial`.
 
 No CMS/HAL transport or handshake, live charger state ingestion, charging
 workflow, tenant payment workflow, tenant commercial-management workflow,
@@ -122,9 +127,27 @@ yet.
 ## Verification
 
 - Go formatting completed.
+- Known CPO unique-constraint mappings and the unknown-constraint fallback have
+  focused unit coverage; PostgreSQL lifecycle assertions now require the exact
+  slug and GSTIN conflict codes.
+- Required-field validation, slug normalization/authorization, migration
+  content, and affected package tests passed for the source-tree change.
+- The 70-operation source OpenAPI and runtime route sets match; documentation
+  contract verification passed.
 - `go test ./...` passed.
 - `go vet ./...` passed.
 - `git diff --check` passed.
+- Revision `9760523` was built cleanly and rehosted with migration eleven
+  already current. The installed hash, loopback/public readiness, live
+  70-operation Swagger/OpenAPI with field-specific conflict codes, protected
+  and retired routes, required workers, and journal passed.
+- Revision `afd90f5` was built cleanly, migrated through version eleven, and
+  rehosted. The installed hash, loopback/public readiness, live 70-operation
+  Swagger/OpenAPI, protected slug route, retired routes, required workers,
+  migration constraints, and journal passed.
+- Revision `1cec3f3` was built cleanly and rehosted. The installed hash,
+  loopback/public liveness and readiness, live Swagger/OpenAPI, protected and
+  retired routes, required workers, migration ledger, and journal passed.
 - The read-only CPO organization projection, privileged-field omission,
   protected route, 69-operation OpenAPI parity, documentation contract, and
   complete CPO organization/profile/network/pricing lifecycle passed. The
@@ -140,9 +163,10 @@ yet.
   password.
 - Platform and CPO admin email-OTP login passed using encrypted outbox payloads.
 - Encrypted access-token validation, refresh rotation, reuse-triggered session
-  revocation, and backend password-reset handling passed. The password test
-  obtained the challenge ID internally; it did not prove a frontend recipient
-  can obtain that ID from the current forgot response/email.
+  revocation, and password reset handling passed. Updated lifecycle coverage
+  obtains both recovery ID and code from the encrypted recipient mail payload
+  rather than internal challenge storage; that changed PostgreSQL lifecycle was
+  not run in this slice because no disposable `TEST_DATABASE_URL` was set.
 - The mail worker claimed, decrypted, delivered through a test sender, and
   completed a durable job.
 - Hostinger implicit-TLS configuration loaded successfully and the SMTP sender
@@ -174,9 +198,10 @@ yet.
   in PostgreSQL 17.
 - Customer login OTP, encrypted access validation, `me`, refresh rotation and
   reuse revocation, customer-scoped session listing/revocation/logout,
-  password-reset handling, password change, and global session revocation
-  passed in PostgreSQL lifecycle tests. Recovery tests obtained the challenge
-  ID internally and did not verify recipient delivery.
+  password reset handling, password change, and global session revocation have
+  PostgreSQL lifecycle coverage. The updated recipient-visible recovery path
+  compiled but was not executed against PostgreSQL in this slice because no
+  disposable `TEST_DATABASE_URL` was set.
 - Permissive CORS preflight behavior and the disabled-CORS path passed focused
   route tests; authentication and authorization remain active in either mode.
 - Platform operations compile; model parsing, migration discovery/pairing, mail
@@ -244,12 +269,12 @@ repository. The integration contract has not been implemented yet.
 
 ## Known Limitations
 
-- Administrative forgot-password creates and mails a recovery OTP, but neither
-  its generic response nor the current email delivers the challenge ID required
-  by reset. A frontend cannot complete password recovery until that contract is
-  repaired without weakening enumeration safety.
-- Customer forgot-password has the same challenge-ID delivery gap, so its
-  reset/resend handlers are also not a frontend-complete recovery flow.
+- Password-recovery emails queued before recovery-ID delivery was implemented
+  contain only the OTP and expiry and cannot complete reset. Users must request
+  a new email; no database challenge lookup is an approved client workflow.
+- A successful CPO-creation response proves its encrypted onboarding job
+  committed, not that SMTP sent it. Operators must use primary-admin delivery
+  status; only a newly created global identity receives a temporary password.
 - Only the initial administrator profile and network/GST/tariff subset has
   handlers. Customer directory, access tokens, charging, wallets, payments,
   reporting, and most other domain tables remain without business APIs.
@@ -264,3 +289,6 @@ repository. The integration contract has not been implemented yet.
   in the ignored deployment environment.
 - No generated frontend SDK exists yet; consumers use the reviewed OpenAPI
   contract directly.
+- Migration eleven's disposable PostgreSQL lifecycle coverage has not executed
+  because deleting a test database was not authorized. The live development
+  deployment is current on migration eleven and the 70-operation contract.

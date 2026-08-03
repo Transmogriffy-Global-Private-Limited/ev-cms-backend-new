@@ -210,9 +210,9 @@ Implemented:
 - refresh rotation;
 - current customer (`me`);
 - customer-scoped session listing/revocation/logout/logout-all;
-- password-recovery/reset handlers and authenticated change. Recovery
-  completion is currently frontend-blocked because neither forgot-password nor
-  the recovery email supplies the required challenge ID.
+- password recovery/reset and authenticated change. Forgot-password stays
+  generic while the eligible recipient's encrypted email supplies the recovery
+  ID, code, and expiry required by reset.
 
 Successful signup transactionally creates or reuses the global identity,
 creates one CPO-scoped customer, and creates its zero-balance INR wallet.
@@ -520,8 +520,11 @@ Before completion, prove:
 ## Database and Migration Rules
 
 - PostgreSQL is durable truth.
-- Ten migrations are already deployment history. Do not edit an applied
+- Eleven migrations are already deployment history. Do not edit an applied
   migration to change new behavior; add the next forward migration.
+- Migration eleven is the current deployed migration. It requires GSTIN and
+  nonblank address,
+  city, state, and pincode values and fails closed on incomplete legacy rows.
 - Prefer additive, backward-compatible migrations.
 - Never drop, truncate, or broadly delete without explicit human approval.
 - Use composite keys/foreign keys to protect tenant relationships.

@@ -253,18 +253,21 @@ Acceptance criteria:
   durable session.
 - Refresh-token rotation detects reuse and revokes the affected session.
 - Password reset is enumeration-safe and revokes existing sessions on success.
+- Eligible recovery mail contains the opaque challenge ID, code, and expiry
+  required by reset while the forgot response remains generic.
 - Tenant context comes from the verified session, not a client-supplied CPO
   header.
 - CPO integration secrets are never returned by an API or stored as plaintext.
 - Mail delivery survives process failure and can retry without logging OTPs.
 
-Known incomplete criterion:
+Current verification limitation:
 
-- Password-reset storage, validation, and revocation behavior is implemented
-  and backend-tested, but the forgot response and current email both omit the
-  challenge ID required by the reset request. Frontend recovery completion is
-  therefore not verified, and this feature must not return to `Verified` until
-  an enumeration-safe challenge-delivery contract and end-to-end test exist.
+- Administrative and customer recovery emails now carry the opaque recovery
+  ID, code, and expiry required by reset. Unit/rendering/full-suite checks pass,
+  and lifecycle coverage consumes recipient-visible inputs rather than querying
+  challenge storage. The changed PostgreSQL lifecycle has not run in this slice
+  because no explicitly disposable `TEST_DATABASE_URL` is configured, so the
+  feature remains `Implemented` rather than `Verified`.
 
 Verification:
 
@@ -282,7 +285,7 @@ Detailed plan:
 
 ### Feature: Manual CPO provisioning and app identity
 
-Status: Verified
+Status: Implemented
 
 Phase: Authentication and CPO administration
 
@@ -307,8 +310,14 @@ authenticated CPO-scoped business requests.
 Scope:
 
 - Create, list, and inspect CPO tenants through platform-only APIs
+- Require GSTIN and complete address fields for creation/profile replacement
+- Enforce normalized global uniqueness for slug and GSTIN
+- Expose an authenticated advisory slug-availability query for FE validation
+- Report the exact known slug, GSTIN, app-ID, identity, or administrator
+  membership uniqueness cause through stable `409` error codes
 - Create or attach the first CPO admin identity and membership transactionally
-- Encrypted email delivery of a generated temporary password for a new identity
+- Encrypted email job and SMTP delivery of a generated temporary password for a
+  new identity, with fail-closed payload validation
 - Existing global identity reuse without password reset
 - Durable first-login password-change requirement and login reminders
 - Server-generated unique dummy app ID on every CPO
@@ -333,12 +342,20 @@ Acceptance criteria:
 - A CPO is created without any commercial access record or payment check.
 - CPO, first admin identity/membership, audit records, and onboarding mail are
   committed atomically.
-- A new first admin receives a generated temporary password whose plaintext is
-  present only in the encrypted mail job and worker memory.
+- A new first admin's committed welcome job contains a generated temporary
+  password whose plaintext exists only in the encrypted payload, worker/SMTP
+  renderer memory, and recipient email. Missing credential data fails the
+  transaction.
 - An existing identity is attached without changing its password.
 - A new first admin must change the temporary password before tenant business
   APIs are allowed; login reminders continue without a password-expiry timeout.
 - Creation always assigns a unique dummy app ID and a pending lifecycle status.
+- Creation rejects missing/blank GSTIN, address, city, state, or pincode, and
+  PostgreSQL preserves the same invariant outside the HTTP boundary.
+- Slug availability returns the normalized candidate and current availability,
+  while final creation still resolves concurrent uniqueness races.
+- Known uniqueness races return a field- or relationship-specific conflict code
+  instead of collapsing into an ambiguous CPO conflict.
 - Activation permits CPO administrative login while retaining the dummy app ID.
 - Superadmin can replace the dummy/current app ID with a validated live ID.
 - Only the current app ID is accepted on CPO-scoped business APIs.
@@ -359,9 +376,20 @@ Verification:
 - `go vet ./...`
 - `git diff --check`
 
+Current verification limitation:
+
+- The migration-eleven and PostgreSQL CPO lifecycle additions compile but have
+  not executed because no explicitly disposable `TEST_DATABASE_URL` is set.
+  The strengthened registration contract remains `Implemented` until that
+  database verification passes.
+
 Detailed plan:
 
 - `docs/plans/cpo-provisioning-and-app-identity.md`
+
+Architecture decision:
+
+- `docs/decisions/0010-required-cpo-registration-identity.md`
 
 ### Feature: Documentation system, OpenAPI explorer, and Hostinger SMTP contract
 
@@ -479,12 +507,12 @@ Non-goals:
 - Customer profile editing
 - Staff/customer impersonation
 
-Known incomplete criterion:
+Current verification limitation:
 
-- Customer reset/resend handlers are implemented and backend-tested, but the
-  forgot response and current email do not deliver the required challenge ID.
-  This feature cannot return to `Verified` until an enumeration-safe recovery
-  entry path and frontend end-to-end verification exist.
+- Customer recovery email now delivers the recovery ID, code, and expiry while
+  the forgot response remains generic. Unit/rendering/full-suite checks pass,
+  but the changed PostgreSQL lifecycle has not run without an explicitly
+  disposable `TEST_DATABASE_URL`, so this feature remains `Implemented`.
 
 Detailed plan:
 
@@ -636,6 +664,17 @@ Current implementation slice:
 
 Last completed slice:
 
+- Added constraint-aware `409` errors for CPO slug, GSTIN, app ID,
+  administrator identity, membership, and primary-administrator collisions,
+  retaining `cpo_conflict` only as an unknown-constraint fallback
+- Implemented mandatory GSTIN/address registration and profile invariants,
+  preserved database-authoritative normalized slug/GSTIN uniqueness, and added
+  the authenticated advisory slug-availability contract; PostgreSQL execution
+  remains pending a disposable `TEST_DATABASE_URL`
+- Implemented enumeration-safe recovery-ID delivery for administrative and
+  customer reset mail; made credential-bearing reset/welcome payloads fail
+  closed; verified reset and first-admin SMTP rendering; and clarified
+  new-versus-existing identity plus queued-versus-sent onboarding behavior
 - Added the canonical exhaustive SuperAdmin frontend integration handoff and
   corrected current event examples/payload guidance plus the administrative
   password-recovery readiness claim
@@ -649,14 +688,13 @@ Last completed slice:
 
 Last deployment milestone:
 
-- A candidate based on revision `407ec07` plus local PostgreSQL compatibility
-  corrections was built and rehosted on the development VPS. Migration ten was
-  already current, so no schema change was required. The disposable
-  PostgreSQL lifecycle, live 69-operation route/OpenAPI surface, protected CPO
-  routes, required workers, running-binary identity, and loopback/public
-  readiness were verified. Migration nine's retired commercial archive remains
-  intact. The compatibility corrections and deployment record are included in
-  this verified slice.
+- Revision `9760523` was built cleanly and rehosted on the development VPS with
+  migration eleven already current and all four CPOs preserved. The live
+  70-operation route/OpenAPI surface advertises the field-specific CPO conflict
+  codes; protected and retired routes, required workers, running-binary
+  identity, loopback/public readiness, and the post-start journal were
+  verified. The disposable PostgreSQL lifecycle remains unexecuted without
+  authorization to drop a test database.
 
 Next expected slice:
 
@@ -683,10 +721,12 @@ Blocked by:
 
 ## Risks and Unresolved Decisions
 
-- Administrative password recovery cannot currently be completed by a
-  frontend because the recipient is not given the challenge ID required by the
-  reset endpoint. A corrective contract must preserve enumeration safety and
-  be approved/implemented as a coherent auth, mail, OpenAPI, FE, and test slice.
+- Reset emails queued before recovery-ID delivery was implemented cannot be
+  completed and must be replaced by a fresh request after the corrected backend
+  is deployed.
+- CPO creation commits an encrypted welcome job but cannot guarantee later SMTP
+  delivery; the SuperAdmin FE must use the primary-admin delivery status and
+  reserve “sent” for `SENT`.
 - Key rotation will initially require an explicit re-encryption operation before
   removing an old encryption key; automatic key rotation is deferred until a
   concrete operational requirement exists.

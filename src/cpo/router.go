@@ -29,6 +29,7 @@ func RegisterPlatformRoutes(
 	group.Use(noStore, authService.Authenticate(), auth.RequirePlatform())
 	group.POST("", handler.create)
 	group.GET("", handler.list)
+	group.GET("/slug-availability", handler.slugAvailability)
 	group.GET("/:cpo_id", handler.get)
 	group.PUT("/:cpo_id/profile", handler.updateProfile)
 	group.POST("/:cpo_id/activate", handler.activate)
@@ -44,6 +45,20 @@ func RegisterPlatformRoutes(
 		"/:cpo_id/administrative-sessions/revoke",
 		handler.revokeAdministrativeSessions,
 	)
+}
+
+func (handler *Handler) slugAvailability(ctx *gin.Context) {
+	principal, _ := auth.CurrentPrincipal(ctx)
+	response, err := handler.service.CheckSlugAvailability(
+		ctx.Request.Context(),
+		principal,
+		ctx.Query("slug"),
+	)
+	if err != nil {
+		writeError(ctx, err)
+		return
+	}
+	ctx.JSON(http.StatusOK, response)
 }
 
 func (handler *Handler) create(ctx *gin.Context) {

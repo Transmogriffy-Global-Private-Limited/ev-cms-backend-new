@@ -308,16 +308,14 @@ func TestCustomerAuthenticationLifecycleWithPostgreSQL(t *testing.T) {
 	}, metadata); err != nil {
 		t.Fatalf("start customer password recovery: %v", err)
 	}
-	resetCode := readCustomerOTP(t, gormDB, box, email, customerResetMailTemplate)
-	var resetChallenge models.AuthChallenge
-	if err := gormDB.Where(
-		"user_id = ? AND purpose = ?", user.ID, constants.ChallengeCustomerReset,
-	).Order("created_at DESC").First(&resetChallenge).Error; err != nil {
-		t.Fatalf("load customer reset challenge: %v", err)
+	resetMail := readCustomerOTPMessage(t, gormDB, box, email, customerResetMailTemplate)
+	resetChallengeID, err := uuid.Parse(resetMail.ChallengeID)
+	if err != nil {
+		t.Fatalf("parse customer recovery ID from recipient mail: %v", err)
 	}
 	resetPassword := "CustomerReset!456"
 	if err := service.ResetPassword(ctx, cpo.AppID, ResetPasswordRequest{
-		ChallengeID: resetChallenge.ID, Code: resetCode, NewPassword: resetPassword,
+		ChallengeID: resetChallengeID, Code: resetMail.Code, NewPassword: resetPassword,
 	}, metadata); err != nil {
 		t.Fatalf("reset customer password: %v", err)
 	}
@@ -404,6 +402,16 @@ func readCustomerOTP(
 	email string,
 	template string,
 ) string {
+	return readCustomerOTPMessage(t, database, box, email, template).Code
+}
+
+func readCustomerOTPMessage(
+	t *testing.T,
+	database *gorm.DB,
+	box *security.SecretBox,
+	email string,
+	template string,
+) cmsmail.OTPPayload {
 	t.Helper()
 	var job models.MailOutbox
 	if err := database.Where("to_email = ? AND template = ?", email, template).
@@ -421,7 +429,7 @@ func readCustomerOTP(
 	if err := json.Unmarshal(plaintext, &payload); err != nil {
 		t.Fatalf("decode customer OTP mail: %v", err)
 	}
-	return payload.Code
+	return payload
 }
 
 func createActiveTestCPO(t *testing.T, database *gorm.DB) models.CPO {
@@ -431,6 +439,8 @@ func createActiveTestCPO(t *testing.T, database *gorm.DB) models.CPO {
 	cpo := models.CPO{
 		ID: uuid.New(), Slug: "signup-" + suffix, BusinessName: "Signup Test CPO",
 		CompanyType: constants.CPOCompanyTypeCompany, Status: constants.CPOStatusActive,
+		GSTIN: suffix[:15], Address: "1 Test Road", City: "Kolkata",
+		State: "West Bengal", Pincode: "700001",
 		StatusReason: "Customer authentication fixture", StatusChangedAt: now,
 		AppID: "cpo_dummy_" + suffix, AppIDMode: constants.CPOAppIDModeDummy,
 		AppIDUpdatedAt: now, CreatedAt: now, UpdatedAt: now,

@@ -24,6 +24,166 @@ Verification:
 
 ## 2026-08-03
 
+### Field-specific CPO conflicts deployed to the development VPS
+
+- Built revision `9760523`, confirmed the release has no migration,
+  dependency, environment, Caddy, or systemd changes, and rehosted
+  `evcmsnew-dev.service` through the shared handler.
+- Created the validated mode-0600 rollback dump
+  `/tmp/devevcmsnewdb-pre-9760523.dump` and preserved the previous binary as
+  `builds/evcmsnew.pre-9760523`.
+- Ran the forward migrator as a no-op at migration eleven and preserved all
+  four complete CPO records.
+
+Verification:
+
+- Focused conflict mapping and runtime/OpenAPI tests, documentation contract
+  verification, `go test ./...`, `go vet ./...`, and `git diff --check` passed.
+- The installed binary matches the clean `9760523` candidate. Systemd,
+  loopback/public readiness, the live 70-operation OpenAPI and Swagger UI,
+  protected routes, retired-route absence, required workers, and the startup
+  journal passed.
+- The live OpenAPI advertises the field-specific slug and GSTIN conflict codes.
+  No live CPO mutation or mail delivery was used for deployment verification.
+
+### SuperAdmin CPO conflicts made field-specific
+
+- Traced the live generic `409 cpo_conflict` to PostgreSQL constraint names;
+  the latest observed failed creation was rejected by normalized GSTIN
+  uniqueness, while earlier attempts included normalized slug collisions.
+- Replaced the generic mapping for known CPO writes with stable
+  `cpo_slug_conflict`, `cpo_gstin_conflict`, `cpo_app_id_conflict`,
+  `admin_identity_conflict`, `cpo_admin_membership_conflict`, and
+  `cpo_primary_admin_conflict` codes and actionable messages.
+- Retained HTTP `409`, the existing error envelope, and `cpo_conflict` as the
+  forward-compatible fallback for an unknown unique constraint.
+- Updated focused tests, PostgreSQL lifecycle expectations, OpenAPI, the human
+  API contract, CPO administration guide, SuperAdmin FE handoff, development
+  plan, active control-plane plan, and project state.
+
+Verification at the time of this entry:
+
+- Constraint-mapping and affected CPO validation tests passed.
+- Documentation verification, focused runtime/OpenAPI/Swagger parity,
+  `go test ./...`, `go vet ./...`, and `git diff --check` passed.
+- Updated PostgreSQL lifecycle assertions compiled but did not execute because
+  no explicitly disposable `TEST_DATABASE_URL` is configured.
+
+### Required CPO registration release deployed to the development VPS
+
+- Confirmed `main` was already at remote revision `afd90f5`, reviewed migration
+  eleven and the 70-operation contract, and verified all three existing CPOs
+  already satisfied the new GSTIN/address precondition.
+- Created the validated mode-0600 rollback dump
+  `/tmp/devevcmsnewdb-pre-afd90f5.dump` and preserved the previous binary as
+  `builds/evcmsnew.pre-afd90f5`.
+- Applied migration eleven without changing or removing any CPO row, installed
+  the clean candidate, and rehosted `evcmsnew-dev.service` through the shared
+  handler.
+
+Verification:
+
+- Documentation verification, focused migration/CPO/auth/customer/integration/
+  route tests, runtime/OpenAPI/Swagger parity, `go test ./...`, `go vet ./...`,
+  and `git diff --check` passed before activation.
+- The migration ledger records version eleven; GSTIN is non-null, all four
+  address checks are active, and no incomplete CPO exists.
+- The running binary matches the `afd90f5` candidate. Systemd is enabled and
+  active with zero restarts; loopback/public readiness, live 70-operation
+  OpenAPI, protected slug availability, retired-route absence, required-worker
+  freshness, and the post-start journal passed.
+- The disposable PostgreSQL lifecycle was not run because deleting a test
+  database was not authorized. No live CPO mutation or mail delivery was used
+  to exercise the new contract during deployment.
+
+### Required CPO registration identity and slug availability implemented
+
+- Made GSTIN, address, city, state, and pincode mandatory for platform CPO
+  creation and full profile replacement, with field-specific validation and
+  always-present response fields.
+- Added migration eleven to make GSTIN non-null, remove empty address defaults,
+  and enforce nonblank address fields. The migration fails closed on incomplete
+  existing CPO rows instead of fabricating tenant legal/address data.
+- Preserved the existing normalized unique indexes as the authoritative
+  case-insensitive slug and GSTIN collision guards.
+- Added platform-authenticated
+  `GET /api/v1/platform/cpos/slug-availability?slug=...`, returning the
+  normalized slug and an advisory availability snapshot. Creation still
+  handles the concurrency race with `409 cpo_conflict`.
+- Updated Go models, validation, route protection, PostgreSQL lifecycle
+  coverage, OpenAPI, the human API contract, SuperAdmin FE handoff, CPO guide,
+  schema record, plans, project state, and ADR 0010.
+
+Verification at the time of this entry:
+
+- Changed packages, migration discovery/content, validation, authorization,
+  and compile-time PostgreSQL lifecycle coverage passed.
+- Documentation verification, the focused runtime/OpenAPI/Swagger parity test,
+  `go test ./...`, `go vet ./...`, and `git diff --check` passed.
+- The disposable PostgreSQL path did not execute because `TEST_DATABASE_URL`
+  is not configured; no migration was applied to the live development database.
+- No commit, push, deployment, mail delivery, or remote database mutation was
+  performed.
+
+### Recovery-mail correction deployed to the development VPS
+
+- Fast-forward checked `main` and confirmed revision `1cec3f3` was already the
+  current remote head.
+- Confirmed the release changes no migration, dependency, or deployment
+  configuration and that no legacy credential-bearing mail job was pending or
+  processing before activation.
+- Created the validated mode-0600 rollback dump
+  `/tmp/devevcmsnewdb-pre-1cec3f3.dump`, preserved the previous binary as
+  `builds/evcmsnew.pre-1cec3f3`, confirmed migration ten remained current, and
+  rehosted `evcmsnew-dev.service` through the shared handler.
+
+Verification:
+
+- Documentation drift checks, focused auth/customer/mail/CPO tests,
+  runtime/OpenAPI/Swagger parity, `go test ./...`, `go vet ./...`, and
+  `git diff --check` passed before activation.
+- The running binary hash and module metadata match the clean `1cec3f3`
+  candidate. Systemd is enabled and active with zero restarts.
+- Loopback and public liveness/readiness, Swagger UI, the live 69-operation
+  OpenAPI document, protected-route rejection, retired-route absence, required
+  worker freshness, migration ledger, and post-start journal passed.
+- No live recovery/onboarding email or authenticated password-reset mutation
+  was triggered during deployment. The changed PostgreSQL lifecycle remains
+  unexecuted because dropping a disposable database was not authorized.
+
+### Recovery IDs and first-admin credential delivery corrected
+
+- Added the opaque authentication challenge ID to encrypted administrative and
+  customer password-reset mail payloads and rendered it beside the six-digit
+  code and expiry. Forgot-password responses remain unchanged and generic, so
+  the correction does not create an account-enumeration signal.
+- Updated administrative and customer lifecycle coverage to obtain both reset
+  inputs from the recipient-visible encrypted mail payload rather than reading
+  challenge IDs from internal database state.
+- Made credential-bearing mail fail closed before enqueue and again before SMTP
+  rendering: reset mail requires a parseable recovery ID/code/expiry, and
+  `CPO_ADMIN_WELCOME` requires the generated temporary password.
+- Added renderer tests proving both reset templates contain recovery ID/code/
+  expiry and the new-identity CPO welcome contains its temporary password and
+  CPO/app identifiers.
+- Preserved global-identity ownership: only `identity_created=true` receives a
+  temporary password. Reused active identities keep their existing password,
+  and onboarding resend remains credential-free with working recovery guidance.
+- Corrected SuperAdmin/CPO/customer/OpenAPI/mail documentation to distinguish a
+  committed outbox job from confirmed `SENT` delivery and to mark recovery as
+  frontend-completable for newly generated emails.
+
+Verification:
+
+- Focused mail, administrative-auth, customer-auth, and CPO package tests
+  passed.
+- Documentation drift and focused runtime/OpenAPI/Swagger parity checks passed.
+- `go test ./...`, `go vet ./...`, and `git diff --check` passed.
+- Updated PostgreSQL lifecycle tests compiled but did not execute because no
+  explicitly disposable `TEST_DATABASE_URL` was configured.
+- Real SMTP delivery, authenticated live recovery/onboarding, database mutation,
+  commit, push, and deployment were not performed.
+
 ### Exhaustive SuperAdmin frontend integration handoff added
 
 - Added `docs/SUPERADMIN_FRONTEND_HANDOFF.md` as the canonical no-chat-history

@@ -64,10 +64,10 @@ returning or logging the code.
 The worker can deliver a message more than once if SMTP accepts it and the
 process crashes before `SENT` is recorded. OTP challenges remain single-use.
 
-For administrative password recovery, receiving the current OTP email is not
-enough to complete a frontend reset: the mail omits the challenge ID required
-by `/api/v1/auth/password/reset`. This is a known contract gap, not an action
-for the user to retrieve internal database state.
+For administrative password recovery, use both values in the current email:
+the opaque recovery ID and six-digit code. An email generated before recovery
+ID delivery was implemented cannot complete reset; request a fresh email rather
+than retrieving challenge state from the database.
 
 ## Token or Session Is Rejected
 

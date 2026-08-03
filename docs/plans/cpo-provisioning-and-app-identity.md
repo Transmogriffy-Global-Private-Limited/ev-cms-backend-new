@@ -1,6 +1,10 @@
 # CPO Provisioning and Application Identity
 
-Status: Verified
+Status: Implemented
+
+Architecture decision:
+
+- `../decisions/0010-required-cpo-registration-identity.md`
 
 ## Objective
 
@@ -22,6 +26,8 @@ App identity:  DUMMY -> LIVE -> LIVE (rotation)
 ```
 
 - Creation is `PENDING` with a unique server-generated dummy app ID.
+- Creation requires a normalized unique slug, normalized unique GSTIN, and
+  nonblank address, city, state, and pincode. PostgreSQL owns these invariants.
 - Activation permits CPO login and tenant operations with the current dummy or
   live app ID.
 - Suspension blocks new CPO-staff and customer operations regardless of app-ID
@@ -40,7 +46,8 @@ Creation requires the first administrator's email and full name.
 - If the email is new, the backend generates a high-entropy temporary password,
   stores only its Argon2id hash, creates an active identity with
   `must_change_password=true`, grants the CPO `ADMIN` membership, and writes an
-  encrypted welcome-mail job in the same transaction.
+  encrypted welcome-mail job in the same transaction. Missing temporary
+  password data rejects the welcome job and rolls back that transaction.
 - If the global identity already exists, the backend never replaces its
   password. It grants the new CPO `ADMIN` membership and writes an encrypted
   assignment-mail job.
@@ -54,11 +61,14 @@ Creation requires the first administrator's email and full name.
 - Password change/reset clears the flag and revokes every existing session.
 
 Temporary password plaintext exists only in application memory during creation,
-the encrypted mail payload, and mail-worker memory during delivery. It is never
-returned by the API, logged, audited, or stored in plaintext.
+the encrypted mail payload, mail-worker/SMTP renderer memory during delivery,
+and the recipient email. It is never returned by the API, logged, audited, or
+stored as database plaintext.
 
 The welcome or assignment email includes the CPO ID and current app ID. The
 new-identity welcome additionally includes the temporary password.
+The create response proves the encrypted job committed, not that SMTP sent it;
+operators use primary-admin delivery status and reserve “sent” for `SENT`.
 
 One `ADMIN` membership is durably designated primary for each provisioned CPO.
 Other fixed-role enum values remain dormant schema capacity until a future
@@ -109,6 +119,7 @@ without already knowing it.
 
 - `POST /api/v1/platform/cpos`
 - `GET /api/v1/platform/cpos`
+- `GET /api/v1/platform/cpos/slug-availability`
 - `GET /api/v1/platform/cpos/:cpo_id`
 - `PUT /api/v1/platform/cpos/:cpo_id/profile`
 - `POST /api/v1/platform/cpos/:cpo_id/activate`
@@ -118,9 +129,11 @@ without already knowing it.
 - `POST /api/v1/platform/cpos/:cpo_id/primary-admin/resend-onboarding`
 - `POST /api/v1/platform/cpos/:cpo_id/administrative-sessions/revoke`
 
-Creation accepts the existing CPO business-profile fields but not status,
-commercial state, or app ID. It also accepts the first administrator's email
-and name. The server owns lifecycle and app-ID values.
+Creation requires slug, business name, company type, GSTIN, address, city,
+state, pincode, and the first administrator's email/name. It does not accept
+status, commercial state, or app ID. The server owns lifecycle and app-ID
+values. The slug-availability query is a non-reserving frontend preflight; the
+creation transaction remains authoritative under concurrency.
 
 Live app IDs are 16 to 100 lowercase URL/header-safe characters. Dummy IDs use
 the reserved `cpo_dummy_` prefix; superadmin-supplied live IDs cannot use it.
@@ -128,10 +141,14 @@ the reserved `cpo_dummy_` prefix; superadmin-supplied live IDs cannot use it.
 ## Failure and Recovery
 
 - Unique indexes prevent duplicate slug, GSTIN, and app ID values.
+- Database constraints reject null GSTIN and blank address, city, state, or
+  pincode even when an internal caller bypasses HTTP validation.
 - A per-email PostgreSQL advisory transaction lock serializes concurrent
   new-versus-existing first-admin identity decisions.
 - Creation and audit insertion share one transaction.
 - First-admin identity/membership and onboarding mail share that transaction.
+- Credential-bearing welcome payload validation fails closed before enqueue and
+  again before SMTP rendering.
 - A mail-disabled deployment rejects creation instead of exposing a temporary
   password through another channel.
 - Existing identities are reused without password mutation.
@@ -155,3 +172,12 @@ the reserved `cpo_dummy_` prefix; superadmin-supplied live IDs cannot use it.
   password-change enforcement, activation, dummy-header access, live-ID
   rotation, old-ID rejection, and suspension.
 - Full Go tests, vet, diff check, and residue scan pass.
+
+Current verification limitation:
+
+- Migration eleven and the PostgreSQL availability/duplicate/mandatory-field
+  lifecycle coverage compile and are source-verified, but have not executed
+  against a disposable PostgreSQL database because `TEST_DATABASE_URL` is not
+  configured. The earlier provisioning/lifecycle behavior remains verified;
+  this strengthened registration contract is therefore `Implemented` pending
+  that database run.

@@ -12,13 +12,13 @@ Supported templates and payload fields:
 | Template | Required meaningful fields |
 |---|---|
 | `LOGIN_OTP` | recipient name, code, expiry |
-| `PASSWORD_RESET_OTP` | recipient name, code, expiry |
+| `PASSWORD_RESET_OTP` | recipient name, recovery challenge ID, code, expiry |
 | `CPO_ADMIN_WELCOME` | recipient name, temporary password, CPO name, CPO ID, app ID |
 | `CPO_MEMBERSHIP_ASSIGNED` | recipient name, CPO name, CPO ID, app ID |
 | `PASSWORD_CHANGE_REMINDER` | recipient name |
 | `CUSTOMER_SIGNUP_OTP` | recipient name, code, expiry |
 | `CUSTOMER_LOGIN_OTP` | recipient name, code, expiry |
-| `CUSTOMER_PASSWORD_RESET_OTP` | recipient name, code, expiry |
+| `CUSTOMER_PASSWORD_RESET_OTP` | recipient name, recovery challenge ID, code, expiry |
 
 The JSON payload is encrypted with AES-256-GCM and authenticated using:
 
@@ -28,6 +28,12 @@ ev-cms-mail:<template>:<normalized-recipient>
 
 The database retains ciphertext and an encryption key ID, not payload
 plaintext.
+
+Credential-bearing payloads fail closed before enqueue and are validated again
+before SMTP rendering. Administrative/customer reset mail requires a parseable
+recovery challenge ID plus code and expiry. `CPO_ADMIN_WELCOME` requires the
+generated temporary password. Missing required credentials therefore roll back
+the producing transaction instead of committing an unusable message.
 
 ## Stored Job Fields
 

@@ -3,6 +3,7 @@ package mail
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"strings"
@@ -20,6 +21,7 @@ const staleJobAge = 5 * time.Minute
 type MessagePayload struct {
 	RecipientName     string    `json:"recipient_name"`
 	Code              string    `json:"code,omitempty"`
+	ChallengeID       string    `json:"challenge_id,omitempty"`
 	ExpiresAt         time.Time `json:"expires_at,omitempty"`
 	TemporaryPassword string    `json:"temporary_password,omitempty"`
 	CPOName           string    `json:"cpo_name,omitempty"`
@@ -77,6 +79,9 @@ func (outbox *Outbox) EnqueueMessageWithContext(
 	payload MessagePayload,
 	messageContext MessageContext,
 ) error {
+	if err := validateMessagePayload(template, payload); err != nil {
+		return err
+	}
 	normalizedEmail := strings.ToLower(strings.TrimSpace(toEmail))
 	body, err := json.Marshal(payload)
 	if err != nil {
@@ -100,6 +105,23 @@ func (outbox *Outbox) EnqueueMessageWithContext(
 	}
 	if err := tx.Create(&job).Error; err != nil {
 		return fmt.Errorf("enqueue mail: %w", err)
+	}
+	return nil
+}
+
+func validateMessagePayload(template string, payload MessagePayload) error {
+	switch template {
+	case "PASSWORD_RESET_OTP", "CUSTOMER_PASSWORD_RESET_OTP":
+		if _, err := uuid.Parse(strings.TrimSpace(payload.ChallengeID)); err != nil {
+			return fmt.Errorf("validate %s mail payload: recovery challenge ID is required", template)
+		}
+		if strings.TrimSpace(payload.Code) == "" || payload.ExpiresAt.IsZero() {
+			return fmt.Errorf("validate %s mail payload: reset code and expiry are required", template)
+		}
+	case "CPO_ADMIN_WELCOME":
+		if strings.TrimSpace(payload.TemporaryPassword) == "" {
+			return errors.New("validate CPO_ADMIN_WELCOME mail payload: temporary password is required")
+		}
 	}
 	return nil
 }

@@ -10,7 +10,8 @@ undocumented database intervention.
 
 - The superadmin bootstrap and platform OTP login work.
 - `MAIL_ENABLED=true`; the durable mail worker is fresh and healthy.
-- The slug and optional GSTIN are unique.
+- Slug, GSTIN, address, city, state, and pincode are supplied; slug and GSTIN
+  are unique after normalization.
 - The first administrator email is correct. Generated passwords are never
   returned by an API.
 
@@ -32,7 +33,12 @@ platform login + OTP
    OTP through `POST /api/v1/auth/2fa/verify`.
 2. Call `POST /api/v1/platform/cpos`. The transaction creates the `PENDING`
    CPO, generated dummy app ID, exactly one primary `ADMIN` membership, audit
-   evidence, durable platform event, and encrypted mail job.
+   evidence, durable platform event, and encrypted mail job. For a new global
+   identity, that welcome job is rejected if its generated temporary password
+   is missing; an existing identity receives no new password.
+   Before submission, the frontend may call
+   `GET /api/v1/platform/cpos/slug-availability?slug=...`; that result is
+   advisory and the final POST must still handle a uniqueness conflict.
 3. Call
    `GET /api/v1/platform/cpos/{cpo_id}/primary-admin`. Display the safe outbox
    status; never attempt to display a password or encrypted payload.
@@ -60,7 +66,7 @@ assignment email is queued. An inactive global identity is rejected.
 ```text
 Administrator cannot access CPO
 ├─ still the correct active primary
-│  ├─ forgot password → recovery start exists; FE completion is currently blocked
+│  ├─ forgot password → eligible email supplies recovery ID and code for reset
 │  └─ lost CPO/app details → resend onboarding details
 ├─ membership was revoked but same person remains responsible
 │  └─ assign the same email as primary to restore membership
@@ -74,10 +80,10 @@ Resend uses
 `POST /api/v1/platform/cpos/{cpo_id}/primary-admin/resend-onboarding`.
 It queues only current CPO/app details and password-recovery guidance.
 
-The current password-recovery mail contains the OTP but not the challenge ID
-required by the reset endpoint. Until that backend contract is repaired,
-resending onboarding can provide CPO/app details but cannot by itself make the
-documented password-reset completion usable from a frontend.
+The password-recovery email now contains both the opaque recovery ID and OTP
+required by reset. Onboarding resend remains credential-free: it never reads or
+rotates a global password, and directs an administrator who lacks credentials
+to request a fresh recovery email.
 
 Replacement uses
 `PUT /api/v1/platform/cpos/{cpo_id}/primary-admin`. It is transactional and

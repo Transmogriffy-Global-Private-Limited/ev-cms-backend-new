@@ -46,6 +46,7 @@ func TestCredentialRoutesAreRegisteredAndProtected(t *testing.T) {
 		{http.MethodPost, "/api/v1/auth/password/change"},
 		{http.MethodPost, "/api/v1/platform/cpos"},
 		{http.MethodGet, "/api/v1/platform/cpos"},
+		{http.MethodGet, "/api/v1/platform/cpos/slug-availability?slug=example-cpo"},
 		{http.MethodGet, "/api/v1/platform/cpos/00000000-0000-0000-0000-000000000001"},
 		{http.MethodPut, "/api/v1/platform/cpos/00000000-0000-0000-0000-000000000001/profile"},
 		{http.MethodPost, "/api/v1/platform/cpos/00000000-0000-0000-0000-000000000001/activate"},

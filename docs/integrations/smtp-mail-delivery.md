@@ -71,13 +71,19 @@ duplicates.
 | Template | Producer | Contains sensitive plaintext before encryption |
 |---|---|---|
 | `LOGIN_OTP` | Administrative login | OTP and expiry |
-| `PASSWORD_RESET_OTP` | Password recovery | OTP and expiry |
+| `PASSWORD_RESET_OTP` | Password recovery | Recovery ID, OTP, and expiry |
 | `CPO_ADMIN_WELCOME` | New first-admin onboarding | Generated temporary password, CPO/app IDs |
 | `CPO_MEMBERSHIP_ASSIGNED` | Existing-identity onboarding | CPO/app IDs |
 | `PASSWORD_CHANGE_REMINDER` | Login while temporary password remains | No credential |
+| `CUSTOMER_SIGNUP_OTP` | Customer signup | OTP and expiry |
+| `CUSTOMER_LOGIN_OTP` | Customer login | OTP and expiry |
+| `CUSTOMER_PASSWORD_RESET_OTP` | Customer password recovery | Recovery ID, OTP, and expiry |
 
 The SMTP sender renders plain-text email. Templates are code-owned; callers
 provide structured payloads rather than arbitrary subject/body HTML.
+Credential-bearing templates fail before enqueue and again before SMTP send if
+required values are absent: reset mail requires recovery ID/code/expiry, and a
+new-admin welcome requires the generated temporary password.
 
 ## Failure Behavior
 
