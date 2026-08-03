@@ -8,6 +8,12 @@ provides:
 - a compilable Go service;
 - PostgreSQL connectivity and versioned migration execution;
 - process-liveness and database-readiness endpoints;
+- always-on JSON HTTP completion logging with server-generated request IDs,
+  matched route templates, result/latency/size fields, safe authenticated
+  identifiers, handled API error codes, safe correlated panic stack
+  diagnostics, and explicit secret/content exclusion;
+- optional `LOG_LEVEL=DEBUG` request-start and handled-error
+  component/type diagnostics under the same server request ID;
 - global identities;
 - separate platform-superadmin records;
 - CPO tenant organizations;
@@ -115,7 +121,8 @@ identity are database-required, authenticated platform clients can use the
 advisory slug-availability operation, and known uniqueness races return
 field- or relationship-specific conflict codes. All four CPOs were complete
 and preserved during deployment. Migration nine continues to preserve the
-retired commercial prototype under `retired_commercial`.
+`retired_commercial`. The source-tree HTTP request logger is not active on that
+deployment until a later authorized release.
 
 No CMS/HAL transport or handshake, live charger state ingestion, charging
 workflow, tenant payment workflow, tenant commercial-management workflow,
@@ -125,6 +132,12 @@ yet.
 ## Verification
 
 - Go formatting completed.
+- Safe request completion logging, secret/content exclusion, loopback-only
+  forwarded-address trust, handled error correlation, authentication failure,
+  safe recovered-panic diagnostics, stock request-dump suppression, and CORS
+  request-ID exposure have focused test coverage.
+- DEBUG request-start and handled-error diagnostics have focused mode,
+  correlation, classification, and secret/content leak coverage.
 - Known CPO unique-constraint mappings and the unknown-constraint fallback have
   focused unit coverage; PostgreSQL lifecycle assertions now require the exact
   slug and GSTIN conflict codes.

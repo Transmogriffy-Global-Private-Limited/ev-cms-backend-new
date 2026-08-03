@@ -84,6 +84,19 @@ Both routes are registered only when `API_DOCS_ENABLED=true` (the backward-
 compatible default and current development setting). Set it to `false` in
 sensitive deployments; restart is required.
 
+Every request that reaches Gin emits one safe JSON completion record to stdout
+and returns a server-generated `X-Request-ID`. Logs contain method, matched
+route template, status, latency, response size, safe authenticated identifiers,
+and handled API error code; they never contain bodies, raw paths, queries,
+credentials, tokens, OTPs, email, user agents, app IDs, or API messages. See
+`docs/contracts/internal/http-request-logging.md` for the exact schema and
+proxy behavior. Recovered panics add a correlated JSON stack diagnostic without
+Gin's raw request dump or the recovered value.
+
+`LOG_LEVEL=INFO` is the concise default. Set `LOG_LEVEL=DEBUG` and restart for
+safe developer request-start and handled-error component/type diagnostics; the
+same content and secret exclusions remain mandatory.
+
 The complete human endpoint handoff is
 `docs/contracts/api/administrative-http-api.md`.
 The focused no-chat-history SuperAdmin frontend handoff is

@@ -16,8 +16,10 @@ This directory is the durable project memory for the EV CMS backend.
 | CPO backend AI-agent orientation and execution | `CPO_BACKEND_AGENT_HANDOFF.md` |
 | Complete superadmin architecture and boundaries | `guides/concepts/superadmin-control-plane.md` |
 | Platform realtime event contract | `contracts/realtime/platform-events.md` |
+| HTTP request-log schema and safety boundary | `contracts/internal/http-request-logging.md` |
 | Manual CPO access workflow | `guides/workflows/cpo-onboarding.md` |
 | Required CPO registration identity decision | `decisions/0010-required-cpo-registration-identity.md` |
+| Safe HTTP request observability decision | `decisions/0011-safe-http-request-observability.md` |
 | CPO organization read, admin profile, and network configuration | `guides/workflows/cpo-admin-network-configuration.md` |
 | Architectural decisions | `decisions/` |
 | Detailed approved plans | `plans/` |

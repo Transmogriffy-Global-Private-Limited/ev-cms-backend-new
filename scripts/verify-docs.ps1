@@ -25,6 +25,7 @@ $requiredFiles = @(
     'docs/integrations/ocpp-hal-boundary.md',
     'docs/contracts/api/administrative-http-api.md',
     'docs/contracts/internal/mail-outbox.md',
+    'docs/contracts/internal/http-request-logging.md',
     'docs/contracts/realtime/platform-events.md',
     'docs/contracts/configuration.md',
     'docs/contracts/openapi/openapi.yaml',
@@ -35,6 +36,7 @@ $requiredFiles = @(
     'docs/decisions/0008-manual-cpo-access-without-commercial-management.md',
     'docs/decisions/0009-admin-only-cpo-authority.md',
     'docs/decisions/0010-required-cpo-registration-identity.md',
+    'docs/decisions/0011-safe-http-request-observability.md',
     'docs/plans/api-documentation-and-openapi.md',
     'docs/plans/customer-signup.md',
     'docs/plans/customer-authentication.md',
@@ -87,6 +89,37 @@ $requiredSuperadminFERules = @(
 foreach ($rule in $requiredSuperadminFERules) {
     if (-not $superadminFEHandoff.Contains($rule)) {
         throw "SuperAdmin frontend handoff is missing required rule: $rule"
+    }
+}
+
+$requestLogContract = Get-Content -Raw -LiteralPath (
+    Join-Path $repositoryRoot 'docs/contracts/internal/http-request-logging.md'
+)
+$requiredRequestLogRules = @(
+    '`http_request_completed`',
+    '`http_panic_recovered`',
+    '`http_request_started`',
+    '`http_error_handled`',
+    '`LOG_LEVEL=DEBUG`',
+    '`X-Request-ID`',
+    '`error_code`',
+    '## Developer Logging Rules',
+    '`middleware.RequestID(ctx)`',
+    'request or response bodies',
+    'Trust `X-Forwarded-For` only from a loopback peer'
+)
+foreach ($rule in $requiredRequestLogRules) {
+    if (-not $requestLogContract.Contains($rule)) {
+        throw "HTTP request logging contract is missing required rule: $rule"
+    }
+}
+
+$configurationContract = Get-Content -Raw -LiteralPath (
+    Join-Path $repositoryRoot 'docs/contracts/configuration.md'
+)
+foreach ($rule in @('`LOG_LEVEL`', '`INFO`', '`DEBUG`')) {
+    if (-not $configurationContract.Contains($rule)) {
+        throw "Configuration contract is missing request-log level rule: $rule"
     }
 }
 

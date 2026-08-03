@@ -107,11 +107,28 @@ show-logs evcmsnew-dev
 handler: it stops the service, reloads systemd, waits with a skippable
 countdown, starts it, and tails its journal. It does not rebuild the binary.
 
+Source revisions containing the request logger emit one JSON
+`http_request_completed` line to stdout after every Gin request finishes. Use
+the response `X-Request-ID` to locate the record. The schema and mandatory
+content exclusions are defined in
+`docs/contracts/internal/http-request-logging.md`. Long-lived SSE requests are
+recorded when they disconnect. A recovered panic first emits a correlated safe
+JSON stack diagnostic without Gin's request dump or the panic value. The
+currently deployed `afd90f5` binary predates this logger until a later
+authorized release replaces it.
+
+For a developer diagnostic session, set `LOG_LEVEL=DEBUG` in the ignored
+deployment environment and rehost. This adds request-start and handled-error
+component/type events under the same request ID. Return it to `INFO` for concise
+normal operation. Neither mode logs payloads, raw URLs/queries, credentials,
+personal fields, or raw errors.
+
 ## Safe Diagnostics
 
 ```bash
 systemctl status evcmsnew-dev.service --no-pager
 journalctl -u evcmsnew-dev.service -n 120 --no-pager
+journalctl -u evcmsnew-dev.service --since '10 minutes ago' --no-pager
 ss -ltnp | grep ':18080'
 sudo -u postgres psql -X -Atqc \
   "SELECT datname, pg_get_userbyid(datdba) FROM pg_database WHERE datname = 'devevcmsnewdb';"

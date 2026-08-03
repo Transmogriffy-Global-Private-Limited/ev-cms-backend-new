@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/auth"
+	cmsmiddleware "github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/middleware"
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/models"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -279,11 +280,17 @@ func parseOptionalUUID(ctx *gin.Context, field string) (*uuid.UUID, bool) {
 func writeError(ctx *gin.Context, err error) {
 	var apiError *auth.APIError
 	if errors.As(err, &apiError) {
+		cmsmiddleware.LogHandledError(
+			ctx, "platform_operations", apiError.Code, apiError.Status, err,
+		)
 		ctx.JSON(apiError.Status, gin.H{
 			"error": gin.H{"code": apiError.Code, "message": apiError.Message},
 		})
 		return
 	}
+	cmsmiddleware.LogHandledError(
+		ctx, "platform_operations", "internal_error", http.StatusInternalServerError, err,
+	)
 	ctx.JSON(http.StatusInternalServerError, gin.H{
 		"error": gin.H{
 			"code":    "internal_error",

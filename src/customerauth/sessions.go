@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/constants"
+	cmsmiddleware "github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/middleware"
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/models"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -44,6 +45,12 @@ func (service *Service) Authenticate() gin.HandlerFunc {
 			return
 		}
 		ctx.Set(principalContextKey, principal)
+		cmsmiddleware.SetRequestActor(ctx, cmsmiddleware.RequestActor{
+			AuthScope:  string(constants.AuthScopeCustomer),
+			UserID:     principal.UserID.String(),
+			CPOID:      principal.CPOID.String(),
+			CustomerID: principal.CustomerID.String(),
+		})
 		ctx.Next()
 	}
 }

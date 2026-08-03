@@ -2,6 +2,7 @@ package routes
 
 import (
 	"context"
+	"io"
 	"net/http"
 	"time"
 
@@ -10,6 +11,7 @@ import (
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/cpo"
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/customerauth"
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/integrations"
+	cmsmiddleware "github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/middleware"
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/platformops"
 	"github.com/gin-gonic/gin"
 )
@@ -27,9 +29,12 @@ func New(
 	platformService *platformops.Service,
 	corsAllowAll bool,
 	apiDocsEnabled bool,
+	requestLogWriter io.Writer,
+	debugLogging bool,
 ) *gin.Engine {
 	router := gin.New()
-	router.Use(gin.Recovery())
+	router.Use(cmsmiddleware.RequestLogger(requestLogWriter, debugLogging))
+	router.Use(cmsmiddleware.Recovery(requestLogWriter))
 	router.Use(permissiveCORSMiddleware(corsAllowAll))
 	_ = router.SetTrustedProxies(nil)
 	if apiDocsEnabled {

@@ -37,6 +37,8 @@ verification changes.
 - External integration boundaries live under `docs/integrations/`.
 - Stable HTTP, internal message, and configuration contracts live under
   `docs/contracts/`.
+- `docs/contracts/internal/http-request-logging.md` owns the always-on JSON
+  request-log schema, correlation header, proxy trust, and data exclusions.
 - Realtime contracts live under `docs/contracts/realtime/`; platform SSE uses
   `docs/contracts/realtime/platform-events.md`.
 - `docs/AUTHENTICATION.md` and `docs/CPO_ADMINISTRATION.md` remain the detailed
@@ -62,6 +64,13 @@ verification changes.
   and enabled/disabled behavior must be verified.
 - Every route or payload change must update handlers, the human API contract,
   OpenAPI, tests/fixtures, and consumer guidance in one slice.
+- Request logging must never include bodies, raw paths, query strings,
+  credentials, tokens, OTPs, personal fields, app IDs, API messages, or panic
+  values. Endpoint developers must follow the contract's developer logging
+  rules; the safe recovery stack is the only panic diagnostic, and new fields
+  require a contract and security review.
+- `LOG_LEVEL=DEBUG` may add only the contract-defined safe lifecycle and error
+  classification events; it must never relax the production data exclusions.
 - No generated API client currently exists. Do not claim an SDK is current
   until generation and drift verification are implemented.
 - Run `.\scripts\verify-docs.ps1` after meaningful documentation, route, or

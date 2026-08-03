@@ -436,6 +436,79 @@ Verification:
 - `go vet ./...`
 - `git diff --check`
 
+### Feature: Safe HTTP request observability
+
+Status: Verified
+
+Phase: Cross-cutting operations
+
+Depends on:
+
+- HTTP route and recovery wiring
+- Administrative and customer principal middleware
+
+Objective:
+
+Give operators one safe structured completion record for every request that
+reaches Gin and give clients a response correlation ID without copying request
+content or credentials into logs.
+
+Scope:
+
+- Always-on newline-delimited JSON logging to stdout
+- Server-generated `X-Request-ID` on every Gin response and CORS exposure
+- Matched route template, status, latency, response size, and safe client/peer
+  address fields
+- Trusted authenticated scope/user/CPO/customer/role enrichment
+- Stable handled API `error_code` enrichment
+- Logging outside panic recovery so recovered `500` requests are recorded
+- Correlated panic stack diagnostics without Gin request dumps or panic values
+- Explicit log-schema, proxy-trust, and data-exclusion contract
+- Developer field-selection, severity, correlation, and no-duplicate-access-log
+  guidance
+- `LOG_LEVEL=DEBUG` request-start and handled-error component/type diagnostics
+  under the same request ID
+
+Non-goals:
+
+- Request/response body, raw path, query, header, email, user-agent, app-ID,
+  credential, token, OTP, API-message, database-error, or panic-value logging
+- A log database, shipping agent, dashboard, metrics system, or distributed
+  tracing
+- Application-owned retention or rotation
+- A debug mode that logs payloads, raw URLs/queries, header values, secrets,
+  personal fields, error strings, SQL, or provider content
+
+Acceptance criteria:
+
+- Every Gin response carries a UUID request ID and emits one completion record.
+- Handled errors expose their stable code in the record without their message.
+- Authenticated records use only trusted server-established identifiers.
+- Direct clients cannot spoof `client_ip` with forwarding headers; only a
+  loopback proxy is trusted.
+- Recovered panics produce a correlated safe stack diagnostic and an
+  `ERROR`/`500` completion record without request content or the panic value.
+- Focused leak tests prove bodies, query values, raw path identifiers,
+  authorization values, and user agents are absent.
+- DEBUG mode adds start/error-classification events without changing any data
+  exclusion.
+
+Verification:
+
+- `go test ./src/config ./src/middleware ./src/routes -run 'TestConfig|TestLoadHostinger|TestRequestLog|TestRequestLogger|TestDebugLogging|TestPermissiveCORS' -count=1`
+- `go test ./...`
+- `go vet ./...`
+- `.\scripts\verify-docs.ps1`
+- `git diff --check`
+
+Contract:
+
+- `docs/contracts/internal/http-request-logging.md`
+
+Architecture decision:
+
+- `docs/decisions/0011-safe-http-request-observability.md`
+
 ### Feature: CPO-scoped customer signup
 
 Status: Verified
@@ -664,6 +737,10 @@ Current implementation slice:
 
 Last completed slice:
 
+- Implemented safe JSON HTTP completion logging, server-generated response
+  request IDs, trusted auth/error-code enrichment, loopback-only forwarding
+  trust, CORS exposure, safe DEBUG lifecycle/error classification, and a strict
+  content/secret exclusion contract
 - Added constraint-aware `409` errors for CPO slug, GSTIN, app ID,
   administrator identity, membership, and primary-administrator collisions,
   retaining `cpo_conflict` only as an unknown-constraint fallback

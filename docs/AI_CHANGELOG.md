@@ -24,6 +24,47 @@ Verification:
 - The live OpenAPI advertises the field-specific slug and GSTIN conflict codes.
   No live CPO mutation or mail delivery was used for deployment verification.
 
+### Safe structured HTTP request logging implemented
+
+- Added one always-on newline-delimited JSON completion record for every
+  request that reaches Gin, including request ID, method, matched route
+  template, status, latency, response size, direct/effective client address,
+  and log level.
+- Added server-generated `X-Request-ID` to every Gin response and exposed it
+  through the existing permissive CORS middleware for frontend support
+  correlation. Client-supplied IDs are not adopted.
+- Enriched successfully authenticated requests with only trusted opaque
+  scope/user/CPO/customer/role identifiers and handled failures with their
+  stable API `error_code`.
+- Installed logging outside custom panic recovery so recovered `500` requests
+  are recorded. Replaced Gin's debug-mode request dump with a correlated JSON
+  stack diagnostic that excludes the panic value and all request content.
+- Trusted `X-Forwarded-For` only from a loopback peer for the documented Caddy
+  topology; direct callers cannot use that header to spoof `client_ip`.
+- Explicitly excluded bodies, raw paths, query strings, headers, emails, user
+  agents, app IDs, credentials, tokens, OTPs, API messages, database errors,
+  and panic values.
+- Added focused middleware/route/leak tests, the internal logging contract, ADR
+  0011, OpenAPI/global HTTP guidance, FE correlation guidance, operations
+  instructions, explicit developer field/severity/correlation guidance,
+  plan/state updates, and documentation drift checks.
+- Added validated `LOG_LEVEL=INFO|DEBUG` configuration. DEBUG adds a safe
+  request-start event and a handled-error event containing only request ID,
+  component, status, stable error code, Go error type, safe class, and optional
+  PostgreSQL SQL state; it does not relax any data exclusion.
+
+Verification at the time of this entry:
+
+- Focused request logging, handled-error correlation, recovered-panic stack and
+  request-dump exclusion, INFO/DEBUG mode behavior, safe error classification,
+  authentication failure, and CORS exposure tests passed.
+- Documentation verification, the OpenAPI/runtime/Swagger route test,
+  `go test ./...`, `go vet ./...`, and `git diff --check` passed after the
+  DEBUG-mode extension.
+- The source slice was committed and pushed through `anubhab-work` before its
+  integration into `main`; no deployment or remote service mutation was
+  performed.
+
 ### SuperAdmin CPO conflicts made field-specific
 
 - Traced the live generic `409 cpo_conflict` to PostgreSQL constraint names;

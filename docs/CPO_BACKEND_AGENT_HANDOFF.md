@@ -87,6 +87,13 @@ let a request body, query parameter, or arbitrary header select tenant scope.
    reveal that another tenant owns the identifier.
 10. A platform Superadmin does not automatically receive tenant-business or
     decrypted Razorpay access.
+11. HTTP completion logging may include only the safe schema in
+    `docs/contracts/internal/http-request-logging.md`; never add bodies, raw
+    paths, queries, credentials, personal fields, app IDs, API messages, or
+    panic values.
+12. `LOG_LEVEL=DEBUG` is for safe lifecycle/error classification only. Never
+    interpret DEBUG as permission to add payload, credential, personal-data,
+    query, raw-path, or raw-error logging.
 
 ## System Boundary: CMS Versus OCPP HAL
 

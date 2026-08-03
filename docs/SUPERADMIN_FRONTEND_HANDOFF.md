@@ -185,6 +185,9 @@ announcements, or an aggregate overview. Those routes do not exist.
 - Empty collections are `[]`.
 - Authentication and platform-CPO responses use `Cache-Control: no-store` and
   `Pragma: no-cache`.
+- Every response includes a server-generated `X-Request-ID`; permissive CORS
+  exposes it. Retain it with failed-operation diagnostics as a copyable support
+  reference, never with request bodies or credentials.
 - `204 No Content` has no JSON body.
 - Do not log raw request/response bodies from auth or recovery operations.
 
@@ -592,6 +595,7 @@ export class ApiFailure extends Error {
     public readonly status: number,
     public readonly code: string,
     message: string,
+    public readonly requestId?: string,
   ) {
     super(message);
   }
@@ -600,6 +604,7 @@ export class ApiFailure extends Error {
 async function failureFrom(response: Response): Promise<ApiFailure> {
   let code = "http_error";
   let message = `Request failed with HTTP ${response.status}.`;
+  const requestId = response.headers.get("X-Request-ID") ?? undefined;
   try {
     const body = (await response.json()) as ApiErrorEnvelope;
     if (body?.error?.code) code = body.error.code;
@@ -607,7 +612,7 @@ async function failureFrom(response: Response): Promise<ApiFailure> {
   } catch {
     // A proxy or network edge may return a non-JSON failure.
   }
-  return new ApiFailure(response.status, code, message);
+  return new ApiFailure(response.status, code, message, requestId);
 }
 
 export async function requestJson<T>(
