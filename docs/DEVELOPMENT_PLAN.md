@@ -79,7 +79,7 @@ minimal charger-directory contract with the separate HAL.
 Depends on Phase 3.
 
 Objective: manage CPO customers, RFID/idTags, customer groups, immutable tariff
-versions, and tax rules.
+versions, and tax rules. The tariff API will be consolidated into a single endpoint.
 
 ### Phase 5: Charging lifecycle and HAL integration
 
@@ -589,7 +589,7 @@ organization mutation or implying HAL integration.
 
 Scope:
 
-- ADMIN-only CPO authentication and authorization
+- ADMIN-only CPO authentication and authorization.
 - CPO administrator identity profile read/update
 - Session-bound, read-only CPO organization details
 - Tenant-scoped network and pricing create/read/update operations
@@ -597,7 +597,7 @@ Scope:
 - Server-generated identifiers and exact decimal pricing/tax values
 - Transactional audit evidence
 - OpenAPI, human contract, educational/integration guidance, and verification
-
+- The tariff API will be consolidated into a single endpoint (`/api/v1/cpo/tariffs`) capable of handling all tariff scopes.
 Non-goals:
 
 - App-user/customer changes

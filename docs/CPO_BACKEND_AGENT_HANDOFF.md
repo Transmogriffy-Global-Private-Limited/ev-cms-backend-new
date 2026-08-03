@@ -171,26 +171,20 @@ organization response omits privileged lifecycle reason and platform actor ID.
 - `GET/PATCH /gsts/{gst_id}`
 - `POST/GET /tariffs`
 - `GET/PATCH /tariffs/{tariff_id}`
-
-Current behavior:
-
-- collections use bounded keyset pagination;
-- IDs are server-generated;
-- charger creation atomically creates its initial connectors and audit record;
-- the six-character public charger ID, CMS UUID, connector UUIDs, and
-  `ocpp_identity` are different identifiers;
-- `ocpp_identity` is only a mapping value; no HAL call occurs;
-- CPO callers cannot write live charger/connector status;
-- exact tax and tariff decimals serialize as strings;
-- blank tariff currency becomes `INR`;
-- related hub, charger, GST, and group records must belong to the same CPO;
-- referenced chargers return `409 charger_in_use` rather than cascading data
-  loss;
-- GST and tariff retirement uses `is_active=false`;
-- hub deletion, GST deletion, tariff deletion, and connector add/remove after
-  charger creation are not implemented;
-- optional tariff relationships can currently be omitted or replaced, but not
-  explicitly cleared to null.
+ 
+Current behavior for tariffs:
+- The single `/tariffs` API now handles all tariff scopes (hub, charger, user group).
+- A tariff must be scoped to at least one of `hub_id`, `charger_id`, or `user_group_id`.
+- If `charger_id` is supplied, `hub_id` must also be supplied, and the charger must belong to that hub.
+- A user group tariff (`user_group_id` supplied) cannot be simultaneously scoped to a specific charger (`charger_id` supplied).
+- Collections use bounded keyset pagination.
+- IDs are server-generated.
+- Exact tax and tariff decimals serialize as strings.
+- Blank tariff currency becomes `INR`.
+- Related hub, charger, GST, and group records must belong to the same CPO.
+- Tariff retirement uses `is_active=false`.
+- Tariff deletion is not implemented; deactivation is the supported state change.
+- Optional tariff relationships can currently be omitted or replaced, but not explicitly cleared to null.
 
 ### CPO integration credentials
 

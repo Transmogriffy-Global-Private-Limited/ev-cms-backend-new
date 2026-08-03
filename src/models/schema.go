@@ -256,8 +256,8 @@ func (GST) TableName() string {
 type Tariff struct {
 	ID            uuid.UUID       `gorm:"type:uuid;primaryKey;default:gen_random_uuid()" json:"id"`
 	CPOID         uuid.UUID       `gorm:"type:uuid;not null;index" json:"cpo_id"`
-	HubID         uuid.UUID       `gorm:"type:uuid;not null;index" json:"hub_id"`
-	Hub           Hub             `gorm:"foreignKey:HubID;constraint:OnUpdate:CASCADE,OnDelete:RESTRICT" json:"hub,omitempty"`
+	HubID         *uuid.UUID      `gorm:"type:uuid;index" json:"hub_id,omitempty"`
+	Hub           *Hub            `gorm:"foreignKey:HubID;constraint:OnUpdate:CASCADE,OnDelete:RESTRICT" json:"hub,omitempty"`
 	ChargerID     *uuid.UUID      `gorm:"type:uuid;index" json:"charger_id,omitempty"`
 	Charger       *Charger        `gorm:"foreignKey:ChargerID;constraint:OnUpdate:CASCADE,OnDelete:RESTRICT" json:"charger,omitempty"`
 	GSTID         *uuid.UUID      `gorm:"type:uuid;index" json:"gst_id,omitempty"`

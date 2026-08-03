@@ -1759,9 +1759,10 @@ Creates a tenant tariff:
 
 Rules:
 
-- `hub_id` is required and tenant-owned;
-- `charger_id`, `gst_id`, and `user_group_id` are optional tenant-owned UUIDs;
-- a supplied charger must belong to the supplied hub;
+- A tariff must be scoped to at least one of `hub_id`, `charger_id`, or `user_group_id`.
+- `hub_id`, `charger_id`, `gst_id`, and `user_group_id` are optional tenant-owned UUIDs.
+- If `charger_id` is supplied, `hub_id` must also be supplied, and the charger must belong to that hub.
+- A user group tariff (`user_group_id` supplied) cannot be simultaneously scoped to a specific charger (`charger_id` supplied).
 - `price_per_kwh` is required and greater than zero;
 - idle fee is optional/default zero and cannot be negative;
 - currency is optional/default `INR`, normalized uppercase, and exactly three

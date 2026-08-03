@@ -49,7 +49,7 @@ provides:
 - CPO ADMIN identity-profile read/update for global full-name and phone fields;
 - session-bound, read-only CPO registration/organization details without
   exposing internal Superadmin actor metadata or permitting tenant mutation;
-- tenant-scoped bounded hub create/list/get/update;
+  - tenant-scoped bounded hub create/list/get/update;
 - atomic CMS charger/connector registration with server-generated charger UUID,
   public charger ID, OCPP mapping identity, and connector UUIDs;
 - bounded charger listing, detail/update, connector update, and dependency-safe
@@ -57,7 +57,7 @@ provides:
 - exact-decimal, bounded GST and tariff create/list/get/update with cross-CPO
   relationship rejection and INR defaulting;
 - Hostinger implicit-TLS configuration on `smtp.hostinger.com:465`, with
-  startup rejection of plaintext or ambiguous SMTP modes;
+    startup rejection of plaintext or ambiguous SMTP modes;
 - registered educational, integration, API, internal-message, and
   configuration documentation under `docs/`;
 - a canonical CPO backend AI-agent handoff covering current capability,
@@ -70,7 +70,7 @@ provides:
 - canonical OpenAPI 3.1 for all 69 source-tree business/health operations;
 - embedded same-origin Swagger UI at `/docs/` and raw OpenAPI at
   `/openapi.yaml`;
-- `API_DOCS_ENABLED` registration control for both documentation surfaces,
+  - `API_DOCS_ENABLED` registration control for both documentation surfaces,
   defaulting on for compatibility and returning `404` when disabled;
 - bidirectional verification that Gin and OpenAPI expose the same operation
   set;
@@ -102,7 +102,7 @@ provides:
 - an enabled and active `evcmsnew-dev.service`, ignored mode-0600 deployment
   environment, compiled binary layout, and `rehost-evcmsnew` interactive
   handler;
-- the additive PostgreSQL database `devevcmsnewdb`, owned by `postgres`.
+  - the additive PostgreSQL database `devevcmsnewdb`, owned by `postgres`.
 
 The active development VPS runs a candidate based on source revision `407ec07`
 plus local PostgreSQL compatibility corrections, with migration ten recorded
@@ -111,8 +111,8 @@ organization/profile/network/pricing operations required no new migration.
 The corrections align GORM with the existing `open_24_hours` and
 `price_per_kwh` columns and map PostgreSQL dependency violations to the
 documented `charger_in_use` conflict. The deployed corrections are recorded in
-the repository state. Migration nine continues to preserve the retired
-commercial prototype under `retired_commercial`.
+    the repository state. Migration nine continues to preserve the retired
+  commercial prototype under `retired_commercial`.
 
 No CMS/HAL transport or handshake, live charger state ingestion, charging
 workflow, tenant payment workflow, tenant commercial-management workflow,

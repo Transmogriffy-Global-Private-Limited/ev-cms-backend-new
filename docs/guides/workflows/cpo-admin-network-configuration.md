@@ -114,7 +114,9 @@ as JSON strings to avoid client floating-point rounding.
 Call `POST /api/v1/cpo/tariffs` with the hub UUID, exact price, and optional
 charger/GST/user-group UUIDs. Every referenced record must belong to the same
 CPO. A selected charger must belong to the selected hub. Currency defaults to
-INR.
+INR. A tariff must be scoped to at least one of `hub_id`, `charger_id`, or
+`user_group_id`. If a `charger_id` is supplied, a `hub_id` must also be
+supplied. A user group tariff cannot be simultaneously scoped to a specific charger.
 
 ### 5. Read and update
 

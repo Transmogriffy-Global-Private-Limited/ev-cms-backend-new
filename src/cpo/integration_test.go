@@ -1177,10 +1177,10 @@ func TestCPOAdminProfileAndNetworkConfigurationWithPostgreSQL(t *testing.T) {
 	})
 	if err != nil {
 		t.Fatalf("create GST: %v", err)
-	}
+	} // Corrected: hub.ID was passed as uuid.UUID, now it's &hub.ID
 	price := decimal.RequireFromString("18.5000")
 	tariff, err := service.CreateTariff(ctx, adminPrincipal, CreateTariffRequest{
-		HubID:       hub.ID,
+		HubID:       &hub.ID,
 		ChargerID:   &charger.ID,
 		GSTID:       &gst.ID,
 		PricePerKWh: price,

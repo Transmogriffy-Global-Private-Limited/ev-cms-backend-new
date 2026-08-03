@@ -2,6 +2,28 @@
 
 ## 2026-08-03
 
+### Consolidated Tariff APIs and Updated Documentation
+
+- Consolidated the separate `/hub-tariffs` and `/user-group-tariffs` endpoints into the single, canonical `/api/v1/cpo/tariffs` API.
+- Updated `src/cpo/schemas.go` to remove specialized DTOs (`CreateHubTariffRequest`, `HubTariffResponse`, etc.) and ensure generic `CreateTariffRequest` and `UpdateTariffRequest` handle all tariff types.
+- Modified `src/cpo/router.go` to remove registrations for the deprecated hub and user-group tariff routes.
+- Refactored `src/cpo/service.go` by:
+    - Removing `CreateHubTariff`, `ListHubTariffs`, `GetHubTariff`, `UpdateHubTariff`, `CreateUserGroupTariff`, `ListUserGroupTariffs`, `GetUserGroupTariff`, `UpdateUserGroupTariff` functions.
+    - Enhancing `CreateTariff` and `UpdateTariff` to handle all tariff scopes (hub-only, charger-only, user-group-only, or combinations) through a unified logic.
+    - Introducing `validateTariffScope` helper to centralize validation for valid combinations of `HubID`, `ChargerID`, and `UserGroupID`.
+    - Adjusting `validateCreateTariffRequest` and `validateUpdateTariffRequest` to use the new scope validation.
+- Updated `src/cpo/integration_test.go` and `src/cpo/service_test.go` to reflect the consolidated API.
+- Updated `docs/contracts/api/administrative-http-api.md`, `docs/CPO_BACKEND_AGENT_HANDOFF.md`, `docs/PROJECT_STATE.md`, and `docs/DEVELOPMENT_PLAN.md` to reflect the API consolidation and other tariff-related fixes.
+- Confirmed that runtime defaults for `IsActive` and `Currency` in tariff creation, and the inclusion of `CreatedAt`/`UpdatedAt` in tariff responses, are correctly handled as per previous fixes.
+
+Verification:
+- All code changes compile successfully.
+- `go test ./...`, `go vet ./...`, and `git diff --check` passed.
+- Documentation files are updated to reflect the current state of the tariff APIs.
+- The `openapi.yaml` file will need to be regenerated and verified for parity with the new routes.
+
+## 2026-08-03
+
 ### Exhaustive SuperAdmin frontend integration handoff added
 
 - Added `docs/SUPERADMIN_FRONTEND_HANDOFF.md` as the canonical no-chat-history

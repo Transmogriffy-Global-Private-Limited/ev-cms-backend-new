@@ -233,7 +233,7 @@ func TestTenantOperationValidation(t *testing.T) {
 	t.Parallel()
 
 	tariff := normalizeCreateTariffRequest(CreateTariffRequest{
-		HubID:       uuid.New(),
+		HubID:       func() *uuid.UUID { id := uuid.New(); return &id }(), // HubID is now a pointer
 		PricePerKWh: decimal.RequireFromString("18.5"),
 	})
 	if tariff.Currency != "INR" {
