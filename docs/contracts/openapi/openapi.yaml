@@ -2369,6 +2369,324 @@ paths:
         "500":
           $ref: "#/components/responses/InternalError"
 
+  /api/v1/cpo/hub-tariffs:
+    post:
+      tags: [CPO Operations]
+      operationId: createCPOHubTariff
+      summary: Create a hub tariff
+      description: Requires CPO ADMIN. The hub must belong to the authenticated CPO.
+      security:
+        - BearerAuth: []
+          CPOAppID: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateHubTariffRequest"
+      responses:
+        "201":
+          description: Hub tariff created.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HubTariff"
+        "400":
+          description: Invalid body, pricing, currency, or app-ID header.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/CPOBusinessForbidden"
+        "404":
+          description: "`hub_not_found` or `gst_not_found`."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "409":
+          description: "`tariff_conflict`."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    get:
+      tags: [CPO Operations]
+      operationId: listCPOHubTariffs
+      summary: List hub tariffs
+      description: Requires CPO ADMIN and uses stable descending keyset pagination.
+      security:
+        - BearerAuth: []
+          CPOAppID: []
+      parameters:
+        - $ref: "#/components/parameters/ListBefore"
+        - $ref: "#/components/parameters/ListBeforeID"
+        - $ref: "#/components/parameters/ListLimit"
+      responses:
+        "200":
+          description: One bounded page of hub tariffs.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HubTariffListResponse"
+        "400":
+          description: Invalid cursor, limit, or missing app-ID header.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/CPOBusinessForbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /api/v1/cpo/hub-tariffs/{tariff_id}:
+    parameters:
+      - $ref: "#/components/parameters/TariffID"
+    get:
+      tags: [CPO Operations]
+      operationId: getCPOHubTariff
+      summary: Get one hub tariff
+      security:
+        - BearerAuth: []
+          CPOAppID: []
+      responses:
+        "200":
+          description: Hub tariff detail.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HubTariff"
+        "400":
+          description: Invalid tariff ID or missing app-ID header.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/CPOBusinessForbidden"
+        "404":
+          description: "`tariff_not_found`."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    patch:
+      tags: [CPO Operations]
+      operationId: updateCPOHubTariff
+      summary: Update a hub tariff
+      description: Requires CPO ADMIN and at least one mutable field.
+      security:
+        - BearerAuth: []
+          CPOAppID: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateHubTariffRequest"
+      responses:
+        "200":
+          description: Updated hub tariff.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HubTariff"
+        "400":
+          description: Invalid body, tariff ID, pricing, or app-ID header.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/CPOBusinessForbidden"
+        "404":
+          description: Tariff or referenced tenant resource was not found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "409":
+          description: "`tariff_conflict`."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /api/v1/cpo/user-group-tariffs:
+    post:
+      tags: [CPO Operations]
+      operationId: createCPOUserGroupTariff
+      summary: Create a user-group tariff
+      description: Requires CPO ADMIN. The user group must belong to the authenticated CPO.
+      security:
+        - BearerAuth: []
+          CPOAppID: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateUserGroupTariffRequest"
+      responses:
+        "201":
+          description: User-group tariff created.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserGroupTariff"
+        "400":
+          description: Invalid body, pricing, currency, or app-ID header.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/CPOBusinessForbidden"
+        "404":
+          description: "`user_group_not_found` or `gst_not_found`."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "409":
+          description: "`tariff_conflict`."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    get:
+      tags: [CPO Operations]
+      operationId: listCPOUserGroupTariffs
+      summary: List user-group tariffs
+      description: Requires CPO ADMIN and uses stable descending keyset pagination.
+      security:
+        - BearerAuth: []
+          CPOAppID: []
+      parameters:
+        - $ref: "#/components/parameters/ListBefore"
+        - $ref: "#/components/parameters/ListBeforeID"
+        - $ref: "#/components/parameters/ListLimit"
+      responses:
+        "200":
+          description: One bounded page of user-group tariffs.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserGroupTariffListResponse"
+        "400":
+          description: Invalid cursor, limit, or missing app-ID header.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/CPOBusinessForbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /api/v1/cpo/user-group-tariffs/{tariff_id}:
+    parameters:
+      - $ref: "#/components/parameters/TariffID"
+    get:
+      tags: [CPO Operations]
+      operationId: getCPOUserGroupTariff
+      summary: Get one user-group tariff
+      security:
+        - BearerAuth: []
+          CPOAppID: []
+      responses:
+        "200":
+          description: User-group tariff detail.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserGroupTariff"
+        "400":
+          description: Invalid tariff ID or missing app-ID header.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/CPOBusinessForbidden"
+        "404":
+          description: "`tariff_not_found`."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    patch:
+      tags: [CPO Operations]
+      operationId: updateCPOUserGroupTariff
+      summary: Update a user-group tariff
+      description: Requires CPO ADMIN and at least one mutable field.
+      security:
+        - BearerAuth: []
+          CPOAppID: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateUserGroupTariffRequest"
+      responses:
+        "200":
+          description: Updated user-group tariff.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserGroupTariff"
+        "400":
+          description: Invalid body, tariff ID, pricing, or app-ID header.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/CPOBusinessForbidden"
+        "404":
+          description: Tariff or referenced tenant resource was not found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "409":
+          description: "`tariff_conflict`."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
   /api/v1/cpo/gsts:
     post:
       tags: [CPO Operations]
@@ -4436,6 +4754,138 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/Tariff"
+        next_before: {type: string, format: date-time}
+        next_before_id: {type: string, format: uuid}
+        has_more: {type: boolean}
+
+    CreateHubTariffRequest:
+      type: object
+      additionalProperties: false
+      required: [hub_id, price_per_kwh, start_date, end_date]
+      properties:
+        hub_id: {type: string, format: uuid}
+        gst_id: {type: string, format: uuid}
+        price_per_kwh: {$ref: "#/components/schemas/DecimalInput"}
+        idle_fee_per_min: {$ref: "#/components/schemas/DecimalInput"}
+        currency:
+          type: string
+          pattern: "^[A-Za-z]{3}$"
+          default: INR
+        is_active: {type: boolean, default: true}
+        start_date: {type: string, format: date-time}
+        end_date: {type: string, format: date-time}
+
+    UpdateHubTariffRequest:
+      type: object
+      additionalProperties: false
+      minProperties: 1
+      properties:
+        gst_id: {type: string, format: uuid}
+        price_per_kwh: {$ref: "#/components/schemas/DecimalInput"}
+        idle_fee_per_min: {$ref: "#/components/schemas/DecimalInput"}
+        currency:
+          type: string
+          pattern: "^[A-Za-z]{3}$"
+        is_active: {type: boolean}
+        start_date: {type: string, format: date-time}
+        end_date: {type: string, format: date-time}
+
+    HubTariff:
+      type: object
+      additionalProperties: false
+      required: [id, hub_id, price_per_kwh, idle_fee_per_min, currency, is_active, created_at, updated_at]
+      properties:
+        id: {type: string, format: uuid}
+        hub_id: {type: string, format: uuid}
+        gst_id: {type: string, format: uuid}
+        price_per_kwh: {$ref: "#/components/schemas/ExactDecimal"}
+        idle_fee_per_min: {$ref: "#/components/schemas/ExactDecimal"}
+        currency:
+          type: string
+          pattern: "^[A-Z]{3}$"
+        is_active: {type: boolean}
+        start_date: {type: string, format: date-time}
+        end_date: {type: string, format: date-time}
+        created_at: {type: string, format: date-time}
+        updated_at: {type: string, format: date-time}
+
+    HubTariffListResponse:
+      type: object
+      additionalProperties: false
+      required: [hub_tariffs, has_more]
+      properties:
+        hub_tariffs:
+          type: array
+          items:
+            $ref: "#/components/schemas/HubTariff"
+        next_before: {type: string, format: date-time}
+        next_before_id: {type: string, format: uuid}
+        has_more: {type: boolean}
+
+    CreateUserGroupTariffRequest:
+      type: object
+      additionalProperties: false
+      required: [user_group_id, price_per_kwh]
+      properties:
+        user_group_id: {type: string, format: uuid}
+        hub_id: {type: string, format: uuid}
+        gst_id: {type: string, format: uuid}
+        price_per_kwh: {$ref: "#/components/schemas/DecimalInput"}
+        idle_fee_per_min: {$ref: "#/components/schemas/DecimalInput"}
+        currency:
+          type: string
+          pattern: "^[A-Za-z]{3}$"
+          default: INR
+        is_active: {type: boolean, default: true}
+        start_date: {type: string, format: date-time}
+        end_date: {type: string, format: date-time}
+
+    UpdateUserGroupTariffRequest:
+      type: object
+      additionalProperties: false
+      minProperties: 1
+      properties:
+        hub_id: {type: string, format: uuid}
+        gst_id: {type: string, format: uuid}
+        price_per_kwh: {$ref: "#/components/schemas/DecimalInput"}
+        idle_fee_per_min: {$ref: "#/components/schemas/DecimalInput"}
+        currency:
+          type: string
+          pattern: "^[A-Za-z]{3}$"
+        is_active: {type: boolean}
+        start_date: {type: string, format: date-time}
+        end_date: {type: string, format: date-time}
+
+    UserGroupTariff:
+      type: object
+      additionalProperties: false
+      required: [id, cpo_id, user_group_id, price_per_kwh, idle_fee_per_min, currency, is_active, created_at, updated_at]
+      properties:
+        id: {type: string, format: uuid}
+        cpo_id: {type: string, format: uuid}
+        user_group_id: {type: string, format: uuid}
+        hub_id: {type: string, format: uuid}
+        gst_id: {type: string, format: uuid}
+        price_per_kwh: {$ref: "#/components/schemas/ExactDecimal"}
+        idle_fee_per_min: {$ref: "#/components/schemas/ExactDecimal"}
+        currency:
+          type: string
+          pattern: "^[A-Z]{3}$"
+        is_active: {type: boolean}
+        start_date: {type: string, format: date-time}
+        end_date: {type: string, format: date-time}
+        created_at: {type: string, format: date-time}
+        updated_at: {type: string, format: date-time}
+
+    UserGroupTariffListResponse:
+      type: object
+      additionalProperties: false
+      required: [user_group_tariffs, has_more]
+      properties:
+        user_group_tariffs:
+          type: array
+          items:
+            $ref: "#/components/schemas/UserGroupTariff"
         next_before: {type: string, format: date-time}
         next_before_id: {type: string, format: uuid}
         has_more: {type: boolean}

@@ -421,6 +421,14 @@ func RegisterCPORoutes(
 	group.GET("/tariffs", handler.listTariffs)
 	group.GET("/tariffs/:tariff_id", handler.getTariff)
 	group.PATCH("/tariffs/:tariff_id", handler.updateTariff)
+	group.POST("/hub-tariffs", handler.createHubTariff)
+	group.GET("/hub-tariffs", handler.listHubTariffs)
+	group.GET("/hub-tariffs/:tariff_id", handler.getHubTariff)
+	group.PATCH("/hub-tariffs/:tariff_id", handler.updateHubTariff)
+	group.POST("/user-group-tariffs", handler.createUserGroupTariff)
+	group.GET("/user-group-tariffs", handler.listUserGroupTariffs)
+	group.GET("/user-group-tariffs/:tariff_id", handler.getUserGroupTariff)
+	group.PATCH("/user-group-tariffs/:tariff_id", handler.updateUserGroupTariff)
 	group.POST("/gsts", handler.createGST)
 	group.GET("/gsts", handler.listGSTs)
 	group.GET("/gsts/:gst_id", handler.getGST)
@@ -789,6 +797,130 @@ func parseTariffID(ctx *gin.Context) (uuid.UUID, bool) {
 		return uuid.Nil, false
 	}
 	return tariffID, true
+}
+
+func (handler *Handler) createHubTariff(ctx *gin.Context) {
+	principal, _ := auth.CurrentPrincipal(ctx)
+	var request CreateHubTariffRequest
+	if err := decodeJSON(ctx, &request); err != nil {
+		writeError(ctx, &auth.APIError{Status: http.StatusBadRequest, Code: "invalid_request", Message: "The request body is invalid."})
+		return
+	}
+	record, err := handler.service.CreateHubTariff(ctx.Request.Context(), principal, request)
+	if err != nil {
+		writeError(ctx, err)
+		return
+	}
+	ctx.JSON(http.StatusCreated, record)
+}
+
+func (handler *Handler) listHubTariffs(ctx *gin.Context) {
+	principal, _ := auth.CurrentPrincipal(ctx)
+	query, ok := parseTenantListQuery(ctx)
+	if !ok {
+		return
+	}
+	records, err := handler.service.ListHubTariffs(ctx.Request.Context(), principal, query)
+	if err != nil {
+		writeError(ctx, err)
+		return
+	}
+	ctx.JSON(http.StatusOK, records)
+}
+
+func (handler *Handler) getHubTariff(ctx *gin.Context) {
+	principal, _ := auth.CurrentPrincipal(ctx)
+	tariffID, ok := parseTariffID(ctx)
+	if !ok {
+		return
+	}
+	record, err := handler.service.GetHubTariff(ctx.Request.Context(), principal, tariffID)
+	if err != nil {
+		writeError(ctx, err)
+		return
+	}
+	ctx.JSON(http.StatusOK, record)
+}
+
+func (handler *Handler) updateHubTariff(ctx *gin.Context) {
+	principal, _ := auth.CurrentPrincipal(ctx)
+	tariffID, ok := parseTariffID(ctx)
+	if !ok {
+		return
+	}
+	var request UpdateHubTariffRequest
+	if err := decodeJSON(ctx, &request); err != nil {
+		writeError(ctx, &auth.APIError{Status: http.StatusBadRequest, Code: "invalid_request", Message: "The request body is invalid."})
+		return
+	}
+	record, err := handler.service.UpdateHubTariff(ctx.Request.Context(), principal, tariffID, request)
+	if err != nil {
+		writeError(ctx, err)
+		return
+	}
+	ctx.JSON(http.StatusOK, record)
+}
+
+func (handler *Handler) createUserGroupTariff(ctx *gin.Context) {
+	principal, _ := auth.CurrentPrincipal(ctx)
+	var request CreateUserGroupTariffRequest
+	if err := decodeJSON(ctx, &request); err != nil {
+		writeError(ctx, &auth.APIError{Status: http.StatusBadRequest, Code: "invalid_request", Message: "The request body is invalid."})
+		return
+	}
+	record, err := handler.service.CreateUserGroupTariff(ctx.Request.Context(), principal, request)
+	if err != nil {
+		writeError(ctx, err)
+		return
+	}
+	ctx.JSON(http.StatusCreated, record)
+}
+
+func (handler *Handler) listUserGroupTariffs(ctx *gin.Context) {
+	principal, _ := auth.CurrentPrincipal(ctx)
+	query, ok := parseTenantListQuery(ctx)
+	if !ok {
+		return
+	}
+	records, err := handler.service.ListUserGroupTariffs(ctx.Request.Context(), principal, query)
+	if err != nil {
+		writeError(ctx, err)
+		return
+	}
+	ctx.JSON(http.StatusOK, records)
+}
+
+func (handler *Handler) getUserGroupTariff(ctx *gin.Context) {
+	principal, _ := auth.CurrentPrincipal(ctx)
+	tariffID, ok := parseTariffID(ctx)
+	if !ok {
+		return
+	}
+	record, err := handler.service.GetUserGroupTariff(ctx.Request.Context(), principal, tariffID)
+	if err != nil {
+		writeError(ctx, err)
+		return
+	}
+	ctx.JSON(http.StatusOK, record)
+}
+
+func (handler *Handler) updateUserGroupTariff(ctx *gin.Context) {
+	principal, _ := auth.CurrentPrincipal(ctx)
+	tariffID, ok := parseTariffID(ctx)
+	if !ok {
+		return
+	}
+	var request UpdateUserGroupTariffRequest
+	if err := decodeJSON(ctx, &request); err != nil {
+		writeError(ctx, &auth.APIError{Status: http.StatusBadRequest, Code: "invalid_request", Message: "The request body is invalid."})
+		return
+	}
+	record, err := handler.service.UpdateUserGroupTariff(ctx.Request.Context(), principal, tariffID, request)
+	if err != nil {
+		writeError(ctx, err)
+		return
+	}
+	ctx.JSON(http.StatusOK, record)
 }
 
 func (handler *Handler) createGST(ctx *gin.Context) {

@@ -2771,6 +2771,8 @@ func (service *Service) CreateTariff(
 			IdleFeePerMin: request.IdleFeePerMin,
 			Currency:      request.Currency,
 			IsActive:      isActive,
+			StartDate:     request.StartDate,
+			EndDate:       request.EndDate,
 			CreatedAt:     now,
 			UpdatedAt:     now,
 		}
@@ -3132,9 +3134,450 @@ func tariffView(record models.Tariff) TariffView {
 		IdleFeePerMin: record.IdleFeePerMin,
 		Currency:      record.Currency,
 		IsActive:      record.IsActive,
+		StartDate:     record.StartDate,
+		EndDate:       record.EndDate,
 		CreatedAt:     record.CreatedAt,
 		UpdatedAt:     record.UpdatedAt,
 	}
+}
+
+func (service *Service) CreateHubTariff(
+	ctx context.Context,
+	principal auth.Principal,
+	request CreateHubTariffRequest,
+) (HubTariffResponse, error) {
+	if err := requireCPOAdminAccess(principal); err != nil {
+		return HubTariffResponse{}, err
+	}
+	cpoID := *principal.CPOID
+	if request.HubID == uuid.Nil {
+		return HubTariffResponse{}, invalid("hub_id", "Hub ID is required.")
+	}
+	if request.PricePerKWh.Sign() <= 0 {
+		return HubTariffResponse{}, invalid("price_per_kwh", "Price per kWh must be greater than zero.")
+	}
+	if request.IdleFeePerMin.Sign() < 0 {
+		return HubTariffResponse{}, invalid("idle_fee_per_min", "Idle fee per minute must not be negative.")
+	}
+	if len(request.Currency) != 3 {
+		return HubTariffResponse{}, invalid("currency", "Currency must be a 3-letter code.")
+	}
+	var createdRecord models.Tariff
+	err := service.database.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var hub models.Hub
+		if err := tx.First(&hub, "id = ? AND cpo_id = ?", request.HubID, cpoID).Error; err != nil {
+			return mapHubNotFound(err)
+		}
+		if request.GSTID != nil {
+			var gst models.GST
+			if err := tx.First(&gst, "id = ? AND cpo_id = ?", *request.GSTID, cpoID).Error; err != nil {
+				return mapGSTNotFound(err)
+			}
+		}
+		now := service.now()
+		startDate := request.StartDate
+		endDate := request.EndDate
+		createdRecord = models.Tariff{
+			ID:            uuid.New(),
+			CPOID:         cpoID,
+			HubID:         request.HubID,
+			GSTID:         request.GSTID,
+			PricePerKWh:   request.PricePerKWh,
+			IdleFeePerMin: request.IdleFeePerMin,
+			Currency:      strings.ToUpper(strings.TrimSpace(request.Currency)),
+			IsActive:      request.IsActive,
+			StartDate:     &startDate,
+			EndDate:       &endDate,
+			CreatedAt:     now,
+			UpdatedAt:     now,
+		}
+		if err := tx.Create(&createdRecord).Error; err != nil {
+			return mapTariffWriteError(err, "create hub tariff")
+		}
+		return writeAudit(tx, principal.UserID, cpoID, "HUB_TARIFF_CREATED", models.JSONB{"hub_tariff_id": createdRecord.ID}, now)
+	})
+	if err != nil {
+		return HubTariffResponse{}, err
+	}
+	return HubTariffResponse{ID: createdRecord.ID, HubID: createdRecord.HubID, GSTID: createdRecord.GSTID, PricePerKWh: createdRecord.PricePerKWh, IdleFeePerMin: createdRecord.IdleFeePerMin, Currency: createdRecord.Currency, IsActive: createdRecord.IsActive, StartDate: createdRecord.StartDate, EndDate: createdRecord.EndDate}, nil
+}
+
+func (service *Service) ListHubTariffs(
+	ctx context.Context,
+	principal auth.Principal,
+	query TenantListQuery,
+) (HubTariffListResponse, error) {
+	if err := requireCPOAdminAccess(principal); err != nil {
+		return HubTariffListResponse{}, err
+	}
+	query, err := validateTenantListQuery(query)
+	if err != nil {
+		return HubTariffListResponse{}, err
+	}
+	var records []models.Tariff
+	databaseQuery := service.database.WithContext(ctx).
+		Where("cpo_id = ? AND hub_id IS NOT NULL AND charger_id IS NULL AND user_group_id IS NULL", *principal.CPOID)
+	if query.Before != nil {
+		databaseQuery = databaseQuery.Where("(created_at, id) < (?, ?)", *query.Before, *query.BeforeID)
+	}
+	if err := databaseQuery.Order("created_at DESC, id DESC").Limit(query.Limit + 1).Find(&records).Error; err != nil {
+		return HubTariffListResponse{}, fmt.Errorf("list hub tariffs: %w", err)
+	}
+	hasMore := len(records) > query.Limit
+	if hasMore {
+		records = records[:query.Limit]
+	}
+	response := HubTariffListResponse{HubTariffs: make([]HubTariffResponse, 0, len(records)), HasMore: hasMore}
+	for _, record := range records {
+		response.HubTariffs = append(response.HubTariffs, HubTariffResponse{
+			ID:            record.ID,
+			HubID:         record.HubID,
+			GSTID:         record.GSTID,
+			PricePerKWh:   record.PricePerKWh,
+			IdleFeePerMin: record.IdleFeePerMin,
+			Currency:      record.Currency,
+			IsActive:      record.IsActive,
+			StartDate:     record.StartDate,
+			EndDate:       record.EndDate,
+			CreatedAt:     record.CreatedAt,
+			UpdatedAt:     record.UpdatedAt,
+		})
+	}
+	if hasMore && len(response.HubTariffs) > 0 {
+		nextBefore := response.HubTariffs[len(response.HubTariffs)-1].CreatedAt
+		nextBeforeID := response.HubTariffs[len(response.HubTariffs)-1].ID
+		response.NextBefore = &nextBefore
+		response.NextBeforeID = &nextBeforeID
+	}
+	return response, nil
+}
+
+func (service *Service) GetHubTariff(
+	ctx context.Context,
+	principal auth.Principal,
+	tariffID uuid.UUID,
+) (HubTariffResponse, error) {
+	if err := requireCPOAdminAccess(principal); err != nil {
+		return HubTariffResponse{}, err
+	}
+	var record models.Tariff
+	if err := service.database.WithContext(ctx).Where("cpo_id = ? AND id = ? AND charger_id IS NULL AND user_group_id IS NULL", *principal.CPOID, tariffID).First(&record).Error; err != nil {
+		return HubTariffResponse{}, mapTariffNotFound(err)
+	}
+	return HubTariffResponse{ID: record.ID, HubID: record.HubID, GSTID: record.GSTID, PricePerKWh: record.PricePerKWh, IdleFeePerMin: record.IdleFeePerMin, Currency: record.Currency, IsActive: record.IsActive, StartDate: record.StartDate, EndDate: record.EndDate, CreatedAt: record.CreatedAt, UpdatedAt: record.UpdatedAt}, nil
+}
+
+func (service *Service) UpdateHubTariff(
+	ctx context.Context,
+	principal auth.Principal,
+	tariffID uuid.UUID,
+	request UpdateHubTariffRequest,
+) (HubTariffResponse, error) {
+	if err := requireCPOAdminAccess(principal); err != nil {
+		return HubTariffResponse{}, err
+	}
+	cpoID := *principal.CPOID
+	if request.PricePerKWh != nil && request.PricePerKWh.Sign() <= 0 {
+		return HubTariffResponse{}, invalid("price_per_kwh", "Price per kWh must be greater than zero.")
+	}
+	if request.IdleFeePerMin != nil && request.IdleFeePerMin.Sign() < 0 {
+		return HubTariffResponse{}, invalid("idle_fee_per_min", "Idle fee per minute must not be negative.")
+	}
+	if request.Currency != nil && len(*request.Currency) != 3 {
+		return HubTariffResponse{}, invalid("currency", "Currency must be a 3-letter code.")
+	}
+	var record models.Tariff
+	err := service.database.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&record, "cpo_id = ? AND id = ? AND charger_id IS NULL AND user_group_id IS NULL", cpoID, tariffID).Error; err != nil {
+			return mapTariffNotFound(err)
+		}
+		updates := map[string]any{}
+		changedFields := models.JSONB{}
+		if request.GSTID != nil {
+			var gst models.GST
+			if err := tx.First(&gst, "id = ? AND cpo_id = ?", *request.GSTID, cpoID).Error; err != nil {
+				return mapGSTNotFound(err)
+			}
+			updates["gst_id"] = request.GSTID
+			record.GSTID = request.GSTID
+			changedFields["gst_id"] = request.GSTID
+		}
+		if request.PricePerKWh != nil {
+			updates["price_per_kwh"] = *request.PricePerKWh
+			record.PricePerKWh = *request.PricePerKWh
+			changedFields["price_per_kwh"] = *request.PricePerKWh
+		}
+		if request.IdleFeePerMin != nil {
+			updates["idle_fee_per_min"] = *request.IdleFeePerMin
+			record.IdleFeePerMin = *request.IdleFeePerMin
+			changedFields["idle_fee_per_min"] = *request.IdleFeePerMin
+		}
+		if request.Currency != nil {
+			updates["currency"] = strings.ToUpper(strings.TrimSpace(*request.Currency))
+			record.Currency = strings.ToUpper(strings.TrimSpace(*request.Currency))
+			changedFields["currency"] = strings.ToUpper(strings.TrimSpace(*request.Currency))
+		}
+		if request.IsActive != nil {
+			updates["is_active"] = *request.IsActive
+			record.IsActive = *request.IsActive
+			changedFields["is_active"] = *request.IsActive
+		}
+		if request.StartDate != nil {
+			updates["start_date"] = request.StartDate
+			record.StartDate = request.StartDate
+			changedFields["start_date"] = request.StartDate
+		}
+		if request.EndDate != nil {
+			updates["end_date"] = request.EndDate
+			record.EndDate = request.EndDate
+			changedFields["end_date"] = request.EndDate
+		}
+		if len(changedFields) == 0 {
+			return &auth.APIError{Status: http.StatusBadRequest, Code: "invalid_request", Message: "At least one tariff field must be supplied."}
+		}
+		now := service.now()
+		updates["updated_at"] = now
+		record.UpdatedAt = now
+		if err := tx.Model(&models.Tariff{}).Where("id = ?", record.ID).Updates(updates).Error; err != nil {
+			return mapTariffWriteError(err, "update hub tariff")
+		}
+		return writeAudit(tx, principal.UserID, cpoID, "HUB_TARIFF_UPDATED", models.JSONB{"hub_tariff_id": record.ID, "changed_fields": changedFields}, record.UpdatedAt)
+	})
+	if err != nil {
+		return HubTariffResponse{}, err
+	}
+	return HubTariffResponse{ID: record.ID, HubID: record.HubID, GSTID: record.GSTID, PricePerKWh: record.PricePerKWh, IdleFeePerMin: record.IdleFeePerMin, Currency: record.Currency, IsActive: record.IsActive, StartDate: record.StartDate, EndDate: record.EndDate, CreatedAt: record.CreatedAt, UpdatedAt: record.UpdatedAt}, nil
+}
+
+func (service *Service) CreateUserGroupTariff(
+	ctx context.Context,
+	principal auth.Principal,
+	request CreateUserGroupTariffRequest,
+) (UserGroupTariffResponse, error) {
+	if err := requireCPOAdminAccess(principal); err != nil {
+		return UserGroupTariffResponse{}, err
+	}
+	cpoID := *principal.CPOID
+	if request.UserGroupID == uuid.Nil {
+		return UserGroupTariffResponse{}, invalid("user_group_id", "User group ID is required.")
+	}
+	if request.PricePerKWh.Sign() <= 0 {
+		return UserGroupTariffResponse{}, invalid("price_per_kwh", "Price per kWh must be greater than zero.")
+	}
+	if request.IdleFeePerMin.Sign() < 0 {
+		return UserGroupTariffResponse{}, invalid("idle_fee_per_min", "Idle fee per minute must not be negative.")
+	}
+	if len(request.Currency) != 3 {
+		return UserGroupTariffResponse{}, invalid("currency", "Currency must be a 3-letter code.")
+	}
+	var createdRecord models.Tariff
+	err := service.database.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var userGroup models.UserGroup
+		if err := tx.First(&userGroup, "id = ? AND cpo_id = ?", request.UserGroupID, cpoID).Error; err != nil {
+			return mapUserGroupNotFound(err)
+		}
+		if request.HubID != nil {
+			var hub models.Hub
+			if err := tx.First(&hub, "id = ? AND cpo_id = ?", *request.HubID, cpoID).Error; err != nil {
+				return mapHubNotFound(err)
+			}
+		}
+		if request.GSTID != nil {
+			var gst models.GST
+			if err := tx.First(&gst, "id = ? AND cpo_id = ?", *request.GSTID, cpoID).Error; err != nil {
+				return mapGSTNotFound(err)
+			}
+		}
+		now := service.now()
+		createdRecord = models.Tariff{
+			ID:            uuid.New(),
+			CPOID:         cpoID,
+			HubID:         uuid.Nil,
+			UserGroupID:   &request.UserGroupID,
+			GSTID:         request.GSTID,
+			PricePerKWh:   request.PricePerKWh,
+			IdleFeePerMin: request.IdleFeePerMin,
+			Currency:      strings.ToUpper(strings.TrimSpace(request.Currency)),
+			IsActive:      request.IsActive,
+			StartDate:     request.StartDate,
+			EndDate:       request.EndDate,
+			CreatedAt:     now,
+			UpdatedAt:     now,
+		}
+		if request.HubID != nil {
+			createdRecord.HubID = *request.HubID
+		}
+		if err := tx.Create(&createdRecord).Error; err != nil {
+			return mapTariffWriteError(err, "create user group tariff")
+		}
+		return writeAudit(tx, principal.UserID, cpoID, "USER_GROUP_TARIFF_CREATED", models.JSONB{"user_group_tariff_id": createdRecord.ID}, now)
+	})
+	if err != nil {
+		return UserGroupTariffResponse{}, err
+	}
+	userGroupID := createdRecord.UserGroupID
+	if userGroupID == nil {
+		return UserGroupTariffResponse{}, fmt.Errorf("create user group tariff: missing user group id")
+	}
+	return UserGroupTariffResponse{ID: createdRecord.ID, CPOID: createdRecord.CPOID, UserGroupID: *userGroupID, HubID: nil, GSTID: createdRecord.GSTID, PricePerKWh: createdRecord.PricePerKWh, IdleFeePerMin: createdRecord.IdleFeePerMin, Currency: createdRecord.Currency, IsActive: createdRecord.IsActive, StartDate: createdRecord.StartDate, EndDate: createdRecord.EndDate}, nil
+}
+
+func (service *Service) ListUserGroupTariffs(
+	ctx context.Context,
+	principal auth.Principal,
+	query TenantListQuery,
+) (UserGroupTariffListResponse, error) {
+	if err := requireCPOAdminAccess(principal); err != nil {
+		return UserGroupTariffListResponse{}, err
+	}
+	query, err := validateTenantListQuery(query)
+	if err != nil {
+		return UserGroupTariffListResponse{}, err
+	}
+	var records []models.Tariff
+	databaseQuery := service.database.WithContext(ctx).
+		Where("cpo_id = ? AND user_group_id IS NOT NULL AND charger_id IS NULL", *principal.CPOID)
+	if query.Before != nil {
+		databaseQuery = databaseQuery.Where("(created_at, id) < (?, ?)", *query.Before, *query.BeforeID)
+	}
+	if err := databaseQuery.Order("created_at DESC, id DESC").Limit(query.Limit + 1).Find(&records).Error; err != nil {
+		return UserGroupTariffListResponse{}, fmt.Errorf("list user group tariffs: %w", err)
+	}
+	hasMore := len(records) > query.Limit
+	if hasMore {
+		records = records[:query.Limit]
+	}
+	response := UserGroupTariffListResponse{UserGroupTariffs: make([]UserGroupTariffResponse, 0, len(records)), HasMore: hasMore}
+	for _, record := range records {
+		response.UserGroupTariffs = append(response.UserGroupTariffs, UserGroupTariffResponse{
+			ID:            record.ID,
+			CPOID:         record.CPOID,
+			UserGroupID:   *record.UserGroupID,
+			HubID:         nil,
+			GSTID:         record.GSTID,
+			PricePerKWh:   record.PricePerKWh,
+			IdleFeePerMin: record.IdleFeePerMin,
+			Currency:      record.Currency,
+			IsActive:      record.IsActive,
+			StartDate:     record.StartDate,
+			EndDate:       record.EndDate,
+			CreatedAt:     record.CreatedAt,
+			UpdatedAt:     record.UpdatedAt,
+		})
+	}
+	if hasMore && len(response.UserGroupTariffs) > 0 {
+		nextBefore := response.UserGroupTariffs[len(response.UserGroupTariffs)-1].CreatedAt
+		nextBeforeID := response.UserGroupTariffs[len(response.UserGroupTariffs)-1].ID
+		response.NextBefore = &nextBefore
+		response.NextBeforeID = &nextBeforeID
+	}
+	return response, nil
+}
+
+func (service *Service) GetUserGroupTariff(
+	ctx context.Context,
+	principal auth.Principal,
+	tariffID uuid.UUID,
+) (UserGroupTariffResponse, error) {
+	if err := requireCPOAdminAccess(principal); err != nil {
+		return UserGroupTariffResponse{}, err
+	}
+	var record models.Tariff
+	if err := service.database.WithContext(ctx).Where("cpo_id = ? AND id = ? AND charger_id IS NULL", *principal.CPOID, tariffID).First(&record).Error; err != nil {
+		return UserGroupTariffResponse{}, mapTariffNotFound(err)
+	}
+	return UserGroupTariffResponse{ID: record.ID, CPOID: record.CPOID, UserGroupID: *record.UserGroupID, HubID: nil, GSTID: record.GSTID, PricePerKWh: record.PricePerKWh, IdleFeePerMin: record.IdleFeePerMin, Currency: record.Currency, IsActive: record.IsActive, StartDate: record.StartDate, EndDate: record.EndDate, CreatedAt: record.CreatedAt, UpdatedAt: record.UpdatedAt}, nil
+}
+
+func (service *Service) UpdateUserGroupTariff(
+	ctx context.Context,
+	principal auth.Principal,
+	tariffID uuid.UUID,
+	request UpdateUserGroupTariffRequest,
+) (UserGroupTariffResponse, error) {
+	if err := requireCPOAdminAccess(principal); err != nil {
+		return UserGroupTariffResponse{}, err
+	}
+	cpoID := *principal.CPOID
+	if request.PricePerKWh != nil && request.PricePerKWh.Sign() <= 0 {
+		return UserGroupTariffResponse{}, invalid("price_per_kwh", "Price per kWh must be greater than zero.")
+	}
+	if request.IdleFeePerMin != nil && request.IdleFeePerMin.Sign() < 0 {
+		return UserGroupTariffResponse{}, invalid("idle_fee_per_min", "Idle fee per minute must not be negative.")
+	}
+	if request.Currency != nil && len(*request.Currency) != 3 {
+		return UserGroupTariffResponse{}, invalid("currency", "Currency must be a 3-letter code.")
+	}
+	var record models.Tariff
+	err := service.database.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&record, "cpo_id = ? AND id = ? AND charger_id IS NULL", cpoID, tariffID).Error; err != nil {
+			return mapTariffNotFound(err)
+		}
+		updates := map[string]any{}
+		changedFields := models.JSONB{}
+		if request.HubID != nil {
+			var hub models.Hub
+			if err := tx.First(&hub, "id = ? AND cpo_id = ?", *request.HubID, cpoID).Error; err != nil {
+				return mapHubNotFound(err)
+			}
+			updates["hub_id"] = *request.HubID
+			record.HubID = *request.HubID
+			changedFields["hub_id"] = *request.HubID
+		}
+		if request.GSTID != nil {
+			var gst models.GST
+			if err := tx.First(&gst, "id = ? AND cpo_id = ?", *request.GSTID, cpoID).Error; err != nil {
+				return mapGSTNotFound(err)
+			}
+			updates["gst_id"] = request.GSTID
+			record.GSTID = request.GSTID
+			changedFields["gst_id"] = request.GSTID
+		}
+		if request.PricePerKWh != nil {
+			updates["price_per_kwh"] = *request.PricePerKWh
+			record.PricePerKWh = *request.PricePerKWh
+			changedFields["price_per_kwh"] = *request.PricePerKWh
+		}
+		if request.IdleFeePerMin != nil {
+			updates["idle_fee_per_min"] = *request.IdleFeePerMin
+			record.IdleFeePerMin = *request.IdleFeePerMin
+			changedFields["idle_fee_per_min"] = *request.IdleFeePerMin
+		}
+		if request.Currency != nil {
+			updates["currency"] = strings.ToUpper(strings.TrimSpace(*request.Currency))
+			record.Currency = strings.ToUpper(strings.TrimSpace(*request.Currency))
+			changedFields["currency"] = strings.ToUpper(strings.TrimSpace(*request.Currency))
+		}
+		if request.IsActive != nil {
+			updates["is_active"] = *request.IsActive
+			record.IsActive = *request.IsActive
+			changedFields["is_active"] = *request.IsActive
+		}
+		if request.StartDate != nil {
+			updates["start_date"] = request.StartDate
+			record.StartDate = request.StartDate
+			changedFields["start_date"] = request.StartDate
+		}
+		if request.EndDate != nil {
+			updates["end_date"] = request.EndDate
+			record.EndDate = request.EndDate
+			changedFields["end_date"] = request.EndDate
+		}
+		if len(changedFields) == 0 {
+			return &auth.APIError{Status: http.StatusBadRequest, Code: "invalid_request", Message: "At least one tariff field must be supplied."}
+		}
+		now := service.now()
+		updates["updated_at"] = now
+		record.UpdatedAt = now
+		if err := tx.Model(&models.Tariff{}).Where("id = ?", record.ID).Updates(updates).Error; err != nil {
+			return mapTariffWriteError(err, "update user group tariff")
+		}
+		return writeAudit(tx, principal.UserID, cpoID, "USER_GROUP_TARIFF_UPDATED", models.JSONB{"user_group_tariff_id": record.ID, "changed_fields": changedFields}, record.UpdatedAt)
+	})
+	if err != nil {
+		return UserGroupTariffResponse{}, err
+	}
+	return UserGroupTariffResponse{ID: record.ID, CPOID: record.CPOID, UserGroupID: *record.UserGroupID, HubID: nil, GSTID: record.GSTID, PricePerKWh: record.PricePerKWh, IdleFeePerMin: record.IdleFeePerMin, Currency: record.Currency, IsActive: record.IsActive, StartDate: record.StartDate, EndDate: record.EndDate, CreatedAt: record.CreatedAt, UpdatedAt: record.UpdatedAt}, nil
 }
 
 func (service *Service) CreateGST(

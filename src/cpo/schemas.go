@@ -292,6 +292,8 @@ type CreateTariffRequest struct {
 	IdleFeePerMin decimal.Decimal `json:"idle_fee_per_min"`
 	Currency      string          `json:"currency"`
 	IsActive      *bool           `json:"is_active,omitempty"`
+	StartDate     *time.Time      `json:"start_date,omitempty"`
+	EndDate       *time.Time      `json:"end_date,omitempty"`
 }
 
 type UpdateTariffRequest struct {
@@ -303,6 +305,8 @@ type UpdateTariffRequest struct {
 	IdleFeePerMin *decimal.Decimal `json:"idle_fee_per_min,omitempty"`
 	Currency      *string          `json:"currency,omitempty"`
 	IsActive      *bool            `json:"is_active,omitempty"`
+	StartDate     *time.Time       `json:"start_date,omitempty"`
+	EndDate       *time.Time       `json:"end_date,omitempty"`
 }
 
 type TariffView struct {
@@ -316,6 +320,8 @@ type TariffView struct {
 	IdleFeePerMin decimal.Decimal `json:"idle_fee_per_min"`
 	Currency      string          `json:"currency"`
 	IsActive      bool            `json:"is_active"`
+	StartDate     *time.Time      `json:"start_date,omitempty"`
+	EndDate       *time.Time      `json:"end_date,omitempty"`
 	CreatedAt     time.Time       `json:"created_at"`
 	UpdatedAt     time.Time       `json:"updated_at"`
 }
@@ -360,4 +366,93 @@ type GSTListResponse struct {
 	NextBefore   *time.Time `json:"next_before,omitempty"`
 	NextBeforeID *uuid.UUID `json:"next_before_id,omitempty"`
 	HasMore      bool       `json:"has_more"`
+}
+
+type CreateHubTariffRequest struct {
+	HubID         uuid.UUID       `json:"hub_id" binding:"required"`
+	GSTID         *uuid.UUID      `json:"gst_id,omitempty"`
+	PricePerKWh   decimal.Decimal `json:"price_per_kwh" binding:"required"`
+	IdleFeePerMin decimal.Decimal `json:"idle_fee_per_min"`
+	Currency      string          `json:"currency"`
+	IsActive      bool            `json:"is_active"`
+	StartDate     time.Time       `json:"start_date" binding:"required"`
+	EndDate       time.Time       `json:"end_date" binding:"required"`
+}
+
+type UpdateHubTariffRequest struct {
+	GSTID         *uuid.UUID       `json:"gst_id,omitempty"`
+	PricePerKWh   *decimal.Decimal `json:"price_per_kwh,omitempty"`
+	IdleFeePerMin *decimal.Decimal `json:"idle_fee_per_min,omitempty"`
+	Currency      *string          `json:"currency,omitempty"`
+	IsActive      *bool            `json:"is_active,omitempty"`
+	StartDate     *time.Time       `json:"start_date,omitempty"`
+	EndDate       *time.Time       `json:"end_date,omitempty"`
+}
+
+type HubTariffResponse struct {
+	ID            uuid.UUID       `json:"id"`
+	HubID         uuid.UUID       `json:"hub_id"`
+	GSTID         *uuid.UUID      `json:"gst_id,omitempty"`
+	PricePerKWh   decimal.Decimal `json:"price_per_kwh"`
+	IdleFeePerMin decimal.Decimal `json:"idle_fee_per_min"`
+	Currency      string          `json:"currency"`
+	IsActive      bool            `json:"is_active"`
+	StartDate     *time.Time      `json:"start_date,omitempty"`
+	EndDate       *time.Time      `json:"end_date,omitempty"`
+	CreatedAt     time.Time       `json:"created_at"`
+	UpdatedAt     time.Time       `json:"updated_at"`
+}
+
+// User Group Tariff DTOs
+type CreateUserGroupTariffRequest struct {
+	UserGroupID   uuid.UUID       `json:"user_group_id" binding:"required"`
+	HubID         *uuid.UUID      `json:"hub_id,omitempty"`
+	GSTID         *uuid.UUID      `json:"gst_id,omitempty"`
+	PricePerKWh   decimal.Decimal `json:"price_per_kwh" binding:"required"`
+	IdleFeePerMin decimal.Decimal `json:"idle_fee_per_min"`
+	Currency      string          `json:"currency"`
+	IsActive      bool            `json:"is_active"`
+	StartDate     *time.Time      `json:"start_date,omitempty"`
+	EndDate       *time.Time      `json:"end_date,omitempty"`
+}
+
+type UpdateUserGroupTariffRequest struct {
+	HubID         *uuid.UUID       `json:"hub_id,omitempty"`
+	GSTID         *uuid.UUID       `json:"gst_id,omitempty"`
+	PricePerKWh   *decimal.Decimal `json:"price_per_kwh,omitempty"`
+	IdleFeePerMin *decimal.Decimal `json:"idle_fee_per_min,omitempty"`
+	Currency      *string          `json:"currency,omitempty"`
+	IsActive      *bool            `json:"is_active,omitempty"`
+	StartDate     *time.Time       `json:"start_date,omitempty"`
+	EndDate       *time.Time       `json:"end_date,omitempty"`
+}
+
+type UserGroupTariffResponse struct {
+	ID            uuid.UUID       `json:"id"`
+	CPOID         uuid.UUID       `json:"cpo_id"`
+	UserGroupID   uuid.UUID       `json:"user_group_id"`
+	HubID         *uuid.UUID      `json:"hub_id,omitempty"`
+	GSTID         *uuid.UUID      `json:"gst_id,omitempty"`
+	PricePerKWh   decimal.Decimal `json:"price_per_kwh"`
+	IdleFeePerMin decimal.Decimal `json:"idle_fee_per_min"`
+	Currency      string          `json:"currency"`
+	IsActive      bool            `json:"is_active"`
+	StartDate     *time.Time      `json:"start_date,omitempty"`
+	EndDate       *time.Time      `json:"end_date,omitempty"`
+	CreatedAt     time.Time       `json:"created_at"`
+	UpdatedAt     time.Time       `json:"updated_at"`
+}
+
+type HubTariffListResponse struct {
+	HubTariffs   []HubTariffResponse `json:"hub_tariffs"`
+	NextBefore   *time.Time          `json:"next_before,omitempty"`
+	NextBeforeID *uuid.UUID          `json:"next_before_id,omitempty"`
+	HasMore      bool                `json:"has_more"`
+}
+
+type UserGroupTariffListResponse struct {
+	UserGroupTariffs []UserGroupTariffResponse `json:"user_group_tariffs"`
+	NextBefore       *time.Time                `json:"next_before,omitempty"`
+	NextBeforeID     *uuid.UUID                `json:"next_before_id,omitempty"`
+	HasMore          bool                      `json:"has_more"`
 }
