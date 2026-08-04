@@ -2124,8 +2124,6 @@ POST /api/v1/platform/plans/{plan_id}/archive
 POST/GET /api/v1/platform/cpos/{cpo_id}/subscription
 POST /api/v1/platform/cpos/{cpo_id}/subscription/{renew,change-plan,activate,pause,resume,mark-past-due,expire,cancel}
 GET /api/v1/platform/cpos/{cpo_id}/subscription/history
-GET /api/v1/platform/cpos/{cpo_id}/entitlements
-PUT/DELETE /api/v1/platform/cpos/{cpo_id}/entitlement-overrides/{feature_key}
 ```
 
 They are described completely by
@@ -2134,6 +2132,8 @@ All writes are audited and idempotency-keyed manual commands. The API manages
 records only: it has no payment provider, invoice/payment flow, webhook,
 automatic renewal or expiry, scheduled transition, subscription email, or CPO
 authorization effect.
+Feature keys and entitlement overrides are deliberately not exposed until a
+future module catalog defines their server-side enforcement.
 
 ## 13. Client State Machine
 

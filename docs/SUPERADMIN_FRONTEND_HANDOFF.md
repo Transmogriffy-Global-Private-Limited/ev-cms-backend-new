@@ -5,7 +5,7 @@
 Give this document to the engineer implementing the platform SuperAdmin
 frontend. It is a no-chat-history handoff for the complete frontend-consumable
 SuperAdmin surface that exists today: administrative authentication, CPO
-control, manual subscriptions/entitlements, personal session security, audit
+control, manual subscriptions, personal session security, audit
 evidence, worker health, durable event replay, and authenticated SSE.
 
 This document deliberately separates:
@@ -41,12 +41,12 @@ the development deployment.
 - API prefix: `/api/v1`
 - Interactive contract: `/docs/`
 - Raw OpenAPI: `/openapi.yaml`
-- Current source-tree backend contract: 90 HTTP operations across every persona
-- Operations used by the SuperAdmin application: 48 API operations
+- Current source-tree backend contract: 87 HTTP operations across every persona
+- Operations used by the SuperAdmin application: 45 API operations
   - 12 shared administrative-authentication operations;
   - 12 platform CPO-control operations;
   - 4 platform operations/realtime queries;
-  - 20 manual subscription/entitlement operations.
+  - 17 manual subscription operations.
 
 The development origin serves the deployed 90-operation OpenAPI document from
 revision `c50bc49` with migration twelve. The manual subscription API is
@@ -92,7 +92,7 @@ approved origin policy and HTTPS.
 | Generic mail operations | Not implemented | No mail list/detail/retry/cancel API exists |
 | Notifications/announcements | Not implemented | Do not create placeholder write flows |
 | Platform overview aggregates | Not implemented | Compose only bounded existing queries; do not fake totals |
-| Manual subscription/entitlements | Source ready; deployment required | Plans, issue/renew/status, history, and overrides; no provider or automatic lifecycle |
+| Manual subscriptions | Source correction pending deployment | Plans, issue/renew/status, and history; no feature keys, provider, or automatic lifecycle |
 | Platform billing | Intentionally unsupported | No invoice, payment, checkout, or webhook APIs |
 | Tenant business data or secret access | Forbidden boundary | A SuperAdmin is not a CPO ADMIN and cannot impersonate one |
 
@@ -1241,8 +1241,8 @@ The FE should raise, not paper over, these gaps:
 5. There is no platform overview/count/version endpoint.
 6. There is no generated frontend SDK or committed generated types.
 7. There is no SuperAdmin tenant impersonation/support-access workflow.
-8. Manual subscription plans, CPO subscriptions, history, and entitlement
-   overrides are platform-only. Platform invoices, payments, checkout,
+8. Manual subscription plans, CPO subscriptions, and history are platform-only.
+   Feature keys/entitlements, platform invoices, payments, checkout,
    webhooks, and automatic lifecycle behavior remain intentionally unsupported.
 
 If the FE generates types from OpenAPI, pin the generator version in the FE

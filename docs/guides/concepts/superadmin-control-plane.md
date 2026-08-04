@@ -26,10 +26,12 @@ create CPO
 - `SUSPENDED` blocks new tenant access while preserving the tenant and its
   historical data.
 
-There is no tenant subscription, plan catalog, entitlement package,
-platform-invoice, or platform-payment state machine. Access never changes
-automatically because of a billing event. Activation and suspension are
-explicit platform-superadmin decisions and are audited.
+The platform can record manually managed commercial subscription plans and CPO
+subscription periods. They are commercial records only: there is no
+feature-key catalog, entitlement package, platform invoice, platform payment,
+or provider-driven lifecycle. Access never changes automatically because of a
+billing event. Activation and suspension are explicit platform-superadmin
+decisions and are audited.
 
 The CPO app ID remains separate from lifecycle:
 

@@ -15,8 +15,9 @@ integration handoff,
 
 CPO access is granted or removed manually by platform superadmins through
 activation and suspension. Platform superadmins also manually manage
-subscription plans, CPO subscription periods/statuses, and entitlement
-overrides; this does not change CPO access automatically. There is no payment
+subscription plans and CPO subscription periods/statuses; this does not change
+CPO access automatically. Feature keys/entitlement overrides are not defined.
+There is no payment
 provider, platform invoice, platform payment, checkout, webhook, or automatic
 subscription lifecycle.
 The Superadmin CPO surface also provides collection search/filter/cursors,

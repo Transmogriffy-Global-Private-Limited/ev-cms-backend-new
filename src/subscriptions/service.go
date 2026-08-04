@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"net/http"
 	"regexp"
-	"sort"
 	"strings"
 	"time"
 
@@ -21,7 +20,6 @@ import (
 
 var (
 	planCodePattern = regexp.MustCompile(`^[a-z0-9]+(?:_[a-z0-9]+)*$`)
-	featurePattern  = regexp.MustCompile(`^[a-z0-9]+(?:[._-][a-z0-9]+)*$`)
 )
 
 var currentStatuses = []string{"TRIAL", "ACTIVE", "PAUSED", "PAST_DUE"}
@@ -58,9 +56,6 @@ func (service *Service) CreatePlan(ctx context.Context, principal auth.Principal
 		}
 		if err := tx.Create(&version).Error; err != nil {
 			return mapWriteError(err, "plan_conflict")
-		}
-		if err := replaceEntitlements(tx, version.ID, request.Terms.Entitlements, now); err != nil {
-			return err
 		}
 		if err := writeAudit(tx, principal.UserID, "SUBSCRIPTION_PLAN_CREATED", "SUBSCRIPTION_PLAN", plan.ID, models.JSONB{"code": plan.Code}, now); err != nil {
 			return err
@@ -108,13 +103,8 @@ func (service *Service) loadPlan(ctx context.Context, plan models.SubscriptionPl
 	if err := service.database.WithContext(ctx).Where("plan_id = ?", plan.ID).Order("version DESC").Find(&versions).Error; err != nil {
 		return PlanView{}, fmt.Errorf("load subscription plan versions: %w", err)
 	}
-	result := PlanView{Plan: plan, Published: []models.SubscriptionPlanVersion{}, Entitlements: map[string][]models.SubscriptionPlanEntitlement{}}
+	result := PlanView{Plan: plan, Published: []models.SubscriptionPlanVersion{}}
 	for _, version := range versions {
-		var entitlements []models.SubscriptionPlanEntitlement
-		if err := service.database.WithContext(ctx).Where("plan_version_id = ?", version.ID).Order("feature_key").Find(&entitlements).Error; err != nil {
-			return PlanView{}, fmt.Errorf("load plan entitlements: %w", err)
-		}
-		result.Entitlements[version.ID.String()] = entitlements
 		if version.Status == "DRAFT" {
 			draft := version
 			result.Draft = &draft
@@ -160,12 +150,6 @@ func (service *Service) UpdateDraft(ctx context.Context, principal auth.Principa
 			if err := tx.Model(&draft).Updates(map[string]any{"currency": updated.Currency, "price_minor": updated.PriceMinor, "billing_interval": updated.BillingInterval, "interval_count": updated.IntervalCount, "trial_days": updated.TrialDays, "updated_at": now}).Error; err != nil {
 				return err
 			}
-			if err := tx.Where("plan_version_id = ?", draft.ID).Delete(&models.SubscriptionPlanEntitlement{}).Error; err != nil {
-				return err
-			}
-		}
-		if err := replaceEntitlements(tx, draft.ID, request.Terms.Entitlements, now); err != nil {
-			return err
 		}
 		if err := tx.Model(&plan).Updates(map[string]any{"name": request.Name, "description": request.Description, "updated_at": now}).Error; err != nil {
 			return err
@@ -480,112 +464,10 @@ func (service *Service) History(ctx context.Context, principal auth.Principal, c
 	return records, nil
 }
 
-func (service *Service) EffectiveEntitlements(ctx context.Context, principal auth.Principal, cpoID uuid.UUID) (EffectiveEntitlementsResponse, error) {
-	if err := requirePlatform(principal); err != nil {
-		return EffectiveEntitlementsResponse{}, err
-	}
-	response := EffectiveEntitlementsResponse{Entitlements: []EffectiveEntitlement{}}
-	current, err := service.GetCurrent(ctx, principal, cpoID)
-	if err == nil {
-		response.Subscription = &current
-		var base []models.SubscriptionPlanEntitlement
-		if err := service.database.WithContext(ctx).Where("plan_version_id = ?", current.Version.ID).Find(&base).Error; err != nil {
-			return response, err
-		}
-		for _, value := range base {
-			response.Entitlements = append(response.Entitlements, EffectiveEntitlement{FeatureKey: value.FeatureKey, Enabled: value.Enabled, LimitValue: value.LimitValue, Configuration: value.Configuration, Source: "PLAN"})
-		}
-	} else {
-		var apiError *auth.APIError
-		if !errors.As(err, &apiError) || apiError.Code != "subscription_not_found" {
-			return response, err
-		}
-	}
-	var overrides []models.CPOEntitlementOverride
-	if err := service.database.WithContext(ctx).Where("cpo_id = ? AND (expires_at IS NULL OR expires_at > ?)", cpoID, service.now()).Find(&overrides).Error; err != nil {
-		return response, err
-	}
-	index := map[string]int{}
-	for i, value := range response.Entitlements {
-		index[value.FeatureKey] = i
-	}
-	for _, value := range overrides {
-		resolved := EffectiveEntitlement{FeatureKey: value.FeatureKey, Enabled: value.Enabled, LimitValue: value.LimitValue, Configuration: value.Configuration, Source: "OVERRIDE", ExpiresAt: value.ExpiresAt}
-		if position, exists := index[value.FeatureKey]; exists {
-			response.Entitlements[position] = resolved
-		} else {
-			response.Entitlements = append(response.Entitlements, resolved)
-		}
-	}
-	sort.Slice(response.Entitlements, func(i, j int) bool { return response.Entitlements[i].FeatureKey < response.Entitlements[j].FeatureKey })
-	return response, nil
-}
-
-func (service *Service) SetOverride(ctx context.Context, principal auth.Principal, cpoID uuid.UUID, featureKey string, request OverrideRequest) (models.CPOEntitlementOverride, error) {
-	if err := requirePlatform(principal); err != nil {
-		return models.CPOEntitlementOverride{}, err
-	}
-	featureKey, request.Reason = strings.ToLower(strings.TrimSpace(featureKey)), strings.TrimSpace(request.Reason)
-	if !featurePattern.MatchString(featureKey) || len(featureKey) > 120 || request.Reason == "" || len(request.Reason) > 500 || (request.LimitValue != nil && *request.LimitValue < 0) || (request.ExpiresAt != nil && !request.ExpiresAt.After(service.now())) {
-		return models.CPOEntitlementOverride{}, invalid("override", "feature key, reason, limit, or expiry is invalid.")
-	}
-	if request.Configuration == nil {
-		request.Configuration = models.JSONB{}
-	}
-	now := service.now()
-	record := models.CPOEntitlementOverride{ID: uuid.New(), CPOID: cpoID, FeatureKey: featureKey, Enabled: request.Enabled, LimitValue: request.LimitValue, Configuration: request.Configuration, Reason: request.Reason, ExpiresAt: request.ExpiresAt, CreatedBy: principal.UserID, CreatedAt: now, UpdatedAt: now}
-	err := service.database.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		if err := requireCPO(tx, cpoID); err != nil {
-			return err
-		}
-		if err := tx.Clauses(clause.OnConflict{Columns: []clause.Column{{Name: "cpo_id"}, {Name: "feature_key"}}, DoUpdates: clause.Assignments(map[string]any{"enabled": record.Enabled, "limit_value": record.LimitValue, "configuration": record.Configuration, "reason": record.Reason, "expires_at": record.ExpiresAt, "created_by": record.CreatedBy, "updated_at": now})}).Create(&record).Error; err != nil {
-			return err
-		}
-		if err := tx.Where("cpo_id = ? AND feature_key = ?", cpoID, featureKey).First(&record).Error; err != nil {
-			return err
-		}
-		if err := writeAudit(tx, principal.UserID, "CPO_ENTITLEMENT_OVERRIDE_SET", "CPO", cpoID, models.JSONB{"feature_key": featureKey, "enabled": record.Enabled, "expires_at": record.ExpiresAt}, now); err != nil {
-			return err
-		}
-		return service.emit(tx, principal.UserID, "platform.subscription.entitlement_override_set", "CPO", cpoID.String(), models.JSONB{"feature_key": featureKey})
-	})
-	return record, err
-}
-
-func (service *Service) DeleteOverride(ctx context.Context, principal auth.Principal, cpoID uuid.UUID, featureKey, reason string) error {
-	if err := requirePlatform(principal); err != nil {
-		return err
-	}
-	featureKey, reason = strings.ToLower(strings.TrimSpace(featureKey)), strings.TrimSpace(reason)
-	if !featurePattern.MatchString(featureKey) || reason == "" || len(reason) > 500 {
-		return invalid("request", "feature key and reason are required and must be valid.")
-	}
-	now := service.now()
-	return service.database.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		result := tx.Where("cpo_id = ? AND feature_key = ?", cpoID, featureKey).Delete(&models.CPOEntitlementOverride{})
-		if result.Error != nil {
-			return result.Error
-		}
-		if result.RowsAffected == 0 {
-			return notFound("entitlement_override_not_found", "Entitlement override was not found.", gorm.ErrRecordNotFound)
-		}
-		if err := writeAudit(tx, principal.UserID, "CPO_ENTITLEMENT_OVERRIDE_REMOVED", "CPO", cpoID, models.JSONB{"feature_key": featureKey, "reason": reason}, now); err != nil {
-			return err
-		}
-		return service.emit(tx, principal.UserID, "platform.subscription.entitlement_override_removed", "CPO", cpoID.String(), models.JSONB{"feature_key": featureKey})
-	})
-}
-
 func normalizeTerms(input PlanTermsInput) PlanTermsInput {
 	input.Currency, input.BillingInterval = strings.ToUpper(strings.TrimSpace(input.Currency)), strings.ToUpper(strings.TrimSpace(input.BillingInterval))
 	if input.IntervalCount == 0 {
 		input.IntervalCount = 1
-	}
-	for index := range input.Entitlements {
-		input.Entitlements[index].FeatureKey = strings.ToLower(strings.TrimSpace(input.Entitlements[index].FeatureKey))
-		if input.Entitlements[index].Configuration == nil {
-			input.Entitlements[index].Configuration = models.JSONB{}
-		}
 	}
 	return input
 }
@@ -612,33 +494,11 @@ func validatePlan(code, name, description string, terms PlanTermsInput) error {
 	if terms.IntervalCount < 1 || terms.IntervalCount > 120 || terms.TrialDays < 0 || terms.TrialDays > 365 {
 		return invalid("terms", "interval_count or trial_days is outside its supported range.")
 	}
-	seen := map[string]struct{}{}
-	for _, entitlement := range terms.Entitlements {
-		if !featurePattern.MatchString(entitlement.FeatureKey) || len(entitlement.FeatureKey) > 120 {
-			return invalid("entitlements", "Each feature_key must be a valid lowercase feature identifier.")
-		}
-		if entitlement.LimitValue != nil && *entitlement.LimitValue < 0 {
-			return invalid("entitlements", "Entitlement limits must not be negative.")
-		}
-		if _, exists := seen[entitlement.FeatureKey]; exists {
-			return invalid("entitlements", "Entitlement feature keys must be unique.")
-		}
-		seen[entitlement.FeatureKey] = struct{}{}
-	}
 	return nil
 }
 
 func versionFromTerms(planID uuid.UUID, version int, terms PlanTermsInput, now time.Time) models.SubscriptionPlanVersion {
 	return models.SubscriptionPlanVersion{ID: uuid.New(), PlanID: planID, Version: version, Status: "DRAFT", Currency: terms.Currency, PriceMinor: terms.PriceMinor, BillingInterval: terms.BillingInterval, IntervalCount: terms.IntervalCount, TrialDays: terms.TrialDays, CreatedAt: now, UpdatedAt: now}
-}
-func replaceEntitlements(tx *gorm.DB, versionID uuid.UUID, inputs []EntitlementInput, now time.Time) error {
-	for _, input := range inputs {
-		record := models.SubscriptionPlanEntitlement{ID: uuid.New(), PlanVersionID: versionID, FeatureKey: input.FeatureKey, Enabled: input.Enabled, LimitValue: input.LimitValue, Configuration: input.Configuration, CreatedAt: now, UpdatedAt: now}
-		if err := tx.Create(&record).Error; err != nil {
-			return mapWriteError(err, "plan_conflict")
-		}
-	}
-	return nil
 }
 func addPeriod(start time.Time, version models.SubscriptionPlanVersion) time.Time {
 	if version.BillingInterval == "YEARLY" {

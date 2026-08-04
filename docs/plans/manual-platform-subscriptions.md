@@ -5,22 +5,24 @@ Status: In Progress
 ## Objective
 
 Restore the platform subscription catalog, immutable published plan versions,
-CPO subscription history, and manual entitlement overrides without restoring
-platform billing or inventing a provider-driven lifecycle.
+and CPO subscription history without restoring platform billing or inventing a
+provider-driven lifecycle.
 
 ## Implemented Slice
 
-- Additive migration twelve restores the six subscription tables from
-  `retired_commercial`; five billing tables remain retired.
+- Migration twelve restored six tables; forward migration thirteen returns the
+  two dormant entitlement tables to `retired_commercial`. Four subscription
+  catalog/history tables remain active and five billing tables stay retired.
 - Platform-superadmin-only HTTP commands manage plans, issue/renew/change a
-  CPO subscription, explicitly transition status, inspect history, and manage
-  entitlement overrides.
+  CPO subscription, explicitly transition status, and inspect history.
 - UUIDs, plan version numbers, timestamps, audit records, events, and
   idempotency records are server-generated.
 - There is no payment provider, invoice/payment route, payment webhook,
   automatic renewal, scheduled plan change, automatic trial completion,
   automatic expiration/cancellation, worker, or subscription email.
 - CPO activation/suspension remains an independent platform decision.
+- Feature keys and entitlement overrides are not configured, exposed, or
+  enforced until a defined module catalog and server-side gates are approved.
 
 ## Acceptance Criteria
 

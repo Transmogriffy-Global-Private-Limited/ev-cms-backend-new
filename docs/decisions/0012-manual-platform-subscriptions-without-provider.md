@@ -8,15 +8,16 @@ Date: 2026-08-04
 
 ADR 0008 correctly retired an unused prototype when product direction was
 manual CPO activation only. Product direction now explicitly requires the
-subscription catalog and entitlement infrastructure again, but no automatic
+subscription catalog again, but no automatic
 subscription provider, checkout, collection, payment webhook, invoice, or
 background lifecycle processor exists.
 
 ## Decision
 
-- Migration twelve restores only the six subscription and entitlement tables
-  from `retired_commercial` to `public`; it does not restore platform billing
-  tables.
+- Migration twelve restored subscription and entitlement tables; forward
+  migration thirteen re-retires the two dormant feature-key tables. The four
+  subscription catalog/history tables remain active, and platform billing
+  remains retired.
 - Platform superadmins manually create/publish/archive plans, issue and renew
   CPO subscriptions, switch plans, and choose every status transition.
 - The application generates UUIDs, plan version numbers, timestamps, audit
@@ -27,8 +28,8 @@ background lifecycle processor exists.
   cancellation, and expiry are all explicit platform commands.
 - No subscription command activates/suspends a CPO or otherwise substitutes
   for the CPO lifecycle authority in `cpos.status`.
-- Entitlement overrides are manual platform records. They are metadata for
-  future feature enforcement; this slice does not add feature gates.
+- Feature keys and entitlement overrides are not exposed until a future
+  product decision defines concrete modules and their server-side enforcement.
 - `subscription-lifecycle` and `billing-maintenance` stay disabled and
   non-required. Platform billing remains retired in `retired_commercial`.
 - No subscription email is produced in this slice.

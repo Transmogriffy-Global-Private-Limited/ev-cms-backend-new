@@ -35,18 +35,7 @@ type SubscriptionPlanVersion struct {
 	UpdatedAt       time.Time  `gorm:"not null" json:"updated_at"`
 }
 
-type SubscriptionPlanEntitlement struct {
-	ID            uuid.UUID `gorm:"type:uuid;primaryKey;default:gen_random_uuid()" json:"id"`
-	PlanVersionID uuid.UUID `gorm:"type:uuid;not null;uniqueIndex:uq_plan_entitlement,priority:1" json:"plan_version_id"`
-	FeatureKey    string    `gorm:"type:varchar(120);not null;uniqueIndex:uq_plan_entitlement,priority:2" json:"feature_key"`
-	Enabled       bool      `gorm:"not null;default:true" json:"enabled"`
-	LimitValue    *int64    `json:"limit_value,omitempty"`
-	Configuration JSONB     `gorm:"type:jsonb;not null;default:'{}'" json:"configuration"`
-	CreatedAt     time.Time `gorm:"not null" json:"created_at"`
-	UpdatedAt     time.Time `gorm:"not null" json:"updated_at"`
-}
-
-// CPOSubscription represents a manually issued entitlement period. Its dates
+// CPOSubscription represents a manually issued subscription period. Its dates
 // are records; no background worker changes this state automatically.
 type CPOSubscription struct {
 	ID                      uuid.UUID  `gorm:"type:uuid;primaryKey;default:gen_random_uuid()" json:"id"`
@@ -83,18 +72,4 @@ type CPOSubscriptionHistory struct {
 	EffectiveAt           time.Time  `gorm:"not null" json:"effective_at"`
 	Metadata              JSONB      `gorm:"type:jsonb;not null;default:'{}'" json:"metadata"`
 	CreatedAt             time.Time  `gorm:"not null" json:"created_at"`
-}
-
-type CPOEntitlementOverride struct {
-	ID            uuid.UUID  `gorm:"type:uuid;primaryKey;default:gen_random_uuid()" json:"id"`
-	CPOID         uuid.UUID  `gorm:"type:uuid;not null;uniqueIndex:uq_cpo_entitlement_override,priority:1" json:"cpo_id"`
-	FeatureKey    string     `gorm:"type:varchar(120);not null;uniqueIndex:uq_cpo_entitlement_override,priority:2" json:"feature_key"`
-	Enabled       bool       `gorm:"not null" json:"enabled"`
-	LimitValue    *int64     `json:"limit_value,omitempty"`
-	Configuration JSONB      `gorm:"type:jsonb;not null;default:'{}'" json:"configuration"`
-	Reason        string     `gorm:"type:varchar(500);not null" json:"reason"`
-	ExpiresAt     *time.Time `json:"expires_at,omitempty"`
-	CreatedBy     uuid.UUID  `gorm:"type:uuid;not null" json:"created_by"`
-	CreatedAt     time.Time  `gorm:"not null" json:"created_at"`
-	UpdatedAt     time.Time  `gorm:"not null" json:"updated_at"`
 }

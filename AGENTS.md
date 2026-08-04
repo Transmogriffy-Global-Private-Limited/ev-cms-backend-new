@@ -54,9 +54,11 @@ verification changes.
   orientation and execution guide for agents assigned to CPO-side backend
   work. It must stay aligned with routes, ownership, plans, and verification.
 - CPO access is controlled manually by platform superadmins through CPO
-  activation and suspension. Manual subscription plans, CPO subscription
-  records, and entitlement overrides are platform-superadmin management only;
-  they never alter CPO access automatically. Platform invoices, payments,
+  activation and suspension. Manual subscription plans and CPO subscription
+  records are platform-superadmin management only; they never alter CPO access
+  automatically. Do not add feature keys or entitlement overrides until a
+  concrete module catalog and server-side enforcement plan is approved.
+  Platform invoices, payments,
   checkout, webhooks, and automatic subscription lifecycle require a new
   explicit decision beyond ADR 0012.
 - Current tenant administrative authority is `ADMIN` only. `OWNER`, `OPERATOR`,

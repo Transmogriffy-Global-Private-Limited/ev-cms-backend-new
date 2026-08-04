@@ -22,7 +22,8 @@ duplicate worker.
 
 The active deployment was updated on August 4, 2026 to source revision
 `c50bc49`. It has migrations one through twelve and the current 90-operation
-API. GSTIN and complete address identity are database-required for CPOs, the
+API. The source tree's migration-thirteen feature-key correction has not yet
+been deployed. GSTIN and complete address identity are database-required for CPOs, the
 authenticated platform slug-availability route is live, and known uniqueness
 races return field- or relationship-specific conflict codes. Safe structured
 HTTP request diagnostics are active with `LOG_LEVEL=DEBUG`; recovery OTP mail

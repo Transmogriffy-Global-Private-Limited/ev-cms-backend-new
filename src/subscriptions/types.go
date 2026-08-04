@@ -7,20 +7,12 @@ import (
 	"github.com/google/uuid"
 )
 
-type EntitlementInput struct {
-	FeatureKey    string       `json:"feature_key"`
-	Enabled       bool         `json:"enabled"`
-	LimitValue    *int64       `json:"limit_value"`
-	Configuration models.JSONB `json:"configuration"`
-}
-
 type PlanTermsInput struct {
-	Currency        string             `json:"currency"`
-	PriceMinor      int64              `json:"price_minor"`
-	BillingInterval string             `json:"billing_interval"`
-	IntervalCount   int                `json:"interval_count"`
-	TrialDays       int                `json:"trial_days"`
-	Entitlements    []EntitlementInput `json:"entitlements"`
+	Currency        string `json:"currency"`
+	PriceMinor      int64  `json:"price_minor"`
+	BillingInterval string `json:"billing_interval"`
+	IntervalCount   int    `json:"interval_count"`
+	TrialDays       int    `json:"trial_days"`
 }
 
 type CreatePlanRequest struct {
@@ -37,10 +29,9 @@ type UpdateDraftRequest struct {
 }
 
 type PlanView struct {
-	Plan         models.SubscriptionPlan                         `json:"plan"`
-	Draft        *models.SubscriptionPlanVersion                 `json:"draft,omitempty"`
-	Published    []models.SubscriptionPlanVersion                `json:"published_versions"`
-	Entitlements map[string][]models.SubscriptionPlanEntitlement `json:"entitlements"`
+	Plan      models.SubscriptionPlan          `json:"plan"`
+	Draft     *models.SubscriptionPlanVersion  `json:"draft,omitempty"`
+	Published []models.SubscriptionPlanVersion `json:"published_versions"`
 }
 
 type IssueRequest struct {
@@ -67,30 +58,8 @@ type TransitionRequest struct {
 	IdempotencyKey string `json:"idempotency_key"`
 }
 
-type OverrideRequest struct {
-	Enabled       bool         `json:"enabled"`
-	LimitValue    *int64       `json:"limit_value"`
-	Configuration models.JSONB `json:"configuration"`
-	Reason        string       `json:"reason"`
-	ExpiresAt     *time.Time   `json:"expires_at"`
-}
-
 type SubscriptionView struct {
 	Subscription models.CPOSubscription         `json:"subscription"`
 	Plan         models.SubscriptionPlan        `json:"plan"`
 	Version      models.SubscriptionPlanVersion `json:"plan_version"`
-}
-
-type EffectiveEntitlement struct {
-	FeatureKey    string       `json:"feature_key"`
-	Enabled       bool         `json:"enabled"`
-	LimitValue    *int64       `json:"limit_value,omitempty"`
-	Configuration models.JSONB `json:"configuration"`
-	Source        string       `json:"source"`
-	ExpiresAt     *time.Time   `json:"expires_at,omitempty"`
-}
-
-type EffectiveEntitlementsResponse struct {
-	Subscription *SubscriptionView      `json:"subscription,omitempty"`
-	Entitlements []EffectiveEntitlement `json:"entitlements"`
 }

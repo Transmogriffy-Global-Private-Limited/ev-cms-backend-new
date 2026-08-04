@@ -41,7 +41,7 @@ tags:
   - name: Platform Operations
     description: Durable audit, event recovery, worker health, and realtime operations.
   - name: Manual Subscriptions
-    description: Platform-superadmin issued subscription plans, periods, and entitlements without a payment provider or automatic lifecycle worker.
+    description: Platform-superadmin issued subscription plans and periods without a payment provider or automatic lifecycle worker.
   - name: CPO Operations
     description: Tenant-scoped profile, charging-network inventory, tax, and tariff operations.
   - name: CPO Integrations
@@ -2760,7 +2760,7 @@ paths:
     get:
       tags: [Manual Subscriptions]
       operationId: getSubscriptionPlan
-      summary: Get a subscription plan, versions, and entitlements
+      summary: Get a subscription plan and its versions
       security: [{BearerAuth: []}]
       parameters: [{$ref: "#/components/parameters/PlanID"}]
       responses:
@@ -2953,49 +2953,6 @@ paths:
         "403": {$ref: "#/components/responses/PlatformForbidden"}
         "500": {$ref: "#/components/responses/InternalError"}
 
-  /api/v1/platform/cpos/{cpo_id}/entitlements:
-    get:
-      tags: [Manual Subscriptions]
-      operationId: getEffectiveCPOEntitlements
-      summary: Resolve published plan entitlements plus active manual overrides
-      description: This endpoint reports entitlement metadata. It does not itself enforce product features or change CPO activation.
-      security: [{BearerAuth: []}]
-      parameters: [{$ref: "#/components/parameters/CPOID"}]
-      responses:
-        "200": {description: Effective entitlement view, content: {application/json: {schema: {$ref: "#/components/schemas/EffectiveEntitlementsResponse"}}}}
-        "401": {$ref: "#/components/responses/Unauthorized"}
-        "403": {$ref: "#/components/responses/PlatformForbidden"}
-        "500": {$ref: "#/components/responses/InternalError"}
-
-  /api/v1/platform/cpos/{cpo_id}/entitlement-overrides/{feature_key}:
-    put:
-      tags: [Manual Subscriptions]
-      operationId: setCPOEntitlementOverride
-      summary: Create or replace a manual CPO entitlement override
-      security: [{BearerAuth: []}]
-      parameters: [{$ref: "#/components/parameters/CPOID"}, {$ref: "#/components/parameters/SubscriptionFeatureKey"}]
-      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/EntitlementOverrideRequest"}}}}
-      responses:
-        "200": {description: Stored override, content: {application/json: {schema: {$ref: "#/components/schemas/CPOEntitlementOverride"}}}}
-        "400": {$ref: "#/components/responses/InvalidRequest"}
-        "401": {$ref: "#/components/responses/Unauthorized"}
-        "403": {$ref: "#/components/responses/PlatformForbidden"}
-        "404": {$ref: "#/components/responses/CPONotFound"}
-        "500": {$ref: "#/components/responses/InternalError"}
-    delete:
-      tags: [Manual Subscriptions]
-      operationId: deleteCPOEntitlementOverride
-      summary: Remove a manual CPO entitlement override
-      security: [{BearerAuth: []}]
-      parameters: [{$ref: "#/components/parameters/CPOID"}, {$ref: "#/components/parameters/SubscriptionFeatureKey"}, {name: reason, in: query, required: true, schema: {type: string, minLength: 1, maxLength: 500}}]
-      responses:
-        "204": {description: Override removed.}
-        "400": {$ref: "#/components/responses/InvalidRequest"}
-        "401": {$ref: "#/components/responses/Unauthorized"}
-        "403": {$ref: "#/components/responses/PlatformForbidden"}
-        "404": {$ref: "#/components/responses/EntitlementOverrideNotFound"}
-        "500": {$ref: "#/components/responses/InternalError"}
-
 components:
   headers:
     RequestID:
@@ -3046,15 +3003,6 @@ components:
       schema:
         type: string
         format: uuid
-    SubscriptionFeatureKey:
-      name: feature_key
-      in: path
-      required: true
-      description: Lowercase entitlement feature identifier.
-      schema:
-        type: string
-        maxLength: 120
-        pattern: "^[a-z0-9]+(?:[._-][a-z0-9]+)*$"
     SessionID:
       name: session_id
       in: path
@@ -3188,12 +3136,6 @@ components:
         application/json:
           schema:
             $ref: "#/components/schemas/ErrorEnvelope"
-    EntitlementOverrideNotFound:
-      description: "`entitlement_override_not_found` — the CPO has no matching manual override."
-      content:
-        application/json:
-          schema:
-            $ref: "#/components/schemas/ErrorEnvelope"
     RateLimited:
       description: "`rate_limited` — durable source-address limit exceeded."
       content:
@@ -3257,14 +3199,13 @@ components:
     SubscriptionPlanTerms:
       type: object
       additionalProperties: false
-      required: [currency, price_minor, billing_interval, interval_count, trial_days, entitlements]
+      required: [currency, price_minor, billing_interval, interval_count, trial_days]
       properties:
         currency: {type: string, pattern: "^[A-Z]{3}$"}
         price_minor: {type: integer, format: int64, minimum: 0}
         billing_interval: {type: string, enum: [MONTHLY, YEARLY]}
         interval_count: {type: integer, minimum: 1, maximum: 120}
         trial_days: {type: integer, minimum: 0, maximum: 365}
-        entitlements: {type: array, items: {$ref: "#/components/schemas/EntitlementInput"}}
     CreateSubscriptionPlanRequest:
       type: object
       additionalProperties: false
@@ -3313,27 +3254,14 @@ components:
         published_by: {type: string, format: uuid}
         created_at: {type: string, format: date-time}
         updated_at: {type: string, format: date-time}
-    SubscriptionPlanEntitlement:
-      allOf:
-        - $ref: "#/components/schemas/EntitlementInput"
-        - type: object
-          required: [id, plan_version_id, created_at, updated_at]
-          properties:
-            id: {type: string, format: uuid}
-            plan_version_id: {type: string, format: uuid}
-            created_at: {type: string, format: date-time}
-            updated_at: {type: string, format: date-time}
     SubscriptionPlanView:
       type: object
       additionalProperties: false
-      required: [plan, published_versions, entitlements]
+      required: [plan, published_versions]
       properties:
         plan: {$ref: "#/components/schemas/SubscriptionPlan"}
         draft: {$ref: "#/components/schemas/SubscriptionPlanVersion"}
         published_versions: {type: array, items: {$ref: "#/components/schemas/SubscriptionPlanVersion"}}
-        entitlements:
-          type: object
-          additionalProperties: {type: array, items: {$ref: "#/components/schemas/SubscriptionPlanEntitlement"}}
     SubscriptionPlanListResponse:
       type: object
       additionalProperties: false
@@ -3423,66 +3351,6 @@ components:
       required: [history]
       properties:
         history: {type: array, items: {$ref: "#/components/schemas/CPOSubscriptionHistory"}}
-    EntitlementOverrideRequest:
-      type: object
-      additionalProperties: false
-      required: [enabled, reason]
-      properties:
-        enabled: {type: boolean}
-        limit_value: {type: integer, format: int64, minimum: 0}
-        configuration: {type: object, additionalProperties: true, default: {}}
-        reason: {type: string, minLength: 1, maxLength: 500}
-        expires_at: {type: string, format: date-time, description: Must be future when supplied.}
-    CPOEntitlementOverride:
-      allOf:
-        - $ref: "#/components/schemas/EntitlementOverrideRequest"
-        - type: object
-          required: [id, cpo_id, feature_key, created_by, created_at, updated_at]
-          properties:
-            id: {type: string, format: uuid}
-            cpo_id: {type: string, format: uuid}
-            feature_key: {type: string}
-            created_by: {type: string, format: uuid}
-            created_at: {type: string, format: date-time}
-            updated_at: {type: string, format: date-time}
-    EffectiveEntitlement:
-      type: object
-      additionalProperties: false
-      required: [feature_key, enabled, configuration, source]
-      properties:
-        feature_key: {type: string}
-        enabled: {type: boolean}
-        limit_value: {type: integer, format: int64}
-        configuration: {type: object, additionalProperties: true}
-        source: {type: string, enum: [PLAN, OVERRIDE]}
-        expires_at: {type: string, format: date-time}
-    EffectiveEntitlementsResponse:
-      type: object
-      additionalProperties: false
-      required: [entitlements]
-      properties:
-        subscription: {$ref: "#/components/schemas/SubscriptionView"}
-        entitlements: {type: array, items: {$ref: "#/components/schemas/EffectiveEntitlement"}}
-
-    EntitlementInput:
-      type: object
-      additionalProperties: false
-      required: [feature_key, enabled]
-      properties:
-        feature_key:
-          type: string
-          maxLength: 120
-          pattern: "^[a-z0-9]+(?:[._-][a-z0-9]+)*$"
-        enabled: {type: boolean}
-        limit_value:
-          type: integer
-          format: int64
-          minimum: 0
-        configuration:
-          type: object
-          additionalProperties: true
-          default: {}
-
     HealthResponse:
       type: object
       additionalProperties: false

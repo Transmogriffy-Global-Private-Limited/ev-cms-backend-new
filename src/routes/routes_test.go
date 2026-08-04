@@ -81,9 +81,6 @@ func TestCredentialRoutesAreRegisteredAndProtected(t *testing.T) {
 		{http.MethodPost, "/api/v1/platform/cpos/00000000-0000-0000-0000-000000000001/subscription/expire"},
 		{http.MethodPost, "/api/v1/platform/cpos/00000000-0000-0000-0000-000000000001/subscription/cancel"},
 		{http.MethodGet, "/api/v1/platform/cpos/00000000-0000-0000-0000-000000000001/subscription/history"},
-		{http.MethodGet, "/api/v1/platform/cpos/00000000-0000-0000-0000-000000000001/entitlements"},
-		{http.MethodPut, "/api/v1/platform/cpos/00000000-0000-0000-0000-000000000001/entitlement-overrides/chargers.manage"},
-		{http.MethodDelete, "/api/v1/platform/cpos/00000000-0000-0000-0000-000000000001/entitlement-overrides/chargers.manage"},
 		{http.MethodGet, "/api/v1/cpo/integrations"},
 		{http.MethodGet, "/api/v1/cpo/integrations/RAZORPAY"},
 		{http.MethodPut, "/api/v1/cpo/integrations/RAZORPAY"},
@@ -168,7 +165,7 @@ func TestCredentialRoutesAreRegisteredAndProtected(t *testing.T) {
 	}
 }
 
-func TestRetiredBillingRoutesAreNotRegistered(t *testing.T) {
+func TestRetiredBillingAndDormantEntitlementRoutesAreNotRegistered(t *testing.T) {
 	t.Parallel()
 
 	router := newCredentialRouteTestRouter(t)
@@ -180,6 +177,9 @@ func TestRetiredBillingRoutesAreNotRegistered(t *testing.T) {
 		{http.MethodGet, "/api/v1/platform/cpos/00000000-0000-0000-0000-000000000001/invoices"},
 		{http.MethodGet, "/api/v1/platform/cpos/00000000-0000-0000-0000-000000000001/payments"},
 		{http.MethodGet, "/api/v1/platform/cpos/00000000-0000-0000-0000-000000000001/billing-timeline"},
+		{http.MethodGet, "/api/v1/platform/cpos/00000000-0000-0000-0000-000000000001/entitlements"},
+		{http.MethodPut, "/api/v1/platform/cpos/00000000-0000-0000-0000-000000000001/entitlement-overrides/chargers.manage"},
+		{http.MethodDelete, "/api/v1/platform/cpos/00000000-0000-0000-0000-000000000001/entitlement-overrides/chargers.manage"},
 	}
 	for _, route := range routes {
 		recorder := httptest.NewRecorder()

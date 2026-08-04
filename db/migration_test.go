@@ -557,3 +557,43 @@ func TestManualSubscriptionRestoreMigrationPreservesBillingRetirement(t *testing
 		}
 	}
 }
+
+func TestDormantEntitlementRetirementMigrationPreservesSubscriptionTables(t *testing.T) {
+	t.Parallel()
+
+	upBody, err := migrationFiles.ReadFile(
+		"migrations/000013_retire_dormant_subscription_entitlements.up.sql",
+	)
+	if err != nil {
+		t.Fatalf("read dormant entitlement retirement up migration: %v", err)
+	}
+	downBody, err := migrationFiles.ReadFile(
+		"migrations/000013_retire_dormant_subscription_entitlements.down.sql",
+	)
+	if err != nil {
+		t.Fatalf("read dormant entitlement retirement down migration: %v", err)
+	}
+
+	upSQL, downSQL := string(upBody), string(downBody)
+	for _, table := range []string{
+		"subscription_plan_entitlements",
+		"cpo_entitlement_overrides",
+	} {
+		if !strings.Contains(upSQL, "ALTER TABLE "+table+"\n    SET SCHEMA retired_commercial") {
+			t.Errorf("dormant entitlement retirement does not retire %s", table)
+		}
+		if !strings.Contains(downSQL, "ALTER TABLE retired_commercial."+table+"\n    SET SCHEMA public") {
+			t.Errorf("dormant entitlement retirement down migration does not restore %s", table)
+		}
+	}
+	for _, activeTable := range []string{
+		"subscription_plans",
+		"subscription_plan_versions",
+		"cpo_subscriptions",
+		"cpo_subscription_history",
+	} {
+		if strings.Contains(upSQL, "ALTER TABLE "+activeTable) {
+			t.Errorf("dormant entitlement retirement must keep %s active", activeTable)
+		}
+	}
+}

@@ -76,11 +76,11 @@ provides:
 - a canonical CPO backend AI-agent handoff covering current capability,
   ownership, tenant/HAL boundaries, remaining dependency order, slice
   execution, verification, and handoff requirements;
-- a canonical SuperAdmin frontend handoff covering the 48-operation platform
+- a canonical SuperAdmin frontend handoff covering the 45-operation platform
   integration surface, TypeScript contracts, auth/token state, CPO workflows,
   audit/workers, SSE/replay, error UX, security, verification, and explicit
   blocked/unimplemented behavior;
-- canonical OpenAPI 3.1 for all 90 source-tree business/health operations;
+- canonical OpenAPI 3.1 for all 87 source-tree business/health operations;
 - embedded same-origin Swagger UI at `/docs/` and raw OpenAPI at
   `/openapi.yaml`;
 - `API_DOCS_ENABLED` registration control for both documentation surfaces,
@@ -105,8 +105,8 @@ provides:
 - durable platform event replay, authenticated SSE, filtered audit query, and
   registered worker-health/readiness APIs;
 - platform-superadmin-only manual subscription plans, immutable published plan
-  versions, explicit CPO issue/renew/change/status commands, idempotent
-  transition history, and CPO entitlement overrides;
+  versions, explicit CPO issue/renew/change/status commands, and idempotent
+  transition history;
 - server-generated subscription UUIDs/version numbers/timestamps plus atomic
   audit/platform-event records; no client supplies those values;
 - no provider, checkout, invoice/payment API, webhook, subscription mail,
@@ -131,10 +131,9 @@ and preserved during deployment. Migration nine continues to preserve the
 the current development environment uses `LOG_LEVEL=DEBUG` for correlated
 request-start and completion diagnostics.
 
-Migration twelve and the 90-operation manual subscription API are deployed.
-The disposable PostgreSQL lifecycle test remains unexecuted because no
-`TEST_DATABASE_URL` is configured; the live migration was applied only after a
-validated mode-0600 rollback dump.
+Migration thirteen removes feature-key runtime behavior in source but has not
+yet been deployed. The disposable PostgreSQL lifecycle test remains unexecuted
+because no `TEST_DATABASE_URL` is configured.
 
 The deployed recovery flow fixes a recovery-specific OTP mapper defect that discarded
 `challenge_id` before outbox validation and caused eligible administrative and
@@ -165,7 +164,7 @@ yet.
   slug and GSTIN conflict codes.
 - Required-field validation, slug normalization/authorization, migration
   content, and affected package tests passed for the source-tree change.
-- The 90-operation source OpenAPI and runtime route sets match; documentation
+- The 87-operation source OpenAPI and runtime route sets match; documentation
   contract verification passed.
 - `go test ./...` passed.
 - `go vet ./...` passed.
@@ -317,9 +316,10 @@ repository. The integration contract has not been implemented yet.
   reporting, and most other domain tables remain without business APIs.
 - CPO staff invitation after the first admin and customer email/profile-change
   workflows are not implemented.
-- Manual subscriptions and entitlement overrides are platform-only records;
-  platform invoices/payments and all provider or automatic lifecycle behavior
-  remain unsupported, and CPO access is manual and independent.
+- Manual subscriptions are platform-only records; feature keys and entitlement
+  overrides are not defined. Platform invoices/payments and all provider or
+  automatic lifecycle behavior remain unsupported, and CPO access is manual
+  and independent.
 - Automatic encryption-key rotation is not implemented; data must be
   re-encrypted before an old key is removed.
 - SMTP delivery logic is implemented, worker-tested, and verified through one
@@ -327,8 +327,8 @@ repository. The integration contract has not been implemented yet.
   in the ignored deployment environment.
 - No generated frontend SDK exists yet; consumers use the reviewed OpenAPI
   contract directly.
-- Migration twelve's disposable PostgreSQL lifecycle coverage has not executed
-  because no disposable `TEST_DATABASE_URL` is configured. The live development
-  deployment is current on migration twelve and the 90-operation contract;
-  all six restored subscription tables are in `public` and automatic lifecycle
-  workers remain disabled.
+- Migration thirteen's disposable PostgreSQL lifecycle coverage has not
+  executed because no disposable `TEST_DATABASE_URL` is configured. The live
+  development deployment is current on migration twelve and the 90-operation
+  contract; migration thirteen will return the two dormant feature-key tables
+  to `retired_commercial` while leaving automatic lifecycle workers disabled.

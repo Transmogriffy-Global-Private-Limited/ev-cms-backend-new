@@ -42,8 +42,7 @@ func TestManualSubscriptionLifecycleWithPostgreSQL(t *testing.T) {
 	service := NewService(gormDB, nil)
 	service.now = func() time.Time { return now }
 	principal := auth.Principal{UserID: actor.ID, Scope: constants.AuthScopePlatform}
-	limit := int64(10)
-	plan, err := service.CreatePlan(ctx, principal, CreatePlanRequest{Code: "test_" + uuid.NewString()[:8], Name: "Manual Lifecycle Test", Terms: PlanTermsInput{Currency: "INR", PriceMinor: 12500, BillingInterval: "MONTHLY", IntervalCount: 1, TrialDays: 1, Entitlements: []EntitlementInput{{FeatureKey: "chargers.manage", Enabled: true, LimitValue: &limit}}}})
+	plan, err := service.CreatePlan(ctx, principal, CreatePlanRequest{Code: "test_" + uuid.NewString()[:8], Name: "Manual Lifecycle Test", Terms: PlanTermsInput{Currency: "INR", PriceMinor: 12500, BillingInterval: "MONTHLY", IntervalCount: 1, TrialDays: 1}})
 	if err != nil {
 		t.Fatalf("create plan: %v", err)
 	}
@@ -74,7 +73,7 @@ func TestManualSubscriptionLifecycleWithPostgreSQL(t *testing.T) {
 		t.Fatalf("renew: %v", err)
 	}
 
-	updated, err := service.UpdateDraft(ctx, principal, plan.Plan.ID, UpdateDraftRequest{Name: "Manual Lifecycle Test", Terms: PlanTermsInput{Currency: "INR", PriceMinor: 25000, BillingInterval: "MONTHLY", IntervalCount: 1, Entitlements: []EntitlementInput{{FeatureKey: "chargers.manage", Enabled: true}}}})
+	updated, err := service.UpdateDraft(ctx, principal, plan.Plan.ID, UpdateDraftRequest{Name: "Manual Lifecycle Test", Terms: PlanTermsInput{Currency: "INR", PriceMinor: 25000, BillingInterval: "MONTHLY", IntervalCount: 1}})
 	if err != nil {
 		t.Fatalf("create next draft: %v", err)
 	}
@@ -96,14 +95,6 @@ func TestManualSubscriptionLifecycleWithPostgreSQL(t *testing.T) {
 	}
 	if _, err := service.Resume(ctx, principal, cpo.ID, TransitionRequest{Reason: "Manual resume", IdempotencyKey: "resume-" + uuid.NewString()}); err != nil {
 		t.Fatalf("resume: %v", err)
-	}
-	overrideLimit := int64(25)
-	if _, err := service.SetOverride(ctx, principal, cpo.ID, "chargers.manage", OverrideRequest{Enabled: true, LimitValue: &overrideLimit, Reason: "Manual expansion"}); err != nil {
-		t.Fatalf("set override: %v", err)
-	}
-	effective, err := service.EffectiveEntitlements(ctx, principal, cpo.ID)
-	if err != nil || len(effective.Entitlements) != 1 || effective.Entitlements[0].Source != "OVERRIDE" {
-		t.Fatalf("effective entitlements = %#v, %v", effective, err)
 	}
 	if _, err := service.Cancel(ctx, principal, cpo.ID, TransitionRequest{Reason: "Manual cancellation", IdempotencyKey: "cancel-" + uuid.NewString()}); err != nil {
 		t.Fatalf("cancel: %v", err)

@@ -549,8 +549,9 @@ Before completion, prove:
   application pre-checks.
 - Migrations seven/eight are historical. Migration nine preserves the former
   commercial prototype in `retired_commercial`; migration twelve restores only
-  manual subscription/entitlement tables. Platform billing and automatic
-  workers remain retired; subscription state never controls CPO access.
+  manual subscription tables; migration thirteen returns dormant entitlement
+  tables to `retired_commercial`. Platform billing and automatic workers remain
+  retired; subscription state never controls CPO access.
 
 ## API and Error Conventions
 

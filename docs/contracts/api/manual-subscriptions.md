@@ -25,7 +25,6 @@ Scheduled changes and cancellation at period end are unsupported.
 | --- | --- |
 | Plan catalog | `POST/GET /api/v1/platform/plans`, `GET /plans/{plan_id}`, `PUT /plans/{plan_id}/draft`, `POST /publish`, `POST /archive` |
 | CPO subscription | `POST/GET /api/v1/platform/cpos/{cpo_id}/subscription`, then explicit `/renew`, `/change-plan`, `/activate`, `/pause`, `/resume`, `/mark-past-due`, `/expire`, `/cancel`, and `GET /history` |
-| Entitlements | `GET /api/v1/platform/cpos/{cpo_id}/entitlements`, `PUT/DELETE /entitlement-overrides/{feature_key}` |
 
 Plans begin as drafts. Publishing makes a version immutable and issueable.
 Archiving prevents future issue/change-plan selection but preserves historical
@@ -33,13 +32,14 @@ subscription reads. A current CPO subscription has status `TRIAL`, `ACTIVE`,
 `PAUSED`, or `PAST_DUE`; terminal `CANCELLED` and `EXPIRED` records remain in
 history. One current subscription is enforced per CPO by PostgreSQL.
 
-The entitlement response combines the subscription's published plan values
-with non-expired CPO overrides. It is a management/read-model contract only;
-no existing feature is gated by it in this slice.
+Feature keys and entitlement overrides are intentionally absent. The current
+whole-CPO service control remains the independent `cpos.status` lifecycle. A
+future module catalog needs explicit server-side gates before feature-level
+subscription terms can be introduced.
 
 ## Durable Side Effects and Recovery
 
-Each successful write commits its subscription/override change, audit row, and
+Each successful write commits its subscription change, audit row, and
 safe platform event in one PostgreSQL transaction. Retry of a subscription
 command with the same actor/key returns its already-recorded result; reusing a
 key for a different CPO or operation returns `409 idempotency_conflict`.

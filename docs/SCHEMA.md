@@ -31,6 +31,8 @@ Migration files:
 - `db/migrations/000011_cpo_required_registration_fields.down.sql`
 - `db/migrations/000012_restore_manual_subscriptions.up.sql`
 - `db/migrations/000012_restore_manual_subscriptions.down.sql`
+- `db/migrations/000013_retire_dormant_subscription_entitlements.up.sql`
+- `db/migrations/000013_retire_dormant_subscription_entitlements.down.sql`
 
 ## Supplied Model Mapping
 
@@ -198,11 +200,14 @@ The ninth migration implements the approved product reversal:
   readiness;
 - its down migration restores the tables, triggers, and worker requirements.
 
-Migration twelve restores `subscription_plans`, `subscription_plan_versions`,
-`subscription_plan_entitlements`, `cpo_subscriptions`,
-`cpo_subscription_history`, and `cpo_entitlement_overrides` to `public`.
-Published plan/version snapshots are protected by the restored immutability
-triggers. The five platform-billing tables remain in `retired_commercial`.
+Migration twelve restored the six subscription/entitlement tables. Migration
+thirteen returns `subscription_plan_entitlements` and
+`cpo_entitlement_overrides` to `retired_commercial` because the product does
+not yet define concrete feature gates. `subscription_plans`,
+`subscription_plan_versions`, `cpo_subscriptions`, and
+`cpo_subscription_history` remain active in `public`. Published plan/version
+snapshots are protected by the restored immutability triggers. The five
+platform-billing tables remain in `retired_commercial`.
 
 The restored subscription records are manually managed by platform
 superadmins. The migration does not re-enable `subscription-lifecycle` or

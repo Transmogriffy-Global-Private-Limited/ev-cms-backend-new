@@ -2,6 +2,22 @@
 
 ## 2026-08-04
 
+### Feature-key runtime removed pending a module catalog
+
+- Added migration thirteen to return `subscription_plan_entitlements` and
+  `cpo_entitlement_overrides` to `retired_commercial` while preserving their
+  rows. Plans, versions, CPO subscriptions, and transition history remain
+  active.
+- Removed feature-key/entitlement payload fields, models, routes, events,
+  OpenAPI operations, frontend guidance, and false feature-gating claims.
+- `cpos.status` remains the only whole-CPO service control. A future feature
+  model requires an approved fixed module catalog and server-side enforcement.
+
+Verification:
+
+- Pending final verification and deployment. The VPS remains on the previous
+  migration-twelve/90-operation release.
+
 ### Manual platform subscriptions restored without a provider
 
 - Added migration twelve to restore only subscription plans, immutable

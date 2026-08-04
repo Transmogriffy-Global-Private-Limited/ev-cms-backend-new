@@ -73,10 +73,8 @@ func TestGORMModelsParse(t *testing.T) {
 		&WorkerInstance{},
 		&SubscriptionPlan{},
 		&SubscriptionPlanVersion{},
-		&SubscriptionPlanEntitlement{},
 		&CPOSubscription{},
 		&CPOSubscriptionHistory{},
-		&CPOEntitlementOverride{},
 	}
 
 	cache := &sync.Map{}

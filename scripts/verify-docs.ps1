@@ -84,7 +84,7 @@ $requiredSuperadminFERules = @(
     'collect the recovery ID, code, and new password',
     'welcome job is rejected before the CPO transaction commits',
     '`platform.cpo.primary_admin_changed`',
-    'Manual subscription/entitlements',
+    'Manual subscriptions',
     'SuperAdmin is not a CPO ADMIN',
     '`available=true` does not reserve it',
     'GSTIN and every address field are required'
@@ -156,7 +156,6 @@ $requiredRoutes = @(
     '/api/v1/platform/workers',
     '/api/v1/platform/plans',
     '/api/v1/platform/cpos/{cpo_id}/subscription',
-    '/api/v1/platform/cpos/{cpo_id}/entitlements',
     '/api/v1/cpo/integrations',
     '/api/v1/cpo/organization',
     '/api/v1/cpo/admin/profile',
@@ -189,8 +188,8 @@ foreach ($route in $retiredRoutes) {
 }
 
 $operationCount = ([regex]::Matches($openAPI, '(?m)^\s{6}operationId:\s+')).Count
-if ($operationCount -ne 90) {
-    throw "OpenAPI contains $operationCount operations; expected 90."
+if ($operationCount -ne 87) {
+    throw "OpenAPI contains $operationCount operations; expected 87."
 }
 
 if ($openAPI.Contains('/api/v1/cpo/profile')) {
@@ -214,8 +213,7 @@ foreach ($eventName in $requiredCPOEvents) {
 
 foreach ($eventName in @(
     'platform.subscription.issued',
-    'platform.subscription.renewed',
-    'platform.subscription.entitlement_override_set'
+    'platform.subscription.renewed'
 )) {
     if (-not $realtimeContract.Contains($eventName)) {
         throw "Realtime contract does not contain subscription event $eventName"

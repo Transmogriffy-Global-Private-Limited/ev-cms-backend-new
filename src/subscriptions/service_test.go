@@ -7,21 +7,16 @@ import (
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/constants"
 )
 
-func TestValidatePlanRejectsDuplicateAndNegativeEntitlements(t *testing.T) {
+func TestValidatePlanRejectsInvalidCommercialTerms(t *testing.T) {
 	t.Parallel()
 
-	negative := int64(-1)
 	terms := normalizeTerms(PlanTermsInput{
 		Currency:        "inr",
-		PriceMinor:      100,
+		PriceMinor:      -1,
 		BillingInterval: "monthly",
-		Entitlements: []EntitlementInput{
-			{FeatureKey: "chargers.manage", Enabled: true},
-			{FeatureKey: "chargers.manage", Enabled: true, LimitValue: &negative},
-		},
 	})
 	if err := validatePlan("starter", "Starter", "", terms); err == nil {
-		t.Fatal("expected invalid entitlement set to fail")
+		t.Fatal("expected invalid commercial terms to fail")
 	}
 }
 

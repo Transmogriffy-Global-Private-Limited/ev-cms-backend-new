@@ -678,8 +678,8 @@ Depends on:
 Enables:
 
 - Manual plan catalog and immutable published version management
-- Manual CPO subscription issue, renewal, state control, history, and
-  entitlement overrides without provider infrastructure
+- Manual CPO subscription issue, renewal, state control, and history without
+  provider infrastructure
 
 Objective:
 
@@ -693,7 +693,8 @@ Non-goals:
 - Invoice, payment, checkout, collection, webhook, or provider integration
 - Scheduled plan changes, period-end cancellation, automatic renewal, trial
   completion, expiry, or subscription email
-- Feature enforcement beyond reporting resolved entitlement metadata
+- Feature keys, entitlement overrides, or feature enforcement before a module
+  catalog and server-side gates are approved
 
 Detailed plan:
 
@@ -774,8 +775,8 @@ Active feature:
 
 Current implementation slice:
 
-- Restore and verify the manual subscription catalog, issuance, explicit
-  lifecycle commands, and entitlement override contract without billing
+- Restore and verify the manual subscription catalog, issuance, and explicit
+  lifecycle commands without billing or feature keys
 
 Last completed slice:
 
@@ -895,8 +896,9 @@ compile/model/migration-discovery/route/OpenAPI tests. Migrations seven and
 eight are retained as immutable deployment history only. Migration nine
 retires their tables into `retired_commercial`; its disposable PostgreSQL 17
 up/guard/data-preservation/worker-disable/down lifecycle passed.
-Migration twelve restores only the six subscription tables with immutable
-published plan snapshots; its manual lifecycle test requires a disposable
+Migration twelve restored six subscription tables with immutable published plan
+snapshots. Migration thirteen returns the two dormant entitlement tables to
+`retired_commercial`; its manual lifecycle test requires a disposable
 `TEST_DATABASE_URL`. Platform-billing tables and automated workers remain
 retired.
 

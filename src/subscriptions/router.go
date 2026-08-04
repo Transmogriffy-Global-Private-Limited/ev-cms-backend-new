@@ -6,7 +6,6 @@ import (
 	"errors"
 	"io"
 	"net/http"
-	"strings"
 
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/auth"
 	"github.com/gin-gonic/gin"
@@ -39,9 +38,6 @@ func RegisterRoutes(group *gin.RouterGroup, authService *auth.Service, service *
 	group.POST("/cpos/:cpo_id/subscription/expire", handler.expire)
 	group.POST("/cpos/:cpo_id/subscription/cancel", handler.cancel)
 	group.GET("/cpos/:cpo_id/subscription/history", handler.history)
-	group.GET("/cpos/:cpo_id/entitlements", handler.entitlements)
-	group.PUT("/cpos/:cpo_id/entitlement-overrides/:feature_key", handler.setOverride)
-	group.DELETE("/cpos/:cpo_id/entitlement-overrides/:feature_key", handler.deleteOverride)
 }
 
 func (handler *Handler) createPlan(ctx *gin.Context) {
@@ -178,41 +174,6 @@ func (handler *Handler) history(ctx *gin.Context) {
 	}
 	response, err := handler.service.History(ctx.Request.Context(), principal, cpoID)
 	write(ctx, http.StatusOK, gin.H{"history": response}, err)
-}
-
-func (handler *Handler) entitlements(ctx *gin.Context) {
-	principal, cpoID, ok := principalAndCPO(ctx)
-	if !ok {
-		return
-	}
-	response, err := handler.service.EffectiveEntitlements(ctx.Request.Context(), principal, cpoID)
-	write(ctx, http.StatusOK, response, err)
-}
-
-func (handler *Handler) setOverride(ctx *gin.Context) {
-	principal, cpoID, ok := principalAndCPO(ctx)
-	if !ok {
-		return
-	}
-	var request OverrideRequest
-	if !decode(ctx, &request) {
-		return
-	}
-	response, err := handler.service.SetOverride(ctx.Request.Context(), principal, cpoID, ctx.Param("feature_key"), request)
-	write(ctx, http.StatusOK, response, err)
-}
-
-func (handler *Handler) deleteOverride(ctx *gin.Context) {
-	principal, cpoID, ok := principalAndCPO(ctx)
-	if !ok {
-		return
-	}
-	err := handler.service.DeleteOverride(ctx.Request.Context(), principal, cpoID, ctx.Param("feature_key"), strings.TrimSpace(ctx.Query("reason")))
-	if err != nil {
-		writeError(ctx, err)
-		return
-	}
-	ctx.Status(http.StatusNoContent)
 }
 
 func principalAndCPO(ctx *gin.Context) (auth.Principal, uuid.UUID, bool) {
