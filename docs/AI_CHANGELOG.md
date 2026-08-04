@@ -2,6 +2,19 @@
 
 ## 2026-08-04
 
+### Rehosted CPO hub configuration revision
+
+- Added migration nineteen to reconcile development databases that had already
+  recorded historical hub follow-up migrations while retaining `hub_id NOT NULL`.
+  The forward migration makes independent charger inventory possible; its
+  rollback refuses to restore `NOT NULL` while unassigned chargers exist.
+- Built and rehosted revision `4502934` after a mode-0600 PostgreSQL rollback
+  dump. The service is enabled, active, zero-restart, and serves the 112-operation
+  contract through Caddy at `dev-evcmsnew.transev.site`.
+- Verified loopback/public live and ready health, Swagger/OpenAPI, nullable
+  `chargers.hub_id`, migration nineteen, protected CPO routes, required workers,
+  and no startup fatal/panic/error records.
+
 ### Reconciled CPO hub configuration and independent charger lifecycle
 
 - Reconciled the incoming CPO hub changes against the authoritative platform

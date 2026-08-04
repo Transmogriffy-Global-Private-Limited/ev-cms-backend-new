@@ -41,7 +41,7 @@ the development deployment.
 - API prefix: `/api/v1`
 - Interactive contract: `/docs/`
 - Raw OpenAPI: `/openapi.yaml`
-- Current source-tree backend contract: 111 HTTP operations across every persona
+- Current source-tree backend contract: 112 HTTP operations across every persona
 - Operations used by the SuperAdmin application: 66 API operations
   - 12 shared administrative-authentication operations;
   - 12 platform CPO-control operations;
@@ -53,8 +53,8 @@ the development deployment.
 The CPO application also has two notification operations under its own
 authenticated `ADMIN` session and verified `X-CPO-App-ID` header.
 
-The development origin serves the deployed 111-operation OpenAPI document from
-revision `bb555b9` with migration fifteen. The manual subscription API is
+The development origin serves the deployed 112-operation OpenAPI document from
+revision `4502934` with migration nineteen. The manual subscription API is
 platform-superadmin-only, excludes feature-key entitlements, and does not
 activate provider billing or automatic lifecycle behavior.
 
@@ -178,7 +178,7 @@ Add a subscription-management area only for platform superadmins, following
 checkout, webhook, automatic-renewal, scheduled-change, or provider UI:
 those routes do not exist. Platform-admin management, generic mail jobs,
 announcements, notifications, and bounded overview/status are available in the
-deployed 111-operation development origin described below.
+deployed 112-operation development origin described below.
 
 ## HTTP Conventions
 
@@ -268,8 +268,8 @@ the bearer session. CPO notification list/read requires the verified
 status are bounded aggregates, not tenant business-data exports.
 
 These SuperAdmin routes are present in current source and the deployed
-111-operation OpenAPI. The source also contains a 112th, CPO ADMIN-only charger
-hub-assignment operation; it is not callable by SuperAdmin. Migration fifteen
+112-operation OpenAPI. The CPO ADMIN-only charger hub-assignment operation is
+not callable by SuperAdmin. Migration fifteen
 and the CPO user point-lookup are live; the lookup remains a tenant CPO ADMIN
 operation and is not callable by SuperAdmin.
 

@@ -562,7 +562,9 @@ Before completion, prove:
   manual subscription tables; migration thirteen returns dormant entitlement
   tables to `retired_commercial`; migration fourteen adds the deployed
   Superadmin control-plane records; migration fifteen adds deployed tariff
-  effective-date enforcement. Platform billing and automatic workers remain
+  effective-date enforcement, migration sixteen adds independent charger and
+  sanctioned-load support, and migration nineteen reconciles the live hub
+  assignment schema. Platform billing and automatic workers remain
   retired; subscription state never controls CPO access.
 
 ## API and Error Conventions
