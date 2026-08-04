@@ -51,6 +51,34 @@ func TestMatchingDownMigrationRejectsInvalidVersion(t *testing.T) {
 	}
 }
 
+func TestHubSanctionLoadMigrationPreservesNonNegativeInvariant(t *testing.T) {
+	t.Parallel()
+
+	upBody, err := migrationFiles.ReadFile("migrations/000016_add_sanction_load_to_hubs.up.sql")
+	if err != nil {
+		t.Fatalf("read sanction-load migration: %v", err)
+	}
+	downBody, err := migrationFiles.ReadFile("migrations/000016_add_sanction_load_to_hubs.down.sql")
+	if err != nil {
+		t.Fatalf("read sanction-load rollback migration: %v", err)
+	}
+
+	if !strings.Contains(string(upBody), "chk_hubs_sanction_load") ||
+		!strings.Contains(string(upBody), "CHECK (sanction_load >= 0)") {
+		t.Fatal("sanction-load migration does not enforce a non-negative value")
+	}
+	if !strings.Contains(string(downBody), "DROP COLUMN sanction_load") {
+		t.Fatal("sanction-load rollback does not remove the added column")
+	}
+	if !strings.Contains(string(upBody), "ALTER COLUMN hub_id DROP NOT NULL") {
+		t.Fatal("sanction-load migration does not enable independent charger creation")
+	}
+	if !strings.Contains(string(downBody), "ALTER COLUMN hub_id SET NOT NULL") ||
+		!strings.Contains(string(downBody), "independent chargers exist") {
+		t.Fatal("sanction-load rollback does not protect independent chargers")
+	}
+}
+
 func TestInitialMigrationContainsCompleteCMSDomain(t *testing.T) {
 	t.Parallel()
 
@@ -96,6 +124,9 @@ func TestInitialMigrationContainsCompleteCMSDomain(t *testing.T) {
 		if !strings.Contains(downSQL, "DROP TABLE IF EXISTS "+table) {
 			t.Errorf("down migration does not drop table %q", table)
 		}
+	}
+	if !strings.Contains(upSQL, "hub_id uuid,\n    charger_id varchar(6)") {
+		t.Fatal("initial migration does not allow a charger to be created without a hub")
 	}
 }
 

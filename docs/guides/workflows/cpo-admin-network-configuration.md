@@ -88,11 +88,15 @@ is not a credential; the frontend already needs it as `X-CPO-App-ID`.
 ### 1. Create a hub
 
 Call `POST /api/v1/cpo/hubs` and retain its generated UUID. Latitude and
-longitude are required even when either value is exactly zero.
+longitude are required even when either value is exactly zero. Optional
+`sanction_load` is the site's non-negative electrical capacity in kW; the
+stored default `0` means that capacity has not been recorded.
 
 ### 2. Register a charger and connectors
 
-Call `POST /api/v1/cpo/chargers` with the hub UUID and every initial connector.
+Call `POST /api/v1/cpo/chargers` with every initial connector. `hub_id` is
+optional: include a same-CPO hub UUID to register it there immediately, or omit
+it to create independent inventory before the physical site is known.
 The server generates:
 
 - CMS charger UUID;
@@ -106,12 +110,20 @@ creation and audit record commit atomically.
 The OCPP identity is only a mapping value. This operation does not contact the
 HAL, establish an OCPP connection, or prove live charger status.
 
-### 3. Create a GST profile
+### 3. Attach or reassign a charger when required
+
+Call `POST /api/v1/cpo/hubs/{hub_id}/chargers` with the charger's CMS UUID.
+Both resources must belong to the signed-in CPO. Repeating the same target hub
+is side-effect free; a real move records `CHARGER_HUB_REASSIGNED`. If the move
+would create overlapping active tariff periods after tariff scope follows the
+charger's new hub, it rolls back with `409 tariff_schedule_conflict`.
+
+### 4. Create a GST profile
 
 Call `POST /api/v1/cpo/gsts` with all three exact decimal rates. Send decimals
 as JSON strings to avoid client floating-point rounding.
 
-### 4. Create a tariff
+### 5. Create a tariff
 
 Call `POST /api/v1/cpo/tariffs` with the hub UUID, exact price, and optional
 charger/GST/user-group UUIDs. Every referenced record must belong to the same
@@ -122,7 +134,7 @@ overlapping active periods for the same hub/optional charger/optional
 user-group scope with `409 tariff_schedule_conflict`; an open-ended active
 tariff overlaps every dated tariff of that same scope.
 
-### 5. Read and update
+### 6. Read and update
 
 - Hubs, chargers, GST profiles, and tariffs have bounded keyset listing plus
   get/update.
@@ -146,6 +158,9 @@ Client retries:
 - GET operations are safe.
 - PATCH operations are replacement-style updates for supplied fields and are
   safe to retry with the same body.
+- Repeating `POST /api/v1/cpo/hubs/{hub_id}/chargers` for the charger's current
+  hub is safe and side-effect free. A tariff-schedule conflict means no move
+  occurred; reconcile the overlapping tariffs before retrying.
 - Creates do not currently accept an idempotency key. After a timeout, query the
   available read surface before retrying; uniqueness constraints prevent some
   duplicates but are not a general idempotency guarantee.

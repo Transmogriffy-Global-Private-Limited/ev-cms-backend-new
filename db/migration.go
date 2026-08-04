@@ -64,10 +64,8 @@ func RollbackLastMigration(ctx context.Context, database *sql.DB) error {
 		if err != nil {
 			return fmt.Errorf("read rollback migration %s: %w", downName, err)
 		}
-		// An empty down migration is a valid no-op. The transaction will still
-		// remove the migration record.
 		if len(strings.TrimSpace(string(body))) == 0 {
-			body = []byte("-- Deliberately empty rollback migration")
+			return fmt.Errorf("rollback migration %s is empty", downName)
 		}
 
 		transaction, err := connection.BeginTx(ctx, nil)
@@ -191,10 +189,8 @@ func applyMigration(
 	if err != nil {
 		return fmt.Errorf("read migration %s: %w", name, err)
 	}
-	// An empty up migration is a valid no-op. The transaction will still
-	// record the migration as applied.
 	if len(strings.TrimSpace(string(body))) == 0 {
-		body = []byte("-- Deliberately empty forward migration")
+		return fmt.Errorf("migration %s is empty", name)
 	}
 
 	if _, err := transaction.ExecContext(ctx, string(body)); err != nil {

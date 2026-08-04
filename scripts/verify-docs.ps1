@@ -177,6 +177,7 @@ $requiredRoutes = @(
     '/api/v1/cpo/admin/profile',
     '/api/v1/cpo/users/{user_id}',
     '/api/v1/cpo/hubs',
+    '/api/v1/cpo/hubs/{hub_id}/chargers',
     '/api/v1/cpo/chargers',
     '/api/v1/cpo/gsts',
     '/api/v1/cpo/tariffs',

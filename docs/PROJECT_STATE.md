@@ -152,6 +152,14 @@ The deployed contract has 111 operations: the added
 `GET /api/v1/cpo/users/{user_id}` is a tenant-scoped point lookup, not a
 customer or staff directory.
 
+The current source candidate has 112 operations. It adds the CPO ADMIN-only
+`POST /api/v1/cpo/hubs/{hub_id}/chargers` hub attachment/reassignment command,
+allows an independent charger to be created without `hub_id`, and adds
+non-negative hub `sanction_load` plus the upgrade-time removal of the legacy
+charger-hub `NOT NULL` in migration sixteen. These source changes are not
+deployed: the development VPS remains on `bb555b9`, migration fifteen, and the
+111-operation contract.
+
 The deployed recovery flow fixes a recovery-specific OTP mapper defect that discarded
 `challenge_id` before outbox validation and caused eligible administrative and
 customer forgot-password transactions to roll back with `500 internal_error`.
@@ -183,8 +191,12 @@ yet.
   content, and affected package tests passed for the source-tree change.
 - Superadmin migration fourteen static coverage, input/privacy regression
   tests, and the affected package tests passed for the source-tree change.
-- The 111-operation source OpenAPI and runtime route sets match; documentation
+- The 112-operation source OpenAPI and runtime route sets match; documentation
   contract verification passed.
+- Source migration coverage verifies both sanctioned-load constraints and the
+  upgrade/rollback guard for independent charger inventory. The targeted
+  PostgreSQL hub-assignment lifecycle remains pending because no explicitly
+  disposable `TEST_DATABASE_URL` is configured.
 - `go test ./...` passed.
 - `go vet ./...` passed.
 - `git diff --check` passed. Stateful PostgreSQL lifecycle verification remains

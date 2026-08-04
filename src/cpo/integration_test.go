@@ -1262,8 +1262,9 @@ func TestCPOAdminProfileAndNetworkConfigurationWithPostgreSQL(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create hub: %v", err)
 	}
+	hubID := hub.ID
 	charger, err := service.CreateCharger(ctx, adminPrincipal, CreateChargerRequest{
-		HubID:        hub.ID,
+		HubID:        &hubID,
 		Vendor:       "Delta",
 		Model:        "DC Wallbox",
 		SerialNumber: "SN-" + strings.ToUpper(uuid.NewString()[:8]),
@@ -1598,8 +1599,9 @@ func TestAssignChargerToHubTenantScope(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create hub: %v", err)
 	}
+	hub1ID := hub1.ID
 	charger, err := service.CreateCharger(ctx, admin1Principal, CreateChargerRequest{
-		HubID:        hub1.ID,
+		HubID:        &hub1ID,
 		Vendor:       "Delta",
 		Model:        "DC Wallbox",
 		SerialNumber: "SN-" + strings.ToUpper(uuid.NewString()[:8]),
@@ -1629,8 +1631,42 @@ func TestAssignChargerToHubTenantScope(t *testing.T) {
 	if err != nil {
 		t.Fatalf("assign charger to hub: %v", err)
 	}
-	if assignedCharger.HubID != hub2.ID {
+	if assignedCharger.HubID == nil || *assignedCharger.HubID != hub2.ID {
 		t.Fatalf("charger not assigned to correct hub. got %s, want %s", assignedCharger.HubID, hub2.ID)
+	}
+
+	idempotentCharger, err := service.AssignChargerToHub(ctx, admin1Principal, hub2.ID, charger.ID)
+	if err != nil {
+		t.Fatalf("repeat charger assignment: %v", err)
+	}
+	if idempotentCharger.HubID == nil || *idempotentCharger.HubID != hub2.ID {
+		t.Fatalf("repeat assignment changed charger hub. got %s, want %s", idempotentCharger.HubID, hub2.ID)
+	}
+
+	independentCharger, err := service.CreateCharger(ctx, admin1Principal, CreateChargerRequest{
+		Vendor:       "Delta",
+		Model:        "Standalone Wallbox",
+		SerialNumber: "SN-" + strings.ToUpper(uuid.NewString()[:8]),
+		MaxPowerKW:   7.4,
+		Connectors: []CreateConnectorRequest{{
+			ConnectorNumber: 1,
+			ConnectorType:   "TYPE2",
+			MaxCurrent:      32,
+			MaxVoltage:      230,
+		}},
+	})
+	if err != nil {
+		t.Fatalf("create independent charger: %v", err)
+	}
+	if independentCharger.HubID != nil {
+		t.Fatalf("independent charger unexpectedly has hub %s", *independentCharger.HubID)
+	}
+	assignedIndependentCharger, err := service.AssignChargerToHub(ctx, admin1Principal, hub1.ID, independentCharger.ID)
+	if err != nil {
+		t.Fatalf("assign independent charger to hub: %v", err)
+	}
+	if assignedIndependentCharger.HubID == nil || *assignedIndependentCharger.HubID != hub1.ID {
+		t.Fatalf("independent charger not assigned to correct hub: %#v", assignedIndependentCharger.HubID)
 	}
 
 	// Try to get the charger with the wrong tenant. This should fail.

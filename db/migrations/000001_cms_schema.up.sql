@@ -140,7 +140,7 @@ CREATE INDEX ix_hubs_location ON hubs (latitude, longitude);
 CREATE TABLE chargers (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     cpo_id uuid NOT NULL,
-    hub_id uuid NOT NULL,
+    hub_id uuid,
     charger_id varchar(6) NOT NULL,
     ocpp_identity varchar(255) NOT NULL,
     vendor varchar(100) NOT NULL DEFAULT '',

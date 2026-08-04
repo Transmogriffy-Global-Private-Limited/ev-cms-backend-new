@@ -1778,9 +1778,11 @@ func (service *Service) CreateCharger(
 
 	var record models.Charger
 	err := service.database.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		var hub models.Hub
-		if err := tx.First(&hub, "id = ? AND cpo_id = ?", request.HubID, cpoID).Error; err != nil {
-			return mapHubNotFound(err)
+		if request.HubID != nil {
+			var hub models.Hub
+			if err := tx.First(&hub, "id = ? AND cpo_id = ?", *request.HubID, cpoID).Error; err != nil {
+				return mapHubNotFound(err)
+			}
 		}
 
 		chargerID, err := generateUniqueChargerIDTx(tx)
@@ -1930,7 +1932,7 @@ func (service *Service) UpdateCharger(
 				return mapHubNotFound(err)
 			}
 			updates["hub_id"] = *request.HubID
-			record.HubID = *request.HubID
+			record.HubID = request.HubID
 			changedFields["hub_id"] = *request.HubID
 		}
 		if request.Vendor != nil {
@@ -2174,9 +2176,6 @@ func normalizeChargerID(value string) string {
 }
 
 func validateCreateChargerRequest(request CreateChargerRequest) error {
-	if request.HubID == uuid.Nil {
-		return invalid("hub_id", "Hub ID is required.")
-	}
 	if request.Vendor == "" || len(request.Vendor) > 100 {
 		return invalid("vendor", "Vendor is required and must not exceed 100 characters.")
 	}
@@ -2423,6 +2422,12 @@ func mapChargerWriteError(err error, operation string) error {
 				Code:    "charger_conflict",
 				Message: "The charger references an invalid related record.",
 			}
+		case "23P01":
+			return &auth.APIError{
+				Status:  http.StatusConflict,
+				Code:    "tariff_schedule_conflict",
+				Message: "Moving the charger would create an overlapping active tariff schedule.",
+			}
 		}
 	}
 	return fmt.Errorf("%s: %w", operation, err)
@@ -2597,58 +2602,20 @@ func (service *Service) CreateHub(
 		now := service.now()
 
 		record = models.Hub{
-			ID:          uuid.New(),
-			CPOID:       cpoID,
-			Name:        request.Name,
-			Address:     request.Address,
-			Latitude:    *request.Latitude,
-			Longitude:   *request.Longitude,
-			Open24Hours: open24Hours,
+			ID:           uuid.New(),
+			CPOID:        cpoID,
+			Name:         request.Name,
+			Address:      request.Address,
+			Latitude:     *request.Latitude,
+			Longitude:    *request.Longitude,
+			Open24Hours:  open24Hours,
 			SanctionLoad: sanctionLoad,
-			CreatedAt:   now,
-			UpdatedAt:   now,
+			CreatedAt:    now,
+			UpdatedAt:    now,
 		}
 
 		if err := tx.Create(&record).Error; err != nil {
 			return mapHubWriteError(err, "create hub")
-		}
-
-		if request.ChargerID != nil {
-			var charger models.Charger
-			if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
-				First(&charger, "id = ? AND cpo_id = ?", *request.ChargerID, cpoID).Error; err != nil {
-				return mapChargerNotFound(err)
-			}
-			if charger.HubID != uuid.Nil {
-				return &auth.APIError{
-					Status:  http.StatusConflict,
-					Code:    "charger_already_assigned",
-					Message: "The specified charger is already assigned to a hub.",
-				}
-			}
-
-			if err := tx.Model(&charger).
-				Where("id = ?", charger.ID).
-				Updates(map[string]any{
-					"hub_id": record.ID,
-					"updated_at": now,
-				}).Error; err != nil {
-				return mapChargerWriteError(err, "assign charger to hub")
-			}
-			if err := writeAudit(
-				tx,
-				principal.UserID,
-				cpoID,
-				"CHARGER_ASSIGNED_TO_NEW_HUB",
-				models.JSONB{
-					"charger_id": charger.ID,
-					"previous_hub_id": charger.HubID,
-					"new_hub_id": record.ID,
-				},
-				now,
-			); err != nil {
-				return err
-			}
 		}
 
 		return writeAudit(
@@ -2789,48 +2756,6 @@ func (service *Service) UpdateHub(
 			changedFields["sanction_load"] = *request.SanctionLoad
 		}
 
-		now := service.now()
-		if request.ChargerID != nil {
-			var charger models.Charger
-			if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
-				First(&charger, "id = ? AND cpo_id = ?", *request.ChargerID, cpoID).Error; err != nil {
-				return mapChargerNotFound(err)
-			}
-			if charger.HubID != uuid.Nil && charger.HubID != hubID {
-				return &auth.APIError{
-					Status:  http.StatusConflict,
-					Code:    "charger_already_assigned_to_other_hub",
-					Message: "The specified charger is already assigned to a different hub.",
-				}
-			}
-
-			if charger.HubID != hubID {
-				if err := tx.Model(&charger).
-					Where("id = ?", charger.ID).
-					Updates(map[string]any{
-						"hub_id":     hubID,
-						"updated_at": now,
-					}).Error; err != nil {
-					return mapChargerWriteError(err, "assign charger to hub via update")
-				}
-				if err := writeAudit(
-					tx,
-					principal.UserID,
-					cpoID,
-					"CHARGER_ASSIGNED_TO_HUB",
-					models.JSONB{
-						"charger_id":      charger.ID,
-						"previous_hub_id": charger.HubID,
-						"new_hub_id":      hubID,
-					},
-					now,
-				); err != nil {
-					return err
-				}
-				changedFields["charger_id"] = *request.ChargerID
-			}
-		}
-
 		if len(changedFields) == 0 {
 			return nil
 		}
@@ -2853,6 +2778,7 @@ func (service *Service) UpdateHub(
 			}
 		}
 
+		now := service.now()
 		updates["updated_at"] = now
 		record.UpdatedAt = now
 		if err := tx.Model(&models.Hub{}).
@@ -2895,6 +2821,9 @@ func (service *Service) AssignChargerToHub(
 	if err := requireCPOAdminAccess(principal); err != nil {
 		return ChargerView{}, err
 	}
+	if chargerID == uuid.Nil {
+		return ChargerView{}, invalid("charger_id", "Charger ID is required.")
+	}
 
 	cpoID := *principal.CPOID
 	var charger models.Charger
@@ -2910,38 +2839,29 @@ func (service *Service) AssignChargerToHub(
 			return mapChargerNotFound(err)
 		}
 
-		if charger.HubID != uuid.Nil && charger.HubID != hubID {
-			return &auth.APIError{
-				Status:  http.StatusConflict,
-				Code:    "charger_already_assigned_to_other_hub",
-				Message: "The specified charger is already assigned to a different hub.",
-			}
-		}
-
-		if charger.HubID == hubID {
-			// Charger is already assigned to this hub, no action needed
+		if charger.HubID != nil && *charger.HubID == hubID {
 			return nil
 		}
 
+		previousHubID := charger.HubID
 		now := service.now()
 		if err := tx.Model(&charger).
-			Where("id = ?", charger.ID).
+			Where("id = ? AND cpo_id = ?", charger.ID, cpoID).
 			Updates(map[string]any{
-				"hub_id": hub.ID,
+				"hub_id":     hub.ID,
 				"updated_at": now,
 			}).Error; err != nil {
 			return mapChargerWriteError(err, "assign charger to hub")
 		}
-		
 		if err := writeAudit(
 			tx,
 			principal.UserID,
 			cpoID,
-			"CHARGER_ASSIGNED_TO_HUB",
+			"CHARGER_HUB_REASSIGNED",
 			models.JSONB{
-				"charger_id": charger.ID,
-				"previous_hub_id": charger.HubID,
-				"new_hub_id": hub.ID,
+				"charger_id":      charger.ID,
+				"previous_hub_id": previousHubID,
+				"new_hub_id":      hub.ID,
 			},
 			now,
 		); err != nil {
@@ -2952,8 +2872,6 @@ func (service *Service) AssignChargerToHub(
 	if err != nil {
 		return ChargerView{}, err
 	}
-	
-	// Reload charger with connectors after update to return a complete ChargerView
 	if err := service.database.WithContext(ctx).
 		Preload("Connectors", func(tx *gorm.DB) *gorm.DB {
 			return tx.Order("connector_number ASC")
@@ -2996,6 +2914,9 @@ func validateCreateHubRequest(request CreateHubRequest) error {
 	if *request.Longitude < -180 || *request.Longitude > 180 {
 		return invalid("longitude", "Longitude must be between -180 and 180.")
 	}
+	if request.SanctionLoad != nil && *request.SanctionLoad < 0 {
+		return invalid("sanction_load", "Sanction load must not be negative.")
+	}
 	return nil
 }
 
@@ -3005,8 +2926,7 @@ func validateUpdateHubRequest(request UpdateHubRequest) error {
 		request.Latitude == nil &&
 		request.Longitude == nil &&
 		request.Open24Hours == nil &&
-		request.SanctionLoad == nil &&
-		request.ChargerID == nil {
+		request.SanctionLoad == nil {
 		return invalid("hub", "At least one hub field must be supplied.")
 	}
 
@@ -3044,6 +2964,10 @@ func mapHubWriteError(err error, operation string) error {
 				Code:    "hub_conflict",
 				Message: "The hub references an invalid related record.",
 			}
+		case "23514":
+			if postgresError.ConstraintName == "chk_hubs_sanction_load" {
+				return invalid("sanction_load", "Sanction load must not be negative.")
+			}
 		}
 	}
 	return fmt.Errorf("%s: %w", operation, err)
@@ -3051,16 +2975,16 @@ func mapHubWriteError(err error, operation string) error {
 
 func hubView(record models.Hub) HubView {
 	return HubView{
-		ID:          record.ID,
-		CPOID:       record.CPOID,
-		Name:        record.Name,
-		Address:     record.Address,
-		Latitude:    record.Latitude,
-		Longitude:   record.Longitude,
-		Open24Hours: record.Open24Hours,
+		ID:           record.ID,
+		CPOID:        record.CPOID,
+		Name:         record.Name,
+		Address:      record.Address,
+		Latitude:     record.Latitude,
+		Longitude:    record.Longitude,
+		Open24Hours:  record.Open24Hours,
 		SanctionLoad: record.SanctionLoad,
-		CreatedAt:   record.CreatedAt,
-		UpdatedAt:   record.UpdatedAt,
+		CreatedAt:    record.CreatedAt,
+		UpdatedAt:    record.UpdatedAt,
 	}
 }
 
@@ -3253,7 +3177,7 @@ func (service *Service) UpdateTariff(
 			if err := tx.First(&charger, "id = ? AND cpo_id = ?", *request.ChargerID, cpoID).Error; err != nil {
 				return mapChargerNotFound(err)
 			}
-			if charger.HubID != effectiveHubID {
+			if charger.HubID == nil || *charger.HubID != effectiveHubID {
 				return &auth.APIError{Status: http.StatusBadRequest, Code: "charger_hub_mismatch", Message: "The charger must belong to the selected hub."}
 			}
 			effectiveChargerID = request.ChargerID
@@ -3265,7 +3189,7 @@ func (service *Service) UpdateTariff(
 			if err := tx.First(&charger, "id = ? AND cpo_id = ?", *effectiveChargerID, cpoID).Error; err != nil {
 				return mapChargerNotFound(err)
 			}
-			if charger.HubID != effectiveHubID {
+			if charger.HubID == nil || *charger.HubID != effectiveHubID {
 				return &auth.APIError{Status: http.StatusBadRequest, Code: "charger_hub_mismatch", Message: "The existing charger must belong to the selected hub."}
 			}
 		}
@@ -3451,7 +3375,7 @@ func (service *Service) validateTariffScope(
 		if err := tx.First(&charger, "id = ? AND cpo_id = ?", *chargerID, cpoID).Error; err != nil {
 			return mapChargerNotFound(err)
 		}
-		if charger.HubID != hubID {
+		if charger.HubID == nil || *charger.HubID != hubID {
 			return invalid("charger_id", "The specified charger does not belong to the specified hub.")
 		}
 	}

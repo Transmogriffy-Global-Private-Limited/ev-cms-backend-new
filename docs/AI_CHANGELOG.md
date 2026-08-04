@@ -2,6 +2,34 @@
 
 ## 2026-08-04
 
+### Reconciled CPO hub configuration and independent charger lifecycle
+
+- Reconciled the incoming CPO hub changes against the authoritative platform
+  baseline: chargers may now be created independently with no `hub_id`, then
+  attached or moved only through same-CPO, transactionally audited operations.
+- Added `POST /api/v1/cpo/hubs/{hub_id}/chargers` as the explicit attachment /
+  reassignment contract. Repeating the current target is side-effect free;
+  tariff-scope cascades that would overlap active schedules roll back with
+  `409 tariff_schedule_conflict`.
+- Consolidated undeployed sanctioned-load work into migration sixteen with a
+  database non-negative constraint, upgrade-time removal of the legacy hub
+  `NOT NULL`, a rollback guard for independent chargers, and application
+  validation. Removed the redundant OCPP-identity-index and split
+  sanction-load migrations before deployment, and restored rejection of empty
+  migration files.
+- Updated the CPO API, OpenAPI, workflow, backend handoff, schema, plan, and
+  project-state documentation. The source contract now has 112 operations;
+  the development VPS remains on deployed revision `bb555b9`, migration
+  fifteen, and 111 operations.
+
+Verification:
+
+- `scripts/verify-docs.ps1`, focused runtime/OpenAPI parity, `go test ./...`,
+  `go vet ./...`, and `git diff --check` passed.
+- The targeted PostgreSQL assignment/reassignment lifecycle test remains
+  intentionally skipped because `TEST_DATABASE_URL` is not configured; no
+  non-disposable database was touched.
+
 ### Completed the SuperAdmin frontend API handoff
 
 - Reconciled `docs/SUPERADMIN_FRONTEND_HANDOFF.md` with the current 111-operation

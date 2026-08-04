@@ -122,6 +122,7 @@ func TestCredentialRoutesAreRegisteredAndProtected(t *testing.T) {
 		{http.MethodGet, "/api/v1/cpo/hubs"},
 		{http.MethodGet, "/api/v1/cpo/hubs/00000000-0000-0000-0000-000000000001"},
 		{http.MethodPatch, "/api/v1/cpo/hubs/00000000-0000-0000-0000-000000000001"},
+		{http.MethodPost, "/api/v1/cpo/hubs/00000000-0000-0000-0000-000000000001/chargers"},
 		{http.MethodPost, "/api/v1/cpo/tariffs"},
 		{http.MethodGet, "/api/v1/cpo/tariffs"},
 		{http.MethodGet, "/api/v1/cpo/tariffs/00000000-0000-0000-0000-000000000001"},

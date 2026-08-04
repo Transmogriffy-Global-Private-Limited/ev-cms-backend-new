@@ -1501,7 +1501,8 @@ timestamps.
   "address": "12 Park Street, Kolkata",
   "latitude": 22.5524,
   "longitude": 88.3521,
-  "open_24_hours": true
+  "open_24_hours": true,
+  "sanction_load": 120.5
 }
 ```
 
@@ -1511,7 +1512,9 @@ Rules:
 - `address`: required after trimming, 1–5000 characters;
 - `latitude`: required, -90 through 90;
 - `longitude`: required, -180 through 180;
-- `open_24_hours`: optional, defaults to `true`.
+- `open_24_hours`: optional, defaults to `true`;
+- `sanction_load`: optional non-negative site electrical capacity in kW; it
+  defaults to `0`, which means not recorded rather than zero capacity.
 
 `201 Created` returns:
 
@@ -1524,6 +1527,7 @@ Rules:
   "latitude": 22.5524,
   "longitude": 88.3521,
   "open_24_hours": true,
+  "sanction_load": 120.5,
   "created_at": "2026-07-31T12:00:00Z",
   "updated_at": "2026-07-31T12:00:00Z"
 }
@@ -1553,13 +1557,13 @@ Cursor fields are omitted when no next page exists. Errors:
 
 ### 9.7 `GET /api/v1/cpo/hubs/{hub_id}`
 
-`hub_id` must be a non-zero UUID. `200 OK` returns the Hub object from 9.3 only
+`hub_id` must be a non-zero UUID. `200 OK` returns the Hub object from 9.5 only
 when it belongs to the authenticated CPO. A cross-tenant or unknown ID returns
 `404 hub_not_found`; malformed input returns `400 invalid_hub_id`.
 
 ### 9.8 `PATCH /api/v1/cpo/hubs/{hub_id}`
 
-Accepts any non-empty subset of the five create fields using the same
+Accepts any non-empty subset of the six create fields using the same
 validation. Omitted fields are unchanged.
 
 ```json
@@ -1576,13 +1580,35 @@ changed-field metadata. Additional errors: `400 invalid_hub`,
 There is currently no hub delete route. Durable charger/tariff relationships
 must not be erased through implicit cascading behavior.
 
-### 9.9 `POST /api/v1/cpo/chargers`
+### 9.9 `POST /api/v1/cpo/hubs/{hub_id}/chargers`
+
+Assigns or reassigns one existing charger to the target hub. The request body
+contains the charger's server-generated UUID:
+
+```json
+{
+  "charger_id": "7cc2d481-3ccb-4336-b03c-c8851a59ff9a"
+}
+```
+
+Both the target hub and charger must belong to the authenticated CPO. Chargers
+may be created independently with no `hub_id`; this endpoint attaches one
+later. Calling it with the charger's current hub is idempotent and creates no
+new audit record. A change writes `CHARGER_HUB_REASSIGNED` with previous and
+new hub metadata.
+
+The relationship update is atomic. If moving a charger would cause the
+database's active-tariff scope cascade to create an overlapping effective
+schedule, the whole operation rolls back with `409 tariff_schedule_conflict`.
+Errors also include `400 invalid_hub_id` or `invalid_charger_id`, and
+tenant-safe `404 hub_not_found` or `charger_not_found`.
+
+### 9.10 `POST /api/v1/cpo/chargers`
 
 Creates one CMS charger projection and all initial connectors atomically.
 
 ```json
 {
-  "hub_id": "8b80ef78-7799-4a09-a0d5-73ac944aa6e0",
   "vendor": "Delta",
   "model": "DC Wallbox",
   "serial_number": "SN-001",
@@ -1600,7 +1626,8 @@ Creates one CMS charger projection and all initial connectors atomically.
 
 Rules:
 
-- `hub_id` is a required UUID owned by this CPO;
+- `hub_id` is an optional UUID owned by this CPO; omit it to create an
+  independent, unassigned charger;
 - vendor, model, and serial number are required, trimmed, and at most 100
   characters each;
 - `max_power_kw` is optional/default zero and cannot be negative;
@@ -1626,7 +1653,6 @@ The server generates:
 {
   "id": "7cc2d481-3ccb-4336-b03c-c8851a59ff9a",
   "cpo_id": "c821a013-5041-42f7-80c8-aa153cf9d455",
-  "hub_id": "8b80ef78-7799-4a09-a0d5-73ac944aa6e0",
   "charger_id": "a1b2c3",
   "ocpp_identity": "CMS-4a58ce2df470b2b1",
   "vendor": "Delta",
@@ -1658,10 +1684,13 @@ The server generates:
 `CHARGER_CREATED`. Additional errors: field-specific `400 invalid_*`,
 `404 hub_not_found`, `409 charger_conflict`, or `409 connector_conflict`.
 
+When unassigned, `hub_id` is omitted from the response. An independent charger
+cannot be used by a tariff until it is assigned to the tariff's hub.
+
 `ocpp_identity` is only a future CMS/HAL mapping value. Its creation does not
 register a charger in the HAL or prove the charger is online.
 
-### 9.10 `GET /api/v1/cpo/chargers`
+### 9.11 `GET /api/v1/cpo/chargers`
 
 Returns tenant chargers and connectors in descending `(created_at, id)` order.
 
@@ -1686,14 +1715,14 @@ The cursor fields are omitted when `has_more` is false. Errors:
 `400 invalid_limit`, `400 invalid_before`, `400 invalid_before_id`, or
 `400 invalid_cursor`.
 
-### 9.11 `GET /api/v1/cpo/chargers/{charger_id}`
+### 9.12 `GET /api/v1/cpo/chargers/{charger_id}`
 
 Uses the six-character public charger ID, not the charger UUID. Input is trimmed
 and lowercased before validation. `200 OK` returns the Charger object including
 connectors ordered by connector number. Unknown or cross-tenant IDs return
 `404 charger_not_found`; malformed IDs return `400 invalid_charger_id`.
 
-### 9.12 `PATCH /api/v1/cpo/chargers/{charger_id}`
+### 9.13 `PATCH /api/v1/cpo/chargers/{charger_id}`
 
 Updates any non-empty subset of:
 
@@ -1723,12 +1752,17 @@ request.
 This route does not add or remove connectors and cannot change public
 `charger_id`, `ocpp_identity`, charger or connector status, OCPP version, or
 `last_seen_at`. Runtime status is reserved for the future HAL projection.
+If `hub_id` is supplied it assigns or reassigns the charger to that tenant hub;
+the dedicated hub-assignment route provides the same operation with an
+idempotent same-hub retry. A move can return `409 tariff_schedule_conflict`
+when tariff-scope cascading would overlap an active schedule.
+
 `200 OK` returns the updated Charger. The transaction writes `CHARGER_UPDATED`.
 Additional errors include `404 charger_not_found`,
 `404 connector_not_found`, `404 hub_not_found`, and uniqueness/reference
 conflicts.
 
-### 9.13 `DELETE /api/v1/cpo/chargers/{charger_id}`
+### 9.14 `DELETE /api/v1/cpo/chargers/{charger_id}`
 
 Takes no body. It locks the charger, deletes its connectors and charger
 transactionally, then writes `CHARGER_DELETED`. `204 No Content` means success.
@@ -1738,7 +1772,7 @@ session, favorite, user-group access link, or another durable record references
 the charger. The caller must explicitly remove or retire those dependent
 records through their owning workflow; the API does not cascade business data.
 
-### 9.14 `POST /api/v1/cpo/gsts`
+### 9.15 `POST /api/v1/cpo/gsts`
 
 Creates a named tenant GST profile.
 
@@ -1762,7 +1796,7 @@ as JSON strings, active state, and timestamps. The transaction writes
 `GST_CREATED`. Additional errors: field-specific `400 invalid_*` and
 `409 gst_conflict`.
 
-### 9.15 `GET /api/v1/cpo/gsts`
+### 9.16 `GET /api/v1/cpo/gsts`
 
 Returns bounded GST pages using the same `limit`, `before`, `before_id`,
 `next_before`, `next_before_id`, and `has_more` semantics as hub listing:
@@ -1776,12 +1810,12 @@ Returns bounded GST pages using the same `limit`, `before`, `before_id`,
 
 Both cursor inputs are required together.
 
-### 9.16 `GET /api/v1/cpo/gsts/{gst_id}`
+### 9.17 `GET /api/v1/cpo/gsts/{gst_id}`
 
 Returns one GST profile by server-generated UUID. Cross-tenant and unknown IDs
 return `404 gst_not_found`; malformed UUIDs return `400 invalid_gst_id`.
 
-### 9.17 `PATCH /api/v1/cpo/gsts/{gst_id}`
+### 9.18 `PATCH /api/v1/cpo/gsts/{gst_id}`
 
 Accepts any non-empty subset of `name`, `sgst_rate`, `cgst_rate`, `igst_rate`,
 and `is_active`, using the create validation. Omission preserves a field.
@@ -1790,7 +1824,7 @@ and `is_active`, using the create validation. Omission preserves a field.
 There is currently no GST delete route. An inactive profile remains durable for
 historical references.
 
-### 9.18 `POST /api/v1/cpo/tariffs`
+### 9.19 `POST /api/v1/cpo/tariffs`
 
 Creates a tenant tariff:
 
@@ -1835,7 +1869,7 @@ Errors include `400 charger_hub_mismatch`, field-specific `400 invalid_*`,
 relation-specific `404` responses, `409 tariff_conflict`, and
 `409 tariff_schedule_conflict`.
 
-### 9.19 `GET /api/v1/cpo/tariffs`
+### 9.20 `GET /api/v1/cpo/tariffs`
 
 Returns bounded tariff pages using the same keyset pagination:
 
@@ -1850,12 +1884,12 @@ Every row belongs to the authenticated CPO. Current listing returns all active
 and inactive tariffs; the frontend filters the bounded result for display and
 retains cursor order while requesting additional pages.
 
-### 9.20 `GET /api/v1/cpo/tariffs/{tariff_id}`
+### 9.21 `GET /api/v1/cpo/tariffs/{tariff_id}`
 
 Returns one tenant tariff by UUID. Cross-tenant and unknown IDs return
 `404 tariff_not_found`; malformed UUIDs return `400 invalid_tariff_id`.
 
-### 9.21 `PATCH /api/v1/cpo/tariffs/{tariff_id}`
+### 9.22 `PATCH /api/v1/cpo/tariffs/{tariff_id}`
 
 Accepts any non-empty subset of the create fields. Omitted fields remain
 unchanged. Optional relations cannot currently be cleared to null through this

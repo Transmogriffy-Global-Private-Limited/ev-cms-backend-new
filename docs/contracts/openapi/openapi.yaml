@@ -2704,11 +2704,14 @@ paths:
     post:
       tags: [CPO Operations]
       operationId: assignChargerToCPOHub
-      summary: Assign a charger to a tenant hub
+      summary: Assign or reassign a tenant charger to a hub
       description: |
-        Requires CPO ADMIN. Assigns an existing charger to the specified hub.
-        The charger must belong to the same CPO and not be assigned to another hub.
-        The action is audited.
+        Requires CPO ADMIN. Assigns an existing charger of the same CPO to the
+        specified hub. A charger may be created without a hub and assigned later.
+        Repeating a request for the charger's current hub has no side effect.
+        Moving an already assigned charger is atomic and audited. It can return
+        `tariff_schedule_conflict` when the relational tariff-scope cascade would
+        create an overlapping active tariff schedule.
       security:
         - BearerAuth: []
           CPOAppID: []
@@ -2724,7 +2727,7 @@ paths:
                 charger_id: {type: string, format: uuid}
       responses:
         "200":
-          description: Charger successfully assigned.
+          description: Charger successfully assigned or reassigned.
           content:
             application/json:
               schema:
@@ -2746,7 +2749,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorEnvelope"
         "409":
-          description: "`charger_already_assigned_to_other_hub`."
+          description: "`tariff_schedule_conflict`."
           content:
             application/json:
               schema:
@@ -5323,11 +5326,13 @@ components:
     CreateChargerRequest:
       type: object
       additionalProperties: false
-      required: [hub_id, vendor, model, serial_number, connectors]
+      required: [vendor, model, serial_number, connectors]
       properties:
         hub_id:
           type: string
           format: uuid
+          nullable: true
+          description: Optional same-CPO hub. Omit to create an independent, unassigned charger.
         vendor:
           type: string
           minLength: 1
@@ -5350,7 +5355,6 @@ components:
           items:
             $ref: "#/components/schemas/CreateConnectorRequest"
       example:
-        hub_id: 8b80ef78-7799-4a09-a0d5-73ac944aa6e0
         vendor: Delta
         model: DC Wallbox
         serial_number: SN-001
@@ -5391,6 +5395,7 @@ components:
         hub_id:
           type: string
           format: uuid
+          description: Assigns or reassigns the charger to this same-CPO hub. Explicit unassignment is not supported.
         vendor:
           type: string
           minLength: 1
@@ -5445,7 +5450,6 @@ components:
       required:
         - id
         - cpo_id
-        - hub_id
         - charger_id
         - ocpp_identity
         - vendor
@@ -5460,7 +5464,10 @@ components:
       properties:
         id: {type: string, format: uuid}
         cpo_id: {type: string, format: uuid}
-        hub_id: {type: string, format: uuid}
+        hub_id:
+          type: string
+          format: uuid
+          description: Absent for an independent charger that has not been assigned to a hub.
         charger_id:
           type: string
           pattern: "^[a-z0-9]{6}$"
@@ -5514,8 +5521,10 @@ components:
         latitude: {type: number, minimum: -90, maximum: 90}
         longitude: {type: number, minimum: -180, maximum: 180}
         open_24_hours: {type: boolean, default: true}
-        sanction_load: {type: number, minimum: 0}
-        charger_id: {type: string, format: uuid}
+        sanction_load:
+          type: number
+          minimum: 0
+          description: Site sanctioned electrical capacity in kW. Defaults to 0 when not recorded.
       example:
         name: Park Street Hub
         address: 12 Park Street, Kolkata
@@ -5533,8 +5542,10 @@ components:
         latitude: {type: number, minimum: -90, maximum: 90}
         longitude: {type: number, minimum: -180, maximum: 180}
         open_24_hours: {type: boolean}
-        sanction_load: {type: number, minimum: 0}
-        charger_id: {type: string, format: uuid}
+        sanction_load:
+          type: number
+          minimum: 0
+          description: Site sanctioned electrical capacity in kW.
 
     Hub:
       type: object
@@ -5549,7 +5560,10 @@ components:
         latitude: {type: number}
         longitude: {type: number}
         open_24_hours: {type: boolean}
-        sanction_load: {type: number}
+        sanction_load:
+          type: number
+          minimum: 0
+          description: Site sanctioned electrical capacity in kW; 0 means not recorded.
         created_at: {type: string, format: date-time}
         updated_at: {type: string, format: date-time}
 

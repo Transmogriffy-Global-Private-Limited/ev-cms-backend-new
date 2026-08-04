@@ -1,6 +1,6 @@
 # CPO Administrator and Initial Network Configuration Plan
 
-Status: Verified
+Status: Implemented — source verified; PostgreSQL lifecycle and deployment pending
 
 ## Objective
 
@@ -23,7 +23,10 @@ tenant-scoped hubs, chargers/connectors, GST profiles, and tariffs.
 - Tenant-scoped point lookup for a membership/customer-linked user UUID, with
   no directory or cross-CPO visibility
 - Hub create/list/get/update
-- Charger/connector atomic create
+- Hub sanctioned electrical load in kW
+- Charger/connector atomic create, including independent unassigned charger
+  inventory
+- Explicit same-CPO hub attachment/reassignment for chargers
 - Bounded charger list
 - Charger/connector get/update and dependency-safe charger delete
 - GST create/list/get/update
@@ -63,6 +66,10 @@ tenant-scoped hubs, chargers/connectors, GST profiles, and tariffs.
 - Cross-CPO references are rejected as not found.
 - Unknown and cross-CPO user UUIDs share the same `user_not_found` response.
 - PostgreSQL is authoritative for concurrent active-tariff schedule overlap.
+- A charger may have no hub at creation. Any non-null hub association is
+  same-CPO, and a reassignment is transactional, audited, idempotent at the
+  target, and rejected when tariff-scope cascading would overlap an active
+  schedule.
 - Dependent durable records prevent charger deletion.
 
 ## Implementation Slices
@@ -98,6 +105,10 @@ tenant-scoped hubs, chargers/connectors, GST profiles, and tariffs.
   remain read-only HAL projections.
 - Charger listing is bounded and cursor-recoverable.
 - A referenced charger cannot be deleted and returns `charger_in_use`.
+- A charger can be created without a hub, then assigned to a same-CPO hub;
+  repeating the same target is side-effect free.
+- Hub sanctioned load is non-negative in both application validation and the
+  database constraint.
 - Runtime routes and OpenAPI agree exactly.
 - No HAL behavior is implied or invoked.
 
@@ -133,6 +144,15 @@ Completed evidence:
   columns, both constraints, and both indexes; the 111-operation contract and
   protected user lookup passed hosted verification. The disposable overlap
   lifecycle remains pending without an explicitly disposable database.
+- The current source follow-up consolidates the undeployed sanctioned-load
+  change into migration sixteen, restores migration-file completeness checks,
+  removes redundant migrations seventeen/eighteen, and makes the base
+  `chargers.hub_id` nullable so a charger can be created independently. The
+  same migration drops `NOT NULL` for existing deployed databases and refuses a
+  down migration while independent chargers remain. It adds the explicit
+  audited hub-reassignment contract. This candidate has not been deployed;
+  database-backed assignment/reassignment lifecycle verification remains
+  pending without an explicitly disposable `TEST_DATABASE_URL`.
 
 ## Remaining Decisions
 
