@@ -2550,7 +2550,9 @@ paths:
       tags: [CPO Operations]
       operationId: createCPOHub
       summary: Create a tenant charging hub
-      description: Requires CPO ADMIN and writes audit evidence atomically.
+      description: |
+        Requires CPO ADMIN and writes audit evidence atomically. Optionally
+        assigns existing tenant chargers, which must not already belong to a hub.
       security:
         - BearerAuth: []
           CPOAppID: []
@@ -2577,8 +2579,14 @@ paths:
           $ref: "#/components/responses/Unauthorized"
         "403":
           $ref: "#/components/responses/CPOBusinessForbidden"
+        "404":
+          description: "`charger_not_found` — a requested charger was not found."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
         "409":
-          description: "`hub_conflict`."
+          description: "`hub_conflict` or `charger_already_in_hub`."
           content:
             application/json:
               schema:
@@ -5525,12 +5533,21 @@ components:
           type: number
           minimum: 0
           description: Site sanctioned electrical capacity in kW. Defaults to 0 when not recorded.
+        charger_ids:
+          type: array
+          items:
+            type: string
+            format: uuid
+          description: Optional list of charger UUIDs to assign to this hub.
       example:
         name: Park Street Hub
         address: 12 Park Street, Kolkata
         latitude: 22.5524
         longitude: 88.3521
         open_24_hours: true
+        charger_ids:
+          - "c821a013-5041-42f7-80c8-aa153cf9d455"
+          - "d48b5329-2399-4448-9354-f252b952cd7a"
 
     UpdateHubRequest:
       type: object
