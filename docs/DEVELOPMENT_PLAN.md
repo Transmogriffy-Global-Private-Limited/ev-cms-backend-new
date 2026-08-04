@@ -835,14 +835,13 @@ Last completed slice:
 
 Last deployment milestone:
 
-- Revision `9b508ef` was built cleanly and rehosted on the development VPS
-  after a validated rollback dump and application of migration thirteen. The
-  two dormant feature-key tables are back in `retired_commercial` with rows
-  preserved, four subscription catalog/history tables remain active in
-  `public`, and the live 87-operation route/OpenAPI surface, running-binary
-  identity, loopback-only listener, loopback/public readiness, zero-restart
-  service state, and post-start journal were verified. The disposable
-  PostgreSQL lifecycle remains pending without `TEST_DATABASE_URL`.
+- Revision `396bae5` was built cleanly and rehosted on the development VPS
+  after a validated rollback dump and application of migration fourteen. The
+  live 110-operation route/OpenAPI surface, running-binary identity,
+  loopback-only listener, loopback/public readiness, zero-restart service state,
+  new platform-authority fields, announcement/notification tables, and
+  post-start journal were verified. The disposable PostgreSQL lifecycle
+  remains pending without `TEST_DATABASE_URL`.
 
 Next expected slice:
 

@@ -53,10 +53,8 @@ the development deployment.
 The CPO application also has two notification operations under its own
 authenticated `ADMIN` session and verified `X-CPO-App-ID` header.
 
-The development origin still serves the deployed 87-operation OpenAPI document
-from revision `9b508ef` with migration thirteen. The 110-operation contract
-described here is current source and is not deployed until migration fourteen
-and the new binary are explicitly rehosted. The manual subscription API is
+The development origin serves the deployed 110-operation OpenAPI document from
+revision `396bae5` with migration fourteen. The manual subscription API is
 platform-superadmin-only, excludes feature-key entitlements, and does not
 activate provider billing or automatic lifecycle behavior.
 
@@ -94,11 +92,11 @@ approved origin policy and HTTPS.
 | Worker health | Ready | Observational only; no start/stop/retry controls |
 | Durable event replay | Ready | At-least-once; deduplicate by event ID |
 | Authenticated SSE | Ready | Use `fetch()` streaming, not native `EventSource` |
-| Platform-admin governance | Ready in current source | List/invite/grant/activate/deactivate; new identities receive encrypted temporary-password mail; last active authority cannot be removed |
-| Locked-user/security operations | Ready in current source | Locked identities, reasoned unlock, security events, and scoped PLATFORM/CPO/ALL session revocation |
-| Generic mail operations | Ready in current source | Safe metadata list/detail, retry/cancel, metrics, stale-job reconciliation, and reasoned 30-day-minimum retention |
-| Notifications/announcements | Ready in current source | Immutable PLATFORM/CPO audience snapshots, durable recipient rows, platform and CPO list/read APIs |
-| Platform overview aggregates | Ready in current source | Bounded CPO/access/session/mail/worker counts and service/database/worker status |
+| Platform-admin governance | Ready | List/invite/grant/activate/deactivate; new identities receive encrypted temporary-password mail; last active authority cannot be removed |
+| Locked-user/security operations | Ready | Locked identities, reasoned unlock, security events, and scoped PLATFORM/CPO/ALL session revocation |
+| Generic mail operations | Ready | Safe metadata list/detail, retry/cancel, metrics, stale-job reconciliation, and reasoned 30-day-minimum retention |
+| Notifications/announcements | Ready | Immutable PLATFORM/CPO audience snapshots, durable recipient rows, platform and CPO list/read APIs |
+| Platform overview aggregates | Ready | Bounded CPO/access/session/mail/worker counts and service/database/worker status |
 | Manual subscriptions | Ready | Plans, issue/renew/status, and history; no feature keys, provider, or automatic lifecycle |
 | Platform billing | Intentionally unsupported | No invoice, payment, checkout, or webhook APIs |
 | Tenant business data or secret access | Forbidden boundary | A SuperAdmin is not a CPO ADMIN and cannot impersonate one |
@@ -178,8 +176,7 @@ Add a subscription-management area only for platform superadmins, following
 checkout, webhook, automatic-renewal, scheduled-change, or provider UI:
 those routes do not exist. Platform-admin management, generic mail jobs,
 announcements, notifications, and bounded overview/status are available in the
-current source contract described below; they are not present on the currently
-deployed 87-operation development origin until rehosting is completed.
+deployed 110-operation development origin described below.
 
 ## HTTP Conventions
 
@@ -1293,8 +1290,9 @@ mutate the deployed database.
 
 The FE should raise, not paper over, these gaps:
 
-1. The current development origin has not yet been rehosted with the 110-operation
-   source surface and migration fourteen.
+1. Stateful PostgreSQL lifecycle verification for the Superadmin/mail/
+   notification surface remains pending because no disposable test database is
+   configured.
 2. There is no generated frontend SDK or committed generated types.
 3. There is no SuperAdmin tenant impersonation/support-access workflow.
 4. Manual subscription plans, CPO subscriptions, and history are platform-only.

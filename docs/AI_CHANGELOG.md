@@ -2,7 +2,7 @@
 
 ## 2026-08-04
 
-### Complete Superadmin source surface tested and documented
+### Complete Superadmin surface deployed
 
 - Completed the source-side platform Superadmin surface for administrator
   governance, locked-identity/session security operations, safe mail-job
@@ -24,8 +24,21 @@ Verification:
 - `go test ./...` passed.
 - `go vet ./...` passed.
 - `git diff --check` passed.
-- Stateful PostgreSQL lifecycle verification and VPS rehosting remain pending;
-  no deployment or remote database mutation was performed in this slice.
+- Stateful PostgreSQL lifecycle verification remains pending because no
+  disposable `TEST_DATABASE_URL` is configured.
+
+Deployment verification:
+
+- Created the mode-0600 rollback dump
+  `/tmp/devevcmsnewdb-pre-396bae5.dump` and preserved the prior binary as
+  `builds/evcmsnew.pre-396bae5`.
+- Confirmed migration thirteen before applying migration fourteen, then
+  verified the new platform-authority columns and announcement/notification
+  tables.
+- Rehosted `evcmsnew-dev.service` with `396bae5`. Systemd is enabled and
+  active with zero restarts; loopback/public liveness and readiness, Swagger
+  UI, and the live 110-operation OpenAPI passed. No recent startup error or
+  panic was recorded.
 
 ### Feature-key runtime removed and deployed pending a module catalog
 

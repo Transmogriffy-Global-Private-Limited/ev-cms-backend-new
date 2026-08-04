@@ -21,9 +21,10 @@ started as a second systemd service because that would create an unnecessary
 duplicate worker.
 
 The active deployment was updated on August 4, 2026 to source revision
-`9b508ef`. It has migrations one through thirteen and the current 87-operation
+`396bae5`. It has migrations one through fourteen and the current 110-operation
 API. Migration thirteen keeps feature-key/entitlement tables retired pending a
-defined module catalog. GSTIN and complete address identity are database-required for CPOs, the
+defined module catalog, and migration fourteen completes the Superadmin
+authority, mail, announcement, notification, and status surface. GSTIN and complete address identity are database-required for CPOs, the
 authenticated platform slug-availability route is live, and known uniqueness
 races return field- or relationship-specific conflict codes. Safe structured
 HTTP request diagnostics are active with `LOG_LEVEL=DEBUG`; recovery OTP mail
