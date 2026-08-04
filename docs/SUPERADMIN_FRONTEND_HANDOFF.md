@@ -147,8 +147,8 @@ A minimal complete platform application can use this route model:
 | --- | --- |
 | `/login` | `POST /api/v1/auth/login` |
 | `/login/verify` | `POST /api/v1/auth/2fa/verify`, `/2fa/resend` |
-| `/forgot-password` | `POST /api/v1/auth/password/forgot`; show the current completion limitation |
-| `/reset-password` | Do not expose as functional until the challenge-ID gap is repaired |
+| `/forgot-password` | `POST /api/v1/auth/password/forgot`; show one generic acknowledgement |
+| `/reset-password` | `POST /api/v1/auth/password/reset`; collect the recovery ID and code from the reset email |
 | `/platform/cpos` | CPO collection GET and create POST |
 | `/platform/cpos/:cpoId` | CPO detail/profile/lifecycle/app-ID operations |
 | `/platform/cpos/:cpoId/admin` | Primary-admin read/replace/resend and CPO admin-session revocation |
@@ -161,6 +161,8 @@ A minimal complete platform application can use this route model:
 | `/platform/mail` | safe mail-job list/detail/retry/cancel, metrics, reconcile, retention |
 | `/platform/announcements` | announcement list/create and platform notification list/read |
 | `/platform/status` | bounded overview and service status |
+| `/platform/subscriptions` | plan catalog create/read/draft/publish/archive |
+| `/platform/cpos/:cpoId/subscription` | current subscription, history, and explicit manual lifecycle commands |
 
 Suggested CPO detail regions:
 
@@ -454,6 +456,193 @@ export interface Worker {
   last_job_completed_at?: RFC3339;
   metadata: Record<string, unknown>;
 }
+
+export interface KeysetPage<T> {
+  next_before?: RFC3339;
+  next_before_id?: UUID;
+  has_more: boolean;
+}
+
+export interface PlatformAdministrator {
+  user_id: UUID;
+  email: string;
+  full_name: string;
+  identity_active: boolean;
+  identity_verified: boolean;
+  authority_active: boolean;
+  status_reason: string;
+  status_changed_at: RFC3339;
+  status_changed_by_user_id?: UUID;
+  created_at: RFC3339;
+  updated_at: RFC3339;
+}
+
+export interface LockedIdentity {
+  user_id: UUID;
+  email: string;
+  full_name: string;
+  locked_until: RFC3339;
+}
+
+export interface ReasonRequest {
+  reason: string; // trimmed 3-500 characters
+}
+
+export interface AdministrativeSessionRevocationRequest extends ReasonRequest {
+  scope: "PLATFORM" | "CPO" | "ALL";
+  // Required exactly when scope is CPO; forbidden otherwise.
+  cpo_id?: UUID;
+}
+
+export interface MailJob {
+  id: UUID;
+  to_email: string;
+  cpo_id?: UUID;
+  user_id?: UUID;
+  template: string;
+  status: MailStatus;
+  attempts: number;
+  max_attempts: number;
+  available_at: RFC3339;
+  locked_at?: RFC3339;
+  error_present: boolean;
+  sent_at?: RFC3339;
+  created_at: RFC3339;
+  updated_at: RFC3339;
+}
+
+export interface MailMetric {
+  template: string;
+  status: MailStatus;
+  count: number;
+}
+
+export interface Announcement {
+  id: UUID;
+  audience: "PLATFORM" | "CPO";
+  cpo_id?: UUID;
+  title: string;
+  body: string;
+  created_by_user_id: UUID;
+  created_at: RFC3339;
+  expires_at?: RFC3339;
+  recipient_count: number;
+}
+
+export interface Notification {
+  id: UUID;
+  announcement_id: UUID;
+  audience: "PLATFORM" | "CPO";
+  cpo_id?: UUID;
+  title: string;
+  body: string;
+  created_at: RFC3339;
+  expires_at?: RFC3339;
+  read_at?: RFC3339;
+}
+
+export interface PlatformWorkerStatus {
+  name: string;
+  status: string;
+  required: boolean;
+}
+
+export interface PlatformOverview {
+  cpos: Record<string, number>;
+  active_platform_admins: number;
+  active_sessions: number;
+  mail: Record<string, number>;
+  workers: PlatformWorkerStatus[];
+}
+
+export interface PlatformStatus {
+  service: string;
+  version: string;
+  database: "connected" | "unavailable";
+  workers: PlatformWorkerStatus[];
+}
+
+export interface SubscriptionPlanTerms {
+  currency: string; // uppercase ISO 4217, for example INR
+  price_minor: number;
+  billing_interval: "MONTHLY" | "YEARLY";
+  interval_count: number;
+  trial_days: number;
+}
+
+export interface SubscriptionPlan {
+  id: UUID;
+  code: string;
+  name: string;
+  description: string;
+  status: "DRAFT" | "PUBLISHED" | "ARCHIVED";
+  created_by: UUID;
+  created_at: RFC3339;
+  updated_at: RFC3339;
+}
+
+export interface SubscriptionPlanVersion extends SubscriptionPlanTerms {
+  id: UUID;
+  plan_id: UUID;
+  version: number;
+  status: "DRAFT" | "PUBLISHED";
+  published_at?: RFC3339;
+  published_by?: UUID;
+  created_at: RFC3339;
+  updated_at: RFC3339;
+}
+
+export interface SubscriptionPlanView {
+  plan: SubscriptionPlan;
+  draft?: SubscriptionPlanVersion;
+  published_versions: SubscriptionPlanVersion[];
+}
+
+export interface SubscriptionAction {
+  reason: string; // 1-500 characters
+  idempotency_key: string; // 1-120 characters; persist before retrying
+}
+
+export interface CpoSubscription {
+  id: UUID;
+  cpo_id: UUID;
+  plan_version_id: UUID;
+  status: "TRIAL" | "ACTIVE" | "PAUSED" | "PAST_DUE" | "CANCELLED" | "EXPIRED";
+  starts_at: RFC3339;
+  trial_ends_at?: RFC3339;
+  current_period_starts_at: RFC3339;
+  current_period_ends_at: RFC3339;
+  cancel_at_period_end: false;
+  pending_plan_version_id?: never;
+  pending_change_at?: never;
+  cancelled_at?: RFC3339;
+  ended_at?: RFC3339;
+  created_by: UUID;
+  created_at: RFC3339;
+  updated_at: RFC3339;
+}
+
+export interface CpoSubscriptionView {
+  subscription: CpoSubscription;
+  plan: SubscriptionPlan;
+  plan_version: SubscriptionPlanVersion;
+}
+
+export interface CpoSubscriptionHistory {
+  id: UUID;
+  subscription_id: UUID;
+  cpo_id: UUID;
+  previous_status?: CpoSubscription["status"];
+  next_status: CpoSubscription["status"];
+  previous_plan_version_id?: UUID;
+  next_plan_version_id: UUID;
+  actor_user_id: UUID;
+  reason: string;
+  idempotency_key: string;
+  effective_at: RFC3339;
+  metadata: Record<string, unknown>;
+  created_at: RFC3339;
+}
 ```
 
 The event cursor is an OpenAPI `int64` serialized as a JSON number. Current IDs
@@ -521,6 +710,69 @@ Every operation below requires a current `PLATFORM` bearer session and no
 | `GET /api/v1/platform/realtime/stream` | `200 text/event-stream` | Low-latency invalidation with replay |
 | `GET /api/v1/platform/audit-logs` | `200 AuditPage` | Immutable privileged-action evidence |
 | `GET /api/v1/platform/workers` | `200 {workers}` | Durable worker instance health |
+
+### Platform governance, security, and mail operations
+
+All operations in this section require a current `PLATFORM` bearer session.
+They expose safe administrative metadata only: never render a control for a
+password, OTP, token, decrypted mail payload, or stored mail error text.
+
+| Method and path | Success | Primary FE purpose |
+| --- | --- | --- |
+| `GET /api/v1/platform/administrators` | `200 AdministratorPage` | Keyset-paginated platform-authority list; `include_inactive` defaults false |
+| `POST /api/v1/platform/administrators` | `201 Administrator` | Invite a new identity or grant authority to an existing active identity |
+| `POST /api/v1/platform/administrators/{user_id}/activate` | `200 Administrator` | Restore platform authority with a reason |
+| `POST /api/v1/platform/administrators/{user_id}/deactivate` | `200 Administrator` | Remove authority, revoke platform sessions, and preserve the global identity |
+| `GET /api/v1/platform/security/locked-identities` | `200 LockedIdentityPage` | List currently locked identities |
+| `GET /api/v1/platform/security/events` | `200 AuditPage` | Read-only security-event evidence |
+| `POST /api/v1/platform/security/users/{user_id}/unlock` | `204` | Unlock an identity with a reason |
+| `POST /api/v1/platform/security/users/{user_id}/sessions/revoke` | `200 counts` | Revoke a selected user's `PLATFORM`, `CPO`, or `ALL` sessions |
+| `GET /api/v1/platform/mail/jobs` | `200 MailPage` | Safe mail-outbox metadata with keyset pagination and filters |
+| `GET /api/v1/platform/mail/jobs/{job_id}` | `200 MailJob` | Refresh one safe mail-job projection |
+| `POST /api/v1/platform/mail/jobs/{job_id}/retry` | `200 MailJob` | Requeue an eligible failed mail job |
+| `POST /api/v1/platform/mail/jobs/{job_id}/cancel` | `200 MailJob` | Cancel an unsent job with a reason |
+| `GET /api/v1/platform/mail/metrics` | `200 {metrics}` | Counts by template and delivery state |
+| `POST /api/v1/platform/mail/reconcile` | `200 {requeued}` | Requeue stale processing jobs with a reason |
+| `POST /api/v1/platform/mail/retention` | `200 {deleted}` | Delete only terminal jobs older than a supplied 30-day-minimum cutoff |
+
+### Platform communication and status
+
+| Method and path | Success | Primary FE purpose |
+| --- | --- | --- |
+| `GET /api/v1/platform/announcements` | `200 AnnouncementPage` | Keyset-paginated immutable announcement history |
+| `POST /api/v1/platform/announcements` | `201 Announcement` | Create a `PLATFORM` or one-CPO audience snapshot |
+| `GET /api/v1/platform/notifications` | `200 NotificationPage` | Current SuperAdmin's durable notification inbox; supports `unread_only` |
+| `POST /api/v1/platform/notifications/{notification_id}/read` | `204` | Mark only the current recipient's notification as read |
+| `GET /api/v1/platform/overview` | `200 PlatformOverview` | Bounded aggregate dashboard, not a tenant-data export |
+| `GET /api/v1/platform/status` | `200 PlatformStatus` | Service/database/worker status display only |
+
+### Manual subscription management
+
+All operations below are platform-superadmin-only. They are manual commercial
+records, not access control: CPO activation and suspension remain the separate
+`/platform/cpos/{cpo_id}/activate|suspend` lifecycle. There are no feature
+keys, provider checkout, payments, invoices, webhooks, automatic renewal, or
+scheduled change endpoints.
+
+| Method and path | Success | Primary FE purpose |
+| --- | --- | --- |
+| `GET /api/v1/platform/plans` | `200 {plans}` | Load the full plan catalog, draft, and published versions |
+| `POST /api/v1/platform/plans` | `201 SubscriptionPlanView` | Create a plan and first draft version |
+| `GET /api/v1/platform/plans/{plan_id}` | `200 SubscriptionPlanView` | Refresh a plan and all its versions |
+| `PUT /api/v1/platform/plans/{plan_id}/draft` | `200 SubscriptionPlanView` | Create or replace the one editable draft version |
+| `POST /api/v1/platform/plans/{plan_id}/publish` | `200 SubscriptionPlanView` | Publish the draft; published versions are immutable and issueable |
+| `POST /api/v1/platform/plans/{plan_id}/archive` | `200 SubscriptionPlanView` | Prevent future issue/change-plan selection while retaining history |
+| `GET /api/v1/platform/cpos/{cpo_id}/subscription` | `200 CpoSubscriptionView` | Load the CPO's current manual subscription |
+| `POST /api/v1/platform/cpos/{cpo_id}/subscription` | `201 CpoSubscriptionView` | Issue the first current subscription from a published plan version |
+| `POST /api/v1/platform/cpos/{cpo_id}/subscription/renew` | `200 CpoSubscriptionView` | Explicitly record the next/current period |
+| `POST /api/v1/platform/cpos/{cpo_id}/subscription/change-plan` | `200 CpoSubscriptionView` | Immediately change to a published plan version |
+| `POST /api/v1/platform/cpos/{cpo_id}/subscription/activate` | `200 CpoSubscriptionView` | Move `TRIAL` to `ACTIVE` explicitly |
+| `POST /api/v1/platform/cpos/{cpo_id}/subscription/pause` | `200 CpoSubscriptionView` | Pause an eligible current subscription |
+| `POST /api/v1/platform/cpos/{cpo_id}/subscription/resume` | `200 CpoSubscriptionView` | Resume a `PAUSED` or `PAST_DUE` subscription as `ACTIVE` |
+| `POST /api/v1/platform/cpos/{cpo_id}/subscription/mark-past-due` | `200 CpoSubscriptionView` | Explicitly mark an eligible subscription past due |
+| `POST /api/v1/platform/cpos/{cpo_id}/subscription/expire` | `200 CpoSubscriptionView` | End a current subscription as `EXPIRED` |
+| `POST /api/v1/platform/cpos/{cpo_id}/subscription/cancel` | `200 CpoSubscriptionView` | Cancel immediately; cancellation-at-period-end is unsupported |
+| `GET /api/v1/platform/cpos/{cpo_id}/subscription/history` | `200 {history}` | Newest-first audited transition history, bounded to 500 |
 
 ## Authentication State Machine
 
@@ -902,8 +1154,9 @@ Mail status UX:
 - `PENDING`: queued or waiting for retry;
 - `PROCESSING`: claimed by a worker;
 - `SENT`: SMTP send returned success;
-- `FAILED`: bounded attempts exhausted; current SuperAdmin API has no generic
-  retry command.
+- `FAILED`: bounded attempts exhausted; platform operators may inspect the safe
+  job metadata and use the dedicated mail retry operation when the job is
+  eligible.
 
 ### Restore or replace the primary administrator
 
@@ -960,6 +1213,154 @@ The response contains revoked session and refresh-token counts. The operation:
 
 This is different from CPO suspension. Use a distinct confirmation and explain
 the narrower effect.
+
+## Platform Governance and Operations
+
+### Platform administrators
+
+Use `GET /api/v1/platform/administrators` for a keyset-paginated authority
+list. Inactive authority is omitted unless `include_inactive=true`. The list
+contains identity and authority state, but never passwords, sessions, OTPs, or
+mail payloads.
+
+`POST /api/v1/platform/administrators` accepts an email and full name. It
+either creates a new global identity and queues a credential-bearing invitation
+or grants authority to an existing active identity. A successful `201` means
+the database transaction and encrypted mail job committed; it does not prove
+SMTP delivery.
+
+Activate and deactivate use `POST .../{user_id}/activate|deactivate` with a
+3–500 character reason. Deactivation preserves the global identity, revokes
+its platform sessions, and refuses to remove the last active platform
+administrator. Confirm the target and consequence before either command.
+
+### Security operations
+
+`GET /api/v1/platform/security/locked-identities` lists currently locked
+identities. `GET /api/v1/platform/security/events` is read-only audit evidence.
+Unlocking uses `POST /api/v1/platform/security/users/{user_id}/unlock` with a
+reason and returns `204`.
+
+`POST /api/v1/platform/security/users/{user_id}/sessions/revoke` accepts:
+
+```json
+{
+  "reason": "Suspected credential exposure",
+  "scope": "CPO",
+  "cpo_id": "c821a013-5041-42f7-80c8-aa153cf9d455"
+}
+```
+
+`scope` is `PLATFORM`, `CPO`, or `ALL`; `cpo_id` is required only for `CPO`.
+The response gives revoked session and refresh-token counts. This is an
+incident-response operation, not identity deletion or CPO suspension.
+
+### Mail operations
+
+`GET /api/v1/platform/mail/jobs` supports `status`, `template`, `cpo_id`, and
+`user_id` filters plus the standard `limit`, `before`, and `before_id` cursor.
+List/detail responses contain recipient address, template, state, attempts,
+timestamps, and `error_present`; they never return decrypted payloads or error
+text.
+
+- `POST /api/v1/platform/mail/jobs/{job_id}/retry` requeues an eligible failed
+  job and returns its safe metadata.
+- `POST /api/v1/platform/mail/jobs/{job_id}/cancel` cancels an unsent job and
+  requires a reason.
+- `GET /api/v1/platform/mail/metrics` returns counts grouped by template and
+  status.
+- `POST /api/v1/platform/mail/reconcile` requeues stale processing jobs and
+  requires a reason.
+- `POST /api/v1/platform/mail/retention` requires `{before, reason}`. The
+  cutoff must be at least 30 days old; only `SENT` and `CANCELED` jobs can be
+  deleted. Show the resulting count and require explicit confirmation.
+
+### Announcements and notifications
+
+`POST /api/v1/platform/announcements` accepts `audience`, `title`, `body`, and
+an optional future `expires_at`. `audience` is `PLATFORM` or `CPO`; a CPO
+announcement requires `cpo_id`, while a platform announcement forbids it.
+Creation snapshots eligible recipients and creates durable notification rows
+in the same transaction. The snapshot does not change when later membership
+changes.
+
+`GET /api/v1/platform/announcements` lists immutable announcements with
+recipient counts. `GET /api/v1/platform/notifications` lists the current
+SuperAdmin's recipient-owned inbox and accepts `unread_only=true`. Marking
+`POST /api/v1/platform/notifications/{notification_id}/read` returns `204` and
+cannot mark another recipient's notification.
+
+### Overview and status
+
+`GET /api/v1/platform/overview` provides bounded CPO, active-admin,
+active-session, mail, and worker aggregates for dashboard cards. It is not a
+tenant business-data export. `GET /api/v1/platform/status` provides service
+version, database availability, and logical-worker status. Both are
+read-only; they do not expose worker start/stop/retry controls.
+
+## Manual Subscription Workflows
+
+Manual subscription operations require `PLATFORM` authority and are separate
+from CPO access. A subscription status never activates, suspends, or otherwise
+authorizes a CPO; use the CPO lifecycle endpoints for access control.
+
+### Plan catalog
+
+Create plans with `POST /api/v1/platform/plans` using `code`, `name`, optional
+`description`, and `terms`:
+
+```json
+{
+  "code": "standard",
+  "name": "Standard",
+  "description": "Manual standard plan",
+  "terms": {
+    "currency": "INR",
+    "price_minor": 49900,
+    "billing_interval": "MONTHLY",
+    "interval_count": 1,
+    "trial_days": 14
+  }
+}
+```
+
+Codes are lowercase underscore-separated identifiers. Currency is three
+uppercase letters, price is non-negative minor units, interval is `MONTHLY` or
+`YEARLY`, interval count is 1–120, and trial days are 0–365.
+
+Use `GET /api/v1/platform/plans` for the catalog or
+`GET /api/v1/platform/plans/{plan_id}` for one plan. `PUT .../{plan_id}/draft`
+replaces the single editable draft. `POST .../{plan_id}/publish` makes that
+version immutable and issueable. `POST .../{plan_id}/archive` prevents future
+issue/change-plan selection but preserves historical reads.
+
+### CPO subscription lifecycle
+
+`POST /api/v1/platform/cpos/{cpo_id}/subscription` issues a current
+subscription from a published `plan_version_id`. `renew` records a new period,
+`change-plan` immediately selects another published version, and the explicit
+transition commands move the current record through the supported states:
+
+| Command | Supported behavior |
+| --- | --- |
+| `activate` | `TRIAL` → `ACTIVE` |
+| `pause` | `TRIAL`, `ACTIVE`, or `PAST_DUE` → `PAUSED` |
+| `resume` | `PAUSED` or `PAST_DUE` → `ACTIVE` |
+| `mark-past-due` | `TRIAL`, `ACTIVE`, or `PAUSED` → `PAST_DUE` |
+| `expire` | Explicitly ends the current subscription as `EXPIRED` |
+| `cancel` | Cancels immediately; period-end cancellation is unsupported |
+
+Every write request includes a trimmed `reason` and client-generated
+`idempotency_key`. Retry the same command with the same key and actor after an
+ambiguous response; do not create a new key until authoritative GET/history
+confirms that the first command did not commit. Reusing a key for a different
+operation or CPO returns `409 idempotency_conflict`.
+
+`GET /api/v1/platform/cpos/{cpo_id}/subscription` returns the current joined
+subscription, plan, and plan version. `GET .../history` returns up to 500
+newest-first audited transitions. There are no provider, invoice, payment,
+checkout, webhook, mail, automatic renewal, scheduled change, feature-key, or
+entitlement APIs.
 
 ## Platform Audit
 
@@ -1194,6 +1595,12 @@ cooldowns and the explicit OTP resend timestamp where available.
 - Primary-admin assignment to the already-active current admin is a no-op.
 - CPO administrative-session revocation is repeatable and auditable even at
   zero counts.
+- Platform governance, security, mail, announcement, notification, overview,
+  and status writes are not safe to repeat blindly; use the authoritative GET
+  or returned resource after an ambiguous result.
+- Manual subscription writes require the same `idempotency_key` for a retry.
+  Do not generate a new key until subscription GET/history confirms that the
+  first command did not commit.
 - Create, profile replacement, app-ID rotation, primary-admin replacement, and
   onboarding resend have no client idempotency key.
 - After any ambiguous mutation result, use GET/replay/audit to determine state.
@@ -1233,7 +1640,7 @@ invalidate them.
 
 - [ ] Environment origin loads without a hardcoded `/api/v1` duplication.
 - [ ] `/health/live` and `/health/ready` are handled separately.
-- [ ] `/openapi.yaml` parses and includes the 28 required SuperAdmin API operations.
+- [ ] `/openapi.yaml` parses and includes all 66 required SuperAdmin API operations.
 - [ ] Swagger is treated as a development tool, not embedded in the product UI.
 - [ ] Local/mock types preserve optional-field omission.
 
@@ -1248,6 +1655,23 @@ invalidate them.
 - [ ] Logout/session revocation aborts SSE and clears local state.
 - [ ] Password change routes back to login after global revocation.
 - [ ] Forgot-password UI discloses no account existence and collects the recovery ID and code delivered by email.
+
+### Governance, mail, communication, and subscriptions
+
+- [ ] Administrator list pagination and `include_inactive` are implemented.
+- [ ] Invite/grant, activate, and deactivate confirmations explain mail and
+  last-active-admin consequences.
+- [ ] Locked identities, security events, reasoned unlock, and scoped session
+  revocation are available without exposing secrets.
+- [ ] Mail list filters, safe metadata, retry/cancel, reconciliation, metrics,
+  and 30-day-minimum retention are implemented with explicit confirmations.
+- [ ] Announcement audience rules and immutable recipient snapshots are shown.
+- [ ] Platform notifications support unread filtering and recipient-owned read.
+- [ ] Overview/status remain bounded read-only diagnostics.
+- [ ] Plan drafts, publishing, archiving, manual issue/renew/change, explicit
+  transitions, history, and idempotent retries are implemented.
+- [ ] The FE does not present subscription status as CPO access or introduce
+  feature keys, entitlements, provider billing, or automatic lifecycle.
 
 ### CPO control
 
