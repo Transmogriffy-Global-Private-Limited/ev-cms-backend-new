@@ -353,6 +353,30 @@ func TestTenantOperationValidation(t *testing.T) {
 		t.Fatal("hub without longitude was accepted")
 	}
 
+	longitude := 88.35
+	negativeSanctionLoad := -0.01
+	hub.Longitude = &longitude
+	hub.SanctionLoad = &negativeSanctionLoad
+	if err := validateCreateHubRequest(hub); err == nil {
+		t.Fatal("hub with negative sanction load was accepted")
+	}
+
+	standaloneCharger := CreateChargerRequest{
+		Vendor:       "Delta",
+		Model:        "Standalone Wallbox",
+		SerialNumber: "SN-1",
+		MaxPowerKW:   7.4,
+		Connectors: []CreateConnectorRequest{{
+			ConnectorNumber: 1,
+			ConnectorType:   "TYPE2",
+			MaxCurrent:      32,
+			MaxVoltage:      230,
+		}},
+	}
+	if err := validateCreateChargerRequest(standaloneCharger); err != nil {
+		t.Fatalf("standalone charger was rejected: %v", err)
+	}
+
 	nine := decimal.NewFromInt(9)
 	eighteen := decimal.NewFromInt(18)
 	gst := CreateGSTRequest{

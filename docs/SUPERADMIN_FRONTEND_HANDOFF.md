@@ -267,9 +267,11 @@ the bearer session. CPO notification list/read requires the verified
 `X-CPO-App-ID` header and derives the tenant from the CPO session. Overview and
 status are bounded aggregates, not tenant business-data exports.
 
-These routes are present in current source and the deployed 111-operation
-OpenAPI. Migration fifteen and the CPO user point-lookup are live; the lookup
-remains a tenant CPO ADMIN operation and is not callable by SuperAdmin.
+These SuperAdmin routes are present in current source and the deployed
+111-operation OpenAPI. The source also contains a 112th, CPO ADMIN-only charger
+hub-assignment operation; it is not callable by SuperAdmin. Migration fifteen
+and the CPO user point-lookup are live; the lookup remains a tenant CPO ADMIN
+operation and is not callable by SuperAdmin.
 
 ## TypeScript Contract
 

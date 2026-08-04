@@ -172,6 +172,7 @@ organization response omits privileged lifecycle reason and platform actor ID.
 
 - `POST/GET /hubs`
 - `GET/PATCH /hubs/{hub_id}`
+- `POST /hubs/{hub_id}/chargers`
 - `POST/GET /chargers`
 - `GET/PATCH/DELETE /chargers/{charger_id}`
 - `POST/GET /gsts`
@@ -183,7 +184,16 @@ Current behavior:
 
 - collections use bounded keyset pagination;
 - IDs are server-generated;
+- a hub records non-negative `sanction_load` in kW; `0` means the capacity is
+  not recorded;
 - charger creation atomically creates its initial connectors and audit record;
+- a charger may be created independently with no hub and later attached using
+  `POST /hubs/{hub_id}/chargers`;
+- hub attachment/reassignment is same-CPO, atomic, audited as
+  `CHARGER_HUB_REASSIGNED`, and idempotent when the charger is already at the
+  target hub;
+- a reassignment that would create an overlapping active tariff after the
+  relational hub-scope cascade rolls back with `409 tariff_schedule_conflict`;
 - the six-character public charger ID, CMS UUID, connector UUIDs, and
   `ocpp_identity` are different identifiers;
 - `ocpp_identity` is only a mapping value; no HAL call occurs;
@@ -311,7 +321,8 @@ Superadmin creates CPO
 read CPO organization
 → maintain ADMIN identity profile
 → create hub
-→ create charger with initial connectors
+→ create charger with initial connectors, either independent or hub-assigned
+→ attach/reassign an independent charger to a same-CPO hub when needed
 → create/choose GST
 → create tariff referencing same-CPO records
 → query authoritative REST projections

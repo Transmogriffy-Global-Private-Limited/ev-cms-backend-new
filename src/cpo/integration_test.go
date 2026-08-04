@@ -1262,8 +1262,9 @@ func TestCPOAdminProfileAndNetworkConfigurationWithPostgreSQL(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create hub: %v", err)
 	}
+	hubID := hub.ID
 	charger, err := service.CreateCharger(ctx, adminPrincipal, CreateChargerRequest{
-		HubID:        hub.ID,
+		HubID:        &hubID,
 		Vendor:       "Delta",
 		Model:        "DC Wallbox",
 		SerialNumber: "SN-" + strings.ToUpper(uuid.NewString()[:8]),
@@ -1476,5 +1477,206 @@ func assertAppBoundaryStatus(
 		`"code":"`+wantCode+`"`,
 	) {
 		t.Fatalf("response %s does not contain error code %q", recorder.Body.String(), wantCode)
+	}
+}
+
+func TestAssignChargerToHubTenantScope(t *testing.T) {
+	databaseURL := os.Getenv("TEST_DATABASE_URL")
+	if databaseURL == "" {
+		t.Skip("TEST_DATABASE_URL is not set")
+	}
+	ctx := context.Background()
+	gormDB, sqlDB, err := db.Open(ctx, databaseURL)
+	if err != nil {
+		t.Fatalf("open test database: %v", err)
+	}
+	defer sqlDB.Close()
+	if err := db.ApplyMigrations(ctx, sqlDB); err != nil {
+		t.Fatalf("apply migrations: %v", err)
+	}
+
+	platformEmail := "network-platform-" + uuid.NewString() + "@example.com"
+	if err := db.SeedSuperadmin(ctx, gormDB, config.Superadmin{
+		Email:    platformEmail,
+		Password: "PlatformPassword!123",
+		FullName: "Network Platform Admin",
+	}); err != nil {
+		t.Fatalf("seed platform administrator: %v", err)
+	}
+	var platformUser models.User
+	if err := gormDB.First(&platformUser, "email = ?", platformEmail).Error; err != nil {
+		t.Fatalf("load platform administrator: %v", err)
+	}
+	platformPrincipal := auth.Principal{
+		UserID: platformUser.ID,
+		Scope:  constants.AuthScopePlatform,
+	}
+	mailBox, err := security.NewSecretBox(
+		"network-config-test-v1",
+		[]byte(strings.Repeat("n", 32)),
+	)
+	if err != nil {
+		t.Fatalf("create mail secret box: %v", err)
+	}
+	service := NewService(gormDB, cmsmail.NewOutbox(mailBox), true)
+
+	// Create CPO 1
+	cpo1, err := service.Create(ctx, platformPrincipal, CreateRequest{
+		Slug:         "network-1-" + strings.ToLower(uuid.NewString()),
+		BusinessName: "Network Configuration CPO 1",
+		CompanyType:  constants.CPOCompanyTypeCompany,
+		GSTIN:        uniqueCPOGSTIN(),
+		Address:      "1 Test Road",
+		City:         "Kolkata",
+		State:        "West Bengal",
+		Pincode:      "700001",
+		Admin: InitialAdminRequest{
+			Email:    "network-admin-1-" + uuid.NewString() + "@example.com",
+			FullName: "Network Administrator 1",
+		},
+	})
+	if err != nil {
+		t.Fatalf("create CPO 1: %v", err)
+	}
+	if _, err := service.Activate(
+		ctx,
+		platformPrincipal,
+		cpo1.CPO.ID,
+		LifecycleRequest{Reason: "Approved for network configuration"},
+	); err != nil {
+		t.Fatalf("activate CPO 1: %v", err)
+	}
+	admin1Role := constants.CPORoleAdmin
+	admin1Principal := auth.Principal{
+		UserID: cpo1.Admin.UserID,
+		Scope:  constants.AuthScopeCPO,
+		CPOID:  &cpo1.CPO.ID,
+		Role:   &admin1Role,
+	}
+
+	// Create CPO 2
+	cpo2, err := service.Create(ctx, platformPrincipal, CreateRequest{
+		Slug:         "network-2-" + strings.ToLower(uuid.NewString()),
+		BusinessName: "Network Configuration CPO 2",
+		CompanyType:  constants.CPOCompanyTypeCompany,
+		GSTIN:        uniqueCPOGSTIN(),
+		Address:      "2 Test Road",
+		City:         "Kolkata",
+		State:        "West Bengal",
+		Pincode:      "700002",
+		Admin: InitialAdminRequest{
+			Email:    "network-admin-2-" + uuid.NewString() + "@example.com",
+			FullName: "Network Administrator 2",
+		},
+	})
+	if err != nil {
+		t.Fatalf("create CPO 2: %v", err)
+	}
+	if _, err := service.Activate(
+		ctx,
+		platformPrincipal,
+		cpo2.CPO.ID,
+		LifecycleRequest{Reason: "Approved for network configuration"},
+	); err != nil {
+		t.Fatalf("activate CPO 2: %v", err)
+	}
+	admin2Role := constants.CPORoleAdmin
+	admin2Principal := auth.Principal{
+		UserID: cpo2.Admin.UserID,
+		Scope:  constants.AuthScopeCPO,
+		CPOID:  &cpo2.CPO.ID,
+		Role:   &admin2Role,
+	}
+
+	latitude := 22.5524
+	longitude := 88.3521
+	hub1, err := service.CreateHub(ctx, admin1Principal, CreateHubRequest{
+		Name:      "Park Street Hub",
+		Address:   "12 Park Street, Kolkata",
+		Latitude:  &latitude,
+		Longitude: &longitude,
+	})
+	if err != nil {
+		t.Fatalf("create hub: %v", err)
+	}
+	hub1ID := hub1.ID
+	charger, err := service.CreateCharger(ctx, admin1Principal, CreateChargerRequest{
+		HubID:        &hub1ID,
+		Vendor:       "Delta",
+		Model:        "DC Wallbox",
+		SerialNumber: "SN-" + strings.ToUpper(uuid.NewString()[:8]),
+		MaxPowerKW:   25,
+		Connectors: []CreateConnectorRequest{{
+			ConnectorNumber: 1,
+			ConnectorType:   "CCS2",
+			MaxCurrent:      60,
+			MaxVoltage:      500,
+		}},
+	})
+	if err != nil {
+		t.Fatalf("create charger: %v", err)
+	}
+
+	hub2, err := service.CreateHub(ctx, admin1Principal, CreateHubRequest{
+		Name:      "New Town Hub",
+		Address:   "1 New Town, Kolkata",
+		Latitude:  &latitude,
+		Longitude: &longitude,
+	})
+	if err != nil {
+		t.Fatalf("create hub 2: %v", err)
+	}
+
+	assignedCharger, err := service.AssignChargerToHub(ctx, admin1Principal, hub2.ID, charger.ID)
+	if err != nil {
+		t.Fatalf("assign charger to hub: %v", err)
+	}
+	if assignedCharger.HubID == nil || *assignedCharger.HubID != hub2.ID {
+		t.Fatalf("charger not assigned to correct hub. got %s, want %s", assignedCharger.HubID, hub2.ID)
+	}
+
+	idempotentCharger, err := service.AssignChargerToHub(ctx, admin1Principal, hub2.ID, charger.ID)
+	if err != nil {
+		t.Fatalf("repeat charger assignment: %v", err)
+	}
+	if idempotentCharger.HubID == nil || *idempotentCharger.HubID != hub2.ID {
+		t.Fatalf("repeat assignment changed charger hub. got %s, want %s", idempotentCharger.HubID, hub2.ID)
+	}
+
+	independentCharger, err := service.CreateCharger(ctx, admin1Principal, CreateChargerRequest{
+		Vendor:       "Delta",
+		Model:        "Standalone Wallbox",
+		SerialNumber: "SN-" + strings.ToUpper(uuid.NewString()[:8]),
+		MaxPowerKW:   7.4,
+		Connectors: []CreateConnectorRequest{{
+			ConnectorNumber: 1,
+			ConnectorType:   "TYPE2",
+			MaxCurrent:      32,
+			MaxVoltage:      230,
+		}},
+	})
+	if err != nil {
+		t.Fatalf("create independent charger: %v", err)
+	}
+	if independentCharger.HubID != nil {
+		t.Fatalf("independent charger unexpectedly has hub %s", *independentCharger.HubID)
+	}
+	assignedIndependentCharger, err := service.AssignChargerToHub(ctx, admin1Principal, hub1.ID, independentCharger.ID)
+	if err != nil {
+		t.Fatalf("assign independent charger to hub: %v", err)
+	}
+	if assignedIndependentCharger.HubID == nil || *assignedIndependentCharger.HubID != hub1.ID {
+		t.Fatalf("independent charger not assigned to correct hub: %#v", assignedIndependentCharger.HubID)
+	}
+
+	// Try to get the charger with the wrong tenant. This should fail.
+	_, err = service.GetCharger(ctx, admin2Principal, charger.ChargerID)
+	if err == nil {
+		t.Fatalf("should not be able to get charger from another tenant")
+	}
+
+	var apiErr *auth.APIError
+	if !errors.As(err, &apiErr) || apiErr.Code != "charger_not_found" {
+		t.Fatalf("expected charger_not_found error, got %v", err)
 	}
 }

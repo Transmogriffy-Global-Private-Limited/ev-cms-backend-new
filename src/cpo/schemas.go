@@ -190,7 +190,7 @@ type OrganizationView struct {
 }
 
 type CreateChargerRequest struct {
-	HubID        uuid.UUID                `json:"hub_id"`
+	HubID        *uuid.UUID               `json:"hub_id,omitempty"`
 	Vendor       string                   `json:"vendor"`
 	Model        string                   `json:"model"`
 	SerialNumber string                   `json:"serial_number"`
@@ -225,7 +225,7 @@ type UpdateConnectorRequest struct {
 type ChargerView struct {
 	ID           uuid.UUID               `json:"id"`
 	CPOID        uuid.UUID               `json:"cpo_id"`
-	HubID        uuid.UUID               `json:"hub_id"`
+	HubID        *uuid.UUID              `json:"hub_id,omitempty"`
 	ChargerID    string                  `json:"charger_id"`
 	OCPPIdentity string                  `json:"ocpp_identity"`
 	Vendor       string                  `json:"vendor"`
@@ -269,31 +269,38 @@ type ConnectorView struct {
 }
 
 type CreateHubRequest struct {
-	Name        string   `json:"name"`
-	Address     string   `json:"address"`
-	Latitude    *float64 `json:"latitude"`
-	Longitude   *float64 `json:"longitude"`
-	Open24Hours *bool    `json:"open_24_hours,omitempty"`
+	Name         string   `json:"name"`
+	Address      string   `json:"address"`
+	Latitude     *float64 `json:"latitude"`
+	Longitude    *float64 `json:"longitude"`
+	Open24Hours  *bool    `json:"open_24_hours,omitempty"`
+	SanctionLoad *float64 `json:"sanction_load,omitempty"`
 }
 
 type UpdateHubRequest struct {
-	Name        *string  `json:"name,omitempty"`
-	Address     *string  `json:"address,omitempty"`
-	Latitude    *float64 `json:"latitude,omitempty"`
-	Longitude   *float64 `json:"longitude,omitempty"`
-	Open24Hours *bool    `json:"open_24_hours,omitempty"`
+	Name         *string  `json:"name,omitempty"`
+	Address      *string  `json:"address,omitempty"`
+	Latitude     *float64 `json:"latitude,omitempty"`
+	Longitude    *float64 `json:"longitude,omitempty"`
+	Open24Hours  *bool    `json:"open_24_hours,omitempty"`
+	SanctionLoad *float64 `json:"sanction_load,omitempty"`
+}
+
+type AssignChargerRequest struct {
+	ChargerID uuid.UUID `json:"charger_id"`
 }
 
 type HubView struct {
-	ID          uuid.UUID `json:"id"`
-	CPOID       uuid.UUID `json:"cpo_id"`
-	Name        string    `json:"name"`
-	Address     string    `json:"address"`
-	Latitude    float64   `json:"latitude"`
-	Longitude   float64   `json:"longitude"`
-	Open24Hours bool      `json:"open_24_hours"`
-	CreatedAt   time.Time `json:"created_at"`
-	UpdatedAt   time.Time `json:"updated_at"`
+	ID           uuid.UUID `json:"id"`
+	CPOID        uuid.UUID `json:"cpo_id"`
+	Name         string    `json:"name"`
+	Address      string    `json:"address"`
+	Latitude     float64   `json:"latitude"`
+	Longitude    float64   `json:"longitude"`
+	Open24Hours  bool      `json:"open_24_hours"`
+	SanctionLoad float64   `json:"sanction_load"`
+	CreatedAt    time.Time `json:"created_at"`
+	UpdatedAt    time.Time `json:"updated_at"`
 }
 
 type HubListResponse struct {

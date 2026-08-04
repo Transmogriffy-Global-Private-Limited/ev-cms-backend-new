@@ -48,8 +48,8 @@ Migration files:
 | `CPOProfile` | `cpos`; the CPO is now an organization/tenant rather than a one-to-one user profile |
 | `UserGroup` | tenant-owned `user_groups` |
 | App user | `customers`, linking a user identity to one CPO |
-| `Hub` | tenant-owned `hubs` |
-| `Charger` | tenant-owned `chargers`, with separate public `charger_id` and `ocpp_identity` |
+| `Hub` | tenant-owned `hubs`, including non-negative sanctioned load in kW (`0` when not recorded) |
+| `Charger` | tenant-owned `chargers`, with optional same-CPO hub assignment plus separate public `charger_id` and `ocpp_identity` |
 | `Connector` | tenant-owned `connectors` |
 | Group-to-hub access | `user_group_hubs` |
 | Group-to-charger access | `user_group_chargers` |
@@ -73,6 +73,8 @@ Migration files:
 - Sessions retain the HAL-issued integer `transaction_id`, integer meter Wh,
   billing totals, tariff/tax snapshots, timestamps, status, and stop reason.
 - The six-character public charger ID is separate from the OCPP identity.
+- A charger can be created without a hub. When assigned, its nullable composite
+  `(cpo_id, hub_id)` foreign key ensures the hub belongs to the same CPO.
 - Connector number is unique per charger.
 - Historical and financial records use restrictive deletion rules rather than
   destructive cascades.
@@ -234,6 +236,24 @@ operators must reconcile those records deliberately rather than receiving an
 ambiguous partial migration. The `btree_gist`-backed constraint treats null
 effective bounds as infinity and uses `IS NOT DISTINCT FROM` semantics for the
 optional UUID scope columns, so it remains safe under concurrent writes.
+
+## Hub Sanctioned Load and Independent Chargers
+
+Before initial deployment, the base CMS migration was reconciled so
+`chargers.hub_id` is nullable. This permits independent charger inventory while
+the composite foreign key still prevents any non-null assignment from crossing
+CPO boundaries. A charger-specific tariff remains impossible until its hub
+matches the tariff hub.
+
+Migration sixteen adds `hubs.sanction_load numeric(10,2) NOT NULL DEFAULT 0`,
+`chk_hubs_sanction_load`, and drops the legacy `chargers.hub_id NOT NULL`
+constraint for existing deployments. The service rejects negative values before
+the write and maps the database constraint to the same field-level client error.
+Its rollback refuses to restore `NOT NULL` while independent chargers exist.
+The former redundant OCPP-identity index migration and split sanction-load
+constraint migration were removed before deployment: migration one already owns
+the global OCPP identity uniqueness invariant, and migration sixteen owns the
+complete sanctioned-load invariant.
 
 ## CPO Superadmin Dependency
 

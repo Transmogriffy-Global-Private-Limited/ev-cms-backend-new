@@ -655,7 +655,8 @@ Current source implementation:
   dates and database-enforced overlap protection.
 - Governance, security, mail, announcement/notification, overview, and status
   routes are implemented and represented with the CPO user lookup in the
-  111-operation OpenAPI contract.
+  112-operation source OpenAPI contract. The added CPO charger hub-assignment
+  operation is CPO ADMIN-only and does not extend SuperAdmin authority.
 - Focused source tests, route/OpenAPI parity, documentation verification, the
   full Go suite, vet, and diff checks pass.
 
