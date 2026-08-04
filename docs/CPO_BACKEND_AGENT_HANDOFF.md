@@ -133,7 +133,7 @@ UUID or a row UUID.
 ## Current Implemented CPO Surface
 
 The authoritative machine contract is
-`docs/contracts/openapi/openapi.yaml`. The source currently has 69 total
+`docs/contracts/openapi/openapi.yaml`. The source currently has 111 total
 HTTP operations across all planes. Runtime/OpenAPI parity is tested.
 
 ### Administrative authentication

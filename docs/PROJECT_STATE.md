@@ -81,7 +81,7 @@ provides:
   workflows, governance, security, mail, notifications, overview/status,
   audit/workers, SSE/replay, error UX, security, verification, and explicit
   deployment gaps;
-- canonical OpenAPI 3.1 for all 110 current source-tree business/health
+- canonical OpenAPI 3.1 for all 111 current source-tree business/health
   operations;
 - embedded same-origin Swagger UI at `/docs/` and raw OpenAPI at
   `/openapi.yaml`;

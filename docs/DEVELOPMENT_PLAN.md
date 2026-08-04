@@ -651,9 +651,11 @@ Current integration contract:
 Current source implementation:
 
 - Migration fourteen adds platform-authority status fields and durable
-  announcement/notification records.
+  announcement/notification records; migration fifteen adds tariff effective
+  dates and database-enforced overlap protection.
 - Governance, security, mail, announcement/notification, overview, and status
-  routes are implemented and represented in the 110-operation OpenAPI contract.
+  routes are implemented and represented with the CPO user lookup in the
+  111-operation OpenAPI contract.
 - Focused source tests, route/OpenAPI parity, documentation verification, the
   full Go suite, vet, and diff checks pass.
 
