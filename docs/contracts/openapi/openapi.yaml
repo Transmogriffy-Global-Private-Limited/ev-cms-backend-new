@@ -2223,6 +2223,39 @@ paths:
         "500":
           $ref: "#/components/responses/InternalError"
 
+  /api/v1/cpo/subscription:
+    get:
+      tags: [CPO Operations]
+      operationId: getCPOSubscription
+      summary: Get the current CPO subscription
+      description: Returns the subscription details for the authenticated CPO.
+      security:
+        - BearerAuth: []
+        - CPOAppID: []
+      responses:
+        "200":
+          description: The CPO's current subscription.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CPOSubscriptionView"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/CPOBusinessForbidden"
+        "404":
+          description: Subscription not found for this CPO.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              example:
+                error:
+                  code: subscription_not_found
+                  message: No subscription found for this CPO.
+        "500":
+          $ref: "#/components/responses/InternalError"
+
   /api/v1/cpo/admin/profile:
     get:
       tags: [CPO Operations]
@@ -2551,7 +2584,9 @@ paths:
       tags: [CPO Operations]
       operationId: createCPOHub
       summary: Create a tenant charging hub
-      description: Requires CPO ADMIN and writes audit evidence atomically.
+      description: |
+        Requires CPO ADMIN and writes audit evidence atomically. Optionally
+        assigns existing tenant chargers, which must not already belong to a hub.
       security:
         - BearerAuth: []
           CPOAppID: []
@@ -2578,8 +2613,14 @@ paths:
           $ref: "#/components/responses/Unauthorized"
         "403":
           $ref: "#/components/responses/CPOBusinessForbidden"
+        "404":
+          description: "`charger_not_found` — a requested charger was not found."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
         "409":
-          description: "`hub_conflict`."
+          description: "`hub_conflict` or `charger_already_in_hub`."
           content:
             application/json:
               schema:
@@ -4845,6 +4886,83 @@ components:
         admin:
           $ref: "#/components/schemas/InitialAdmin"
 
+    CPOSubscriptionPlanView:
+      type: object
+      properties:
+        name:
+          type: string
+          description: The name of the subscription plan.
+          example: Pro Plan
+        description:
+          type: string
+          description: A description of the subscription plan.
+          example: Full-featured plan for large CPOs.
+        currency:
+          type: string
+          description: The currency of the plan price.
+          example: INR
+        price_minor:
+          type: integer
+          format: int64
+          description: The price of the plan in the smallest currency unit (e.g., paise for INR).
+          example: 1000000
+        billing_interval:
+          type: string
+          description: The interval at which the subscription is billed.
+          example: MONTHLY
+        interval_count:
+          type: integer
+          description: The number of intervals between subscription billings.
+          example: 1
+        trial_days:
+          type: integer
+          description: The number of trial days for the plan.
+          example: 0
+
+    CPOSubscriptionView:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: The ID of the CPO subscription.
+        status:
+          type: string
+          description: The status of the subscription.
+          example: ACTIVE
+        starts_at:
+          type: string
+          format: date-time
+          description: The time the subscription started.
+        trial_ends_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: The time the trial period ends.
+        current_period_starts_at:
+          type: string
+          format: date-time
+          description: The start of the current billing period.
+        current_period_ends_at:
+          type: string
+          format: date-time
+          description: The end of the current billing period.
+        cancel_at_period_end:
+          type: boolean
+          description: Whether the subscription will be cancelled at the end of the current period.
+        cancelled_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: The time the subscription was cancelled.
+        ended_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: The time the subscription ended.
+        plan:
+          $ref: '#/components/schemas/CPOSubscriptionPlanView'
+
     CPOListResponse:
       type: object
       additionalProperties: false
@@ -5516,12 +5634,21 @@ components:
           type: number
           minimum: 0
           description: Site sanctioned electrical capacity in kW. Defaults to 0 when not recorded.
+        charger_ids:
+          type: array
+          items:
+            type: string
+            format: uuid
+          description: Optional list of charger UUIDs to assign to this hub.
       example:
         name: Park Street Hub
         address: 12 Park Street, Kolkata
         latitude: 22.5524
         longitude: 88.3521
         open_24_hours: true
+        charger_ids:
+          - "c821a013-5041-42f7-80c8-aa153cf9d455"
+          - "d48b5329-2399-4448-9354-f252b952cd7a"
 
     UpdateHubRequest:
       type: object

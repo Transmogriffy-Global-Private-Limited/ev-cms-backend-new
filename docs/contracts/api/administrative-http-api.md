@@ -1504,7 +1504,8 @@ timestamps.
   "latitude": 22.5524,
   "longitude": 88.3521,
   "open_24_hours": true,
-  "sanction_load": 120.5
+  "sanction_load": 120.5,
+  "charger_id": "7cc2d481-3ccb-4336-b03c-c8851a59ff9a"
 }
 ```
 
@@ -1516,7 +1517,8 @@ Rules:
 - `longitude`: required, -180 through 180;
 - `open_24_hours`: optional, defaults to `true`;
 - `sanction_load`: optional non-negative site electrical capacity in kW; it
-  defaults to `0`, which means not recorded rather than zero capacity.
+  defaults to `0`, which means not recorded rather than zero capacity;
+- `charger_id`: optional UUID of an existing charger to assign to this hub.
 
 `201 Created` returns:
 
@@ -1905,6 +1907,36 @@ creation plus `404 tariff_not_found`.
 
 There is currently no tariff delete route. Deactivation through
 `{"is_active":false}` is the supported retention-safe state change.
+
+### 9.23 `GET /api/v1/cpo/subscription`
+
+Returns the current subscription details for the authenticated CPO.
+
+`200 OK`:
+
+```json
+{
+  "id": "a4d3b5b6-4a4a-4a4a-4a4a-5b4b3b2b1b0a",
+  "status": "ACTIVE",
+  "starts_at": "2026-07-01T00:00:00Z",
+  "current_period_starts_at": "2026-08-01T00:00:00Z",
+  "current_period_ends_at": "2026-09-01T00:00:00Z",
+  "cancel_at_period_end": false,
+  "plan": {
+    "name": "Pro Plan",
+    "description": "Full-featured plan for large CPOs.",
+    "currency": "INR",
+    "price_minor": 1000000,
+    "billing_interval": "MONTHLY",
+    "interval_count": 1,
+    "trial_days": 0
+  }
+}
+```
+
+The response includes the current subscription status and period, along with details of the subscribed plan. Optional fields like `trial_ends_at`, `cancelled_at`, and `ended_at` are omitted when absent.
+
+Errors: `401 unauthorized`, `403 forbidden`, `404 subscription_not_found`, or `500 internal_error`.
 
 ## 10. CPO Integration Credentials
 
