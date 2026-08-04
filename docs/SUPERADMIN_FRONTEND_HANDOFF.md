@@ -552,7 +552,7 @@ export interface PlatformWorkerStatus {
 export interface PlatformOverview {
   cpos: Record<string, number>;
   active_platform_admins: number;
-  active_sessions: number;
+  active_sessions: number; // administrative plus CPO-local customer sessions
   mail: Record<string, number>;
   workers: PlatformWorkerStatus[];
 }

@@ -47,7 +47,6 @@ if !ok {
     // Return the normal unauthorized envelope.
 }
 
-userID, _ := customerauth.CurrentUserID(ctx)
 customerID, _ := customerauth.CurrentCustomerID(ctx)
 cpoID, _ := customerauth.CurrentCPOID(ctx)
 appID, _ := customerauth.CurrentCPOAppID(ctx)
@@ -58,19 +57,41 @@ filters, jobs, cache keys, events, and audits. A request body may contain a
 resource ID, but it must never establish the caller's customer or tenant
 authority.
 
-`principal` contains the same validated user, customer, CPO, wallet, and
+`principal` contains the same validated CPO-local account, customer, CPO,
+wallet, and
 session context returned by `GET /api/v1/app/auth/me`. Use `service.Me` for the
 canonical external response rather than rebuilding its fields ad hoc.
+
+`customerauth.CurrentUserID` is retained only for source compatibility and
+returns the same CPO-local UUID as `CurrentCustomerID`; new app modules should
+use `CurrentCustomerID`. No app-user request resolves a global `users` row.
 
 ## Session and Password Scope
 
 - Session list/revoke/logout-all affects only this exact customer and CPO.
 - Logging out as a customer does not affect CPO staff or platform sessions.
-- Passwords belong to the global identity. Password reset/change therefore
-  revokes every session for that identity across every CPO and administrative
-  plane.
+- Email, password, verification, lockout, profile, OTPs, and sessions belong to
+  one `customers` row under one CPO. Reset/change revokes only that account's
+  customer sessions and invalidates its outstanding login/reset challenges. A
+  same-email account under another CPO and all administrative identities remain
+  untouched.
 - Forgot-password remains enumeration-safe while an eligible recipient's
   encrypted email supplies the recovery ID, code, and expiry required by
   reset/resend. Pre-fix emails without an ID must be replaced by a new request.
 - A blocked customer or suspended CPO invalidates customer access on the next
   request because PostgreSQL authority is revalidated.
+- Customer signup/login/recovery mail jobs carry their owning `cpo_id` for
+  tenant-safe operations and deliberately leave administrative `user_id`
+  empty.
+
+## CPO-Local Account Identity
+
+`X-CPO-App-ID` first resolves the active CPO. Signup and login then use the
+normalized `(cpo_id, email)` pair. Consequently:
+
+- the same email can sign up once under CPO A and once under CPO B;
+- each account may independently use the same password or different passwords;
+- changing CPO A's password/profile/session state cannot change CPO B;
+- the access-token subject is the CPO-local `customer_id`;
+- `GET /me` retains `user` and `customer` keys for frontend compatibility, but
+  `user.id == customer.id`, and that ID is not from `users`.

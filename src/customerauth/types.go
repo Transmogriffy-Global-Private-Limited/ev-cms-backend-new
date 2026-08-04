@@ -34,12 +34,9 @@ type ChallengeResponse struct {
 }
 
 type SignupResponse struct {
-	CustomerID       uuid.UUID `json:"customer_id"`
-	UserID           uuid.UUID `json:"user_id"`
-	CPOID            uuid.UUID `json:"cpo_id"`
-	WalletID         uuid.UUID `json:"wallet_id"`
-	IdentityCreated  bool      `json:"identity_created"`
-	ExistingPassword bool      `json:"use_existing_credentials"`
+	CustomerID uuid.UUID `json:"customer_id"`
+	CPOID      uuid.UUID `json:"cpo_id"`
+	WalletID   uuid.UUID `json:"wallet_id"`
 }
 
 type RefreshRequest struct {
@@ -118,6 +115,8 @@ type SessionView struct {
 }
 
 type Principal struct {
+	// UserID is a source-compatibility alias of CustomerID. It never refers to
+	// the global administrative users table.
 	UserID       uuid.UUID
 	CustomerID   uuid.UUID
 	CPOID        uuid.UUID

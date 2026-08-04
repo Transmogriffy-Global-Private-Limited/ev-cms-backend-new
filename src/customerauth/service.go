@@ -175,19 +175,14 @@ func (service *Service) Verify(
 		}
 		if err := tx.Exec(
 			"SELECT pg_advisory_xact_lock(hashtext(?))",
-			strings.ToLower(strings.TrimSpace(challenge.Email)),
+			challenge.CPOID.String()+"\x00"+strings.ToLower(strings.TrimSpace(challenge.Email)),
 		).Error; err != nil {
 			return fmt.Errorf("lock signup identity: %w", err)
 		}
 
-		user, identityCreated, err := resolveIdentity(tx, challenge, now)
-		if err != nil {
-			outcome = err
-			return nil
-		}
 		var existing int64
 		if err := tx.Model(&models.Customer{}).
-			Where("cpo_id = ? AND user_id = ?", challenge.CPOID, user.ID).
+			Where("cpo_id = ? AND lower(btrim(email)) = ?", challenge.CPOID, challenge.Email).
 			Count(&existing).Error; err != nil {
 			return fmt.Errorf("check existing customer: %w", err)
 		}
@@ -196,7 +191,9 @@ func (service *Service) Verify(
 			return nil
 		}
 		customer := models.Customer{
-			ID: uuid.New(), CPOID: challenge.CPOID, UserID: user.ID,
+			ID: uuid.New(), CPOID: challenge.CPOID, Email: challenge.Email,
+			PasswordHash: challenge.PasswordHash, FullName: challenge.FullName, Phone: challenge.Phone,
+			IsVerified: true, PasswordChangedAt: now,
 			Status: constants.CustomerStatusActive, CreatedAt: now, UpdatedAt: now,
 		}
 		if err := tx.Create(&customer).Error; err != nil {
@@ -210,17 +207,15 @@ func (service *Service) Verify(
 			return fmt.Errorf("create customer wallet: %w", err)
 		}
 		audit := models.AuditLog{
-			ID: uuid.New(), CPOID: &challenge.CPOID, UserID: &user.ID,
+			ID: uuid.New(), CPOID: &challenge.CPOID,
 			Action: "CUSTOMER_SIGNED_UP", Entity: "CUSTOMER", EntityID: &customer.ID,
-			Details: models.JSONB{"identity_created": identityCreated}, CreatedAt: now,
+			Details: models.JSONB{}, CreatedAt: now,
 		}
 		if err := tx.Create(&audit).Error; err != nil {
 			return fmt.Errorf("record customer signup audit: %w", err)
 		}
 		response = SignupResponse{
-			CustomerID: customer.ID, UserID: user.ID, CPOID: challenge.CPOID,
-			WalletID: wallet.ID, IdentityCreated: identityCreated,
-			ExistingPassword: !identityCreated,
+			CustomerID: customer.ID, CPOID: challenge.CPOID, WalletID: wallet.ID,
 		}
 		return nil
 	})
@@ -313,9 +308,15 @@ func (service *Service) createChallenge(
 	if err := tx.Create(&challenge).Error; err != nil {
 		return ChallengeResponse{}, fmt.Errorf("create customer signup challenge: %w", err)
 	}
-	if err := service.outbox.EnqueueMessage(tx, email, signupMailTemplate, cmsmail.MessagePayload{
-		RecipientName: fullName, Code: code, ExpiresAt: challenge.ExpiresAt,
-	}); err != nil {
+	if err := service.outbox.EnqueueMessageWithContext(
+		tx,
+		email,
+		signupMailTemplate,
+		cmsmail.MessagePayload{
+			RecipientName: fullName, Code: code, ExpiresAt: challenge.ExpiresAt,
+		},
+		cmsmail.MessageContext{CPOID: &cpoID},
+	); err != nil {
 		return ChallengeResponse{}, err
 	}
 	return ChallengeResponse{
@@ -346,40 +347,6 @@ func activeCPO(tx *gorm.DB, appID string) (models.CPO, error) {
 		return cpo, fmt.Errorf("resolve CPO application: %w", err)
 	}
 	return cpo, nil
-}
-
-func resolveIdentity(
-	tx *gorm.DB,
-	challenge models.CustomerSignupChallenge,
-	now time.Time,
-) (models.User, bool, error) {
-	var user models.User
-	err := tx.Where("lower(btrim(email)) = ?", challenge.Email).First(&user).Error
-	if err == nil {
-		if !user.IsActive {
-			return user, false, errSignupUnavailable
-		}
-		if !user.IsVerified {
-			if err := tx.Model(&models.User{}).Where("id = ?", user.ID).
-				Updates(map[string]any{"is_verified": true, "updated_at": now}).Error; err != nil {
-				return user, false, fmt.Errorf("verify existing identity: %w", err)
-			}
-			user.IsVerified = true
-		}
-		return user, false, nil
-	}
-	if !errors.Is(err, gorm.ErrRecordNotFound) {
-		return user, false, fmt.Errorf("find signup identity: %w", err)
-	}
-	user = models.User{
-		ID: uuid.New(), Email: challenge.Email, PasswordHash: challenge.PasswordHash,
-		FullName: challenge.FullName, Phone: challenge.Phone, IsActive: true,
-		IsVerified: true, PasswordChangedAt: now, CreatedAt: now, UpdatedAt: now,
-	}
-	if err := tx.Create(&user).Error; err != nil {
-		return user, false, fmt.Errorf("create signup identity: %w", err)
-	}
-	return user, true, nil
 }
 
 func (service *Service) otpHash(id uuid.UUID, code string) []byte {

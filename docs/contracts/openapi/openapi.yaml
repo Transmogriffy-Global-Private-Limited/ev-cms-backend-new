@@ -100,7 +100,7 @@ paths:
       description: |
         Resolves an active CPO from its current app ID, validates the proposed
         profile and password, stores only an Argon2id password hash, and queues
-        an encrypted email-OTP job. No identity or customer exists yet.
+        an encrypted email-OTP job. No customer account exists yet.
       parameters:
         - $ref: "#/components/parameters/CPOAppIDHeader"
       requestBody:
@@ -142,9 +142,9 @@ paths:
       summary: Verify email and create the CPO customer
       description: |
         Verifies and consumes the CPO-bound OTP. In one transaction it creates
-        a global identity or safely reuses an active one, creates the
-        CPO-scoped customer and zero-balance INR wallet, and records an audit
-        event. Existing identity credentials and profile are never overwritten.
+        a CPO-local customer account with its own credentials and profile, a
+        zero-balance INR wallet, and a tenant audit event. The same email may
+        independently register under another CPO.
         This endpoint does not issue customer login tokens.
       parameters:
         - $ref: "#/components/parameters/CPOAppIDHeader"
@@ -166,13 +166,13 @@ paths:
         "401":
           $ref: "#/components/responses/InvalidChallenge"
         "403":
-          description: "`signup_unavailable` — CPO or existing identity is inactive."
+          description: "`signup_unavailable` — CPO app identity is unavailable."
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorEnvelope"
         "409":
-          description: "`customer_already_registered` — verified identity is already this CPO's customer."
+          description: "`customer_already_registered` — email is already registered under this CPO."
           content:
             application/json:
               schema:
@@ -223,10 +223,10 @@ paths:
       operationId: startCustomerLogin
       summary: Validate a customer password and start mail OTP
       description: |
-        Resolves the active CPO by app ID, validates the global password and an
-        active customer relationship, then durably queues a customer login OTP.
-        Invalid identity, password, customer membership, lockout, and customer
-        status collapse to `invalid_credentials`.
+        Resolves the active CPO by app ID, validates that CPO's customer account
+        password, status, and lockout state, then durably queues a login OTP.
+        Invalid account, password, lockout, and status collapse to
+        `invalid_credentials`.
       parameters:
         - $ref: "#/components/parameters/CPOAppIDHeader"
       requestBody:
@@ -329,7 +329,7 @@ paths:
       operationId: rotateCustomerRefreshToken
       summary: Rotate a customer refresh token
       description: |
-        Accepts the current opaque token once, revalidates user, customer, CPO,
+        Accepts the current opaque token once, revalidates customer, CPO,
         session, and app-ID state, and atomically returns a replacement.
         Consumed-token reuse revokes the complete customer session.
       parameters:
@@ -439,10 +439,11 @@ paths:
     post:
       tags: [App User Authentication]
       operationId: resetCustomerPassword
-      summary: Consume a customer reset OTP and replace the global password
+      summary: Consume a customer reset OTP and replace its CPO-local password
       description: |
         Uses the recovery ID and code delivered to the eligible recipient by
-        email. Success revokes every session for the global identity.
+        email. Success revokes every session and invalidates every other
+        unconsumed auth challenge for only this CPO customer account.
       parameters:
         - $ref: "#/components/parameters/CPOAppIDHeader"
       requestBody:
@@ -453,7 +454,7 @@ paths:
               $ref: "#/components/schemas/ResetPasswordRequest"
       responses:
         "200":
-          description: Password replaced and every identity session revoked.
+          description: Password replaced and every session for this CPO customer revoked.
           content:
             application/json:
               schema:
@@ -477,9 +478,9 @@ paths:
       operationId: getCurrentCustomer
       summary: Get the current app-user bootstrap payload
       description: |
-        Returns the validated global identity, CPO customer relationship, CPO
-        application identity, and customer wallet. Backend handlers obtain the
-        same trusted IDs through the `customerauth.Current*` helpers.
+        Returns the validated CPO-local account projection, customer state, CPO
+        application identity, and customer wallet. `user.id` and `customer.id`
+        are the same CPO-local customer UUID; no global users row is involved.
       security:
         - BearerAuth: []
       parameters:
@@ -608,8 +609,8 @@ paths:
     post:
       tags: [App User Authentication]
       operationId: changeCustomerPassword
-      summary: Change the global identity password
-      description: Success revokes every session for the identity in every plane.
+      summary: Change this CPO-local customer password
+      description: Success revokes every session and invalidates outstanding auth challenges for only this CPO customer account.
       security:
         - BearerAuth: []
       parameters:
@@ -622,7 +623,7 @@ paths:
               $ref: "#/components/schemas/ChangePasswordRequest"
       responses:
         "200":
-          description: Password changed and every identity session revoked.
+          description: Password changed and every session for this CPO customer revoked.
           content:
             application/json:
               schema:
@@ -2291,11 +2292,11 @@ paths:
     get:
       tags: [CPO Operations]
       operationId: getCPOUser
-      summary: Read one user registered to the authenticated CPO
+      summary: Read one staff identity registered to the authenticated CPO
       description: |
-        Returns the basic identity and relationship fields only when the user is
-        linked to the trusted CPO through a membership or customer record. This
-        is a point lookup, not a staff or customer directory; the caller cannot
+        Returns basic identity and membership fields only when the user has a
+        staff membership in the trusted CPO. Customer accounts are separate and
+        cannot be read here. This is a point lookup, not a staff directory; the caller cannot
         select another tenant and an unlinked ID receives the same not-found
         response as an unknown ID.
       security:
@@ -3905,7 +3906,11 @@ components:
       properties:
         cpos: {type: object, additionalProperties: {type: integer, format: int64, minimum: 0}}
         active_platform_admins: {type: integer, format: int64, minimum: 0}
-        active_sessions: {type: integer, format: int64, minimum: 0}
+        active_sessions:
+          type: integer
+          format: int64
+          minimum: 0
+          description: Active administrative plus CPO-local customer sessions.
         mail: {type: object, additionalProperties: {type: integer, format: int64, minimum: 0}}
         workers: {type: array, items: {$ref: "#/components/schemas/WorkerStatus"}}
     StatusResponse:
@@ -4126,16 +4131,10 @@ components:
       additionalProperties: false
       required:
         - customer_id
-        - user_id
         - cpo_id
         - wallet_id
-        - identity_created
-        - use_existing_credentials
       properties:
         customer_id:
-          type: string
-          format: uuid
-        user_id:
           type: string
           format: uuid
         cpo_id:
@@ -4144,14 +4143,6 @@ components:
         wallet_id:
           type: string
           format: uuid
-        identity_created:
-          type: boolean
-        use_existing_credentials:
-          type: boolean
-          description: |
-            True when the email already owned a global identity. The submitted
-            signup password was discarded and the customer must use their
-            existing credentials during customer login.
 
     CustomerLoginRequest:
       type: object
@@ -4222,6 +4213,9 @@ components:
 
     CustomerUser:
       type: object
+      description: |
+        Compatibility-shaped app account projection. `id` is the CPO-local
+        customer account ID and equals `customer.id`; it is not a global user ID.
       additionalProperties: false
       required: [id, email, full_name, is_verified]
       properties:
@@ -5218,7 +5212,7 @@ components:
     CPOUser:
       type: object
       additionalProperties: false
-      required: [id, cpo_id, email, full_name, is_active, is_verified, created_at, updated_at]
+      required: [id, cpo_id, email, full_name, is_active, is_verified, role, membership_status, created_at, updated_at]
       properties:
         id: {type: string, format: uuid}
         cpo_id: {type: string, format: uuid}
@@ -5232,9 +5226,6 @@ components:
           enum: [OWNER, ADMIN, OPERATOR, VIEWER]
           description: Persisted membership role; only ADMIN is currently callable.
         membership_status:
-          type: string
-          enum: [ACTIVE, SUSPENDED, REVOKED]
-        customer_status:
           type: string
           enum: [ACTIVE, SUSPENDED, REVOKED]
         created_at: {type: string, format: date-time}

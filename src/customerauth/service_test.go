@@ -27,17 +27,17 @@ func TestNormalizePhone(t *testing.T) {
 func TestAuthChallengeOTPPayloadIncludesRecoveryIDOnlyForPasswordReset(t *testing.T) {
 	t.Parallel()
 
-	user := models.User{FullName: "Customer Recovery Recipient"}
-	reset := models.AuthChallenge{
+	customer := models.Customer{FullName: "Customer Recovery Recipient"}
+	reset := models.CustomerAuthChallenge{
 		ID: uuid.New(), Purpose: constants.ChallengeCustomerReset,
 	}
-	resetPayload := authChallengeOTPPayload(user, reset, "123456")
+	resetPayload := authChallengeOTPPayload(customer, reset, "123456")
 	if resetPayload.ChallengeID != reset.ID.String() || resetPayload.Code != "123456" {
 		t.Fatalf("unexpected customer reset payload: %#v", resetPayload)
 	}
 
-	login := models.AuthChallenge{ID: uuid.New(), Purpose: constants.ChallengeCustomerLogin}
-	if payload := authChallengeOTPPayload(user, login, "654321"); payload.ChallengeID != "" {
+	login := models.CustomerAuthChallenge{ID: uuid.New(), Purpose: constants.ChallengeCustomerLogin}
+	if payload := authChallengeOTPPayload(customer, login, "654321"); payload.ChallengeID != "" {
 		t.Fatalf("customer login payload exposed an unnecessary recovery ID: %#v", payload)
 	}
 }
@@ -45,11 +45,10 @@ func TestAuthChallengeOTPPayloadIncludesRecoveryIDOnlyForPasswordReset(t *testin
 func TestCustomerPrincipalHelpersAndAppIDGuard(t *testing.T) {
 	t.Parallel()
 	gin.SetMode(gin.TestMode)
-	userID := uuid.New()
 	customerID := uuid.New()
 	cpoID := uuid.New()
 	principal := Principal{
-		UserID: userID, CustomerID: customerID, CPOID: cpoID,
+		UserID: customerID, CustomerID: customerID, CPOID: cpoID,
 		CPOAppID: "cpo_dummy_1234567890abcdef",
 	}
 	recorder := httptest.NewRecorder()
@@ -58,7 +57,7 @@ func TestCustomerPrincipalHelpersAndAppIDGuard(t *testing.T) {
 	context.Request.Header.Set(CPOAppIDHeader, principal.CPOAppID)
 	context.Set(principalContextKey, principal)
 
-	if got, ok := CurrentUserID(context); !ok || got != userID {
+	if got, ok := CurrentUserID(context); !ok || got != customerID {
 		t.Fatalf("CurrentUserID=(%v,%v)", got, ok)
 	}
 	if got, ok := CurrentCustomerID(context); !ok || got != customerID {

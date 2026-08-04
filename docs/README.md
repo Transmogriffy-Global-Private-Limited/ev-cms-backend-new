@@ -15,6 +15,7 @@ This directory is the durable project memory for the EV CMS backend.
 | Complete SuperAdmin frontend integration handoff | `SUPERADMIN_FRONTEND_HANDOFF.md` |
 | Manual platform subscription semantics | `contracts/api/manual-subscriptions.md` |
 | CPO backend AI-agent orientation and execution | `CPO_BACKEND_AGENT_HANDOFF.md` |
+| Complete User App frontend authentication handoff | `USERAPP_FE_HANDOFF.md` |
 | Complete superadmin architecture and boundaries | `guides/concepts/superadmin-control-plane.md` |
 | Platform realtime event contract | `contracts/realtime/platform-events.md` |
 | HTTP request-log schema and safety boundary | `contracts/internal/http-request-logging.md` |
@@ -23,6 +24,7 @@ This directory is the durable project memory for the EV CMS backend.
 | Safe HTTP request observability decision | `decisions/0011-safe-http-request-observability.md` |
 | CPO organization read, admin profile, and network configuration | `guides/workflows/cpo-admin-network-configuration.md` |
 | Approved customer-app experience sequence | `plans/customer-app-experience.md` |
+| CPO-scoped customer-account decision | `decisions/0013-cpo-scoped-customer-accounts.md` |
 | Architectural decisions | `decisions/` |
 | Detailed approved plans | `plans/` |
 | Learning and operational workflows | `guides/` |

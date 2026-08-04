@@ -1,13 +1,13 @@
 # Customer App Experience Plan
 
-Status: Approved — implementation not started
+Status: In Progress — CPO-scoped customer accounts implemented; DB lifecycle pending
 
 ## Objective
 
 Build the complete customer-facing CMS surface in dependency order, without
 duplicating CPO administration and without implying that CMS data is live OCPP
-truth. The app user is a global login identity with one tenant-scoped customer
-relationship per CPO. Every customer API is scoped to that relationship.
+truth. The app user is a CPO-scoped customer account. Every customer API is
+scoped to that account and its CPO.
 
 The CPO ADMIN team owns network configuration. This work consumes published
 CPO-owned network/pricing data through customer-safe read models; it does not
@@ -22,7 +22,7 @@ Implemented customer routes are confined to `/api/v1/app/auth`:
 - rotating refresh tokens;
 - `me` bootstrap;
 - customer-scoped session list/revoke/logout;
-- global password recovery, reset, and change.
+- CPO-local password recovery, reset, and change.
 
 There is no customer profile mutation, station discovery, favorites, tariff
 quote, charging-session, wallet-ledger, payment, notification, or reporting
@@ -37,9 +37,10 @@ API today. Existing tables alone do not imply that those APIs exist.
   client-provided customer ID.
 - Every app request carries the current `X-CPO-App-ID`. It must match the
   authenticated customer principal where a bearer token is present.
-- Global identity data is distinct from tenant customer data. Full name and
-  phone are global; customer status, group, wallet, favorites, sessions, and
-  future charging data are CPO-scoped.
+- Customer email, password, full name, phone, verification, lockout, recovery,
+  sessions, and future charging data are CPO-scoped; they are not global staff
+  identity data. The same email/password combination is allowed under separate
+  CPOs and later credential changes stay in that one CPO account.
 - Customer APIs never expose CPO integration credentials, internal OCPP
   identity mappings, audit internals, other customers, or staff data.
 - Static CMS inventory is not live charger availability. HAL-backed status,
@@ -53,7 +54,8 @@ API today. Existing tables alone do not imply that those APIs exist.
 ## Dependency Map
 
 ```text
-Self-service identity profile
+Customer-account identity migration
+  -> self-service identity profile
   -> published network read model
   -> favorites
   -> tariff resolver and price display
@@ -64,19 +66,30 @@ Self-service identity profile
 ```
 
 The CPO team is an input to the published-network and pricing slices only.
-Customer self-service profile is independent and starts first.
+The customer-account migration starts first.
 
-## Slice 1 — Customer Self-Service Profile
+## Slice 1 — CPO-Scoped Customer Account Migration
+
+Status: Implemented; PostgreSQL lifecycle verification pending
+
+Migration twenty adds the CPO-owned account fields and customer-only
+challenge/session/refresh lineage. Signup, login, recovery, password mutation,
+tokens, principal helpers, audit attribution, session management, refresh
+reuse detection, and CPO-suspension revocation now use it. With no existing
+customers, migration preflight fails rather than silently rewriting data if
+the deployment assumption changes. Profile mutation remains Slice 2.
+
+## Slice 2 — Customer Self-Service Profile
 
 ### Goal
 
-Let a signed-in customer update their global display identity safely, using the
-existing customer principal and current `X-CPO-App-ID` request contract.
+Let a signed-in customer update their CPO-scoped account display identity using
+the customer principal and current `X-CPO-App-ID` request contract.
 
 ### Endpoints
 
 - Keep `GET /api/v1/app/auth/me` as the authoritative bootstrap response.
-- Add `PATCH /api/v1/app/profile` with only:
+- Add `PATCH /api/v1/app/auth/profile` with only:
 
 ```json
 {"full_name":"Asha Das","phone":"+919876543210"}
@@ -87,14 +100,14 @@ existing customer principal and current `X-CPO-App-ID` request contract.
 - `full_name` is required, trimmed, and bounded to 255 characters.
 - `phone` is optional; when supplied it uses the existing normalized 7–15 digit
   format. An explicit JSON `null` clears it.
-- Email is not editable here. It is the global login identifier and requires a
-  separate verified/re-authenticated flow.
+- Email is not editable here. It is the CPO-account login identifier and
+  requires a separate verified/re-authenticated flow.
 - Password remains owned by the existing password endpoints.
 - The route may not mutate customer status, group, wallet, CPO, sessions, or
   any identifier.
-- The global identity update is visible to that identity in every CPO. A
-  CPO-scoped audit record records the actor, customer CPO, changed field names,
-  and no old/new PII values.
+- The update is visible only in this CPO account. A CPO-scoped audit record
+  records the actor, customer CPO, changed field names, and no old/new PII
+  values.
 
 ### Acceptance and Verification
 
@@ -104,7 +117,7 @@ existing customer principal and current `X-CPO-App-ID` request contract.
 - Add handler/service tests, PostgreSQL lifecycle proof, route/OpenAPI parity,
   exhaustive contract and FE workflow updates.
 
-## Slice 2 — Published Customer Network Read Model
+## Slice 3 — Published Customer Network Read Model
 
 ### Goal
 
@@ -153,7 +166,7 @@ Until HAL integration, the response explicitly uses
 - CPO publication lifecycle PostgreSQL test jointly owned with its CPO slice.
 - App-route auth/header/OpenAPI and human/FE contract coverage.
 
-## Slice 3 — Customer Favorites
+## Slice 4 — Customer Favorites
 
 ### Goal
 
@@ -175,7 +188,7 @@ safe discovery projection, so a later-unpublished station is not leaked.
 Prove composite tenant ownership, duplicate-safe behavior, unpublish behavior,
 cross-CPO UUID non-disclosure, and pagination where lists can grow.
 
-## Slice 4 — Effective Tariff Resolver and Customer Price Display
+## Slice 5 — Effective Tariff Resolver and Customer Price Display
 
 ### Goal
 
@@ -215,7 +228,7 @@ remains independently cacheable and its server-calculated semantics are clear.
 Do not activate group-specific access/price behavior until the CPO team has an
 approved customer/group management API. Generic tariffs can be supported first.
 
-## Slice 5 — Customer Access Credentials and Group Policy
+## Slice 6 — Customer Access Credentials and Group Policy
 
 ### Goal
 
@@ -233,7 +246,7 @@ surface.
 
 This is not created from existing `user_groups` tables alone.
 
-## Slice 6 — CMS/HAL Charging Lifecycle
+## Slice 7 — CMS/HAL Charging Lifecycle
 
 ### Goal
 
@@ -256,7 +269,7 @@ The customer app may show `STARTING`, `ACTIVE`, `STOPPING`, or `FAILED` only
 after durable CMS state supports those states. WebSocket/SSE is an optimization;
 the charging-session REST detail remains authoritative.
 
-## Slice 7 — Wallet, Billing, History, and Receipts
+## Slice 8 — Wallet, Billing, History, and Receipts
 
 ### Goal
 
@@ -276,7 +289,7 @@ No balance mutation is trusted from the frontend. Ledger writes, session charge
 finalization, and payment settlement need idempotency and transactional audit
 evidence.
 
-## Slice 8 — Customer Notifications and Realtime Refinement
+## Slice 9 — Customer Notifications and Realtime Refinement
 
 After durable session and billing events exist, add CPO-scoped customer inbox
 notifications and optional realtime invalidations for session, wallet, and

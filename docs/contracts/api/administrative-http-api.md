@@ -220,7 +220,7 @@ Validation and normalization:
 
 The transaction stores the proposed profile and an Argon2id password hash,
 never the plaintext password, and queues an encrypted `CUSTOMER_SIGNUP_OTP`
-mail job. It deliberately does not create a `users` row yet. Consumed,
+mail job. It deliberately does not create a `customers` row yet. Consumed,
 attempt-exhausted, and resend-invalidated challenges scrub their obsolete
 password-hash copy.
 
@@ -250,11 +250,8 @@ Request:
 ```json
 {
   "customer_id": "e8a751ff-d7d4-4ce8-ab30-cdd8c8111363",
-  "user_id": "cf3eb59a-e766-47e7-98d6-af27b49bf129",
   "cpo_id": "c821a013-5041-42f7-80c8-aa153cf9d455",
-  "wallet_id": "5bd431a7-63f0-4df7-a2f5-1b55112df560",
-  "identity_created": true,
-  "use_existing_credentials": false
+  "wallet_id": "5bd431a7-63f0-4df7-a2f5-1b55112df560"
 }
 ```
 
@@ -262,26 +259,25 @@ The server locks the challenge, revalidates the same active CPO/app ID, checks
 the single-use OTP and attempt/expiry limits, and serializes work for the
 normalized email. One transaction then:
 
-1. creates an active, verified global identity from the pending profile and
-   password hash; or reuses an existing active global identity;
-2. creates the CPO-scoped `customers` relationship;
-3. creates its zero-balance `INR` wallet;
-4. consumes the challenge;
-5. writes a tenant audit event.
+1. creates the active, verified CPO-local `customers` account from the pending
+   credentials and profile;
+2. creates its zero-balance `INR` wallet;
+3. consumes the challenge and scrubs its password-hash copy;
+4. writes a tenant audit event.
 
-For an existing identity, the submitted password, full name, and phone are
-discarded. The existing password/profile remain authoritative, and the
-response has `identity_created:false` and
-`use_existing_credentials:true`.
+Uniqueness is `(cpo_id, normalized email)`. The same email may create a wholly
+independent account under another CPO with the same or a different password;
+later profile, password, lockout, challenge, and session changes never cross
+that boundary.
 
 Errors:
 
 - `400 invalid_request` or `missing_cpo_app_id`;
 - `401 invalid_challenge` for bad, expired, consumed, invalidated, exhausted,
   or cross-CPO challenge/code;
-- `403 signup_unavailable` if the CPO or an existing identity is inactive;
-- `409 customer_already_registered` after verified ownership when the identity
-  is already this CPO's customer;
+- `403 signup_unavailable` if the CPO app identity is unavailable;
+- `409 customer_already_registered` when the normalized email is already an
+  account under this CPO;
 - `429 rate_limited`;
 - `500 internal_error`.
 
@@ -316,10 +312,9 @@ Request:
 ```
 
 Requires the current `X-CPO-App-ID`. The server resolves that active CPO,
-verifies the global identity password and lockout state, and requires an
-`ACTIVE` customer relationship in that same CPO. Invalid email, password,
-identity state, lockout, customer status, and missing customer relationship
-share `401 invalid_credentials`.
+verifies the password, lockout state, and `ACTIVE` status of the customer
+account found by `(CPO, normalized email)`. Invalid email, password, lockout,
+status, and missing account share `401 invalid_credentials`.
 
 `202 Accepted` returns `ChallengeResponse` and queues encrypted
 `CUSTOMER_LOGIN_OTP` mail. No session exists yet.
@@ -339,9 +334,9 @@ Request:
 }
 ```
 
-The challenge, global identity, active customer relationship, active CPO, and
+The challenge, active CPO-local customer account, active CPO, and
 same current app ID are revalidated transactionally. Success consumes the OTP,
-creates a durable `CUSTOMER` session tied to `customer_id` and `cpo_id`, stores
+creates a durable customer session tied to `customer_id` and `cpo_id`, stores
 one hashed refresh token, and returns:
 
 ```json
@@ -368,7 +363,7 @@ Errors: `400 invalid_request` or `missing_cpo_app_id`,
 Body: `{"challenge_id":"<uuid>"}`.
 
 After the cooldown, `202 Accepted` invalidates the old login challenge and
-returns a replacement `ChallengeResponse`. It revalidates the identity,
+returns a replacement `ChallengeResponse`. It revalidates the CPO-local
 customer, CPO, and app ID. The old OTP cannot be used.
 
 Errors: `400 invalid_request` or `missing_cpo_app_id`,
@@ -388,7 +383,7 @@ token response as login verification and atomically replaces the refresh
 token. The client must discard the submitted token. Reuse of a consumed token
 revokes that entire customer session.
 
-Every refresh revalidates the active user, customer relationship, CPO,
+Every refresh revalidates the active customer account, CPO,
 customer-bound session, and current app ID.
 
 Errors: `400 invalid_request` or `missing_cpo_app_id`,
@@ -403,7 +398,7 @@ Requires bearer customer access token plus matching `X-CPO-App-ID`.
 ```json
 {
   "user": {
-    "id": "cf3eb59a-e766-47e7-98d6-af27b49bf129",
+    "id": "e8a751ff-d7d4-4ce8-ab30-cdd8c8111363",
     "email": "driver@example.com",
     "full_name": "Example Driver",
     "phone": "+919876543210",
@@ -431,6 +426,9 @@ Requires bearer customer access token plus matching `X-CPO-App-ID`.
 
 Optional `phone`, `last_login_at`, and `user_group_id` are omitted when absent.
 Money is an exact decimal string, not a JSON float.
+The `user` key is retained for frontend compatibility, but it is a projection
+of the same CPO-local account: `user.id` always equals `customer.id` and does
+not identify a row in the administrative `users` table.
 
 Errors: `400 missing_cpo_app_id`, `401 unauthorized`,
 `403 cpo_app_id_mismatch`, or `500 internal_error`.
@@ -442,16 +440,17 @@ backend app handlers use:
 
 ```go
 principal, ok := customerauth.CurrentPrincipal(ctx)
-userID, ok := customerauth.CurrentUserID(ctx)
 customerID, ok := customerauth.CurrentCustomerID(ctx)
 cpoID, ok := customerauth.CurrentCPOID(ctx)
 appID, ok := customerauth.CurrentCPOAppID(ctx)
 ```
 
-`Principal` already contains the trusted user, customer, CPO, wallet, and
+`Principal` already contains the trusted account, customer, CPO, wallet, and
 session context used by the `me` response. These values come from the encrypted
 token plus authoritative PostgreSQL revalidation. An app handler must not take
 `customer_id` or `cpo_id` from its request body to establish ownership.
+`CurrentUserID` remains as a source-compatibility alias and returns the exact
+same value as `CurrentCustomerID`; new app code should use `CurrentCustomerID`.
 
 ### 4.10 `GET /api/v1/app/auth/sessions`
 
@@ -544,9 +543,11 @@ Returns a replacement `ChallengeResponse` after cooldown.
 }
 ```
 
-Success returns `200 OK`, replaces the global identity password, clears
-lockout/temporary-password state, and revokes every platform, CPO-staff, and
-customer session for that global identity.
+Success returns `200 OK`, replaces this CPO-local customer password, clears its
+lockout state, and revokes every customer session for this exact
+`(cpo_id, customer_id)` account. Administrative and other-CPO accounts are
+untouched. Any other unconsumed login/reset challenge for this account is also
+invalidated so a pre-change OTP cannot create a post-change session.
 
 ### 4.16 `POST /api/v1/app/auth/password/change`
 
@@ -559,8 +560,9 @@ Requires customer bearer token and matching app ID.
 }
 ```
 
-Success returns `200 OK` and revokes every session for the global identity,
-including the current customer session. Errors include
+Success returns `200 OK` and revokes every session for this CPO-local customer,
+including the current session, and invalidates every outstanding login/reset
+challenge for that account. Errors include
 `400 invalid_password`, `400 password_reused`,
 `401 invalid_current_password`, normal bearer/app-ID errors, and
 `500 internal_error`.
@@ -1475,16 +1477,16 @@ Shared middleware errors:
 
 ### 9.4 `GET /api/v1/cpo/users/{user_id}`
 
-Returns a single basic identity projection only when the UUID is linked to the
-authenticated CPO through a membership or a customer record. This is a point
-lookup, not a CPO staff or customer-directory API. The trusted CPO scope comes
+Returns a single basic administrative identity projection only when the UUID
+has a staff membership in the authenticated CPO. Customer accounts are
+separate and cannot be read through this route. This is a point lookup, not a
+CPO staff or customer-directory API. The trusted CPO scope comes
 from the verified ADMIN session, and an unlinked UUID returns the same
 `404 user_not_found` response as an unknown UUID.
 
 The response contains `id`, `cpo_id`, `email`, `full_name`, optional `phone`,
-`is_active`, `is_verified`, and timestamps. `role` and `membership_status` are
-present only for a membership; `customer_status` is present only for a customer
-relationship. It never returns credentials, sessions, OTPs, password metadata,
+`is_active`, `is_verified`, timestamps, `role`, and `membership_status`. It
+never returns customer accounts, credentials, sessions, OTPs, password metadata,
 or a list of users. The read has no side effects or audit write.
 
 Errors: `400 invalid_user_id`; shared authentication/authorization errors; or

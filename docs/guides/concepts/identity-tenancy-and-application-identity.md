@@ -8,10 +8,11 @@ answer different authorization questions.
 
 ## Why There Are Three Different Identifiers
 
-The CMS deliberately separates a person, an organization, and an application
-installation:
+The CMS deliberately separates an administrative identity, a customer
+account, an organization, and an application installation:
 
-- A `user` is one global login identity.
+- A `user` is one global administrative login identity for platform/CPO staff.
+- A `customer` is one app account owned by one CPO.
 - A `CPO` is a tenant organization that buys and operates the CMS.
 - A CPO `app_id` identifies the CPO's current client application deployment.
 
@@ -21,12 +22,13 @@ These values answer different questions and are not interchangeable.
 
 | Concept | Durable source | Meaning | Not equivalent to |
 |---|---|---|---|
-| User | `users` | One global login identity | CPO, role, customer |
+| User | `users` | One global administrative identity | CPO, role, customer |
 | Platform admin | `platform_admins` | Platform control-plane authority | Tenant-data access |
 | CPO | `cpos` | Tenant organization boundary | App ID or user |
 | Membership | `cpo_memberships` | Staff role inside one CPO | Customer relationship |
-| Customer | `customers` | Consumer relationship inside one CPO | Staff membership |
-| Session | `auth_sessions` | Revocable browser/device authority | Access token alone |
+| Customer | `customers` | Credential-owning app account inside one CPO | Staff identity or membership |
+| Administrative session | `auth_sessions` | Revocable platform/CPO staff authority | Access token alone |
+| Customer session | `customer_auth_sessions` | Revocable authority for one CPO-local customer | Staff session |
 | App ID | `cpos.app_id` | Current client deployment identity | Secret or tenant selector |
 
 ## Authorization Planes
@@ -44,6 +46,11 @@ PLATFORM session ----> platform control-plane APIs
         or
 CPO session ----------> one CPO, one fixed membership role
 ```
+
+An app customer instead authenticates the `(CPO, normalized email)` account.
+Its encrypted access-token subject is `customer_id`, and its challenge/session/
+refresh lineage is stored separately. A same-email customer under another CPO
+is a different account.
 
 Platform authority does not silently grant access to tenant provider secrets
 or business records. CPO authority comes from the validated session and current
@@ -69,7 +76,8 @@ and authentication accepts only active `ADMIN` membership for the CPO plane.
 
 OTP verification creates a durable session, a short-lived encrypted access
 token, and a one-time opaque refresh token. Only the refresh-token hash is
-stored. A session selects exactly one platform or CPO authority.
+stored. Administrative sessions select platform/CPO authority; customer
+sessions select one CPO-local customer account.
 
 The access token is not standalone truth. Every protected request decrypts and
 verifies it, loads its session, confirms the token/session scope agrees, and

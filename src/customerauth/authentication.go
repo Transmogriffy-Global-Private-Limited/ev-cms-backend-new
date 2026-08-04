@@ -26,30 +26,13 @@ const (
 )
 
 var (
-	errInvalidCredentials = &APIError{
-		http.StatusUnauthorized, "invalid_credentials",
-		"The supplied credentials are invalid.",
-	}
-	errInvalidRefresh = &APIError{
-		http.StatusUnauthorized, "invalid_refresh_token",
-		"The refresh token is invalid.",
-	}
-	errUnauthorized = &APIError{
-		http.StatusUnauthorized, "unauthorized",
-		"Customer authentication is required.",
-	}
-	errForbidden = &APIError{
-		http.StatusForbidden, "forbidden",
-		"This customer session cannot access the operation.",
-	}
+	errInvalidCredentials = &APIError{http.StatusUnauthorized, "invalid_credentials", "The supplied credentials are invalid."}
+	errInvalidRefresh     = &APIError{http.StatusUnauthorized, "invalid_refresh_token", "The refresh token is invalid."}
+	errUnauthorized       = &APIError{http.StatusUnauthorized, "unauthorized", "Customer authentication is required."}
+	errForbidden          = &APIError{http.StatusForbidden, "forbidden", "This customer session cannot access the operation."}
 )
 
-func (service *Service) Login(
-	ctx context.Context,
-	appID string,
-	request LoginRequest,
-	metadata RequestMetadata,
-) (ChallengeResponse, error) {
+func (service *Service) Login(ctx context.Context, appID string, request LoginRequest, metadata RequestMetadata) (ChallengeResponse, error) {
 	appID = strings.TrimSpace(appID)
 	email := strings.ToLower(strings.TrimSpace(request.Email))
 	if appID == "" {
@@ -65,64 +48,42 @@ func (service *Service) Login(
 		return ChallengeResponse{}, err
 	}
 
-	var cpo models.CPO
-	var user models.User
-	var customer models.Customer
-	query := service.database.WithContext(ctx)
-	var err error
-	if cpo, err = activeCPO(query, appID); err != nil {
+	cpo, err := activeCPO(service.database.WithContext(ctx), appID)
+	if err != nil {
 		return ChallengeResponse{}, err
 	}
-	findUser := query.Where("lower(btrim(email)) = ?", email).First(&user)
+	var customer models.Customer
+	find := service.database.WithContext(ctx).Where(
+		"cpo_id = ? AND lower(btrim(email)) = ?", cpo.ID, email,
+	).First(&customer)
 	hash := service.dummyHash
-	if findUser.Error == nil {
-		hash = user.PasswordHash
-	} else if !errors.Is(findUser.Error, gorm.ErrRecordNotFound) {
-		return ChallengeResponse{}, fmt.Errorf("find customer login identity: %w", findUser.Error)
+	if find.Error == nil {
+		hash = customer.PasswordHash
+	} else if !errors.Is(find.Error, gorm.ErrRecordNotFound) {
+		return ChallengeResponse{}, fmt.Errorf("find CPO customer account: %w", find.Error)
 	}
 	matches, verifyErr := security.VerifyPassword(request.Password, hash)
 	if verifyErr != nil {
-		return ChallengeResponse{}, fmt.Errorf("verify customer login password: %w", verifyErr)
+		return ChallengeResponse{}, fmt.Errorf("verify customer password: %w", verifyErr)
 	}
 	now := service.now()
-	if findUser.Error != nil || !matches || !user.IsActive ||
-		(user.LockedUntil != nil && user.LockedUntil.After(now)) {
-		if findUser.Error == nil && !matches {
-			if err := service.recordFailedLogin(ctx, user.ID, now); err != nil {
+	if find.Error != nil || !matches || customer.Status != constants.CustomerStatusActive ||
+		(customer.LockedUntil != nil && customer.LockedUntil.After(now)) {
+		if find.Error == nil && !matches {
+			if err := service.recordFailedLogin(ctx, customer.ID, now); err != nil {
 				return ChallengeResponse{}, err
 			}
 		}
 		return ChallengeResponse{}, errInvalidCredentials
 	}
-	if err := query.Where(
-		"cpo_id = ? AND user_id = ? AND status = ?",
-		cpo.ID, user.ID, constants.CustomerStatusActive,
-	).First(&customer).Error; err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return ChallengeResponse{}, errInvalidCredentials
-		}
-		return ChallengeResponse{}, fmt.Errorf("resolve customer login relationship: %w", err)
-	}
-	if err := query.Model(&models.User{}).Where("id = ?", user.ID).
-		Updates(map[string]any{
-			"failed_login_attempts": 0,
-			"locked_until":          nil,
-			"updated_at":            now,
-		}).Error; err != nil {
+	if err := service.database.WithContext(ctx).Model(&models.Customer{}).Where("id = ? AND cpo_id = ?", customer.ID, cpo.ID).
+		Updates(map[string]any{"failed_login_attempts": 0, "locked_until": nil, "updated_at": now}).Error; err != nil {
 		return ChallengeResponse{}, fmt.Errorf("reset customer failed-login state: %w", err)
 	}
-	return service.createAuthChallenge(
-		ctx, user, cpo.ID, constants.ChallengeCustomerLogin,
-		metadata, customerLoginMailTemplate,
-	)
+	return service.createAuthChallenge(ctx, customer, constants.ChallengeCustomerLogin, metadata, customerLoginMailTemplate)
 }
 
-func (service *Service) VerifyLogin(
-	ctx context.Context,
-	appID string,
-	request ChallengeRequest,
-	metadata RequestMetadata,
-) (TokenResponse, error) {
+func (service *Service) VerifyLogin(ctx context.Context, appID string, request ChallengeRequest, metadata RequestMetadata) (TokenResponse, error) {
 	if strings.TrimSpace(appID) == "" {
 		return TokenResponse{}, missingAppIDError()
 	}
@@ -135,14 +96,12 @@ func (service *Service) VerifyLogin(
 	var response TokenResponse
 	var outcome error
 	err := service.database.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		challenge, user, err := service.lockAuthChallenge(
-			tx, request.ChallengeID, constants.ChallengeCustomerLogin,
-		)
+		challenge, customer, err := service.lockAuthChallenge(tx, request.ChallengeID, constants.ChallengeCustomerLogin)
 		if err != nil {
 			outcome = err
 			return nil
 		}
-		context, err := service.loadCustomerContext(tx, user.ID, challenge.CPOID)
+		context, err := service.loadCustomerContext(tx, customer.ID, customer.CPOID, false)
 		if err != nil || context.CPO.AppID != strings.TrimSpace(appID) {
 			outcome = errInvalidChallenge
 			return nil
@@ -159,8 +118,7 @@ func (service *Service) VerifyLogin(
 			outcome = errInvalidChallenge
 			return nil
 		}
-		if err := tx.Model(&models.AuthChallenge{}).
-			Where("id = ? AND consumed_at IS NULL", challenge.ID).
+		if err := tx.Model(&models.CustomerAuthChallenge{}).Where("id = ? AND consumed_at IS NULL", challenge.ID).
 			Update("consumed_at", now).Error; err != nil {
 			return fmt.Errorf("consume customer login challenge: %w", err)
 		}
@@ -176,25 +134,13 @@ func (service *Service) VerifyLogin(
 	return response, nil
 }
 
-func (service *Service) ResendLogin(
-	ctx context.Context,
-	appID string,
-	request ResendRequest,
-	metadata RequestMetadata,
-) (ChallengeResponse, error) {
-	return service.resendAuthChallenge(
-		ctx, appID, request, metadata,
-		constants.ChallengeCustomerLogin, customerLoginMailTemplate,
-	)
+func (service *Service) ResendLogin(ctx context.Context, appID string, request ResendRequest, metadata RequestMetadata) (ChallengeResponse, error) {
+	return service.resendAuthChallenge(ctx, appID, request, metadata, constants.ChallengeCustomerLogin, customerLoginMailTemplate)
 }
 
-func (service *Service) Refresh(
-	ctx context.Context,
-	appID string,
-	request RefreshRequest,
-	metadata RequestMetadata,
-) (TokenResponse, error) {
-	if strings.TrimSpace(appID) == "" {
+func (service *Service) Refresh(ctx context.Context, appID string, request RefreshRequest, metadata RequestMetadata) (TokenResponse, error) {
+	appID = strings.TrimSpace(appID)
+	if appID == "" {
 		return TokenResponse{}, missingAppIDError()
 	}
 	if request.RefreshToken == "" || len(request.RefreshToken) > 256 {
@@ -207,19 +153,16 @@ func (service *Service) Refresh(
 	var response TokenResponse
 	var outcome error
 	err := service.database.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		var current models.AuthRefreshToken
-		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
-			Where("token_hash = ?", hashRefreshToken(request.RefreshToken)).
-			First(&current).Error; err != nil {
+		var current models.CustomerAuthRefreshToken
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("token_hash = ?", hashRefreshToken(request.RefreshToken)).First(&current).Error; err != nil {
 			if errors.Is(err, gorm.ErrRecordNotFound) {
 				outcome = errInvalidRefresh
 				return nil
 			}
 			return fmt.Errorf("lock customer refresh token: %w", err)
 		}
-		var session models.AuthSession
-		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
-			First(&session, "id = ?", current.SessionID).Error; err != nil {
+		var session models.CustomerAuthSession
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&session, "id = ?", current.SessionID).Error; err != nil {
 			return fmt.Errorf("load customer refresh session: %w", err)
 		}
 		now := service.now()
@@ -230,22 +173,19 @@ func (service *Service) Refresh(
 			outcome = errInvalidRefresh
 			return nil
 		}
-		if current.RevokedAt != nil || !now.Before(current.ExpiresAt) ||
-			session.RevokedAt != nil || !now.Before(session.ExpiresAt) ||
-			session.Scope != constants.AuthScopeCustomer ||
-			session.CPOID == nil || session.CustomerID == nil {
+		if current.RevokedAt != nil || !now.Before(current.ExpiresAt) || session.RevokedAt != nil || !now.Before(session.ExpiresAt) {
 			outcome = errInvalidRefresh
 			return nil
 		}
-		customerContext, err := service.loadCustomerContext(tx, session.UserID, session.CPOID)
-		if err != nil || customerContext.Customer.ID != *session.CustomerID {
+		customerContext, err := service.loadCustomerContext(tx, session.CustomerID, session.CPOID, false)
+		if err != nil {
 			if err := revokeSessionTx(tx, session.ID, "CUSTOMER_AUTHORITY_CHANGED", now); err != nil {
 				return err
 			}
 			outcome = errInvalidRefresh
 			return nil
 		}
-		if customerContext.CPO.AppID != strings.TrimSpace(appID) {
+		if customerContext.CPO.AppID != appID {
 			outcome = errInvalidRefresh
 			return nil
 		}
@@ -253,39 +193,23 @@ func (service *Service) Refresh(
 		if err != nil {
 			return err
 		}
-		replacement := models.AuthRefreshToken{
-			ID: uuid.New(), SessionID: session.ID,
-			TokenHash: hashRefreshToken(replacementToken),
-			ExpiresAt: session.ExpiresAt, CreatedAt: now,
-		}
+		replacement := models.CustomerAuthRefreshToken{ID: uuid.New(), SessionID: session.ID, TokenHash: hashRefreshToken(replacementToken), ExpiresAt: session.ExpiresAt, CreatedAt: now}
 		if err := tx.Create(&replacement).Error; err != nil {
 			return fmt.Errorf("create customer replacement refresh token: %w", err)
 		}
-		if err := tx.Model(&models.AuthRefreshToken{}).
-			Where("id = ? AND used_at IS NULL", current.ID).
-			Updates(map[string]any{
-				"used_at": now, "replacement_id": replacement.ID,
-			}).Error; err != nil {
+		if err := tx.Model(&models.CustomerAuthRefreshToken{}).Where("id = ? AND used_at IS NULL", current.ID).
+			Updates(map[string]any{"used_at": now, "replacement_id": replacement.ID}).Error; err != nil {
 			return fmt.Errorf("rotate customer refresh token: %w", err)
 		}
-		if err := tx.Model(&models.AuthSession{}).Where("id = ?", session.ID).
-			Updates(map[string]any{
-				"last_seen_at": now, "ip_address": metadata.IPAddress,
-				"user_agent": boundedUserAgent(metadata.UserAgent),
-			}).Error; err != nil {
+		if err := tx.Model(&models.CustomerAuthSession{}).Where("id = ?", session.ID).
+			Updates(map[string]any{"last_seen_at": now, "ip_address": metadata.IPAddress, "user_agent": boundedUserAgent(metadata.UserAgent)}).Error; err != nil {
 			return fmt.Errorf("update customer refreshed session: %w", err)
 		}
-		accessToken, accessExpiry, err := service.tokens.Issue(
-			now, session.UserID, session.ID, constants.AuthScopeCustomer,
-			session.CPOID, nil, session.TokenVersion,
-		)
+		accessToken, accessExpiry, err := service.tokens.Issue(now, session.CustomerID, session.ID, constants.AuthScopeCustomer, &session.CPOID, nil, session.TokenVersion)
 		if err != nil {
 			return err
 		}
-		response = tokenResponse(
-			accessToken, accessExpiry, replacementToken, session.ExpiresAt,
-			customerContext,
-		)
+		response = tokenResponse(accessToken, accessExpiry, replacementToken, session.ExpiresAt, customerContext)
 		return nil
 	})
 	if err != nil {
@@ -297,20 +221,11 @@ func (service *Service) Refresh(
 	return response, nil
 }
 
-func (service *Service) createCustomerSession(
-	tx *gorm.DB,
-	customerContext customerContext,
-	metadata RequestMetadata,
-	now time.Time,
-) (TokenResponse, error) {
-	customerID := customerContext.Customer.ID
-	cpoID := customerContext.CPO.ID
-	session := models.AuthSession{
-		ID: uuid.New(), UserID: customerContext.User.ID,
-		Scope: constants.AuthScopeCustomer, CPOID: &cpoID, CustomerID: &customerID,
-		TokenVersion: 1, IPAddress: metadata.IPAddress,
-		UserAgent: boundedUserAgent(metadata.UserAgent), CreatedAt: now,
-		LastSeenAt: now, ExpiresAt: now.Add(service.config.SessionTTL),
+func (service *Service) createCustomerSession(tx *gorm.DB, customerContext customerContext, metadata RequestMetadata, now time.Time) (TokenResponse, error) {
+	session := models.CustomerAuthSession{
+		ID: uuid.New(), CPOID: customerContext.CPO.ID, CustomerID: customerContext.Customer.ID,
+		TokenVersion: 1, IPAddress: metadata.IPAddress, UserAgent: boundedUserAgent(metadata.UserAgent),
+		CreatedAt: now, LastSeenAt: now, ExpiresAt: now.Add(service.config.SessionTTL),
 	}
 	if err := tx.Create(&session).Error; err != nil {
 		return TokenResponse{}, fmt.Errorf("create customer session: %w", err)
@@ -319,138 +234,84 @@ func (service *Service) createCustomerSession(
 	if err != nil {
 		return TokenResponse{}, err
 	}
-	refresh := models.AuthRefreshToken{
-		ID: uuid.New(), SessionID: session.ID, TokenHash: hashRefreshToken(refreshToken),
-		ExpiresAt: session.ExpiresAt, CreatedAt: now,
-	}
+	refresh := models.CustomerAuthRefreshToken{ID: uuid.New(), SessionID: session.ID, TokenHash: hashRefreshToken(refreshToken), ExpiresAt: session.ExpiresAt, CreatedAt: now}
 	if err := tx.Create(&refresh).Error; err != nil {
 		return TokenResponse{}, fmt.Errorf("store customer refresh token: %w", err)
 	}
-	accessToken, accessExpiry, err := service.tokens.Issue(
-		now, customerContext.User.ID, session.ID, constants.AuthScopeCustomer,
-		&cpoID, nil, session.TokenVersion,
-	)
+	accessToken, accessExpiry, err := service.tokens.Issue(now, customerContext.Customer.ID, session.ID, constants.AuthScopeCustomer, &session.CPOID, nil, session.TokenVersion)
 	if err != nil {
 		return TokenResponse{}, err
 	}
-	if err := tx.Model(&models.User{}).Where("id = ?", customerContext.User.ID).
-		Updates(map[string]any{
-			"last_login_at": now, "mfa_enabled": true,
-			"is_verified": true, "updated_at": now,
-		}).Error; err != nil {
+	if err := tx.Model(&models.Customer{}).Where("id = ? AND cpo_id = ?", customerContext.Customer.ID, customerContext.CPO.ID).
+		Updates(map[string]any{"last_login_at": now, "is_verified": true, "updated_at": now}).Error; err != nil {
 		return TokenResponse{}, fmt.Errorf("record customer login: %w", err)
 	}
-	if err := createAudit(
-		tx, customerContext.User.ID, cpoID, "CUSTOMER_LOGIN_SUCCEEDED",
-		"AUTH_SESSION", session.ID, models.JSONB{}, now,
-	); err != nil {
+	if err := createCustomerAudit(tx, customerContext.Customer.ID, customerContext.CPO.ID, "CUSTOMER_LOGIN_SUCCEEDED", "CUSTOMER_AUTH_SESSION", session.ID, models.JSONB{}, now); err != nil {
 		return TokenResponse{}, err
 	}
-	return tokenResponse(
-		accessToken, accessExpiry, refreshToken, session.ExpiresAt, customerContext,
-	), nil
+	customerContext.Customer.LastLoginAt = &now
+	return tokenResponse(accessToken, accessExpiry, refreshToken, session.ExpiresAt, customerContext), nil
 }
 
-func tokenResponse(
-	accessToken string,
-	accessExpiry time.Time,
-	refreshToken string,
-	sessionExpiry time.Time,
-	context customerContext,
-) TokenResponse {
-	return TokenResponse{
-		AccessToken: accessToken, AccessTokenExpiresAt: accessExpiry,
-		RefreshToken: refreshToken, SessionExpiresAt: sessionExpiry,
-		TokenType: "Bearer", CustomerID: context.Customer.ID,
-		CPOID: context.CPO.ID, CPOAppID: context.CPO.AppID,
-	}
+func tokenResponse(accessToken string, accessExpiry time.Time, refreshToken string, sessionExpiry time.Time, context customerContext) TokenResponse {
+	return TokenResponse{AccessToken: accessToken, AccessTokenExpiresAt: accessExpiry, RefreshToken: refreshToken, SessionExpiresAt: sessionExpiry, TokenType: "Bearer", CustomerID: context.Customer.ID, CPOID: context.CPO.ID, CPOAppID: context.CPO.AppID}
 }
 
-func (service *Service) createAuthChallenge(
-	ctx context.Context,
-	user models.User,
-	cpoID uuid.UUID,
-	purpose constants.AuthChallengePurpose,
-	metadata RequestMetadata,
-	template string,
-) (ChallengeResponse, error) {
+func (service *Service) createAuthChallenge(ctx context.Context, customer models.Customer, purpose constants.AuthChallengePurpose, metadata RequestMetadata, template string) (ChallengeResponse, error) {
 	var response ChallengeResponse
 	err := service.database.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		var err error
-		response, err = service.createAuthChallengeTx(
-			tx, user, cpoID, purpose, metadata, template, service.now(),
-		)
+		response, err = service.createAuthChallengeTx(tx, customer, purpose, metadata, template, service.now())
 		return err
 	})
 	return response, err
 }
 
-func (service *Service) createAuthChallengeTx(
-	tx *gorm.DB,
-	user models.User,
-	cpoID uuid.UUID,
-	purpose constants.AuthChallengePurpose,
-	metadata RequestMetadata,
-	template string,
-	now time.Time,
-) (ChallengeResponse, error) {
+func (service *Service) createAuthChallengeTx(tx *gorm.DB, customer models.Customer, purpose constants.AuthChallengePurpose, metadata RequestMetadata, template string, now time.Time) (ChallengeResponse, error) {
 	code, err := security.RandomDigits(6)
 	if err != nil {
 		return ChallengeResponse{}, err
 	}
-	scope := constants.AuthScopeCustomer
-	challenge := models.AuthChallenge{
-		ID: uuid.New(), UserID: user.ID, Purpose: purpose,
-		Scope: &scope, CPOID: &cpoID,
+	challenge := models.CustomerAuthChallenge{
+		ID: uuid.New(), CPOID: customer.CPOID, CustomerID: customer.ID, Purpose: purpose,
 		ExpiresAt: now.Add(service.config.OTPExpiry), MaxAttempts: 5,
-		ResendAvailableAt: now.Add(service.config.OTPResendCooldown),
-		RequestIP:         metadata.IPAddress, UserAgent: boundedUserAgent(metadata.UserAgent),
-		CreatedAt: now,
+		ResendAvailableAt: now.Add(service.config.OTPResendCooldown), RequestIP: metadata.IPAddress,
+		UserAgent: boundedUserAgent(metadata.UserAgent), CreatedAt: now,
 	}
 	challenge.CodeHash = service.authOTPHash(challenge.ID, purpose, code)
-	if err := tx.Model(&models.AuthChallenge{}).
-		Where(
-			"user_id = ? AND cpo_id = ? AND purpose = ? AND consumed_at IS NULL AND invalidated_at IS NULL",
-			user.ID, cpoID, purpose,
-		).Update("invalidated_at", now).Error; err != nil {
+	if err := tx.Model(&models.CustomerAuthChallenge{}).Where(
+		"cpo_id = ? AND customer_id = ? AND purpose = ? AND consumed_at IS NULL AND invalidated_at IS NULL",
+		customer.CPOID, customer.ID, purpose,
+	).Update("invalidated_at", now).Error; err != nil {
 		return ChallengeResponse{}, fmt.Errorf("invalidate prior customer challenges: %w", err)
 	}
 	if err := tx.Create(&challenge).Error; err != nil {
 		return ChallengeResponse{}, fmt.Errorf("create customer authentication challenge: %w", err)
 	}
-	payload := authChallengeOTPPayload(user, challenge, code)
-	if err := service.outbox.EnqueueMessage(tx, user.Email, template, payload); err != nil {
+	payload := authChallengeOTPPayload(customer, challenge, code)
+	if err := service.outbox.EnqueueMessageWithContext(
+		tx,
+		customer.Email,
+		template,
+		payload,
+		cmsmail.MessageContext{CPOID: &customer.CPOID},
+	); err != nil {
 		return ChallengeResponse{}, err
 	}
-	return ChallengeResponse{
-		ChallengeID: challenge.ID, ExpiresAt: challenge.ExpiresAt,
-		ResendAvailableAt: challenge.ResendAvailableAt,
-	}, nil
+	return ChallengeResponse{ChallengeID: challenge.ID, ExpiresAt: challenge.ExpiresAt, ResendAvailableAt: challenge.ResendAvailableAt}, nil
 }
 
-func authChallengeOTPPayload(
-	user models.User,
-	challenge models.AuthChallenge,
-	code string,
-) cmsmail.MessagePayload {
-	payload := cmsmail.MessagePayload{
-		RecipientName: user.FullName, Code: code, ExpiresAt: challenge.ExpiresAt,
-	}
+func authChallengeOTPPayload(customer models.Customer, challenge models.CustomerAuthChallenge, code string) cmsmail.MessagePayload {
+	payload := cmsmail.MessagePayload{RecipientName: customer.FullName, Code: code, ExpiresAt: challenge.ExpiresAt}
 	if challenge.Purpose == constants.ChallengeCustomerReset {
 		payload.ChallengeID = challenge.ID.String()
 	}
 	return payload
 }
 
-func (service *Service) resendAuthChallenge(
-	ctx context.Context,
-	appID string,
-	request ResendRequest,
-	metadata RequestMetadata,
-	purpose constants.AuthChallengePurpose,
-	template string,
-) (ChallengeResponse, error) {
-	if strings.TrimSpace(appID) == "" {
+func (service *Service) resendAuthChallenge(ctx context.Context, appID string, request ResendRequest, metadata RequestMetadata, purpose constants.AuthChallengePurpose, template string) (ChallengeResponse, error) {
+	appID = strings.TrimSpace(appID)
+	if appID == "" {
 		return ChallengeResponse{}, missingAppIDError()
 	}
 	if request.ChallengeID == uuid.Nil {
@@ -465,31 +326,21 @@ func (service *Service) resendAuthChallenge(
 	var response ChallengeResponse
 	var outcome error
 	err := service.database.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		challenge, user, err := service.lockAuthChallenge(tx, request.ChallengeID, purpose)
+		challenge, customer, err := service.lockAuthChallenge(tx, request.ChallengeID, purpose)
 		if err != nil {
 			outcome = err
 			return nil
 		}
-		var context customerContext
-		if purpose == constants.ChallengeCustomerReset {
-			context, err = service.loadCustomerContextForRecovery(tx, user.ID, challenge.CPOID)
-		} else {
-			context, err = service.loadCustomerContext(tx, user.ID, challenge.CPOID)
-		}
+		context, err := service.loadCustomerContext(tx, customer.ID, customer.CPOID, purpose == constants.ChallengeCustomerReset)
 		now := service.now()
-		if err != nil || context.CPO.AppID != strings.TrimSpace(appID) ||
-			challenge.ConsumedAt != nil || challenge.InvalidatedAt != nil ||
-			!now.Before(challenge.ExpiresAt) || now.Before(challenge.ResendAvailableAt) {
+		if err != nil || context.CPO.AppID != appID || challenge.ConsumedAt != nil || challenge.InvalidatedAt != nil || !now.Before(challenge.ExpiresAt) || now.Before(challenge.ResendAvailableAt) {
 			outcome = errInvalidChallenge
 			return nil
 		}
-		if err := tx.Model(&models.AuthChallenge{}).Where("id = ?", challenge.ID).
-			Update("invalidated_at", now).Error; err != nil {
+		if err := tx.Model(&models.CustomerAuthChallenge{}).Where("id = ?", challenge.ID).Update("invalidated_at", now).Error; err != nil {
 			return fmt.Errorf("invalidate customer challenge: %w", err)
 		}
-		response, err = service.createAuthChallengeTx(
-			tx, user, context.CPO.ID, purpose, metadata, template, now,
-		)
+		response, err = service.createAuthChallengeTx(tx, customer, purpose, metadata, template, now)
 		return err
 	})
 	if err != nil {
@@ -501,31 +352,22 @@ func (service *Service) resendAuthChallenge(
 	return response, nil
 }
 
-func (service *Service) lockAuthChallenge(
-	tx *gorm.DB,
-	id uuid.UUID,
-	purpose constants.AuthChallengePurpose,
-) (models.AuthChallenge, models.User, error) {
-	var challenge models.AuthChallenge
-	if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
-		Where("id = ? AND purpose = ?", id, purpose).First(&challenge).Error; err != nil {
+func (service *Service) lockAuthChallenge(tx *gorm.DB, id uuid.UUID, purpose constants.AuthChallengePurpose) (models.CustomerAuthChallenge, models.Customer, error) {
+	var challenge models.CustomerAuthChallenge
+	if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("id = ? AND purpose = ?", id, purpose).First(&challenge).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return challenge, models.User{}, errInvalidChallenge
+			return challenge, models.Customer{}, errInvalidChallenge
 		}
-		return challenge, models.User{}, fmt.Errorf("lock customer authentication challenge: %w", err)
+		return challenge, models.Customer{}, fmt.Errorf("lock customer authentication challenge: %w", err)
 	}
-	var user models.User
-	if err := tx.First(&user, "id = ?", challenge.UserID).Error; err != nil {
-		return challenge, user, fmt.Errorf("load challenged customer identity: %w", err)
+	var customer models.Customer
+	if err := tx.Where("id = ? AND cpo_id = ?", challenge.CustomerID, challenge.CPOID).First(&customer).Error; err != nil {
+		return challenge, customer, fmt.Errorf("load challenged customer account: %w", err)
 	}
-	return challenge, user, nil
+	return challenge, customer, nil
 }
 
-func (service *Service) authOTPHash(
-	id uuid.UUID,
-	purpose constants.AuthChallengePurpose,
-	code string,
-) []byte {
+func (service *Service) authOTPHash(id uuid.UUID, purpose constants.AuthChallengePurpose, code string) []byte {
 	mac := hmac.New(sha256.New, service.config.OTPHMACKey)
 	_, _ = mac.Write([]byte(id.String()))
 	_, _ = mac.Write([]byte{0})
@@ -535,46 +377,33 @@ func (service *Service) authOTPHash(
 	return mac.Sum(nil)
 }
 
-func (service *Service) verifyAuthOTP(challenge models.AuthChallenge, code string) bool {
-	return hmac.Equal(
-		service.authOTPHash(challenge.ID, challenge.Purpose, code),
-		challenge.CodeHash,
-	)
+func (service *Service) verifyAuthOTP(challenge models.CustomerAuthChallenge, code string) bool {
+	return hmac.Equal(service.authOTPHash(challenge.ID, challenge.Purpose, code), challenge.CodeHash)
 }
 
-func authChallengeUsable(challenge models.AuthChallenge, now time.Time) bool {
-	return challenge.ConsumedAt == nil && challenge.InvalidatedAt == nil &&
-		challenge.Attempts < challenge.MaxAttempts && now.Before(challenge.ExpiresAt)
+func authChallengeUsable(challenge models.CustomerAuthChallenge, now time.Time) bool {
+	return challenge.ConsumedAt == nil && challenge.InvalidatedAt == nil && challenge.Attempts < challenge.MaxAttempts && now.Before(challenge.ExpiresAt)
 }
 
-func recordAuthChallengeFailure(
-	tx *gorm.DB,
-	challenge models.AuthChallenge,
-	now time.Time,
-) error {
+func recordAuthChallengeFailure(tx *gorm.DB, challenge models.CustomerAuthChallenge, now time.Time) error {
 	updates := map[string]any{"attempts": challenge.Attempts + 1}
 	if challenge.Attempts+1 >= challenge.MaxAttempts {
 		updates["invalidated_at"] = now
 	}
-	if err := tx.Model(&models.AuthChallenge{}).Where("id = ?", challenge.ID).
-		Updates(updates).Error; err != nil {
+	if err := tx.Model(&models.CustomerAuthChallenge{}).Where("id = ?", challenge.ID).Updates(updates).Error; err != nil {
 		return fmt.Errorf("record customer challenge failure: %w", err)
 	}
 	return nil
 }
 
-func (service *Service) recordFailedLogin(
-	ctx context.Context,
-	userID uuid.UUID,
-	now time.Time,
-) error {
+func (service *Service) recordFailedLogin(ctx context.Context, customerID uuid.UUID, now time.Time) error {
 	result := service.database.WithContext(ctx).Exec(`
-		UPDATE users
+		UPDATE customers
 		SET failed_login_attempts = failed_login_attempts + 1,
 		    locked_until = CASE WHEN failed_login_attempts + 1 >= ? THEN ? ELSE locked_until END,
 		    updated_at = ?
 		WHERE id = ?
-	`, service.config.LoginMaxAttempts, now.Add(service.config.LoginLockDuration), now, userID)
+	`, service.config.LoginMaxAttempts, now.Add(service.config.LoginLockDuration), now, customerID)
 	if result.Error != nil {
 		return fmt.Errorf("record failed customer login: %w", result.Error)
 	}
@@ -587,8 +416,5 @@ func hashRefreshToken(token string) string {
 }
 
 func missingAppIDError() *APIError {
-	return &APIError{
-		http.StatusBadRequest, "missing_cpo_app_id",
-		"X-CPO-App-ID is required.",
-	}
+	return &APIError{http.StatusBadRequest, "missing_cpo_app_id", "X-CPO-App-ID is required."}
 }

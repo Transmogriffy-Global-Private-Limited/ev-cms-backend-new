@@ -125,6 +125,56 @@ type CustomerSignupChallenge struct {
 	CreatedAt         time.Time `gorm:"not null" json:"created_at"`
 }
 
+// Customer authentication records are deliberately distinct from the
+// administrative auth tables: customer accounts are local to one CPO.
+type CustomerAuthChallenge struct {
+	ID                uuid.UUID                      `gorm:"type:uuid;primaryKey;default:gen_random_uuid()"`
+	CPOID             uuid.UUID                      `gorm:"type:uuid;not null;index"`
+	CustomerID        uuid.UUID                      `gorm:"type:uuid;not null;index"`
+	Purpose           constants.AuthChallengePurpose `gorm:"type:varchar(30);not null"`
+	CodeHash          []byte                         `gorm:"type:bytea;not null"`
+	ExpiresAt         time.Time                      `gorm:"not null;index"`
+	ConsumedAt        *time.Time
+	InvalidatedAt     *time.Time
+	Attempts          int       `gorm:"not null;default:0"`
+	MaxAttempts       int       `gorm:"not null"`
+	ResendAvailableAt time.Time `gorm:"not null"`
+	RequestIP         *string   `gorm:"type:inet"`
+	UserAgent         string    `gorm:"type:varchar(512);not null;default:''"`
+	CreatedAt         time.Time `gorm:"not null"`
+}
+
+func (CustomerAuthChallenge) TableName() string { return "customer_auth_challenges" }
+
+type CustomerAuthSession struct {
+	ID           uuid.UUID `gorm:"type:uuid;primaryKey;default:gen_random_uuid()"`
+	CPOID        uuid.UUID `gorm:"type:uuid;not null;index"`
+	CustomerID   uuid.UUID `gorm:"type:uuid;not null;index"`
+	TokenVersion int       `gorm:"not null;default:1"`
+	IPAddress    *string   `gorm:"type:inet"`
+	UserAgent    string    `gorm:"type:varchar(512);not null;default:''"`
+	CreatedAt    time.Time `gorm:"not null"`
+	LastSeenAt   time.Time `gorm:"not null"`
+	ExpiresAt    time.Time `gorm:"not null;index"`
+	RevokedAt    *time.Time
+	RevokeReason *string `gorm:"type:varchar(100)"`
+}
+
+func (CustomerAuthSession) TableName() string { return "customer_auth_sessions" }
+
+type CustomerAuthRefreshToken struct {
+	ID            uuid.UUID `gorm:"type:uuid;primaryKey;default:gen_random_uuid()"`
+	SessionID     uuid.UUID `gorm:"type:uuid;not null;index"`
+	TokenHash     string    `gorm:"type:char(64);not null;uniqueIndex"`
+	ExpiresAt     time.Time `gorm:"not null;index"`
+	UsedAt        *time.Time
+	RevokedAt     *time.Time
+	ReplacementID *uuid.UUID `gorm:"type:uuid"`
+	CreatedAt     time.Time  `gorm:"not null"`
+}
+
+func (CustomerAuthRefreshToken) TableName() string { return "customer_auth_refresh_tokens" }
+
 type CPOIntegration struct {
 	ID                   uuid.UUID `gorm:"type:uuid;primaryKey;default:gen_random_uuid()" json:"id"`
 	CPOID                uuid.UUID `gorm:"type:uuid;not null;uniqueIndex:uq_cpo_integration,priority:1;index" json:"cpo_id"`

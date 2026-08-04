@@ -75,7 +75,7 @@ func TestCustomerSignupLifecycleWithPostgreSQL(t *testing.T) {
 	if err != nil {
 		t.Fatalf("resend signup OTP: %v", err)
 	}
-	code := readSignupOTP(t, gormDB, box, email)
+	code := readSignupOTP(t, gormDB, box, email, firstCPO.ID)
 	if _, err := service.Verify(ctx, firstCPO.AppID, ChallengeRequest{
 		ChallengeID: challenge.ChallengeID, Code: code,
 	}, metadata); !errors.Is(err, errInvalidChallenge) {
@@ -94,14 +94,11 @@ func TestCustomerSignupLifecycleWithPostgreSQL(t *testing.T) {
 	if err != nil {
 		t.Fatalf("verify signup: %v", err)
 	}
-	if !created.IdentityCreated || created.ExistingPassword {
-		t.Fatalf("unexpected new identity flags: %+v", created)
+	var customer models.Customer
+	if err := gormDB.First(&customer, "id = ?", created.CustomerID).Error; err != nil {
+		t.Fatalf("load created customer account: %v", err)
 	}
-	var user models.User
-	if err := gormDB.First(&user, "id = ?", created.UserID).Error; err != nil {
-		t.Fatalf("load created identity: %v", err)
-	}
-	passwordMatches, err := security.VerifyPassword(password, user.PasswordHash)
+	passwordMatches, err := security.VerifyPassword(password, customer.PasswordHash)
 	if err != nil || !passwordMatches {
 		t.Fatalf("created password mismatch: matches=%v err=%v", passwordMatches, err)
 	}
@@ -128,29 +125,38 @@ func TestCustomerSignupLifecycleWithPostgreSQL(t *testing.T) {
 
 	secondCPO := createActiveTestCPO(t, gormDB)
 	secondChallenge, err := service.Start(ctx, secondCPO.AppID, SignupRequest{
-		Email: email, Password: "MustNotReplace!456", FullName: "Replacement Name",
+		Email: email, Password: password, FullName: "Replacement Name",
 	}, metadata)
 	if err != nil {
 		t.Fatalf("start second CPO signup: %v", err)
 	}
-	secondCode := readSignupOTP(t, gormDB, box, email)
+	secondCode := readSignupOTP(t, gormDB, box, email, secondCPO.ID)
 	reused, err := service.Verify(ctx, secondCPO.AppID, ChallengeRequest{
 		ChallengeID: secondChallenge.ChallengeID, Code: secondCode,
 	}, metadata)
 	if err != nil {
 		t.Fatalf("verify second CPO signup: %v", err)
 	}
-	if reused.IdentityCreated || !reused.ExistingPassword || reused.UserID != created.UserID {
-		t.Fatalf("unexpected identity reuse: %+v", reused)
+	var secondCustomer models.Customer
+	if err := gormDB.First(&secondCustomer, "id = ?", reused.CustomerID).Error; err != nil {
+		t.Fatalf("load second customer account: %v", err)
 	}
-	var retained models.User
-	if err := gormDB.First(&retained, "id = ?", created.UserID).Error; err != nil {
-		t.Fatalf("reload reused identity: %v", err)
+	firstPassword, _ := security.VerifyPassword(password, customer.PasswordHash)
+	secondPassword, _ := security.VerifyPassword(password, secondCustomer.PasswordHash)
+	if !firstPassword || !secondPassword || customer.ID == secondCustomer.ID ||
+		customer.CPOID == secondCustomer.CPOID || customer.FullName != "Customer One" ||
+		secondCustomer.FullName != "Replacement Name" {
+		t.Fatal("CPO-local customer accounts did not retain independent credentials and profiles")
 	}
-	retainedPassword, _ := security.VerifyPassword(password, retained.PasswordHash)
-	replacementPassword, _ := security.VerifyPassword("MustNotReplace!456", retained.PasswordHash)
-	if !retainedPassword || replacementPassword || retained.FullName != "Customer One" {
-		t.Fatal("identity reuse overwrote global credentials or profile")
+	firstTokens := loginCustomer(t, ctx, gormDB, box, service, firstCPO.AppID, email, password, metadata)
+	firstPrincipal, err := service.ValidateAccess(ctx, firstTokens.AccessToken)
+	if err != nil || firstPrincipal.CustomerID != customer.ID || firstPrincipal.CPOID != firstCPO.ID {
+		t.Fatalf("same-credential first-CPO login resolved wrong account: principal=%+v err=%v", firstPrincipal, err)
+	}
+	secondTokens := loginCustomer(t, ctx, gormDB, box, service, secondCPO.AppID, email, password, metadata)
+	secondPrincipal, err := service.ValidateAccess(ctx, secondTokens.AccessToken)
+	if err != nil || secondPrincipal.CustomerID != secondCustomer.ID || secondPrincipal.CPOID != secondCPO.ID {
+		t.Fatalf("same-credential second-CPO login resolved wrong account: principal=%+v err=%v", secondPrincipal, err)
 	}
 }
 
@@ -198,20 +204,14 @@ func TestCustomerAuthenticationLifecycleWithPostgreSQL(t *testing.T) {
 		t.Fatalf("hash customer password: %v", err)
 	}
 	now := time.Now().UTC()
-	user := models.User{
+	customer := models.Customer{
 		ID: uuid.New(), Email: email, PasswordHash: passwordHash,
-		FullName: "Authenticated Customer", IsActive: true, IsVerified: true,
+		CPOID: cpo.ID, FullName: "Authenticated Customer", IsVerified: true,
+		Status:            constants.CustomerStatusActive,
 		PasswordChangedAt: now, CreatedAt: now, UpdatedAt: now,
 	}
-	if err := gormDB.Create(&user).Error; err != nil {
-		t.Fatalf("create customer identity: %v", err)
-	}
-	customer := models.Customer{
-		ID: uuid.New(), CPOID: cpo.ID, UserID: user.ID,
-		Status: constants.CustomerStatusActive, CreatedAt: now, UpdatedAt: now,
-	}
 	if err := gormDB.Create(&customer).Error; err != nil {
-		t.Fatalf("create customer relationship: %v", err)
+		t.Fatalf("create CPO-local customer account: %v", err)
 	}
 	wallet := models.Wallet{
 		ID: uuid.New(), CPOID: cpo.ID, CustomerID: customer.ID,
@@ -220,24 +220,13 @@ func TestCustomerAuthenticationLifecycleWithPostgreSQL(t *testing.T) {
 	if err := gormDB.Create(&wallet).Error; err != nil {
 		t.Fatalf("create customer wallet: %v", err)
 	}
-	otherUser := models.User{
-		ID: uuid.New(), Email: "other-" + uuid.NewString() + "@example.com",
-		PasswordHash: passwordHash, FullName: "Other Identity",
-		IsActive: true, IsVerified: true, PasswordChangedAt: now,
-		CreatedAt: now, UpdatedAt: now,
-	}
-	if err := gormDB.Create(&otherUser).Error; err != nil {
-		t.Fatalf("create other identity: %v", err)
-	}
-	customerID := customer.ID
-	cpoID := cpo.ID
-	mismatchedSession := models.AuthSession{
-		ID: uuid.New(), UserID: otherUser.ID, Scope: constants.AuthScopeCustomer,
-		CPOID: &cpoID, CustomerID: &customerID, TokenVersion: 1,
+	otherCPO := createActiveTestCPO(t, gormDB)
+	mismatchedSession := models.CustomerAuthSession{
+		ID: uuid.New(), CPOID: otherCPO.ID, CustomerID: customer.ID, TokenVersion: 1,
 		CreatedAt: now, LastSeenAt: now, ExpiresAt: now.Add(time.Hour),
 	}
 	if err := gormDB.Create(&mismatchedSession).Error; err == nil {
-		t.Fatal("database accepted a customer session for the wrong global identity")
+		t.Fatal("database accepted a customer session under the wrong CPO")
 	}
 	ip := "127.0.0.1"
 	metadata := RequestMetadata{IPAddress: &ip, UserAgent: "customer-auth-test"}
@@ -247,17 +236,15 @@ func TestCustomerAuthenticationLifecycleWithPostgreSQL(t *testing.T) {
 	if err != nil {
 		t.Fatalf("validate customer access token: %v", err)
 	}
-	if principal.UserID != user.ID || principal.CustomerID != customer.ID ||
+	if principal.UserID != customer.ID || principal.CustomerID != customer.ID ||
 		principal.CPOID != cpo.ID || service.Me(principal).Wallet.ID != wallet.ID {
 		t.Fatalf("unexpected customer principal: %+v", principal)
 	}
-	var storedSession models.AuthSession
+	var storedSession models.CustomerAuthSession
 	if err := gormDB.First(&storedSession, "id = ?", principal.SessionID).Error; err != nil {
 		t.Fatalf("load customer session: %v", err)
 	}
-	if storedSession.Scope != constants.AuthScopeCustomer ||
-		storedSession.CustomerID == nil || *storedSession.CustomerID != customer.ID ||
-		storedSession.Role != nil {
+	if storedSession.CustomerID != customer.ID || storedSession.CPOID != cpo.ID {
 		t.Fatalf("invalid persisted customer session context: %+v", storedSession)
 	}
 
@@ -308,7 +295,7 @@ func TestCustomerAuthenticationLifecycleWithPostgreSQL(t *testing.T) {
 	}, metadata); err != nil {
 		t.Fatalf("start customer password recovery: %v", err)
 	}
-	resetMail := readCustomerOTPMessage(t, gormDB, box, email, customerResetMailTemplate)
+	resetMail := readCustomerOTPMessage(t, gormDB, box, email, customerResetMailTemplate, cpo.ID)
 	resetChallengeID, err := uuid.Parse(resetMail.ChallengeID)
 	if err != nil {
 		t.Fatalf("parse customer recovery ID from recipient mail: %v", err)
@@ -329,6 +316,13 @@ func TestCustomerAuthenticationLifecycleWithPostgreSQL(t *testing.T) {
 	if err != nil {
 		t.Fatalf("validate post-reset access: %v", err)
 	}
+	staleChallenge, err := service.Login(ctx, cpo.AppID, LoginRequest{
+		Email: email, Password: resetPassword,
+	}, metadata)
+	if err != nil {
+		t.Fatalf("create pre-change login challenge: %v", err)
+	}
+	staleCode := readCustomerOTP(t, gormDB, box, email, customerLoginMailTemplate, cpo.ID)
 	changedPassword := "CustomerChanged!789"
 	if err := service.ChangePassword(ctx, afterResetPrincipal, ChangePasswordRequest{
 		CurrentPassword: resetPassword, NewPassword: changedPassword,
@@ -338,6 +332,11 @@ func TestCustomerAuthenticationLifecycleWithPostgreSQL(t *testing.T) {
 	if _, err := service.ValidateAccess(ctx, afterReset.AccessToken); !errors.Is(err, errUnauthorized) {
 		t.Fatalf("password change did not revoke customer session: %v", err)
 	}
+	if _, err := service.VerifyLogin(ctx, cpo.AppID, ChallengeRequest{
+		ChallengeID: staleChallenge.ChallengeID, Code: staleCode,
+	}, metadata); !errors.Is(err, errInvalidChallenge) {
+		t.Fatalf("password change left a pre-change login challenge usable: %v", err)
+	}
 	final := loginCustomer(
 		t, ctx, gormDB, box, service, cpo.AppID, email, changedPassword, metadata,
 	)
@@ -345,8 +344,16 @@ func TestCustomerAuthenticationLifecycleWithPostgreSQL(t *testing.T) {
 	if err != nil {
 		t.Fatalf("validate final customer access: %v", err)
 	}
+	adminUser := models.User{
+		ID: uuid.New(), Email: "admin-" + uuid.NewString() + "@example.com", PasswordHash: passwordHash,
+		FullName: "Unrelated Administrator", IsActive: true, IsVerified: true,
+		PasswordChangedAt: now, CreatedAt: now, UpdatedAt: now,
+	}
+	if err := gormDB.Create(&adminUser).Error; err != nil {
+		t.Fatalf("create unrelated administrative identity: %v", err)
+	}
 	platformSession := models.AuthSession{
-		ID: uuid.New(), UserID: user.ID, Scope: constants.AuthScopePlatform,
+		ID: uuid.New(), UserID: adminUser.ID, Scope: constants.AuthScopePlatform,
 		TokenVersion: 1, CreatedAt: now, LastSeenAt: now,
 		ExpiresAt: now.Add(time.Hour),
 	}
@@ -379,13 +386,17 @@ func loginCustomer(
 	metadata RequestMetadata,
 ) TokenResponse {
 	t.Helper()
+	var cpo models.CPO
+	if err := database.Select("id").First(&cpo, "app_id = ?", appID).Error; err != nil {
+		t.Fatalf("load customer CPO for mail correlation: %v", err)
+	}
 	challenge, err := service.Login(ctx, appID, LoginRequest{
 		Email: email, Password: password,
 	}, metadata)
 	if err != nil {
 		t.Fatalf("start customer login: %v", err)
 	}
-	code := readCustomerOTP(t, database, box, email, customerLoginMailTemplate)
+	code := readCustomerOTP(t, database, box, email, customerLoginMailTemplate, cpo.ID)
 	response, err := service.VerifyLogin(ctx, appID, ChallengeRequest{
 		ChallengeID: challenge.ChallengeID, Code: code,
 	}, metadata)
@@ -401,8 +412,9 @@ func readCustomerOTP(
 	box *security.SecretBox,
 	email string,
 	template string,
+	cpoID uuid.UUID,
 ) string {
-	return readCustomerOTPMessage(t, database, box, email, template).Code
+	return readCustomerOTPMessage(t, database, box, email, template, cpoID).Code
 }
 
 func readCustomerOTPMessage(
@@ -411,12 +423,16 @@ func readCustomerOTPMessage(
 	box *security.SecretBox,
 	email string,
 	template string,
+	cpoID uuid.UUID,
 ) cmsmail.MessagePayload {
 	t.Helper()
 	var job models.MailOutbox
 	if err := database.Where("to_email = ? AND template = ?", email, template).
 		Order("created_at DESC").First(&job).Error; err != nil {
 		t.Fatalf("load customer OTP mail: %v", err)
+	}
+	if job.CPOID == nil || *job.CPOID != cpoID || job.UserID != nil {
+		t.Fatalf("invalid customer mail correlation: cpo_id=%v user_id=%v", job.CPOID, job.UserID)
 	}
 	plaintext, err := box.Open(
 		job.PayloadCiphertext,
@@ -456,12 +472,16 @@ func readSignupOTP(
 	database *gorm.DB,
 	box *security.SecretBox,
 	email string,
+	cpoID uuid.UUID,
 ) string {
 	t.Helper()
 	var job models.MailOutbox
 	if err := database.Where("to_email = ? AND template = ?", email, signupMailTemplate).
 		Order("created_at DESC").First(&job).Error; err != nil {
 		t.Fatalf("load signup OTP mail: %v", err)
+	}
+	if job.CPOID == nil || *job.CPOID != cpoID || job.UserID != nil {
+		t.Fatalf("invalid signup mail correlation: cpo_id=%v user_id=%v", job.CPOID, job.UserID)
 	}
 	plaintext, err := box.Open(
 		job.PayloadCiphertext,

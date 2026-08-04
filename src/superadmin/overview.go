@@ -31,6 +31,11 @@ func (service *Service) Overview(ctx context.Context, principal auth.Principal) 
 	if err := service.database.WithContext(ctx).Model(&models.AuthSession{}).Where("revoked_at IS NULL AND expires_at > ?", service.now()).Count(&activeSessions).Error; err != nil {
 		return OverviewResponse{}, err
 	}
+	var activeCustomerSessions int64
+	if err := service.database.WithContext(ctx).Model(&models.CustomerAuthSession{}).Where("revoked_at IS NULL AND expires_at > ?", service.now()).Count(&activeCustomerSessions).Error; err != nil {
+		return OverviewResponse{}, err
+	}
+	activeSessions += activeCustomerSessions
 	var mailRows []struct {
 		Status string
 		Count  int64

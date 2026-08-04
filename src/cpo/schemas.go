@@ -163,7 +163,6 @@ type CPOUserView struct {
 	IsVerified       bool                        `json:"is_verified"`
 	Role             *constants.CPORole          `json:"role,omitempty"`
 	MembershipStatus *constants.MembershipStatus `json:"membership_status,omitempty"`
-	CustomerStatus   *constants.CustomerStatus   `json:"customer_status,omitempty"`
 	CreatedAt        time.Time                   `json:"created_at"`
 	UpdatedAt        time.Time                   `json:"updated_at"`
 }

@@ -1,13 +1,14 @@
 # 0005: CPO-Scoped Customer Signup
 
-Status: Accepted
+Status: Superseded in part by ADR 0013
 
 Date: 2026-07-23
 
 ## Context
 
-Each CPO distributes its own application, while a person's login identity is
-global and their customer relationship is tenant-scoped. A client-embedded app
+Each CPO distributes its own application. At the time of this decision,
+customer login identity was global and its customer relationship was
+tenant-scoped. A client-embedded app
 ID can identify the intended CPO but cannot be kept secret. The old CMS held
 pending passwords and OTPs in process memory and attached users through a
 global administrator identifier.
@@ -19,8 +20,7 @@ global administrator identifier.
 - Verify email before creating durable identity or customer records.
 - Store pending signup state durably with only an Argon2id password hash and an
   HMAC-protected OTP.
-- Reuse an existing active global identity without replacing its password or
-  profile.
+- Historical decision, superseded: reuse an existing active global identity.
 - Create the CPO customer and its INR wallet atomically after verification.
 - Apply durable rate limits and use the encrypted mail outbox.
 - Keep customer login/session issuance outside this implementation slice.
@@ -29,7 +29,7 @@ global administrator identifier.
 
 - Hardcoding the app ID in a frontend is operationally acceptable but provides
   no secrecy.
-- A verified mailbox can attach its existing global identity to another CPO.
+- ADR 0013 replaces global reuse with independent CPO-local accounts.
 - A newly registered customer cannot authenticate until the separate customer
   login/session contract is implemented.
 - CPO suspension or app-ID rotation immediately prevents new signup steps that

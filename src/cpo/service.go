@@ -1181,6 +1181,30 @@ func revokeCPOSessions(
 	now time.Time,
 	userID *uuid.UUID,
 ) (sessionRevocationCounts, error) {
+	counts := sessionRevocationCounts{}
+	revokeCustomers := userID == nil && (scope == nil || *scope == constants.AuthScopeCustomer)
+	if revokeCustomers {
+		customerSessionIDs := tx.Model(&models.CustomerAuthSession{}).
+			Select("id").Where("cpo_id = ? AND revoked_at IS NULL", cpoID)
+		customerRefreshResult := tx.Model(&models.CustomerAuthRefreshToken{}).
+			Where("used_at IS NULL AND revoked_at IS NULL").
+			Where("session_id IN (?)", customerSessionIDs).
+			Update("revoked_at", now)
+		if customerRefreshResult.Error != nil {
+			return counts, fmt.Errorf("revoke CPO customer refresh tokens: %w", customerRefreshResult.Error)
+		}
+		customerSessionResult := tx.Model(&models.CustomerAuthSession{}).
+			Where("cpo_id = ? AND revoked_at IS NULL", cpoID).
+			Updates(map[string]any{"revoked_at": now, "revoke_reason": revokeReason})
+		if customerSessionResult.Error != nil {
+			return counts, fmt.Errorf("revoke CPO customer sessions: %w", customerSessionResult.Error)
+		}
+		counts.sessions += customerSessionResult.RowsAffected
+		counts.refreshTokens += customerRefreshResult.RowsAffected
+	}
+	if scope != nil && *scope == constants.AuthScopeCustomer {
+		return counts, nil
+	}
 	sessionIDs := tx.Model(&models.AuthSession{}).
 		Select("id").
 		Where("cpo_id = ? AND revoked_at IS NULL", cpoID)
@@ -1195,7 +1219,7 @@ func revokeCPOSessions(
 		Where("session_id IN (?)", sessionIDs).
 		Update("revoked_at", now)
 	if refreshResult.Error != nil {
-		return sessionRevocationCounts{}, fmt.Errorf(
+		return counts, fmt.Errorf(
 			"revoke CPO refresh tokens: %w",
 			refreshResult.Error,
 		)
@@ -1214,15 +1238,14 @@ func revokeCPOSessions(
 		"revoke_reason": revokeReason,
 	})
 	if sessionResult.Error != nil {
-		return sessionRevocationCounts{}, fmt.Errorf(
+		return counts, fmt.Errorf(
 			"revoke CPO sessions: %w",
 			sessionResult.Error,
 		)
 	}
-	return sessionRevocationCounts{
-		sessions:      sessionResult.RowsAffected,
-		refreshTokens: refreshResult.RowsAffected,
-	}, nil
+	counts.sessions += sessionResult.RowsAffected
+	counts.refreshTokens += refreshResult.RowsAffected
+	return counts, nil
 }
 
 func (service *Service) emit(
@@ -1639,10 +1662,7 @@ func adminProfileView(user models.User, cpoID uuid.UUID) AdminProfileView {
 func cpoUserView(
 	user models.User,
 	cpoID uuid.UUID,
-	isMembership bool,
-	isCustomer bool,
 	membership models.CPOMembership,
-	customer models.Customer,
 ) CPOUserView {
 	view := CPOUserView{
 		ID:         user.ID,
@@ -1655,16 +1675,10 @@ func cpoUserView(
 		CreatedAt:  user.CreatedAt,
 		UpdatedAt:  user.UpdatedAt,
 	}
-	if isMembership {
-		role := membership.Role
-		view.Role = &role
-		status := membership.Status
-		view.MembershipStatus = &status
-	}
-	if isCustomer {
-		status := customer.Status
-		view.CustomerStatus = &status
-	}
+	role := membership.Role
+	view.Role = &role
+	status := membership.Status
+	view.MembershipStatus = &status
 	return view
 }
 
@@ -1686,15 +1700,7 @@ func (service *Service) GetUser(
 		return CPOUserView{}, fmt.Errorf("load CPO membership: %w", membershipErr)
 	}
 
-	var customer models.Customer
-	customerErr := service.database.WithContext(ctx).
-		Where("cpo_id = ? AND user_id = ?", cpoID, userID).
-		First(&customer).Error
-	if customerErr != nil && !errors.Is(customerErr, gorm.ErrRecordNotFound) {
-		return CPOUserView{}, fmt.Errorf("load CPO customer: %w", customerErr)
-	}
-
-	if membershipErr != nil && customerErr != nil {
+	if membershipErr != nil {
 		return CPOUserView{}, &auth.APIError{
 			Status:  http.StatusNotFound,
 			Code:    "user_not_found",
@@ -1708,10 +1714,7 @@ func (service *Service) GetUser(
 		Where(`EXISTS (
             SELECT 1 FROM cpo_memberships
             WHERE cpo_id = ? AND user_id = users.id
-        ) OR EXISTS (
-            SELECT 1 FROM customers
-            WHERE cpo_id = ? AND user_id = users.id
-        )`, cpoID, cpoID).
+	        )`, cpoID).
 		First(&user).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return CPOUserView{}, &auth.APIError{
@@ -1723,7 +1726,7 @@ func (service *Service) GetUser(
 		return CPOUserView{}, fmt.Errorf("load CPO user: %w", err)
 	}
 
-	return cpoUserView(user, cpoID, membershipErr == nil, customerErr == nil, membership, customer), nil
+	return cpoUserView(user, cpoID, membership), nil
 }
 
 func (service *Service) GetOrganization(

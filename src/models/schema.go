@@ -41,8 +41,7 @@ func (value *JSONB) Scan(source any) error {
 	return json.Unmarshal(raw, value)
 }
 
-// User is a login identity. Platform, CPO staff, and CPO customer authority are
-// separate relationships.
+// User is an administrative login identity for platform and CPO staff.
 type User struct {
 	ID                  uuid.UUID       `gorm:"type:uuid;primaryKey;default:gen_random_uuid()" json:"id"`
 	Email               string          `gorm:"type:varchar(320);not null" json:"email"`
@@ -60,7 +59,6 @@ type User struct {
 	Settings            *UserSetting    `gorm:"foreignKey:UserID" json:"settings,omitempty"`
 	PlatformAdmin       *PlatformAdmin  `gorm:"foreignKey:UserID" json:"platform_admin,omitempty"`
 	CPOMemberships      []CPOMembership `gorm:"foreignKey:UserID" json:"cpo_memberships,omitempty"`
-	Customers           []Customer      `gorm:"foreignKey:UserID" json:"customers,omitempty"`
 	CreatedAt           time.Time       `gorm:"not null" json:"created_at"`
 	UpdatedAt           time.Time       `gorm:"not null" json:"updated_at"`
 }
@@ -146,22 +144,29 @@ type UserGroup struct {
 	UpdatedAt    time.Time          `gorm:"not null" json:"updated_at"`
 }
 
-// Customer is the relationship between a login identity and a CPO's charging
-// business. It replaces the global APP_USER role while preserving app-user data.
+// Customer is a CPO-local app-user account. It owns its credentials and must
+// never share authentication state with a global administrative User.
 type Customer struct {
-	ID               uuid.UUID                 `gorm:"type:uuid;primaryKey;default:gen_random_uuid()" json:"id"`
-	CPOID            uuid.UUID                 `gorm:"type:uuid;not null;uniqueIndex:uq_cpo_customer,priority:1;index" json:"cpo_id"`
-	CPO              CPO                       `gorm:"foreignKey:CPOID;constraint:OnUpdate:CASCADE,OnDelete:RESTRICT" json:"cpo,omitempty"`
-	UserID           uuid.UUID                 `gorm:"type:uuid;not null;uniqueIndex:uq_cpo_customer,priority:2;index" json:"user_id"`
-	User             User                      `gorm:"foreignKey:UserID;constraint:OnUpdate:CASCADE,OnDelete:RESTRICT" json:"user,omitempty"`
-	UserGroupID      *uuid.UUID                `gorm:"type:uuid;index" json:"user_group_id,omitempty"`
-	UserGroup        *UserGroup                `gorm:"foreignKey:UserGroupID;constraint:OnUpdate:CASCADE,OnDelete:RESTRICT" json:"user_group,omitempty"`
-	Status           constants.CustomerStatus  `gorm:"type:varchar(20);not null;default:'ACTIVE'" json:"status"`
-	Wallet           *Wallet                   `gorm:"foreignKey:CustomerID" json:"wallet,omitempty"`
-	FavoriteHubs     []CustomerFavoriteHub     `gorm:"foreignKey:CustomerID" json:"favorite_hubs,omitempty"`
-	FavoriteChargers []CustomerFavoriteCharger `gorm:"foreignKey:CustomerID" json:"favorite_chargers,omitempty"`
-	CreatedAt        time.Time                 `gorm:"not null" json:"created_at"`
-	UpdatedAt        time.Time                 `gorm:"not null" json:"updated_at"`
+	ID                  uuid.UUID                 `gorm:"type:uuid;primaryKey;default:gen_random_uuid()" json:"id"`
+	CPOID               uuid.UUID                 `gorm:"type:uuid;not null;index" json:"cpo_id"`
+	CPO                 CPO                       `gorm:"foreignKey:CPOID;constraint:OnUpdate:CASCADE,OnDelete:RESTRICT" json:"cpo,omitempty"`
+	Email               string                    `gorm:"type:varchar(320);not null" json:"email"`
+	PasswordHash        string                    `gorm:"type:varchar(255);not null" json:"-"`
+	FullName            string                    `gorm:"type:varchar(255);not null" json:"full_name"`
+	Phone               *string                   `gorm:"type:varchar(32)" json:"phone,omitempty"`
+	IsVerified          bool                      `gorm:"not null;default:false" json:"is_verified"`
+	FailedLoginAttempts int                       `gorm:"not null;default:0" json:"-"`
+	LockedUntil         *time.Time                `gorm:"type:timestamptz" json:"-"`
+	PasswordChangedAt   time.Time                 `gorm:"type:timestamptz;not null" json:"password_changed_at"`
+	LastLoginAt         *time.Time                `gorm:"type:timestamptz" json:"last_login_at,omitempty"`
+	UserGroupID         *uuid.UUID                `gorm:"type:uuid;index" json:"user_group_id,omitempty"`
+	UserGroup           *UserGroup                `gorm:"foreignKey:UserGroupID;constraint:OnUpdate:CASCADE,OnDelete:RESTRICT" json:"user_group,omitempty"`
+	Status              constants.CustomerStatus  `gorm:"type:varchar(20);not null;default:'ACTIVE'" json:"status"`
+	Wallet              *Wallet                   `gorm:"foreignKey:CustomerID" json:"wallet,omitempty"`
+	FavoriteHubs        []CustomerFavoriteHub     `gorm:"foreignKey:CustomerID" json:"favorite_hubs,omitempty"`
+	FavoriteChargers    []CustomerFavoriteCharger `gorm:"foreignKey:CustomerID" json:"favorite_chargers,omitempty"`
+	CreatedAt           time.Time                 `gorm:"not null" json:"created_at"`
+	UpdatedAt           time.Time                 `gorm:"not null" json:"updated_at"`
 }
 
 type Hub struct {

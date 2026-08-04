@@ -25,7 +25,10 @@ Customer/app-user authentication is a separate `CUSTOMER` session plane under
 `/api/v1/app/auth`. It includes email-verified signup, password-plus-mail-OTP
 login, encrypted access tokens, rotating refresh tokens, `me`, customer-scoped
 session management, logout, and password recovery/change. Customer tokens
-cannot authorize the administrative routes documented below. Staff
+cannot authorize the administrative routes documented below. Customer email,
+password, profile, challenge, session, and refresh state belongs to the
+CPO-local `customers` account and never uses the administrative `users` or
+`auth_*` records. Staff
 invitations, social login, SMS, TOTP, and passkeys are not implemented.
 
 ## Required Configuration

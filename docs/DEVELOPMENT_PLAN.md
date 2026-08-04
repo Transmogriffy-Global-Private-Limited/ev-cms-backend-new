@@ -31,8 +31,8 @@ and financial operations without accessing another CPO's data.
 ## Permanent Engineering Invariants
 
 - A CPO is a tenant organization, not a user role.
-- Login identity is global; CPO staff membership and CPO customer membership are
-  tenant-scoped.
+- Administrative login identity is global; app-customer identity, credentials,
+  profile, and sessions are local to one CPO.
 - Platform superadmin authority is separate from CPO membership.
 - CPO suspension blocks new tenant operations but must never prevent completion,
   stopping, callback ingestion, or billing of an already active session.
@@ -110,11 +110,11 @@ organizations, fixed CPO-wide staff roles, and tenant-scoped customers.
 
 Scope:
 
-- Global login identities
+- Global administrative login identities
 - Platform-superadmin marker
 - CPO organization and lifecycle status
 - Fixed CPO membership roles: owner, admin, operator, viewer
-- Tenant customer relationship
+- Tenant-local customer account capacity (superseded by migration twenty)
 - Versioned initial migration
 - Health and database-readiness endpoints
 
@@ -131,8 +131,9 @@ Acceptance criteria:
 
 - A user can belong to more than one CPO.
 - A user's staff role is scoped to a specific CPO.
-- A customer relationship is scoped to a specific CPO.
-- Duplicate membership and customer relationships are rejected by PostgreSQL.
+- A customer account is scoped to a specific CPO.
+- Duplicate memberships and normalized customer emails within one CPO are
+  rejected by PostgreSQL.
 - Invalid lifecycle and role values are rejected by PostgreSQL.
 - No tenant-owned data is represented without a CPO identifier.
 
@@ -533,8 +534,7 @@ Scope:
 - Public start, verify, and resend endpoints
 - Active-CPO resolution through current `X-CPO-App-ID`
 - Durable OTP and encrypted mail delivery
-- Safe global identity creation or reuse
-- Transactional customer and INR wallet creation
+- Transactional CPO-local customer account and INR wallet creation
 
 Non-goals:
 
@@ -545,7 +545,8 @@ Non-goals:
 Acceptance criteria:
 
 - Verification creates exactly one tenant customer and wallet.
-- Existing identities are attached without credential or profile overwrite.
+- Same-email accounts under different CPOs retain independent credentials and
+  profiles.
 - OTP, rate-limit, replay, concurrency, CPO lifecycle, and tenant boundaries
   are enforced durably.
 
@@ -555,7 +556,7 @@ Detailed plan:
 
 ### Feature: Complete app-user authentication boundary
 
-Status: Implemented
+Status: Implemented; PostgreSQL lifecycle verification pending
 
 Phase: Phase 4: Customers, access tokens, and tariffs
 
@@ -575,12 +576,13 @@ Scope:
 - Signed/encrypted access tokens and rotating refresh tokens
 - Customer `me`, session listing/revocation, and logout
 - Customer-scoped password recovery and authenticated password change
-- Trusted user/customer/CPO/app-ID handler helpers
+- Trusted customer/CPO/app-ID handler helpers and a source-compatible customer
+  ID alias for older app modules
 
 Non-goals:
 
 - Social login, SMS, TOTP, passkeys, or device attestation
-- Customer profile editing
+- Customer profile editing (next slice)
 - Staff/customer impersonation
 
 Current verification limitation:
@@ -596,7 +598,7 @@ Detailed plan:
 
 ### Feature: Customer app experience
 
-Status: Approved — implementation not started
+Status: In Progress — customer-account redesign precedes profile release
 
 Phase: Phase 4, then Phases 5 and 6 for HAL-dependent work
 
@@ -614,14 +616,14 @@ Enables:
 
 Objective:
 
-Build the customer-facing CMS API in coherent dependency order while preserving
-global identity versus CPO-customer ownership and keeping the HAL separate
-until the charging contract is approved.
+Build the customer-facing CMS API in coherent dependency order with separate
+CPO-scoped customer accounts, while keeping global administrative identities
+and the HAL boundary intact.
 
 Initial implementation slice:
 
-- Add customer self-service full-name/phone editing using the existing
-  `X-CPO-App-ID` routing contract on every `/api/v1/app/...` request.
+- Replace global customer identity reuse with CPO-scoped customer accounts,
+  then refactor profile editing to use the existing `X-CPO-App-ID` contract.
 
 Non-goals:
 
@@ -632,6 +634,10 @@ Non-goals:
 Detailed plan:
 
 - `docs/plans/customer-app-experience.md`
+
+Architecture decision:
+
+- `docs/decisions/0013-cpo-scoped-customer-accounts.md`
 
 ### Feature: Temporary unrestricted development listener
 
@@ -829,13 +835,14 @@ Current phase:
 
 Active feature:
 
-- Customer app experience planning; implementation has not started
+- Customer app experience — Slice 1 CPO-local customer accounts
 
 Current implementation slice:
 
-- Approved the end-to-end customer-surface plan. The first implementation
-  slice is self-service profile under the existing app-ID header; CPO-admin
-  implementation remains with its owners.
+- Replaced global customer identities with CPO-local credential-owning
+  customer accounts and dedicated challenge/session/refresh lineage across the
+  complete existing auth surface. Source, route, and contract verification are
+  active; PostgreSQL lifecycle verification requires `TEST_DATABASE_URL`.
 
 Last completed slice:
 
@@ -890,7 +897,9 @@ Last deployment milestone:
 
 Next expected slice:
 
-- Implement customer self-service profile after the approved plan is reviewed.
+- Run migration-twenty/customer-auth PostgreSQL lifecycle verification with an
+  explicitly disposable `TEST_DATABASE_URL`, then implement the approved
+  customer self-service profile endpoint.
 
 Blocked by:
 
@@ -898,15 +907,16 @@ Blocked by:
 
 ## Next Approved Work
 
-1. Add customer self-service profile editing using `X-CPO-App-ID` on every app
+1. Run migration-twenty/customer-auth PostgreSQL lifecycle verification.
+2. Add customer self-service profile editing using `X-CPO-App-ID` on every app
    request.
-2. Coordinate a default-false CPO-owned customer-publication field for hubs,
+3. Coordinate a default-false CPO-owned customer-publication field for hubs,
    then add customer station discovery and favorites.
-3. Define and implement the server-side effective tariff resolver before the
+4. Define and implement the server-side effective tariff resolver before the
    app displays price.
-4. Run manual-subscription and tariff overlap PostgreSQL lifecycle verification
+5. Run manual-subscription and tariff overlap PostgreSQL lifecycle verification
    against an explicitly disposable `TEST_DATABASE_URL`.
-5. Design staff invitation and membership management before activating dormant
+6. Design staff invitation and membership management before activating dormant
    role values.
 
 ## Deferred Work
@@ -953,9 +963,10 @@ verified down, up, and idempotently up; its lifecycle test covers customer
 signup resend, replay rejection, identity creation/reuse, tenant isolation, and
 wallet creation.
 
-The fifth migration has been verified down, up, and idempotently up; its
-lifecycle test covers customer login, access/refresh validation, `me`, scoped
-session management, password recovery/change, and revocation.
+The historical fifth migration was verified previously. Migration twenty now
+separates customer credentials and auth lineage from administrative users; its
+static migration contract and database-free auth tests are covered, while its
+full PostgreSQL lifecycle remains pending an explicit `TEST_DATABASE_URL`.
 
 Migration six and platform operations have focused
 compile/model/migration-discovery/route/OpenAPI tests. Migrations seven and

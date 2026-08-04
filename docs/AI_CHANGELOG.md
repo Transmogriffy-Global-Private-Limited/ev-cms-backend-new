@@ -2,6 +2,55 @@
 
 ## 2026-08-04
 
+### Implemented CPO-local customer authentication with full route parity
+
+- Migration 000020 moves app email/password/profile/verification/lockout state
+  onto `customers`, removes the global-user link, and adds dedicated durable
+  customer challenge, session, and rotating refresh-token tables with
+  composite CPO ownership.
+- Preserved the full app auth route surface: verified signup/resend,
+  password-plus-mail-OTP login/resend, encrypted access tokens, refresh
+  rotation/reuse revocation, enumeration-safe recovery/reset, authenticated
+  password change, `me`, session list/revoke, logout, and logout-all.
+- Access-token subject and trusted app principal now use `customer_id`.
+  `CurrentUserID` and `me.user` remain compatibility shapes whose ID equals the
+  customer ID and never identifies an administrative `users` row.
+- CPO suspension now revokes dedicated customer sessions as well as staff
+  sessions. The CPO user point lookup is staff-membership-only and no longer
+  depends on `customers.user_id`.
+- Customer signup/login/recovery outbox jobs retain CPO correlation while
+  leaving the administrative `user_id` empty.
+- Updated tests, OpenAPI, exhaustive HTTP/workflow contracts, schema/state,
+  development plans, CPO-agent guidance, the standalone User App frontend
+  handoff, and ADR supersession status.
+
+Verification:
+
+- `go test ./...` passes without a database URL; PostgreSQL lifecycle tests
+  compile and skip because `TEST_DATABASE_URL` is not configured.
+- Documentation, OpenAPI route parity, vet, and final diff checks are recorded
+  after the complete verification pass below.
+
+### Corrected customer identity direction
+
+- Approved CPO-scoped customer accounts: customer email, password, profile,
+  recovery, sessions, and refresh lineage are separate per CPO; global `users`
+  remain for Superadmin/CPO staff only. The same email/password combination is
+  allowed across CPOs but later changes remain scoped to one account.
+- Superseded the uncommitted global-user profile implementation pending the
+  additive customer-account migration and complete customer-auth refactor.
+
+### Superseded global-user customer-profile prototype
+
+- The uncommitted profile prototype used the former global `users` customer
+  identity and is superseded by ADR 0013. It must be refactored to the
+  CPO-scoped customer account before publication.
+
+Verification:
+
+- The former prototype's focused checks passed, but they do not verify the
+  approved CPO-scoped customer-account behavior and are not release evidence.
+
 ### Approved customer-app experience plan
 
 - Recorded the end-to-end customer-app implementation sequence in

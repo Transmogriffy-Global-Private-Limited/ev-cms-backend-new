@@ -1,6 +1,6 @@
 # Customer Authentication Plan
 
-Status: Implemented
+Status: Implemented under ADR 0013; PostgreSQL lifecycle verification pending
 
 ## Objective
 
@@ -23,32 +23,32 @@ Customer-session operations:
 - current app-user identity (`me`);
 - list and revoke this customer/CPO's sessions;
 - current-session logout and customer/CPO-scoped logout-all;
-- global-identity password change.
+- CPO-local customer password change.
 
 ## Invariants
 
-- Customer sessions use a distinct `CUSTOMER` scope and persist `customer_id`
-  plus `cpo_id`; they never carry a CPO staff role.
+- Customer sessions use dedicated customer auth tables and persist
+  `customer_id` plus `cpo_id`; they never reference a global user or carry a
+  CPO staff role.
 - The app ID must resolve and continue to match the same active CPO, but it is
   public routing metadata rather than authentication.
-- Login requires an active global identity and an active customer relationship
-  in that active CPO.
+- Login requires an active CPO-local customer account in that active CPO.
 - Access tokens remain signed then encrypted; refresh tokens remain opaque,
   hashed, rotating, and reuse-detecting.
-- Customer middleware revalidates the durable session, user, customer, CPO,
+- Customer middleware revalidates the durable session, customer, CPO,
   and current app ID on every request.
 - Customer session listing/revocation/logout-all is limited to the current
   customer relationship and does not expose or revoke administrative or
   cross-CPO sessions.
-- Password change/reset is global to the identity and therefore revokes every
-  session in every plane.
-- Backend handlers derive user, customer, and CPO identifiers from the
+- Password change/reset revokes every session for only the exact CPO-local
+  customer account.
+- Backend handlers derive customer and CPO identifiers from the
   validated customer principal, never from request bodies or query parameters.
 
 ## Backend Helper Contract
 
 - `customerauth.CurrentPrincipal`
-- `customerauth.CurrentUserID`
+- `customerauth.CurrentUserID` (compatibility alias of `CurrentCustomerID`)
 - `customerauth.CurrentCustomerID`
 - `customerauth.CurrentCPOID`
 - `customerauth.CurrentCPOAppID`
@@ -79,10 +79,10 @@ Completed evidence:
 
 - Migration 000005 passed down, up, and idempotent-up execution in PostgreSQL
   17.
-- PostgreSQL lifecycle covered mail OTP login, encrypted access validation,
-  `me`, refresh rotation/reuse revocation, customer-scoped session management,
-  password-reset handling/change, and global session revocation. The updated
-  lifecycle obtains the recovery ID and code from the encrypted recipient mail
-  payload.
+- The historical global-customer lifecycle covered mail OTP login, encrypted
+  access validation, `me`, refresh rotation/reuse revocation, session
+  management, and recovery. The migration-twenty CPO-local lifecycle obtains
+  recovery material from encrypted recipient mail but remains pending an
+  explicit disposable `TEST_DATABASE_URL`.
 - All 40 runtime/OpenAPI operations matched.
 - Documentation verification, `go test ./...`, and `go vet ./...` passed.

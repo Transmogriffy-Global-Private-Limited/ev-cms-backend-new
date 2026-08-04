@@ -19,7 +19,7 @@ provides:
 - CPO tenant organizations;
 - CPO membership persistence with ADMIN as the only callable tenant authority;
   OWNER, OPERATOR, and VIEWER remain dormant future-compatible enum values;
-- tenant-scoped customer relationships;
+- tenant-scoped, credential-owning customer accounts;
 - user settings and tenant customer groups;
 - hubs, chargers, connectors, favorites, and group access links;
 - GST profiles and tariffs;
@@ -92,15 +92,16 @@ provides:
 - public CPO-scoped customer signup start, verify, and resend APIs;
 - durable signup challenges with hashed pending passwords and HMAC-protected
   OTPs;
-- transactional global identity creation/reuse, tenant customer creation, and
-  zero-balance INR wallet creation;
-- a separate `CUSTOMER` session scope bound to one global user, customer, and
-  CPO without a staff role;
+- transactional CPO-local customer-account and zero-balance INR wallet
+  creation without a global administrative user;
+- dedicated customer challenge, session, and refresh-token tables bound to one
+  customer and CPO without a staff role or global-user foreign key;
 - customer password-plus-mail-OTP login, signed/encrypted access tokens, and
   rotating/reuse-detecting refresh tokens;
-- app-user `me`, customer-scoped session listing/revocation/logout, global
+- app-user `me`, customer-scoped session listing/revocation/logout, CPO-local
   password reset/change, and eligible-recipient recovery-ID/code delivery;
-- trusted backend current-principal, user, customer, CPO, and app-ID helpers;
+- trusted backend current-principal, customer, CPO, and app-ID helpers, with
+  `CurrentUserID` retained as a customer-ID compatibility alias;
 - environment-controlled permissive CORS middleware and a current development
   configuration that listens on all IPv4 interfaces for access from other
   machines;
@@ -149,8 +150,9 @@ PostgreSQL exclusion constraint and is deployed. The disposable PostgreSQL
 lifecycle test remains unexecuted because no `TEST_DATABASE_URL` is configured.
 
 The deployed contract has 112 operations: the added
-`GET /api/v1/cpo/users/{user_id}` is a tenant-scoped point lookup, not a
-customer or staff directory.
+`GET /api/v1/cpo/users/{user_id}` is a tenant-scoped staff-membership point
+lookup, not a customer or staff directory. CPO-local customer accounts are not
+reachable through it.
 
 The current source candidate has 112 operations. It adds the CPO ADMIN-only
 `POST /api/v1/cpo/hubs/{hub_id}/chargers` hub attachment/reassignment command,
@@ -282,18 +284,16 @@ yet.
   app-ID rotation, and suspension passed in PostgreSQL lifecycle tests.
 - The customer-signup migration rolled down, up, and idempotently up in
   PostgreSQL 17.
-- Customer signup resend rotation, old/replayed challenge rejection, new
-  identity/password creation, cross-CPO identity reuse without credential or
-  profile overwrite, and zero-balance INR wallet creation passed in a
-  PostgreSQL lifecycle test.
+- The superseded global-customer lifecycle previously passed PostgreSQL tests.
+  Migration twenty and the current CPO-local lifecycle have source/static/full
+  Go coverage but still require an explicitly disposable `TEST_DATABASE_URL`.
 - The customer-authentication migration rolled down, up, and idempotently up
   in PostgreSQL 17.
 - Customer login OTP, encrypted access validation, `me`, refresh rotation and
-  reuse revocation, customer-scoped session listing/revocation/logout,
-  password reset handling, password change, and global session revocation have
-  PostgreSQL lifecycle coverage. The updated recipient-visible recovery path
-  compiled but was not executed against PostgreSQL in this slice because no
-  disposable `TEST_DATABASE_URL` was set.
+  reuse revocation, customer-scoped session listing/revocation/logout, and
+  password reset/change are implemented on dedicated CPO-local auth tables.
+  Their updated lifecycle compiled but was not executed against PostgreSQL in
+  this slice because no disposable `TEST_DATABASE_URL` was set.
 - Permissive CORS preflight behavior and the disabled-CORS path passed focused
   route tests; authentication and authorization remain active in either mode.
 - Platform operations compile; model parsing, migration discovery/pairing, mail
@@ -335,18 +335,23 @@ yet.
 
 ## Current Access Model
 
-- `users` represent login identities.
+- `users` represent administrative login identities for platform and CPO staff.
 - `platform_admins` explicitly grant platform-superadmin authority.
 - `cpos` represent tenant/customer organizations.
 - `cpo_memberships` store a fixed role inside one CPO; current callable
   authority requires `ADMIN`.
-- `customers` represent a user's customer relationship with one CPO.
+- `customers` are CPO-local app-user accounts and own email, password, profile,
+  verification, lockout, and login timestamps.
+- Customer-auth outbox jobs are correlated to their owning CPO without
+  pretending that the customer has an administrative `users` identity.
 
 The full mapping from the supplied schema is recorded in `docs/SCHEMA.md`.
 
-The same identity may belong to multiple CPOs. Its membership and customer
-relationships remain distinct and tenant-scoped. Only ADMIN membership is
-currently accepted for CPO sessions; other stored role values are dormant.
+The same administrative identity may belong to multiple CPOs as staff. App
+customers are separate: the same email can register independently under
+multiple CPOs, with independent password/profile/session state. Only ADMIN
+membership is currently accepted for CPO staff sessions; other stored role
+values are dormant.
 
 An administrative session selects exactly one platform or CPO scope. Protected
 requests revalidate the durable session and current authority. Tenant context

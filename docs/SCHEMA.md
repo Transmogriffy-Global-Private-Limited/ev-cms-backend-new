@@ -47,7 +47,7 @@ Migration files:
 | `UserSetting` | `user_settings` |
 | `CPOProfile` | `cpos`; the CPO is now an organization/tenant rather than a one-to-one user profile |
 | `UserGroup` | tenant-owned `user_groups` |
-| App user | `customers`, linking a user identity to one CPO |
+| App user | `customers`, a credential-owning account local to one CPO |
 | `Hub` | tenant-owned `hubs`, including non-negative sanctioned load in kW (`0` when not recorded) |
 | `Charger` | tenant-owned `chargers`, with optional same-CPO hub assignment plus separate public `charger_id` and `ocpp_identity` |
 | `Connector` | tenant-owned `connectors` |
@@ -147,12 +147,12 @@ correct incomplete records from an authoritative source before applying it.
 
 The fourth migration adds `customer_signup_challenges`. Pending registrations
 are CPO-scoped and contain an Argon2id password hash plus HMAC-protected OTP,
-never plaintext credentials. Successful verification creates or reuses
-`users`, then creates the tenant `customers` relationship and its `wallet` in
-one transaction. The migration also admits `CUSTOMER_SIGNUP_OTP` in the
+never plaintext credentials. Under migration twenty, successful verification
+creates the tenant-local `customers` account and its `wallet` in one
+transaction without touching `users`. The migration also admits `CUSTOMER_SIGNUP_OTP` in the
 encrypted mail outbox.
 
-## Customer Authentication
+## Historical Customer Authentication Foundation
 
 The fifth migration adds a nullable `auth_sessions.customer_id`, enforced
 against the session CPO through a composite foreign key. The session context
@@ -162,9 +162,32 @@ constraint permits exactly:
 - `CPO` with a CPO and the currently callable `ADMIN` role but no customer;
 - `CUSTOMER` with a CPO and customer but no staff role.
 
-It also admits CPO-bound customer login/password-reset challenges and their
-encrypted mail templates. The same refresh-token lineage remains shared while
-customer authorization is revalidated through the tenant customer record.
+It also admitted CPO-bound customer login/password-reset challenges and their
+encrypted mail templates. Migration twenty supersedes the global-user parts of
+this design while retaining the mail templates and public API behavior.
+
+## CPO-Local Customer Accounts
+
+Migration twenty is deliberately guarded by an empty-`customers` preflight;
+the product decision was made before customer data existed, and the migration
+refuses to guess how historical credentials should be split.
+
+It removes `customers.user_id`, moves email/password/profile/verification/
+lockout/login state onto `customers`, and enforces normalized email uniqueness
+per CPO. It creates:
+
+- `customer_auth_challenges`, with CPO/customer composite ownership, HMAC OTP,
+  expiry, attempts, resend cooldown, and terminal timestamps;
+- `customer_auth_sessions`, with CPO/customer composite ownership, token
+  version, client metadata, expiry, and revocation state;
+- `customer_auth_refresh_tokens`, with hashed one-time tokens, rotation
+  lineage, reuse detection, expiry, and revocation state.
+
+The general `auth_challenges`, `auth_sessions`, and `auth_refresh_tokens` tables
+return to administrative `PLATFORM`/`CPO` use only. The customer JWT subject is
+the CPO-local customer UUID. A rollback also refuses to run while customer rows
+exist because independent customer credentials cannot be reconstructed as one
+global identity without an explicit data-migration policy.
 
 ## Platform Operations, Workers, and Realtime
 

@@ -48,13 +48,13 @@ wiring, tables, queries, callers, tests, and documentation surfaces are known.
 This is a multi-tenant CMS sold to CPO organizations.
 
 - A CPO is a tenant organization, not a global user role.
-- `users` are global login identities.
+- `users` are global administrative login identities for platform and CPO staff.
 - `platform_admins` grants platform Superadmin authority.
 - `cpo_memberships` grants staff authority inside exactly one CPO.
-- `customers` links one global identity to one CPO as an app user.
-- A staff membership and a customer relationship are separate things.
-- The same global identity may belong to multiple CPOs, but every session
-  selects exactly one scope.
+- `customers` is the credential-owning app-user account local to one CPO.
+- Staff identities and customer accounts are separate things.
+- The same customer email may independently register under multiple CPOs, but
+  credentials, profile, lockout, OTP, and session state never cross CPOs.
 
 There are three authentication planes:
 
@@ -237,8 +237,8 @@ Implemented:
   generic while the eligible recipient's encrypted email supplies the recovery
   ID, code, and expiry required by reset.
 
-Successful signup transactionally creates or reuses the global identity,
-creates one CPO-scoped customer, and creates its zero-balance INR wallet.
+Successful signup transactionally creates one CPO-local customer account and
+its zero-balance INR wallet without creating or reusing `users`.
 
 Not implemented: a CPO ADMIN customer directory, customer suspension API,
 groups/RFID management APIs, customer profile editing, or verified email
@@ -337,7 +337,7 @@ prove the device is online.
 active CPO app supplies current X-CPO-App-ID
 → signup challenge and encrypted OTP mail
 → verify challenge
-→ create/reuse global identity + tenant customer + INR wallet atomically
+→ create tenant-local customer account + INR wallet atomically
 → customer password login + OTP
 → CUSTOMER-scoped session and app-ID validation
 ```
@@ -360,8 +360,9 @@ Can be designed without HAL transport:
 - hub/charger group-access management;
 - audit, mail, OpenAPI, FE contract, and PostgreSQL tenant-isolation tests.
 
-Do not overwrite global identity credentials/profile while attaching an
-existing user to another CPO.
+Do not query or mutate administrative `users` for customer credentials. Any
+future CPO customer administration must scope every lookup and mutation by the
+trusted CPO plus customer ID and must not affect a same-email account elsewhere.
 
 ### Candidate B: Complete network lifecycle
 

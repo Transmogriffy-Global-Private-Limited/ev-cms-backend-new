@@ -1076,38 +1076,26 @@ func TestCPOSuperadminDependencyLifecycleWithPostgreSQL(t *testing.T) {
 		t.Fatalf("got %d canonical primary-admin change events, want at least 4", changedEvents)
 	}
 
-	customerUser := models.User{
+	customer := models.Customer{
 		ID:                uuid.New(),
 		Email:             "suspension-customer-" + uuid.NewString() + "@example.com",
 		PasswordHash:      existingHash,
+		CPOID:             created.CPO.ID,
 		FullName:          "Suspension Customer",
-		IsActive:          true,
 		IsVerified:        true,
+		Status:            constants.CustomerStatusActive,
 		PasswordChangedAt: now,
 		CreatedAt:         now,
 		UpdatedAt:         now,
-	}
-	if err := gormDB.Create(&customerUser).Error; err != nil {
-		t.Fatalf("create suspension customer identity: %v", err)
-	}
-	customer := models.Customer{
-		ID:        uuid.New(),
-		CPOID:     created.CPO.ID,
-		UserID:    customerUser.ID,
-		Status:    constants.CustomerStatusActive,
-		CreatedAt: now,
-		UpdatedAt: now,
 	}
 	if err := gormDB.Create(&customer).Error; err != nil {
 		t.Fatalf("create suspension customer: %v", err)
 	}
 	customerSessionID := uuid.New()
-	if err := gormDB.Create(&models.AuthSession{
+	if err := gormDB.Create(&models.CustomerAuthSession{
 		ID:           customerSessionID,
-		UserID:       customerUser.ID,
-		Scope:        constants.AuthScopeCustomer,
-		CPOID:        &created.CPO.ID,
-		CustomerID:   &customer.ID,
+		CPOID:        created.CPO.ID,
+		CustomerID:   customer.ID,
 		TokenVersion: 1,
 		UserAgent:    "suspension-customer",
 		CreatedAt:    now,
@@ -1124,7 +1112,7 @@ func TestCPOSuperadminDependencyLifecycleWithPostgreSQL(t *testing.T) {
 	); err != nil {
 		t.Fatalf("suspend CPO after recovery test: %v", err)
 	}
-	var customerSession models.AuthSession
+	var customerSession models.CustomerAuthSession
 	if err := gormDB.First(&customerSession, "id = ?", customerSessionID).Error; err != nil {
 		t.Fatalf("load suspended customer session: %v", err)
 	}

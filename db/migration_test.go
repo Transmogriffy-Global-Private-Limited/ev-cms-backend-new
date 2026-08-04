@@ -342,6 +342,40 @@ func TestCustomerAuthenticationMigrationContainsSessionScope(t *testing.T) {
 	}
 }
 
+func TestCPOScopedCustomerAccountMigrationSeparatesAdministrativeIdentity(t *testing.T) {
+	t.Parallel()
+
+	upBody, err := migrationFiles.ReadFile("migrations/000020_cpo_scoped_customer_accounts.up.sql")
+	if err != nil {
+		t.Fatalf("read CPO-local customer account migration: %v", err)
+	}
+	downBody, err := migrationFiles.ReadFile("migrations/000020_cpo_scoped_customer_accounts.down.sql")
+	if err != nil {
+		t.Fatalf("read CPO-local customer rollback migration: %v", err)
+	}
+	upSQL := string(upBody)
+	downSQL := string(downBody)
+	for _, required := range []string{
+		"requires an empty customers table",
+		"DROP COLUMN IF EXISTS user_id",
+		"CREATE UNIQUE INDEX uq_cpo_customer_email",
+		"CREATE UNIQUE INDEX uq_customers_cpo_id_identity ON customers (cpo_id, id)",
+		"chk_customers_failed_login_attempts",
+		"CREATE TABLE customer_auth_challenges",
+		"CREATE TABLE customer_auth_sessions",
+		"CREATE TABLE customer_auth_refresh_tokens",
+		"fk_customer_auth_challenge_account",
+		"fk_customer_auth_session_account",
+	} {
+		if !strings.Contains(upSQL, required) {
+			t.Errorf("CPO-local customer account migration missing %q", required)
+		}
+	}
+	if !strings.Contains(downSQL, "CPO-local credentials cannot be reconstructed") {
+		t.Fatal("customer-account rollback does not fail safely when customer data exists")
+	}
+}
+
 func TestPlatformOperationsMigrationContainsDurableEventsAndWorkers(t *testing.T) {
 	t.Parallel()
 
