@@ -1910,7 +1910,9 @@ There is currently no tariff delete route. Deactivation through
 
 ### 9.23 `GET /api/v1/cpo/subscription`
 
-Returns the current subscription details for the authenticated CPO.
+Returns the current non-terminal subscription details for the authenticated
+CPO. `CANCELLED` and `EXPIRED` history is deliberately not returned by this
+tenant read.
 
 `200 OK`:
 
@@ -1934,7 +1936,11 @@ Returns the current subscription details for the authenticated CPO.
 }
 ```
 
-The response includes the current subscription status and period, along with details of the subscribed plan. Optional fields like `trial_ends_at`, `cancelled_at`, and `ended_at` are omitted when absent.
+The response includes the current subscription status and period, along with
+details of the subscribed plan. Optional fields such as `trial_ends_at`,
+`cancelled_at`, and `ended_at` are omitted when absent. This is read-only:
+manual issue and lifecycle commands remain platform-Superadmin operations, and
+subscription state never controls CPO authorization.
 
 Errors: `401 unauthorized`, `403 forbidden`, `404 subscription_not_found`, or `500 internal_error`.
 

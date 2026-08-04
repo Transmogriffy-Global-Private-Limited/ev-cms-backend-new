@@ -133,7 +133,7 @@ UUID or a row UUID.
 ## Current Implemented CPO Surface
 
 The authoritative machine contract is
-`docs/contracts/openapi/openapi.yaml`. The source currently has 111 total
+`docs/contracts/openapi/openapi.yaml`. The source currently has 113 total
 HTTP operations across all planes. Runtime/OpenAPI parity is tested.
 
 ### Administrative authentication
@@ -164,6 +164,9 @@ Base: `/api/v1/cpo`
 - `GET /organization` returns a tenant-safe, read-only CPO projection.
 - `GET /admin/profile` returns the global administrator identity profile.
 - `PATCH /admin/profile` updates full name and optional phone only.
+- `GET /subscription` returns the current non-terminal manual platform
+  subscription and plan as a read-only tenant view. CPO staff cannot issue,
+  mutate, renew, or cancel it, and it never controls tenant authorization.
 
 Superadmin remains the only writer of CPO organization fields. The tenant
 organization response omits privileged lifecycle reason and platform actor ID.

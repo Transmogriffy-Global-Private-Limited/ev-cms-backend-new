@@ -4888,6 +4888,8 @@ components:
 
     CPOSubscriptionPlanView:
       type: object
+      additionalProperties: false
+      required: [name, description, currency, price_minor, billing_interval, interval_count, trial_days]
       properties:
         name:
           type: string
@@ -4908,19 +4910,24 @@ components:
           example: 1000000
         billing_interval:
           type: string
+          enum: [MONTHLY, YEARLY]
           description: The interval at which the subscription is billed.
           example: MONTHLY
         interval_count:
           type: integer
+          minimum: 1
           description: The number of intervals between subscription billings.
           example: 1
         trial_days:
           type: integer
+          minimum: 0
           description: The number of trial days for the plan.
           example: 0
 
     CPOSubscriptionView:
       type: object
+      additionalProperties: false
+      required: [id, status, starts_at, current_period_starts_at, current_period_ends_at, cancel_at_period_end, plan]
       properties:
         id:
           type: string
@@ -4928,6 +4935,7 @@ components:
           description: The ID of the CPO subscription.
         status:
           type: string
+          enum: [TRIAL, ACTIVE, PAUSED, PAST_DUE]
           description: The status of the subscription.
           example: ACTIVE
         starts_at:

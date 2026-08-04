@@ -154,13 +154,15 @@ The deployed contract has 112 operations: the added
 lookup, not a customer or staff directory. CPO-local customer accounts are not
 reachable through it.
 
-The current source candidate has 112 operations. It adds the CPO ADMIN-only
+The current source candidate has 113 operations. It adds the CPO ADMIN-only
 `POST /api/v1/cpo/hubs/{hub_id}/chargers` hub attachment/reassignment command,
 allows an independent charger to be created without `hub_id`, and adds
 non-negative hub `sanction_load` plus the upgrade-time removal of the legacy
 charger-hub `NOT NULL` in migration sixteen. These changes are deployed at
 `4502934`; migration nineteen reconciles databases that had already recorded
-the removed follow-up migrations so `chargers.hub_id` is nullable.
+the removed follow-up migrations so `chargers.hub_id` is nullable. The one
+source-only operation beyond that deployment is the CPO ADMIN subscription
+read endpoint merged from `main`.
 
 The deployed recovery flow fixes a recovery-specific OTP mapper defect that discarded
 `challenge_id` before outbox validation and caused eligible administrative and
@@ -200,7 +202,7 @@ yet.
   content, and affected package tests passed for the source-tree change.
 - Superadmin migration fourteen static coverage, input/privacy regression
   tests, and the affected package tests passed for the source-tree change.
-- The 112-operation source OpenAPI and runtime route sets match; documentation
+- The 113-operation source OpenAPI and runtime route sets match; documentation
   contract verification passed.
 - Source migration coverage verifies both sanctioned-load constraints and the
   upgrade/rollback guard for independent charger inventory. The targeted
@@ -377,10 +379,11 @@ repository. The integration contract has not been implemented yet.
   reporting, and most other domain tables remain without business APIs.
 - CPO staff invitation after the first admin and customer email/profile-change
   workflows are not implemented.
-- Manual subscriptions are platform-only records; feature keys and entitlement
-  overrides are not defined. Platform invoices/payments and all provider or
-  automatic lifecycle behavior remain unsupported, and CPO access is manual
-  and independent.
+- Manual subscriptions are Superadmin-managed records; a CPO ADMIN has only a
+  read-only current-subscription view. Feature keys and entitlement overrides
+  are not defined. Platform invoices/payments and all provider or automatic
+  lifecycle behavior remain unsupported, and CPO access is manual and
+  independent.
 - Automatic encryption-key rotation is not implemented; data must be
   re-encrypted before an old key is removed.
 - SMTP delivery logic is implemented, worker-tested, and verified through one
@@ -388,7 +391,7 @@ repository. The integration contract has not been implemented yet.
   in the ignored deployment environment.
 - No generated frontend SDK exists yet; consumers use the reviewed OpenAPI
   contract directly.
-- Migration thirteen's disposable PostgreSQL lifecycle coverage has not
+- Migration twenty's disposable PostgreSQL lifecycle coverage has not
   executed because no disposable `TEST_DATABASE_URL` is configured. The live
   development deployment is current on migration fifteen and the
   111-operation contract; the two dormant feature-key tables are in

@@ -34,9 +34,10 @@ const (
 )
 
 var (
-	slugPattern  = regexp.MustCompile(`^[a-z0-9]+(?:-[a-z0-9]+)*$`)
-	gstinPattern = regexp.MustCompile(`^[0-9A-Z]{15}$`)
-	appIDPattern = regexp.MustCompile(`^[a-z0-9_-]{16,100}$`)
+	slugPattern                    = regexp.MustCompile(`^[a-z0-9]+(?:-[a-z0-9]+)*$`)
+	gstinPattern                   = regexp.MustCompile(`^[0-9A-Z]{15}$`)
+	appIDPattern                   = regexp.MustCompile(`^[a-z0-9_-]{16,100}$`)
+	currentCPOSubscriptionStatuses = []string{"TRIAL", "ACTIVE", "PAUSED", "PAST_DUE"}
 )
 
 type Service struct {
@@ -1789,7 +1790,7 @@ func (service *Service) GetSubscription(
 		Select("cpo_subscriptions.*, p.name as plan_name, p.description as plan_description, pv.currency, pv.price_minor, pv.billing_interval, pv.interval_count, pv.trial_days").
 		Joins("inner join subscription_plan_versions pv on pv.id = cpo_subscriptions.plan_version_id").
 		Joins("inner join subscription_plans p on p.id = pv.plan_id").
-		Where("cpo_subscriptions.cpo_id = ?", cpoID).
+		Where("cpo_subscriptions.cpo_id = ? AND cpo_subscriptions.status IN ?", cpoID, currentCPOSubscriptionStatuses).
 		First(&result).Error
 
 	if err != nil {
@@ -1813,7 +1814,7 @@ func (service *Service) GetSubscription(
 		CancelAtPeriodEnd:     result.CancelAtPeriodEnd,
 		CancelledAt:           result.CancelledAt,
 		EndedAt:               result.EndedAt,
-		Plan: &CPOSubscriptionPlanView{
+		Plan: CPOSubscriptionPlanView{
 			Name:            result.PlanName,
 			Description:     result.PlanDescription,
 			Currency:        result.Currency,
@@ -1826,8 +1827,6 @@ func (service *Service) GetSubscription(
 
 	return view, nil
 }
-
-
 func (service *Service) CreateCharger(
 	ctx context.Context,
 	principal auth.Principal,
@@ -2724,10 +2723,10 @@ func (service *Service) CreateHub(
 			cpoID,
 			"HUB_CREATED",
 			models.JSONB{
-				"hub_id":          record.ID,
-				"name":            record.Name,
-				"open_24_hours":   record.Open24Hours,
-				"sanction_load":   record.SanctionLoad,
+				"hub_id":            record.ID,
+				"name":              record.Name,
+				"open_24_hours":     record.Open24Hours,
+				"sanction_load":     record.SanctionLoad,
 				"chargers_assigned": len(request.ChargerIDs),
 			},
 			now,

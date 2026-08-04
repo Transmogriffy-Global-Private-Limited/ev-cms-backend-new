@@ -41,7 +41,7 @@ the development deployment.
 - API prefix: `/api/v1`
 - Interactive contract: `/docs/`
 - Raw OpenAPI: `/openapi.yaml`
-- Current source-tree backend contract: 112 HTTP operations across every persona
+- Current source-tree backend contract: 113 HTTP operations across every persona
 - Operations used by the SuperAdmin application: 66 API operations
   - 12 shared administrative-authentication operations;
   - 12 platform CPO-control operations;

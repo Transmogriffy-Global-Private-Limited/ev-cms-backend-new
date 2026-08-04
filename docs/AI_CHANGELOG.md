@@ -28,8 +28,28 @@ Verification:
 
 - `go test ./...` passes without a database URL; PostgreSQL lifecycle tests
   compile and skip because `TEST_DATABASE_URL` is not configured.
-- Documentation, OpenAPI route parity, vet, and final diff checks are recorded
-  after the complete verification pass below.
+- Documentation verification, OpenAPI/runtime route parity, `go test ./...`,
+  `go vet ./...`, and `git diff --check` pass on the reconciled source.
+
+### Reconciled current main with the customer-auth implementation
+
+- Merged the latest remote `main`, retaining its CPO hub changes and read-only
+  CPO subscription endpoint alongside the CPO-local customer-auth boundary.
+- Corrected the incoming subscription query to return only the current
+  non-terminal record rather than an arbitrary historical record, made its
+  plan response contract required, and documented that CPO access is read-only
+  and never controlled by subscription state.
+- Reconciled the machine-contract verifier and current-source documentation to
+  the resulting 113 routed OpenAPI operations; the deployed development
+  revision remains separately documented at 112 operations.
+
+Verification:
+
+- Documentation verification, OpenAPI/runtime route parity, `go test ./...`,
+  `go vet ./...`, and `git diff --check` pass after the merge.
+- Stateful PostgreSQL customer-auth and subscription-read lifecycle execution
+  remains pending because no explicitly disposable `TEST_DATABASE_URL` is
+  configured.
 
 ### Corrected customer identity direction
 
