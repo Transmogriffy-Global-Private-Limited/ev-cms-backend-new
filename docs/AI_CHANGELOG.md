@@ -2,6 +2,23 @@
 
 ## 2026-08-04
 
+### Completed the SuperAdmin frontend API handoff
+
+- Reconciled `docs/SUPERADMIN_FRONTEND_HANDOFF.md` with the current 111-operation
+  OpenAPI contract, expanding the SuperAdmin inventory from the previously
+  listed 28 operations to all 66 platform-consumable operations.
+- Added frontend request/response types and workflow guidance for platform
+  administrator governance, security operations, safe mail administration,
+  announcements, notifications, overview/status, and manual subscriptions.
+- Corrected password-recovery screen guidance and documented subscription
+  idempotency, explicit lifecycle control, and the absence of provider billing,
+  feature keys, entitlements, and automatic subscription behavior.
+
+Verification:
+
+- `scripts/verify-docs.ps1` passed.
+- `git diff --check` passed.
+
 ### CPO user lookup and tariff scheduling deployed
 
 - Reviewed the reconciled `bb555b9` merge against the deployed `396bae5`
