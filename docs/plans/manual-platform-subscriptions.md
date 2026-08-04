@@ -1,6 +1,6 @@
 # Manual Platform Subscriptions
 
-Status: In Progress
+Status: Verified
 
 ## Objective
 

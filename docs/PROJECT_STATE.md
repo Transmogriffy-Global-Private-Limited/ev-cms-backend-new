@@ -121,8 +121,8 @@ provides:
   handler;
 - the additive PostgreSQL database `devevcmsnewdb`, owned by `postgres`.
 
-The active development VPS runs source revision `c50bc49`, with migration
-twelve recorded and the deployed 90-operation contract. CPO GSTIN and address
+The active development VPS runs source revision `9b508ef`, with migration
+thirteen recorded and the deployed 87-operation contract. CPO GSTIN and address
 identity are database-required, authenticated platform clients can use the
 advisory slug-availability operation, and known uniqueness races return
 field- or relationship-specific conflict codes. All four CPOs were complete
@@ -131,9 +131,9 @@ and preserved during deployment. Migration nine continues to preserve the
 the current development environment uses `LOG_LEVEL=DEBUG` for correlated
 request-start and completion diagnostics.
 
-Migration thirteen removes feature-key runtime behavior in source but has not
-yet been deployed. The disposable PostgreSQL lifecycle test remains unexecuted
-because no `TEST_DATABASE_URL` is configured.
+Migration thirteen removes feature-key runtime behavior and is deployed. The
+disposable PostgreSQL lifecycle test remains unexecuted because no
+`TEST_DATABASE_URL` is configured.
 
 The deployed recovery flow fixes a recovery-specific OTP mapper defect that discarded
 `challenge_id` before outbox validation and caused eligible administrative and
@@ -169,6 +169,11 @@ yet.
 - `go test ./...` passed.
 - `go vet ./...` passed.
 - `git diff --check` passed.
+- Revision `9b508ef` was built cleanly and rehosted after a validated
+  mode-0600 rollback dump and migration thirteen. The installed identity,
+  loopback-only listener, loopback/public readiness, live 87-operation
+  Swagger/OpenAPI, zero-restart service state, preserved feature-key rows in
+  `retired_commercial`, and absence of startup errors or panics passed.
 - Revision `d27e599` was built cleanly and rehosted without a migration. The
   installed identity, loopback-only listener, loopback/public readiness, live
   70-operation Swagger/OpenAPI, zero-restart service state, DEBUG request-start
@@ -329,6 +334,6 @@ repository. The integration contract has not been implemented yet.
   contract directly.
 - Migration thirteen's disposable PostgreSQL lifecycle coverage has not
   executed because no disposable `TEST_DATABASE_URL` is configured. The live
-  development deployment is current on migration twelve and the 90-operation
-  contract; migration thirteen will return the two dormant feature-key tables
-  to `retired_commercial` while leaving automatic lifecycle workers disabled.
+  development deployment is current on migration thirteen and the
+  87-operation contract; the two dormant feature-key tables are in
+  `retired_commercial` while automatic lifecycle workers remain disabled.

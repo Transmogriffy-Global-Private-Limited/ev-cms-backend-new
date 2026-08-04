@@ -2,7 +2,7 @@
 
 ## 2026-08-04
 
-### Feature-key runtime removed pending a module catalog
+### Feature-key runtime removed and deployed pending a module catalog
 
 - Added migration thirteen to return `subscription_plan_entitlements` and
   `cpo_entitlement_overrides` to `retired_commercial` while preserving their
@@ -13,10 +13,23 @@
 - `cpos.status` remains the only whole-CPO service control. A future feature
   model requires an approved fixed module catalog and server-side enforcement.
 
-Verification:
+Verification and deployment:
 
-- Pending final verification and deployment. The VPS remains on the previous
-  migration-twelve/90-operation release.
+- Documentation verification, migration static checks, subscription/model/
+  route validation, `go test ./...`, `go vet ./...`, and `git diff --check`
+  passed before activation. The disposable PostgreSQL lifecycle remains
+  unexecuted without `TEST_DATABASE_URL`.
+- Created the mode-0600 rollback dump
+  `/tmp/devevcmsnewdb-pre-9b508ef.dump` and preserved the prior binary as
+  `builds/evcmsnew.pre-9b508ef`.
+- Confirmed migration twelve before applying migration thirteen, verified both
+  feature-key tables in `retired_commercial` with their rows preserved, and
+  confirmed active subscription plan/version/subscription/history tables remain
+  in `public`.
+- Rehosted `evcmsnew-dev.service` with `9b508ef`. Systemd is enabled and active
+  with zero restarts; loopback/public liveness and readiness, Swagger UI, and
+  the live 87-operation OpenAPI passed. No recent startup error or panic was
+  recorded.
 
 ### Manual platform subscriptions restored without a provider
 

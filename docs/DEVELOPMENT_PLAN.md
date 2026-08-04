@@ -816,17 +816,18 @@ Last completed slice:
 
 Last deployment milestone:
 
-- Revision `c50bc49` was built cleanly and rehosted on the development VPS
-  after a validated rollback dump and application of migration twelve. The six
-  manual-subscription tables are restored in `public`, automatic lifecycle
-  workers remain disabled, and the live 90-operation route/OpenAPI surface,
-  running-binary identity, loopback-only listener, loopback/public readiness,
-  zero-restart service state, and post-start journal were verified. The
-  disposable PostgreSQL lifecycle remains pending without `TEST_DATABASE_URL`.
+- Revision `9b508ef` was built cleanly and rehosted on the development VPS
+  after a validated rollback dump and application of migration thirteen. The
+  two dormant feature-key tables are back in `retired_commercial` with rows
+  preserved, four subscription catalog/history tables remain active in
+  `public`, and the live 87-operation route/OpenAPI surface, running-binary
+  identity, loopback-only listener, loopback/public readiness, zero-restart
+  service state, and post-start journal were verified. The disposable
+  PostgreSQL lifecycle remains pending without `TEST_DATABASE_URL`.
 
 Next expected slice:
 
-- Run the migration-twelve PostgreSQL lifecycle verification against a
+- Run the manual-subscription PostgreSQL lifecycle verification against a
   disposable database, then resume platform-superadmin governance
 
 Blocked by:

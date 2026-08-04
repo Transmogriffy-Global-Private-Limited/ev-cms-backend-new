@@ -48,10 +48,10 @@ the development deployment.
   - 4 platform operations/realtime queries;
   - 17 manual subscription operations.
 
-The development origin serves the deployed 90-operation OpenAPI document from
-revision `c50bc49` with migration twelve. The manual subscription API is
-platform-superadmin-only and does not activate provider billing or automatic
-lifecycle behavior.
+The development origin serves the deployed 87-operation OpenAPI document from
+revision `9b508ef` with migration thirteen. The manual subscription API is
+platform-superadmin-only, excludes feature-key entitlements, and does not
+activate provider billing or automatic lifecycle behavior.
 
 Configure the origin in the frontend environment. Do not hardcode it in API
 modules:
@@ -92,7 +92,7 @@ approved origin policy and HTTPS.
 | Generic mail operations | Not implemented | No mail list/detail/retry/cancel API exists |
 | Notifications/announcements | Not implemented | Do not create placeholder write flows |
 | Platform overview aggregates | Not implemented | Compose only bounded existing queries; do not fake totals |
-| Manual subscriptions | Source correction pending deployment | Plans, issue/renew/status, and history; no feature keys, provider, or automatic lifecycle |
+| Manual subscriptions | Ready | Plans, issue/renew/status, and history; no feature keys, provider, or automatic lifecycle |
 | Platform billing | Intentionally unsupported | No invoice, payment, checkout, or webhook APIs |
 | Tenant business data or secret access | Forbidden boundary | A SuperAdmin is not a CPO ADMIN and cannot impersonate one |
 
