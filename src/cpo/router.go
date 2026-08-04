@@ -441,6 +441,7 @@ func RegisterCPORoutes(
 	group.GET("/admin/profile", handler.getAdminProfile)
 	group.PATCH("/admin/profile", handler.updateAdminProfile)
 	group.GET("/organization", handler.getOrganization)
+	group.GET("/subscription", handler.getSubscription)
 	group.GET("/users/:user_id", handler.getUser)
 	group.POST("/chargers", handler.createCharger)
 	group.GET("/chargers", handler.listChargers)
@@ -460,6 +461,16 @@ func RegisterCPORoutes(
 	group.GET("/gsts", handler.listGSTs)
 	group.GET("/gsts/:gst_id", handler.getGST)
 	group.PATCH("/gsts/:gst_id", handler.updateGST)
+}
+
+func (handler *Handler) getSubscription(ctx *gin.Context) {
+	principal, _ := auth.CurrentPrincipal(ctx)
+	record, err := handler.service.GetSubscription(ctx.Request.Context(), principal)
+	if err != nil {
+		writeError(ctx, err)
+		return
+	}
+	ctx.JSON(http.StatusOK, record)
 }
 
 func (handler *Handler) getAdminProfile(ctx *gin.Context) {

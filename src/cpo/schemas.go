@@ -395,3 +395,26 @@ type GSTListResponse struct {
 	NextBeforeID *uuid.UUID `json:"next_before_id,omitempty"`
 	HasMore      bool       `json:"has_more"`
 }
+
+type CPOSubscriptionPlanView struct {
+	Name            string `json:"name"`
+	Description     string `json:"description"`
+	Currency        string `json:"currency"`
+	PriceMinor      int64  `json:"price_minor"`
+	BillingInterval string `json:"billing_interval"`
+	IntervalCount   int    `json:"interval_count"`
+	TrialDays       int    `json:"trial_days"`
+}
+
+type CPOSubscriptionView struct {
+	ID                    uuid.UUID                `json:"id"`
+	Status                string                   `json:"status"`
+	StartsAt              time.Time                `json:"starts_at"`
+	TrialEndsAt           *time.Time               `json:"trial_ends_at,omitempty"`
+	CurrentPeriodStartsAt time.Time                `json:"current_period_starts_at"`
+	CurrentPeriodEndsAt   time.Time                `json:"current_period_ends_at"`
+	CancelAtPeriodEnd     bool                     `json:"cancel_at_period_end"`
+	CancelledAt           *time.Time               `json:"cancelled_at,omitempty"`
+	EndedAt               *time.Time               `json:"ended_at,omitempty"`
+	Plan                  *CPOSubscriptionPlanView `json:"plan,omitempty"`
+}
