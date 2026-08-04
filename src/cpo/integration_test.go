@@ -1234,6 +1234,22 @@ func TestCPOAdminProfileAndNetworkConfigurationWithPostgreSQL(t *testing.T) {
 	if profile.FullName != updatedName || profile.Phone == nil || *profile.Phone != phone {
 		t.Fatalf("unexpected administrator profile: %#v", profile)
 	}
+	user, err := service.GetUser(ctx, adminPrincipal, created.Admin.UserID)
+	if err != nil {
+		t.Fatalf("get CPO-linked administrator: %v", err)
+	}
+	if user.ID != created.Admin.UserID || user.CPOID != created.CPO.ID ||
+		user.Role == nil || *user.Role != constants.CPORoleAdmin {
+		t.Fatalf("unexpected CPO user projection: %#v", user)
+	}
+	if _, err := service.GetUser(ctx, adminPrincipal, uuid.New()); err == nil {
+		t.Fatal("unlinked user ID was returned to the CPO")
+	} else {
+		var apiErr *auth.APIError
+		if !errors.As(err, &apiErr) || apiErr.Code != "user_not_found" {
+			t.Fatalf("get unlinked user: %v, want user_not_found", err)
+		}
+	}
 
 	latitude := 22.5524
 	longitude := 88.3521

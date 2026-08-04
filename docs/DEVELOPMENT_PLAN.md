@@ -791,8 +791,10 @@ Active feature:
 
 Current implementation slice:
 
-- Restore and verify the manual subscription catalog, issuance, and explicit
-  lifecycle commands without billing or feature keys
+- Reconcile the contributed CPO user point-lookup and tariff effective-date
+  work into the deployed Superadmin/manual-subscription baseline. Preserve
+  mandatory hub scope, tenant-safe lookup behavior, and database-enforced
+  overlap handling.
 
 Last completed slice:
 
@@ -845,8 +847,9 @@ Last deployment milestone:
 
 Next expected slice:
 
-- Run the complete Superadmin and manual-subscription PostgreSQL lifecycle
-  verification when an explicitly disposable database is available
+- Run the tariff effective-date and existing Superadmin/manual-subscription
+  PostgreSQL lifecycle verification when an explicitly disposable database is
+  available
 
 Blocked by:
 
@@ -857,8 +860,9 @@ Blocked by:
 1. Run manual-subscription PostgreSQL lifecycle verification from
    `docs/plans/manual-platform-subscriptions.md` against an explicitly
    disposable `TEST_DATABASE_URL`.
-2. Rehost the verified migration-fourteen/binary revision to the development
-   VPS with explicit approval and post-deploy contract checks.
+2. Run migration-fifteen tariff overlap/preflight coverage against an explicitly
+   disposable `TEST_DATABASE_URL`, then deploy it before any binary that reads
+   the effective-date columns.
 3. Design staff invitation and membership management before activating dormant
    role values.
 

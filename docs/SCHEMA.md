@@ -33,6 +33,10 @@ Migration files:
 - `db/migrations/000012_restore_manual_subscriptions.down.sql`
 - `db/migrations/000013_retire_dormant_subscription_entitlements.up.sql`
 - `db/migrations/000013_retire_dormant_subscription_entitlements.down.sql`
+- `db/migrations/000014_complete_superadmin_surface.up.sql`
+- `db/migrations/000014_complete_superadmin_surface.down.sql`
+- `db/migrations/000015_tariff_effective_dates.up.sql`
+- `db/migrations/000015_tariff_effective_dates.down.sql`
 
 ## Supplied Model Mapping
 
@@ -218,6 +222,18 @@ platform-access control.
 Migration nine was verified up and down against disposable loopback PostgreSQL
 17, including pending-mail refusal, preserved-row archival/restoration, and
 retired-worker disable/restore behavior.
+
+## Tariff Effective Dates
+
+Migration fifteen is additive and must run before a binary that reads or writes
+`tariffs.start_date` or `tariffs.end_date`. A tariff is either open-ended (both
+columns null) or uses a complete half-open effective interval. The migration
+fails before adding its exclusion constraint if existing active tariffs already
+overlap under the same `(cpo_id, hub_id, charger_id, user_group_id)` scope;
+operators must reconcile those records deliberately rather than receiving an
+ambiguous partial migration. The `btree_gist`-backed constraint treats null
+effective bounds as infinity and uses `IS NOT DISTINCT FROM` semantics for the
+optional UUID scope columns, so it remains safe under concurrent writes.
 
 ## CPO Superadmin Dependency
 

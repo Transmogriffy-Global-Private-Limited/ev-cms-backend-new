@@ -3,6 +3,7 @@ package cpo
 import (
 	"encoding/json"
 	"errors"
+	"net/http"
 	"strings"
 	"testing"
 	"time"
@@ -366,6 +367,40 @@ func TestTenantOperationValidation(t *testing.T) {
 	gst.IGSTRate = nil
 	if err := validateCreateGSTRequest(gst); err == nil {
 		t.Fatal("GST without IGST rate was accepted")
+	}
+}
+
+func TestValidateTariffDateRangeRejectsInvalidRange(t *testing.T) {
+	t.Parallel()
+
+	start := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	end := start.Add(-1 * time.Hour)
+	if err := validateTariffDateRange(&start, &end); err == nil {
+		t.Fatal("invalid date range was accepted")
+	}
+
+	later := start.Add(48 * time.Hour)
+	if err := validateTariffDateRange(&start, &later); err != nil {
+		t.Fatalf("valid date range was rejected: %v", err)
+	}
+	if err := validateTariffDateRange(&start, nil); err == nil {
+		t.Fatal("partial date range was accepted")
+	}
+	if err := validateTariffDateRange(nil, &later); err == nil {
+		t.Fatal("partial date range was accepted")
+	}
+	if err := validateTariffDateRange(nil, nil); err != nil {
+		t.Fatalf("open-ended tariff was rejected: %v", err)
+	}
+}
+
+func TestMapTariffWriteErrorRecognizesScheduleExclusion(t *testing.T) {
+	t.Parallel()
+
+	err := mapTariffWriteError(&pgconn.PgError{Code: "23P01"}, "create tariff")
+	var apiErr *auth.APIError
+	if !errors.As(err, &apiErr) || apiErr.Status != http.StatusConflict || apiErr.Code != "tariff_schedule_conflict" {
+		t.Fatalf("got %v, want tariff_schedule_conflict", err)
 	}
 }
 

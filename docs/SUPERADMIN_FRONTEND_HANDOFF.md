@@ -265,9 +265,11 @@ the bearer session. CPO notification list/read requires the verified
 `X-CPO-App-ID` header and derives the tenant from the CPO session. Overview and
 status are bounded aggregates, not tenant business-data exports.
 
-These routes are present in current source and OpenAPI, but the current
-development origin remains on the earlier 87-operation deployment until the
-new migration and binary are explicitly rehosted.
+These routes are present in current source and the deployed 110-operation
+OpenAPI. The next source-only change is the 111th CPO user point-lookup
+operation together with migration fifteen tariff scheduling; it is not part of
+the currently hosted Superadmin surface until that migration and binary are
+explicitly rehosted.
 
 ## TypeScript Contract
 

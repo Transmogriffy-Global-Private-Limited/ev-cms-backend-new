@@ -1636,6 +1636,96 @@ func adminProfileView(user models.User, cpoID uuid.UUID) AdminProfileView {
 	}
 }
 
+func cpoUserView(
+	user models.User,
+	cpoID uuid.UUID,
+	isMembership bool,
+	isCustomer bool,
+	membership models.CPOMembership,
+	customer models.Customer,
+) CPOUserView {
+	view := CPOUserView{
+		ID:         user.ID,
+		CPOID:      cpoID,
+		Email:      user.Email,
+		FullName:   user.FullName,
+		Phone:      user.Phone,
+		IsActive:   user.IsActive,
+		IsVerified: user.IsVerified,
+		CreatedAt:  user.CreatedAt,
+		UpdatedAt:  user.UpdatedAt,
+	}
+	if isMembership {
+		role := membership.Role
+		view.Role = &role
+		status := membership.Status
+		view.MembershipStatus = &status
+	}
+	if isCustomer {
+		status := customer.Status
+		view.CustomerStatus = &status
+	}
+	return view
+}
+
+func (service *Service) GetUser(
+	ctx context.Context,
+	principal auth.Principal,
+	userID uuid.UUID,
+) (CPOUserView, error) {
+	if err := requireCPOAdminAccess(principal); err != nil {
+		return CPOUserView{}, err
+	}
+
+	cpoID := *principal.CPOID
+	var membership models.CPOMembership
+	membershipErr := service.database.WithContext(ctx).
+		Where("cpo_id = ? AND user_id = ?", cpoID, userID).
+		First(&membership).Error
+	if membershipErr != nil && !errors.Is(membershipErr, gorm.ErrRecordNotFound) {
+		return CPOUserView{}, fmt.Errorf("load CPO membership: %w", membershipErr)
+	}
+
+	var customer models.Customer
+	customerErr := service.database.WithContext(ctx).
+		Where("cpo_id = ? AND user_id = ?", cpoID, userID).
+		First(&customer).Error
+	if customerErr != nil && !errors.Is(customerErr, gorm.ErrRecordNotFound) {
+		return CPOUserView{}, fmt.Errorf("load CPO customer: %w", customerErr)
+	}
+
+	if membershipErr != nil && customerErr != nil {
+		return CPOUserView{}, &auth.APIError{
+			Status:  http.StatusNotFound,
+			Code:    "user_not_found",
+			Message: "The user was not found for this CPO.",
+		}
+	}
+
+	var user models.User
+	if err := service.database.WithContext(ctx).
+		Where("id = ?", userID).
+		Where(`EXISTS (
+            SELECT 1 FROM cpo_memberships
+            WHERE cpo_id = ? AND user_id = users.id
+        ) OR EXISTS (
+            SELECT 1 FROM customers
+            WHERE cpo_id = ? AND user_id = users.id
+        )`, cpoID, cpoID).
+		First(&user).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return CPOUserView{}, &auth.APIError{
+				Status:  http.StatusNotFound,
+				Code:    "user_not_found",
+				Message: "The user was not found for this CPO.",
+			}
+		}
+		return CPOUserView{}, fmt.Errorf("load CPO user: %w", err)
+	}
+
+	return cpoUserView(user, cpoID, membershipErr == nil, customerErr == nil, membership, customer), nil
+}
+
 func (service *Service) GetOrganization(
 	ctx context.Context,
 	principal auth.Principal,
@@ -2801,25 +2891,9 @@ func (service *Service) CreateTariff(
 
 	var record models.Tariff
 	err := service.database.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		var hub models.Hub
-		if err := tx.First(&hub, "id = ? AND cpo_id = ?", request.HubID, cpoID).Error; err != nil {
-			return mapHubNotFound(err)
+		if err := service.validateTariffScope(tx, cpoID, request.HubID, request.ChargerID, request.UserGroupID); err != nil {
+			return err
 		}
-
-		if request.ChargerID != nil {
-			var charger models.Charger
-			if err := tx.First(&charger, "id = ? AND cpo_id = ?", *request.ChargerID, cpoID).Error; err != nil {
-				return mapChargerNotFound(err)
-			}
-			if charger.HubID != request.HubID {
-				return &auth.APIError{
-					Status:  http.StatusBadRequest,
-					Code:    "charger_hub_mismatch",
-					Message: "The charger must belong to the selected hub.",
-				}
-			}
-		}
-
 		if request.GSTID != nil {
 			var gst models.GST
 			if err := tx.First(&gst, "id = ? AND cpo_id = ?", *request.GSTID, cpoID).Error; err != nil {
@@ -2851,6 +2925,8 @@ func (service *Service) CreateTariff(
 			IdleFeePerMin: request.IdleFeePerMin,
 			Currency:      request.Currency,
 			IsActive:      isActive,
+			StartDate:     request.StartDate,
+			EndDate:       request.EndDate,
 			CreatedAt:     now,
 			UpdatedAt:     now,
 		}
@@ -2976,9 +3052,9 @@ func (service *Service) UpdateTariff(
 				return mapHubNotFound(err)
 			}
 			effectiveHubID = *request.HubID
-			updates["hub_id"] = *request.HubID
-			record.HubID = *request.HubID
-			changedFields["hub_id"] = *request.HubID
+			updates["hub_id"] = effectiveHubID
+			record.HubID = effectiveHubID
+			changedFields["hub_id"] = effectiveHubID
 		}
 
 		effectiveChargerID := record.ChargerID
@@ -2988,11 +3064,7 @@ func (service *Service) UpdateTariff(
 				return mapChargerNotFound(err)
 			}
 			if charger.HubID != effectiveHubID {
-				return &auth.APIError{
-					Status:  http.StatusBadRequest,
-					Code:    "charger_hub_mismatch",
-					Message: "The charger must belong to the selected hub.",
-				}
+				return &auth.APIError{Status: http.StatusBadRequest, Code: "charger_hub_mismatch", Message: "The charger must belong to the selected hub."}
 			}
 			effectiveChargerID = request.ChargerID
 			updates["charger_id"] = request.ChargerID
@@ -3004,11 +3076,7 @@ func (service *Service) UpdateTariff(
 				return mapChargerNotFound(err)
 			}
 			if charger.HubID != effectiveHubID {
-				return &auth.APIError{
-					Status:  http.StatusBadRequest,
-					Code:    "charger_hub_mismatch",
-					Message: "The existing charger must belong to the selected hub.",
-				}
+				return &auth.APIError{Status: http.StatusBadRequest, Code: "charger_hub_mismatch", Message: "The existing charger must belong to the selected hub."}
 			}
 		}
 
@@ -3021,7 +3089,6 @@ func (service *Service) UpdateTariff(
 			record.GSTID = request.GSTID
 			changedFields["gst_id"] = request.GSTID
 		}
-
 		if request.UserGroupID != nil {
 			var userGroup models.UserGroup
 			if err := tx.First(&userGroup, "id = ? AND cpo_id = ?", *request.UserGroupID, cpoID).Error; err != nil {
@@ -3047,6 +3114,16 @@ func (service *Service) UpdateTariff(
 			record.Currency = *request.Currency
 			changedFields["currency"] = *request.Currency
 		}
+		if request.StartDate != nil {
+			updates["start_date"] = request.StartDate
+			record.StartDate = request.StartDate
+			changedFields["start_date"] = request.StartDate
+		}
+		if request.EndDate != nil {
+			updates["end_date"] = request.EndDate
+			record.EndDate = request.EndDate
+			changedFields["end_date"] = request.EndDate
+		}
 		if request.IsActive != nil {
 			updates["is_active"] = *request.IsActive
 			record.IsActive = *request.IsActive
@@ -3060,11 +3137,12 @@ func (service *Service) UpdateTariff(
 				Message: "At least one tariff field must be supplied.",
 			}
 		}
-
 		now := service.now()
 		updates["updated_at"] = now
 		record.UpdatedAt = now
-
+		if err := validateTariffDateRange(record.StartDate, record.EndDate); err != nil {
+			return err
+		}
 		if err := tx.Model(&models.Tariff{}).
 			Where("id = ?", record.ID).
 			Updates(updates).Error; err != nil {
@@ -3119,6 +3197,9 @@ func validateCreateTariffRequest(request CreateTariffRequest) error {
 	if len(request.Currency) != 3 {
 		return invalid("currency", "Currency must be a 3-letter code.")
 	}
+	if err := validateTariffDateRange(request.StartDate, request.EndDate); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -3130,7 +3211,9 @@ func validateUpdateTariffRequest(request UpdateTariffRequest) error {
 		request.PricePerKWh == nil &&
 		request.IdleFeePerMin == nil &&
 		request.Currency == nil &&
-		request.IsActive == nil {
+		request.IsActive == nil &&
+		request.StartDate == nil &&
+		request.EndDate == nil {
 		return invalid("tariff", "At least one tariff field must be supplied.")
 	}
 
@@ -3142,6 +3225,51 @@ func validateUpdateTariffRequest(request UpdateTariffRequest) error {
 	}
 	if request.Currency != nil && len(*request.Currency) != 3 {
 		return invalid("currency", "Currency must be a 3-letter code.")
+	}
+	return nil
+}
+
+func validateTariffDateRange(startDate, endDate *time.Time) error {
+	if startDate == nil && endDate == nil {
+		return nil
+	}
+	if startDate == nil || endDate == nil {
+		return invalid("schedule", "start_date and end_date must be supplied together.")
+	}
+	if !startDate.Before(*endDate) {
+		return invalid("date_range", "Start date must be strictly before end date.")
+	}
+	return nil
+}
+
+func (service *Service) validateTariffScope(
+	tx *gorm.DB,
+	cpoID uuid.UUID,
+	hubID uuid.UUID,
+	chargerID *uuid.UUID,
+	userGroupID *uuid.UUID,
+) error {
+	if hubID == uuid.Nil {
+		return invalid("hub_id", "Hub ID is required.")
+	}
+	var hub models.Hub
+	if err := tx.First(&hub, "id = ? AND cpo_id = ?", hubID, cpoID).Error; err != nil {
+		return mapHubNotFound(err)
+	}
+	if chargerID != nil {
+		var charger models.Charger
+		if err := tx.First(&charger, "id = ? AND cpo_id = ?", *chargerID, cpoID).Error; err != nil {
+			return mapChargerNotFound(err)
+		}
+		if charger.HubID != hubID {
+			return invalid("charger_id", "The specified charger does not belong to the specified hub.")
+		}
+	}
+	if userGroupID != nil {
+		var userGroup models.UserGroup
+		if err := tx.First(&userGroup, "id = ? AND cpo_id = ?", *userGroupID, cpoID).Error; err != nil {
+			return mapUserGroupNotFound(err)
+		}
 	}
 	return nil
 }
@@ -3183,6 +3311,12 @@ func mapTariffWriteError(err error, operation string) error {
 	var postgresError *pgconn.PgError
 	if errors.As(err, &postgresError) {
 		switch postgresError.Code {
+		case "23P01":
+			return &auth.APIError{
+				Status:  http.StatusConflict,
+				Code:    "tariff_schedule_conflict",
+				Message: "An active tariff with the same scope already covers this effective period.",
+			}
 		case "23505":
 			return &auth.APIError{
 				Status:  http.StatusConflict,
@@ -3212,6 +3346,8 @@ func tariffView(record models.Tariff) TariffView {
 		IdleFeePerMin: record.IdleFeePerMin,
 		Currency:      record.Currency,
 		IsActive:      record.IsActive,
+		StartDate:     record.StartDate,
+		EndDate:       record.EndDate,
 		CreatedAt:     record.CreatedAt,
 		UpdatedAt:     record.UpdatedAt,
 	}

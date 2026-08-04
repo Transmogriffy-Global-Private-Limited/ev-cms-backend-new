@@ -7,8 +7,10 @@ platform-provisioned CPO administrator can maintain their own identity profile,
 create hubs, register CMS charger/connector projections, define GST profiles,
 and create tariffs.
 
-It does not describe app users. Customers use the separate
-`/api/v1/app/auth/*` session plane and receive no staff authority.
+Customers use the separate `/api/v1/app/auth/*` session plane and receive no
+staff authority. A CPO ADMIN has only a tenant-scoped point lookup at
+`GET /api/v1/cpo/users/{user_id}`; there is no customer or staff directory,
+role-management, or customer-mutation API.
 
 ## Current Authority
 
@@ -114,7 +116,11 @@ as JSON strings to avoid client floating-point rounding.
 Call `POST /api/v1/cpo/tariffs` with the hub UUID, exact price, and optional
 charger/GST/user-group UUIDs. Every referenced record must belong to the same
 CPO. A selected charger must belong to the selected hub. Currency defaults to
-INR.
+INR. An active tariff is either open-ended (omit both effective dates) or has a
+complete `[start_date, end_date)` effective period. PostgreSQL rejects
+overlapping active periods for the same hub/optional charger/optional
+user-group scope with `409 tariff_schedule_conflict`; an open-ended active
+tariff overlaps every dated tariff of that same scope.
 
 ### 5. Read and update
 

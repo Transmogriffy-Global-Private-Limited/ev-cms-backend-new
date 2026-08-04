@@ -2,6 +2,20 @@
 
 ## 2026-08-04
 
+### Explicit CPO contribution merge reconciled on `anubhab-work`
+
+- Merged `abhranil_ev_cms_backend_new` into `anubhab-work` while retaining the
+  deployed Superadmin and manual-subscription baseline as authority.
+- Kept the tenant-scoped CPO user point lookup, but made it a generic-404-safe
+  membership/customer relationship lookup rather than a CPO directory.
+- Renumbered the incoming undeployed tariff migration to fifteen, restored
+  mandatory hub scope, removed stale specialized tariff contracts, and replaced
+  race-prone application overlap checks with a PostgreSQL `tstzrange` exclusion
+  constraint and a preflight for existing overlapping active tariffs.
+- Updated CPO/API/OpenAPI/schema/plan/project-state documentation. The source
+  contract has 111 operations; migration fifteen and the corresponding binary
+  are not deployed.
+
 ### Complete Superadmin surface deployed
 
 - Completed the source-side platform Superadmin surface for administrator

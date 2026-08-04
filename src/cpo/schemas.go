@@ -153,6 +153,21 @@ type AdminProfileView struct {
 	UpdatedAt  time.Time         `json:"updated_at"`
 }
 
+type CPOUserView struct {
+	ID               uuid.UUID                   `json:"id"`
+	CPOID            uuid.UUID                   `json:"cpo_id"`
+	Email            string                      `json:"email"`
+	FullName         string                      `json:"full_name"`
+	Phone            *string                     `json:"phone,omitempty"`
+	IsActive         bool                        `json:"is_active"`
+	IsVerified       bool                        `json:"is_verified"`
+	Role             *constants.CPORole          `json:"role,omitempty"`
+	MembershipStatus *constants.MembershipStatus `json:"membership_status,omitempty"`
+	CustomerStatus   *constants.CustomerStatus   `json:"customer_status,omitempty"`
+	CreatedAt        time.Time                   `json:"created_at"`
+	UpdatedAt        time.Time                   `json:"updated_at"`
+}
+
 // OrganizationView is the tenant-safe, read-only projection of the CPO record.
 // It intentionally omits platform actor IDs and the privileged lifecycle reason.
 type OrganizationView struct {
@@ -297,6 +312,8 @@ type CreateTariffRequest struct {
 	IdleFeePerMin decimal.Decimal `json:"idle_fee_per_min"`
 	Currency      string          `json:"currency"`
 	IsActive      *bool           `json:"is_active,omitempty"`
+	StartDate     *time.Time      `json:"start_date,omitempty"`
+	EndDate       *time.Time      `json:"end_date,omitempty"`
 }
 
 type UpdateTariffRequest struct {
@@ -308,6 +325,8 @@ type UpdateTariffRequest struct {
 	IdleFeePerMin *decimal.Decimal `json:"idle_fee_per_min,omitempty"`
 	Currency      *string          `json:"currency,omitempty"`
 	IsActive      *bool            `json:"is_active,omitempty"`
+	StartDate     *time.Time       `json:"start_date,omitempty"`
+	EndDate       *time.Time       `json:"end_date,omitempty"`
 }
 
 type TariffView struct {
@@ -321,6 +340,8 @@ type TariffView struct {
 	IdleFeePerMin decimal.Decimal `json:"idle_fee_per_min"`
 	Currency      string          `json:"currency"`
 	IsActive      bool            `json:"is_active"`
+	StartDate     *time.Time      `json:"start_date,omitempty"`
+	EndDate       *time.Time      `json:"end_date,omitempty"`
 	CreatedAt     time.Time       `json:"created_at"`
 	UpdatedAt     time.Time       `json:"updated_at"`
 }

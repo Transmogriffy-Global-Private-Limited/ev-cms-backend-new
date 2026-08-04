@@ -2287,6 +2287,54 @@ paths:
         "500":
           $ref: "#/components/responses/InternalError"
 
+  /api/v1/cpo/users/{user_id}:
+    get:
+      tags: [CPO Operations]
+      operationId: getCPOUser
+      summary: Read one user registered to the authenticated CPO
+      description: |
+        Returns the basic identity and relationship fields only when the user is
+        linked to the trusted CPO through a membership or customer record. This
+        is a point lookup, not a staff or customer directory; the caller cannot
+        select another tenant and an unlinked ID receives the same not-found
+        response as an unknown ID.
+      security:
+        - BearerAuth: []
+          CPOAppID: []
+      parameters:
+        - name: user_id
+          in: path
+          required: true
+          description: UUID of the user to read.
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: User details for the authenticated CPO.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CPOUser"
+        "400":
+          description: "`invalid_user_id` or missing app-ID header."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/CPOBusinessForbidden"
+        "404":
+          description: "`user_not_found` — the user is not registered to this CPO."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
   /api/v1/cpo/chargers:
     post:
       tags: [CPO Operations]
@@ -2658,7 +2706,9 @@ paths:
       description: |
         Requires CPO ADMIN. Related hub, optional charger, GST profile,
         and user group must belong to the authenticated CPO; a selected charger
-        must belong to the selected hub. Currency defaults to INR.
+        must belong to the selected hub. Currency defaults to INR. `hub_id` is
+        always required. An effective period is either omitted for an open-ended
+        tariff or supplied as a half-open `[start_date, end_date)` interval.
       security:
         - BearerAuth: []
           CPOAppID: []
@@ -2692,7 +2742,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorEnvelope"
         "409":
-          description: "`tariff_conflict`."
+          description: "`tariff_conflict` or `tariff_schedule_conflict`."
           content:
             application/json:
               schema:
@@ -2770,7 +2820,9 @@ paths:
       tags: [CPO Operations]
       operationId: updateCPOTariff
       summary: Update a tenant tariff
-      description: Requires CPO ADMIN and at least one mutable field.
+      description: |
+        Requires CPO ADMIN and at least one mutable field. Updating either
+        effective-date bound validates the resulting complete interval.
       security:
         - BearerAuth: []
           CPOAppID: []
@@ -2804,7 +2856,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorEnvelope"
         "409":
-          description: "`tariff_conflict`."
+          description: "`tariff_conflict` or `tariff_schedule_conflict`."
           content:
             application/json:
               schema:
@@ -5104,6 +5156,31 @@ components:
         created_at: {type: string, format: date-time}
         updated_at: {type: string, format: date-time}
 
+    CPOUser:
+      type: object
+      additionalProperties: false
+      required: [id, cpo_id, email, full_name, is_active, is_verified, created_at, updated_at]
+      properties:
+        id: {type: string, format: uuid}
+        cpo_id: {type: string, format: uuid}
+        email: {type: string, format: email}
+        full_name: {type: string}
+        phone: {type: string, maxLength: 32}
+        is_active: {type: boolean}
+        is_verified: {type: boolean}
+        role:
+          type: string
+          enum: [OWNER, ADMIN, OPERATOR, VIEWER]
+          description: Persisted membership role; only ADMIN is currently callable.
+        membership_status:
+          type: string
+          enum: [ACTIVE, SUSPENDED, REVOKED]
+        customer_status:
+          type: string
+          enum: [ACTIVE, SUSPENDED, REVOKED]
+        created_at: {type: string, format: date-time}
+        updated_at: {type: string, format: date-time}
+
     CPOOrganization:
       type: object
       additionalProperties: false
@@ -5512,6 +5589,14 @@ components:
           pattern: "^[A-Za-z]{3}$"
           default: INR
         is_active: {type: boolean, default: true}
+        start_date:
+          type: string
+          format: date-time
+          description: Must be supplied together with end_date; inclusive.
+        end_date:
+          type: string
+          format: date-time
+          description: Must be later than start_date; exclusive.
       example:
         hub_id: 8b80ef78-7799-4a09-a0d5-73ac944aa6e0
         charger_id: 7cc2d481-3ccb-4336-b03c-c8851a59ff9a
@@ -5536,6 +5621,14 @@ components:
           type: string
           pattern: "^[A-Za-z]{3}$"
         is_active: {type: boolean}
+        start_date:
+          type: string
+          format: date-time
+          description: Validated with the resulting end_date.
+        end_date:
+          type: string
+          format: date-time
+          description: Validated with the resulting start_date.
 
     Tariff:
       type: object
@@ -5563,6 +5656,8 @@ components:
           type: string
           pattern: "^[A-Z]{3}$"
         is_active: {type: boolean}
+        start_date: {type: string, format: date-time}
+        end_date: {type: string, format: date-time}
         created_at: {type: string, format: date-time}
         updated_at: {type: string, format: date-time}
 

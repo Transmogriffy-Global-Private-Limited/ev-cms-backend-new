@@ -533,11 +533,11 @@ Before completion, prove:
 ## Database and Migration Rules
 
 - PostgreSQL is durable truth.
-- Thirteen migrations are already deployment history. Do not edit an applied
+- Fourteen migrations are already deployment history. Do not edit an applied
   migration to change new behavior; add the next forward migration.
-- Migration eleven is the current deployed migration. It requires GSTIN and
-  nonblank address,
-  city, state, and pincode values and fails closed on incomplete legacy rows.
+- Migration fourteen is the current deployed migration. Migration fifteen adds
+  tariff effective-date columns and a PostgreSQL overlap constraint, but remains
+  source-only until its preflight passes and it is explicitly deployed.
 - Prefer additive, backward-compatible migrations.
 - Never drop, truncate, or broadly delete without explicit human approval.
 - Use composite keys/foreign keys to protect tenant relationships.
@@ -550,8 +550,9 @@ Before completion, prove:
 - Migrations seven/eight are historical. Migration nine preserves the former
   commercial prototype in `retired_commercial`; migration twelve restores only
   manual subscription tables; migration thirteen returns dormant entitlement
-  tables to `retired_commercial`. Platform billing and automatic workers remain
-  retired; subscription state never controls CPO access.
+  tables to `retired_commercial`; migration fourteen adds the deployed
+  Superadmin control-plane records. Platform billing and automatic workers
+  remain retired; subscription state never controls CPO access.
 
 ## API and Error Conventions
 

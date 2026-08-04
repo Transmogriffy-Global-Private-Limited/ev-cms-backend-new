@@ -182,6 +182,44 @@ func TestCompleteSuperadminMigrationContainsAuthorityMailAndNotifications(t *tes
 	}
 }
 
+func TestTariffEffectiveDatesMigrationUsesTenantScopedTimestamptzExclusion(t *testing.T) {
+	t.Parallel()
+
+	upBody, err := migrationFiles.ReadFile("migrations/000015_tariff_effective_dates.up.sql")
+	if err != nil {
+		t.Fatalf("read tariff effective-dates up migration: %v", err)
+	}
+	downBody, err := migrationFiles.ReadFile("migrations/000015_tariff_effective_dates.down.sql")
+	if err != nil {
+		t.Fatalf("read tariff effective-dates down migration: %v", err)
+	}
+	upSQL := string(upBody)
+	downSQL := string(downBody)
+	for _, required := range []string{
+		"start_date timestamptz",
+		"end_date timestamptz",
+		"btree_gist",
+		"tstzrange",
+		"tariffs_active_effective_period_exclusion",
+		"charger_id IS NOT DISTINCT FROM older.charger_id",
+		"user_group_id IS NOT DISTINCT FROM older.user_group_id",
+	} {
+		if !strings.Contains(upSQL, required) {
+			t.Errorf("up migration is missing %q", required)
+		}
+	}
+	for _, required := range []string{
+		"tariffs_active_effective_period_exclusion",
+		"tariffs_effective_dates_check",
+		"DROP COLUMN IF EXISTS end_date",
+		"DROP COLUMN IF EXISTS start_date",
+	} {
+		if !strings.Contains(downSQL, required) {
+			t.Errorf("down migration is missing %q", required)
+		}
+	}
+}
+
 func TestCPOProvisioningMigrationContainsAppIdentityAndOnboarding(t *testing.T) {
 	t.Parallel()
 

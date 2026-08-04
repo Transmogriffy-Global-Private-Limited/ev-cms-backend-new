@@ -65,7 +65,7 @@ $requiredCPOAgentRules = @(
     'Current callable CPO staff authority is `ADMIN` only.',
     'The presence of a table or Go model does not mean its workflow exists.',
     '`src/cpo/repository.go` is currently an empty package file.',
-    'Thirteen migrations are already deployment history.',
+    'Fourteen migrations are already deployment history.',
     'do not embed or copy the HAL into this process',
     'Treat `main` and `anubhab-work` as the authoritative lines'
 )
@@ -175,6 +175,7 @@ $requiredRoutes = @(
     '/api/v1/cpo/notifications',
     '/api/v1/cpo/notifications/{notification_id}/read',
     '/api/v1/cpo/admin/profile',
+    '/api/v1/cpo/users/{user_id}',
     '/api/v1/cpo/hubs',
     '/api/v1/cpo/chargers',
     '/api/v1/cpo/gsts',
@@ -204,8 +205,8 @@ foreach ($route in $retiredRoutes) {
 }
 
 $operationCount = ([regex]::Matches($openAPI, '(?m)^\s{6}operationId:\s+')).Count
-if ($operationCount -ne 110) {
-    throw "OpenAPI contains $operationCount operations; expected 110."
+if ($operationCount -ne 111) {
+    throw "OpenAPI contains $operationCount operations; expected 111."
 }
 
 if ($openAPI.Contains('/api/v1/cpo/profile')) {
