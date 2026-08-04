@@ -2,6 +2,32 @@
 
 ## 2026-08-04
 
+### CPO user lookup and tariff scheduling deployed
+
+- Reviewed the reconciled `bb555b9` merge against the deployed `396bae5`
+  baseline, including the tenant-safe CPO user point lookup, tariff effective
+  dates, migration fifteen, OpenAPI, and frontend/backend guidance.
+- Confirmed the migration preflight against the live database: migration
+  fourteen was current, `btree_gist` was available, and no tariff row existed
+  to violate the new active-scope exclusion constraint.
+- Created the validated mode-0600 rollback dump
+  `/tmp/devevcmsnewdb-pre-bb555b9.dump`, preserved the previous binary as
+  `builds/evcmsnew.pre-bb555b9`, applied migration fifteen, installed the clean
+  candidate, and rehosted `evcmsnew-dev.service` through the shared handler.
+
+Verification:
+
+- Migration fifteen installed both effective-date columns, both constraints,
+  both date indexes, and `btree_gist`; all four CPOs were preserved.
+- Focused migration/CPO tests, runtime/OpenAPI parity, documentation contract
+  verification, `go test ./...`, `go vet ./...`, and `git diff --check` passed.
+- The installed binary matches the clean `bb555b9` candidate. Systemd is
+  enabled and active with zero restarts; loopback/public readiness, Swagger,
+  the live 111-operation OpenAPI, request-ID delivery, protected routes,
+  retired billing routes, required workers, and the startup journal passed.
+- No live authenticated CPO mutation or mail delivery was used for deployment
+  verification. Disposable PostgreSQL lifecycle coverage remains pending.
+
 ### Explicit CPO contribution merge reconciled on `anubhab-work`
 
 - Merged `abhranil_ev_cms_backend_new` into `anubhab-work` while retaining the

@@ -20,12 +20,16 @@ tenant-scoped hubs, chargers/connectors, GST profiles, and tariffs.
 - ADMIN-only CPO session authority
 - ADMIN identity profile read and full-name/phone update
 - Read-only tenant-safe CPO organization details
+- Tenant-scoped point lookup for a membership/customer-linked user UUID, with
+  no directory or cross-CPO visibility
 - Hub create/list/get/update
 - Charger/connector atomic create
 - Bounded charger list
 - Charger/connector get/update and dependency-safe charger delete
 - GST create/list/get/update
 - Tariff create/list/get/update
+- Optional paired tariff effective dates with database-enforced non-overlap for
+  active tariffs in the same CPO/hub/charger/user-group scope
 - Exact decimal tax/pricing values
 - Server-generated charger, connector, OCPP-mapping, hub, GST, and tariff IDs
 - Tenant scope on every query and related-record validation
@@ -38,6 +42,7 @@ tenant-scoped hubs, chargers/connectors, GST profiles, and tariffs.
 - Tenant-side CPO organization mutation
 - App-user/customer changes
 - Staff invitation, creation, or role management
+- CPO staff or customer directory/search
 - Callable OWNER, OPERATOR, or VIEWER authority
 - Hub, GST, or tariff deletion
 - Connector add/remove after charger creation
@@ -56,6 +61,8 @@ tenant-scoped hubs, chargers/connectors, GST profiles, and tariffs.
 - CMS OCPP identity is a mapping value; HAL remains protocol authority.
 - Business mutation and audit evidence share one PostgreSQL transaction.
 - Cross-CPO references are rejected as not found.
+- Unknown and cross-CPO user UUIDs share the same `user_not_found` response.
+- PostgreSQL is authoritative for concurrent active-tariff schedule overlap.
 - Dependent durable records prevent charger deletion.
 
 ## Implementation Slices
@@ -69,6 +76,8 @@ tenant-scoped hubs, chargers/connectors, GST profiles, and tariffs.
 6. Update educational, integration, API, architecture, project-state, and
    changelog documentation.
 7. Commit the verified merge and align local `main` and `anubhab-work`.
+8. Reconcile the tenant-safe CPO user point lookup and tariff effective-date
+   contribution, then deploy migration fifteen before the corresponding binary.
 
 ## Acceptance Criteria
 
@@ -78,8 +87,13 @@ tenant-scoped hubs, chargers/connectors, GST profiles, and tariffs.
 - No tenant organization mutation route is registered or documented.
 - Dormant roles cannot authenticate or invoke current CPO operations.
 - All created records and references remain in the authenticated CPO.
+- User point lookup returns only identities linked to the authenticated CPO and
+  never becomes a directory.
 - Required client identifiers are server-generated.
 - Blank tariff currency persists as INR.
+- Tariff dates are both absent or form a valid half-open interval, and
+  overlapping active periods in the same scope return
+  `tariff_schedule_conflict` under concurrent writes.
 - CPO callers cannot write charger or connector runtime status; those fields
   remain read-only HAL projections.
 - Charger listing is bounded and cursor-recoverable.
@@ -114,6 +128,11 @@ Completed evidence:
   `price_per_kwh` GORM mappings plus SQLSTATE `23001` handling for the
   documented `charger_in_use` conflict. Focused regression tests cover these
   database compatibility boundaries.
+- Revision `bb555b9` and migration fifteen are deployed. The migration live
+  preflight found no existing tariff rows, installed `btree_gist`, both date
+  columns, both constraints, and both indexes; the 111-operation contract and
+  protected user lookup passed hosted verification. The disposable overlap
+  lifecycle remains pending without an explicitly disposable database.
 
 ## Remaining Decisions
 

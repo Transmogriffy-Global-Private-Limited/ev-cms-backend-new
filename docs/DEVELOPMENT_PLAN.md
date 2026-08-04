@@ -787,25 +787,26 @@ Current phase:
 
 Active feature:
 
-- Manual platform subscriptions
+- CPO user point lookup and tariff effective-date reconciliation
 
 Current implementation slice:
 
-- Reconcile the contributed CPO user point-lookup and tariff effective-date
-  work into the deployed Superadmin/manual-subscription baseline. Preserve
-  mandatory hub scope, tenant-safe lookup behavior, and database-enforced
-  overlap handling.
+- Hosted verification is complete; retain the tenant-safe lookup and
+  database-enforced tariff overlap behavior while awaiting disposable
+  PostgreSQL lifecycle verification.
 
 Last completed slice:
 
+- Reconciled and deployed the tenant-scoped CPO user point lookup plus tariff
+  effective dates, with mandatory hub scope and migration-fifteen exclusion
+  enforcement
 - The previous recovery-payload release and its hosted verification are
   complete; manual subscriptions now supersede the retired-subscription
   non-goal under ADR 0012.
 - Removed the lossy OTP-only outbox wrapper so administrative and customer
   recovery enqueue the complete canonical payload with `challenge_id`; added
-  database-free validation for both reset templates. Revision `d0059fe` is
-  active on the development VPS; no live recovery email was sent for release
-  verification.
+  database-free validation for both reset templates. Revision `d0059fe` was
+  deployed without sending a live recovery email for release verification.
 - Implemented safe JSON HTTP completion logging, server-generated response
   request IDs, trusted auth/error-code enrichment, loopback-only forwarding
   trust, CORS exposure, safe DEBUG lifecycle/error classification, and a strict
@@ -837,13 +838,13 @@ Last completed slice:
 
 Last deployment milestone:
 
-- Revision `396bae5` was built cleanly and rehosted on the development VPS
-  after a validated rollback dump and application of migration fourteen. The
-  live 110-operation route/OpenAPI surface, running-binary identity,
-  loopback-only listener, loopback/public readiness, zero-restart service state,
-  new platform-authority fields, announcement/notification tables, and
-  post-start journal were verified. The disposable PostgreSQL lifecycle
-  remains pending without `TEST_DATABASE_URL`.
+- Revision `bb555b9` was built cleanly and rehosted on the development VPS
+  after a validated rollback dump and application of migration fifteen. The
+  live 111-operation route/OpenAPI surface, running-binary identity,
+  loopback-only listener, loopback/public readiness, zero-restart service
+  state, request-ID header, tariff columns/constraints/indexes, required
+  workers, and post-start journal were verified. The disposable PostgreSQL
+  lifecycle remains pending without `TEST_DATABASE_URL`.
 
 Next expected slice:
 
@@ -860,9 +861,8 @@ Blocked by:
 1. Run manual-subscription PostgreSQL lifecycle verification from
    `docs/plans/manual-platform-subscriptions.md` against an explicitly
    disposable `TEST_DATABASE_URL`.
-2. Run migration-fifteen tariff overlap/preflight coverage against an explicitly
-   disposable `TEST_DATABASE_URL`, then deploy it before any binary that reads
-   the effective-date columns.
+2. Run migration-fifteen tariff overlap/preflight coverage against an
+   explicitly disposable `TEST_DATABASE_URL`.
 3. Design staff invitation and membership management before activating dormant
    role values.
 

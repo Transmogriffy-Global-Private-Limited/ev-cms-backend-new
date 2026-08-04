@@ -21,17 +21,19 @@ started as a second systemd service because that would create an unnecessary
 duplicate worker.
 
 The active deployment was updated on August 4, 2026 to source revision
-`396bae5`. It has migrations one through fourteen and the current 110-operation
+`bb555b9`. It has migrations one through fifteen and the current 111-operation
 API. Migration thirteen keeps feature-key/entitlement tables retired pending a
-defined module catalog, and migration fourteen completes the Superadmin
-authority, mail, announcement, notification, and status surface. GSTIN and complete address identity are database-required for CPOs, the
+defined module catalog, migration fourteen completes the Superadmin authority,
+mail, announcement, notification, and status surface, and migration fifteen
+adds tariff effective-date enforcement. GSTIN and complete address identity
+are database-required for CPOs, the
 authenticated platform slug-availability route is live, and known uniqueness
 races return field- or relationship-specific conflict codes. Safe structured
 HTTP request diagnostics are active with `LOG_LEVEL=DEBUG`; recovery OTP mail
-payloads retain their challenge IDs for the reset handler. The eleven retired
-commercial prototype billing tables remain recoverable in the
-`retired_commercial` schema; the six manually managed subscription tables are
-active in `public` and their automatic lifecycle workers remain disabled.
+payloads retain their challenge IDs for the reset handler. Seven retired
+commercial prototype tables remain recoverable in the `retired_commercial`
+schema; four manually managed subscription tables are active in `public` and
+their automatic lifecycle workers remain disabled.
 
 ## Files and Ownership
 
@@ -58,7 +60,7 @@ The deployment copies `.env.example` to `.env`, then overrides:
 - five independently generated 32-byte base64 cryptographic keys.
 
 `DATABASE_URL` and `SMTP_PASSWORD` contain deployment secrets only in the
-ignored environment file. The service is enabled and active, all thirteen forward
+ignored environment file. The service is enabled and active, all fifteen forward
 migrations are recorded, and startup idempotently retained the configured
 platform superadmin.
 
@@ -119,7 +121,7 @@ content exclusions are defined in
 `docs/contracts/internal/http-request-logging.md`. Long-lived SSE requests are
 recorded when they disconnect. A recovered panic first emits a correlated safe
 JSON stack diagnostic without Gin's request dump or the panic value. The
-currently deployed `d27e599` binary includes this logger.
+currently deployed `bb555b9` binary includes this logger.
 
 For a developer diagnostic session, set `LOG_LEVEL=DEBUG` in the ignored
 deployment environment and rehost. This adds request-start and handled-error

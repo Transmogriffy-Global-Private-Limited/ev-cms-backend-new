@@ -62,7 +62,7 @@ provides:
 - CPO ADMIN identity-profile read/update for global full-name and phone fields;
 - session-bound, read-only CPO registration/organization details without
   exposing internal Superadmin actor metadata or permitting tenant mutation;
-  - tenant-scoped bounded hub create/list/get/update;
+- tenant-scoped bounded hub create/list/get/update;
 - atomic CMS charger/connector registration with server-generated charger UUID,
   public charger ID, OCPP mapping identity, and connector UUIDs;
 - bounded charger listing, detail/update, connector update, and dependency-safe
@@ -70,7 +70,7 @@ provides:
 - exact-decimal, bounded GST and tariff create/list/get/update with cross-CPO
   relationship rejection and INR defaulting;
 - Hostinger implicit-TLS configuration on `smtp.hostinger.com:465`, with
-    startup rejection of plaintext or ambiguous SMTP modes;
+  startup rejection of plaintext or ambiguous SMTP modes;
 - registered educational, integration, API, internal-message, and
   configuration documentation under `docs/`;
 - a canonical CPO backend AI-agent handoff covering current capability,
@@ -85,7 +85,7 @@ provides:
   operations;
 - embedded same-origin Swagger UI at `/docs/` and raw OpenAPI at
   `/openapi.yaml`;
-  - `API_DOCS_ENABLED` registration control for both documentation surfaces,
+- `API_DOCS_ENABLED` registration control for both documentation surfaces,
   defaulting on for compatibility and returning `404` when disabled;
 - bidirectional verification that Gin and OpenAPI expose the same operation
   set;
@@ -130,10 +130,10 @@ provides:
 - an enabled and active `evcmsnew-dev.service`, ignored mode-0600 deployment
   environment, compiled binary layout, and `rehost-evcmsnew` interactive
   handler;
-  - the additive PostgreSQL database `devevcmsnewdb`, owned by `postgres`.
+- the additive PostgreSQL database `devevcmsnewdb`, owned by `postgres`.
 
-The active development VPS runs source revision `396bae5`, with migration
-fourteen recorded and the deployed 110-operation contract. CPO GSTIN and address
+The active development VPS runs source revision `bb555b9`, with migration
+fifteen recorded and the deployed 111-operation contract. CPO GSTIN and address
 identity are database-required, authenticated platform clients can use the
 advisory slug-availability operation, and known uniqueness races return
 field- or relationship-specific conflict codes. All four CPOs were complete
@@ -145,22 +145,18 @@ request-start and completion diagnostics.
 Migration thirteen removes feature-key runtime behavior and is deployed.
 Migration fourteen completes the deployed Superadmin control-plane surface.
 Migration fifteen adds tariff effective-date fields and a tenant/scope-aware
-PostgreSQL exclusion constraint; it is source-only and not deployed. The
-disposable PostgreSQL lifecycle test remains unexecuted because no
-`TEST_DATABASE_URL` is configured.
+PostgreSQL exclusion constraint and is deployed. The disposable PostgreSQL
+lifecycle test remains unexecuted because no `TEST_DATABASE_URL` is configured.
 
-The source contract now has 111 operations: the added `GET /api/v1/cpo/users/{user_id}`
-is a tenant-scoped point lookup, not a customer or staff directory. The VPS
-remains on the deployed 110-operation/migration-fourteen revision until
-migration fifteen and the corresponding binary are explicitly verified and
-rehosted.
+The deployed contract has 111 operations: the added
+`GET /api/v1/cpo/users/{user_id}` is a tenant-scoped point lookup, not a
+customer or staff directory.
 
 The deployed recovery flow fixes a recovery-specific OTP mapper defect that discarded
 `challenge_id` before outbox validation and caused eligible administrative and
 customer forgot-password transactions to roll back with `500 internal_error`.
 Administrative and customer recovery now enqueue the complete canonical mail
-payload before outbox validation. Migration fourteen completes the deployed
-Superadmin control-plane surface.
+payload before outbox validation.
 
 No CMS/HAL transport or handshake, live charger state ingestion, charging
 workflow, tenant payment workflow, tenant commercial-management workflow,
@@ -187,12 +183,17 @@ yet.
   content, and affected package tests passed for the source-tree change.
 - Superadmin migration fourteen static coverage, input/privacy regression
   tests, and the affected package tests passed for the source-tree change.
-- The 110-operation source OpenAPI and runtime route sets match; documentation
+- The 111-operation source OpenAPI and runtime route sets match; documentation
   contract verification passed.
 - `go test ./...` passed.
 - `go vet ./...` passed.
 - `git diff --check` passed. Stateful PostgreSQL lifecycle verification remains
   pending because no disposable `TEST_DATABASE_URL` is configured.
+- Revision `bb555b9` was built cleanly and rehosted after a validated mode-0600
+  rollback dump and migration fifteen. The installed identity, loopback-only
+  listener, loopback/public readiness, live 111-operation Swagger/OpenAPI,
+  request-ID header, protected and retired routes, tariff constraints/indexes,
+  required workers, and absence of startup errors or panics passed.
 - Revision `396bae5` was built cleanly and rehosted after a validated
   mode-0600 rollback dump and migration fourteen. The installed identity,
   loopback-only listener, loopback/public readiness, live 110-operation
@@ -365,6 +366,6 @@ repository. The integration contract has not been implemented yet.
   contract directly.
 - Migration thirteen's disposable PostgreSQL lifecycle coverage has not
   executed because no disposable `TEST_DATABASE_URL` is configured. The live
-  development deployment is current on migration fourteen and the
-  110-operation contract; the two dormant feature-key tables are in
+  development deployment is current on migration fifteen and the
+  111-operation contract; the two dormant feature-key tables are in
   `retired_commercial` while automatic lifecycle workers remain disabled.

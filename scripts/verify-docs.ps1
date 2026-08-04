@@ -65,7 +65,7 @@ $requiredCPOAgentRules = @(
     'Current callable CPO staff authority is `ADMIN` only.',
     'The presence of a table or Go model does not mean its workflow exists.',
     '`src/cpo/repository.go` is currently an empty package file.',
-    'Fourteen migrations are already deployment history.',
+    'Fifteen migrations are already deployment history.',
     'do not embed or copy the HAL into this process',
     'Treat `main` and `anubhab-work` as the authoritative lines'
 )

@@ -41,7 +41,7 @@ the development deployment.
 - API prefix: `/api/v1`
 - Interactive contract: `/docs/`
 - Raw OpenAPI: `/openapi.yaml`
-- Current source-tree backend contract: 110 HTTP operations across every persona
+- Current source-tree backend contract: 111 HTTP operations across every persona
 - Operations used by the SuperAdmin application: 66 API operations
   - 12 shared administrative-authentication operations;
   - 12 platform CPO-control operations;
@@ -53,8 +53,8 @@ the development deployment.
 The CPO application also has two notification operations under its own
 authenticated `ADMIN` session and verified `X-CPO-App-ID` header.
 
-The development origin serves the deployed 110-operation OpenAPI document from
-revision `396bae5` with migration fourteen. The manual subscription API is
+The development origin serves the deployed 111-operation OpenAPI document from
+revision `bb555b9` with migration fifteen. The manual subscription API is
 platform-superadmin-only, excludes feature-key entitlements, and does not
 activate provider billing or automatic lifecycle behavior.
 
@@ -176,7 +176,7 @@ Add a subscription-management area only for platform superadmins, following
 checkout, webhook, automatic-renewal, scheduled-change, or provider UI:
 those routes do not exist. Platform-admin management, generic mail jobs,
 announcements, notifications, and bounded overview/status are available in the
-deployed 110-operation development origin described below.
+deployed 111-operation development origin described below.
 
 ## HTTP Conventions
 
@@ -265,11 +265,9 @@ the bearer session. CPO notification list/read requires the verified
 `X-CPO-App-ID` header and derives the tenant from the CPO session. Overview and
 status are bounded aggregates, not tenant business-data exports.
 
-These routes are present in current source and the deployed 110-operation
-OpenAPI. The next source-only change is the 111th CPO user point-lookup
-operation together with migration fifteen tariff scheduling; it is not part of
-the currently hosted Superadmin surface until that migration and binary are
-explicitly rehosted.
+These routes are present in current source and the deployed 111-operation
+OpenAPI. Migration fifteen and the CPO user point-lookup are live; the lookup
+remains a tenant CPO ADMIN operation and is not callable by SuperAdmin.
 
 ## TypeScript Contract
 
