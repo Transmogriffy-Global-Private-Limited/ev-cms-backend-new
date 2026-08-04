@@ -2753,6 +2753,7 @@ func (service *Service) UpdateHub(
 
 	cpoID := *principal.CPOID
 	var record models.Hub
+	changed := false
 
 	err := service.database.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
@@ -2763,57 +2764,32 @@ func (service *Service) UpdateHub(
 		updates := map[string]any{}
 		changedFields := models.JSONB{}
 
-		if request.Name != nil {
+		if request.Name != nil && record.Name != *request.Name {
 			updates["name"] = *request.Name
-			record.Name = *request.Name
 			changedFields["name"] = *request.Name
 		}
-		if request.Address != nil {
+		if request.Address != nil && record.Address != *request.Address {
 			updates["address"] = *request.Address
-			record.Address = *request.Address
 			changedFields["address"] = *request.Address
 		}
-		if request.Latitude != nil {
+		if request.Latitude != nil && record.Latitude != *request.Latitude {
 			updates["latitude"] = *request.Latitude
-			record.Latitude = *request.Latitude
 			changedFields["latitude"] = *request.Latitude
 		}
-		if request.Longitude != nil {
+		if request.Longitude != nil && record.Longitude != *request.Longitude {
 			updates["longitude"] = *request.Longitude
-			record.Longitude = *request.Longitude
 			changedFields["longitude"] = *request.Longitude
 		}
-		if request.Open24Hours != nil {
+		if request.Open24Hours != nil && record.Open24Hours != *request.Open24Hours {
 			updates["open_24_hours"] = *request.Open24Hours
-			record.Open24Hours = *request.Open24Hours
 			changedFields["open_24_hours"] = *request.Open24Hours
 		}
-		if request.SanctionLoad != nil {
+		if request.SanctionLoad != nil && record.SanctionLoad != *request.SanctionLoad {
 			updates["sanction_load"] = *request.SanctionLoad
-			record.SanctionLoad = *request.SanctionLoad
 			changedFields["sanction_load"] = *request.SanctionLoad
 		}
 
-		if len(changedFields) == 0 && request.ChargerID == nil {
-			return &auth.APIError{
-				Status:  http.StatusBadRequest,
-				Code:    "invalid_request",
-				Message: "At least one hub field must be supplied.",
-			}
-		}
-
 		now := service.now()
-		updates["updated_at"] = now
-		record.UpdatedAt = now
-
-		if len(updates) > 0 { // Only update if there are actual hub field changes
-			if err := tx.Model(&models.Hub{}).
-				Where("id = ?", record.ID).
-				Updates(updates).Error; err != nil {
-				return mapHubWriteError(err, "update hub")
-			}
-		}
-		
 		if request.ChargerID != nil {
 			var charger models.Charger
 			if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
@@ -2828,11 +2804,11 @@ func (service *Service) UpdateHub(
 				}
 			}
 
-			if charger.HubID != hubID { // Only update if assignment is changing
+			if charger.HubID != hubID {
 				if err := tx.Model(&charger).
 					Where("id = ?", charger.ID).
 					Updates(map[string]any{
-						"hub_id": hubID,
+						"hub_id":     hubID,
 						"updated_at": now,
 					}).Error; err != nil {
 					return mapChargerWriteError(err, "assign charger to hub via update")
@@ -2841,18 +2817,48 @@ func (service *Service) UpdateHub(
 					tx,
 					principal.UserID,
 					cpoID,
-					"CHARGER_REASSIGNED_TO_HUB", // New audit type for re-assignment
+					"CHARGER_ASSIGNED_TO_HUB",
 					models.JSONB{
-						"charger_id": charger.ID,
+						"charger_id":      charger.ID,
 						"previous_hub_id": charger.HubID,
-						"new_hub_id": hubID,
+						"new_hub_id":      hubID,
 					},
 					now,
 				); err != nil {
 					return err
 				}
-				changedFields["charger_id"] = *request.ChargerID // Add to changed fields for hub update audit
+				changedFields["charger_id"] = *request.ChargerID
 			}
+		}
+
+		if len(changedFields) == 0 {
+			return nil
+		}
+		changed = true
+
+		for key, value := range changedFields {
+			switch key {
+			case "name":
+				record.Name = value.(string)
+			case "address":
+				record.Address = value.(string)
+			case "latitude":
+				record.Latitude = value.(float64)
+			case "longitude":
+				record.Longitude = value.(float64)
+			case "open_24_hours":
+				record.Open24Hours = value.(bool)
+			case "sanction_load":
+				record.SanctionLoad = value.(float64)
+			}
+		}
+
+		updates["updated_at"] = now
+		record.UpdatedAt = now
+		if err := tx.Model(&models.Hub{}).
+			Where("id = ?", record.ID).
+			Updates(updates).Error; err != nil {
+			return mapHubWriteError(err, "update hub")
 		}
 
 		return writeAudit(
@@ -2869,6 +2875,12 @@ func (service *Service) UpdateHub(
 	})
 	if err != nil {
 		return HubView{}, err
+	}
+	if !changed {
+		if err := service.database.WithContext(ctx).
+			First(&record, "cpo_id = ? AND id = ?", cpoID, hubID).Error; err != nil {
+			return HubView{}, mapHubNotFound(err)
+		}
 	}
 
 	return hubView(record), nil
@@ -2946,7 +2958,7 @@ func (service *Service) AssignChargerToHub(
 		Preload("Connectors", func(tx *gorm.DB) *gorm.DB {
 			return tx.Order("connector_number ASC")
 		}).
-		First(&charger, "id = ?", chargerID).Error; err != nil {
+		First(&charger, "id = ? AND cpo_id = ?", chargerID, cpoID).Error; err != nil {
 		return ChargerView{}, fmt.Errorf("reload charger after assignment: %w", err)
 	}
 
