@@ -41,15 +41,22 @@ the development deployment.
 - API prefix: `/api/v1`
 - Interactive contract: `/docs/`
 - Raw OpenAPI: `/openapi.yaml`
-- Current source-tree backend contract: 87 HTTP operations across every persona
-- Operations used by the SuperAdmin application: 45 API operations
+- Current source-tree backend contract: 110 HTTP operations across every persona
+- Operations used by the SuperAdmin application: 66 API operations
   - 12 shared administrative-authentication operations;
   - 12 platform CPO-control operations;
   - 4 platform operations/realtime queries;
+  - 21 platform governance, security, mail, communication, and status
+    operations;
   - 17 manual subscription operations.
 
-The development origin serves the deployed 87-operation OpenAPI document from
-revision `9b508ef` with migration thirteen. The manual subscription API is
+The CPO application also has two notification operations under its own
+authenticated `ADMIN` session and verified `X-CPO-App-ID` header.
+
+The development origin still serves the deployed 87-operation OpenAPI document
+from revision `9b508ef` with migration thirteen. The 110-operation contract
+described here is current source and is not deployed until migration fourteen
+and the new binary are explicitly rehosted. The manual subscription API is
 platform-superadmin-only, excludes feature-key entitlements, and does not
 activate provider billing or automatic lifecycle behavior.
 
@@ -87,11 +94,11 @@ approved origin policy and HTTPS.
 | Worker health | Ready | Observational only; no start/stop/retry controls |
 | Durable event replay | Ready | At-least-once; deduplicate by event ID |
 | Authenticated SSE | Ready | Use `fetch()` streaming, not native `EventSource` |
-| Platform-admin governance | Not implemented | No list/invite/grant/remove/last-admin UI can be integrated |
-| Locked-user/security operations | Not implemented | No platform unlock or general user-session operation exists |
-| Generic mail operations | Not implemented | No mail list/detail/retry/cancel API exists |
-| Notifications/announcements | Not implemented | Do not create placeholder write flows |
-| Platform overview aggregates | Not implemented | Compose only bounded existing queries; do not fake totals |
+| Platform-admin governance | Ready in current source | List/invite/grant/activate/deactivate; new identities receive encrypted temporary-password mail; last active authority cannot be removed |
+| Locked-user/security operations | Ready in current source | Locked identities, reasoned unlock, security events, and scoped PLATFORM/CPO/ALL session revocation |
+| Generic mail operations | Ready in current source | Safe metadata list/detail, retry/cancel, metrics, stale-job reconciliation, and reasoned 30-day-minimum retention |
+| Notifications/announcements | Ready in current source | Immutable PLATFORM/CPO audience snapshots, durable recipient rows, platform and CPO list/read APIs |
+| Platform overview aggregates | Ready in current source | Bounded CPO/access/session/mail/worker counts and service/database/worker status |
 | Manual subscriptions | Ready | Plans, issue/renew/status, and history; no feature keys, provider, or automatic lifecycle |
 | Platform billing | Intentionally unsupported | No invoice, payment, checkout, or webhook APIs |
 | Tenant business data or secret access | Forbidden boundary | A SuperAdmin is not a CPO ADMIN and cannot impersonate one |
@@ -151,6 +158,11 @@ A minimal complete platform application can use this route model:
 | `/platform/workers` | `GET /api/v1/platform/workers`, optionally public readiness |
 | `/account/sessions` | `/api/v1/auth/me`, `/sessions`, logout operations |
 | `/account/password` | authenticated password change |
+| `/platform/administrators` | platform administrator list/invite/activate/deactivate |
+| `/platform/security` | locked identities, security events, unlock, and session revocation |
+| `/platform/mail` | safe mail-job list/detail/retry/cancel, metrics, reconcile, retention |
+| `/platform/announcements` | announcement list/create and platform notification list/read |
+| `/platform/status` | bounded overview and service status |
 
 Suggested CPO detail regions:
 
@@ -165,7 +177,9 @@ Add a subscription-management area only for platform superadmins, following
 `docs/contracts/api/manual-subscriptions.md`. Do not add invoice, payment,
 checkout, webhook, automatic-renewal, scheduled-change, or provider UI:
 those routes do not exist. Platform-admin management, generic mail jobs,
-announcements, and an aggregate overview also remain unavailable.
+announcements, notifications, and bounded overview/status are available in the
+current source contract described below; they are not present on the currently
+deployed 87-operation development origin until rehosting is completed.
 
 ## HTTP Conventions
 
@@ -212,6 +226,52 @@ Use `error.code` for program logic. Display the safe server `message` where it
 helps, but do not infer hidden identity, membership, lockout, or mail state
 from generic authentication errors.
 
+## Current-Source Governance and Operations
+
+The following source-tree operations are ready for frontend integration. They
+require `PLATFORM` bearer authority unless marked CPO notification:
+
+```text
+GET/POST /api/v1/platform/administrators
+POST /api/v1/platform/administrators/{user_id}/activate|deactivate
+GET /api/v1/platform/security/locked-identities
+GET /api/v1/platform/security/events
+POST /api/v1/platform/security/users/{user_id}/unlock
+POST /api/v1/platform/security/users/{user_id}/sessions/revoke
+GET /api/v1/platform/mail/jobs
+GET /api/v1/platform/mail/jobs/{job_id}
+POST /api/v1/platform/mail/jobs/{job_id}/retry|cancel
+GET /api/v1/platform/mail/metrics
+POST /api/v1/platform/mail/reconcile|retention
+GET/POST /api/v1/platform/announcements
+GET /api/v1/platform/notifications
+POST /api/v1/platform/notifications/{notification_id}/read
+GET /api/v1/platform/overview
+GET /api/v1/platform/status
+GET /api/v1/cpo/notifications
+POST /api/v1/cpo/notifications/{notification_id}/read
+```
+
+Reasons are trimmed and must be 3–500 characters. Governance commands are
+audited. Administrator deactivation revokes platform sessions and cannot leave
+zero active platform administrators. Session revocation accepts `PLATFORM`,
+`CPO`, or `ALL`; CPO scope requires `cpo_id`. Mail APIs return only safe
+metadata and an `error_present` boolean. Retention deletes only `SENT` or
+`CANCELED` jobs older than the supplied cutoff, which must be at least 30 days
+old.
+
+Announcements use `PLATFORM` or `CPO` audience. A CPO announcement requires a
+CPO ID; a platform announcement forbids one. The backend snapshots eligible
+recipients transactionally, so later membership changes do not rewrite the
+original audience. Platform notification list/read derives the recipient from
+the bearer session. CPO notification list/read requires the verified
+`X-CPO-App-ID` header and derives the tenant from the CPO session. Overview and
+status are bounded aggregates, not tenant business-data exports.
+
+These routes are present in current source and OpenAPI, but the current
+development origin remains on the earlier 87-operation deployment until the
+new migration and binary are explicitly rehosted.
+
 ## TypeScript Contract
 
 These handwritten types cover the SuperAdmin surface. OpenAPI remains the
@@ -225,7 +285,7 @@ export type CpoStatus = "PENDING" | "ACTIVE" | "SUSPENDED";
 export type CompanyType = "INDIVIDUAL" | "COMPANY";
 export type CpoAppIdMode = "DUMMY" | "LIVE";
 export type MembershipStatus = "ACTIVE" | "SUSPENDED" | "REVOKED";
-export type MailStatus = "PENDING" | "PROCESSING" | "SENT" | "FAILED";
+export type MailStatus = "PENDING" | "PROCESSING" | "SENT" | "FAILED" | "CANCELED";
 export type WorkerStatus = "HEALTHY" | "DEGRADED" | "STALE" | "DISABLED";
 
 export interface ChallengeResponse {
@@ -1233,15 +1293,11 @@ mutate the deployed database.
 
 The FE should raise, not paper over, these gaps:
 
-1. Platform-superadmin list/invite/grant/remove/last-admin protection is the
-   next approved backend slice but is not implemented.
-2. There is no locked-identity query/unlock operation.
-3. There is no generic mail queue list/detail/retry/cancel operation.
-4. There is no notification or announcement API.
-5. There is no platform overview/count/version endpoint.
-6. There is no generated frontend SDK or committed generated types.
-7. There is no SuperAdmin tenant impersonation/support-access workflow.
-8. Manual subscription plans, CPO subscriptions, and history are platform-only.
+1. The current development origin has not yet been rehosted with the 110-operation
+   source surface and migration fourteen.
+2. There is no generated frontend SDK or committed generated types.
+3. There is no SuperAdmin tenant impersonation/support-access workflow.
+4. Manual subscription plans, CPO subscriptions, and history are platform-only.
    Feature keys/entitlements, platform invoices, payments, checkout,
    webhooks, and automatic lifecycle behavior remain intentionally unsupported.
 

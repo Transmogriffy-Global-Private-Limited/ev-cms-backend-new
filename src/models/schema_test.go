@@ -71,6 +71,8 @@ func TestGORMModelsParse(t *testing.T) {
 		&CPOIntegration{},
 		&PlatformEvent{},
 		&WorkerInstance{},
+		&PlatformAnnouncement{},
+		&PlatformNotification{},
 		&SubscriptionPlan{},
 		&SubscriptionPlanVersion{},
 		&CPOSubscription{},

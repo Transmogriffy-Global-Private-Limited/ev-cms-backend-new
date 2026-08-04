@@ -51,6 +51,12 @@ func TestValidateMessagePayloadRejectsIncompleteCredentialMail(t *testing.T) {
 			payload:  MessagePayload{CPOID: "cpo-id", CPOAppID: "app-id"},
 			want:     "temporary password is required",
 		},
+		{
+			name:     "new platform admin without temporary password",
+			template: "PLATFORM_ADMIN_INVITE",
+			payload:  MessagePayload{RecipientName: "Platform Admin"},
+			want:     "temporary password is required",
+		},
 	}
 
 	for _, test := range tests {
@@ -61,6 +67,17 @@ func TestValidateMessagePayloadRejectsIncompleteCredentialMail(t *testing.T) {
 				t.Fatalf("validation error = %v, want %q", err, test.want)
 			}
 		})
+	}
+}
+
+func TestValidateMessagePayloadAcceptsPlatformAdminGrantMail(t *testing.T) {
+	t.Parallel()
+
+	payload := MessagePayload{RecipientName: "Platform Admin", TemporaryPassword: "temporary-password"}
+	for _, template := range []string{"PLATFORM_ADMIN_INVITE", "PLATFORM_ADMIN_GRANTED"} {
+		if err := validateMessagePayload(template, payload); err != nil {
+			t.Fatalf("complete %s payload must remain valid: %v", template, err)
+		}
 	}
 }
 

@@ -57,11 +57,24 @@ The current platform-management surface includes:
 - filtered platform audit queries;
 - registered worker-health visibility and readiness degradation;
 - encrypted mail-outbox observation through worker status;
-- CPO-owned Razorpay credential storage without platform plaintext access.
+- CPO-owned Razorpay credential storage without platform plaintext access;
+- platform-administrator invitation, authority activation/deactivation, and
+  last-active-admin protection;
+- locked-identity inspection, reasoned unlock, and scoped session revocation;
+- safe mail-job metadata, retry/cancel, reconciliation, metrics, and bounded
+  retention without decrypted payload access;
+- platform-wide and CPO-targeted announcements with immutable audience
+  snapshots and durable recipient notifications;
+- platform and CPO notification listing/read state, plus bounded overview and
+  service-status queries.
 
-The current source does not yet include platform-admin governance, generic mail
-job administration, notification/announcement, or overview/status command
-surfaces. Those remain planned in the active superadmin plan.
+Governance and operational commands are platform-superadmin-only. A newly
+invited platform administrator receives an encrypted temporary-password mail
+through the outbox and must complete the normal password-change flow. Existing
+active identities can be granted authority without replacing their password.
+Mail-job responses expose only safe metadata and an `error_present` boolean.
+Announcement creation writes the announcement, recipient snapshot, audit row,
+and committed platform event in one transaction.
 
 Administrative forgot/reset keeps its public response generic while the
 eligible recipient's encrypted email supplies the recovery ID, code, and
@@ -97,8 +110,10 @@ recovered by reloading authoritative REST state.
 
 ## Retired Commercial Prototype
 
-Migrations seven and eight previously introduced tenant subscription and
-platform-billing prototypes. They were deployed before the product decision
-changed. Migration nine moves those tables, without deleting their data, into
-the non-runtime `retired_commercial` schema and disables their worker records.
-No route or active application module reads or writes that schema.
+Migrations seven and eight previously introduced the original tenant
+subscription and platform-billing prototypes. They were deployed before the
+product decision changed. Migration nine moves those old tables, without
+deleting their data, into the non-runtime `retired_commercial` schema and
+disables their worker records. The active manual subscription records are a
+separate platform-superadmin surface; no provider or automatic lifecycle is
+attached to them.

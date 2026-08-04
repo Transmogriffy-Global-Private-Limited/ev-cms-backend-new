@@ -65,7 +65,7 @@ $requiredCPOAgentRules = @(
     'Current callable CPO staff authority is `ADMIN` only.',
     'The presence of a table or Go model does not mean its workflow exists.',
     '`src/cpo/repository.go` is currently an empty package file.',
-    'Twelve migrations are already deployment history.',
+    'Thirteen migrations are already deployment history.',
     'do not embed or copy the HAL into this process',
     'Treat `main` and `anubhab-work` as the authoritative lines'
 )
@@ -85,6 +85,10 @@ $requiredSuperadminFERules = @(
     'welcome job is rejected before the CPO transaction commits',
     '`platform.cpo.primary_admin_changed`',
     'Manual subscriptions',
+    'Platform-admin governance',
+    'Generic mail operations',
+    'Notifications/announcements',
+    'Platform overview aggregates',
     'SuperAdmin is not a CPO ADMIN',
     '`available=true` does not reserve it',
     'GSTIN and every address field are required'
@@ -150,6 +154,16 @@ $requiredRoutes = @(
     '/api/v1/platform/cpos/{cpo_id}/primary-admin',
     '/api/v1/platform/cpos/{cpo_id}/primary-admin/resend-onboarding',
     '/api/v1/platform/cpos/{cpo_id}/administrative-sessions/revoke',
+    '/api/v1/platform/administrators',
+    '/api/v1/platform/security/locked-identities',
+    '/api/v1/platform/security/users/{user_id}/sessions/revoke',
+    '/api/v1/platform/mail/jobs',
+    '/api/v1/platform/mail/jobs/{job_id}/retry',
+    '/api/v1/platform/mail/reconcile',
+    '/api/v1/platform/announcements',
+    '/api/v1/platform/notifications',
+    '/api/v1/platform/overview',
+    '/api/v1/platform/status',
     '/api/v1/platform/events',
     '/api/v1/platform/realtime/stream',
     '/api/v1/platform/audit-logs',
@@ -158,6 +172,8 @@ $requiredRoutes = @(
     '/api/v1/platform/cpos/{cpo_id}/subscription',
     '/api/v1/cpo/integrations',
     '/api/v1/cpo/organization',
+    '/api/v1/cpo/notifications',
+    '/api/v1/cpo/notifications/{notification_id}/read',
     '/api/v1/cpo/admin/profile',
     '/api/v1/cpo/hubs',
     '/api/v1/cpo/chargers',
@@ -188,8 +204,8 @@ foreach ($route in $retiredRoutes) {
 }
 
 $operationCount = ([regex]::Matches($openAPI, '(?m)^\s{6}operationId:\s+')).Count
-if ($operationCount -ne 87) {
-    throw "OpenAPI contains $operationCount operations; expected 87."
+if ($operationCount -ne 110) {
+    throw "OpenAPI contains $operationCount operations; expected 110."
 }
 
 if ($openAPI.Contains('/api/v1/cpo/profile')) {
@@ -213,7 +229,17 @@ foreach ($eventName in $requiredCPOEvents) {
 
 foreach ($eventName in @(
     'platform.subscription.issued',
-    'platform.subscription.renewed'
+    'platform.subscription.renewed',
+    'platform.admin.granted',
+    'platform.admin.activated',
+    'platform.admin.deactivated',
+    'platform.security.identity_unlocked',
+    'platform.security.sessions_revoked',
+    'platform.mail.job_retried',
+    'platform.mail.job_canceled',
+    'platform.mail.jobs_reconciled',
+    'platform.mail.jobs_retained',
+    'platform.announcement.created'
 )) {
     if (-not $realtimeContract.Contains($eventName)) {
         throw "Realtime contract does not contain subscription event $eventName"

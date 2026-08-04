@@ -109,6 +109,10 @@ Current producers:
 - CPO primary-administrator replacement/restoration;
 - CPO primary-administrator onboarding resend;
 - CPO administrative-session revocation;
+- platform-administrator grant, activation, and deactivation;
+- platform identity unlock and scoped session revocation;
+- mail-job retry, cancellation, stale-job reconciliation, and retention;
+- platform announcement creation;
 - manual subscription-plan creation, draft changes, publication, and archive;
 - manual CPO subscription issue, renewal, plan change, and status transition;
 - worker heartbeat records provide worker-state source data.
@@ -116,8 +120,11 @@ Current producers:
   worker name; stale records from replaced instances remain observable but do
   not make a healthy replacement unavailable.
 
-Planned producers are registered in
-`docs/plans/superadmin-control-plane.md`.
+The platform governance and CPO notification commands are REST-first. Platform
+SSE announces committed governance changes so connected Superadmin views can
+refresh; durable notification bodies are recovered through REST and are not
+embedded in the event payload. CPO notification clients use their authenticated
+REST list/read surface and do not receive a separate CPO SSE stream.
 
 Current CPO event names and safe payload meanings:
 
@@ -130,12 +137,19 @@ Current CPO event names and safe payload meanings:
 | `platform.cpo.primary_admin_changed` | previous/current user IDs and reason | primary-admin resource |
 | `platform.cpo.primary_admin_onboarding_resent` | primary user ID and reason | primary-admin resource |
 | `platform.cpo.admin_sessions_revoked` | reason and revoked counts | audit/recovery display |
+| `platform.admin.granted` / `platform.admin.activated` / `platform.admin.deactivated` | affected user ID, active state, reason | administrator list/detail |
+| `platform.security.identity_unlocked` / `platform.security.sessions_revoked` | affected user ID and safe counts | security list/audit |
+| `platform.mail.job_retried` / `platform.mail.job_canceled` | job ID and safe state | mail job list/detail |
+| `platform.mail.jobs_reconciled` / `platform.mail.jobs_retained` | safe count and operator reason | mail operations |
+| `platform.announcement.created` | audience and recipient count; never message body | announcements and notifications |
 | `platform.subscription.plan_created` / `plan_draft_updated` / `plan_published` / `plan_archived` | code or version metadata | plan catalog/detail |
 | `platform.subscription.issued`, `platform.subscription.renewed`, `platform.subscription.plan_changed`, `platform.subscription.activated`, `platform.subscription.paused`, `platform.subscription.resumed`, `platform.subscription.past_due`, `platform.subscription.expired`, `platform.subscription.cancelled` | CPO ID, status, plan version ID | CPO subscription/detail |
 
 Lifecycle retries that request the already-current state do not create another
 lifecycle event. Explicit session revocation does create an event even when the
 counts are zero because the operator command itself is auditable evidence.
+Notification reads are recipient-owned REST state changes and do not emit a
+platform event.
 
 ## Connection Behavior
 

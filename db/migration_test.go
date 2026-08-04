@@ -87,8 +87,8 @@ func TestInitialMigrationContainsCompleteCMSDomain(t *testing.T) {
 		"audit_logs",
 	}
 
-	upSQL := string(upBody)
-	downSQL := string(downBody)
+	upSQL := strings.ReplaceAll(string(upBody), "\r\n", "\n")
+	downSQL := strings.ReplaceAll(string(downBody), "\r\n", "\n")
 	for _, table := range tables {
 		if !strings.Contains(upSQL, "CREATE TABLE "+table) {
 			t.Errorf("up migration does not create table %q", table)
@@ -142,6 +142,42 @@ func TestAuthMigrationContainsCredentialBoundary(t *testing.T) {
 		}
 		if !strings.Contains(downSQL, "DROP COLUMN IF EXISTS "+column) {
 			t.Errorf("down migration does not remove users.%s", column)
+		}
+	}
+}
+
+func TestCompleteSuperadminMigrationContainsAuthorityMailAndNotifications(t *testing.T) {
+	t.Parallel()
+
+	upBody, err := migrationFiles.ReadFile("migrations/000014_complete_superadmin_surface.up.sql")
+	if err != nil {
+		t.Fatalf("read complete Superadmin up migration: %v", err)
+	}
+	downBody, err := migrationFiles.ReadFile("migrations/000014_complete_superadmin_surface.down.sql")
+	if err != nil {
+		t.Fatalf("read complete Superadmin down migration: %v", err)
+	}
+	upSQL := string(upBody)
+	downSQL := string(downBody)
+	for _, table := range []string{"platform_announcements", "platform_notifications"} {
+		if !strings.Contains(upSQL, "CREATE TABLE "+table) {
+			t.Errorf("up migration does not create %s", table)
+		}
+		if !strings.Contains(downSQL, "DROP TABLE IF EXISTS "+table) {
+			t.Errorf("down migration does not remove %s", table)
+		}
+	}
+	for _, column := range []string{"is_active", "status_reason", "status_changed_at", "status_changed_by_user_id", "updated_at"} {
+		if !strings.Contains(upSQL, "ADD COLUMN "+column) {
+			t.Errorf("up migration does not add platform_admins.%s", column)
+		}
+		if !strings.Contains(downSQL, "DROP COLUMN "+column) {
+			t.Errorf("down migration does not remove platform_admins.%s", column)
+		}
+	}
+	for _, required := range []string{"PLATFORM_ADMIN_INVITE", "PLATFORM_ADMIN_GRANTED", "CANCELED", "ix_platform_notifications_recipient_created"} {
+		if !strings.Contains(upSQL, required) {
+			t.Errorf("up migration is missing %q", required)
 		}
 	}
 }
@@ -520,7 +556,8 @@ func TestManualSubscriptionRestoreMigrationPreservesBillingRetirement(t *testing
 		t.Fatalf("read manual subscription restore down migration: %v", err)
 	}
 
-	upSQL, downSQL := string(upBody), string(downBody)
+	upSQL := strings.ReplaceAll(string(upBody), "\r\n", "\n")
+	downSQL := strings.ReplaceAll(string(downBody), "\r\n", "\n")
 	for _, table := range []string{
 		"subscription_plans",
 		"subscription_plan_versions",
@@ -574,7 +611,8 @@ func TestDormantEntitlementRetirementMigrationPreservesSubscriptionTables(t *tes
 		t.Fatalf("read dormant entitlement retirement down migration: %v", err)
 	}
 
-	upSQL, downSQL := string(upBody), string(downBody)
+	upSQL := strings.ReplaceAll(string(upBody), "\r\n", "\n")
+	downSQL := strings.ReplaceAll(string(downBody), "\r\n", "\n")
 	for _, table := range []string{
 		"subscription_plan_entitlements",
 		"cpo_entitlement_overrides",

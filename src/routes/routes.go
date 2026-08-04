@@ -14,6 +14,7 @@ import (
 	cmsmiddleware "github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/middleware"
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/platformops"
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/subscriptions"
+	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/superadmin"
 	"github.com/gin-gonic/gin"
 )
 
@@ -33,6 +34,7 @@ func New(
 	apiDocsEnabled bool,
 	requestLogWriter io.Writer,
 	debugLogging bool,
+	superadminServices ...*superadmin.Service,
 ) *gin.Engine {
 	router := gin.New()
 	router.Use(cmsmiddleware.RequestLogger(requestLogWriter, debugLogging))
@@ -106,6 +108,14 @@ func New(
 			router.Group("/api/v1/platform"),
 			authService,
 			subscriptionService,
+		)
+	}
+	if authService != nil && len(superadminServices) > 0 && superadminServices[0] != nil {
+		superadmin.RegisterRoutes(
+			router.Group("/api/v1/platform"), authService, superadminServices[0],
+		)
+		superadmin.RegisterCPONotificationRoutes(
+			router.Group("/api/v1/cpo"), authService, superadminServices[0],
 		)
 	}
 	return router

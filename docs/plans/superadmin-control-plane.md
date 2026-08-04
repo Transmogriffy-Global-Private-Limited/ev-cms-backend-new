@@ -42,6 +42,13 @@ without accessing tenant business data.
 - API documentation toggle and runtime/OpenAPI drift verification
 - Canonical SuperAdmin frontend handoff across auth, CPO control, audit,
   workers, replay/SSE, errors, security, verification, and known gaps
+- Platform-administrator governance with concurrency-safe last-admin
+  protection and platform-session revocation
+- Locked-identity unlock and scoped platform/CPO/all session revocation
+- Safe mail-job metadata operations, reconciliation, metrics, and bounded
+  retention
+- Immutable-audience platform/CPO announcements and durable notifications
+- Bounded platform overview and service-status queries
 
 Administrative password recovery remains enumeration-safe while the eligible
 recipient's encrypted email supplies the recovery ID, code, and expiry required
@@ -50,12 +57,12 @@ SuperAdmin-control-plane governance command.
 
 ## Retired Prototype
 
-The subscription, entitlement, platform-invoice, and platform-payment modules
-are no longer product surfaces. Because migrations seven and eight reached the
-development VPS, migration nine preserves their tables in
-`retired_commercial` instead of deleting data. It disables the retired worker
-records and blocks retirement while related mail is pending. No active route,
-model, worker, or OpenAPI operation uses those records.
+The original subscription, entitlement, platform-invoice, and platform-payment
+modules are no longer runtime product surfaces. Because migrations seven and
+eight reached the development VPS, migration nine preserves their tables in
+`retired_commercial` instead of deleting data. The current manual subscription
+surface is separate and intentionally has no provider, invoice, payment, or
+automatic lifecycle worker.
 
 ## Remaining Implementation Slices
 
@@ -141,6 +148,8 @@ Current verification limitation:
 
 ### 2. Platform-superadmin governance
 
+Status: Implemented in source; pending this slice's full verification.
+
 - list platform administrators;
 - invite or grant authority through an explicit verified flow;
 - deactivate or remove authority without deleting the global identity;
@@ -148,14 +157,27 @@ Current verification limitation:
 - revoke affected platform sessions transactionally;
 - audit every authority change.
 
+HTTP surface: `GET/POST /api/v1/platform/administrators` and reasoned
+`activate`/`deactivate` commands. New identities receive an encrypted
+`PLATFORM_ADMIN_INVITE`; existing active identities are granted authority
+without password replacement.
+
 ### 3. Security operations
+
+Status: Implemented in source; pending this slice's full verification.
 
 - paginated/filterable platform audit detail;
 - locked-identity query and explicit reasoned unlock;
 - user- and CPO-scoped administrative session revocation;
 - security-event visibility without exposing tokens, OTPs, or secret payloads.
 
+HTTP surface: locked-identity listing, reasoned unlock, security-event listing,
+and scoped user session revocation under
+`/api/v1/platform/security/...`.
+
 ### 4. Mail operations
+
+Status: Implemented in source; pending this slice's full verification.
 
 - mail overview and filtered job metadata;
 - individual job metadata without decrypted bodies;
@@ -163,7 +185,13 @@ Current verification limitation:
 - template-level delivery metrics;
 - bounded retention/reconciliation.
 
+HTTP surface: `/api/v1/platform/mail/jobs`, job detail/retry/cancel, metrics,
+reconcile, and retention. Retention requires a reason and a cutoff at least
+30 days old and deletes only SENT or CANCELED jobs.
+
 ### 5. Notifications and announcements
+
+Status: Implemented in source; pending this slice's full verification.
 
 - platform-owned notification records;
 - CPO-targeted and platform-wide announcements;
@@ -172,12 +200,22 @@ Current verification limitation:
 - REST recovery and realtime invalidation;
 - no tenant-business-data payloads.
 
+HTTP surface: platform announcement creation/listing, platform notification
+list/read, and authenticated CPO notification list/read. CPO notification
+queries require the verified `X-CPO-App-ID` routing header and derive tenant
+scope from the CPO session.
+
 ### 6. Overview and system status
+
+Status: Implemented in source; pending this slice's full verification.
 
 - bounded aggregate CPO/access/session/mail/worker counts;
 - service/database/worker state;
 - current deployment/version metadata where safely available;
 - no unbounded tenant-data aggregation.
+
+HTTP surface: `GET /api/v1/platform/overview` and
+`GET /api/v1/platform/status`.
 
 ## Realtime Contract
 
@@ -202,10 +240,10 @@ Connection requirements:
 
 1. Retire subscription/platform-billing runtime and contracts safely.
 2. Complete CPO lifecycle and first-admin recovery.
-3. Complete platform-administrator governance.
-4. Complete security and mail operations.
-5. Add notifications and announcements.
-6. Add overview and system-status queries.
+3. Complete platform-administrator governance. (Implemented in source.)
+4. Complete security and mail operations. (Implemented in source.)
+5. Add notifications and announcements. (Implemented in source.)
+6. Add overview and system-status queries. (Implemented in source.)
 7. Complete residue, recovery, concurrency, and operational verification.
 
 ## Acceptance Criteria

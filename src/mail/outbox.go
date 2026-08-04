@@ -107,6 +107,10 @@ func validateMessagePayload(template string, payload MessagePayload) error {
 		if strings.TrimSpace(payload.TemporaryPassword) == "" {
 			return errors.New("validate CPO_ADMIN_WELCOME mail payload: temporary password is required")
 		}
+	case "PLATFORM_ADMIN_INVITE":
+		if strings.TrimSpace(payload.TemporaryPassword) == "" {
+			return errors.New("validate PLATFORM_ADMIN_INVITE mail payload: temporary password is required")
+		}
 	}
 	return nil
 }

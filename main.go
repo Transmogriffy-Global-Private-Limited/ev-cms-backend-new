@@ -22,6 +22,7 @@ import (
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/routes"
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/security"
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/subscriptions"
+	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/superadmin"
 	"github.com/google/uuid"
 )
 
@@ -93,6 +94,7 @@ func run() error {
 		return err
 	}
 	platformService := platformops.NewService(gormDB, cfg.Platform)
+	superadminService := superadmin.NewService(gormDB, platformService, outbox, cfg.Mail.Enabled)
 	subscriptionService := subscriptions.NewService(gormDB, platformService)
 	cpoService := cpo.NewService(gormDB, outbox, cfg.Mail.Enabled).
 		WithPlatformEvents(platformService)
@@ -138,6 +140,7 @@ func run() error {
 			cfg.APIDocsEnabled,
 			os.Stdout,
 			cfg.LogLevel == config.LogLevelDebug,
+			superadminService,
 		),
 		ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout:       15 * time.Second,

@@ -619,7 +619,7 @@ Non-goals:
 
 ### Feature: Complete superadmin control plane
 
-Status: In Progress
+Status: Implemented
 
 Phase: Phase 2: Authentication and CPO administration
 
@@ -647,6 +647,22 @@ Current integration contract:
 - `docs/SUPERADMIN_FRONTEND_HANDOFF.md` is the canonical no-chat-history FE
   guide and keeps implemented, blocked, planned, and intentionally unsupported
   behavior separate.
+
+Current source implementation:
+
+- Migration fourteen adds platform-authority status fields and durable
+  announcement/notification records.
+- Governance, security, mail, announcement/notification, overview, and status
+  routes are implemented and represented in the 110-operation OpenAPI contract.
+- Focused source tests, route/OpenAPI parity, documentation verification, the
+  full Go suite, vet, and diff checks pass.
+
+Verification limitation:
+
+- Disposable PostgreSQL lifecycle execution remains pending because no
+  `TEST_DATABASE_URL` is configured. The source implementation is not marked
+  `Verified` until migration fourteen and the stateful governance/mail/
+  notification flows are exercised against an explicitly disposable database.
 
 Non-goals:
 
@@ -813,6 +829,9 @@ Last completed slice:
   administration, mutable business profile, reasoned lifecycle control,
   primary-admin recovery/onboarding resend, and CPO administrative-session
   revocation
+- Implemented the remaining platform governance, security, mail, notification,
+  announcement, overview, and status source surfaces; focused tests and full
+  contract/docs verification are the active follow-up.
 
 Last deployment milestone:
 
@@ -827,8 +846,8 @@ Last deployment milestone:
 
 Next expected slice:
 
-- Run the manual-subscription PostgreSQL lifecycle verification against a
-  disposable database, then resume platform-superadmin governance
+- Run the complete Superadmin and manual-subscription PostgreSQL lifecycle
+  verification when an explicitly disposable database is available
 
 Blocked by:
 
@@ -839,8 +858,8 @@ Blocked by:
 1. Run manual-subscription PostgreSQL lifecycle verification from
    `docs/plans/manual-platform-subscriptions.md` against an explicitly
    disposable `TEST_DATABASE_URL`.
-2. Resume the superadmin control-plane slices in
-   `docs/plans/superadmin-control-plane.md`.
+2. Rehost the verified migration-fourteen/binary revision to the development
+   VPS with explicit approval and post-deploy contract checks.
 3. Design staff invitation and membership management before activating dormant
    role values.
 

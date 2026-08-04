@@ -29,8 +29,8 @@ Implement one modular-monolith platform control plane with explicit modules for:
 
 - CPO lifecycle and administrative recovery;
 - platform administrator governance;
-- provider-neutral subscription catalog, lifecycle, entitlements, and billing
-  records;
+- manually operated subscription catalog and lifecycle records; provider,
+  entitlement, invoice, and payment concerns remain outside this plane;
 - audit and security operations;
 - durable mail and notification operations;
 - worker heartbeats and recoverable jobs;
@@ -39,8 +39,8 @@ Implement one modular-monolith platform control plane with explicit modules for:
 - durable PostgreSQL platform events with authenticated SSE and REST replay.
 
 A subscription is optional. CPO lifecycle and subscription lifecycle are
-separate. Published plan versions and invoices are immutable. Entitlements are
-resolved from a subscription snapshot plus explicit expiring overrides.
+separate. Published plan versions and manual transition history are durable;
+there is no provider-driven state change or feature-key enforcement.
 
 REST owns commands and authoritative queries. PostgreSQL owns durable truth.
 Realtime announces committed facts using at-least-once SSE delivery and cannot

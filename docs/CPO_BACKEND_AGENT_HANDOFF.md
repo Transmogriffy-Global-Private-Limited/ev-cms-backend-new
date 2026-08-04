@@ -533,7 +533,7 @@ Before completion, prove:
 ## Database and Migration Rules
 
 - PostgreSQL is durable truth.
-- Twelve migrations are already deployment history. Do not edit an applied
+- Thirteen migrations are already deployment history. Do not edit an applied
   migration to change new behavior; add the next forward migration.
 - Migration eleven is the current deployed migration. It requires GSTIN and
   nonblank address,

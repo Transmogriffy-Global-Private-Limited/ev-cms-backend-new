@@ -2135,6 +2135,103 @@ authorization effect.
 Feature keys and entitlement overrides are deliberately not exposed until a
 future module catalog defines their server-side enforcement.
 
+### 12.2 Platform governance, security, and mail operations
+
+These routes require a current `PLATFORM` bearer session and are limited to
+active platform authority. They never grant tenant business-data access.
+
+Platform administrator governance:
+
+```text
+GET  /api/v1/platform/administrators
+POST /api/v1/platform/administrators
+POST /api/v1/platform/administrators/{user_id}/activate
+POST /api/v1/platform/administrators/{user_id}/deactivate
+```
+
+The list is cursor-paginated and can include inactive authority records. The
+invite request is `{ "email": "...", "full_name": "..." }`. A new global
+identity is created with a random password, `MFAEnabled=true`, and
+`must_change_password=true`; the temporary password is encrypted into a
+`PLATFORM_ADMIN_INVITE` outbox job. Granting an existing active identity does
+not replace its password. Activate/deactivate requests require
+`{ "reason": "..." }`. Deactivation keeps the identity, revokes its platform
+sessions, and refuses to deactivate the last active platform administrator.
+
+Security operations:
+
+```text
+GET  /api/v1/platform/security/locked-identities
+GET  /api/v1/platform/security/events
+POST /api/v1/platform/security/users/{user_id}/unlock
+POST /api/v1/platform/security/users/{user_id}/sessions/revoke
+```
+
+Unlock requires a reason. Session revocation requires `{ "reason": "...",
+"scope": "PLATFORM|CPO|ALL", "cpo_id": "..." }`; `cpo_id` is required only
+for `CPO`. It revokes matching administrative sessions and unused refresh
+tokens and returns `{ "revoked_sessions": 0, "revoked_refresh_tokens": 0 }`.
+Security and audit responses contain safe metadata only.
+
+Mail operations:
+
+```text
+GET  /api/v1/platform/mail/jobs
+GET  /api/v1/platform/mail/jobs/{job_id}
+POST /api/v1/platform/mail/jobs/{job_id}/retry
+POST /api/v1/platform/mail/jobs/{job_id}/cancel
+GET  /api/v1/platform/mail/metrics
+POST /api/v1/platform/mail/reconcile
+POST /api/v1/platform/mail/retention
+```
+
+Job listing supports status (`PENDING`, `PROCESSING`, `SENT`, `FAILED`, or
+`CANCELED`), template, CPO, user, and the standard cursor. Job responses show
+recipient and delivery metadata plus `error_present`; they never show the
+encrypted payload, decrypted body, temporary password, OTP, or stored error
+text. Retry accepts failed/canceled jobs. Cancel accepts pending/failed jobs
+and requires a reason. Reconcile requires a reason and requeues processing
+jobs locked for more than five minutes. Retention requires `{ "before":
+"RFC3339", "reason": "..." }`, where `before` is at least 30 days old, and
+deletes only `SENT` or `CANCELED` jobs. Every command is audited and emits the
+corresponding committed platform event.
+
+### 12.3 Announcements, notifications, and platform status
+
+Platform communication and status routes are:
+
+```text
+GET  /api/v1/platform/announcements
+POST /api/v1/platform/announcements
+GET  /api/v1/platform/notifications
+POST /api/v1/platform/notifications/{notification_id}/read
+GET  /api/v1/platform/overview
+GET  /api/v1/platform/status
+GET  /api/v1/cpo/notifications
+POST /api/v1/cpo/notifications/{notification_id}/read
+```
+
+Announcement creation accepts `{ "audience": "PLATFORM|CPO", "cpo_id":
+"...", "title": "...", "body": "...", "expires_at": "RFC3339" }`.
+`cpo_id` is forbidden for `PLATFORM` and required for `CPO`. The transaction
+stores the announcement and snapshots currently active platform administrators
+or active CPO `ADMIN` members into durable notification rows. Later membership
+changes do not rewrite that audience snapshot. Expired announcements are not
+returned in recipient notification lists.
+
+Platform recipients use bearer authentication. CPO recipients use their
+verified CPO `ADMIN` session plus the current `X-CPO-App-ID` header; the CPO ID
+is derived from the authenticated session, not selected by the caller. Both
+notification lists are cursor-paginated, support `unread_only`, and expose
+read timestamps. Mark-read is recipient-owned and returns `204`; missing or
+foreign notifications return `404 notification_not_found`.
+
+Overview returns bounded CPO lifecycle counts, active platform-admin count,
+active session count, mail status counts, and worker states. Status returns
+service/version, database connectivity, and worker state. The current source
+reports version `development` unless a release build supplies a linker value.
+Neither endpoint performs unbounded tenant-business aggregation.
+
 ## 13. Client State Machine
 
 Recommended frontend sequence:

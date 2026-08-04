@@ -76,11 +76,13 @@ provides:
 - a canonical CPO backend AI-agent handoff covering current capability,
   ownership, tenant/HAL boundaries, remaining dependency order, slice
   execution, verification, and handoff requirements;
-- a canonical SuperAdmin frontend handoff covering the 45-operation platform
-  integration surface, TypeScript contracts, auth/token state, CPO workflows,
+- a canonical SuperAdmin frontend handoff covering the 66-operation current
+  platform integration surface, TypeScript contracts, auth/token state, CPO
+  workflows, governance, security, mail, notifications, overview/status,
   audit/workers, SSE/replay, error UX, security, verification, and explicit
-  blocked/unimplemented behavior;
-- canonical OpenAPI 3.1 for all 87 source-tree business/health operations;
+  deployment gaps;
+- canonical OpenAPI 3.1 for all 110 current source-tree business/health
+  operations;
 - embedded same-origin Swagger UI at `/docs/` and raw OpenAPI at
   `/openapi.yaml`;
 - `API_DOCS_ENABLED` registration control for both documentation surfaces,
@@ -104,6 +106,15 @@ provides:
   machines;
 - durable platform event replay, authenticated SSE, filtered audit query, and
   registered worker-health/readiness APIs;
+- complete source-tree platform-superadmin governance: administrator
+  invite/grant/activate/deactivate with last-active-admin protection;
+- source-tree security operations for locked identities, reasoned unlock,
+  security-event visibility, and scoped user session revocation;
+- source-tree safe mail-job administration for metadata listing, retry/cancel,
+  metrics, stale-job reconciliation, and audited bounded retention;
+- source-tree platform/CPO announcements with immutable audience snapshots and
+  durable recipient notifications, including recipient-owned read state;
+- source-tree bounded platform overview and service-status aggregates;
 - platform-superadmin-only manual subscription plans, immutable published plan
   versions, explicit CPO issue/renew/change/status commands, and idempotent
   transition history;
@@ -121,8 +132,10 @@ provides:
   handler;
 - the additive PostgreSQL database `devevcmsnewdb`, owned by `postgres`.
 
-The active development VPS runs source revision `9b508ef`, with migration
-thirteen recorded and the deployed 87-operation contract. CPO GSTIN and address
+The active development VPS still runs source revision `9b508ef`, with migration
+thirteen recorded and the deployed 87-operation contract. Current source adds
+migration fourteen and the 110-operation contract; that source-side surface is
+not deployed until the new binary and migration are explicitly rehosted. CPO GSTIN and address
 identity are database-required, authenticated platform clients can use the
 advisory slug-availability operation, and known uniqueness races return
 field- or relationship-specific conflict codes. All four CPOs were complete
@@ -131,9 +144,10 @@ and preserved during deployment. Migration nine continues to preserve the
 the current development environment uses `LOG_LEVEL=DEBUG` for correlated
 request-start and completion diagnostics.
 
-Migration thirteen removes feature-key runtime behavior and is deployed. The
-disposable PostgreSQL lifecycle test remains unexecuted because no
-`TEST_DATABASE_URL` is configured.
+Migration thirteen removes feature-key runtime behavior and is deployed.
+Migration fourteen is additive source state for the complete Superadmin
+surface and remains pending deployment. The disposable PostgreSQL lifecycle
+test remains unexecuted because no `TEST_DATABASE_URL` is configured.
 
 The deployed recovery flow fixes a recovery-specific OTP mapper defect that discarded
 `challenge_id` before outbox validation and caused eligible administrative and
@@ -164,10 +178,14 @@ yet.
   slug and GSTIN conflict codes.
 - Required-field validation, slug normalization/authorization, migration
   content, and affected package tests passed for the source-tree change.
-- The 87-operation source OpenAPI and runtime route sets match; documentation
+- Superadmin migration fourteen static coverage, input/privacy regression
+  tests, and the affected package tests passed for the source-tree change.
+- The 110-operation source OpenAPI and runtime route sets match; documentation
   contract verification passed.
 - `go test ./...` passed.
 - `go vet ./...` passed.
+- `git diff --check` passed. Stateful PostgreSQL lifecycle verification remains
+  pending because no disposable `TEST_DATABASE_URL` is configured.
 - `git diff --check` passed.
 - Revision `9b508ef` was built cleanly and rehosted after a validated
   mode-0600 rollback dump and migration thirteen. The installed identity,

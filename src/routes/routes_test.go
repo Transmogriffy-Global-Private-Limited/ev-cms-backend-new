@@ -24,6 +24,7 @@ import (
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/platformops"
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/security"
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/subscriptions"
+	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/superadmin"
 	"github.com/getkin/kin-openapi/openapi3"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -64,6 +65,29 @@ func TestCredentialRoutesAreRegisteredAndProtected(t *testing.T) {
 		{http.MethodGet, "/api/v1/platform/realtime/stream"},
 		{http.MethodGet, "/api/v1/platform/audit-logs"},
 		{http.MethodGet, "/api/v1/platform/workers"},
+		{http.MethodGet, "/api/v1/platform/administrators"},
+		{http.MethodPost, "/api/v1/platform/administrators"},
+		{http.MethodPost, "/api/v1/platform/administrators/00000000-0000-0000-0000-000000000001/activate"},
+		{http.MethodPost, "/api/v1/platform/administrators/00000000-0000-0000-0000-000000000001/deactivate"},
+		{http.MethodGet, "/api/v1/platform/security/locked-identities"},
+		{http.MethodGet, "/api/v1/platform/security/events"},
+		{http.MethodPost, "/api/v1/platform/security/users/00000000-0000-0000-0000-000000000001/unlock"},
+		{http.MethodPost, "/api/v1/platform/security/users/00000000-0000-0000-0000-000000000001/sessions/revoke"},
+		{http.MethodGet, "/api/v1/platform/mail/jobs"},
+		{http.MethodGet, "/api/v1/platform/mail/jobs/00000000-0000-0000-0000-000000000001"},
+		{http.MethodPost, "/api/v1/platform/mail/jobs/00000000-0000-0000-0000-000000000001/retry"},
+		{http.MethodPost, "/api/v1/platform/mail/jobs/00000000-0000-0000-0000-000000000001/cancel"},
+		{http.MethodGet, "/api/v1/platform/mail/metrics"},
+		{http.MethodPost, "/api/v1/platform/mail/reconcile"},
+		{http.MethodPost, "/api/v1/platform/mail/retention"},
+		{http.MethodGet, "/api/v1/platform/announcements"},
+		{http.MethodPost, "/api/v1/platform/announcements"},
+		{http.MethodGet, "/api/v1/platform/notifications"},
+		{http.MethodPost, "/api/v1/platform/notifications/00000000-0000-0000-0000-000000000001/read"},
+		{http.MethodGet, "/api/v1/platform/overview"},
+		{http.MethodGet, "/api/v1/platform/status"},
+		{http.MethodGet, "/api/v1/cpo/notifications"},
+		{http.MethodPost, "/api/v1/cpo/notifications/00000000-0000-0000-0000-000000000001/read"},
 		{http.MethodGet, "/api/v1/platform/plans"},
 		{http.MethodPost, "/api/v1/platform/plans"},
 		{http.MethodGet, "/api/v1/platform/plans/00000000-0000-0000-0000-000000000001"},
@@ -287,6 +311,7 @@ func newCredentialRouteTestRouterWithLog(
 		true,
 		requestLogWriter,
 		debugLogging,
+		superadmin.NewService(nil, nil, cmsmail.NewOutbox(mailBox), false),
 	)
 	return router
 }

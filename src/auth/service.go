@@ -503,7 +503,7 @@ func (service *Service) resolveLoginScopeTx(
 	if scope == constants.AuthScopePlatform {
 		var count int64
 		if err := tx.Model(&models.PlatformAdmin{}).
-			Where("user_id = ?", userID).
+			Where("user_id = ? AND is_active = true", userID).
 			Count(&count).Error; err != nil {
 			return nil, fmt.Errorf("check platform authority: %w", err)
 		}

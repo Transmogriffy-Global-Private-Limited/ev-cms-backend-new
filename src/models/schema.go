@@ -75,9 +75,14 @@ type UserSetting struct {
 
 // PlatformAdmin explicitly grants platform-superadmin authority.
 type PlatformAdmin struct {
-	UserID    uuid.UUID `gorm:"type:uuid;primaryKey" json:"user_id"`
-	User      User      `gorm:"foreignKey:UserID;constraint:OnUpdate:CASCADE,OnDelete:RESTRICT" json:"user,omitempty"`
-	CreatedAt time.Time `gorm:"not null" json:"created_at"`
+	UserID            uuid.UUID  `gorm:"type:uuid;primaryKey" json:"user_id"`
+	User              User       `gorm:"foreignKey:UserID;constraint:OnUpdate:CASCADE,OnDelete:RESTRICT" json:"user,omitempty"`
+	IsActive          bool       `gorm:"not null;default:true" json:"is_active"`
+	StatusReason      string     `gorm:"type:varchar(500);not null" json:"status_reason"`
+	StatusChangedAt   time.Time  `gorm:"not null" json:"status_changed_at"`
+	StatusChangedByID *uuid.UUID `gorm:"column:status_changed_by_user_id;type:uuid;index" json:"status_changed_by_user_id,omitempty"`
+	CreatedAt         time.Time  `gorm:"not null" json:"created_at"`
+	UpdatedAt         time.Time  `gorm:"not null" json:"updated_at"`
 }
 
 // CPO is the tenant organization and data boundary. It carries

@@ -33,6 +33,7 @@ const (
 	MailOutboxProcessing MailOutboxStatus = "PROCESSING"
 	MailOutboxSent       MailOutboxStatus = "SENT"
 	MailOutboxFailed     MailOutboxStatus = "FAILED"
+	MailOutboxCanceled   MailOutboxStatus = "CANCELED"
 )
 
 const IntegrationProviderRazorpay = "RAZORPAY"

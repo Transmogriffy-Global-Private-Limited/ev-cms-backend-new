@@ -133,6 +133,15 @@ func renderMessageContent(template string, payload MessagePayload) (string, stri
 			payload.TemporaryPassword,
 			payload.CPOAppID,
 		)
+	case "PLATFORM_ADMIN_INVITE":
+		subject = "Your TransEV CMS platform administrator account"
+		body = fmt.Sprintf(
+			"You have been invited as a platform administrator for TransEV CMS.\n\nTemporary password: %s\n\nChange this password after signing in.",
+			payload.TemporaryPassword,
+		)
+	case "PLATFORM_ADMIN_GRANTED":
+		subject = "TransEV CMS platform administrator access granted"
+		body = "Platform administrator authority has been granted to your existing TransEV CMS identity. Sign in with your existing password."
 	case "CPO_MEMBERSHIP_ASSIGNED":
 		subject = "You were added to a TransEV CMS CPO"
 		body = fmt.Sprintf(

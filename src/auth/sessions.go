@@ -555,6 +555,63 @@ func (service *Service) revokeUserSessionsTx(
 	return nil
 }
 
+// RevokeUserSessionsTx is the identity-owned primitive used by platform
+// governance and security operations. The caller owns the surrounding
+// transaction and audit/event records.
+func RevokeUserSessionsTx(
+	tx *gorm.DB,
+	userID uuid.UUID,
+	scope *constants.AuthScope,
+	cpoID *uuid.UUID,
+	reason string,
+	now time.Time,
+) (int64, int64, error) {
+	if tx == nil || userID == uuid.Nil {
+		return 0, 0, errors.New("session revocation transaction and user are required")
+	}
+	if scope != nil && *scope == constants.AuthScopeCPO && cpoID == nil {
+		return 0, 0, errors.New("CPO session revocation requires a CPO")
+	}
+	query := tx.Model(&models.AuthSession{}).Where("user_id = ? AND revoked_at IS NULL", userID)
+	if scope != nil {
+		query = query.Where("scope = ?", *scope)
+	}
+	if cpoID != nil {
+		query = query.Where("cpo_id = ?", *cpoID)
+	}
+	sessionIDs := tx.Model(&models.AuthSession{}).
+		Where("user_id = ? AND revoked_at IS NULL", userID)
+	if scope != nil {
+		sessionIDs = sessionIDs.Where("scope = ?", *scope)
+	}
+	if cpoID != nil {
+		sessionIDs = sessionIDs.Where("cpo_id = ?", *cpoID)
+	}
+	sessionIDs = sessionIDs.Select("id")
+	refreshResult := tx.Model(&models.AuthRefreshToken{}).
+		Where("used_at IS NULL AND revoked_at IS NULL AND session_id IN (?)", sessionIDs).
+		Update("revoked_at", now)
+	if refreshResult.Error != nil {
+		return 0, 0, fmt.Errorf("revoke target refresh tokens: %w", refreshResult.Error)
+	}
+	sessionResult := tx.Model(&models.AuthSession{}).
+		Where("user_id = ? AND revoked_at IS NULL", userID)
+	if scope != nil {
+		sessionResult = sessionResult.Where("scope = ?", *scope)
+	}
+	if cpoID != nil {
+		sessionResult = sessionResult.Where("cpo_id = ?", *cpoID)
+	}
+	sessionResult = sessionResult.Updates(map[string]any{
+		"revoked_at":    now,
+		"revoke_reason": reason,
+	})
+	if sessionResult.Error != nil {
+		return 0, 0, fmt.Errorf("revoke target sessions: %w", sessionResult.Error)
+	}
+	return sessionResult.RowsAffected, refreshResult.RowsAffected, nil
+}
+
 func hashRefreshToken(token string) string {
 	sum := sha256.Sum256([]byte(token))
 	return hex.EncodeToString(sum[:])

@@ -19,6 +19,8 @@ Supported templates and payload fields:
 | `CUSTOMER_SIGNUP_OTP` | recipient name, code, expiry |
 | `CUSTOMER_LOGIN_OTP` | recipient name, code, expiry |
 | `CUSTOMER_PASSWORD_RESET_OTP` | recipient name, recovery challenge ID, code, expiry |
+| `PLATFORM_ADMIN_INVITE` | recipient name, temporary password |
+| `PLATFORM_ADMIN_GRANTED` | recipient name |
 
 The JSON payload is encrypted with AES-256-GCM and authenticated using:
 
@@ -57,13 +59,15 @@ PENDING -> PROCESSING -> SENT
               +-> PENDING (retry available later)
               |
               +-> FAILED (attempt limit reached)
+              |
+              +-> CANCELED (explicit platform-superadmin cancellation)
 ```
 
 - New jobs permit eight attempts.
 - Workers claim one eligible job using `FOR UPDATE SKIP LOCKED`.
 - A `PROCESSING` lock older than five minutes can be reclaimed.
 - Retry begins at one minute, doubles per attempt, and caps at one hour.
-- `SENT` and `FAILED` are terminal in the current worker.
+- `SENT`, `FAILED`, and `CANCELED` are terminal in the current worker.
 - Stored delivery errors are truncated to 500 characters.
 
 Attempt count increments at claim time, not after SMTP failure. A process crash
@@ -108,3 +112,13 @@ undeliverable.
 There is no administrative replay endpoint, separate dead-letter store, or
 automated re-encryption workflow. Operators may inspect safe metadata but must
 not expose encrypted payloads, SMTP passwords, OTPs, or temporary passwords.
+The platform-superadmin mail operations are safe metadata commands:
+
+- retry FAILED or CANCELED jobs;
+- cancel PENDING or FAILED jobs with an audited reason;
+- requeue PROCESSING jobs locked for more than five minutes;
+- aggregate counts by template/status; and
+- delete only SENT or CANCELED jobs older than an explicitly supplied cutoff
+  that is at least 30 days old, with an audited reason.
+
+These commands never decrypt or return the stored message payload.

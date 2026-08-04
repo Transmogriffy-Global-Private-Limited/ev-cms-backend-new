@@ -3,7 +3,8 @@
 ## Purpose and Ownership
 
 The CMS uses Hostinger SMTP for administrative OTP, password recovery, CPO
-onboarding, membership assignment, and temporary-password reminders.
+onboarding, membership assignment, platform-administrator invitation, and
+temporary-password reminders.
 PostgreSQL owns durable delivery intent in `mail_outbox`; SMTP owns only the
 external delivery attempt.
 
@@ -78,6 +79,8 @@ duplicates.
 | `CUSTOMER_SIGNUP_OTP` | Customer signup | OTP and expiry |
 | `CUSTOMER_LOGIN_OTP` | Customer login | OTP and expiry |
 | `CUSTOMER_PASSWORD_RESET_OTP` | Customer password recovery | Recovery ID, OTP, and expiry |
+| `PLATFORM_ADMIN_INVITE` | New platform-administrator authority | Generated temporary password |
+| `PLATFORM_ADMIN_GRANTED` | Existing identity granted authority | No credential |
 
 The SMTP sender renders plain-text email. Templates are code-owned; callers
 provide structured payloads rather than arbitrary subject/body HTML.
@@ -91,12 +94,16 @@ new-admin welcome requires the generated temporary password.
   disabled.
 - Provider and network errors return the job to `PENDING` until attempts are
   exhausted.
-- `FAILED` is terminal in the current implementation; there is no separate
-  dead-letter table or replay API.
+- `FAILED` is terminal in the worker; `CANCELED` is an explicit terminal
+  operator state. The platform-superadmin can retry failed/canceled jobs,
+  cancel eligible unsent jobs, reconcile stale processing locks, inspect
+  aggregate metrics, and apply bounded retention through safe metadata APIs.
 - Stored error text is bounded to 500 characters.
 - Missing encryption-key versions fail delivery rather than guessing a key.
 - Mail payload plaintext exists only during command construction and worker
   delivery.
+- Mail operation responses never return encrypted payloads, decrypted bodies,
+  temporary passwords, OTPs, or stored SMTP error text.
 
 ### Crash windows
 

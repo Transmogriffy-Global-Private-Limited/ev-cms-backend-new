@@ -40,6 +40,8 @@ tags:
     description: Platform-superadmin CPO provisioning and lifecycle control.
   - name: Platform Operations
     description: Durable audit, event recovery, worker health, and realtime operations.
+  - name: Superadmin Governance
+    description: Platform authority, security, mail, communication, and bounded status operations.
   - name: Manual Subscriptions
     description: Platform-superadmin issued subscription plans and periods without a payment provider or automatic lifecycle worker.
   - name: CPO Operations
@@ -1267,6 +1269,329 @@ paths:
         "500":
           $ref: "#/components/responses/InternalError"
 
+  /api/v1/platform/administrators:
+    get:
+      tags: [Superadmin Governance]
+      operationId: listPlatformAdministrators
+      summary: List platform administrators
+      description: Lists platform authority records. Inactive authority is omitted unless requested.
+      security: [{BearerAuth: []}]
+      parameters:
+        - {$ref: "#/components/parameters/ListBefore"}
+        - {$ref: "#/components/parameters/ListBeforeID"}
+        - {$ref: "#/components/parameters/ListLimit"}
+        - name: include_inactive
+          in: query
+          schema: {type: boolean, default: false}
+      responses:
+        "200": {description: Platform administrators., content: {application/json: {schema: {$ref: "#/components/schemas/AdministratorPage"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "500": {$ref: "#/components/responses/InternalError"}
+    post:
+      tags: [Superadmin Governance]
+      operationId: invitePlatformAdministrator
+      summary: Invite or grant platform authority
+      description: Creates a new global identity when needed, or grants authority to an existing active identity. New identities receive an encrypted temporary-password invitation through the mail outbox.
+      security: [{BearerAuth: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/InviteAdministratorRequest"}}}}
+      responses:
+        "201": {description: Granted platform authority., content: {application/json: {schema: {$ref: "#/components/schemas/Administrator"}}}}
+        "400": {$ref: "#/components/responses/InvalidRequest"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "503": {$ref: "#/components/responses/MailUnavailable"}
+        "500": {$ref: "#/components/responses/InternalError"}
+
+  /api/v1/platform/administrators/{user_id}/activate:
+    post:
+      tags: [Superadmin Governance]
+      operationId: activatePlatformAdministrator
+      summary: Activate platform authority
+      security: [{BearerAuth: []}]
+      parameters: [{$ref: "#/components/parameters/UserID"}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/ReasonRequest"}}}}
+      responses:
+        "200": {description: Updated authority., content: {application/json: {schema: {$ref: "#/components/schemas/Administrator"}}}}
+        "400": {$ref: "#/components/responses/InvalidRequest"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/PlatformAdminNotFound"}
+        "500": {$ref: "#/components/responses/InternalError"}
+
+  /api/v1/platform/administrators/{user_id}/deactivate:
+    post:
+      tags: [Superadmin Governance]
+      operationId: deactivatePlatformAdministrator
+      summary: Deactivate platform authority
+      description: Retains the global identity, revokes its platform sessions, and refuses to deactivate the last active platform administrator.
+      security: [{BearerAuth: []}]
+      parameters: [{$ref: "#/components/parameters/UserID"}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/ReasonRequest"}}}}
+      responses:
+        "200": {description: Updated authority., content: {application/json: {schema: {$ref: "#/components/schemas/Administrator"}}}}
+        "400": {$ref: "#/components/responses/InvalidRequest"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/PlatformAdminNotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "500": {$ref: "#/components/responses/InternalError"}
+
+  /api/v1/platform/security/locked-identities:
+    get:
+      tags: [Superadmin Governance]
+      operationId: listLockedIdentities
+      summary: List currently locked identities
+      security: [{BearerAuth: []}]
+      parameters: [{$ref: "#/components/parameters/ListBefore"}, {$ref: "#/components/parameters/ListBeforeID"}, {$ref: "#/components/parameters/ListLimit"}]
+      responses:
+        "200": {description: Locked identities., content: {application/json: {schema: {$ref: "#/components/schemas/LockedIdentityPage"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "500": {$ref: "#/components/responses/InternalError"}
+
+  /api/v1/platform/security/events:
+    get:
+      tags: [Superadmin Governance]
+      operationId: listSecurityEvents
+      summary: List security audit events
+      security: [{BearerAuth: []}]
+      parameters: [{$ref: "#/components/parameters/ListBefore"}, {$ref: "#/components/parameters/ListBeforeID"}, {$ref: "#/components/parameters/ListLimit"}]
+      responses:
+        "200": {description: Security audit events., content: {application/json: {schema: {$ref: "#/components/schemas/AuditPage"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "500": {$ref: "#/components/responses/InternalError"}
+
+  /api/v1/platform/security/users/{user_id}/unlock:
+    post:
+      tags: [Superadmin Governance]
+      operationId: unlockIdentity
+      summary: Unlock a locked identity
+      security: [{BearerAuth: []}]
+      parameters: [{$ref: "#/components/parameters/UserID"}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/ReasonRequest"}}}}
+      responses:
+        "204": {description: Identity unlocked.}
+        "400": {$ref: "#/components/responses/InvalidRequest"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/IdentityNotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "500": {$ref: "#/components/responses/InternalError"}
+
+  /api/v1/platform/security/users/{user_id}/sessions/revoke:
+    post:
+      tags: [Superadmin Governance]
+      operationId: revokeUserSessionsAsPlatform
+      summary: Revoke a user's administrative sessions
+      description: Revokes PLATFORM, CPO, or ALL sessions and their unused refresh tokens. CPO scope requires cpo_id.
+      security: [{BearerAuth: []}]
+      parameters: [{$ref: "#/components/parameters/UserID"}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/SessionRevocationRequest"}}}}
+      responses:
+        "200": {description: Revocation counts., content: {application/json: {schema: {$ref: "#/components/schemas/SessionRevocationResponse"}}}}
+        "400": {$ref: "#/components/responses/InvalidRequest"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/IdentityNotFound"}
+        "500": {$ref: "#/components/responses/InternalError"}
+
+  /api/v1/platform/mail/jobs:
+    get:
+      tags: [Superadmin Governance]
+      operationId: listMailJobs
+      summary: List safe mail job metadata
+      security: [{BearerAuth: []}]
+      parameters:
+        - {$ref: "#/components/parameters/ListBefore"}
+        - {$ref: "#/components/parameters/ListBeforeID"}
+        - {$ref: "#/components/parameters/ListLimit"}
+        - name: status
+          in: query
+          schema: {type: string, enum: [PENDING, PROCESSING, SENT, FAILED, CANCELED]}
+        - name: template
+          in: query
+          schema: {type: string, maxLength: 50}
+        - name: cpo_id
+          in: query
+          schema: {type: string, format: uuid}
+        - name: user_id
+          in: query
+          schema: {type: string, format: uuid}
+      responses:
+        "200": {description: Mail metadata without decrypted payloads., content: {application/json: {schema: {$ref: "#/components/schemas/MailPage"}}}}
+        "400": {$ref: "#/components/responses/InvalidRequest"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "500": {$ref: "#/components/responses/InternalError"}
+
+  /api/v1/platform/mail/jobs/{job_id}:
+    get:
+      tags: [Superadmin Governance]
+      operationId: getMailJob
+      summary: Get safe mail job metadata
+      security: [{BearerAuth: []}]
+      parameters: [{$ref: "#/components/parameters/MailJobID"}]
+      responses:
+        "200": {description: Mail metadata., content: {application/json: {schema: {$ref: "#/components/schemas/MailJob"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/MailJobNotFound"}
+        "500": {$ref: "#/components/responses/InternalError"}
+
+  /api/v1/platform/mail/jobs/{job_id}/retry:
+    post:
+      tags: [Superadmin Governance]
+      operationId: retryMailJob
+      summary: Retry a failed mail job
+      security: [{BearerAuth: []}]
+      parameters: [{$ref: "#/components/parameters/MailJobID"}]
+      responses:
+        "200": {description: Requeued mail job., content: {application/json: {schema: {$ref: "#/components/schemas/MailJob"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/MailJobNotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "500": {$ref: "#/components/responses/InternalError"}
+
+  /api/v1/platform/mail/jobs/{job_id}/cancel:
+    post:
+      tags: [Superadmin Governance]
+      operationId: cancelMailJob
+      summary: Cancel an unsent mail job
+      security: [{BearerAuth: []}]
+      parameters: [{$ref: "#/components/parameters/MailJobID"}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/ReasonRequest"}}}}
+      responses:
+        "200": {description: Canceled mail job., content: {application/json: {schema: {$ref: "#/components/schemas/MailJob"}}}}
+        "400": {$ref: "#/components/responses/InvalidRequest"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/MailJobNotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "500": {$ref: "#/components/responses/InternalError"}
+
+  /api/v1/platform/mail/metrics:
+    get:
+      tags: [Superadmin Governance]
+      operationId: getMailMetrics
+      summary: Get mail delivery metrics
+      security: [{BearerAuth: []}]
+      responses:
+        "200": {description: Counts by template and status., content: {application/json: {schema: {$ref: "#/components/schemas/MailMetricsResponse"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "500": {$ref: "#/components/responses/InternalError"}
+
+  /api/v1/platform/mail/reconcile:
+    post:
+      tags: [Superadmin Governance]
+      operationId: reconcileMailJobs
+      summary: Requeue stale processing mail jobs
+      security: [{BearerAuth: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/ReasonRequest"}}}}
+      responses:
+        "200": {description: Reconciliation count., content: {application/json: {schema: {$ref: "#/components/schemas/MailReconcileResponse"}}}}
+        "400": {$ref: "#/components/responses/InvalidRequest"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "500": {$ref: "#/components/responses/InternalError"}
+
+  /api/v1/platform/mail/retention:
+    post:
+      tags: [Superadmin Governance]
+      operationId: retainMailJobs
+      summary: Remove old terminal mail jobs
+      description: Deletes only SENT or CANCELED jobs older than the supplied cutoff. The cutoff must be at least 30 days old.
+      security: [{BearerAuth: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/MailRetentionRequest"}}}}
+      responses:
+        "200": {description: Retention count., content: {application/json: {schema: {$ref: "#/components/schemas/MailRetentionResponse"}}}}
+        "400": {$ref: "#/components/responses/InvalidRequest"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "500": {$ref: "#/components/responses/InternalError"}
+
+  /api/v1/platform/announcements:
+    get:
+      tags: [Superadmin Governance]
+      operationId: listPlatformAnnouncements
+      summary: List platform announcements
+      security: [{BearerAuth: []}]
+      parameters: [{$ref: "#/components/parameters/ListBefore"}, {$ref: "#/components/parameters/ListBeforeID"}, {$ref: "#/components/parameters/ListLimit"}]
+      responses:
+        "200": {description: Announcements and recipient counts., content: {application/json: {schema: {$ref: "#/components/schemas/AnnouncementPage"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "500": {$ref: "#/components/responses/InternalError"}
+    post:
+      tags: [Superadmin Governance]
+      operationId: createPlatformAnnouncement
+      summary: Create a platform or CPO announcement
+      description: Creates an immutable audience snapshot and durable notification records in one transaction.
+      security: [{BearerAuth: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/AnnouncementRequest"}}}}
+      responses:
+        "201": {description: Created announcement., content: {application/json: {schema: {$ref: "#/components/schemas/Announcement"}}}}
+        "400": {$ref: "#/components/responses/InvalidRequest"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/CPONotFound"}
+        "500": {$ref: "#/components/responses/InternalError"}
+
+  /api/v1/platform/notifications:
+    get:
+      tags: [Superadmin Governance]
+      operationId: listPlatformNotifications
+      summary: List the current Superadmin's notifications
+      security: [{BearerAuth: []}]
+      parameters: [{$ref: "#/components/parameters/ListBefore"}, {$ref: "#/components/parameters/ListBeforeID"}, {$ref: "#/components/parameters/ListLimit"}, {name: unread_only, in: query, schema: {type: boolean, default: false}}]
+      responses:
+        "200": {description: Durable notification page., content: {application/json: {schema: {$ref: "#/components/schemas/NotificationPage"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "500": {$ref: "#/components/responses/InternalError"}
+
+  /api/v1/platform/notifications/{notification_id}/read:
+    post:
+      tags: [Superadmin Governance]
+      operationId: markPlatformNotificationRead
+      summary: Mark a platform notification read
+      security: [{BearerAuth: []}]
+      parameters: [{$ref: "#/components/parameters/NotificationID"}]
+      responses:
+        "204": {description: Notification marked read.}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotificationNotFound"}
+        "500": {$ref: "#/components/responses/InternalError"}
+
+  /api/v1/platform/overview:
+    get:
+      tags: [Superadmin Governance]
+      operationId: getPlatformOverview
+      summary: Get bounded platform overview aggregates
+      security: [{BearerAuth: []}]
+      responses:
+        "200": {description: Bounded platform aggregates., content: {application/json: {schema: {$ref: "#/components/schemas/OverviewResponse"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "500": {$ref: "#/components/responses/InternalError"}
+
+  /api/v1/platform/status:
+    get:
+      tags: [Superadmin Governance]
+      operationId: getPlatformStatus
+      summary: Get service, database, and worker status
+      security: [{BearerAuth: []}]
+      responses:
+        "200": {description: Platform status., content: {application/json: {schema: {$ref: "#/components/schemas/StatusResponse"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "500": {$ref: "#/components/responses/InternalError"}
+
   /api/v1/platform/cpos:
     post:
       tags: [Platform CPOs]
@@ -1825,6 +2150,45 @@ paths:
           $ref: "#/components/responses/CPONotFound"
         "500":
           $ref: "#/components/responses/InternalError"
+
+  /api/v1/cpo/notifications:
+    get:
+      tags: [CPO Operations]
+      operationId: listCPONotifications
+      summary: List notifications for the authenticated CPO administrator
+      security:
+        - BearerAuth: []
+          CPOAppID: []
+      parameters:
+        - {$ref: "#/components/parameters/CPOAppIDHeader"}
+        - {$ref: "#/components/parameters/ListBefore"}
+        - {$ref: "#/components/parameters/ListBeforeID"}
+        - {$ref: "#/components/parameters/ListLimit"}
+        - {name: unread_only, in: query, schema: {type: boolean, default: false}}
+      responses:
+        "200": {description: Durable CPO notification page., content: {application/json: {schema: {$ref: "#/components/schemas/NotificationPage"}}}}
+        "400": {$ref: "#/components/responses/InvalidRequest"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/CPOBusinessForbidden"}
+        "500": {$ref: "#/components/responses/InternalError"}
+
+  /api/v1/cpo/notifications/{notification_id}/read:
+    post:
+      tags: [CPO Operations]
+      operationId: markCPONotificationRead
+      summary: Mark a CPO notification read
+      security:
+        - BearerAuth: []
+          CPOAppID: []
+      parameters:
+        - {$ref: "#/components/parameters/CPOAppIDHeader"}
+        - {$ref: "#/components/parameters/NotificationID"}
+      responses:
+        "204": {description: Notification marked read.}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/CPOBusinessForbidden"}
+        "404": {$ref: "#/components/responses/NotificationNotFound"}
+        "500": {$ref: "#/components/responses/InternalError"}
 
   /api/v1/cpo/organization:
     get:
@@ -2995,6 +3359,30 @@ components:
       schema:
         type: string
         format: uuid
+    UserID:
+      name: user_id
+      in: path
+      required: true
+      description: Global identity UUID managed by the authenticated platform superadmin.
+      schema:
+        type: string
+        format: uuid
+    MailJobID:
+      name: job_id
+      in: path
+      required: true
+      description: Mail-outbox job UUID.
+      schema:
+        type: string
+        format: uuid
+    NotificationID:
+      name: notification_id
+      in: path
+      required: true
+      description: Durable platform notification UUID owned by the current recipient.
+      schema:
+        type: string
+        format: uuid
     PlanID:
       name: plan_id
       in: path
@@ -3166,6 +3554,30 @@ components:
         application/json:
           schema:
             $ref: "#/components/schemas/ErrorEnvelope"
+    PlatformAdminNotFound:
+      description: "`platform_admin_not_found` — no platform authority record has the supplied user ID."
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorEnvelope"
+    IdentityNotFound:
+      description: "`identity_not_found` — no global identity has the supplied user ID."
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorEnvelope"
+    MailJobNotFound:
+      description: "`mail_job_not_found` — no mail-outbox job has the supplied ID."
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorEnvelope"
+    NotificationNotFound:
+      description: "`notification_not_found` — the notification is not owned by the current recipient."
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorEnvelope"
     MissingCPOAppID:
       description: "`missing_cpo_app_id` — X-CPO-App-ID is absent or blank."
       content:
@@ -3196,6 +3608,212 @@ components:
             $ref: "#/components/schemas/ErrorEnvelope"
 
   schemas:
+    AdministratorPage:
+      type: object
+      additionalProperties: false
+      required: [administrators, has_more]
+      properties:
+        administrators: {type: array, items: {$ref: "#/components/schemas/Administrator"}}
+        next_before: {type: string, format: date-time}
+        next_before_id: {type: string, format: uuid}
+        has_more: {type: boolean}
+    Administrator:
+      type: object
+      additionalProperties: false
+      required: [user_id, email, full_name, identity_active, identity_verified, authority_active, status_reason, status_changed_at, created_at, updated_at]
+      properties:
+        user_id: {type: string, format: uuid}
+        email: {type: string, format: email}
+        full_name: {type: string}
+        identity_active: {type: boolean}
+        identity_verified: {type: boolean}
+        authority_active: {type: boolean}
+        status_reason: {type: string}
+        status_changed_at: {type: string, format: date-time}
+        status_changed_by_user_id: {type: string, format: uuid}
+        created_at: {type: string, format: date-time}
+        updated_at: {type: string, format: date-time}
+    InviteAdministratorRequest:
+      type: object
+      additionalProperties: false
+      required: [email, full_name]
+      properties:
+        email: {type: string, format: email, maxLength: 320}
+        full_name: {type: string, minLength: 1, maxLength: 255}
+    LockedIdentityPage:
+      type: object
+      additionalProperties: false
+      required: [identities, has_more]
+      properties:
+        identities:
+          type: array
+          items:
+            $ref: "#/components/schemas/LockedIdentity"
+        next_before: {type: string, format: date-time}
+        next_before_id: {type: string, format: uuid}
+        has_more: {type: boolean}
+    LockedIdentity:
+      type: object
+      additionalProperties: false
+      required: [user_id, email, full_name, locked_until]
+      properties:
+        user_id: {type: string, format: uuid}
+        email: {type: string, format: email}
+        full_name: {type: string}
+        locked_until: {type: string, format: date-time}
+    SessionRevocationRequest:
+      type: object
+      additionalProperties: false
+      required: [reason, scope]
+      properties:
+        reason: {type: string, minLength: 3, maxLength: 500}
+        scope: {type: string, enum: [PLATFORM, CPO, ALL]}
+        cpo_id: {type: string, format: uuid, description: Required when scope is CPO.}
+    MailPage:
+      type: object
+      additionalProperties: false
+      required: [jobs, has_more]
+      properties:
+        jobs: {type: array, items: {$ref: "#/components/schemas/MailJob"}}
+        next_before: {type: string, format: date-time}
+        next_before_id: {type: string, format: uuid}
+        has_more: {type: boolean}
+    MailJob:
+      type: object
+      additionalProperties: false
+      required: [id, to_email, template, status, attempts, max_attempts, available_at, error_present, created_at, updated_at]
+      properties:
+        id: {type: string, format: uuid}
+        to_email: {type: string, format: email}
+        cpo_id: {type: string, format: uuid}
+        user_id: {type: string, format: uuid}
+        template: {type: string}
+        status: {type: string, enum: [PENDING, PROCESSING, SENT, FAILED, CANCELED]}
+        attempts: {type: integer, minimum: 0}
+        max_attempts: {type: integer, minimum: 0}
+        available_at: {type: string, format: date-time}
+        locked_at: {type: string, format: date-time}
+        error_present: {type: boolean, description: True when a failure exists; the stored error text is never returned.}
+        sent_at: {type: string, format: date-time}
+        created_at: {type: string, format: date-time}
+        updated_at: {type: string, format: date-time}
+    MailMetricsResponse:
+      type: object
+      additionalProperties: false
+      required: [metrics]
+      properties:
+        metrics:
+          type: array
+          items:
+            type: object
+            additionalProperties: false
+            required: [template, status, count]
+            properties:
+              template: {type: string}
+              status: {type: string, enum: [PENDING, PROCESSING, SENT, FAILED, CANCELED]}
+              count: {type: integer, format: int64, minimum: 0}
+    MailReconcileResponse:
+      type: object
+      additionalProperties: false
+      required: [requeued]
+      properties:
+        requeued: {type: integer, format: int64, minimum: 0}
+    MailRetentionRequest:
+      type: object
+      additionalProperties: false
+      required: [before, reason]
+      properties:
+        before: {type: string, format: date-time, description: Must be at least 30 days before the current server time.}
+        reason: {type: string, minLength: 3, maxLength: 500}
+    MailRetentionResponse:
+      type: object
+      additionalProperties: false
+      required: [deleted]
+      properties:
+        deleted: {type: integer, format: int64, minimum: 0}
+    AnnouncementPage:
+      type: object
+      additionalProperties: false
+      required: [announcements, has_more]
+      properties:
+        announcements: {type: array, items: {$ref: "#/components/schemas/Announcement"}}
+        next_before: {type: string, format: date-time}
+        next_before_id: {type: string, format: uuid}
+        has_more: {type: boolean}
+    AnnouncementRequest:
+      type: object
+      additionalProperties: false
+      required: [audience, title, body]
+      properties:
+        audience: {type: string, enum: [PLATFORM, CPO]}
+        cpo_id: {type: string, format: uuid, description: Required only for CPO audience.}
+        title: {type: string, minLength: 1, maxLength: 200}
+        body: {type: string, minLength: 1, maxLength: 10000}
+        expires_at: {type: string, format: date-time, description: Optional future expiry.}
+    Announcement:
+      type: object
+      additionalProperties: false
+      required: [id, audience, title, body, created_by_user_id, created_at, recipient_count]
+      properties:
+        id: {type: string, format: uuid}
+        audience: {type: string, enum: [PLATFORM, CPO]}
+        cpo_id: {type: string, format: uuid}
+        title: {type: string}
+        body: {type: string}
+        created_by_user_id: {type: string, format: uuid}
+        created_at: {type: string, format: date-time}
+        expires_at: {type: string, format: date-time}
+        recipient_count: {type: integer, format: int64, minimum: 0}
+    NotificationPage:
+      type: object
+      additionalProperties: false
+      required: [notifications, has_more]
+      properties:
+        notifications: {type: array, items: {$ref: "#/components/schemas/Notification"}}
+        next_before: {type: string, format: date-time}
+        next_before_id: {type: string, format: uuid}
+        has_more: {type: boolean}
+    Notification:
+      type: object
+      additionalProperties: false
+      required: [id, announcement_id, audience, title, body, created_at]
+      properties:
+        id: {type: string, format: uuid}
+        announcement_id: {type: string, format: uuid}
+        audience: {type: string, enum: [PLATFORM, CPO]}
+        cpo_id: {type: string, format: uuid}
+        title: {type: string}
+        body: {type: string}
+        created_at: {type: string, format: date-time}
+        expires_at: {type: string, format: date-time}
+        read_at: {type: string, format: date-time}
+    OverviewResponse:
+      type: object
+      additionalProperties: false
+      required: [cpos, active_platform_admins, active_sessions, mail, workers]
+      properties:
+        cpos: {type: object, additionalProperties: {type: integer, format: int64, minimum: 0}}
+        active_platform_admins: {type: integer, format: int64, minimum: 0}
+        active_sessions: {type: integer, format: int64, minimum: 0}
+        mail: {type: object, additionalProperties: {type: integer, format: int64, minimum: 0}}
+        workers: {type: array, items: {$ref: "#/components/schemas/WorkerStatus"}}
+    StatusResponse:
+      type: object
+      additionalProperties: false
+      required: [service, version, database, workers]
+      properties:
+        service: {type: string}
+        version: {type: string}
+        database: {type: string, enum: [connected, unavailable]}
+        workers: {type: array, items: {$ref: "#/components/schemas/WorkerStatus"}}
+    WorkerStatus:
+      type: object
+      additionalProperties: false
+      required: [name, status, required]
+      properties:
+        name: {type: string}
+        status: {type: string}
+        required: {type: boolean}
     SubscriptionPlanTerms:
       type: object
       additionalProperties: false

@@ -2,6 +2,31 @@
 
 ## 2026-08-04
 
+### Complete Superadmin source surface tested and documented
+
+- Completed the source-side platform Superadmin surface for administrator
+  governance, locked-identity/session security operations, safe mail-job
+  administration, announcements, durable platform/CPO notifications, bounded
+  overview, and service status.
+- Added additive migration fourteen for platform authority status fields,
+  `CANCELED` mail jobs, administrator templates, announcements, and durable
+  notification rows.
+- Expanded the canonical OpenAPI contract from 87 to 110 operations and
+  updated the route parity fixture, frontend handoff, administrative API,
+  realtime, mail, integration, guide, plan, project-state, and ADR records.
+- Added database-free validation/privacy tests and migration-content coverage;
+  mail-job responses are verified not to expose stored error text.
+
+Verification:
+
+- `scripts/verify-docs.ps1` passed.
+- `go test ./src/routes -run TestOpenAPIContractMatchesRuntimeRoutesAndServesUI -count=1` passed.
+- `go test ./...` passed.
+- `go vet ./...` passed.
+- `git diff --check` passed.
+- Stateful PostgreSQL lifecycle verification and VPS rehosting remain pending;
+  no deployment or remote database mutation was performed in this slice.
+
 ### Feature-key runtime removed and deployed pending a module catalog
 
 - Added migration thirteen to return `subscription_plan_entitlements` and

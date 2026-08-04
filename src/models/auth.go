@@ -72,6 +72,27 @@ type MailOutbox struct {
 	UpdatedAt         time.Time                  `gorm:"not null" json:"updated_at"`
 }
 
+type PlatformAnnouncement struct {
+	ID              uuid.UUID              `gorm:"type:uuid;primaryKey;default:gen_random_uuid()" json:"id"`
+	Audience        string                 `gorm:"type:varchar(20);not null" json:"audience"`
+	CPOID           *uuid.UUID             `gorm:"type:uuid;index" json:"cpo_id,omitempty"`
+	Title           string                 `gorm:"type:varchar(200);not null" json:"title"`
+	Body            string                 `gorm:"type:text;not null" json:"body"`
+	CreatedByUserID uuid.UUID              `gorm:"type:uuid;not null" json:"created_by_user_id"`
+	CreatedAt       time.Time              `gorm:"not null" json:"created_at"`
+	ExpiresAt       *time.Time             `json:"expires_at,omitempty"`
+	Notifications   []PlatformNotification `gorm:"foreignKey:AnnouncementID" json:"-"`
+}
+
+type PlatformNotification struct {
+	ID              uuid.UUID  `gorm:"type:uuid;primaryKey;default:gen_random_uuid()" json:"id"`
+	AnnouncementID  uuid.UUID  `gorm:"type:uuid;not null;uniqueIndex:uq_platform_notification_recipient,priority:1" json:"announcement_id"`
+	RecipientUserID uuid.UUID  `gorm:"type:uuid;not null;uniqueIndex:uq_platform_notification_recipient,priority:2;index" json:"recipient_user_id"`
+	CPOID           *uuid.UUID `gorm:"type:uuid;index" json:"cpo_id,omitempty"`
+	CreatedAt       time.Time  `gorm:"not null" json:"created_at"`
+	ReadAt          *time.Time `json:"read_at,omitempty"`
+}
+
 func (MailOutbox) TableName() string {
 	return "mail_outbox"
 }

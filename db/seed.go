@@ -70,8 +70,12 @@ func SeedSuperadmin(
 		}
 
 		admin := models.PlatformAdmin{
-			UserID:    user.ID,
-			CreatedAt: time.Now().UTC(),
+			UserID:          user.ID,
+			IsActive:        true,
+			StatusReason:    "Initial platform authority",
+			StatusChangedAt: time.Now().UTC(),
+			CreatedAt:       time.Now().UTC(),
+			UpdatedAt:       time.Now().UTC(),
 		}
 		result = tx.Clauses(clause.OnConflict{DoNothing: true}).Create(&admin)
 		if result.Error != nil {
