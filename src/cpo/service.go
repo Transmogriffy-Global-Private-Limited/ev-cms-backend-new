@@ -1761,6 +1761,70 @@ func organizationView(record models.CPO) OrganizationView {
 	}
 }
 
+type subscriptionData struct {
+	models.CPOSubscription
+	PlanName        string
+	PlanDescription string
+	Currency        string
+	PriceMinor      int64
+	BillingInterval string
+	IntervalCount   int
+	TrialDays       int
+}
+
+func (service *Service) GetSubscription(
+	ctx context.Context,
+	principal auth.Principal,
+) (CPOSubscriptionView, error) {
+	if err := requireCPOAdminAccess(principal); err != nil {
+		return CPOSubscriptionView{}, err
+	}
+	cpoID := *principal.CPOID
+	var result subscriptionData
+	err := service.database.WithContext(ctx).
+		Model(&models.CPOSubscription{}).
+		Select("cpo_subscriptions.*, p.name as plan_name, p.description as plan_description, pv.currency, pv.price_minor, pv.billing_interval, pv.interval_count, pv.trial_days").
+		Joins("inner join subscription_plan_versions pv on pv.id = cpo_subscriptions.plan_version_id").
+		Joins("inner join subscription_plans p on p.id = pv.plan_id").
+		Where("cpo_subscriptions.cpo_id = ?", cpoID).
+		First(&result).Error
+
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return CPOSubscriptionView{}, &auth.APIError{
+				Status:  http.StatusNotFound,
+				Code:    "subscription_not_found",
+				Message: "No subscription found for this CPO.",
+			}
+		}
+		return CPOSubscriptionView{}, fmt.Errorf("error fetching subscription: %w", err)
+	}
+
+	view := CPOSubscriptionView{
+		ID:                    result.ID,
+		Status:                result.Status,
+		StartsAt:              result.StartsAt,
+		TrialEndsAt:           result.TrialEndsAt,
+		CurrentPeriodStartsAt: result.CurrentPeriodStartsAt,
+		CurrentPeriodEndsAt:   result.CurrentPeriodEndsAt,
+		CancelAtPeriodEnd:     result.CancelAtPeriodEnd,
+		CancelledAt:           result.CancelledAt,
+		EndedAt:               result.EndedAt,
+		Plan: &CPOSubscriptionPlanView{
+			Name:            result.PlanName,
+			Description:     result.PlanDescription,
+			Currency:        result.Currency,
+			PriceMinor:      result.PriceMinor,
+			BillingInterval: result.BillingInterval,
+			IntervalCount:   result.IntervalCount,
+			TrialDays:       result.TrialDays,
+		},
+	}
+
+	return view, nil
+}
+
+
 func (service *Service) CreateCharger(
 	ctx context.Context,
 	principal auth.Principal,
