@@ -742,8 +742,9 @@ Last completed slice:
 
 - Removed the lossy OTP-only outbox wrapper so administrative and customer
   recovery enqueue the complete canonical payload with `challenge_id`; added
-  database-free validation for both reset templates. The active VPS revision
-  predates this source fix.
+  database-free validation for both reset templates. Revision `d0059fe` is
+  active on the development VPS; no live recovery email was sent for release
+  verification.
 - Implemented safe JSON HTTP completion logging, server-generated response
   request IDs, trusted auth/error-code enrichment, loopback-only forwarding
   trust, CORS exposure, safe DEBUG lifecycle/error classification, and a strict
@@ -772,13 +773,13 @@ Last completed slice:
 
 Last deployment milestone:
 
-- Revision `d27e599` was built cleanly and rehosted on the development VPS with
-  migration eleven already current. The live 70-operation route/OpenAPI
-  surface now emits safe correlated HTTP request diagnostics under
-  `LOG_LEVEL=DEBUG`; running-binary identity, the loopback-only listener,
-  loopback/public readiness, zero-restart service state, and the post-start
-  journal were verified. No migration or live data mutation was required.
-  This deployed revision predates the recovery OTP payload-forwarding fix.
+- Revision `d0059fe` was built cleanly and rehosted on the development VPS with
+  migration eleven already current. It preserves recovery challenge IDs in the
+  canonical administrative and customer outbox payloads. The live 70-operation
+  route/OpenAPI surface, running-binary identity, loopback-only listener,
+  loopback/public readiness, zero-restart service state, and post-start journal
+  were verified. No migration, live data mutation, or recovery-email delivery
+  was required for release verification.
 
 Next expected slice:
 

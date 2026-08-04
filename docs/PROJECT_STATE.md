@@ -116,7 +116,7 @@ provides:
   handler;
 - the additive PostgreSQL database `devevcmsnewdb`, owned by `postgres`.
 
-The active development VPS runs source revision `d27e599`, with migration
+The active development VPS runs source revision `d0059fe`, with migration
 eleven recorded and the deployed 70-operation contract. CPO GSTIN and address
 identity are database-required, authenticated platform clients can use the
 advisory slug-availability operation, and known uniqueness races return
@@ -126,11 +126,11 @@ and preserved during deployment. Migration nine continues to preserve the
 the current development environment uses `LOG_LEVEL=DEBUG` for correlated
 request-start and completion diagnostics.
 
-The source tree now fixes a recovery-specific OTP mapper defect that discarded
+The deployed recovery flow fixes a recovery-specific OTP mapper defect that discarded
 `challenge_id` before outbox validation and caused eligible administrative and
 customer forgot-password transactions to roll back with `500 internal_error`.
-The active `d27e599` deployment predates this correction and remains affected
-until an explicitly authorized corrected revision is deployed.
+Administrative and customer recovery now enqueue the complete canonical mail
+payload before outbox validation.
 
 No CMS/HAL transport or handshake, live charger state ingestion, charging
 workflow, tenant payment workflow, tenant commercial-management workflow,
