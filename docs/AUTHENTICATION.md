@@ -264,9 +264,7 @@ recipient every input required by reset.
 OTP producers call the canonical mail enqueue operation with the complete
 payload, including `challenge_id`, for validation and encrypted outbox storage;
 there is no field-subsetting OTP mapper. The active development VPS revision
-`d27e599` predates this source-tree correction as of 2026-08-03 and can return
-`500 internal_error` for an eligible recovery request until a corrected
-revision is explicitly deployed.
+`c50bc49` includes this correction.
 
 ### Reset password
 

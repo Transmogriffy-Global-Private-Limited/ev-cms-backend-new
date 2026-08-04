@@ -48,9 +48,10 @@ the development deployment.
   - 4 platform operations/realtime queries;
   - 20 manual subscription/entitlement operations.
 
-The development origin serves the previously deployed 70-operation OpenAPI
-document from revision `d0059fe` with migration eleven. The source-tree manual
-subscription API requires migration twelve and has not been deployed yet.
+The development origin serves the deployed 90-operation OpenAPI document from
+revision `c50bc49` with migration twelve. The manual subscription API is
+platform-superadmin-only and does not activate provider billing or automatic
+lifecycle behavior.
 
 Configure the origin in the frontend environment. Do not hardcode it in API
 modules:

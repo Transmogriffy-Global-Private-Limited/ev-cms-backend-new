@@ -63,8 +63,7 @@ OTP-only mapper and directly enqueues the complete `MessagePayload` for both
 administrative and customer recovery. Do not work around this by returning,
 querying, or logging challenge material.
 
-The active development VPS revision `d27e599` predates the source-tree fix as
-of 2026-08-03. Rehosting requires separate deployment authorization.
+The active development VPS revision `c50bc49` includes the source-tree fix.
 
 ## OTP Email Has Not Arrived
 

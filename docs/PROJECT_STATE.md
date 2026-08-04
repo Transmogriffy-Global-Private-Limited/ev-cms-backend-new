@@ -121,8 +121,8 @@ provides:
   handler;
 - the additive PostgreSQL database `devevcmsnewdb`, owned by `postgres`.
 
-The active development VPS runs source revision `d0059fe`, with migration
-eleven recorded and the deployed 70-operation contract. CPO GSTIN and address
+The active development VPS runs source revision `c50bc49`, with migration
+twelve recorded and the deployed 90-operation contract. CPO GSTIN and address
 identity are database-required, authenticated platform clients can use the
 advisory slug-availability operation, and known uniqueness races return
 field- or relationship-specific conflict codes. All four CPOs were complete
@@ -131,9 +131,10 @@ and preserved during deployment. Migration nine continues to preserve the
 the current development environment uses `LOG_LEVEL=DEBUG` for correlated
 request-start and completion diagnostics.
 
-The source tree now adds migration twelve and a 90-operation manual
-subscription API, but those changes have not been deployed to the VPS or run
-against a disposable PostgreSQL lifecycle database in this slice.
+Migration twelve and the 90-operation manual subscription API are deployed.
+The disposable PostgreSQL lifecycle test remains unexecuted because no
+`TEST_DATABASE_URL` is configured; the live migration was applied only after a
+validated mode-0600 rollback dump.
 
 The deployed recovery flow fixes a recovery-specific OTP mapper defect that discarded
 `challenge_id` before outbox validation and caused eligible administrative and
@@ -328,4 +329,6 @@ repository. The integration contract has not been implemented yet.
   contract directly.
 - Migration twelve's disposable PostgreSQL lifecycle coverage has not executed
   because no disposable `TEST_DATABASE_URL` is configured. The live development
-  deployment is still current on migration eleven and the 70-operation contract.
+  deployment is current on migration twelve and the 90-operation contract;
+  all six restored subscription tables are in `public` and automatic lifecycle
+  workers remain disabled.

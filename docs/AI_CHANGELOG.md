@@ -23,8 +23,20 @@ Verification:
   validation, route/OpenAPI parity, `go test ./...`, `go vet ./...`, and
   `git diff --check` passed.
 - The database-backed manual lifecycle test is registered but skipped without
-  an explicitly configured disposable `TEST_DATABASE_URL`. No VPS deployment
-  or remote data change occurred in this slice.
+  an explicitly configured disposable `TEST_DATABASE_URL`.
+
+Deployment verification:
+
+- Created the mode-0600 rollback dump
+  `/tmp/devevcmsnewdb-pre-c50bc49.dump` and preserved the prior binary as
+  `builds/evcmsnew.pre-c50bc49`.
+- Confirmed migration eleven before applying migration twelve, then verified
+  migration twelve, all six restored subscription tables in `public`, and
+  both retired automatic-lifecycle workers still disabled.
+- Rehosted `evcmsnew-dev.service` with the clean `c50bc49` binary. Systemd is
+  enabled and active with zero restarts; loopback/public liveness and
+  readiness, Swagger UI, and the live 90-operation OpenAPI passed. No recent
+  startup error or panic was recorded.
 
 ## 2026-08-03
 

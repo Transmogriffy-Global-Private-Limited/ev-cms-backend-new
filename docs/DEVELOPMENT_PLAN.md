@@ -815,13 +815,13 @@ Last completed slice:
 
 Last deployment milestone:
 
-- Revision `d0059fe` was built cleanly and rehosted on the development VPS with
-  migration eleven already current. It preserves recovery challenge IDs in the
-  canonical administrative and customer outbox payloads. The live 70-operation
-  route/OpenAPI surface, running-binary identity, loopback-only listener,
-  loopback/public readiness, zero-restart service state, and post-start journal
-  were verified. No migration, live data mutation, or recovery-email delivery
-  was required for release verification.
+- Revision `c50bc49` was built cleanly and rehosted on the development VPS
+  after a validated rollback dump and application of migration twelve. The six
+  manual-subscription tables are restored in `public`, automatic lifecycle
+  workers remain disabled, and the live 90-operation route/OpenAPI surface,
+  running-binary identity, loopback-only listener, loopback/public readiness,
+  zero-restart service state, and post-start journal were verified. The
+  disposable PostgreSQL lifecycle remains pending without `TEST_DATABASE_URL`.
 
 Next expected slice:
 
@@ -835,7 +835,8 @@ Blocked by:
 ## Next Approved Work
 
 1. Run manual-subscription PostgreSQL lifecycle verification from
-   `docs/plans/manual-platform-subscriptions.md`.
+   `docs/plans/manual-platform-subscriptions.md` against an explicitly
+   disposable `TEST_DATABASE_URL`.
 2. Resume the superadmin control-plane slices in
    `docs/plans/superadmin-control-plane.md`.
 3. Design staff invitation and membership management before activating dormant

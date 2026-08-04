@@ -21,14 +21,15 @@ started as a second systemd service because that would create an unnecessary
 duplicate worker.
 
 The active deployment was updated on August 4, 2026 to source revision
-`d0059fe`. It has migrations one through eleven and the current 70-operation
+`c50bc49`. It has migrations one through twelve and the current 90-operation
 API. GSTIN and complete address identity are database-required for CPOs, the
 authenticated platform slug-availability route is live, and known uniqueness
 races return field- or relationship-specific conflict codes. Safe structured
 HTTP request diagnostics are active with `LOG_LEVEL=DEBUG`; recovery OTP mail
 payloads retain their challenge IDs for the reset handler. The eleven retired
-commercial prototype tables remain recoverable in the `retired_commercial`
-schema.
+commercial prototype billing tables remain recoverable in the
+`retired_commercial` schema; the six manually managed subscription tables are
+active in `public` and their automatic lifecycle workers remain disabled.
 
 ## Files and Ownership
 
