@@ -22,6 +22,7 @@ This directory is the durable project memory for the EV CMS backend.
 | Required CPO registration identity decision | `decisions/0010-required-cpo-registration-identity.md` |
 | Safe HTTP request observability decision | `decisions/0011-safe-http-request-observability.md` |
 | CPO organization read, admin profile, and network configuration | `guides/workflows/cpo-admin-network-configuration.md` |
+| Approved customer-app experience sequence | `plans/customer-app-experience.md` |
 | Architectural decisions | `decisions/` |
 | Detailed approved plans | `plans/` |
 | Learning and operational workflows | `guides/` |

@@ -166,6 +166,13 @@ customer forgot-password transactions to roll back with `500 internal_error`.
 Administrative and customer recovery now enqueue the complete canonical mail
 payload before outbox validation.
 
+Customer-app implementation requires `X-CPO-App-ID` on every
+`/api/v1/app/auth/...` request, including signup. The approved next user-work
+plan retains that app-only header and sequences customer profile,
+published-station discovery, favorites, tariff display, and later
+HAL-dependent charging/billing work. This is planned only; CPO ADMIN routes
+remain owned by the CPO workstream.
+
 No CMS/HAL transport or handshake, live charger state ingestion, charging
 workflow, tenant payment workflow, tenant commercial-management workflow,
 staff-management workflow, or reporting behavior is implemented

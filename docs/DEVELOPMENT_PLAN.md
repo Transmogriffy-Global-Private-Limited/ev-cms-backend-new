@@ -594,6 +594,45 @@ Detailed plan:
 
 - `docs/plans/customer-authentication.md`
 
+### Feature: Customer app experience
+
+Status: Approved — implementation not started
+
+Phase: Phase 4, then Phases 5 and 6 for HAL-dependent work
+
+Depends on:
+
+- Complete app-user authentication boundary
+- Initial CPO network and tariff configuration
+
+Enables:
+
+- Customer self-service profile and station discovery
+- Safe customer favorites and server-calculated price display
+- A later CMS/HAL customer charging lifecycle
+- Wallet, billing, session-history, receipt, notification, and realtime work
+
+Objective:
+
+Build the customer-facing CMS API in coherent dependency order while preserving
+global identity versus CPO-customer ownership and keeping the HAL separate
+until the charging contract is approved.
+
+Initial implementation slice:
+
+- Add customer self-service full-name/phone editing using the existing
+  `X-CPO-App-ID` routing contract on every `/api/v1/app/...` request.
+
+Non-goals:
+
+- Changes to CPO ADMIN route ownership or its existing app-ID header
+- Live charger availability, remote charging commands, HAL transport, wallet
+  mutations, payment execution, or realtime before their durable foundations
+
+Detailed plan:
+
+- `docs/plans/customer-app-experience.md`
+
 ### Feature: Temporary unrestricted development listener
 
 Status: Verified
@@ -790,13 +829,13 @@ Current phase:
 
 Active feature:
 
-- CPO user point lookup and tariff effective-date reconciliation
+- Customer app experience planning; implementation has not started
 
 Current implementation slice:
 
-- Hosted verification is complete; retain the tenant-safe lookup and
-  database-enforced tariff overlap behavior while awaiting disposable
-  PostgreSQL lifecycle verification.
+- Approved the end-to-end customer-surface plan. The first implementation
+  slice is self-service profile under the existing app-ID header; CPO-admin
+  implementation remains with its owners.
 
 Last completed slice:
 
@@ -851,9 +890,7 @@ Last deployment milestone:
 
 Next expected slice:
 
-- Run the tariff effective-date and existing Superadmin/manual-subscription
-  PostgreSQL lifecycle verification when an explicitly disposable database is
-  available
+- Implement customer self-service profile after the approved plan is reviewed.
 
 Blocked by:
 
@@ -861,12 +898,15 @@ Blocked by:
 
 ## Next Approved Work
 
-1. Run manual-subscription PostgreSQL lifecycle verification from
-   `docs/plans/manual-platform-subscriptions.md` against an explicitly
-   disposable `TEST_DATABASE_URL`.
-2. Run migration-fifteen tariff overlap/preflight coverage against an
-   explicitly disposable `TEST_DATABASE_URL`.
-3. Design staff invitation and membership management before activating dormant
+1. Add customer self-service profile editing using `X-CPO-App-ID` on every app
+   request.
+2. Coordinate a default-false CPO-owned customer-publication field for hubs,
+   then add customer station discovery and favorites.
+3. Define and implement the server-side effective tariff resolver before the
+   app displays price.
+4. Run manual-subscription and tariff overlap PostgreSQL lifecycle verification
+   against an explicitly disposable `TEST_DATABASE_URL`.
+5. Design staff invitation and membership management before activating dormant
    role values.
 
 ## Deferred Work

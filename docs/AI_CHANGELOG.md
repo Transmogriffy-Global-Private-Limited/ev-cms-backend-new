@@ -2,6 +2,26 @@
 
 ## 2026-08-04
 
+### Approved customer-app experience plan
+
+- Recorded the end-to-end customer-app implementation sequence in
+  `docs/plans/customer-app-experience.md`: customer profile, published network
+  discovery, favorites, server-side tariff display, future access credentials,
+  CMS/HAL charging lifecycle, wallet/billing/history, and later customer
+  notifications/realtime.
+- Retained `X-CPO-App-ID` as the required routing header on every existing and
+  future `/api/v1/app/...` request, including public signup. The header is
+  routing metadata, never authority; protected customer routes continue to
+  compare it to the validated customer principal.
+- Recorded that the CPO-owned network needs an explicit default-false
+  customer-publication control before discovery can safely expose a hub.
+
+Verification:
+
+- Repository routing and existing contract references were inventoried. No
+  runtime endpoint, schema, OpenAPI operation, migration, or deployed behavior
+  changed in this planning slice.
+
 ### Rehosted CPO hub configuration revision
 
 - Added migration nineteen to reconcile development databases that had already
