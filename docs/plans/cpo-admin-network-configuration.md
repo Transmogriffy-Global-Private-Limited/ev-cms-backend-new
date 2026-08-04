@@ -1,6 +1,6 @@
 # CPO Administrator and Initial Network Configuration Plan
 
-Status: Implemented — source verified; PostgreSQL lifecycle and deployment pending
+Status: Implemented — source and deployment verified; PostgreSQL lifecycle pending
 
 ## Objective
 
@@ -139,20 +139,21 @@ Completed evidence:
   `price_per_kwh` GORM mappings plus SQLSTATE `23001` handling for the
   documented `charger_in_use` conflict. Focused regression tests cover these
   database compatibility boundaries.
-- Revision `bb555b9` and migration fifteen are deployed. The migration live
+- Revision `4502934` and migrations through nineteen are deployed. The migration live
   preflight found no existing tariff rows, installed `btree_gist`, both date
-  columns, both constraints, and both indexes; the 111-operation contract and
+  columns, both constraints, and both indexes; the 112-operation contract and
   protected user lookup passed hosted verification. The disposable overlap
   lifecycle remains pending without an explicitly disposable database.
-- The current source follow-up consolidates the undeployed sanctioned-load
+- The current source follow-up consolidates the deployed sanctioned-load
   change into migration sixteen, restores migration-file completeness checks,
   removes redundant migrations seventeen/eighteen, and makes the base
   `chargers.hub_id` nullable so a charger can be created independently. The
   same migration drops `NOT NULL` for existing deployed databases and refuses a
   down migration while independent chargers remain. It adds the explicit
-  audited hub-reassignment contract. This candidate has not been deployed;
-  database-backed assignment/reassignment lifecycle verification remains
-  pending without an explicitly disposable `TEST_DATABASE_URL`.
+  audited hub-reassignment contract. Migration nineteen reconciles databases
+  that had already recorded the removed follow-up migrations. Database-backed
+  assignment/reassignment lifecycle verification remains pending without an
+  explicitly disposable `TEST_DATABASE_URL`.
 
 ## Remaining Decisions
 

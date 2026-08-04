@@ -132,8 +132,8 @@ provides:
   handler;
 - the additive PostgreSQL database `devevcmsnewdb`, owned by `postgres`.
 
-The active development VPS runs source revision `bb555b9`, with migration
-fifteen recorded and the deployed 111-operation contract. CPO GSTIN and address
+The active development VPS runs source revision `4502934`, with migrations
+through nineteen recorded and the deployed 112-operation contract. CPO GSTIN and address
 identity are database-required, authenticated platform clients can use the
 advisory slug-availability operation, and known uniqueness races return
 field- or relationship-specific conflict codes. All four CPOs were complete
@@ -148,7 +148,7 @@ Migration fifteen adds tariff effective-date fields and a tenant/scope-aware
 PostgreSQL exclusion constraint and is deployed. The disposable PostgreSQL
 lifecycle test remains unexecuted because no `TEST_DATABASE_URL` is configured.
 
-The deployed contract has 111 operations: the added
+The deployed contract has 112 operations: the added
 `GET /api/v1/cpo/users/{user_id}` is a tenant-scoped point lookup, not a
 customer or staff directory.
 
@@ -156,9 +156,9 @@ The current source candidate has 112 operations. It adds the CPO ADMIN-only
 `POST /api/v1/cpo/hubs/{hub_id}/chargers` hub attachment/reassignment command,
 allows an independent charger to be created without `hub_id`, and adds
 non-negative hub `sanction_load` plus the upgrade-time removal of the legacy
-charger-hub `NOT NULL` in migration sixteen. These source changes are not
-deployed: the development VPS remains on `bb555b9`, migration fifteen, and the
-111-operation contract.
+charger-hub `NOT NULL` in migration sixteen. These changes are deployed at
+`4502934`; migration nineteen reconciles databases that had already recorded
+the removed follow-up migrations so `chargers.hub_id` is nullable.
 
 The deployed recovery flow fixes a recovery-specific OTP mapper defect that discarded
 `challenge_id` before outbox validation and caused eligible administrative and
@@ -201,10 +201,10 @@ yet.
 - `go vet ./...` passed.
 - `git diff --check` passed. Stateful PostgreSQL lifecycle verification remains
   pending because no disposable `TEST_DATABASE_URL` is configured.
-- Revision `bb555b9` was built cleanly and rehosted after a validated mode-0600
-  rollback dump and migration fifteen. The installed identity, loopback-only
-  listener, loopback/public readiness, live 111-operation Swagger/OpenAPI,
-  request-ID header, protected and retired routes, tariff constraints/indexes,
+- Revision `4502934` was built cleanly and rehosted after a validated mode-0600
+  rollback dump and migration nineteen. The installed identity, loopback-only
+  listener, loopback/public readiness, live 112-operation Swagger/OpenAPI,
+  request-ID header, protected CPO routes, nullable charger hub assignment,
   required workers, and absence of startup errors or panics passed.
 - Revision `396bae5` was built cleanly and rehosted after a validated
   mode-0600 rollback dump and migration fourteen. The installed identity,

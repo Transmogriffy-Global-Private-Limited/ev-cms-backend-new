@@ -21,11 +21,13 @@ started as a second systemd service because that would create an unnecessary
 duplicate worker.
 
 The active deployment was updated on August 4, 2026 to source revision
-`bb555b9`. It has migrations one through fifteen and the current 111-operation
+`4502934`. It has migrations one through nineteen and the current 112-operation
 API. Migration thirteen keeps feature-key/entitlement tables retired pending a
 defined module catalog, migration fourteen completes the Superadmin authority,
 mail, announcement, notification, and status surface, and migration fifteen
-adds tariff effective-date enforcement. GSTIN and complete address identity
+adds tariff effective-date enforcement. Migration sixteen adds sanctioned load
+and independent charger inventory; migration nineteen reconciles databases
+that had already recorded later hub constraints. GSTIN and complete address identity
 are database-required for CPOs, the
 authenticated platform slug-availability route is live, and known uniqueness
 races return field- or relationship-specific conflict codes. Safe structured
@@ -60,7 +62,7 @@ The deployment copies `.env.example` to `.env`, then overrides:
 - five independently generated 32-byte base64 cryptographic keys.
 
 `DATABASE_URL` and `SMTP_PASSWORD` contain deployment secrets only in the
-ignored environment file. The service is enabled and active, all fifteen forward
+ignored environment file. The service is enabled and active, all nineteen forward
 migrations are recorded, and startup idempotently retained the configured
 platform superadmin.
 
@@ -121,7 +123,7 @@ content exclusions are defined in
 `docs/contracts/internal/http-request-logging.md`. Long-lived SSE requests are
 recorded when they disconnect. A recovered panic first emits a correlated safe
 JSON stack diagnostic without Gin's request dump or the panic value. The
-currently deployed `bb555b9` binary includes this logger.
+currently deployed `4502934` binary includes this logger.
 
 For a developer diagnostic session, set `LOG_LEVEL=DEBUG` in the ignored
 deployment environment and rehost. This adds request-start and handled-error
