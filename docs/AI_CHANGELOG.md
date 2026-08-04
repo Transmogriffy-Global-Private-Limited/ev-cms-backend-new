@@ -2,6 +2,17 @@
 
 ## 2026-08-04
 
+### Rehosted CPO-local customer authentication
+
+- Applied migration 20 after a rollback dump; the database had zero customer
+  rows, satisfying the migration's explicit safety precondition.
+- Built and rehosted revision `be6fd34`. The enabled service is active with
+  zero restarts and serves the 113-operation contract through Caddy.
+- Verified loopback/public health and readiness, Swagger/OpenAPI, migration 20,
+  customer-account zero state, and the existing protected service boundary.
+
+## 2026-08-04
+
 ### Implemented CPO-local customer authentication with full route parity
 
 - Migration 000020 moves app email/password/profile/verification/lockout state

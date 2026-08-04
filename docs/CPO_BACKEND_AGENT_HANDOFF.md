@@ -550,8 +550,9 @@ Before completion, prove:
 - PostgreSQL is durable truth.
 - Fifteen migrations are already deployment history. Do not edit an applied
   migration to change new behavior; add the next forward migration.
-- Migration fifteen is the current deployed migration. It adds tariff
-  effective-date columns and a PostgreSQL overlap constraint.
+- Migration twenty is the current deployed migration. It adds CPO-local
+  customer credentials and dedicated customer auth lineage; migration fifteen
+  adds tariff effective-date columns and a PostgreSQL overlap constraint.
 - Prefer additive, backward-compatible migrations.
 - Never drop, truncate, or broadly delete without explicit human approval.
 - Use composite keys/foreign keys to protect tenant relationships.
