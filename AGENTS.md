@@ -25,6 +25,8 @@ Before planning or changing code, read:
 - relevant active plans under `docs/plans/`
 - `docs/plans/superadmin-control-plane.md` while the complete platform control
   plane is active
+- `docs/plans/manual-platform-subscriptions.md` while manual subscription
+  management is active
 - `docs/plans/cpo-admin-network-configuration.md` while the reconciled initial
   CPO operations slice is active
 
@@ -52,8 +54,11 @@ verification changes.
   orientation and execution guide for agents assigned to CPO-side backend
   work. It must stay aligned with routes, ownership, plans, and verification.
 - CPO access is controlled manually by platform superadmins through CPO
-  activation and suspension. Do not add tenant subscriptions, platform
-  invoices, or platform payment management without a new explicit decision.
+  activation and suspension. Manual subscription plans, CPO subscription
+  records, and entitlement overrides are platform-superadmin management only;
+  they never alter CPO access automatically. Platform invoices, payments,
+  checkout, webhooks, and automatic subscription lifecycle require a new
+  explicit decision beyond ADR 0012.
 - Current tenant administrative authority is `ADMIN` only. `OWNER`, `OPERATOR`,
   and `VIEWER` are dormant schema values until a complete staff-management
   decision activates them.

@@ -109,6 +109,9 @@ Current producers:
 - CPO primary-administrator replacement/restoration;
 - CPO primary-administrator onboarding resend;
 - CPO administrative-session revocation;
+- manual subscription-plan creation, draft changes, publication, and archive;
+- manual CPO subscription issue, renewal, plan change, and status transition;
+- manual CPO entitlement-override changes;
 - worker heartbeat records provide worker-state source data.
 - readiness requires at least one fresh, healthy instance for each required
   worker name; stale records from replaced instances remain observable but do
@@ -128,6 +131,9 @@ Current CPO event names and safe payload meanings:
 | `platform.cpo.primary_admin_changed` | previous/current user IDs and reason | primary-admin resource |
 | `platform.cpo.primary_admin_onboarding_resent` | primary user ID and reason | primary-admin resource |
 | `platform.cpo.admin_sessions_revoked` | reason and revoked counts | audit/recovery display |
+| `platform.subscription.plan_created` / `plan_draft_updated` / `plan_published` / `plan_archived` | code or version metadata | plan catalog/detail |
+| `platform.subscription.issued`, `platform.subscription.renewed`, `platform.subscription.plan_changed`, `platform.subscription.activated`, `platform.subscription.paused`, `platform.subscription.resumed`, `platform.subscription.past_due`, `platform.subscription.expired`, `platform.subscription.cancelled` | CPO ID, status, plan version ID | CPO subscription/detail |
+| `platform.subscription.entitlement_override_set` / `entitlement_override_removed` | feature key | CPO entitlements |
 
 Lifecycle retries that request the already-current state do not create another
 lifecycle event. Explicit session revocation does create an event even when the

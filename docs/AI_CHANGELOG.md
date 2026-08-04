@@ -1,5 +1,31 @@
 # AI Changelog
 
+## 2026-08-04
+
+### Manual platform subscriptions restored without a provider
+
+- Added migration twelve to restore only subscription plans, immutable
+  published versions, CPO subscriptions/history, and entitlement overrides
+  from `retired_commercial`. Platform billing tables remain retired.
+- Added platform-superadmin-only plan/catalog, manual issue/renew/change/status
+  commands, history, and entitlement overrides. UUIDs, plan versions,
+  timestamps, audits, events, and subscription idempotency evidence are server
+  generated.
+- Deliberately excluded provider, checkout, invoice/payment, webhook, mail,
+  scheduled plan change, automatic renewal, trial completion, expiry,
+  cancellation, lifecycle worker, and CPO-access coupling.
+- Added ADR 0012, the manual-subscription plan/contract, OpenAPI coverage,
+  frontend/backend handoff updates, and migration/manual-lifecycle tests.
+
+Verification:
+
+- Documentation verification, migration static checks, manual-subscription
+  validation, route/OpenAPI parity, `go test ./...`, `go vet ./...`, and
+  `git diff --check` passed.
+- The database-backed manual lifecycle test is registered but skipped without
+  an explicitly configured disposable `TEST_DATABASE_URL`. No VPS deployment
+  or remote data change occurred in this slice.
+
 ## 2026-08-03
 
 ### Password-recovery outbox payload forwarding fixed and deployed

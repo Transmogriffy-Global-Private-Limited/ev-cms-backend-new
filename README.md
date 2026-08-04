@@ -14,8 +14,11 @@ integration handoff,
 `docs/DEVELOPMENT_PLAN.md` for approved sequencing.
 
 CPO access is granted or removed manually by platform superadmins through
-activation and suspension. This CMS does not expose tenant subscription,
-entitlement, platform-invoice, or platform-payment management APIs.
+activation and suspension. Platform superadmins also manually manage
+subscription plans, CPO subscription periods/statuses, and entitlement
+overrides; this does not change CPO access automatically. There is no payment
+provider, platform invoice, platform payment, checkout, webhook, or automatic
+subscription lifecycle.
 The Superadmin CPO surface also provides collection search/filter/cursors,
 business-profile maintenance, lifecycle decision evidence, primary-admin
 recovery/onboarding status, and scoped CPO administrative-session revocation.

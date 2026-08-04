@@ -29,6 +29,8 @@ Migration files:
 - `db/migrations/000010_cpo_superadmin_dependency.down.sql`
 - `db/migrations/000011_cpo_required_registration_fields.up.sql`
 - `db/migrations/000011_cpo_required_registration_fields.down.sql`
+- `db/migrations/000012_restore_manual_subscriptions.up.sql`
+- `db/migrations/000012_restore_manual_subscriptions.down.sql`
 
 ## Supplied Model Mapping
 
@@ -178,7 +180,7 @@ worker rows with a non-healthy reported status or a heartbeat older than
 has not registered a worker row is not inferred from this table; startup owns
 registration by sending an immediate heartbeat.
 
-## Retired Commercial Prototype
+## Retired Platform Billing and Restored Manual Subscriptions
 
 Migrations seven and eight historically created subscription, entitlement,
 platform-invoice, and platform-payment tables. They remain unchanged because
@@ -196,9 +198,17 @@ The ninth migration implements the approved product reversal:
   readiness;
 - its down migration restores the tables, triggers, and worker requirements.
 
-No active model, repository, route, worker, or OpenAPI operation reads or writes
-`retired_commercial`. Manual CPO `ACTIVE`/`SUSPENDED` lifecycle state is the
-only platform-access control.
+Migration twelve restores `subscription_plans`, `subscription_plan_versions`,
+`subscription_plan_entitlements`, `cpo_subscriptions`,
+`cpo_subscription_history`, and `cpo_entitlement_overrides` to `public`.
+Published plan/version snapshots are protected by the restored immutability
+triggers. The five platform-billing tables remain in `retired_commercial`.
+
+The restored subscription records are manually managed by platform
+superadmins. The migration does not re-enable `subscription-lifecycle` or
+`billing-maintenance`; both remain non-required and `DISABLED`. Period dates
+are records only, and CPO `ACTIVE`/`SUSPENDED` lifecycle state remains the only
+platform-access control.
 
 Migration nine was verified up and down against disposable loopback PostgreSQL
 17, including pending-mail refusal, preserved-row archival/restoration, and

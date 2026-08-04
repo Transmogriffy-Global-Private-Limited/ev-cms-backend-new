@@ -503,3 +503,57 @@ func TestCPORequiredRegistrationFieldsMigrationContainsDurableInvariants(t *test
 		}
 	}
 }
+
+func TestManualSubscriptionRestoreMigrationPreservesBillingRetirement(t *testing.T) {
+	t.Parallel()
+
+	upBody, err := migrationFiles.ReadFile(
+		"migrations/000012_restore_manual_subscriptions.up.sql",
+	)
+	if err != nil {
+		t.Fatalf("read manual subscription restore up migration: %v", err)
+	}
+	downBody, err := migrationFiles.ReadFile(
+		"migrations/000012_restore_manual_subscriptions.down.sql",
+	)
+	if err != nil {
+		t.Fatalf("read manual subscription restore down migration: %v", err)
+	}
+
+	upSQL, downSQL := string(upBody), string(downBody)
+	for _, table := range []string{
+		"subscription_plans",
+		"subscription_plan_versions",
+		"subscription_plan_entitlements",
+		"cpo_subscriptions",
+		"cpo_subscription_history",
+		"cpo_entitlement_overrides",
+	} {
+		if !strings.Contains(upSQL, "ALTER TABLE retired_commercial."+table) ||
+			!strings.Contains(upSQL, "SET SCHEMA public") {
+			t.Errorf("manual subscription restore does not restore %s", table)
+		}
+		if !strings.Contains(downSQL, "ALTER TABLE "+table+" SET SCHEMA retired_commercial") {
+			t.Errorf("manual subscription restore down migration does not retire %s", table)
+		}
+	}
+	for _, forbidden := range []string{
+		"platform_invoices",
+		"platform_payments",
+		"cpo_billing_accounts",
+		"required = TRUE",
+	} {
+		if strings.Contains(upSQL, forbidden) {
+			t.Errorf("manual subscription restore must not reactivate billing or workers: %s", forbidden)
+		}
+	}
+	for _, required := range []string{
+		"trg_subscription_plan_versions_immutable",
+		"trg_subscription_plan_entitlements_immutable",
+		"manual_subscription_management_has_no_automatic_lifecycle",
+	} {
+		if !strings.Contains(upSQL, required) {
+			t.Errorf("manual subscription restore migration missing %q", required)
+		}
+	}
+}

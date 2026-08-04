@@ -21,6 +21,7 @@ import (
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/platformops"
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/routes"
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/security"
+	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/subscriptions"
 	"github.com/google/uuid"
 )
 
@@ -92,6 +93,7 @@ func run() error {
 		return err
 	}
 	platformService := platformops.NewService(gormDB, cfg.Platform)
+	subscriptionService := subscriptions.NewService(gormDB, platformService)
 	cpoService := cpo.NewService(gormDB, outbox, cfg.Mail.Enabled).
 		WithPlatformEvents(platformService)
 	customerAuthService, err := customerauth.NewService(
@@ -131,6 +133,7 @@ func run() error {
 			cpoService,
 			integrationService,
 			platformService,
+			subscriptionService,
 			cfg.CORSAllowAll,
 			cfg.APIDocsEnabled,
 			os.Stdout,

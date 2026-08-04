@@ -37,11 +37,14 @@ $requiredFiles = @(
     'docs/decisions/0009-admin-only-cpo-authority.md',
     'docs/decisions/0010-required-cpo-registration-identity.md',
     'docs/decisions/0011-safe-http-request-observability.md',
+    'docs/decisions/0012-manual-platform-subscriptions-without-provider.md',
     'docs/plans/api-documentation-and-openapi.md',
     'docs/plans/customer-signup.md',
     'docs/plans/customer-authentication.md',
     'docs/plans/superadmin-control-plane.md',
-    'docs/plans/cpo-admin-network-configuration.md'
+    'docs/plans/cpo-admin-network-configuration.md',
+    'docs/plans/manual-platform-subscriptions.md',
+    'docs/contracts/api/manual-subscriptions.md'
 )
 
 $missing = @(
@@ -62,7 +65,7 @@ $requiredCPOAgentRules = @(
     'Current callable CPO staff authority is `ADMIN` only.',
     'The presence of a table or Go model does not mean its workflow exists.',
     '`src/cpo/repository.go` is currently an empty package file.',
-    'Eleven migrations are already deployment history.',
+    'Twelve migrations are already deployment history.',
     'do not embed or copy the HAL into this process',
     'Treat `main` and `anubhab-work` as the authoritative lines'
 )
@@ -81,7 +84,7 @@ $requiredSuperadminFERules = @(
     'collect the recovery ID, code, and new password',
     'welcome job is rejected before the CPO transaction commits',
     '`platform.cpo.primary_admin_changed`',
-    'Tenant subscription/billing',
+    'Manual subscription/entitlements',
     'SuperAdmin is not a CPO ADMIN',
     '`available=true` does not reserve it',
     'GSTIN and every address field are required'
@@ -151,6 +154,9 @@ $requiredRoutes = @(
     '/api/v1/platform/realtime/stream',
     '/api/v1/platform/audit-logs',
     '/api/v1/platform/workers',
+    '/api/v1/platform/plans',
+    '/api/v1/platform/cpos/{cpo_id}/subscription',
+    '/api/v1/platform/cpos/{cpo_id}/entitlements',
     '/api/v1/cpo/integrations',
     '/api/v1/cpo/organization',
     '/api/v1/cpo/admin/profile',
@@ -171,9 +177,6 @@ $openAPI = Get-Content -Raw -LiteralPath (
     Join-Path $repositoryRoot 'docs/contracts/openapi/openapi.yaml'
 )
 $retiredRoutes = @(
-    '/api/v1/platform/plans',
-    '/subscription',
-    '/entitlement-overrides/',
     '/billing-account',
     '/invoices',
     '/payments',
@@ -186,8 +189,8 @@ foreach ($route in $retiredRoutes) {
 }
 
 $operationCount = ([regex]::Matches($openAPI, '(?m)^\s{6}operationId:\s+')).Count
-if ($operationCount -ne 70) {
-    throw "OpenAPI contains $operationCount operations; expected 70."
+if ($operationCount -ne 90) {
+    throw "OpenAPI contains $operationCount operations; expected 90."
 }
 
 if ($openAPI.Contains('/api/v1/cpo/profile')) {
@@ -206,6 +209,16 @@ $realtimeContract = Get-Content -Raw -LiteralPath (
 foreach ($eventName in $requiredCPOEvents) {
     if (-not $realtimeContract.Contains($eventName)) {
         throw "Realtime contract does not contain CPO event $eventName"
+    }
+}
+
+foreach ($eventName in @(
+    'platform.subscription.issued',
+    'platform.subscription.renewed',
+    'platform.subscription.entitlement_override_set'
+)) {
+    if (-not $realtimeContract.Contains($eventName)) {
+        throw "Realtime contract does not contain subscription event $eventName"
     }
 }
 

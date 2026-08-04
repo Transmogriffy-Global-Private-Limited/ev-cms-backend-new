@@ -533,7 +533,7 @@ Before completion, prove:
 ## Database and Migration Rules
 
 - PostgreSQL is durable truth.
-- Eleven migrations are already deployment history. Do not edit an applied
+- Twelve migrations are already deployment history. Do not edit an applied
   migration to change new behavior; add the next forward migration.
 - Migration eleven is the current deployed migration. It requires GSTIN and
   nonblank address,
@@ -547,9 +547,10 @@ Before completion, prove:
 - Use transactions for a business mutation plus audit/event/outbox work.
 - Use constraints and idempotency keys for concurrency invariants, not only
   application pre-checks.
-- Migrations seven/eight are historical. Migration nine moves the retired
-  platform commercial prototype to `retired_commercial`; do not restore it as
-  active product behavior.
+- Migrations seven/eight are historical. Migration nine preserves the former
+  commercial prototype in `retired_commercial`; migration twelve restores only
+  manual subscription/entitlement tables. Platform billing and automatic
+  workers remain retired; subscription state never controls CPO access.
 
 ## API and Error Conventions
 

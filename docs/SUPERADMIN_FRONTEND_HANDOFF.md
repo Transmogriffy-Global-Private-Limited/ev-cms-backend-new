@@ -5,8 +5,8 @@
 Give this document to the engineer implementing the platform SuperAdmin
 frontend. It is a no-chat-history handoff for the complete frontend-consumable
 SuperAdmin surface that exists today: administrative authentication, CPO
-control, personal session security, audit evidence, worker health, durable
-event replay, and authenticated SSE.
+control, manual subscriptions/entitlements, personal session security, audit
+evidence, worker health, durable event replay, and authenticated SSE.
 
 This document deliberately separates:
 
@@ -33,7 +33,7 @@ or mockup. Only routed operations in OpenAPI are callable.
 
 ## Integration Snapshot
 
-This handoff was reconciled on 2026-08-03 against the current source tree and
+This handoff was reconciled on 2026-08-04 against the current source tree and
 the development deployment.
 
 - Development origin: `https://dev-evcmsnew.transev.site`
@@ -41,16 +41,16 @@ the development deployment.
 - API prefix: `/api/v1`
 - Interactive contract: `/docs/`
 - Raw OpenAPI: `/openapi.yaml`
-- Current source-tree backend contract: 70 HTTP operations across every persona
-- Operations used by the SuperAdmin application: 28 API operations
+- Current source-tree backend contract: 90 HTTP operations across every persona
+- Operations used by the SuperAdmin application: 48 API operations
   - 12 shared administrative-authentication operations;
   - 12 platform CPO-control operations;
-  - 4 platform operations/realtime queries.
+  - 4 platform operations/realtime queries;
+  - 20 manual subscription/entitlement operations.
 
-The development origin now serves healthy liveness/readiness, Swagger UI, and
-the 70-operation OpenAPI document from revision `9760523`. Migration eleven is
-recorded, so the slug-availability endpoint, mandatory registration fields,
-and field-specific CPO conflict codes are live on the development deployment.
+The development origin serves the previously deployed 70-operation OpenAPI
+document from revision `d0059fe` with migration eleven. The source-tree manual
+subscription API requires migration twelve and has not been deployed yet.
 
 Configure the origin in the frontend environment. Do not hardcode it in API
 modules:
@@ -91,7 +91,8 @@ approved origin policy and HTTPS.
 | Generic mail operations | Not implemented | No mail list/detail/retry/cancel API exists |
 | Notifications/announcements | Not implemented | Do not create placeholder write flows |
 | Platform overview aggregates | Not implemented | Compose only bounded existing queries; do not fake totals |
-| Tenant subscription/billing | Intentionally unsupported | CPO access is manual activation/suspension |
+| Manual subscription/entitlements | Source ready; deployment required | Plans, issue/renew/status, history, and overrides; no provider or automatic lifecycle |
+| Platform billing | Intentionally unsupported | No invoice, payment, checkout, or webhook APIs |
 | Tenant business data or secret access | Forbidden boundary | A SuperAdmin is not a CPO ADMIN and cannot impersonate one |
 
 ## Persona and Authorization Boundary
@@ -159,9 +160,11 @@ Suggested CPO detail regions:
 5. Recovery actions with mandatory reason confirmation.
 6. CPO-filtered audit history.
 
-Do not add navigation for subscriptions, plan catalog, entitlements, platform
-invoices, platform payments, platform-admin management, generic mail jobs,
-announcements, or an aggregate overview. Those routes do not exist.
+Add a subscription-management area only for platform superadmins, following
+`docs/contracts/api/manual-subscriptions.md`. Do not add invoice, payment,
+checkout, webhook, automatic-renewal, scheduled-change, or provider UI:
+those routes do not exist. Platform-admin management, generic mail jobs,
+announcements, and an aggregate overview also remain unavailable.
 
 ## HTTP Conventions
 
@@ -1237,8 +1240,9 @@ The FE should raise, not paper over, these gaps:
 5. There is no platform overview/count/version endpoint.
 6. There is no generated frontend SDK or committed generated types.
 7. There is no SuperAdmin tenant impersonation/support-access workflow.
-8. Tenant subscriptions, entitlements, platform invoices, and platform
-   payments are intentionally retired and must not return as FE placeholders.
+8. Manual subscription plans, CPO subscriptions, history, and entitlement
+   overrides are platform-only. Platform invoices, payments, checkout,
+   webhooks, and automatic lifecycle behavior remain intentionally unsupported.
 
 If the FE generates types from OpenAPI, pin the generator version in the FE
 repository and make regeneration plus type-checking part of its verification.

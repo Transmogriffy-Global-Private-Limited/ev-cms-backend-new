@@ -76,11 +76,11 @@ provides:
 - a canonical CPO backend AI-agent handoff covering current capability,
   ownership, tenant/HAL boundaries, remaining dependency order, slice
   execution, verification, and handoff requirements;
-- a canonical SuperAdmin frontend handoff covering the 28-operation platform
+- a canonical SuperAdmin frontend handoff covering the 48-operation platform
   integration surface, TypeScript contracts, auth/token state, CPO workflows,
   audit/workers, SSE/replay, error UX, security, verification, and explicit
   blocked/unimplemented behavior;
-- canonical OpenAPI 3.1 for all 70 source-tree business/health operations;
+- canonical OpenAPI 3.1 for all 90 source-tree business/health operations;
 - embedded same-origin Swagger UI at `/docs/` and raw OpenAPI at
   `/openapi.yaml`;
 - `API_DOCS_ENABLED` registration control for both documentation surfaces,
@@ -104,9 +104,14 @@ provides:
   machines;
 - durable platform event replay, authenticated SSE, filtered audit query, and
   registered worker-health/readiness APIs;
-- manual superadmin CPO access through explicit activation and suspension, with
-  no tenant subscription, entitlement, platform-invoice, or platform-payment
-  runtime;
+- platform-superadmin-only manual subscription plans, immutable published plan
+  versions, explicit CPO issue/renew/change/status commands, idempotent
+  transition history, and CPO entitlement overrides;
+- server-generated subscription UUIDs/version numbers/timestamps plus atomic
+  audit/platform-event records; no client supplies those values;
+- no provider, checkout, invoice/payment API, webhook, subscription mail,
+  automatic renewal, scheduled transition, or lifecycle worker; CPO
+  activation/suspension remains independent from subscription state;
 - a reversible migration-nine retirement boundary that preserves the removed
   prototype tables in `retired_commercial` and disables their worker records;
 - an active VPS deployment at `dev-evcmsnew.transev.site`, with Caddy proxying
@@ -125,6 +130,10 @@ and preserved during deployment. Migration nine continues to preserve the
 `retired_commercial` schema. Safe structured HTTP request logging is active;
 the current development environment uses `LOG_LEVEL=DEBUG` for correlated
 request-start and completion diagnostics.
+
+The source tree now adds migration twelve and a 90-operation manual
+subscription API, but those changes have not been deployed to the VPS or run
+against a disposable PostgreSQL lifecycle database in this slice.
 
 The deployed recovery flow fixes a recovery-specific OTP mapper defect that discarded
 `challenge_id` before outbox validation and caused eligible administrative and
@@ -155,7 +164,7 @@ yet.
   slug and GSTIN conflict codes.
 - Required-field validation, slug normalization/authorization, migration
   content, and affected package tests passed for the source-tree change.
-- The 70-operation source OpenAPI and runtime route sets match; documentation
+- The 90-operation source OpenAPI and runtime route sets match; documentation
   contract verification passed.
 - `go test ./...` passed.
 - `go vet ./...` passed.
@@ -307,8 +316,9 @@ repository. The integration contract has not been implemented yet.
   reporting, and most other domain tables remain without business APIs.
 - CPO staff invitation after the first admin and customer email/profile-change
   workflows are not implemented.
-- Tenant subscriptions, platform invoices, and platform payments are
-  intentionally unsupported; CPO access is manual.
+- Manual subscriptions and entitlement overrides are platform-only records;
+  platform invoices/payments and all provider or automatic lifecycle behavior
+  remain unsupported, and CPO access is manual and independent.
 - Automatic encryption-key rotation is not implemented; data must be
   re-encrypted before an old key is removed.
 - SMTP delivery logic is implemented, worker-tested, and verified through one
@@ -316,6 +326,6 @@ repository. The integration contract has not been implemented yet.
   in the ignored deployment environment.
 - No generated frontend SDK exists yet; consumers use the reviewed OpenAPI
   contract directly.
-- Migration eleven's disposable PostgreSQL lifecycle coverage has not executed
-  because deleting a test database was not authorized. The live development
-  deployment is current on migration eleven and the 70-operation contract.
+- Migration twelve's disposable PostgreSQL lifecycle coverage has not executed
+  because no disposable `TEST_DATABASE_URL` is configured. The live development
+  deployment is still current on migration eleven and the 70-operation contract.

@@ -651,8 +651,8 @@ Current integration contract:
 Non-goals:
 
 - Superadmin access to tenant business data or tenant secret plaintext
-- Tenant subscription, entitlement, platform-invoice, or platform-payment
-  management
+- Platform invoices, platform payments, checkout, provider webhooks, or
+  automatic commercial lifecycle
 - Redis, NATS, or a separate realtime service
 
 Detailed plan:
@@ -663,6 +663,45 @@ Architecture decision:
 
 - `docs/decisions/0007-complete-superadmin-control-plane.md`, as revised by
   `docs/decisions/0008-manual-cpo-access-without-commercial-management.md`
+
+### Feature: Manual platform subscriptions
+
+Status: In Progress
+
+Phase: Phase 2: Authentication and CPO administration
+
+Depends on:
+
+- Platform-superadmin authentication and audit/event operations
+- Existing migration-nine retired commercial preservation boundary
+
+Enables:
+
+- Manual plan catalog and immutable published version management
+- Manual CPO subscription issue, renewal, state control, history, and
+  entitlement overrides without provider infrastructure
+
+Objective:
+
+Restore the subscription infrastructure as an explicit superadmin-operated
+system while retaining the retirement of platform billing and all automatic
+provider/lifecycle behavior.
+
+Non-goals:
+
+- CPO access control based on subscription status or dates
+- Invoice, payment, checkout, collection, webhook, or provider integration
+- Scheduled plan changes, period-end cancellation, automatic renewal, trial
+  completion, expiry, or subscription email
+- Feature enforcement beyond reporting resolved entitlement metadata
+
+Detailed plan:
+
+- `docs/plans/manual-platform-subscriptions.md`
+
+Architecture decision:
+
+- `docs/decisions/0012-manual-platform-subscriptions-without-provider.md`
 
 ### Feature: CPO administrator and initial network configuration
 
@@ -731,15 +770,18 @@ Current phase:
 
 Active feature:
 
-- Complete superadmin control plane
+- Manual platform subscriptions
 
 Current implementation slice:
 
-- Platform-superadmin governance: define the smallest complete authority grant,
-  removal, last-admin protection, and platform-session revocation flow
+- Restore and verify the manual subscription catalog, issuance, explicit
+  lifecycle commands, and entitlement override contract without billing
 
 Last completed slice:
 
+- The previous recovery-payload release and its hosted verification are
+  complete; manual subscriptions now supersede the retired-subscription
+  non-goal under ADR 0012.
 - Removed the lossy OTP-only outbox wrapper so administrative and customer
   recovery enqueue the complete canonical payload with `challenge_id`; added
   database-free validation for both reset templates. Revision `d0059fe` is
@@ -783,7 +825,8 @@ Last deployment milestone:
 
 Next expected slice:
 
-- Resume the approved platform-superadmin governance slice
+- Run the migration-twelve PostgreSQL lifecycle verification against a
+  disposable database, then resume platform-superadmin governance
 
 Blocked by:
 
@@ -791,9 +834,11 @@ Blocked by:
 
 ## Next Approved Work
 
-1. Resume the superadmin control-plane slices in
+1. Run manual-subscription PostgreSQL lifecycle verification from
+   `docs/plans/manual-platform-subscriptions.md`.
+2. Resume the superadmin control-plane slices in
    `docs/plans/superadmin-control-plane.md`.
-2. Design staff invitation and membership management before activating dormant
+3. Design staff invitation and membership management before activating dormant
    role values.
 
 ## Deferred Work
@@ -818,7 +863,7 @@ Blocked by:
 - SMTP availability is an operational dependency for administrative login and
   password recovery.
 - CPO access is an explicit platform-superadmin activation/suspension decision;
-  no commercial or payment state controls tenant authorization.
+  manual subscription records never control tenant authorization.
 - The exact CMS/HAL API contract will be defined with the charging-network and
   charging-lifecycle phases.
 - `OWNER`, `OPERATOR`, and `VIEWER` are dormant schema capacity only. Their
@@ -849,6 +894,10 @@ compile/model/migration-discovery/route/OpenAPI tests. Migrations seven and
 eight are retained as immutable deployment history only. Migration nine
 retires their tables into `retired_commercial`; its disposable PostgreSQL 17
 up/guard/data-preservation/worker-disable/down lifecycle passed.
+Migration twelve restores only the six subscription tables with immutable
+published plan snapshots; its manual lifecycle test requires a disposable
+`TEST_DATABASE_URL`. Platform-billing tables and automated workers remain
+retired.
 
 ## Completion Criteria
 

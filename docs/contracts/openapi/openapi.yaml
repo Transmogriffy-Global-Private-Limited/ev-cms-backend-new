@@ -40,6 +40,8 @@ tags:
     description: Platform-superadmin CPO provisioning and lifecycle control.
   - name: Platform Operations
     description: Durable audit, event recovery, worker health, and realtime operations.
+  - name: Manual Subscriptions
+    description: Platform-superadmin issued subscription plans, periods, and entitlements without a payment provider or automatic lifecycle worker.
   - name: CPO Operations
     description: Tenant-scoped profile, charging-network inventory, tax, and tariff operations.
   - name: CPO Integrations
@@ -2728,6 +2730,272 @@ paths:
         "500":
           $ref: "#/components/responses/InternalError"
 
+  /api/v1/platform/plans:
+    get:
+      tags: [Manual Subscriptions]
+      operationId: listSubscriptionPlans
+      summary: List the platform subscription catalog
+      security: [{BearerAuth: []}]
+      responses:
+        "200": {description: Plans and all versions, content: {application/json: {schema: {$ref: "#/components/schemas/SubscriptionPlanListResponse"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/PlatformForbidden"}
+        "500": {$ref: "#/components/responses/InternalError"}
+    post:
+      tags: [Manual Subscriptions]
+      operationId: createSubscriptionPlan
+      summary: Create a draft subscription plan and its first draft version
+      description: The server generates all identifiers. A plan cannot be issued until a superadmin publishes its version.
+      security: [{BearerAuth: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/CreateSubscriptionPlanRequest"}}}}
+      responses:
+        "201": {description: Draft plan created, content: {application/json: {schema: {$ref: "#/components/schemas/SubscriptionPlanView"}}}}
+        "400": {$ref: "#/components/responses/InvalidRequest"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/PlatformForbidden"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "500": {$ref: "#/components/responses/InternalError"}
+
+  /api/v1/platform/plans/{plan_id}:
+    get:
+      tags: [Manual Subscriptions]
+      operationId: getSubscriptionPlan
+      summary: Get a subscription plan, versions, and entitlements
+      security: [{BearerAuth: []}]
+      parameters: [{$ref: "#/components/parameters/PlanID"}]
+      responses:
+        "200": {description: Plan detail, content: {application/json: {schema: {$ref: "#/components/schemas/SubscriptionPlanView"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/PlatformForbidden"}
+        "404": {$ref: "#/components/responses/SubscriptionPlanNotFound"}
+        "500": {$ref: "#/components/responses/InternalError"}
+
+  /api/v1/platform/plans/{plan_id}/draft:
+    put:
+      tags: [Manual Subscriptions]
+      operationId: updateSubscriptionPlanDraft
+      summary: Create or replace the plan's single editable draft version
+      description: Published versions are immutable. This operation creates the next server-numbered version when no draft exists.
+      security: [{BearerAuth: []}]
+      parameters: [{$ref: "#/components/parameters/PlanID"}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/UpdateSubscriptionPlanDraftRequest"}}}}
+      responses:
+        "200": {description: Updated plan detail, content: {application/json: {schema: {$ref: "#/components/schemas/SubscriptionPlanView"}}}}
+        "400": {$ref: "#/components/responses/InvalidRequest"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/PlatformForbidden"}
+        "404": {$ref: "#/components/responses/SubscriptionPlanNotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "500": {$ref: "#/components/responses/InternalError"}
+
+  /api/v1/platform/plans/{plan_id}/publish:
+    post:
+      tags: [Manual Subscriptions]
+      operationId: publishSubscriptionPlan
+      summary: Publish the plan's current draft version
+      security: [{BearerAuth: []}]
+      parameters: [{$ref: "#/components/parameters/PlanID"}]
+      responses:
+        "200": {description: Published plan detail, content: {application/json: {schema: {$ref: "#/components/schemas/SubscriptionPlanView"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/PlatformForbidden"}
+        "404": {$ref: "#/components/responses/SubscriptionPlanNotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "500": {$ref: "#/components/responses/InternalError"}
+
+  /api/v1/platform/plans/{plan_id}/archive:
+    post:
+      tags: [Manual Subscriptions]
+      operationId: archiveSubscriptionPlan
+      summary: Archive a plan so it can no longer be issued
+      description: Existing subscriptions continue to retain their immutable plan version.
+      security: [{BearerAuth: []}]
+      parameters: [{$ref: "#/components/parameters/PlanID"}]
+      responses:
+        "200": {description: Archived plan detail, content: {application/json: {schema: {$ref: "#/components/schemas/SubscriptionPlanView"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/PlatformForbidden"}
+        "404": {$ref: "#/components/responses/SubscriptionPlanNotFound"}
+        "500": {$ref: "#/components/responses/InternalError"}
+
+  /api/v1/platform/cpos/{cpo_id}/subscription:
+    get:
+      tags: [Manual Subscriptions]
+      operationId: getCurrentCPOSubscription
+      summary: Get the CPO's current manually managed subscription
+      security: [{BearerAuth: []}]
+      parameters: [{$ref: "#/components/parameters/CPOID"}]
+      responses:
+        "200": {description: Current subscription, content: {application/json: {schema: {$ref: "#/components/schemas/SubscriptionView"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/PlatformForbidden"}
+        "404": {$ref: "#/components/responses/SubscriptionNotFound"}
+        "500": {$ref: "#/components/responses/InternalError"}
+    post:
+      tags: [Manual Subscriptions]
+      operationId: issueCPOSubscription
+      summary: Manually issue a subscription from a published plan version
+      description: This is a platform-superadmin command, not payment-provider fulfillment. It records a period but does not automatically renew, activate, expire, or alter CPO access.
+      security: [{BearerAuth: []}]
+      parameters: [{$ref: "#/components/parameters/CPOID"}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/IssueSubscriptionRequest"}}}}
+      responses:
+        "201": {description: Subscription issued, content: {application/json: {schema: {$ref: "#/components/schemas/SubscriptionView"}}}}
+        "400": {$ref: "#/components/responses/InvalidRequest"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/PlatformForbidden"}
+        "404": {$ref: "#/components/responses/SubscriptionPublishedVersionNotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "500": {$ref: "#/components/responses/InternalError"}
+
+  /api/v1/platform/cpos/{cpo_id}/subscription/renew:
+    post:
+      tags: [Manual Subscriptions]
+      operationId: renewCPOSubscription
+      summary: Manually record the next subscription period
+      description: There is no automatic renewal. This command recalculates the period from the recorded plan terms; it does not reactivate a paused or past-due subscription.
+      security: [{BearerAuth: []}]
+      parameters: [{$ref: "#/components/parameters/CPOID"}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/RenewSubscriptionRequest"}}}}
+      responses: &subscriptionActionResponses
+        "200": {description: Updated subscription, content: {application/json: {schema: {$ref: "#/components/schemas/SubscriptionView"}}}}
+        "400": {$ref: "#/components/responses/InvalidRequest"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/PlatformForbidden"}
+        "404": {$ref: "#/components/responses/SubscriptionNotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "500": {$ref: "#/components/responses/InternalError"}
+
+  /api/v1/platform/cpos/{cpo_id}/subscription/change-plan:
+    post:
+      tags: [Manual Subscriptions]
+      operationId: changeCPOSubscriptionPlan
+      summary: Immediately switch a current subscription to a published plan version
+      description: Scheduled provider changes are intentionally unsupported; this command is the explicit manual action.
+      security: [{BearerAuth: []}]
+      parameters: [{$ref: "#/components/parameters/CPOID"}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/ChangeSubscriptionPlanRequest"}}}}
+      responses: *subscriptionActionResponses
+
+  /api/v1/platform/cpos/{cpo_id}/subscription/activate:
+    post:
+      tags: [Manual Subscriptions]
+      operationId: activateCPOTrialSubscription
+      summary: Manually activate a trial subscription
+      description: Passing a trial end date alone changes nothing. A superadmin must activate it explicitly.
+      security: [{BearerAuth: []}]
+      parameters: [{$ref: "#/components/parameters/CPOID"}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/SubscriptionTransitionRequest"}}}}
+      responses: *subscriptionActionResponses
+
+  /api/v1/platform/cpos/{cpo_id}/subscription/pause:
+    post:
+      tags: [Manual Subscriptions]
+      operationId: pauseCPOSubscription
+      summary: Manually pause a subscription
+      security: [{BearerAuth: []}]
+      parameters: [{$ref: "#/components/parameters/CPOID"}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/SubscriptionTransitionRequest"}}}}
+      responses: *subscriptionActionResponses
+
+  /api/v1/platform/cpos/{cpo_id}/subscription/resume:
+    post:
+      tags: [Manual Subscriptions]
+      operationId: resumeCPOSubscription
+      summary: Manually resume a paused or past-due subscription
+      security: [{BearerAuth: []}]
+      parameters: [{$ref: "#/components/parameters/CPOID"}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/SubscriptionTransitionRequest"}}}}
+      responses: *subscriptionActionResponses
+
+  /api/v1/platform/cpos/{cpo_id}/subscription/mark-past-due:
+    post:
+      tags: [Manual Subscriptions]
+      operationId: markCPOSubscriptionPastDue
+      summary: Manually record that a subscription is past due
+      description: This does not query or create a payment; it is an audited platform decision.
+      security: [{BearerAuth: []}]
+      parameters: [{$ref: "#/components/parameters/CPOID"}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/SubscriptionTransitionRequest"}}}}
+      responses: *subscriptionActionResponses
+
+  /api/v1/platform/cpos/{cpo_id}/subscription/expire:
+    post:
+      tags: [Manual Subscriptions]
+      operationId: expireCPOSubscription
+      summary: Manually expire a subscription
+      security: [{BearerAuth: []}]
+      parameters: [{$ref: "#/components/parameters/CPOID"}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/SubscriptionTransitionRequest"}}}}
+      responses: *subscriptionActionResponses
+
+  /api/v1/platform/cpos/{cpo_id}/subscription/cancel:
+    post:
+      tags: [Manual Subscriptions]
+      operationId: cancelCPOSubscription
+      summary: Manually cancel a subscription immediately
+      description: Cancellation-at-period-end is intentionally unsupported because no automatic lifecycle worker exists.
+      security: [{BearerAuth: []}]
+      parameters: [{$ref: "#/components/parameters/CPOID"}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/SubscriptionTransitionRequest"}}}}
+      responses: *subscriptionActionResponses
+
+  /api/v1/platform/cpos/{cpo_id}/subscription/history:
+    get:
+      tags: [Manual Subscriptions]
+      operationId: listCPOSubscriptionHistory
+      summary: List up to 500 audited manual subscription transitions
+      security: [{BearerAuth: []}]
+      parameters: [{$ref: "#/components/parameters/CPOID"}]
+      responses:
+        "200": {description: Newest-first history, content: {application/json: {schema: {$ref: "#/components/schemas/SubscriptionHistoryResponse"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/PlatformForbidden"}
+        "500": {$ref: "#/components/responses/InternalError"}
+
+  /api/v1/platform/cpos/{cpo_id}/entitlements:
+    get:
+      tags: [Manual Subscriptions]
+      operationId: getEffectiveCPOEntitlements
+      summary: Resolve published plan entitlements plus active manual overrides
+      description: This endpoint reports entitlement metadata. It does not itself enforce product features or change CPO activation.
+      security: [{BearerAuth: []}]
+      parameters: [{$ref: "#/components/parameters/CPOID"}]
+      responses:
+        "200": {description: Effective entitlement view, content: {application/json: {schema: {$ref: "#/components/schemas/EffectiveEntitlementsResponse"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/PlatformForbidden"}
+        "500": {$ref: "#/components/responses/InternalError"}
+
+  /api/v1/platform/cpos/{cpo_id}/entitlement-overrides/{feature_key}:
+    put:
+      tags: [Manual Subscriptions]
+      operationId: setCPOEntitlementOverride
+      summary: Create or replace a manual CPO entitlement override
+      security: [{BearerAuth: []}]
+      parameters: [{$ref: "#/components/parameters/CPOID"}, {$ref: "#/components/parameters/SubscriptionFeatureKey"}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/EntitlementOverrideRequest"}}}}
+      responses:
+        "200": {description: Stored override, content: {application/json: {schema: {$ref: "#/components/schemas/CPOEntitlementOverride"}}}}
+        "400": {$ref: "#/components/responses/InvalidRequest"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/PlatformForbidden"}
+        "404": {$ref: "#/components/responses/CPONotFound"}
+        "500": {$ref: "#/components/responses/InternalError"}
+    delete:
+      tags: [Manual Subscriptions]
+      operationId: deleteCPOEntitlementOverride
+      summary: Remove a manual CPO entitlement override
+      security: [{BearerAuth: []}]
+      parameters: [{$ref: "#/components/parameters/CPOID"}, {$ref: "#/components/parameters/SubscriptionFeatureKey"}, {name: reason, in: query, required: true, schema: {type: string, minLength: 1, maxLength: 500}}]
+      responses:
+        "204": {description: Override removed.}
+        "400": {$ref: "#/components/responses/InvalidRequest"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/PlatformForbidden"}
+        "404": {$ref: "#/components/responses/EntitlementOverrideNotFound"}
+        "500": {$ref: "#/components/responses/InternalError"}
+
 components:
   headers:
     RequestID:
@@ -2770,6 +3038,23 @@ components:
       schema:
         type: string
         format: uuid
+    PlanID:
+      name: plan_id
+      in: path
+      required: true
+      description: Server-generated subscription plan UUID.
+      schema:
+        type: string
+        format: uuid
+    SubscriptionFeatureKey:
+      name: feature_key
+      in: path
+      required: true
+      description: Lowercase entitlement feature identifier.
+      schema:
+        type: string
+        maxLength: 120
+        pattern: "^[a-z0-9]+(?:[._-][a-z0-9]+)*$"
     SessionID:
       name: session_id
       in: path
@@ -2873,6 +3158,42 @@ components:
         application/json:
           schema:
             $ref: "#/components/schemas/ErrorEnvelope"
+    PlatformForbidden:
+      description: "`permission_denied` — platform-superadmin authority is required."
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorEnvelope"
+    Conflict:
+      description: "The requested operation conflicts with current durable state."
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorEnvelope"
+    SubscriptionPlanNotFound:
+      description: "`subscription_plan_not_found` — no subscription plan has the supplied ID."
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorEnvelope"
+    SubscriptionPublishedVersionNotFound:
+      description: "`published_plan_version_not_found` — the version is unpublished or its plan is archived."
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorEnvelope"
+    SubscriptionNotFound:
+      description: "`subscription_not_found` — the CPO has no current subscription."
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorEnvelope"
+    EntitlementOverrideNotFound:
+      description: "`entitlement_override_not_found` — the CPO has no matching manual override."
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorEnvelope"
     RateLimited:
       description: "`rate_limited` — durable source-address limit exceeded."
       content:
@@ -2933,6 +3254,216 @@ components:
             $ref: "#/components/schemas/ErrorEnvelope"
 
   schemas:
+    SubscriptionPlanTerms:
+      type: object
+      additionalProperties: false
+      required: [currency, price_minor, billing_interval, interval_count, trial_days, entitlements]
+      properties:
+        currency: {type: string, pattern: "^[A-Z]{3}$"}
+        price_minor: {type: integer, format: int64, minimum: 0}
+        billing_interval: {type: string, enum: [MONTHLY, YEARLY]}
+        interval_count: {type: integer, minimum: 1, maximum: 120}
+        trial_days: {type: integer, minimum: 0, maximum: 365}
+        entitlements: {type: array, items: {$ref: "#/components/schemas/EntitlementInput"}}
+    CreateSubscriptionPlanRequest:
+      type: object
+      additionalProperties: false
+      required: [code, name, terms]
+      properties:
+        code: {type: string, maxLength: 80, pattern: "^[a-z0-9]+(?:_[a-z0-9]+)*$"}
+        name: {type: string, minLength: 1, maxLength: 150}
+        description: {type: string, maxLength: 2000, default: ""}
+        terms: {$ref: "#/components/schemas/SubscriptionPlanTerms"}
+    UpdateSubscriptionPlanDraftRequest:
+      type: object
+      additionalProperties: false
+      required: [name, terms]
+      properties:
+        name: {type: string, minLength: 1, maxLength: 150}
+        description: {type: string, maxLength: 2000, default: ""}
+        terms: {$ref: "#/components/schemas/SubscriptionPlanTerms"}
+    SubscriptionPlan:
+      type: object
+      additionalProperties: false
+      required: [id, code, name, description, status, created_by, created_at, updated_at]
+      properties:
+        id: {type: string, format: uuid}
+        code: {type: string}
+        name: {type: string}
+        description: {type: string}
+        status: {type: string, enum: [DRAFT, PUBLISHED, ARCHIVED]}
+        created_by: {type: string, format: uuid}
+        created_at: {type: string, format: date-time}
+        updated_at: {type: string, format: date-time}
+    SubscriptionPlanVersion:
+      type: object
+      additionalProperties: false
+      required: [id, plan_id, version, status, currency, price_minor, billing_interval, interval_count, trial_days, created_at, updated_at]
+      properties:
+        id: {type: string, format: uuid}
+        plan_id: {type: string, format: uuid}
+        version: {type: integer, minimum: 1}
+        status: {type: string, enum: [DRAFT, PUBLISHED]}
+        currency: {type: string, pattern: "^[A-Z]{3}$"}
+        price_minor: {type: integer, format: int64, minimum: 0}
+        billing_interval: {type: string, enum: [MONTHLY, YEARLY]}
+        interval_count: {type: integer}
+        trial_days: {type: integer}
+        published_at: {type: string, format: date-time}
+        published_by: {type: string, format: uuid}
+        created_at: {type: string, format: date-time}
+        updated_at: {type: string, format: date-time}
+    SubscriptionPlanEntitlement:
+      allOf:
+        - $ref: "#/components/schemas/EntitlementInput"
+        - type: object
+          required: [id, plan_version_id, created_at, updated_at]
+          properties:
+            id: {type: string, format: uuid}
+            plan_version_id: {type: string, format: uuid}
+            created_at: {type: string, format: date-time}
+            updated_at: {type: string, format: date-time}
+    SubscriptionPlanView:
+      type: object
+      additionalProperties: false
+      required: [plan, published_versions, entitlements]
+      properties:
+        plan: {$ref: "#/components/schemas/SubscriptionPlan"}
+        draft: {$ref: "#/components/schemas/SubscriptionPlanVersion"}
+        published_versions: {type: array, items: {$ref: "#/components/schemas/SubscriptionPlanVersion"}}
+        entitlements:
+          type: object
+          additionalProperties: {type: array, items: {$ref: "#/components/schemas/SubscriptionPlanEntitlement"}}
+    SubscriptionPlanListResponse:
+      type: object
+      additionalProperties: false
+      required: [plans]
+      properties:
+        plans: {type: array, items: {$ref: "#/components/schemas/SubscriptionPlanView"}}
+    SubscriptionActionFields:
+      type: object
+      additionalProperties: false
+      required: [reason, idempotency_key]
+      properties:
+        reason: {type: string, minLength: 1, maxLength: 500}
+        idempotency_key: {type: string, minLength: 1, maxLength: 120}
+    IssueSubscriptionRequest:
+      allOf:
+        - $ref: "#/components/schemas/SubscriptionActionFields"
+        - type: object
+          required: [plan_version_id]
+          properties:
+            plan_version_id: {type: string, format: uuid}
+            starts_at: {type: string, format: date-time, description: Optional past or current provision date.}
+    RenewSubscriptionRequest:
+      allOf:
+        - $ref: "#/components/schemas/SubscriptionActionFields"
+        - type: object
+          properties:
+            starts_at: {type: string, format: date-time, description: Optional past or current period start.}
+    ChangeSubscriptionPlanRequest:
+      allOf:
+        - $ref: "#/components/schemas/SubscriptionActionFields"
+        - type: object
+          required: [plan_version_id]
+          properties:
+            plan_version_id: {type: string, format: uuid}
+    SubscriptionTransitionRequest:
+      $ref: "#/components/schemas/SubscriptionActionFields"
+    CPOSubscription:
+      type: object
+      additionalProperties: false
+      required: [id, cpo_id, plan_version_id, status, starts_at, current_period_starts_at, current_period_ends_at, cancel_at_period_end, created_by, created_at, updated_at]
+      properties:
+        id: {type: string, format: uuid}
+        cpo_id: {type: string, format: uuid}
+        plan_version_id: {type: string, format: uuid}
+        status: {type: string, enum: [TRIAL, ACTIVE, PAUSED, PAST_DUE, CANCELLED, EXPIRED]}
+        starts_at: {type: string, format: date-time}
+        trial_ends_at: {type: string, format: date-time}
+        current_period_starts_at: {type: string, format: date-time}
+        current_period_ends_at: {type: string, format: date-time}
+        cancel_at_period_end: {type: boolean, description: Always false for manually managed subscriptions.}
+        pending_plan_version_id: {type: string, format: uuid, description: Always absent; scheduled changes are unsupported.}
+        pending_change_at: {type: string, format: date-time}
+        cancelled_at: {type: string, format: date-time}
+        ended_at: {type: string, format: date-time}
+        created_by: {type: string, format: uuid}
+        created_at: {type: string, format: date-time}
+        updated_at: {type: string, format: date-time}
+    SubscriptionView:
+      type: object
+      additionalProperties: false
+      required: [subscription, plan, plan_version]
+      properties:
+        subscription: {$ref: "#/components/schemas/CPOSubscription"}
+        plan: {$ref: "#/components/schemas/SubscriptionPlan"}
+        plan_version: {$ref: "#/components/schemas/SubscriptionPlanVersion"}
+    CPOSubscriptionHistory:
+      type: object
+      additionalProperties: false
+      required: [id, subscription_id, cpo_id, next_status, next_plan_version_id, actor_user_id, reason, idempotency_key, effective_at, metadata, created_at]
+      properties:
+        id: {type: string, format: uuid}
+        subscription_id: {type: string, format: uuid}
+        cpo_id: {type: string, format: uuid}
+        previous_status: {type: string, enum: [TRIAL, ACTIVE, PAUSED, PAST_DUE, CANCELLED, EXPIRED]}
+        next_status: {type: string, enum: [TRIAL, ACTIVE, PAUSED, PAST_DUE, CANCELLED, EXPIRED]}
+        previous_plan_version_id: {type: string, format: uuid}
+        next_plan_version_id: {type: string, format: uuid}
+        actor_user_id: {type: string, format: uuid}
+        reason: {type: string}
+        idempotency_key: {type: string}
+        effective_at: {type: string, format: date-time}
+        metadata: {type: object, additionalProperties: true}
+        created_at: {type: string, format: date-time}
+    SubscriptionHistoryResponse:
+      type: object
+      additionalProperties: false
+      required: [history]
+      properties:
+        history: {type: array, items: {$ref: "#/components/schemas/CPOSubscriptionHistory"}}
+    EntitlementOverrideRequest:
+      type: object
+      additionalProperties: false
+      required: [enabled, reason]
+      properties:
+        enabled: {type: boolean}
+        limit_value: {type: integer, format: int64, minimum: 0}
+        configuration: {type: object, additionalProperties: true, default: {}}
+        reason: {type: string, minLength: 1, maxLength: 500}
+        expires_at: {type: string, format: date-time, description: Must be future when supplied.}
+    CPOEntitlementOverride:
+      allOf:
+        - $ref: "#/components/schemas/EntitlementOverrideRequest"
+        - type: object
+          required: [id, cpo_id, feature_key, created_by, created_at, updated_at]
+          properties:
+            id: {type: string, format: uuid}
+            cpo_id: {type: string, format: uuid}
+            feature_key: {type: string}
+            created_by: {type: string, format: uuid}
+            created_at: {type: string, format: date-time}
+            updated_at: {type: string, format: date-time}
+    EffectiveEntitlement:
+      type: object
+      additionalProperties: false
+      required: [feature_key, enabled, configuration, source]
+      properties:
+        feature_key: {type: string}
+        enabled: {type: boolean}
+        limit_value: {type: integer, format: int64}
+        configuration: {type: object, additionalProperties: true}
+        source: {type: string, enum: [PLAN, OVERRIDE]}
+        expires_at: {type: string, format: date-time}
+    EffectiveEntitlementsResponse:
+      type: object
+      additionalProperties: false
+      required: [entitlements]
+      properties:
+        subscription: {$ref: "#/components/schemas/SubscriptionView"}
+        entitlements: {type: array, items: {$ref: "#/components/schemas/EffectiveEntitlement"}}
+
     EntitlementInput:
       type: object
       additionalProperties: false

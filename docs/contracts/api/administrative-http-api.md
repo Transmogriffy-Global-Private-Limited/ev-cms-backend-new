@@ -2096,9 +2096,10 @@ Errors: shared `401`, `403`, or `500` responses.
 
 ## 12. Manual CPO Platform Access
 
-The CMS has no tenant subscription, entitlement, platform-invoice, or
-platform-payment API. A platform superadmin grants or removes CPO access
-directly:
+Subscription management is documented separately in
+`docs/contracts/api/manual-subscriptions.md`. It is a manual platform
+management record and never changes CPO access automatically. A platform
+superadmin grants or removes CPO access directly:
 
 ```text
 POST /api/v1/platform/cpos/{cpo_id}/activate
@@ -2108,7 +2109,31 @@ POST /api/v1/platform/cpos/{cpo_id}/suspend
 `ACTIVE` permits eligible CPO administrative authentication and tenant
 operations. `SUSPENDED` blocks new tenant access while preserving the CPO and
 its historical data. These actions are explicit, audited platform decisions;
-there is no commercial state machine or automatic payment-driven transition.
+there is no payment-driven transition.
+
+### 12.1 Manual Platform Subscriptions
+
+Platform-superadmin subscription routes are:
+
+```text
+POST/GET /api/v1/platform/plans
+GET /api/v1/platform/plans/{plan_id}
+PUT /api/v1/platform/plans/{plan_id}/draft
+POST /api/v1/platform/plans/{plan_id}/publish
+POST /api/v1/platform/plans/{plan_id}/archive
+POST/GET /api/v1/platform/cpos/{cpo_id}/subscription
+POST /api/v1/platform/cpos/{cpo_id}/subscription/{renew,change-plan,activate,pause,resume,mark-past-due,expire,cancel}
+GET /api/v1/platform/cpos/{cpo_id}/subscription/history
+GET /api/v1/platform/cpos/{cpo_id}/entitlements
+PUT/DELETE /api/v1/platform/cpos/{cpo_id}/entitlement-overrides/{feature_key}
+```
+
+They are described completely by
+`docs/contracts/api/manual-subscriptions.md` and the canonical OpenAPI schema.
+All writes are audited and idempotency-keyed manual commands. The API manages
+records only: it has no payment provider, invoice/payment flow, webhook,
+automatic renewal or expiry, scheduled transition, subscription email, or CPO
+authorization effect.
 
 ## 13. Client State Machine
 
@@ -2146,8 +2171,7 @@ The contract does not provide:
 - any tenant-side CPO profile route;
 - payment execution or Razorpay webhook verification;
 - CMS/HAL commands or callbacks;
-- tenant subscriptions, entitlement packages, platform invoices, or platform
-  payment management;
+- platform invoices or platform payment management;
 - OpenAPI-generated SDKs.
 
 Database tables for several future domains do not imply callable APIs.

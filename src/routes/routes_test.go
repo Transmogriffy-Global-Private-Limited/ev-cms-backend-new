@@ -23,6 +23,7 @@ import (
 	cmsmail "github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/mail"
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/platformops"
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/security"
+	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/subscriptions"
 	"github.com/getkin/kin-openapi/openapi3"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -63,6 +64,26 @@ func TestCredentialRoutesAreRegisteredAndProtected(t *testing.T) {
 		{http.MethodGet, "/api/v1/platform/realtime/stream"},
 		{http.MethodGet, "/api/v1/platform/audit-logs"},
 		{http.MethodGet, "/api/v1/platform/workers"},
+		{http.MethodGet, "/api/v1/platform/plans"},
+		{http.MethodPost, "/api/v1/platform/plans"},
+		{http.MethodGet, "/api/v1/platform/plans/00000000-0000-0000-0000-000000000001"},
+		{http.MethodPut, "/api/v1/platform/plans/00000000-0000-0000-0000-000000000001/draft"},
+		{http.MethodPost, "/api/v1/platform/plans/00000000-0000-0000-0000-000000000001/publish"},
+		{http.MethodPost, "/api/v1/platform/plans/00000000-0000-0000-0000-000000000001/archive"},
+		{http.MethodPost, "/api/v1/platform/cpos/00000000-0000-0000-0000-000000000001/subscription"},
+		{http.MethodGet, "/api/v1/platform/cpos/00000000-0000-0000-0000-000000000001/subscription"},
+		{http.MethodPost, "/api/v1/platform/cpos/00000000-0000-0000-0000-000000000001/subscription/renew"},
+		{http.MethodPost, "/api/v1/platform/cpos/00000000-0000-0000-0000-000000000001/subscription/change-plan"},
+		{http.MethodPost, "/api/v1/platform/cpos/00000000-0000-0000-0000-000000000001/subscription/activate"},
+		{http.MethodPost, "/api/v1/platform/cpos/00000000-0000-0000-0000-000000000001/subscription/pause"},
+		{http.MethodPost, "/api/v1/platform/cpos/00000000-0000-0000-0000-000000000001/subscription/resume"},
+		{http.MethodPost, "/api/v1/platform/cpos/00000000-0000-0000-0000-000000000001/subscription/mark-past-due"},
+		{http.MethodPost, "/api/v1/platform/cpos/00000000-0000-0000-0000-000000000001/subscription/expire"},
+		{http.MethodPost, "/api/v1/platform/cpos/00000000-0000-0000-0000-000000000001/subscription/cancel"},
+		{http.MethodGet, "/api/v1/platform/cpos/00000000-0000-0000-0000-000000000001/subscription/history"},
+		{http.MethodGet, "/api/v1/platform/cpos/00000000-0000-0000-0000-000000000001/entitlements"},
+		{http.MethodPut, "/api/v1/platform/cpos/00000000-0000-0000-0000-000000000001/entitlement-overrides/chargers.manage"},
+		{http.MethodDelete, "/api/v1/platform/cpos/00000000-0000-0000-0000-000000000001/entitlement-overrides/chargers.manage"},
 		{http.MethodGet, "/api/v1/cpo/integrations"},
 		{http.MethodGet, "/api/v1/cpo/integrations/RAZORPAY"},
 		{http.MethodPut, "/api/v1/cpo/integrations/RAZORPAY"},
@@ -147,7 +168,7 @@ func TestCredentialRoutesAreRegisteredAndProtected(t *testing.T) {
 	}
 }
 
-func TestRetiredCommercialRoutesAreNotRegistered(t *testing.T) {
+func TestRetiredBillingRoutesAreNotRegistered(t *testing.T) {
 	t.Parallel()
 
 	router := newCredentialRouteTestRouter(t)
@@ -155,9 +176,6 @@ func TestRetiredCommercialRoutesAreNotRegistered(t *testing.T) {
 		method string
 		path   string
 	}{
-		{http.MethodGet, "/api/v1/platform/plans"},
-		{http.MethodGet, "/api/v1/platform/cpos/00000000-0000-0000-0000-000000000001/subscription"},
-		{http.MethodGet, "/api/v1/platform/cpos/00000000-0000-0000-0000-000000000001/entitlements"},
 		{http.MethodGet, "/api/v1/platform/cpos/00000000-0000-0000-0000-000000000001/billing-account"},
 		{http.MethodGet, "/api/v1/platform/cpos/00000000-0000-0000-0000-000000000001/invoices"},
 		{http.MethodGet, "/api/v1/platform/cpos/00000000-0000-0000-0000-000000000001/payments"},
@@ -264,6 +282,7 @@ func newCredentialRouteTestRouterWithLog(
 		cpo.NewService(nil, cmsmail.NewOutbox(mailBox), true),
 		integrations.NewService(nil, credentialBox),
 		platformops.NewService(nil, config.Platform{}),
+		subscriptions.NewService(nil, nil),
 		true,
 		true,
 		requestLogWriter,
@@ -482,7 +501,7 @@ func TestHealthRoutes(t *testing.T) {
 
 			recorder := httptest.NewRecorder()
 			request := httptest.NewRequest(http.MethodGet, test.path, nil)
-			New(test.pinger, nil, nil, nil, nil, nil, false, false, io.Discard, false).
+			New(test.pinger, nil, nil, nil, nil, nil, nil, false, false, io.Discard, false).
 				ServeHTTP(recorder, request)
 
 			if recorder.Code != test.wantStatus {
@@ -495,7 +514,7 @@ func TestHealthRoutes(t *testing.T) {
 func TestAPIDocumentationRoutesCanBeDisabled(t *testing.T) {
 	t.Parallel()
 
-	router := New(pingerStub{}, nil, nil, nil, nil, nil, false, false, io.Discard, false)
+	router := New(pingerStub{}, nil, nil, nil, nil, nil, nil, false, false, io.Discard, false)
 	for _, path := range []string{"/docs", "/docs/", "/openapi.yaml"} {
 		recorder := httptest.NewRecorder()
 		request := httptest.NewRequest(http.MethodGet, path, nil)

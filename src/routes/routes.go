@@ -13,6 +13,7 @@ import (
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/integrations"
 	cmsmiddleware "github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/middleware"
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/platformops"
+	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/subscriptions"
 	"github.com/gin-gonic/gin"
 )
 
@@ -27,6 +28,7 @@ func New(
 	cpoService *cpo.Service,
 	integrationService *integrations.Service,
 	platformService *platformops.Service,
+	subscriptionService *subscriptions.Service,
 	corsAllowAll bool,
 	apiDocsEnabled bool,
 	requestLogWriter io.Writer,
@@ -97,6 +99,13 @@ func New(
 			router.Group("/api/v1/platform"),
 			authService,
 			platformService,
+		)
+	}
+	if authService != nil && subscriptionService != nil {
+		subscriptions.RegisterRoutes(
+			router.Group("/api/v1/platform"),
+			authService,
+			subscriptionService,
 		)
 	}
 	return router
