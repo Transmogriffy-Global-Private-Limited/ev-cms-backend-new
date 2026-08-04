@@ -269,12 +269,13 @@ type ConnectorView struct {
 }
 
 type CreateHubRequest struct {
-	Name         string   `json:"name"`
-	Address      string   `json:"address"`
-	Latitude     *float64 `json:"latitude"`
-	Longitude    *float64 `json:"longitude"`
-	Open24Hours  *bool    `json:"open_24_hours,omitempty"`
-	SanctionLoad *float64 `json:"sanction_load,omitempty"`
+	Name         string      `json:"name"`
+	Address      string      `json:"address"`
+	Latitude     *float64    `json:"latitude"`
+	Longitude    *float64    `json:"longitude"`
+	Open24Hours  *bool       `json:"open_24_hours,omitempty"`
+	SanctionLoad *float64    `json:"sanction_load,omitempty"`
+	ChargerIDs   []uuid.UUID `json:"charger_ids,omitempty"`
 }
 
 type UpdateHubRequest struct {

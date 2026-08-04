@@ -2599,8 +2599,30 @@ func (service *Service) CreateHub(
 	var record models.Hub
 
 	err := service.database.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		now := service.now()
+		if len(request.ChargerIDs) > 0 {
+			var chargers []models.Charger
+			if err := tx.Where("id IN ? AND cpo_id = ?", request.ChargerIDs, cpoID).Find(&chargers).Error; err != nil {
+				return fmt.Errorf("could not look up chargers: %w", err)
+			}
+			if len(chargers) != len(request.ChargerIDs) {
+				return &auth.APIError{
+					Status:  http.StatusNotFound,
+					Code:    "charger_not_found",
+					Message: "One or more chargers could not be found.",
+				}
+			}
+			for _, charger := range chargers {
+				if charger.HubID != nil {
+					return &auth.APIError{
+						Status:  http.StatusConflict,
+						Code:    "charger_already_in_hub",
+						Message: fmt.Sprintf("Charger %s is already in a hub.", charger.ChargerID),
+					}
+				}
+			}
+		}
 
+		now := service.now()
 		record = models.Hub{
 			ID:           uuid.New(),
 			CPOID:        cpoID,
@@ -2618,16 +2640,28 @@ func (service *Service) CreateHub(
 			return mapHubWriteError(err, "create hub")
 		}
 
+		if len(request.ChargerIDs) > 0 {
+			if err := tx.Model(&models.Charger{}).
+				Where("id IN ?", request.ChargerIDs).
+				Updates(map[string]any{
+					"hub_id":     record.ID,
+					"updated_at": now,
+				}).Error; err != nil {
+				return fmt.Errorf("could not assign chargers to hub: %w", err)
+			}
+		}
+
 		return writeAudit(
 			tx,
 			principal.UserID,
 			cpoID,
 			"HUB_CREATED",
 			models.JSONB{
-				"hub_id":        record.ID,
-				"name":          record.Name,
-				"open_24_hours": record.Open24Hours,
-				"sanction_load": record.SanctionLoad,
+				"hub_id":          record.ID,
+				"name":            record.Name,
+				"open_24_hours":   record.Open24Hours,
+				"sanction_load":   record.SanctionLoad,
+				"chargers_assigned": len(request.ChargerIDs),
 			},
 			now,
 		)
