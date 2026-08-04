@@ -274,14 +274,22 @@ type CreateHubRequest struct {
 	Latitude    *float64 `json:"latitude"`
 	Longitude   *float64 `json:"longitude"`
 	Open24Hours *bool    `json:"open_24_hours,omitempty"`
+	SanctionLoad *float64 `json:"sanction_load,omitempty"`
+	ChargerID *uuid.UUID `json:"charger_id,omitempty"`
 }
 
 type UpdateHubRequest struct {
-	Name        *string  `json:"name,omitempty"`
-	Address     *string  `json:"address,omitempty"`
-	Latitude    *float64 `json:"latitude,omitempty"`
-	Longitude   *float64 `json:"longitude,omitempty"`
-	Open24Hours *bool    `json:"open_24_hours,omitempty"`
+	Name        *string    `json:"name,omitempty"`
+	Address     *string    `json:"address,omitempty"`
+	Latitude    *float64   `json:"latitude,omitempty"`
+	Longitude   *float64   `json:"longitude,omitempty"`
+	Open24Hours *bool      `json:"open_24_hours,omitempty"`
+	SanctionLoad *float64 `json:"sanction_load,omitempty"`
+	ChargerID *uuid.UUID `json:"charger_id,omitempty"`
+}
+
+type AssignChargerRequest struct {
+	ChargerID uuid.UUID `json:"charger_id"`
 }
 
 type HubView struct {
@@ -292,6 +300,7 @@ type HubView struct {
 	Latitude    float64   `json:"latitude"`
 	Longitude   float64   `json:"longitude"`
 	Open24Hours bool      `json:"open_24_hours"`
+	SanctionLoad float64 `json:"sanction_load"`
 	CreatedAt   time.Time `json:"created_at"`
 	UpdatedAt   time.Time `json:"updated_at"`
 }

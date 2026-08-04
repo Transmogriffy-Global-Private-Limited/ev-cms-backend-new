@@ -451,6 +451,7 @@ func RegisterCPORoutes(
 	group.GET("/hubs", handler.listHubs)
 	group.GET("/hubs/:hub_id", handler.getHub)
 	group.PATCH("/hubs/:hub_id", handler.updateHub)
+	group.POST("/hubs/:hub_id/chargers", handler.assignChargerToHub)
 	group.POST("/tariffs", handler.createTariff)
 	group.GET("/tariffs", handler.listTariffs)
 	group.GET("/tariffs/:tariff_id", handler.getTariff)
@@ -744,6 +745,33 @@ func parseHubID(ctx *gin.Context) (uuid.UUID, bool) {
 		return uuid.Nil, false
 	}
 	return hubID, true
+}
+
+func (handler *Handler) assignChargerToHub(ctx *gin.Context) {
+	principal, _ := auth.CurrentPrincipal(ctx)
+
+	hubID, ok := parseHubID(ctx)
+	if !ok {
+		return
+	}
+
+	var request AssignChargerRequest
+	if err := decodeJSON(ctx, &request); err != nil {
+		writeError(ctx, &auth.APIError{
+			Status:  http.StatusBadRequest,
+			Code:    "invalid_request",
+			Message: "The request body is invalid.",
+		})
+		return
+	}
+
+	record, err := handler.service.AssignChargerToHub(ctx.Request.Context(), principal, hubID, request.ChargerID)
+	if err != nil {
+		writeError(ctx, err)
+		return
+	}
+
+	ctx.JSON(http.StatusOK, record)
 }
 
 func (handler *Handler) createTariff(ctx *gin.Context) {
