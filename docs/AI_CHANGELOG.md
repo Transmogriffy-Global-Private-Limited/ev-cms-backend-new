@@ -2,6 +2,22 @@
 
 ## 2026-08-05
 
+### Rehosted optional charger metadata behavior
+
+- Charger vendor/model fields now remain optional across CPO create/update and
+  customer network response projections, with omitted values represented as
+  null.
+- Removed an unused `CHARGER_CONNECTION_URL` example setting and normalized
+  optional metadata before pointer persistence.
+- Built and rehosted revision `0b344f9` without a new migration.
+
+Verification:
+
+- Focused OpenAPI/runtime parity, full Go tests, and `go vet` passed.
+- PostgreSQL remains through migration 25; public readiness and service state
+  passed after rehost.
+- The PowerShell documentation verifier is unavailable on this host.
+
 ### Rehosted charger capacity contract update
 
 - Applied migration 25, removing the obsolete charger-level `total_capacity`
