@@ -73,9 +73,11 @@ func TestCustomerNetworkProjectionDoesNotClaimLiveAvailability(t *testing.T) {
 
 	hubID := uuid.New()
 	chargerID := uuid.New()
+	vendor := "Delta"
+	model := "Wallbox"
 	charger := models.Charger{
-		ID: chargerID, HubID: &hubID, ChargerID: "abc123", Vendor: "Delta",
-		Model: "Wallbox", MaxPowerKW: 7.4, OCPPVersion: "1.6J",
+		ID: chargerID, HubID: &hubID, ChargerID: "abc123", Vendor: &vendor,
+		Model: &model, MaxPowerKW: 7.4, OCPPVersion: "1.6J",
 		Status: "AVAILABLE", Connectors: []models.Connector{{
 			ID: uuid.New(), ConnectorNumber: 1, ConnectorType: "TYPE2",
 			MaxCurrent: 32, MaxVoltage: 230, Status: "AVAILABLE",

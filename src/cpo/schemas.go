@@ -251,8 +251,8 @@ type ChargerView struct {
 	HubID               *uuid.UUID              `json:"hub_id,omitempty"`
 	ChargerID           string                  `json:"charger_id"`
 	OCPPIdentity        string                  `json:"ocpp_identity"`
-	Vendor              string                  `json:"vendor"`
-	Model               string                  `json:"model"`
+	Vendor              *string                 `json:"vendor,omitempty"`
+	Model               *string                 `json:"model,omitempty"`
 	SerialNumber        string                  `json:"serial_number"`
 	MaxPowerKW          float64                 `json:"max_power_kw"`
 	Status              constants.ChargerStatus `json:"status"`

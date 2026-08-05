@@ -79,8 +79,8 @@ type CustomerChargerView struct {
 	ID           uuid.UUID               `json:"id"`
 	HubID        uuid.UUID               `json:"hub_id"`
 	ChargerID    string                  `json:"charger_id"`
-	Vendor       string                  `json:"vendor"`
-	Model        string                  `json:"model"`
+	Vendor       *string                 `json:"vendor,omitempty"`
+	Model        *string                 `json:"model,omitempty"`
 	MaxPowerKW   float64                 `json:"max_power_kw"`
 	OCPPVersion  string                  `json:"ocpp_version"`
 	HubName      string                  `json:"hub_name,omitempty"`

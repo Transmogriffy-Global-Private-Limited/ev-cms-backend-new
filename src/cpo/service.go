@@ -1858,6 +1858,18 @@ func (service *Service) CreateCharger(
 		}
 	}
 
+	var vendor *string
+	if request.Vendor != "" {
+		v := request.Vendor
+		vendor = &v
+	}
+
+	var model *string
+	if request.Model != "" {
+		m := request.Model
+		model = &m
+	}
+
 	request = normalizeCreateChargerRequest(request)
 	if err := validateCreateChargerRequest(request); err != nil {
 		return ChargerResponse{}, err
@@ -1906,8 +1918,8 @@ func (service *Service) CreateCharger(
 			HubID:               request.HubID,
 			ChargerID:           chargerID,
 			OCPPIdentity:        ocppIdentity,
-			Vendor:              request.Vendor,
-			Model:               request.Model,
+			Vendor:              vendor,
+			Model:               model,
 			SerialNumber:        request.SerialNumber,
 			MaxPowerKW:          request.MaxPowerKW,
 			ChargerName:         request.ChargerName,
@@ -2070,13 +2082,13 @@ func (service *Service) UpdateCharger(
 			changedFields["hub_id"] = *request.HubID
 		}
 		if request.Vendor != nil {
-			updates["vendor"] = *request.Vendor
-			record.Vendor = *request.Vendor
+			updates["vendor"] = request.Vendor
+			record.Vendor = request.Vendor
 			changedFields["vendor"] = *request.Vendor
 		}
 		if request.Model != nil {
-			updates["model"] = *request.Model
-			record.Model = *request.Model
+			updates["model"] = request.Model
+			record.Model = request.Model
 			changedFields["model"] = *request.Model
 		}
 		if request.SerialNumber != nil {
@@ -2420,11 +2432,11 @@ func normalizeChargerID(value string) string {
 }
 
 func validateCreateChargerRequest(request CreateChargerRequest) error {
-	if request.Vendor == "" || len(request.Vendor) > 100 {
-		return invalid("vendor", "Vendor is required and must not exceed 100 characters.")
+	if len(request.Vendor) > 100 {
+		return invalid("vendor", "Vendor must not exceed 100 characters.")
 	}
-	if request.Model == "" || len(request.Model) > 100 {
-		return invalid("model", "Model is required and must not exceed 100 characters.")
+	if len(request.Model) > 100 {
+		return invalid("model", "Model must not exceed 100 characters.")
 	}
 	if request.SerialNumber == "" || len(request.SerialNumber) > 100 {
 		return invalid("serial_number", "Serial number is required and must not exceed 100 characters.")
@@ -2468,10 +2480,10 @@ func validateUpdateChargerRequest(request UpdateChargerRequest) error {
 		return invalid("charger", "At least one charger field must be supplied.")
 	}
 
-	if request.Vendor != nil && (*request.Vendor == "" || len(*request.Vendor) > 100) {
+	if request.Vendor != nil && len(*request.Vendor) > 100 {
 		return invalid("vendor", "Vendor must not exceed 100 characters.")
 	}
-	if request.Model != nil && (*request.Model == "" || len(*request.Model) > 100) {
+	if request.Model != nil && len(*request.Model) > 100 {
 		return invalid("model", "Model must not exceed 100 characters.")
 	}
 	if request.SerialNumber != nil && (*request.SerialNumber == "" || len(*request.SerialNumber) > 100) {
