@@ -176,6 +176,13 @@ Verification:
 - OpenAPI/runtime parity and Swagger/raw-schema route verification passes.
 - PostgreSQL lifecycle verification remains pending because no explicitly
   disposable `TEST_DATABASE_URL` is configured.
+### Removed the local `.env` from version control
+
+- Removed the tracked root `.env` from the Git index while preserving the local
+  file on disk for the current environment.
+- Expanded ignore rules for root `.env.*` files while explicitly retaining the
+  checked-in `.env.example` template as the safe configuration inventory.
+- This is a forward cleanup only and does not rewrite historical commits.
 
 ## 2026-08-04
 
