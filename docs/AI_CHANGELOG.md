@@ -2,6 +2,21 @@
 
 ## 2026-08-05
 
+### Rehosted optional charger metadata persistence
+
+- Applied migration 24 from a mode-0600 rollback dump so charger `vendor` and
+  `model` persistence columns accept null values for incomplete projections.
+- Built and rehosted revision `4e06f10`; the live API remains the 129-operation
+  contract and no new HTTP route was introduced.
+
+Verification:
+
+- Migration 24 was applied and PostgreSQL reports both columns nullable.
+- Application tests and vet completed before rehost.
+- Public readiness and service state were checked after rehost.
+- The PowerShell documentation verifier is unavailable on this host; static
+  documentation checks and Go route/OpenAPI verification were used instead.
+
 ### Fixed subscription history table resolution
 
 - Corrected `CPOSubscriptionHistory` to use the existing singular

@@ -20,8 +20,8 @@ The SMTP outbox worker is part of the application process. It must not be
 started as a second systemd service because that would create an unnecessary
 duplicate worker.
 
-The active deployment was updated on August 4, 2026 to source revision
-`c33da86`. It has migrations one through twenty-two and the current 129-operation
+The active deployment was updated on August 5, 2026 to source revision
+`4e06f10`. It has migrations one through twenty-four and the current 129-operation
 API. Migration thirteen keeps feature-key/entitlement tables retired pending a
 defined module catalog, migration fourteen completes the Superadmin authority,
 mail, announcement, notification, and status surface, and migration fifteen
@@ -30,6 +30,8 @@ and independent charger inventory; migration nineteen reconciles databases
 that had already recorded later hub constraints. Migration twenty makes customer
 accounts CPO-local with dedicated auth lineage. Migrations 21 and 22 add
 customer-visible network discovery and Razorpay wallet recharge ledger tables.
+Migration 23 reconciles the charger connector-field upgrade, and migration 24
+makes charger vendor/model persistence nullable for incomplete projections.
 GSTIN and complete address identity
 are database-required for CPOs, the
 authenticated platform slug-availability route is live, and known uniqueness
@@ -126,7 +128,7 @@ content exclusions are defined in
 `docs/contracts/internal/http-request-logging.md`. Long-lived SSE requests are
 recorded when they disconnect. A recovered panic first emits a correlated safe
 JSON stack diagnostic without Gin's request dump or the panic value. The
-currently deployed `c33da86` binary includes this logger.
+currently deployed `4e06f10` binary includes this logger.
 
 For a developer diagnostic session, set `LOG_LEVEL=DEBUG` in the ignored
 deployment environment and rehost. This adds request-start and handled-error
