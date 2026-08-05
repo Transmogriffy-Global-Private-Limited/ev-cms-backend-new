@@ -212,15 +212,15 @@ frontend guess from CPO tariff rows.
 At a supplied server timestamp, select active, effective tariffs scoped to the
 customer’s CPO and hub. Use this deterministic precedence:
 
-1. charger + customer user group;
-2. hub + customer user group;
-3. charger + generic customer;
-4. hub + generic customer.
+1. matching UserGroup tariff;
+2. generic charger tariff;
+3. generic hub tariff.
 
 In the current schema, “User Tariff” means a tariff matching the customer’s
 existing `UserGroupID`; this slice does not add a new per-customer or group
-assignment API. User-specific scope therefore wins before charger scope, and
-charger scope wins before hub scope.
+assignment API. A matching UserGroup tariff always wins over generic charger
+and hub tariffs. If both a matching group/charger and group/hub row exist, the
+charger row is only the more-specific tie-breaker within the UserGroup tier.
 
 The resolver loads the active GST profile referenced by the tariff and returns
 exact decimal strings. A missing eligible tariff returns an explicit

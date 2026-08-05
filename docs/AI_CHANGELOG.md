@@ -2,6 +2,23 @@
 
 ## 2026-08-05
 
+### Corrected User App tariff precedence
+
+- Clarified and corrected the resolver to use the three entity tiers: matching
+  UserGroup tariff, then generic charger tariff, then generic hub tariff.
+- A matching UserGroup tariff now always beats a generic charger tariff. When
+  both group/charger and group/hub rows apply, charger scope is only a
+  same-tier specificity tie-breaker.
+- Updated the User App, CPO, OpenAPI, HTTP contract, plan, and project-memory
+  documentation.
+
+Verification:
+
+- Database-free precedence tests cover UserGroup over generic charger and
+  generic charger over generic hub.
+
+## 2026-08-05
+
 ### Implemented User App informational tariff resolution
 
 - Added authenticated hub and public-charger price reads over published

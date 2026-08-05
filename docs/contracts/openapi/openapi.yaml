@@ -670,10 +670,9 @@ paths:
         result is informational and is not a charging or payment commitment.
         A missing eligible tariff returns HTTP 200 with status `UNAVAILABLE`,
         never a zero price. When the authenticated customer has an existing
-        user-group assignment, its matching tariff takes precedence over
-        generic charger and hub tariffs. For this hub endpoint the applicable
-        order is user-group hub, then generic hub; the charger endpoint also
-        considers charger-scoped tiers.
+        user-group assignment, its matching UserGroup tariff takes precedence
+        over generic charger and hub tariffs. The effective order is matching
+        UserGroup tariff, generic charger tariff, then generic hub tariff.
       security:
         - BearerAuth: []
       parameters:
@@ -754,7 +753,7 @@ paths:
       tags: [App User Network]
       operationId: getCustomerChargerPrice
       summary: Get the current informational charger price
-      description: "Uses the public charger ID and the same server-side precedence: matching user-group tariff, then charger tariff, then hub tariff."
+      description: "Uses the public charger ID and the same server-side precedence: matching UserGroup tariff, then generic charger tariff, then generic hub tariff."
       security:
         - BearerAuth: []
       parameters:

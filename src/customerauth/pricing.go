@@ -112,7 +112,7 @@ func selectCustomerTariff(tariffs []models.Tariff, chargerID, userGroupID *uuid.
 	var selected models.Tariff
 	for _, tariff := range tariffs {
 		rank := customerTariffRank(tariff, chargerID, userGroupID)
-		if rank < bestRank {
+		if rank < bestRank || (rank == bestRank && customerTariffIsMoreSpecific(tariff, selected)) {
 			bestRank = rank
 			selected = tariff
 		}
@@ -126,17 +126,18 @@ func selectCustomerTariff(tariffs []models.Tariff, chargerID, userGroupID *uuid.
 func customerTariffRank(tariff models.Tariff, chargerID, userGroupID *uuid.UUID) int {
 	chargerMatch := tariff.ChargerID != nil && chargerID != nil && *tariff.ChargerID == *chargerID
 	groupMatch := tariff.UserGroupID != nil && userGroupID != nil && *tariff.UserGroupID == *userGroupID
-	if chargerMatch && groupMatch {
+	if groupMatch {
 		return 1
 	}
-	if tariff.ChargerID == nil && groupMatch {
+	if chargerMatch && tariff.UserGroupID == nil {
 		return 2
 	}
-	if chargerMatch && tariff.UserGroupID == nil {
+	if tariff.ChargerID == nil && tariff.UserGroupID == nil {
 		return 3
 	}
-	if tariff.ChargerID == nil && tariff.UserGroupID == nil {
-		return 4
-	}
 	return 99
+}
+
+func customerTariffIsMoreSpecific(candidate, selected models.Tariff) bool {
+	return candidate.ChargerID != nil && selected.ChargerID == nil
 }

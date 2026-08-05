@@ -7,7 +7,7 @@ import (
 	"github.com/google/uuid"
 )
 
-func TestSelectCustomerTariffPrefersUserThenChargerThenHub(t *testing.T) {
+func TestSelectCustomerTariffPrefersUserGroupThenChargerThenHub(t *testing.T) {
 	t.Parallel()
 
 	hubID := uuid.New()
@@ -20,21 +20,21 @@ func TestSelectCustomerTariffPrefersUserThenChargerThenHub(t *testing.T) {
 	genericHub := models.Tariff{ID: uuid.New(), HubID: hubID}
 
 	selected, ok := selectCustomerTariff(
-		[]models.Tariff{genericHub, genericCharger, userHub, userCharger},
-		&chargerID,
-		&groupID,
-	)
-	if !ok || selected.ID != userCharger.ID {
-		t.Fatalf("selected tariff=%s, want user charger tariff %s", selected.ID, userCharger.ID)
-	}
-
-	selected, ok = selectCustomerTariff(
 		[]models.Tariff{genericHub, genericCharger, userHub},
 		&chargerID,
 		&groupID,
 	)
 	if !ok || selected.ID != userHub.ID {
-		t.Fatalf("selected tariff=%s, want user hub tariff %s", selected.ID, userHub.ID)
+		t.Fatalf("selected tariff=%s, want UserGroup tariff %s over generic charger", selected.ID, userHub.ID)
+	}
+
+	selected, ok = selectCustomerTariff(
+		[]models.Tariff{genericHub, userHub, userCharger},
+		&chargerID,
+		&groupID,
+	)
+	if !ok || selected.ID != userCharger.ID {
+		t.Fatalf("selected tariff=%s, want more-specific UserGroup charger tariff %s", selected.ID, userCharger.ID)
 	}
 
 	selected, ok = selectCustomerTariff(

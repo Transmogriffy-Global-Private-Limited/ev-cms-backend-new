@@ -686,7 +686,7 @@ Requires the authenticated customer bearer token and matching
 `X-CPO-App-ID`. The hub must be published in the customer’s CPO. The server
 selects the active tariff effective at the response’s `effective_at` timestamp.
 For this hub-only route, charger-scoped candidates are not applicable, so the
-order is matching user-group hub tariff, then generic hub tariff. In the current schema,
+order is matching UserGroup tariff, then generic hub tariff. In the current schema,
 “User Tariff” means a tariff whose `user_group_id` matches the customer’s
 existing group assignment.
 
@@ -701,9 +701,10 @@ charging or payment commitment. It does not contact HAL.
 
 Uses the six-character public charger ID and the same authentication, CPO,
 publication, and response rules as the hub price route. The charger must be
-attached to a published hub. Because charger candidates are applicable here,
-the effective order is matching user-group charger, matching user-group hub,
-generic charger, then generic hub.
+attached to a published hub. The effective order is matching UserGroup tariff,
+then generic charger tariff, then generic hub tariff. If both group/charger and
+group/hub rows apply, charger scope is only a tie-breaker inside the UserGroup
+tier.
 
 ## 5. Authentication Workflow
 

@@ -840,8 +840,8 @@ Active feature:
 Current implementation slice:
 
 - Added server-calculated informational hub and charger price APIs. Tariff
-  precedence is matching user-group charger, matching user-group hub, generic
-  charger, then generic hub; no HAL call is made. Focused source and contract
+  precedence is matching UserGroup tariff, generic charger tariff, then
+  generic hub tariff; no HAL call is made. Focused source and contract
   verification pass. Disposable PostgreSQL lifecycle checks are deferred by
   decision until explicitly reactivated.
 

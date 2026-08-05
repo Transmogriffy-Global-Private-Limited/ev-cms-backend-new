@@ -299,15 +299,17 @@ The price routes are authenticated, CPO-scoped reads. The server chooses the
 tariff at `effective_at`; the frontend must not reconstruct precedence from CPO
 tariff rows. The precedence is:
 
-1. matching user-group charger tariff;
-2. matching user-group hub tariff;
-3. generic charger tariff;
-4. generic hub tariff.
+1. matching UserGroup tariff;
+2. generic charger tariff;
+3. generic hub tariff.
 
 In the current backend schema, “User Tariff” is the tariff whose
 `user_group_id` matches the authenticated customer’s existing group assignment.
 No new group-management or per-customer tariff API is introduced here. A
-customer without a group uses only generic tariffs. `AVAILABLE` includes exact
+matching UserGroup tariff always wins over generic charger and hub tariffs. If
+both a matching group/charger and group/hub row exist, the charger row is only
+the more-specific tie-breaker within the UserGroup tier. A customer without a
+group uses only generic tariffs. `AVAILABLE` includes exact
 decimal strings for currency, energy price, idle fee, and GST when referenced;
 `UNAVAILABLE` is a valid `200` response with `unavailable_reason` and never a
 zero-price fallback. The response is informational and is not a charging or
