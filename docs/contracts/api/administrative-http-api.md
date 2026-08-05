@@ -706,6 +706,62 @@ then generic charger tariff, then generic hub tariff. If both group/charger and
 group/hub rows apply, charger scope is only a tie-breaker inside the UserGroup
 tier.
 
+### 4.28 `GET /api/v1/app/auth/chargers`
+
+Requires the authenticated customer bearer token and matching
+`X-CPO-App-ID`. Returns only chargers attached to published hubs in the
+customer’s CPO. The safe projection includes hub display/location fields,
+connector summaries, and the customer’s charger favorite flag; it excludes
+OCPP identity, serial number, raw CMS status, and audit data.
+
+Optional filters are `q`, `connector_type`, `min_power_kw`, `max_power_kw`,
+and `open_24_hours`. `q` searches the public charger ID, vendor, model, hub
+name, and hub address. Supplying `lat` and `lng` enables near-me search within
+`radius_km` (default 10 km, maximum 100 km), ordered by calculated distance.
+Location searches are bounded and do not return a continuation cursor;
+non-location searches use paired descending `before`/`before_id` keyset
+pagination. `lat` and `lng` must be supplied together and `radius_km` must be
+greater than zero. Invalid filters return `400 invalid_request`; authentication
+and tenant errors use the standard app envelope.
+
+Availability remains `UNKNOWN` for chargers and connectors until a separate
+CMS/HAL contract is implemented. This route does not contact HAL.
+
+### 4.29 `GET /api/v1/app/auth/wallet`
+
+Requires the authenticated customer bearer token and matching
+`X-CPO-App-ID`. Returns the wallet owned by that CPO-local customer:
+
+```json
+{
+  "wallet": {
+    "id": "5bd431a7-63f0-4df7-a2f5-1b55112df560",
+    "balance": "1250.00",
+    "currency": "INR",
+    "updated_at": "2026-08-05T12:00:00Z"
+  }
+}
+```
+
+Balance is an exact decimal string. A missing wallet invariant returns
+`404 wallet_not_found`; no customer or CPO ID is accepted from the request.
+The route is read-only and does not perform recharge or provider operations.
+
+### 4.30 `GET /api/v1/app/auth/wallet/transactions`
+
+Requires the authenticated customer bearer token and matching
+`X-CPO-App-ID`. Returns the current customer’s wallet summary plus wallet
+transactions in descending `(created_at, id)` keyset order. `limit` is 1–100
+and defaults to 25; `before` and `before_id` must be supplied together. Each
+transaction contains the durable amount, `CREDIT`/`DEBIT` type, description,
+optional charging-session ID, financial status, and creation time. Internal
+idempotency keys and provider credentials are never returned.
+
+The route is read-only. Wallet recharge, refund, charging-session settlement,
+and Razorpay provider verification are separate contracts. Errors include
+`400 invalid_request`, `404 wallet_not_found`, standard authentication/app-ID
+errors, or `500 internal_error`.
+
 ## 5. Authentication Workflow
 
 ### 5.1 `POST /api/v1/auth/login`

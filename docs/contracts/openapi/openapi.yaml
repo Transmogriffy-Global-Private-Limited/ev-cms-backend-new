@@ -748,6 +748,73 @@ paths:
         "500":
           $ref: "#/components/responses/InternalError"
 
+  /api/v1/app/auth/chargers:
+    get:
+      tags: [App User Network]
+      operationId: listCustomerChargers
+      summary: Search published chargers for the current customer CPO
+      description: |
+        Returns chargers attached to published hubs in the authenticated
+        customer CPO. Supports text, connector-type, power, open-24-hours,
+        and optional location filters. Supplying `lat` and `lng` enables a
+        near-me search within `radius_km` (default 10 km), ordered by distance.
+        Location searches are bounded but do not expose a continuation cursor.
+        Availability remains `UNKNOWN` until HAL integration; stored CMS status
+        is not presented as live availability.
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/CPOAppIDHeader"
+        - $ref: "#/components/parameters/ListBefore"
+        - $ref: "#/components/parameters/ListBeforeID"
+        - $ref: "#/components/parameters/ListLimit"
+        - name: q
+          in: query
+          schema: {type: string, maxLength: 255}
+          description: Case-insensitive charger, vendor, model, hub, or address search.
+        - name: connector_type
+          in: query
+          schema: {type: string, maxLength: 50}
+        - name: min_power_kw
+          in: query
+          schema: {type: number, minimum: 0}
+        - name: max_power_kw
+          in: query
+          schema: {type: number, minimum: 0}
+        - name: open_24_hours
+          in: query
+          schema: {type: boolean}
+        - name: lat
+          in: query
+          schema: {type: number, minimum: -90, maximum: 90}
+          description: Current customer latitude; required together with lng for near-me search.
+        - name: lng
+          in: query
+          schema: {type: number, minimum: -180, maximum: 180}
+        - name: radius_km
+          in: query
+          schema: {type: number, minimum: 0, exclusiveMinimum: true, maximum: 100}
+          description: Must be greater than zero; defaults to 10 km.
+      responses:
+        "200":
+          description: Published customer chargers matching the filters.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CustomerChargerListResponse"
+        "400":
+          description: Invalid filter, location, power range, limit, or cursor.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/ErrorEnvelope"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403":
+          description: "`cpo_app_id_mismatch` or wrong session plane."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/ErrorEnvelope"}
+        "500": {$ref: "#/components/responses/InternalError"}
+
   /api/v1/app/auth/chargers/{charger_id}/price:
     get:
       tags: [App User Network]
@@ -778,6 +845,72 @@ paths:
               schema: {$ref: "#/components/schemas/ErrorEnvelope"}
         "404":
           description: "`charger_not_found` for unknown, unpublished, unassigned, or cross-CPO charger."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/ErrorEnvelope"}
+        "500": {$ref: "#/components/responses/InternalError"}
+
+  /api/v1/app/auth/wallet:
+    get:
+      tags: [App User Wallet]
+      operationId: getCustomerWallet
+      summary: Get the current customer wallet
+      description: Returns the wallet owned by the authenticated CPO-local customer. Balance is an exact decimal string.
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/CPOAppIDHeader"
+      responses:
+        "200":
+          description: Current wallet balance and currency.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/CustomerWalletResponse"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403":
+          description: "`cpo_app_id_mismatch` or wrong session plane."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/ErrorEnvelope"}
+        "404":
+          description: Customer wallet invariant is missing.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/ErrorEnvelope"}
+        "500": {$ref: "#/components/responses/InternalError"}
+
+  /api/v1/app/auth/wallet/transactions:
+    get:
+      tags: [App User Wallet]
+      operationId: listCustomerWalletTransactions
+      summary: List the current customer wallet history
+      description: Returns only wallet transactions for the authenticated CPO-local customer using bounded descending keyset pagination.
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/CPOAppIDHeader"
+        - $ref: "#/components/parameters/ListBefore"
+        - $ref: "#/components/parameters/ListBeforeID"
+        - $ref: "#/components/parameters/ListLimit"
+      responses:
+        "200":
+          description: Wallet summary and transaction history.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/CustomerWalletTransactionListResponse"}
+        "400":
+          description: Invalid limit or cursor.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/ErrorEnvelope"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403":
+          description: "`cpo_app_id_mismatch` or wrong session plane."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/ErrorEnvelope"}
+        "404":
+          description: Customer wallet invariant is missing.
           content:
             application/json:
               schema: {$ref: "#/components/schemas/ErrorEnvelope"}
@@ -4872,6 +5005,12 @@ components:
         model: {type: string, maxLength: 100}
         max_power_kw: {type: number, minimum: 0}
         ocpp_version: {type: string, maxLength: 20}
+        hub_name: {type: string, maxLength: 255}
+        hub_address: {type: string}
+        hub_latitude: {type: number, minimum: -90, maximum: 90}
+        hub_longitude: {type: number, minimum: -180, maximum: 180}
+        open_24_hours: {type: boolean}
+        distance_km: {type: number, minimum: 0}
         availability:
           type: string
           enum: [UNKNOWN]
@@ -4896,6 +5035,65 @@ components:
           type: string
           enum: [UNKNOWN]
           description: HAL-backed live availability is not implemented in this slice.
+
+    CustomerChargerListResponse:
+      type: object
+      additionalProperties: false
+      required: [chargers, has_more]
+      properties:
+        chargers:
+          type: array
+          items:
+            $ref: "#/components/schemas/CustomerCharger"
+        next_before: {type: string, format: date-time}
+        next_before_id: {type: string, format: uuid}
+        has_more: {type: boolean}
+
+    CustomerWalletResponse:
+      type: object
+      additionalProperties: false
+      required: [wallet]
+      properties:
+        wallet:
+          $ref: "#/components/schemas/CustomerWalletDetails"
+
+    CustomerWalletTransaction:
+      type: object
+      additionalProperties: false
+      required: [id, amount, transaction_type, description, status, created_at]
+      properties:
+        id: {type: string, format: uuid}
+        amount: {type: string, pattern: "^[0-9]+(?:\\.[0-9]{1,2})?$"}
+        transaction_type: {type: string, enum: [CREDIT, DEBIT]}
+        description: {type: string, maxLength: 255}
+        session_id: {type: string, format: uuid}
+        status: {type: string, enum: [PENDING, COMPLETED, FAILED, REVERSED]}
+        created_at: {type: string, format: date-time}
+
+    CustomerWalletTransactionListResponse:
+      type: object
+      additionalProperties: false
+      required: [wallet, transactions, has_more]
+      properties:
+        wallet:
+          $ref: "#/components/schemas/CustomerWalletDetails"
+        transactions:
+          type: array
+          items:
+            $ref: "#/components/schemas/CustomerWalletTransaction"
+        next_before: {type: string, format: date-time}
+        next_before_id: {type: string, format: uuid}
+        has_more: {type: boolean}
+
+    CustomerWalletDetails:
+      type: object
+      additionalProperties: false
+      required: [id, balance, currency, updated_at]
+      properties:
+        id: {type: string, format: uuid}
+        balance: {type: string, pattern: "^[0-9]+(?:\\.[0-9]{1,2})?$"}
+        currency: {type: string, pattern: "^[A-Z]{3}$"}
+        updated_at: {type: string, format: date-time}
 
     CustomerFavoritesResponse:
       type: object

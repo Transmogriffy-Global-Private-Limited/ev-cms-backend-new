@@ -189,9 +189,47 @@ export type CustomerCharger = {
   model: string;
   max_power_kw: number;
   ocpp_version: string;
+  hub_name?: string;
+  hub_address?: string;
+  hub_latitude?: number;
+  hub_longitude?: number;
+  open_24_hours?: boolean;
+  distance_km?: number;
   availability: "UNKNOWN";
   is_favorite: boolean;
   connectors: CustomerConnector[];
+};
+
+export type CustomerChargerList = {
+  chargers: CustomerCharger[];
+  next_before?: string;
+  next_before_id?: string;
+  has_more: boolean;
+};
+
+export type CustomerWalletDetails = {
+  id: string;
+  balance: string;
+  currency: string;
+  updated_at: string;
+};
+
+export type CustomerWalletTransaction = {
+  id: string;
+  amount: string;
+  transaction_type: "CREDIT" | "DEBIT";
+  description: string;
+  session_id?: string;
+  status: "PENDING" | "COMPLETED" | "FAILED" | "REVERSED";
+  created_at: string;
+};
+
+export type CustomerWalletTransactionList = {
+  wallet: CustomerWalletDetails;
+  transactions: CustomerWalletTransaction[];
+  next_before?: string;
+  next_before_id?: string;
+  has_more: boolean;
 };
 
 export type CustomerHub = CustomerHubSummary & {
@@ -245,6 +283,7 @@ export type CustomerPriceResponse = {
 | `PATCH /profile` | Yes | `200 CustomerUser` | Update this account's name or phone. |
 | `GET /hubs` | Yes | `200 CustomerHubList` | List published hubs in this CPO. |
 | `GET /hubs/{hub_id}` | Yes | `200 CustomerHub` | Read one published hub and attached chargers. |
+| `GET /chargers` | Yes | `200 CustomerChargerList` | Search/filter published chargers, including optional near-me results. |
 | `GET /chargers/{charger_id}` | Yes | `200 CustomerCharger` | Read one attached charger by public ID. |
 | `GET /favorites` | Yes | `200 CustomerFavorites` | List current published favorites. |
 | `PUT /favorite-hubs/{hub_id}` | Yes | `204` | Idempotently save a published hub. |
@@ -253,6 +292,8 @@ export type CustomerPriceResponse = {
 | `DELETE /favorite-chargers/{charger_id}` | Yes | `204` | Idempotently remove a charger favorite. |
 | `GET /hubs/{hub_id}/price` | Yes | `200 CustomerPriceResponse` | Resolve the current informational hub price. |
 | `GET /chargers/{charger_id}/price` | Yes | `200 CustomerPriceResponse` | Resolve the current informational charger price. |
+| `GET /wallet` | Yes | `200 CustomerWalletResponse` | Read the current exact-decimal wallet balance. |
+| `GET /wallet/transactions` | Yes | `200 CustomerWalletTransactionList` | Read this customer’s bounded wallet ledger history. |
 | `GET /sessions` | Yes | `200 SessionList` | List this account's active sessions. |
 | `DELETE /sessions/{session_id}` | Yes | `204` | Revoke one owned session. |
 | `POST /logout` | Yes | `204` | Revoke current session. |
@@ -293,7 +334,28 @@ intent without leaking unpublished inventory.
 preserve each `next_*` pair together and send it back as the corresponding
 `hub_before`/`hub_before_id` or `charger_before`/`charger_before_id` pair.
 
-### 5.2 Informational Price Display
+`GET /chargers` supports optional `q`, `connector_type`, `min_power_kw`,
+`max_power_kw`, and `open_24_hours` filters. Supplying `lat` and `lng` uses the
+customer’s current location and returns chargers within `radius_km` (default
+10 km, maximum 100 km), ordered by calculated distance. Location searches are
+bounded and do not return a continuation cursor; ordinary searches use the
+same descending keyset cursor as other collections. All results remain limited
+to attached chargers in published hubs belonging to the authenticated CPO.
+Stored CMS status is not live availability: charger and connector
+`availability` remains `UNKNOWN` until the separate HAL contract exists.
+
+### 5.2 Wallet Reads
+
+`GET /wallet` returns the authenticated customer’s CPO-local wallet with an
+exact two-decimal balance string, currency, and durable wallet update time.
+`GET /wallet/transactions` returns only that wallet’s transactions in
+descending `(created_at, id)` keyset order. Preserve `next_before` and
+`next_before_id` together when fetching the next page. The response does not
+expose internal idempotency keys or provider credentials. These routes are
+read-only; wallet recharge, refund, charging-session billing, and payment
+provider verification are separate implementation slices.
+
+### 5.3 Informational Price Display
 
 The price routes are authenticated, CPO-scoped reads. The server chooses the
 tariff at `effective_at`; the frontend must not reconstruct precedence from CPO
@@ -659,14 +721,14 @@ compile or deploy one trusted app-ID value per branded CPO distribution.
 
 ## 13. Currently Unsupported Customer UI
 
-The authentication boundary is ready. These customer-product surfaces are not
-part of this slice and the frontend must not invent calls for them:
+The authentication boundary and the listed read-only discovery/wallet surfaces
+are ready. These customer-product surfaces are not part of the currently
+routed contract and the frontend must not invent calls for them:
 
 - edit email;
-- charger/hub discovery and favorites;
 - RFID/access-token management;
 - start/stop charging and live transaction telemetry;
-- wallet funding, charging bills, or payment history;
+- wallet recharge, refunds, charging bills, or payment-provider history;
 - customer notifications and realtime feeds.
 
 Authenticated name and phone editing is now available through `PATCH /profile`.

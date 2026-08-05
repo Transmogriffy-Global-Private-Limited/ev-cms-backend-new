@@ -1,6 +1,7 @@
 # Customer App Experience Plan
 
-Status: In Progress — CPO-scoped customer accounts implemented; DB lifecycle deferred by decision
+Status: In Progress — CPO-scoped accounts, discovery, favorites, tariff reads,
+charger search, and wallet reads implemented; DB lifecycle deferred by decision
 
 ## Objective
 
@@ -24,10 +25,12 @@ Implemented customer routes are confined to `/api/v1/app/auth`:
 - customer-scoped session list/revoke/logout;
 - CPO-local password recovery, reset, and change.
 
-Customer profile mutation, published station discovery, and favorites are
-implemented. Tariff quote, charging-session, wallet-ledger, payment,
-notification, and reporting APIs remain unimplemented. Existing tables alone
-do not imply that those APIs exist.
+Customer profile mutation, published station discovery, favorites, charger
+search/near-me, and wallet balance/history reads are implemented. Tariff quote
+is implemented as an informational read. Wallet recharge, charging-session
+history, wallet mutation, payment-provider execution, notifications, and
+reporting APIs remain unimplemented. Existing tables alone do not imply that
+those APIs exist.
 
 ## Permanent User-Surface Rules
 
@@ -62,7 +65,7 @@ Customer-account identity migration
   -> tariff resolver and price display
   -> customer access credentials and group policy
   -> CMS/HAL charging lifecycle
-  -> wallet ledger, billing, receipts, history
+  -> wallet ledger, recharge, billing, receipts, history
   -> customer notifications and realtime refinements
 ```
 
@@ -245,6 +248,44 @@ unavailable rather than returning a price without tax context.
 
 Do not activate group-specific access/price behavior until the CPO team has an
 approved customer/group management API. Generic tariffs can be supported first.
+
+## Slice 5A — Customer Charger Search and Wallet Reads
+
+Status: Implemented in source; PostgreSQL lifecycle verification deferred by
+decision
+
+### Goal
+
+Provide the User App with customer-safe charger filtering/near-me discovery and
+read-only wallet projections without inventing live charger state or trusting
+client-supplied ownership.
+
+### Implemented Endpoints
+
+- `GET /api/v1/app/auth/chargers`
+- `GET /api/v1/app/auth/wallet`
+- `GET /api/v1/app/auth/wallet/transactions`
+
+### Rules
+
+- Charger results are limited to attached chargers in published hubs in the
+  authenticated customer’s CPO.
+- Text, connector type, power, opening-hours, and optional latitude/longitude
+  radius filters are server-side. Location results are bounded and ordered by
+  calculated distance; they do not expose a continuation cursor.
+- Charger and connector availability remains `UNKNOWN` until the separate HAL
+  contract exists.
+- Wallet reads derive the wallet from the trusted customer principal and use
+  exact decimal strings. Ledger history is descending keyset-paginated and
+  does not expose internal idempotency keys.
+- These routes are read-only. Recharge, refunds, billing settlement, RFID,
+  and live charging remain separate slices.
+
+### Verification
+
+- Database-free query validation and distance tests.
+- Route/OpenAPI parity and documentation verification.
+- Full Go checks; disposable PostgreSQL lifecycle remains deferred by decision.
 
 ## Slice 6 — Customer Access Credentials and Group Policy
 

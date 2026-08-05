@@ -835,18 +835,24 @@ Current phase:
 
 Active feature:
 
-- Customer app experience — Slice 5 effective tariff resolver and price display
+- Customer app experience — User App charger search and wallet read projections
 
 Current implementation slice:
 
-- Added server-calculated informational hub and charger price APIs. Tariff
-  precedence is matching UserGroup tariff, generic charger tariff, then
-  generic hub tariff; no HAL call is made. Focused source and contract
-  verification pass. Disposable PostgreSQL lifecycle checks are deferred by
-  decision until explicitly reactivated.
+- Added User App charger search/filter and near-me reads over published DB
+  inventory, plus CPO/customer-scoped wallet balance and wallet-history reads.
+  No wallet mutation, payment-provider call, RFID flow, or HAL call is made.
+  Focused source, route/OpenAPI, and documentation verification pass.
+  Disposable PostgreSQL lifecycle checks remain deferred by decision until
+  explicitly reactivated.
 
 Last completed slice:
 
+- Implemented User App charger search/filter and bounded near-me results over
+  published hubs, with safe hub/connector projections and explicit UNKNOWN
+  availability; implemented wallet balance and keyset-paginated wallet-history
+  reads. Recharge, refund, charging-session history, RFID, and HAL remain
+  separate slices.
 - Implemented the effective customer tariff resolver and informational hub and
   charger price APIs with exact decimal projections, explicit unavailable state,
   active GST resolution, and User Tariff > charger tariff > hub tariff
@@ -911,8 +917,10 @@ Last deployment milestone:
 
 Next expected slice:
 
-- Design staff invitation and membership management before activating dormant
-  role values.
+- Add the User App Razorpay recharge foundation: durable internal recharge
+  orders, provider payment attempts and future-refund records, SDK-backed order
+  creation, and idempotent payment verification using encrypted CPO integration
+  credentials. Do not add CPO/Superadmin APIs; keep provider secrets internal.
 
 Blocked by:
 
@@ -920,8 +928,10 @@ Blocked by:
 
 ## Next Approved Work
 
-1. Design staff invitation and membership management before activating dormant
-   role values.
+1. Complete User App Razorpay recharge and durable provider-payment records.
+2. Add supported customer charging-session history projections from durable CMS
+   session records, without inventing HAL control or live availability.
+3. Design the CMS/HAL QR-scan charging lifecycle before adding start/stop APIs.
 
 Deferred verification decision:
 

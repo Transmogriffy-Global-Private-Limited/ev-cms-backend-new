@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 	"net/http"
 	"regexp"
 	"strings"
@@ -36,6 +37,27 @@ type CustomerHubListResponse struct {
 	HasMore      bool                 `json:"has_more"`
 }
 
+type CustomerChargerListQuery struct {
+	Before        *time.Time
+	BeforeID      *uuid.UUID
+	Limit         int
+	Search        string
+	ConnectorType string
+	MinPowerKW    *float64
+	MaxPowerKW    *float64
+	Latitude      *float64
+	Longitude     *float64
+	RadiusKM      *float64
+	Open24Hours   *bool
+}
+
+type CustomerChargerListResponse struct {
+	Chargers     []CustomerChargerView `json:"chargers"`
+	NextBefore   *time.Time            `json:"next_before,omitempty"`
+	NextBeforeID *uuid.UUID            `json:"next_before_id,omitempty"`
+	HasMore      bool                  `json:"has_more"`
+}
+
 type CustomerHubSummary struct {
 	ID              uuid.UUID `json:"id"`
 	Name            string    `json:"name"`
@@ -61,9 +83,100 @@ type CustomerChargerView struct {
 	Model        string                  `json:"model"`
 	MaxPowerKW   float64                 `json:"max_power_kw"`
 	OCPPVersion  string                  `json:"ocpp_version"`
+	HubName      string                  `json:"hub_name,omitempty"`
+	HubAddress   string                  `json:"hub_address,omitempty"`
+	HubLatitude  *float64                `json:"hub_latitude,omitempty"`
+	HubLongitude *float64                `json:"hub_longitude,omitempty"`
+	Open24Hours  *bool                   `json:"open_24_hours,omitempty"`
+	DistanceKM   *float64                `json:"distance_km,omitempty"`
 	Availability string                  `json:"availability"`
 	IsFavorite   bool                    `json:"is_favorite"`
 	Connectors   []CustomerConnectorView `json:"connectors"`
+}
+
+const customerChargerSearchRadiusKM = 10.0
+
+func (service *Service) ListCustomerChargers(ctx context.Context, principal Principal, query CustomerChargerListQuery) (CustomerChargerListResponse, error) {
+	if err := validateCustomerChargerListQuery(&query); err != nil {
+		return CustomerChargerListResponse{}, err
+	}
+	databaseQuery := service.database.WithContext(ctx).Model(&models.Charger{}).
+		Joins("JOIN hubs ON hubs.id = chargers.hub_id AND hubs.cpo_id = chargers.cpo_id").
+		Where("chargers.cpo_id = ? AND hubs.customer_visible = ?", principal.CPOID, true)
+	if query.Search != "" {
+		pattern := "%" + query.Search + "%"
+		databaseQuery = databaseQuery.Where(
+			"chargers.charger_id ILIKE ? OR chargers.vendor ILIKE ? OR chargers.model ILIKE ? OR hubs.name ILIKE ? OR hubs.address ILIKE ?",
+			pattern, pattern, pattern, pattern, pattern,
+		)
+	}
+	if query.ConnectorType != "" {
+		pattern := "%" + query.ConnectorType + "%"
+		databaseQuery = databaseQuery.Where(
+			"EXISTS (SELECT 1 FROM connectors WHERE connectors.cpo_id = chargers.cpo_id AND connectors.charger_id = chargers.id AND connectors.connector_type ILIKE ?)",
+			pattern,
+		)
+	}
+	if query.MinPowerKW != nil {
+		databaseQuery = databaseQuery.Where("chargers.max_power_kw >= ?", *query.MinPowerKW)
+	}
+	if query.MaxPowerKW != nil {
+		databaseQuery = databaseQuery.Where("chargers.max_power_kw <= ?", *query.MaxPowerKW)
+	}
+	if query.Open24Hours != nil {
+		databaseQuery = databaseQuery.Where("hubs.open_24_hours = ?", *query.Open24Hours)
+	}
+	if query.Before != nil {
+		databaseQuery = databaseQuery.Where("(chargers.created_at, chargers.id) < (?, ?)", *query.Before, *query.BeforeID)
+	}
+	if query.Latitude != nil {
+		distanceExpression := customerChargerDistanceExpression()
+		databaseQuery = databaseQuery.
+			Select("chargers.*, "+distanceExpression+" AS customer_distance_km", *query.Latitude, *query.Longitude, *query.Latitude).
+			Where(distanceExpression+" <= ?", *query.Latitude, *query.Longitude, *query.Latitude, *query.RadiusKM).
+			Order("customer_distance_km ASC, chargers.created_at DESC, chargers.id DESC")
+	} else {
+		databaseQuery = databaseQuery.Order("chargers.created_at DESC, chargers.id DESC")
+	}
+	var records []models.Charger
+	limit := query.Limit
+	if query.Latitude == nil {
+		limit++
+	}
+	if err := databaseQuery.
+		Preload("Hub").
+		Preload("Connectors", func(tx *gorm.DB) *gorm.DB {
+			return tx.Where("cpo_id = ?", principal.CPOID).Order("connector_number ASC")
+		}).
+		Limit(limit).
+		Find(&records).Error; err != nil {
+		return CustomerChargerListResponse{}, fmt.Errorf("list customer chargers: %w", err)
+	}
+	hasMore := false
+	if query.Latitude == nil && len(records) > query.Limit {
+		hasMore = true
+		records = records[:query.Limit]
+	}
+	favorites, err := service.customerFavoriteChargerIDs(ctx, principal, records)
+	if err != nil {
+		return CustomerChargerListResponse{}, err
+	}
+	chargers := make([]CustomerChargerView, 0, len(records))
+	for _, record := range records {
+		view := customerChargerView(record, favorites[record.ID])
+		if query.Latitude != nil && record.Hub != nil {
+			distance := haversineDistanceKM(*query.Latitude, *query.Longitude, record.Hub.Latitude, record.Hub.Longitude)
+			view.DistanceKM = &distance
+		}
+		chargers = append(chargers, view)
+	}
+	response := CustomerChargerListResponse{Chargers: chargers, HasMore: hasMore}
+	if hasMore && len(records) > 0 {
+		last := records[len(records)-1]
+		response.NextBefore = &last.CreatedAt
+		response.NextBeforeID = &last.ID
+	}
+	return response, nil
 }
 
 type CustomerConnectorView struct {
@@ -184,6 +297,59 @@ func validateCustomerHubListQuery(query *CustomerHubListQuery) error {
 	return nil
 }
 
+func validateCustomerChargerListQuery(query *CustomerChargerListQuery) error {
+	if query.Limit == 0 {
+		query.Limit = customerNetworkDefaultLimit
+	}
+	if query.Limit < 1 || query.Limit > customerNetworkMaxLimit {
+		return &APIError{http.StatusBadRequest, "invalid_limit", "Limit must be between 1 and 100."}
+	}
+	query.Search = strings.TrimSpace(query.Search)
+	query.ConnectorType = strings.TrimSpace(query.ConnectorType)
+	if len(query.Search) > 255 {
+		return &APIError{http.StatusBadRequest, "invalid_search", "Search must not exceed 255 characters."}
+	}
+	if len(query.ConnectorType) > 50 {
+		return &APIError{http.StatusBadRequest, "invalid_connector_type", "Connector type must not exceed 50 characters."}
+	}
+	if query.MinPowerKW != nil && *query.MinPowerKW < 0 {
+		return &APIError{http.StatusBadRequest, "invalid_min_power_kw", "Minimum power cannot be negative."}
+	}
+	if query.MaxPowerKW != nil && *query.MaxPowerKW < 0 {
+		return &APIError{http.StatusBadRequest, "invalid_max_power_kw", "Maximum power cannot be negative."}
+	}
+	if query.MinPowerKW != nil && query.MaxPowerKW != nil && *query.MinPowerKW > *query.MaxPowerKW {
+		return &APIError{http.StatusBadRequest, "invalid_power_range", "Minimum power cannot exceed maximum power."}
+	}
+	locationSupplied := query.Latitude != nil || query.Longitude != nil
+	if locationSupplied && (query.Latitude == nil || query.Longitude == nil) {
+		return &APIError{http.StatusBadRequest, "invalid_location", "Latitude and longitude are required together."}
+	}
+	if query.Latitude != nil && (*query.Latitude < -90 || *query.Latitude > 90) {
+		return &APIError{http.StatusBadRequest, "invalid_latitude", "Latitude must be between -90 and 90."}
+	}
+	if query.Longitude != nil && (*query.Longitude < -180 || *query.Longitude > 180) {
+		return &APIError{http.StatusBadRequest, "invalid_longitude", "Longitude must be between -180 and 180."}
+	}
+	if locationSupplied {
+		if query.RadiusKM == nil {
+			query.RadiusKM = func() *float64 { value := customerChargerSearchRadiusKM; return &value }()
+		}
+		if *query.RadiusKM <= 0 || *query.RadiusKM > 100 {
+			return &APIError{http.StatusBadRequest, "invalid_radius_km", "Radius must be greater than 0 and no more than 100 km."}
+		}
+		if query.Before != nil || query.BeforeID != nil {
+			return &APIError{http.StatusBadRequest, "invalid_cursor", "Location searches do not support before cursors."}
+		}
+	} else if query.RadiusKM != nil {
+		return &APIError{http.StatusBadRequest, "invalid_location", "Radius requires latitude and longitude."}
+	}
+	if (query.Before == nil) != (query.BeforeID == nil) {
+		return &APIError{http.StatusBadRequest, "invalid_cursor", "Both before and before_id are required together."}
+	}
+	return nil
+}
+
 func (service *Service) customerFavoriteHubIDs(ctx context.Context, principal Principal, hubs []models.Hub) (map[uuid.UUID]bool, error) {
 	result := make(map[uuid.UUID]bool, len(hubs))
 	if len(hubs) == 0 {
@@ -235,7 +401,30 @@ func customerChargerView(record models.Charger, favorite bool) CustomerChargerVi
 	for _, connector := range record.Connectors {
 		connectors = append(connectors, CustomerConnectorView{ID: connector.ID, ConnectorNumber: connector.ConnectorNumber, ConnectorType: connector.ConnectorType, MaxCurrent: connector.MaxCurrent, MaxVoltage: connector.MaxVoltage, Availability: customerAvailabilityUnknown})
 	}
-	return CustomerChargerView{ID: record.ID, HubID: hubID, ChargerID: record.ChargerID, Vendor: record.Vendor, Model: record.Model, MaxPowerKW: record.MaxPowerKW, OCPPVersion: record.OCPPVersion, Availability: customerAvailabilityUnknown, IsFavorite: favorite, Connectors: connectors}
+	view := CustomerChargerView{ID: record.ID, HubID: hubID, ChargerID: record.ChargerID, Vendor: record.Vendor, Model: record.Model, MaxPowerKW: record.MaxPowerKW, OCPPVersion: record.OCPPVersion, Availability: customerAvailabilityUnknown, IsFavorite: favorite, Connectors: connectors}
+	if record.Hub != nil {
+		open24Hours := record.Hub.Open24Hours
+		view.HubName = record.Hub.Name
+		view.HubAddress = record.Hub.Address
+		view.HubLatitude = &record.Hub.Latitude
+		view.HubLongitude = &record.Hub.Longitude
+		view.Open24Hours = &open24Hours
+	}
+	return view
+}
+
+func customerChargerDistanceExpression() string {
+	return "6371.0 * acos(LEAST(1.0, GREATEST(-1.0, cos(radians(?)) * cos(radians(hubs.latitude)) * cos(radians(hubs.longitude) - radians(?)) + sin(radians(?)) * sin(radians(hubs.latitude)))))"
+}
+
+func haversineDistanceKM(latitudeA, longitudeA, latitudeB, longitudeB float64) float64 {
+	const earthRadiusKM = 6371.0
+	latitudeDelta := (latitudeB - latitudeA) * (3.141592653589793 / 180)
+	longitudeDelta := (longitudeB - longitudeA) * (3.141592653589793 / 180)
+	latitudeA *= 3.141592653589793 / 180
+	latitudeB *= 3.141592653589793 / 180
+	a := math.Sin(latitudeDelta/2)*math.Sin(latitudeDelta/2) + math.Cos(latitudeA)*math.Cos(latitudeB)*math.Sin(longitudeDelta/2)*math.Sin(longitudeDelta/2)
+	return math.Round(earthRadiusKM*2*math.Asin(math.Sqrt(a))*100) / 100
 }
 
 func customerNetworkNotFound(err error, resource string) error {

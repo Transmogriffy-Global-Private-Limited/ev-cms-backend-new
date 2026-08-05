@@ -81,7 +81,7 @@ provides:
   workflows, governance, security, mail, notifications, overview/status,
   audit/workers, SSE/replay, error UX, security, verification, and explicit
   deployment gaps;
-- canonical OpenAPI 3.1 for all 124 current source-tree business/health
+- canonical OpenAPI 3.1 for all 127 current source-tree business/health
   operations;
 - embedded same-origin Swagger UI at `/docs/` and raw OpenAPI at
   `/openapi.yaml`;
@@ -115,6 +115,12 @@ provides:
   effective tariffs, active GST projections, explicit `AVAILABLE`/
   `UNAVAILABLE` states, and User Tariff > charger tariff > hub tariff
   precedence;
+- authenticated User App charger search/filter and bounded near-me reads over
+  published hubs, with safe hub/connector projections and explicit UNKNOWN
+  availability;
+- authenticated CPO/customer-scoped wallet balance and keyset-paginated wallet
+  history reads using exact decimal projections; recharge, refund, and payment
+  provider execution are not yet exposed;
 - trusted backend current-principal, customer, CPO, and app-ID helpers, with
   `CurrentUserID` retained as a customer-ID compatibility alias;
 - environment-controlled permissive CORS middleware and a current development
@@ -395,10 +401,11 @@ repository. The integration contract has not been implemented yet.
   committed, not that SMTP sent it. Operators must use primary-admin delivery
   status; only a newly created global identity receives a temporary password.
 - Only the initial administrator profile and network/GST/tariff subset has
-  handlers. Customer directory, access tokens, charging, wallets, payments,
+  handlers. Customer directory, charging, wallet mutation, recharge, payments,
   reporting, and most other domain tables remain without business APIs;
-  published read-only customer network discovery, favorites, and informational
-  tariff price reads are implemented.
+  published read-only customer network discovery, favorites, charger
+  search/near-me, wallet balance/history, and informational tariff price reads
+  are implemented.
 - CPO staff invitation after the first admin and customer email/profile-change
   workflows are not implemented.
 - Manual subscriptions are Superadmin-managed records; a CPO ADMIN has only a

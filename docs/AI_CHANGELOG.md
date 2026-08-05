@@ -2,6 +2,30 @@
 
 ## 2026-08-05
 
+### Implemented User App charger search and wallet read APIs
+
+- Added authenticated charger search/filter and bounded near-me reads over
+  published hubs, supporting text, connector type, power, opening-hours, and
+  latitude/longitude radius filters. Location results include calculated
+  distance and do not claim HAL-backed live availability.
+- Added authenticated wallet balance and descending keyset-paginated wallet
+  transaction history projections scoped from the trusted customer principal.
+  Internal idempotency keys and provider credentials are not exposed.
+- Kept wallet mutation, Razorpay recharge, refunds, charging-session history,
+  RFID, and HAL control out of this slice.
+- Updated OpenAPI/Swagger, route parity, User App handoff, exhaustive HTTP
+  contract, development plan, customer-app plan, and project state.
+
+Verification:
+
+- `go test ./src/customerauth -count=1` passes.
+- `go test ./src/routes -run TestOpenAPIContractMatchesRuntimeRoutesAndServesUI -count=1` passes.
+- `scripts/verify-docs.ps1` passes.
+- Disposable PostgreSQL lifecycle verification remains intentionally deferred
+  by decision and is not claimed as passed.
+
+## 2026-08-05
+
 ### Corrected User App tariff precedence
 
 - Clarified and corrected the resolver to use the three entity tiers: matching

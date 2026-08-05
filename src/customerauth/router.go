@@ -41,8 +41,11 @@ func RegisterRoutes(group *gin.RouterGroup, service *Service) {
 	protected.GET("/hubs", handler.listHubs)
 	protected.GET("/hubs/:hub_id", handler.getHub)
 	protected.GET("/hubs/:hub_id/price", handler.getHubPrice)
+	protected.GET("/chargers", handler.listChargers)
 	protected.GET("/chargers/:charger_id", handler.getCharger)
 	protected.GET("/chargers/:charger_id/price", handler.getChargerPrice)
+	protected.GET("/wallet", handler.getWallet)
+	protected.GET("/wallet/transactions", handler.listWalletTransactions)
 	protected.GET("/favorites", handler.listFavorites)
 	protected.PUT("/favorite-hubs/:hub_id", handler.addFavoriteHub)
 	protected.DELETE("/favorite-hubs/:hub_id", handler.removeFavoriteHub)
@@ -304,6 +307,58 @@ func (handler *Handler) getCharger(ctx *gin.Context) {
 	ctx.JSON(http.StatusOK, response)
 }
 
+func (handler *Handler) listChargers(ctx *gin.Context) {
+	principal, ok := CurrentPrincipal(ctx)
+	if !ok {
+		writeError(ctx, errUnauthorized)
+		return
+	}
+	query, err := customerChargerListQuery(ctx)
+	if err != nil {
+		writeError(ctx, err)
+		return
+	}
+	response, err := handler.service.ListCustomerChargers(ctx.Request.Context(), principal, query)
+	if err != nil {
+		writeError(ctx, err)
+		return
+	}
+	ctx.JSON(http.StatusOK, response)
+}
+
+func (handler *Handler) getWallet(ctx *gin.Context) {
+	principal, ok := CurrentPrincipal(ctx)
+	if !ok {
+		writeError(ctx, errUnauthorized)
+		return
+	}
+	response, err := handler.service.GetCustomerWallet(ctx.Request.Context(), principal)
+	if err != nil {
+		writeError(ctx, err)
+		return
+	}
+	ctx.JSON(http.StatusOK, response)
+}
+
+func (handler *Handler) listWalletTransactions(ctx *gin.Context) {
+	principal, ok := CurrentPrincipal(ctx)
+	if !ok {
+		writeError(ctx, errUnauthorized)
+		return
+	}
+	query, err := customerWalletTransactionQuery(ctx)
+	if err != nil {
+		writeError(ctx, err)
+		return
+	}
+	response, err := handler.service.ListCustomerWalletTransactions(ctx.Request.Context(), principal, query)
+	if err != nil {
+		writeError(ctx, err)
+		return
+	}
+	ctx.JSON(http.StatusOK, response)
+}
+
 func (handler *Handler) getHubPrice(ctx *gin.Context) {
 	principal, ok := CurrentPrincipal(ctx)
 	if !ok {
@@ -361,6 +416,115 @@ func customerHubListQuery(ctx *gin.Context) (CustomerHubListQuery, error) {
 		query.BeforeID = &beforeID
 	}
 	return query, nil
+}
+
+func customerChargerListQuery(ctx *gin.Context) (CustomerChargerListQuery, error) {
+	query := CustomerChargerListQuery{
+		Search:        ctx.Query("q"),
+		ConnectorType: ctx.Query("connector_type"),
+	}
+	if raw := strings.TrimSpace(ctx.Query("limit")); raw != "" {
+		limit, err := strconv.Atoi(raw)
+		if err != nil {
+			return CustomerChargerListQuery{}, &APIError{http.StatusBadRequest, "invalid_limit", "Limit must be a number between 1 and 100."}
+		}
+		query.Limit = limit
+	}
+	var err error
+	query.Before, err = parseCustomerCursorTime(ctx.Query("before"))
+	if err != nil {
+		return CustomerChargerListQuery{}, err
+	}
+	query.BeforeID, err = parseCustomerCursorID(ctx.Query("before_id"))
+	if err != nil {
+		return CustomerChargerListQuery{}, err
+	}
+	if raw := strings.TrimSpace(ctx.Query("min_power_kw")); raw != "" {
+		value, parseErr := strconv.ParseFloat(raw, 64)
+		if parseErr != nil {
+			return CustomerChargerListQuery{}, &APIError{http.StatusBadRequest, "invalid_min_power_kw", "Minimum power must be a number."}
+		}
+		query.MinPowerKW = &value
+	}
+	if raw := strings.TrimSpace(ctx.Query("max_power_kw")); raw != "" {
+		value, parseErr := strconv.ParseFloat(raw, 64)
+		if parseErr != nil {
+			return CustomerChargerListQuery{}, &APIError{http.StatusBadRequest, "invalid_max_power_kw", "Maximum power must be a number."}
+		}
+		query.MaxPowerKW = &value
+	}
+	if raw := strings.TrimSpace(ctx.Query("lat")); raw != "" {
+		value, parseErr := strconv.ParseFloat(raw, 64)
+		if parseErr != nil {
+			return CustomerChargerListQuery{}, &APIError{http.StatusBadRequest, "invalid_latitude", "Latitude must be a number."}
+		}
+		query.Latitude = &value
+	}
+	if raw := strings.TrimSpace(ctx.Query("lng")); raw != "" {
+		value, parseErr := strconv.ParseFloat(raw, 64)
+		if parseErr != nil {
+			return CustomerChargerListQuery{}, &APIError{http.StatusBadRequest, "invalid_longitude", "Longitude must be a number."}
+		}
+		query.Longitude = &value
+	}
+	if raw := strings.TrimSpace(ctx.Query("radius_km")); raw != "" {
+		value, parseErr := strconv.ParseFloat(raw, 64)
+		if parseErr != nil {
+			return CustomerChargerListQuery{}, &APIError{http.StatusBadRequest, "invalid_radius_km", "Radius must be a number."}
+		}
+		query.RadiusKM = &value
+	}
+	if raw := strings.TrimSpace(ctx.Query("open_24_hours")); raw != "" {
+		value, parseErr := strconv.ParseBool(raw)
+		if parseErr != nil {
+			return CustomerChargerListQuery{}, &APIError{http.StatusBadRequest, "invalid_open_24_hours", "open_24_hours must be true or false."}
+		}
+		query.Open24Hours = &value
+	}
+	return query, validateCustomerChargerListQuery(&query)
+}
+
+func customerWalletTransactionQuery(ctx *gin.Context) (CustomerWalletTransactionQuery, error) {
+	query := CustomerWalletTransactionQuery{}
+	if raw := strings.TrimSpace(ctx.Query("limit")); raw != "" {
+		limit, err := strconv.Atoi(raw)
+		if err != nil {
+			return CustomerWalletTransactionQuery{}, &APIError{http.StatusBadRequest, "invalid_limit", "Limit must be a number between 1 and 100."}
+		}
+		query.Limit = limit
+	}
+	var err error
+	query.Before, err = parseCustomerCursorTime(ctx.Query("before"))
+	if err != nil {
+		return CustomerWalletTransactionQuery{}, err
+	}
+	query.BeforeID, err = parseCustomerCursorID(ctx.Query("before_id"))
+	if err != nil {
+		return CustomerWalletTransactionQuery{}, err
+	}
+	return query, validateCustomerWalletTransactionQuery(&query)
+}
+
+func parseCustomerCursorTime(raw string) (*time.Time, error) {
+	if strings.TrimSpace(raw) == "" {
+		return nil, nil
+	}
+	value, err := time.Parse(time.RFC3339Nano, raw)
+	if err != nil {
+		return nil, &APIError{http.StatusBadRequest, "invalid_cursor", "The before cursor timestamp is invalid."}
+	}
+	return &value, nil
+}
+
+func parseCustomerCursorID(raw string) (*uuid.UUID, error) {
+	if strings.TrimSpace(raw) == "" {
+		return nil, nil
+	}
+	value, err := uuid.Parse(raw)
+	if err != nil {
+		return nil, &APIError{http.StatusBadRequest, "invalid_cursor", "The before cursor ID is invalid."}
+	}
+	return &value, nil
 }
 
 func (handler *Handler) listFavorites(ctx *gin.Context) {
