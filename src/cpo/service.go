@@ -1916,7 +1916,6 @@ func (service *Service) CreateCharger(
 			ChargerType:         request.ChargerType,
 			Segment:             request.Segment,
 			SubSegment:          request.SubSegment,
-			TotalCapacity:       request.TotalCapacity,
 			ChargerImage:        chargerImagePath,
 			ChargerUseType:      request.ChargerUseType,
 			NumberOfConnectors:  request.NumberOfConnectors,
@@ -2119,11 +2118,6 @@ func (service *Service) UpdateCharger(
 			updates["sub_segment"] = *request.SubSegment
 			record.SubSegment = *request.SubSegment
 			changedFields["sub_segment"] = *request.SubSegment
-		}
-		if request.TotalCapacity != nil {
-			updates["total_capacity"] = *request.TotalCapacity
-			record.TotalCapacity = *request.TotalCapacity
-			changedFields["total_capacity"] = *request.TotalCapacity
 		}
 		if request.ChargerUseType != nil {
 			updates["charger_use_type"] = *request.ChargerUseType
@@ -2755,7 +2749,6 @@ func chargerView(record models.Charger, principal auth.Principal) ChargerRespons
 			ChargerType:         record.ChargerType,
 			Segment:             record.Segment,
 			SubSegment:          record.SubSegment,
-			TotalCapacity:       record.TotalCapacity,
 			ChargerImage:        record.ChargerImage,
 			ChargerUseType:      record.ChargerUseType,
 			NumberOfConnectors:  record.NumberOfConnectors,

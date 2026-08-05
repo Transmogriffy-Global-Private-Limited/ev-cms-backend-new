@@ -6629,7 +6629,6 @@ components:
         - charger_type
         - segment
         - sub_segment
-        - total_capacity
         - charger_use_type
         - number_of_connectors
         - parking

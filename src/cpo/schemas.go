@@ -200,7 +200,6 @@ type CreateChargerRequest struct {
 	ChargerType        string                   `json:"charger_type"`
 	Segment            string                   `json:"segment"`
 	SubSegment         string                   `json:"sub_segment"`
-	TotalCapacity      float64                  `json:"total_capacity"`
 	ChargerUseType     string                   `json:"charger_use_type"`
 	NumberOfConnectors int                      `json:"number_of_connectors"`
 	Parking            string                   `json:"parking"`
@@ -229,7 +228,6 @@ type UpdateChargerRequest struct {
 	ChargerType        *string                   `json:"charger_type,omitempty"`
 	Segment            *string                   `json:"segment,omitempty"`
 	SubSegment         *string                   `json:"sub_segment,omitempty"`
-	TotalCapacity      *float64                  `json:"total_capacity,omitempty"`
 	ChargerUseType     *string                   `json:"charger_use_type,omitempty"`
 	NumberOfConnectors *int                      `json:"number_of_connectors,omitempty"`
 	Parking            *string                   `json:"parking,omitempty"`
@@ -266,7 +264,6 @@ type ChargerView struct {
 	ChargerType         string                  `json:"charger_type"`
 	Segment             string                  `json:"segment"`
 	SubSegment          string                  `json:"sub_segment"`
-	TotalCapacity       float64                 `json:"total_capacity"`
 	ChargerImage        string                  `json:"charger_image"`
 	ChargerUseType      string                  `json:"charger_use_type"`
 	NumberOfConnectors  int                     `json:"number_of_connectors"`

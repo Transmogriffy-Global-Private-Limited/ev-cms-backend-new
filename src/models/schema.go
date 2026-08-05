@@ -206,7 +206,6 @@ type Charger struct {
 	ChargerType         string                  `gorm:"type:varchar(100);not null;default:''" json:"charger_type"`
 	Segment             string                  `gorm:"type:varchar(100);not null;default:''" json:"segment"`
 	SubSegment          string                  `gorm:"type:varchar(100);not null;default:''" json:"sub_segment"`
-	TotalCapacity       float64                 `gorm:"type:numeric(10,2);not null;default:0" json:"total_capacity"`
 	ChargerImage        string                  `gorm:"type:text;not null;default:''" json:"charger_image"`
 	ChargerUseType      string                  `gorm:"type:varchar(100);not null;default:''" json:"charger_use_type"`
 	NumberOfConnectors  int                     `gorm:"not null;default:1" json:"number_of_connectors"`
