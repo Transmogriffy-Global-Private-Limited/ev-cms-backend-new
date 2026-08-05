@@ -170,19 +170,20 @@ type Customer struct {
 }
 
 type Hub struct {
-	ID           uuid.UUID `gorm:"type:uuid;primaryKey;default:gen_random_uuid()" json:"id"`
-	CPOID        uuid.UUID `gorm:"type:uuid;not null;index" json:"cpo_id"`
-	CPO          CPO       `gorm:"foreignKey:CPOID;constraint:OnUpdate:CASCADE,OnDelete:RESTRICT" json:"cpo,omitempty"`
-	Name         string    `gorm:"type:varchar(255);not null" json:"name"`
-	Address      string    `gorm:"type:text;not null" json:"address"`
-	Latitude     float64   `gorm:"type:numeric(10,8);not null" json:"latitude"`
-	Longitude    float64   `gorm:"type:numeric(11,8);not null" json:"longitude"`
-	Open24Hours  bool      `gorm:"column:open_24_hours;not null;default:true" json:"open_24_hours"`
-	SanctionLoad float64   `gorm:"type:numeric(10,2);not null;default:0" json:"sanction_load"`
-	Chargers     []Charger `gorm:"foreignKey:HubID" json:"chargers,omitempty"`
-	Tariffs      []Tariff  `gorm:"foreignKey:HubID" json:"tariffs,omitempty"`
-	CreatedAt    time.Time `gorm:"not null" json:"created_at"`
-	UpdatedAt    time.Time `gorm:"not null" json:"updated_at"`
+	ID              uuid.UUID `gorm:"type:uuid;primaryKey;default:gen_random_uuid()" json:"id"`
+	CPOID           uuid.UUID `gorm:"type:uuid;not null;index" json:"cpo_id"`
+	CPO             CPO       `gorm:"foreignKey:CPOID;constraint:OnUpdate:CASCADE,OnDelete:RESTRICT" json:"cpo,omitempty"`
+	Name            string    `gorm:"type:varchar(255);not null" json:"name"`
+	Address         string    `gorm:"type:text;not null" json:"address"`
+	Latitude        float64   `gorm:"type:numeric(10,8);not null" json:"latitude"`
+	Longitude       float64   `gorm:"type:numeric(11,8);not null" json:"longitude"`
+	Open24Hours     bool      `gorm:"column:open_24_hours;not null;default:true" json:"open_24_hours"`
+	SanctionLoad    float64   `gorm:"type:numeric(10,2);not null;default:0" json:"sanction_load"`
+	CustomerVisible bool      `gorm:"column:customer_visible;not null;default:false" json:"customer_visible"`
+	Chargers        []Charger `gorm:"foreignKey:HubID" json:"chargers,omitempty"`
+	Tariffs         []Tariff  `gorm:"foreignKey:HubID" json:"tariffs,omitempty"`
+	CreatedAt       time.Time `gorm:"not null" json:"created_at"`
+	UpdatedAt       time.Time `gorm:"not null" json:"updated_at"`
 }
 
 type Charger struct {
@@ -347,6 +348,8 @@ type WalletTransaction struct {
 	Wallet          Wallet                          `gorm:"foreignKey:WalletID;constraint:OnUpdate:CASCADE,OnDelete:RESTRICT" json:"wallet,omitempty"`
 	SessionID       *uuid.UUID                      `gorm:"type:uuid;index" json:"session_id,omitempty"`
 	Session         *ChargingSession                `gorm:"foreignKey:SessionID;constraint:OnUpdate:CASCADE,OnDelete:RESTRICT" json:"session,omitempty"`
+	RechargeOrderID *uuid.UUID                      `gorm:"type:uuid;index" json:"recharge_order_id,omitempty"`
+	RechargeOrder   *WalletRechargeOrder            `gorm:"foreignKey:RechargeOrderID;constraint:OnUpdate:CASCADE,OnDelete:RESTRICT" json:"recharge_order,omitempty"`
 	Amount          decimal.Decimal                 `gorm:"type:numeric(14,2);not null" json:"amount"`
 	TransactionType constants.WalletTransactionType `gorm:"type:varchar(20);not null" json:"transaction_type"`
 	Description     string                          `gorm:"type:varchar(255);not null;default:''" json:"description"`

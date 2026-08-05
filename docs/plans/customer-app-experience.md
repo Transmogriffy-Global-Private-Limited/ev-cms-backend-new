@@ -1,6 +1,7 @@
 # Customer App Experience Plan
 
-Status: In Progress — CPO-scoped customer accounts implemented; DB lifecycle pending
+Status: In Progress — CPO-scoped accounts, discovery, favorites, tariff reads,
+charger search, and wallet reads implemented; DB lifecycle deferred by decision
 
 ## Objective
 
@@ -24,9 +25,12 @@ Implemented customer routes are confined to `/api/v1/app/auth`:
 - customer-scoped session list/revoke/logout;
 - CPO-local password recovery, reset, and change.
 
-There is no customer profile mutation, station discovery, favorites, tariff
-quote, charging-session, wallet-ledger, payment, notification, or reporting
-API today. Existing tables alone do not imply that those APIs exist.
+Customer profile mutation, published station discovery, favorites, charger
+search/near-me, wallet balance/history reads, and Razorpay wallet recharge
+order/verification are implemented. Tariff quote is implemented as an
+informational read. Charging-session history, refund/webhook/settlement
+operations, notifications, and reporting APIs remain unimplemented. Existing
+tables alone do not imply that those APIs exist.
 
 ## Permanent User-Surface Rules
 
@@ -61,7 +65,7 @@ Customer-account identity migration
   -> tariff resolver and price display
   -> customer access credentials and group policy
   -> CMS/HAL charging lifecycle
-  -> wallet ledger, billing, receipts, history
+  -> wallet ledger, recharge, billing, receipts, history
   -> customer notifications and realtime refinements
 ```
 
@@ -70,7 +74,7 @@ The customer-account migration starts first.
 
 ## Slice 1 — CPO-Scoped Customer Account Migration
 
-Status: Implemented; PostgreSQL lifecycle verification pending
+Status: Implemented; PostgreSQL lifecycle verification deferred by decision
 
 Migration twenty adds the CPO-owned account fields and customer-only
 challenge/session/refresh lineage. Signup, login, recovery, password mutation,
@@ -80,6 +84,8 @@ customers, migration preflight fails rather than silently rewriting data if
 the deployment assumption changes. Profile mutation remains Slice 2.
 
 ## Slice 2 — Customer Self-Service Profile
+
+Status: Implemented; PostgreSQL lifecycle verification deferred by decision
 
 ### Goal
 
@@ -115,9 +121,14 @@ the customer principal and current `X-CPO-App-ID` request contract.
 - Cross-CPO/customer/body-ID attempts cannot redirect the update.
 - Response uses the canonical user projection and `Cache-Control: no-store`.
 - Add handler/service tests, PostgreSQL lifecycle proof, route/OpenAPI parity,
-  exhaustive contract and FE workflow updates.
+  exhaustive contract and FE workflow updates. Source implementation and
+  focused contract verification are complete; the lifecycle proof remains
+  intentionally deferred by decision until the workstream reactivates
+  disposable database testing.
 
 ## Slice 3 — Published Customer Network Read Model
+
+Status: Implemented in source; PostgreSQL lifecycle verification deferred by decision
 
 ### Goal
 
@@ -163,10 +174,14 @@ Until HAL integration, the response explicitly uses
 - Tenant, published/unpublished, attached/unassigned, and missing-resource
   tests.
 - Cursor/filter stability and no cross-CPO enumeration.
-- CPO publication lifecycle PostgreSQL test jointly owned with its CPO slice.
+- CPO publication lifecycle PostgreSQL test is retained but deferred by the
+  current workstream decision; source and database-free contract checks remain
+  mandatory.
 - App-route auth/header/OpenAPI and human/FE contract coverage.
 
 ## Slice 4 — Customer Favorites
+
+Status: Implemented in source; PostgreSQL lifecycle verification deferred by decision
 
 ### Goal
 
@@ -200,24 +215,30 @@ frontend guess from CPO tariff rows.
 At a supplied server timestamp, select active, effective tariffs scoped to the
 customer’s CPO and hub. Use this deterministic precedence:
 
-1. charger + customer user group;
-2. charger + generic customer;
-3. hub + customer user group;
-4. hub + generic customer.
+1. matching UserGroup tariff;
+2. generic charger tariff;
+3. generic hub tariff.
+
+In the current schema, “User Tariff” means a tariff matching the customer’s
+existing `UserGroupID`; this slice does not add a new per-customer or group
+assignment API. A matching UserGroup tariff always wins over generic charger
+and hub tariffs. If both a matching group/charger and group/hub row exist, the
+charger row is only the more-specific tie-breaker within the UserGroup tier.
 
 The resolver loads the active GST profile referenced by the tariff and returns
 exact decimal strings. A missing eligible tariff returns an explicit
-`price_unavailable` state, never a zero price. The result is informational and
+`UNAVAILABLE` state with a reason, never a zero price. The result is informational and
 not a charge commitment; a charging session later snapshots the selected tariff
 and tax atomically.
 
-### Proposed Endpoints
+### Implemented Endpoints
 
 - `GET /api/v1/app/hubs/{hub_id}/price`
 - `GET /api/v1/app/chargers/{charger_id}/price`
 
-The exact route shape may be folded into discovery detail only if the response
-remains independently cacheable and its server-calculated semantics are clear.
+Both routes return the same informational `AVAILABLE`/`UNAVAILABLE` response
+and do not contact HAL. Missing or inactive referenced GST makes the price
+unavailable rather than returning a price without tax context.
 
 ### Dependencies
 
@@ -227,6 +248,86 @@ remains independently cacheable and its server-calculated semantics are clear.
 
 Do not activate group-specific access/price behavior until the CPO team has an
 approved customer/group management API. Generic tariffs can be supported first.
+
+## Slice 5A — Customer Charger Search and Wallet Reads
+
+Status: Implemented in source; PostgreSQL lifecycle verification deferred by
+decision
+
+### Goal
+
+Provide the User App with customer-safe charger filtering/near-me discovery and
+read-only wallet projections without inventing live charger state or trusting
+client-supplied ownership.
+
+### Implemented Endpoints
+
+- `GET /api/v1/app/auth/chargers`
+- `GET /api/v1/app/auth/wallet`
+- `GET /api/v1/app/auth/wallet/transactions`
+
+### Rules
+
+- Charger results are limited to attached chargers in published hubs in the
+  authenticated customer’s CPO.
+- Text, connector type, power, opening-hours, and optional latitude/longitude
+  radius filters are server-side. Location results are bounded and ordered by
+  calculated distance; they do not expose a continuation cursor.
+- Charger and connector availability remains `UNKNOWN` until the separate HAL
+  contract exists.
+- Wallet reads derive the wallet from the trusted customer principal and use
+  exact decimal strings. Ledger history is descending keyset-paginated and
+  does not expose internal idempotency keys.
+- These routes are read-only. Recharge, refunds, billing settlement, RFID,
+  and live charging remain separate slices.
+
+### Verification
+
+- Database-free query validation and distance tests.
+- Route/OpenAPI parity and documentation verification.
+- Full Go checks; disposable PostgreSQL lifecycle remains deferred by decision.
+
+## Slice 5B — Razorpay Wallet Recharge
+
+Status: Implemented in source; PostgreSQL lifecycle verification deferred by
+decision
+
+### Goal
+
+Allow an authenticated customer to create an idempotent Razorpay checkout
+order and verify a completed checkout using the encrypted Razorpay credentials
+already stored for that customer’s CPO. A successful verification credits the
+customer wallet exactly once.
+
+### Implemented Endpoints
+
+- `POST /api/v1/app/auth/wallet/recharge/orders`
+- `POST /api/v1/app/auth/wallet/recharge/verify`
+
+### Durable State and Rules
+
+- Migration 22 stores CMS recharge orders, Razorpay payment attempts, and a
+  refund-ready record shape. Provider IDs, amounts, currencies, statuses,
+  method/fee/tax fields, timestamps, sanitized provider snapshots, and payment
+  signature evidence are retained; provider credentials, authorization data,
+  card numbers, CVV, and other secret fields are not stored in snapshots.
+- Order creation requires `Idempotency-Key`, validates positive INR amounts,
+  resolves credentials only through the internal CPO integration service, and
+  returns the public Razorpay key ID without exposing the secret.
+- Verification checks the checkout signature, fetches the payment through the
+  official Razorpay Go SDK, requires exact order/amount/currency matching and
+  captured status, and atomically links one completed wallet credit to the
+  recharge order.
+- Authorized or failed provider payments are retained without wallet credit.
+- No CPO/Superadmin payment API, webhook, refund command, settlement worker,
+  RFID flow, or HAL call is part of this slice.
+
+### Verification
+
+- Database-free Razorpay amount, signature, provider-snapshot, and route tests.
+- Static migration durability checks.
+- Route/OpenAPI parity and documentation verification.
+- Full Go checks; disposable PostgreSQL lifecycle remains deferred by decision.
 
 ## Slice 6 — Customer Access Credentials and Group Policy
 
@@ -309,12 +410,14 @@ and REST snapshot recovery before adding a socket.
 
 1. Implement and verify Slice 1.
 2. Coordinate the CPO publication dependency, then implement Slices 2 and 3.
-3. Implement Slice 4 only after tariff/group semantics are accepted.
+3. Implement Slice 4 over the published discovery projection; it does not
+   require HAL integration or group-specific tariff semantics.
 4. Do not begin HAL or financial work before their prerequisite contracts.
 
 Each implemented slice includes: affected-schema review/migration when needed,
 trusted scope and authorization, transactional state/audit effects, strict JSON
 validation, error contract, OpenAPI/Swagger, human and FE documentation,
-focused tests, PostgreSQL lifecycle verification against an explicitly
-disposable database, full Go checks, documentation verification, and residue
-scan. No slice is considered complete merely because a route returns `200`.
+  focused tests, full Go checks, documentation verification, and residue scan.
+  PostgreSQL lifecycle tests remain in the repository but are deferred by
+  decision. No slice is considered complete merely because a route returns
+  `200`.

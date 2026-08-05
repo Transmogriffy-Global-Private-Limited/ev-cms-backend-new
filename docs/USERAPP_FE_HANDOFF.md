@@ -143,6 +143,13 @@ export type CustomerMe = {
   };
 };
 
+export type UpdateCustomerProfileRequest = {
+  full_name: string;
+  phone?: string | null; // omit to preserve; null to clear
+};
+
+export type CustomerUser = CustomerMe["user"];
+
 export type CustomerSession = {
   id: string;
   ip_address?: string;
@@ -151,6 +158,125 @@ export type CustomerSession = {
   last_seen_at: string;
   expires_at: string;
   is_current: boolean;
+};
+
+export type CustomerHubSummary = {
+  id: string;
+  name: string;
+  address: string;
+  latitude: number;
+  longitude: number;
+  open_24_hours: boolean;
+  customer_visible: true;
+  charger_count: number;
+  is_favorite: boolean;
+};
+
+export type CustomerConnector = {
+  id: string;
+  connector_number: number;
+  connector_type: string;
+  max_current: number;
+  max_voltage: number;
+  availability: "UNKNOWN";
+};
+
+export type CustomerCharger = {
+  id: string;
+  hub_id: string;
+  charger_id: string; // six-character public ID
+  vendor: string;
+  model: string;
+  max_power_kw: number;
+  ocpp_version: string;
+  hub_name?: string;
+  hub_address?: string;
+  hub_latitude?: number;
+  hub_longitude?: number;
+  open_24_hours?: boolean;
+  distance_km?: number;
+  availability: "UNKNOWN";
+  is_favorite: boolean;
+  connectors: CustomerConnector[];
+};
+
+export type CustomerChargerList = {
+  chargers: CustomerCharger[];
+  next_before?: string;
+  next_before_id?: string;
+  has_more: boolean;
+};
+
+export type CustomerWalletDetails = {
+  id: string;
+  balance: string;
+  currency: string;
+  updated_at: string;
+};
+
+export type CustomerWalletTransaction = {
+  id: string;
+  amount: string;
+  transaction_type: "CREDIT" | "DEBIT";
+  description: string;
+  session_id?: string;
+  status: "PENDING" | "COMPLETED" | "FAILED" | "REVERSED";
+  created_at: string;
+};
+
+export type CustomerWalletTransactionList = {
+  wallet: CustomerWalletDetails;
+  transactions: CustomerWalletTransaction[];
+  next_before?: string;
+  next_before_id?: string;
+  has_more: boolean;
+};
+
+export type CustomerRechargeOrder = {
+  recharge_order_id: string;
+  provider: "RAZORPAY";
+  provider_order_id: string;
+  amount: string;
+  amount_minor: number;
+  currency: "INR";
+  provider_key_id?: string; // present when creating the checkout order
+  status: "PAYMENT_PENDING" | "PAID";
+  created_at: string;
+};
+
+export type CustomerRechargeVerifyRequest = {
+  razorpay_order_id: string;
+  razorpay_payment_id: string;
+  razorpay_signature: string;
+};
+
+export type CustomerHub = CustomerHubSummary & {
+  chargers: CustomerCharger[];
+};
+
+export type CustomerFavorites = {
+  hubs: CustomerHubSummary[];
+  chargers: CustomerCharger[];
+  next_hub_before?: string;
+  next_hub_before_id?: string;
+  has_more_hubs: boolean;
+  next_charger_before?: string;
+  next_charger_before_id?: string;
+  has_more_chargers: boolean;
+};
+
+export type CustomerPriceResponse = {
+  status: "AVAILABLE" | "UNAVAILABLE";
+  effective_at: string;
+  currency?: string;
+  price_per_kwh?: string;
+  idle_fee_per_minute?: string;
+  gst?: {
+    sgst_rate: string;
+    cgst_rate: string;
+    igst_rate: string;
+  };
+  unavailable_reason?: "no_eligible_tariff";
 };
 ```
 
@@ -172,6 +298,22 @@ export type CustomerSession = {
 | `POST /password/reset/resend` | No | `202 ChallengeResponse` | Replace recovery ID/code pair. |
 | `POST /password/reset` | No | `200 MessageResponse` | Replace forgotten password. |
 | `GET /me` | Yes | `200 CustomerMe` | Bootstrap authenticated app state. |
+| `PATCH /profile` | Yes | `200 CustomerUser` | Update this account's name or phone. |
+| `GET /hubs` | Yes | `200 CustomerHubList` | List published hubs in this CPO. |
+| `GET /hubs/{hub_id}` | Yes | `200 CustomerHub` | Read one published hub and attached chargers. |
+| `GET /chargers` | Yes | `200 CustomerChargerList` | Search/filter published chargers, including optional near-me results. |
+| `GET /chargers/{charger_id}` | Yes | `200 CustomerCharger` | Read one attached charger by public ID. |
+| `GET /favorites` | Yes | `200 CustomerFavorites` | List current published favorites. |
+| `PUT /favorite-hubs/{hub_id}` | Yes | `204` | Idempotently save a published hub. |
+| `DELETE /favorite-hubs/{hub_id}` | Yes | `204` | Idempotently remove a hub favorite. |
+| `PUT /favorite-chargers/{charger_id}` | Yes | `204` | Idempotently save an attached published charger. |
+| `DELETE /favorite-chargers/{charger_id}` | Yes | `204` | Idempotently remove a charger favorite. |
+| `GET /hubs/{hub_id}/price` | Yes | `200 CustomerPriceResponse` | Resolve the current informational hub price. |
+| `GET /chargers/{charger_id}/price` | Yes | `200 CustomerPriceResponse` | Resolve the current informational charger price. |
+| `GET /wallet` | Yes | `200 CustomerWalletResponse` | Read the current exact-decimal wallet balance. |
+| `GET /wallet/transactions` | Yes | `200 CustomerWalletTransactionList` | Read this customer’s bounded wallet ledger history. |
+| `POST /wallet/recharge/orders` | Yes | `201 CustomerRechargeOrder` | Create an idempotent Razorpay checkout order. |
+| `POST /wallet/recharge/verify` | Yes | `200 CustomerRechargeOrder` | Verify a captured Razorpay payment and credit the wallet once. |
 | `GET /sessions` | Yes | `200 SessionList` | List this account's active sessions. |
 | `DELETE /sessions/{session_id}` | Yes | `204` | Revoke one owned session. |
 | `POST /logout` | Yes | `204` | Revoke current session. |
@@ -179,6 +321,94 @@ export type CustomerSession = {
 | `POST /password/change` | Yes | `200 MessageResponse` | Change password and revoke all sessions. |
 
 Paths in the table are relative to `/api/v1/app/auth`.
+
+### 5.1 Published Network Discovery
+
+The discovery endpoints are read-only and use the same customer auth plus
+matching app-ID header as `/me`. The backend derives CPO and customer scope
+from the validated session. The frontend must never send a customer ID or CPO
+ID to select ownership.
+
+`GET /hubs` uses bounded keyset pagination. Preserve both `next_before` and
+`next_before_id` together; discard them when `q` changes. A `customer_visible`
+hub is explicitly published by a CPO ADMIN. Unpublished hubs, independent
+chargers, and cross-CPO resources are not returned.
+
+The backend deliberately does not contact HAL in this slice. `availability` is
+`UNKNOWN` for chargers and connectors. Do not render it as online, available,
+offline, or live status; a later HAL-backed contract must define those states,
+reconnect behavior, and REST recovery before the app depends on them.
+
+The safe projection omits OCPP identity, serial number, raw CMS status,
+last-seen timestamps, sanctioned load, CPO notes, and audit data. Favorite
+flags are present in the same safe projection used by the favorite list.
+
+Favorite mutations are now callable. `PUT` is idempotent and accepts no body;
+`DELETE` is idempotent and returns `204` when the favorite is absent. A hub or
+charger must be published and in the current CPO when it is added. If a CPO
+later unpublishes the resource, `GET /favorites` omits it while the durable
+favorite may remain until the customer removes it. This preserves the saved
+intent without leaking unpublished inventory.
+
+`GET /favorites` uses independent bounded cursors for hubs and chargers:
+preserve each `next_*` pair together and send it back as the corresponding
+`hub_before`/`hub_before_id` or `charger_before`/`charger_before_id` pair.
+
+`GET /chargers` supports optional `q`, `connector_type`, `min_power_kw`,
+`max_power_kw`, and `open_24_hours` filters. Supplying `lat` and `lng` uses the
+customer’s current location and returns chargers within `radius_km` (default
+10 km, maximum 100 km), ordered by calculated distance. Location searches are
+bounded and do not return a continuation cursor; ordinary searches use the
+same descending keyset cursor as other collections. All results remain limited
+to attached chargers in published hubs belonging to the authenticated CPO.
+Stored CMS status is not live availability: charger and connector
+`availability` remains `UNKNOWN` until the separate HAL contract exists.
+
+### 5.2 Wallet Reads
+
+`GET /wallet` returns the authenticated customer’s CPO-local wallet with an
+exact two-decimal balance string, currency, and durable wallet update time.
+`GET /wallet/transactions` returns only that wallet’s transactions in
+descending `(created_at, id)` keyset order. Preserve `next_before` and
+`next_before_id` together when fetching the next page. The response does not
+expose internal idempotency keys or provider credentials. These routes are
+read-only; wallet recharge, refund, charging-session billing, and payment
+provider verification are separate implementation slices.
+
+`POST /wallet/recharge/orders` requires an `Idempotency-Key` header and a body
+such as `{"amount":"500.00"}`. Reuse the same key only with the same amount.
+The response supplies the public Razorpay `provider_key_id` and
+`provider_order_id` for the checkout SDK. The frontend must never receive or
+store the CPO key secret.
+
+After checkout succeeds, send the provider-returned order ID, payment ID, and
+signature to `POST /wallet/recharge/verify`. The backend verifies the signature,
+fetches the payment through Razorpay, requires captured status and exact order
+amount/currency matches, then atomically credits the wallet. Do not treat an
+authorized-but-not-captured response as funded, and do not retry with a new
+idempotency key when the original order request is still pending.
+
+### 5.3 Informational Price Display
+
+The price routes are authenticated, CPO-scoped reads. The server chooses the
+tariff at `effective_at`; the frontend must not reconstruct precedence from CPO
+tariff rows. The precedence is:
+
+1. matching UserGroup tariff;
+2. generic charger tariff;
+3. generic hub tariff.
+
+In the current backend schema, “User Tariff” is the tariff whose
+`user_group_id` matches the authenticated customer’s existing group assignment.
+No new group-management or per-customer tariff API is introduced here. A
+matching UserGroup tariff always wins over generic charger and hub tariffs. If
+both a matching group/charger and group/hub row exist, the charger row is only
+the more-specific tie-breaker within the UserGroup tier. A customer without a
+group uses only generic tariffs. `AVAILABLE` includes exact
+decimal strings for currency, energy price, idle fee, and GST when referenced;
+`UNAVAILABLE` is a valid `200` response with `unavailable_reason` and never a
+zero-price fallback. The response is informational and is not a charging or
+payment commitment. HAL is not called.
 
 ## 6. Signup Flow
 
@@ -330,7 +560,32 @@ The backend revalidates the durable session, active customer, active CPO,
 wallet ownership, and current CPO app ID. A token alone is not durable
 authority.
 
-### 9.2 Session list
+### 9.2 Edit profile
+
+`PATCH /profile` updates the authenticated CPO-local account only:
+
+```json
+{
+  "full_name": "Asha Das",
+  "phone": "+919876543210"
+}
+```
+
+`full_name` is required and must be 1–255 trimmed characters. `phone` is
+optional and must contain 7–15 digits with an optional leading `+`. Omit
+`phone` to preserve the current value; send JSON `null` to clear it. Email,
+password, status, group, wallet, sessions, CPO, and identifiers cannot be
+changed by this route.
+
+The response is the canonical `CustomerUser` projection. Treat it as the new
+local profile state and do not replace the complete `CustomerMe` bootstrap
+object with it. The backend returns `Cache-Control: no-store` and records only
+changed field names in the CPO-scoped audit event.
+
+Errors are `400 invalid_request`, `400 invalid_full_name`,
+`400 invalid_phone`, `401 unauthorized`, or `403 cpo_app_id_mismatch`.
+
+### 9.3 Session list
 
 `GET /sessions`
 
@@ -353,14 +608,14 @@ authority.
 Only active, unexpired sessions for this exact `(cpo_id, customer_id)` are
 returned.
 
-### 9.3 Revoke one session
+### 9.4 Revoke one session
 
 `DELETE /sessions/{session_id}` returns `204`. The customer may revoke their
 current session; if `is_current` was true, clear local authentication state
 immediately. `404 session_not_found` means the session is not owned by this
 account or does not exist.
 
-### 9.4 Logout
+### 9.5 Logout
 
 - `POST /logout` returns `204` and revokes the current session.
 - `POST /logout-all` returns `204` and revokes all sessions for only this
@@ -499,18 +754,20 @@ compile or deploy one trusted app-ID value per branded CPO distribution.
 
 ## 13. Currently Unsupported Customer UI
 
-The authentication boundary is ready. These customer-product surfaces are not
-part of this slice and the frontend must not invent calls for them:
+The authentication boundary and the listed read-only discovery/wallet surfaces
+are ready. These customer-product surfaces are not part of the currently
+routed contract and the frontend must not invent calls for them:
 
-- edit email, name, or phone;
-- charger/hub discovery and favorites;
+- edit email;
 - RFID/access-token management;
 - start/stop charging and live transaction telemetry;
-- wallet funding, charging bills, or payment history;
+- refunds, charging bills, or payment-provider history beyond the recharge
+  order/verification flow;
 - customer notifications and realtime feeds.
 
-The next approved customer slice is authenticated profile editing. Keep those
-screens disabled until their routes appear in the same OpenAPI document.
+Authenticated name and phone editing is now available through `PATCH /profile`.
+Keep email editing and the other listed customer-product surfaces disabled
+until their routes appear in the same OpenAPI document.
 
 ## 14. Frontend Acceptance Checklist
 

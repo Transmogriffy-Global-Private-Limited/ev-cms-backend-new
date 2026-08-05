@@ -2861,6 +2861,10 @@ func (service *Service) CreateHub(
 	if request.SanctionLoad != nil {
 		sanctionLoad = *request.SanctionLoad
 	}
+	customerVisible := false
+	if request.CustomerVisible != nil {
+		customerVisible = *request.CustomerVisible
+	}
 
 	cpoID := *principal.CPOID
 	var record models.Hub
@@ -2891,16 +2895,17 @@ func (service *Service) CreateHub(
 
 		now := service.now()
 		record = models.Hub{
-			ID:           uuid.New(),
-			CPOID:        cpoID,
-			Name:         request.Name,
-			Address:      request.Address,
-			Latitude:     *request.Latitude,
-			Longitude:    *request.Longitude,
-			Open24Hours:  open24Hours,
-			SanctionLoad: sanctionLoad,
-			CreatedAt:    now,
-			UpdatedAt:    now,
+			ID:              uuid.New(),
+			CPOID:           cpoID,
+			Name:            request.Name,
+			Address:         request.Address,
+			Latitude:        *request.Latitude,
+			Longitude:       *request.Longitude,
+			Open24Hours:     open24Hours,
+			SanctionLoad:    sanctionLoad,
+			CustomerVisible: customerVisible,
+			CreatedAt:       now,
+			UpdatedAt:       now,
 		}
 
 		if err := tx.Create(&record).Error; err != nil {
@@ -2928,6 +2933,7 @@ func (service *Service) CreateHub(
 				"name":              record.Name,
 				"open_24_hours":     record.Open24Hours,
 				"sanction_load":     record.SanctionLoad,
+				"customer_visible":  record.CustomerVisible,
 				"chargers_assigned": len(request.ChargerIDs),
 			},
 			now,
@@ -3056,6 +3062,10 @@ func (service *Service) UpdateHub(
 			updates["sanction_load"] = *request.SanctionLoad
 			changedFields["sanction_load"] = *request.SanctionLoad
 		}
+		if request.CustomerVisible != nil && record.CustomerVisible != *request.CustomerVisible {
+			updates["customer_visible"] = *request.CustomerVisible
+			changedFields["customer_visible"] = *request.CustomerVisible
+		}
 
 		if len(changedFields) == 0 {
 			return nil
@@ -3076,6 +3086,8 @@ func (service *Service) UpdateHub(
 				record.Open24Hours = value.(bool)
 			case "sanction_load":
 				record.SanctionLoad = value.(float64)
+			case "customer_visible":
+				record.CustomerVisible = value.(bool)
 			}
 		}
 
@@ -3227,7 +3239,8 @@ func validateUpdateHubRequest(request UpdateHubRequest) error {
 		request.Latitude == nil &&
 		request.Longitude == nil &&
 		request.Open24Hours == nil &&
-		request.SanctionLoad == nil {
+		request.SanctionLoad == nil &&
+		request.CustomerVisible == nil {
 		return invalid("hub", "At least one hub field must be supplied.")
 	}
 
@@ -3276,16 +3289,17 @@ func mapHubWriteError(err error, operation string) error {
 
 func hubView(record models.Hub) HubView {
 	return HubView{
-		ID:           record.ID,
-		CPOID:        record.CPOID,
-		Name:         record.Name,
-		Address:      record.Address,
-		Latitude:     record.Latitude,
-		Longitude:    record.Longitude,
-		Open24Hours:  record.Open24Hours,
-		SanctionLoad: record.SanctionLoad,
-		CreatedAt:    record.CreatedAt,
-		UpdatedAt:    record.UpdatedAt,
+		ID:              record.ID,
+		CPOID:           record.CPOID,
+		Name:            record.Name,
+		Address:         record.Address,
+		Latitude:        record.Latitude,
+		Longitude:       record.Longitude,
+		Open24Hours:     record.Open24Hours,
+		SanctionLoad:    record.SanctionLoad,
+		CustomerVisible: record.CustomerVisible,
+		CreatedAt:       record.CreatedAt,
+		UpdatedAt:       record.UpdatedAt,
 	}
 }
 

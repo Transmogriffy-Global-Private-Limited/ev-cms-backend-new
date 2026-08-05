@@ -147,6 +147,7 @@ $requiredRoutes = @(
     '/api/v1/app/auth/signup',
     '/api/v1/app/auth/login',
     '/api/v1/app/auth/me',
+    '/api/v1/app/auth/profile',
     '/api/v1/auth/password/change',
     '/api/v1/platform/cpos',
     '/api/v1/platform/cpos/slug-availability',
@@ -206,8 +207,8 @@ foreach ($route in $retiredRoutes) {
 }
 
 $operationCount = ([regex]::Matches($openAPI, '(?m)^\s{6}operationId:\s+')).Count
-if ($operationCount -ne 113) {
-    throw "OpenAPI contains $operationCount operations; expected 113."
+if ($operationCount -ne 129) {
+    throw "OpenAPI contains $operationCount operations; expected 129."
 }
 
 if ($openAPI.Contains('/api/v1/cpo/profile')) {

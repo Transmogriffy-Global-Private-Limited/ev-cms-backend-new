@@ -81,7 +81,7 @@ provides:
   workflows, governance, security, mail, notifications, overview/status,
   audit/workers, SSE/replay, error UX, security, verification, and explicit
   deployment gaps;
-- canonical OpenAPI 3.1 for all 111 current source-tree business/health
+- canonical OpenAPI 3.1 for all 129 current source-tree business/health
   operations;
 - embedded same-origin Swagger UI at `/docs/` and raw OpenAPI at
   `/openapi.yaml`;
@@ -100,6 +100,32 @@ provides:
   rotating/reuse-detecting refresh tokens;
 - app-user `me`, customer-scoped session listing/revocation/logout, CPO-local
   password reset/change, and eligible-recipient recovery-ID/code delivery;
+- authenticated customer self-service profile updates through
+  `PATCH /api/v1/app/auth/profile`, with omitted-versus-null phone semantics,
+  canonical user projection responses, and CPO-scoped field-name-only audit
+  evidence;
+- CPO ADMIN-controlled default-false hub publication through
+  `customer_visible`, plus authenticated customer-safe published network
+  discovery for hubs, attached chargers, and connectors; discovery never calls
+  HAL and reports availability as `UNKNOWN`;
+- customer-owned favorite list and idempotent add/remove APIs over published
+  hubs and attached chargers, with unpublish-safe reads and CPO/customer
+  composite ownership;
+- authenticated informational hub and charger price resolution using active
+  effective tariffs, active GST projections, explicit `AVAILABLE`/
+  `UNAVAILABLE` states, and User Tariff > charger tariff > hub tariff
+  precedence;
+- authenticated User App charger search/filter and bounded near-me reads over
+  published hubs, with safe hub/connector projections and explicit UNKNOWN
+  availability;
+- authenticated CPO/customer-scoped wallet balance and keyset-paginated wallet
+  history reads using exact decimal projections;
+- User App Razorpay recharge order creation and captured-payment verification
+  through the existing encrypted CPO integration credentials, with migration
+  twenty-two durable recharge orders, provider payment attempts, future-refund
+  records, provider snapshots, signature evidence, and atomic wallet-credit
+  ledger linkage; no CPO/Superadmin payment APIs, refund execution, webhook,
+  settlement reconciliation, RFID, or HAL integration;
 - trusted backend current-principal, customer, CPO, and app-ID helpers, with
   `CurrentUserID` retained as a customer-ID compatibility alias;
 - environment-controlled permissive CORS middleware and a current development
@@ -133,8 +159,8 @@ provides:
   handler;
 - the additive PostgreSQL database `devevcmsnewdb`, owned by `postgres`.
 
-The active development VPS runs source revision `4502934`, with migrations
-through nineteen recorded and the deployed 112-operation contract. CPO GSTIN and address
+The active development VPS runs source revision `c33da86`, with migrations
+through twenty-two recorded and the deployed 129-operation contract. CPO GSTIN and address
 identity are database-required, authenticated platform clients can use the
 advisory slug-availability operation, and known uniqueness races return
 field- or relationship-specific conflict codes. All four CPOs were complete
@@ -149,20 +175,26 @@ Migration fifteen adds tariff effective-date fields and a tenant/scope-aware
 PostgreSQL exclusion constraint and is deployed. The disposable PostgreSQL
 lifecycle test remains unexecuted because no `TEST_DATABASE_URL` is configured.
 
-The deployed contract has 112 operations: the added
+The deployed contract has 129 operations: the added
 `GET /api/v1/cpo/users/{user_id}` is a tenant-scoped staff-membership point
 lookup, not a customer or staff directory. CPO-local customer accounts are not
 reachable through it.
 
-The current source candidate has 113 operations. It adds the CPO ADMIN-only
+The deployed source has 129 operations. It includes
+operations after adding customer self-service profile editing, published
+network discovery, favorites, informational customer price reads, charger
+search and wallet reads, and Razorpay recharge order/verification; the deployed binary remains at 113 until a
+separately approved deployment. The deployed
+source includes the CPO ADMIN-only
 `POST /api/v1/cpo/hubs/{hub_id}/chargers` hub attachment/reassignment command,
 allows an independent charger to be created without `hub_id`, and adds
 non-negative hub `sanction_load` plus the upgrade-time removal of the legacy
 charger-hub `NOT NULL` in migration sixteen. These changes are deployed at
-`4502934`; migration nineteen reconciles databases that had already recorded
-the removed follow-up migrations so `chargers.hub_id` is nullable. The one
-source-only operation beyond that deployment is the CPO ADMIN subscription
-read endpoint merged from `main`.
+`c33da86`; migration nineteen reconciles databases that had already recorded
+the removed follow-up migrations so `chargers.hub_id` is nullable, and migration
+twenty makes customer accounts CPO-local with dedicated authentication lineage,
+and migrations 21–22 add customer-visible network discovery and Razorpay wallet
+recharge ledger support.
 
 The deployed recovery flow fixes a recovery-specific OTP mapper defect that discarded
 `challenge_id` before outbox validation and caused eligible administrative and
@@ -170,17 +202,18 @@ customer forgot-password transactions to roll back with `500 internal_error`.
 Administrative and customer recovery now enqueue the complete canonical mail
 payload before outbox validation.
 
-Customer-app implementation requires `X-CPO-App-ID` on every
+CPO customer-app implementation requires `X-CPO-App-ID` on every
 `/api/v1/app/auth/...` request, including signup. The approved next user-work
-plan retains that app-only header and sequences customer profile,
-published-station discovery, favorites, tariff display, and later
-HAL-dependent charging/billing work. This is planned only; CPO ADMIN routes
-remain owned by the CPO workstream.
+plan retains that app-only header. Customer self-service name and phone
+editing, published-station discovery, favorites, and informational tariff
+display are implemented in source; HAL-dependent charging/billing work remains
+planned.
+CPO ADMIN routes remain owned by the CPO workstream.
 
 No CMS/HAL transport or handshake, live charger state ingestion, charging
-workflow, tenant payment workflow, tenant commercial-management workflow,
-staff-management workflow, or reporting behavior is implemented
-yet.
+workflow, Razorpay refund/webhook/settlement workflow, tenant commercial-
+management workflow, staff-management workflow, or reporting behavior is
+implemented yet.
 
 ## Verification
 
@@ -202,7 +235,7 @@ yet.
   content, and affected package tests passed for the source-tree change.
 - Superadmin migration fourteen static coverage, input/privacy regression
   tests, and the affected package tests passed for the source-tree change.
-- The 113-operation source OpenAPI and runtime route sets match; documentation
+- The 124-operation source OpenAPI and runtime route sets match; documentation
   contract verification passed.
 - Source migration coverage verifies both sanctioned-load constraints and the
   upgrade/rollback guard for independent charger inventory. The targeted
@@ -210,11 +243,12 @@ yet.
   disposable `TEST_DATABASE_URL` is configured.
 - `go test ./...` passed.
 - `go vet ./...` passed.
-- `git diff --check` passed. Stateful PostgreSQL lifecycle verification remains
-  pending because no disposable `TEST_DATABASE_URL` is configured.
-- Revision `4502934` was built cleanly and rehosted after a validated mode-0600
-  rollback dump and migration nineteen. The installed identity, loopback-only
-  listener, loopback/public readiness, live 112-operation Swagger/OpenAPI,
+- `git diff --check` passed. Stateful PostgreSQL lifecycle verification is
+  intentionally deferred by the current workstream decision; no stateful
+  result is claimed.
+- Revision `c33da86` was built cleanly and rehosted after a validated mode-0600
+  rollback dump and migration twenty-two. The installed identity, loopback-only
+  listener, loopback/public readiness, live 129-operation Swagger/OpenAPI,
   request-ID header, protected CPO routes, nullable charger hub assignment,
   required workers, and absence of startup errors or panics passed.
 - Revision `396bae5` was built cleanly and rehosted after a validated
@@ -375,8 +409,11 @@ repository. The integration contract has not been implemented yet.
   committed, not that SMTP sent it. Operators must use primary-admin delivery
   status; only a newly created global identity receives a temporary password.
 - Only the initial administrator profile and network/GST/tariff subset has
-  handlers. Customer directory, access tokens, charging, wallets, payments,
-  reporting, and most other domain tables remain without business APIs.
+  handlers. Customer directory, charging, wallet mutation, recharge, payments,
+  reporting, and most other domain tables remain without business APIs;
+  published read-only customer network discovery, favorites, charger
+  search/near-me, wallet balance/history, and informational tariff price reads
+  are implemented.
 - CPO staff invitation after the first admin and customer email/profile-change
   workflows are not implemented.
 - Manual subscriptions are Superadmin-managed records; a CPO ADMIN has only a
@@ -391,8 +428,8 @@ repository. The integration contract has not been implemented yet.
   in the ignored deployment environment.
 - No generated frontend SDK exists yet; consumers use the reviewed OpenAPI
   contract directly.
-- Migration twenty's disposable PostgreSQL lifecycle coverage has not
-  executed because no disposable `TEST_DATABASE_URL` is configured. The live
-  development deployment is current on migration fifteen and the
-  111-operation contract; the two dormant feature-key tables are in
+- Migration twenty's disposable PostgreSQL lifecycle coverage is intentionally
+  deferred by decision. The live development deployment is current on
+  migration twenty and the 113-operation contract; the two dormant feature-key
+  tables are in
   `retired_commercial` while automatic lifecycle workers remain disabled.

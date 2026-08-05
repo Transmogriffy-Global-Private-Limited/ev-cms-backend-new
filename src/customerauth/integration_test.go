@@ -240,6 +240,46 @@ func TestCustomerAuthenticationLifecycleWithPostgreSQL(t *testing.T) {
 		principal.CPOID != cpo.ID || service.Me(principal).Wallet.ID != wallet.ID {
 		t.Fatalf("unexpected customer principal: %+v", principal)
 	}
+	updatedPhone := "+919876543210"
+	updatedProfile, err := service.UpdateProfile(ctx, principal, UpdateProfileRequest{
+		FullName: "Updated Customer", Phone: &updatedPhone,
+	})
+	if err != nil {
+		t.Fatalf("update customer profile: %v", err)
+	}
+	if updatedProfile.FullName != "Updated Customer" || updatedProfile.Phone == nil ||
+		*updatedProfile.Phone != updatedPhone || updatedProfile.ID != customer.ID {
+		t.Fatalf("unexpected updated customer profile: %+v", updatedProfile)
+	}
+	var storedCustomer models.Customer
+	if err := gormDB.First(&storedCustomer, "id = ? AND cpo_id = ?", customer.ID, cpo.ID).Error; err != nil {
+		t.Fatalf("reload updated customer profile: %v", err)
+	}
+	if storedCustomer.FullName != "Updated Customer" || storedCustomer.Phone == nil || *storedCustomer.Phone != updatedPhone {
+		t.Fatalf("customer profile update was not persisted: %+v", storedCustomer)
+	}
+	var profileAudit models.AuditLog
+	if err := gormDB.Where(
+		"cpo_id = ? AND action = ? AND entity = ? AND entity_id = ?", cpo.ID,
+		"CUSTOMER_PROFILE_UPDATED", "CUSTOMER", customer.ID,
+	).Order("created_at DESC").First(&profileAudit).Error; err != nil {
+		t.Fatalf("load customer profile audit: %v", err)
+	}
+	changedFields, ok := profileAudit.Details["changed_fields"].([]any)
+	if !ok || len(changedFields) != 2 {
+		t.Fatalf("unexpected customer profile audit details: %#v", profileAudit.Details)
+	}
+	var clearRequest UpdateProfileRequest
+	if err := json.Unmarshal([]byte(`{"full_name":"Updated Customer","phone":null}`), &clearRequest); err != nil {
+		t.Fatalf("decode customer phone clear: %v", err)
+	}
+	clearedProfile, err := service.UpdateProfile(ctx, principal, clearRequest)
+	if err != nil {
+		t.Fatalf("clear customer phone: %v", err)
+	}
+	if clearedProfile.Phone != nil {
+		t.Fatalf("customer phone was not cleared: %+v", clearedProfile)
+	}
 	var storedSession models.CustomerAuthSession
 	if err := gormDB.First(&storedSession, "id = ?", principal.SessionID).Error; err != nil {
 		t.Fatalf("load customer session: %v", err)

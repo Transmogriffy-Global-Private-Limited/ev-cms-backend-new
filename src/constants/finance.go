@@ -38,3 +38,28 @@ func (status FinancialStatus) Valid() bool {
 		return false
 	}
 }
+
+type WalletRechargeOrderStatus string
+
+const (
+	WalletRechargeOrderStatusProviderPending WalletRechargeOrderStatus = "PROVIDER_PENDING"
+	WalletRechargeOrderStatusPaymentPending  WalletRechargeOrderStatus = "PAYMENT_PENDING"
+	WalletRechargeOrderStatusPaid            WalletRechargeOrderStatus = "PAID"
+	WalletRechargeOrderStatusFailed          WalletRechargeOrderStatus = "FAILED"
+)
+
+type WalletRechargePaymentStatus string
+
+const (
+	WalletRechargePaymentStatusAuthorized WalletRechargePaymentStatus = "AUTHORIZED"
+	WalletRechargePaymentStatusCaptured   WalletRechargePaymentStatus = "CAPTURED"
+	WalletRechargePaymentStatusFailed     WalletRechargePaymentStatus = "FAILED"
+)
+
+type WalletRechargeRefundStatus string
+
+const (
+	WalletRechargeRefundStatusPending   WalletRechargeRefundStatus = "PENDING"
+	WalletRechargeRefundStatusProcessed WalletRechargeRefundStatus = "PROCESSED"
+	WalletRechargeRefundStatusFailed    WalletRechargeRefundStatus = "FAILED"
+)

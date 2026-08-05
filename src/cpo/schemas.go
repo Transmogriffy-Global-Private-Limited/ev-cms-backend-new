@@ -311,22 +311,24 @@ type ConnectorView struct {
 }
 
 type CreateHubRequest struct {
-	Name         string      `json:"name"`
-	Address      string      `json:"address"`
-	Latitude     *float64    `json:"latitude"`
-	Longitude    *float64    `json:"longitude"`
-	Open24Hours  *bool       `json:"open_24_hours,omitempty"`
-	SanctionLoad *float64    `json:"sanction_load,omitempty"`
-	ChargerIDs   []uuid.UUID `json:"charger_ids,omitempty"`
+	Name            string      `json:"name"`
+	Address         string      `json:"address"`
+	Latitude        *float64    `json:"latitude"`
+	Longitude       *float64    `json:"longitude"`
+	Open24Hours     *bool       `json:"open_24_hours,omitempty"`
+	SanctionLoad    *float64    `json:"sanction_load,omitempty"`
+	CustomerVisible *bool       `json:"customer_visible,omitempty"`
+	ChargerIDs      []uuid.UUID `json:"charger_ids,omitempty"`
 }
 
 type UpdateHubRequest struct {
-	Name         *string  `json:"name,omitempty"`
-	Address      *string  `json:"address,omitempty"`
-	Latitude     *float64 `json:"latitude,omitempty"`
-	Longitude    *float64 `json:"longitude,omitempty"`
-	Open24Hours  *bool    `json:"open_24_hours,omitempty"`
-	SanctionLoad *float64 `json:"sanction_load,omitempty"`
+	Name            *string  `json:"name,omitempty"`
+	Address         *string  `json:"address,omitempty"`
+	Latitude        *float64 `json:"latitude,omitempty"`
+	Longitude       *float64 `json:"longitude,omitempty"`
+	Open24Hours     *bool    `json:"open_24_hours,omitempty"`
+	SanctionLoad    *float64 `json:"sanction_load,omitempty"`
+	CustomerVisible *bool    `json:"customer_visible,omitempty"`
 }
 
 type AssignChargerRequest struct {
@@ -334,16 +336,17 @@ type AssignChargerRequest struct {
 }
 
 type HubView struct {
-	ID           uuid.UUID `json:"id"`
-	CPOID        uuid.UUID `json:"cpo_id"`
-	Name         string    `json:"name"`
-	Address      string    `json:"address"`
-	Latitude     float64   `json:"latitude"`
-	Longitude    float64   `json:"longitude"`
-	Open24Hours  bool      `json:"open_24_hours"`
-	SanctionLoad float64   `json:"sanction_load"`
-	CreatedAt    time.Time `json:"created_at"`
-	UpdatedAt    time.Time `json:"updated_at"`
+	ID              uuid.UUID `json:"id"`
+	CPOID           uuid.UUID `json:"cpo_id"`
+	Name            string    `json:"name"`
+	Address         string    `json:"address"`
+	Latitude        float64   `json:"latitude"`
+	Longitude       float64   `json:"longitude"`
+	Open24Hours     bool      `json:"open_24_hours"`
+	SanctionLoad    float64   `json:"sanction_load"`
+	CustomerVisible bool      `json:"customer_visible"`
+	CreatedAt       time.Time `json:"created_at"`
+	UpdatedAt       time.Time `json:"updated_at"`
 }
 
 type HubListResponse struct {

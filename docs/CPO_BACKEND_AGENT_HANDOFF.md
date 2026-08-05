@@ -133,7 +133,7 @@ UUID or a row UUID.
 ## Current Implemented CPO Surface
 
 The authoritative machine contract is
-`docs/contracts/openapi/openapi.yaml`. The source currently has 113 total
+`docs/contracts/openapi/openapi.yaml`. The source currently has 124 total
 HTTP operations across all planes. Runtime/OpenAPI parity is tested.
 
 ### Administrative authentication
@@ -189,6 +189,8 @@ Current behavior:
 - IDs are server-generated;
 - a hub records non-negative `sanction_load` in kW; `0` means the capacity is
   not recorded;
+- `customer_visible` is CPO ADMIN-controlled, defaults to `false`, and is the
+  only publication gate for User App discovery;
 - charger creation atomically creates its initial connectors and audit record;
 - a charger may be created independently with no hub and later attached using
   `POST /hubs/{hub_id}/chargers`;
@@ -234,6 +236,19 @@ Implemented:
 - CPO-scoped signup start, verify, and resend;
 - password plus mail-OTP login, verify, and resend;
 - refresh rotation;
+- authenticated `GET /me` bootstrap and `PATCH /profile` self-service name/phone
+  updates; profile writes are CPO-local and audit changed field names only;
+- authenticated `GET /hubs`, `GET /hubs/{hub_id}`, and
+  `GET /chargers/{charger_id}` expose only published same-CPO network data;
+  independent/unpublished resources are hidden and charger/connector
+  availability is explicitly `UNKNOWN` until HAL integration;
+- authenticated favorites list and idempotent add/remove routes use the
+  existing composite customer-favorite tables; unpublishing hides saved
+  resources from the list without leaking them;
+- authenticated hub and charger price reads resolve active effective tariffs
+  with matching UserGroup tariff, generic charger tariff, then generic hub
+  tariff precedence; missing/inactive GST returns `UNAVAILABLE` and no HAL call
+  occurs;
 - current customer (`me`);
 - customer-scoped session listing/revocation/logout/logout-all;
 - password recovery/reset and authenticated change. Forgot-password stays
@@ -244,8 +259,8 @@ Successful signup transactionally creates one CPO-local customer account and
 its zero-balance INR wallet without creating or reusing `users`.
 
 Not implemented: a CPO ADMIN customer directory, customer suspension API,
-groups/RFID management APIs, customer profile editing, or verified email
-change. Do not confuse implemented customer self-authentication with CPO-side
+groups/RFID management APIs, or verified email change. Customer self-service
+profile editing is implemented, but this must not be confused with CPO-side
 customer administration.
 
 ## Current Data Model: Schema Is Capacity, Not Behavior
@@ -550,8 +565,9 @@ Before completion, prove:
 - PostgreSQL is durable truth.
 - Fifteen migrations are already deployment history. Do not edit an applied
   migration to change new behavior; add the next forward migration.
-- Migration fifteen is the current deployed migration. It adds tariff
-  effective-date columns and a PostgreSQL overlap constraint.
+- Migration twenty-two is the current deployed migration. Migration twenty adds CPO-local
+  customer credentials and dedicated customer auth lineage; migration fifteen
+  adds tariff effective-date columns and a PostgreSQL overlap constraint.
 - Prefer additive, backward-compatible migrations.
 - Never drop, truncate, or broadly delete without explicit human approval.
 - Use composite keys/foreign keys to protect tenant relationships.

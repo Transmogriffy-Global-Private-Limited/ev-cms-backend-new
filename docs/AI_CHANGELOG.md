@@ -1,5 +1,193 @@
 # AI Changelog
 
+## 2026-08-05
+
+### Rehosted customer network and Razorpay wallet release
+
+- Applied migrations 21 and 22 from a mode-0600 rollback dump. The live
+  database had one customer and two hubs; recharge tables started empty.
+- Built and rehosted revision `c33da86`. The enabled service is active and
+  serves the 129-operation contract through Caddy.
+- Verified public readiness and synchronized the deployment, project-state,
+  CPO, SuperAdmin, and User App documentation with the live release.
+
+## 2026-08-05
+
+### Implemented User App Razorpay wallet recharge
+
+- Added User App order creation and checkout verification using the existing
+  encrypted CPO Razorpay integration credentials; no CPO or Superadmin payment
+  API was added.
+- Added migration 22 and durable models for recharge orders, provider payment
+  attempts, future refund records, sanitized provider payloads, and payment
+  signature evidence. A captured payment credits the customer wallet and
+  creates one linked completed ledger transaction atomically and idempotently.
+- Used `github.com/razorpay/razorpay-go` for provider order/payment calls and
+  standard-library HMAC verification for the checkout signature.
+- Updated OpenAPI/Swagger, route parity, the exhaustive HTTP contract, Razorpay
+  integration record, User App frontend handoff, development plan, customer
+  app plan, and project state. Refund execution, webhooks, settlement
+  reconciliation, RFID, and HAL remain deferred.
+
+Verification:
+
+- Focused customer-auth, model, migration, and route tests pass.
+- `scripts/verify-docs.ps1` and OpenAPI/runtime parity pass after the operation
+  count was updated to 129.
+- `go test ./...`, `go vet ./...`, and `git diff --check` pass.
+- Disposable PostgreSQL lifecycle verification remains intentionally deferred
+  by decision and is not claimed as passed.
+
+## 2026-08-05
+
+### Implemented User App charger search and wallet read APIs
+
+- Added authenticated charger search/filter and bounded near-me reads over
+  published hubs, supporting text, connector type, power, opening-hours, and
+  latitude/longitude radius filters. Location results include calculated
+  distance and do not claim HAL-backed live availability.
+- Added authenticated wallet balance and descending keyset-paginated wallet
+  transaction history projections scoped from the trusted customer principal.
+  Internal idempotency keys and provider credentials are not exposed.
+- Kept wallet mutation, Razorpay recharge, refunds, charging-session history,
+  RFID, and HAL control out of this slice.
+- Updated OpenAPI/Swagger, route parity, User App handoff, exhaustive HTTP
+  contract, development plan, customer-app plan, and project state.
+
+Verification:
+
+- `go test ./src/customerauth -count=1` passes.
+- `go test ./src/routes -run TestOpenAPIContractMatchesRuntimeRoutesAndServesUI -count=1` passes.
+- `scripts/verify-docs.ps1` passes.
+- Disposable PostgreSQL lifecycle verification remains intentionally deferred
+  by decision and is not claimed as passed.
+
+## 2026-08-05
+
+### Corrected User App tariff precedence
+
+- Clarified and corrected the resolver to use the three entity tiers: matching
+  UserGroup tariff, then generic charger tariff, then generic hub tariff.
+- A matching UserGroup tariff now always beats a generic charger tariff. When
+  both group/charger and group/hub rows apply, charger scope is only a
+  same-tier specificity tie-breaker.
+- Updated the User App, CPO, OpenAPI, HTTP contract, plan, and project-memory
+  documentation.
+
+Verification:
+
+- Database-free precedence tests cover UserGroup over generic charger and
+  generic charger over generic hub.
+
+## 2026-08-05
+
+### Implemented User App informational tariff resolution
+
+- Added authenticated hub and public-charger price reads over published
+  customer network resources.
+- Added deterministic server-side precedence: matching User Tariff (the
+  existing customer `UserGroupID`) over charger tariff over hub tariff, with
+  charger-specific scope winning within the User Tariff and generic tiers.
+- Added exact decimal price/GST projections and an explicit `UNAVAILABLE`
+  response when no eligible tariff or active referenced GST exists. The result
+  is informational and does not contact HAL or commit a charging price.
+- Updated OpenAPI/Swagger, runtime route tests, exhaustive HTTP contract, User
+  App handoff, CPO handoff, development plan, and project state.
+
+Verification:
+
+- Database-free tariff precedence tests and focused customer-auth/route tests
+  pass.
+- Disposable PostgreSQL lifecycle verification remains intentionally deferred
+  by decision and is not claimed as passed.
+
+### Deferred disposable PostgreSQL lifecycle testing for the User App workstream
+
+- The current implementation workstream will skip disposable PostgreSQL
+  lifecycle execution until explicitly reactivated.
+- Stateful tests remain in the repository and must not be described as passed;
+  source, database-free, contract, documentation, and full Go checks remain the
+  verification path for the non-HAL User App slices.
+- Work continues only on `anubhab-work`; `main` is not updated by this
+  workstream.
+
+### Implemented published User App network discovery
+
+- Added migration 21 and CPO ADMIN-controlled `customer_visible` hub
+  publication, defaulting to false on create and supporting explicit update.
+- Added authenticated customer routes for published hub listing/detail and
+  public charger-ID detail. Queries derive CPO/customer scope from the
+  validated principal, hide unpublished/unassigned/cross-CPO resources, and
+  return safe projections only.
+- Kept HAL out of this slice: charger and connector availability is explicitly
+  `UNKNOWN`, with no claim of live state or OCPP connectivity.
+- Updated OpenAPI/Swagger, runtime route tests, exhaustive HTTP contract, User
+  App handoff, CPO handoff, schema/workflow docs, development plan, and state.
+
+Verification:
+
+- `go test ./src/customerauth ./src/routes ./src/cpo -count=1` passes.
+- `go test ./...`, `go vet ./...`, `scripts/verify-docs.ps1`, and
+  `git diff --check` pass.
+- Disposable PostgreSQL lifecycle verification is intentionally deferred by
+  decision and is not claimed as passed.
+
+### Implemented customer favorites over published network data
+
+- Added `GET /favorites` with independent bounded hub and charger cursors.
+- Added idempotent `PUT`/`DELETE` favorite routes for published same-CPO hubs
+  and attached public-ID chargers, with composite tenant ownership and audit
+  actions for actual mutations.
+- Unpublished resources are omitted from favorite reads without deleting or
+  leaking the customer's durable saved intent; no HAL call is made.
+- Updated OpenAPI/Swagger, route tests, exhaustive HTTP contract, User App
+  handoff, CPO handoff, development plan, and project state.
+
+Verification:
+
+- Focused customer-auth and route/OpenAPI checks pass.
+- Disposable PostgreSQL lifecycle verification is intentionally deferred by
+  decision and is not claimed as passed.
+
+### Fixed PostgreSQL-invalid customer signup advisory-lock key
+
+- Replaced the NUL-containing signup lock key with a text-safe
+  `customer-signup:<cpo-id>:<normalized-email>` key and
+  `hashtextextended(?, 0)`, preserving transaction-scoped serialization.
+- Committed as `70da3e6` on `anubhab-work` and published to `main` as
+  `cf9a000` because signup verification was failing at PostgreSQL text input.
+
+## 2026-08-05
+
+### Implemented customer self-service profile editing
+
+- Added authenticated `PATCH /api/v1/app/auth/profile` using the validated
+  CPO-local customer principal and matching `X-CPO-App-ID`.
+- Restricted mutation to trimmed full name and normalized phone; omitted phone
+  preserves the value and explicit JSON `null` clears it.
+- Added transactional customer update and `CUSTOMER_PROFILE_UPDATED` audit
+  evidence containing changed field names only, with no old/new PII values.
+- Updated runtime route tests, OpenAPI, the exhaustive HTTP contract, User App
+  frontend handoff, CPO agent handoff, development plan, and project state.
+
+Verification:
+
+- `go test ./src/customerauth ./src/routes -count=1` passes.
+- OpenAPI/runtime parity and Swagger/raw-schema route verification passes.
+- PostgreSQL lifecycle verification remains pending because no explicitly
+  disposable `TEST_DATABASE_URL` is configured.
+
+## 2026-08-04
+
+### Rehosted CPO-local customer authentication
+
+- Applied migration 20 after a rollback dump; the database had zero customer
+  rows, satisfying the migration's explicit safety precondition.
+- Built and rehosted revision `be6fd34`. The enabled service is active with
+  zero restarts and serves the 113-operation contract through Caddy.
+- Verified loopback/public health and readiness, Swagger/OpenAPI, migration 20,
+  customer-account zero state, and the existing protected service boundary.
+
 ## 2026-08-04
 
 ### Implemented CPO-local customer authentication with full route parity

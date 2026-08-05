@@ -90,7 +90,11 @@ is not a credential; the frontend already needs it as `X-CPO-App-ID`.
 Call `POST /api/v1/cpo/hubs` and retain its generated UUID. Latitude and
 longitude are required even when either value is exactly zero. Optional
 `sanction_load` is the site's non-negative electrical capacity in kW; the
-stored default `0` means that capacity has not been recorded.
+stored default `0` means that capacity has not been recorded. Optional
+`customer_visible` defaults to `false`; set it deliberately when the hub is
+ready for customer discovery. CPO ADMIN may publish or unpublish the hub with
+`PATCH /api/v1/cpo/hubs/{hub_id}`. Only published hubs and their attached
+chargers appear in the User App.
 
 ### 2. Register a charger and connectors
 

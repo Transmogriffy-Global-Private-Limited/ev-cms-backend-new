@@ -505,6 +505,685 @@ paths:
         "500":
           $ref: "#/components/responses/InternalError"
 
+  /api/v1/app/auth/profile:
+    patch:
+      tags: [App User Authentication]
+      operationId: updateCurrentCustomerProfile
+      summary: Update the current customer profile
+      description: |
+        Updates only the authenticated CPO-local customer's display name and
+        phone. The customer and CPO are derived from the validated bearer
+        session; no customer or CPO identifier is accepted. Omitting `phone`
+        preserves it, while explicit JSON null clears it. Email, password,
+        status, group, wallet, sessions, and identifiers are immutable here.
+        Successful changes write one CPO-scoped audit record containing field
+        names only, never old or new personal values.
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/CPOAppIDHeader"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateCustomerProfileRequest"
+            examples:
+              update:
+                value:
+                  full_name: Asha Das
+                  phone: "+919876543210"
+              clearPhone:
+                value:
+                  full_name: Asha Das
+                  phone: null
+      responses:
+        "200":
+          description: Updated canonical customer user projection.
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+              example: no-store
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CustomerUser"
+        "400":
+          description: Invalid JSON, full name, phone, or unknown field.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          description: "`cpo_app_id_mismatch` or wrong session plane."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /api/v1/app/auth/hubs:
+    get:
+      tags: [App User Network]
+      operationId: listCustomerHubs
+      summary: List published charging hubs for the current customer CPO
+      description: |
+        Returns only hubs explicitly published by the current CPO and never
+        crosses the CPO from the validated customer session. Results use
+        bounded descending keyset pagination. Search and cursor values are
+        client-owned query state; when search changes, the client must discard
+        the old cursor. Favorite flags are customer-owned. No HAL call occurs;
+        live availability is not represented by this read model.
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/CPOAppIDHeader"
+        - $ref: "#/components/parameters/ListBefore"
+        - $ref: "#/components/parameters/ListBeforeID"
+        - $ref: "#/components/parameters/ListLimit"
+        - name: q
+          in: query
+          required: false
+          schema: {type: string, maxLength: 255}
+          description: Case-insensitive name or address search.
+      responses:
+        "200":
+          description: Published hubs visible to the current customer CPO.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CustomerHubListResponse"
+        "400":
+          description: Invalid limit, cursor, search, or missing app-ID header.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          description: "`cpo_app_id_mismatch` or wrong session plane."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /api/v1/app/auth/hubs/{hub_id}:
+    get:
+      tags: [App User Network]
+      operationId: getCustomerHub
+      summary: Get one published hub and its attached chargers
+      description: |
+        Returns a safe customer projection only when the hub belongs to the
+        authenticated customer CPO and is published. Unassigned chargers are
+        excluded. Connector and charger availability are `UNKNOWN` until the
+        separate CMS/HAL integration is implemented; stored CMS status is not
+        presented as live status.
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/CPOAppIDHeader"
+        - $ref: "#/components/parameters/HubID"
+      responses:
+        "200":
+          description: Published customer hub detail.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CustomerHub"
+        "400":
+          description: Invalid hub ID or missing app-ID header.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          description: "`cpo_app_id_mismatch` or wrong session plane."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "404":
+          description: "`hub_not_found` for an unknown, unpublished, or cross-CPO hub."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /api/v1/app/auth/hubs/{hub_id}/price:
+    get:
+      tags: [App User Network]
+      operationId: getCustomerHubPrice
+      summary: Get the current informational hub price
+      description: |
+        Resolves the current active effective hub tariff on the server. The
+        result is informational and is not a charging or payment commitment.
+        A missing eligible tariff returns HTTP 200 with status `UNAVAILABLE`,
+        never a zero price. When the authenticated customer has an existing
+        user-group assignment, its matching UserGroup tariff takes precedence
+        over generic charger and hub tariffs. The effective order is matching
+        UserGroup tariff, generic charger tariff, then generic hub tariff.
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/CPOAppIDHeader"
+        - $ref: "#/components/parameters/HubID"
+      responses:
+        "200":
+          description: Current price state for the published hub.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CustomerPriceResponse"
+        "400":
+          description: Invalid hub ID or missing app-ID header.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/ErrorEnvelope"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403":
+          description: "`cpo_app_id_mismatch` or wrong session plane."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/ErrorEnvelope"}
+        "404":
+          description: "`hub_not_found` for unknown, unpublished, or cross-CPO hub."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/ErrorEnvelope"}
+        "500": {$ref: "#/components/responses/InternalError"}
+
+  /api/v1/app/auth/chargers/{charger_id}:
+    get:
+      tags: [App User Network]
+      operationId: getCustomerCharger
+      summary: Get one charger attached to a published hub
+      description: |
+        Uses the six-character public charger ID. The charger is returned only
+        when it belongs to the customer CPO and is attached to a published hub.
+        OCPP identity, serial number, raw stored status, and last-seen data are
+        intentionally omitted. Availability is `UNKNOWN` until HAL integration.
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/CPOAppIDHeader"
+        - $ref: "#/components/parameters/ChargerPublicID"
+      responses:
+        "200":
+          description: Published customer charger detail.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CustomerCharger"
+        "400":
+          description: Invalid charger ID or missing app-ID header.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          description: "`cpo_app_id_mismatch` or wrong session plane."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "404":
+          description: "`charger_not_found` for an unknown, unpublished, unassigned, or cross-CPO charger."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /api/v1/app/auth/chargers:
+    get:
+      tags: [App User Network]
+      operationId: listCustomerChargers
+      summary: Search published chargers for the current customer CPO
+      description: |
+        Returns chargers attached to published hubs in the authenticated
+        customer CPO. Supports text, connector-type, power, open-24-hours,
+        and optional location filters. Supplying `lat` and `lng` enables a
+        near-me search within `radius_km` (default 10 km), ordered by distance.
+        Location searches are bounded but do not expose a continuation cursor.
+        Availability remains `UNKNOWN` until HAL integration; stored CMS status
+        is not presented as live availability.
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/CPOAppIDHeader"
+        - $ref: "#/components/parameters/ListBefore"
+        - $ref: "#/components/parameters/ListBeforeID"
+        - $ref: "#/components/parameters/ListLimit"
+        - name: q
+          in: query
+          schema: {type: string, maxLength: 255}
+          description: Case-insensitive charger, vendor, model, hub, or address search.
+        - name: connector_type
+          in: query
+          schema: {type: string, maxLength: 50}
+        - name: min_power_kw
+          in: query
+          schema: {type: number, minimum: 0}
+        - name: max_power_kw
+          in: query
+          schema: {type: number, minimum: 0}
+        - name: open_24_hours
+          in: query
+          schema: {type: boolean}
+        - name: lat
+          in: query
+          schema: {type: number, minimum: -90, maximum: 90}
+          description: Current customer latitude; required together with lng for near-me search.
+        - name: lng
+          in: query
+          schema: {type: number, minimum: -180, maximum: 180}
+        - name: radius_km
+          in: query
+          schema: {type: number, minimum: 0, exclusiveMinimum: true, maximum: 100}
+          description: Must be greater than zero; defaults to 10 km.
+      responses:
+        "200":
+          description: Published customer chargers matching the filters.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CustomerChargerListResponse"
+        "400":
+          description: Invalid filter, location, power range, limit, or cursor.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/ErrorEnvelope"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403":
+          description: "`cpo_app_id_mismatch` or wrong session plane."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/ErrorEnvelope"}
+        "500": {$ref: "#/components/responses/InternalError"}
+
+  /api/v1/app/auth/chargers/{charger_id}/price:
+    get:
+      tags: [App User Network]
+      operationId: getCustomerChargerPrice
+      summary: Get the current informational charger price
+      description: "Uses the public charger ID and the same server-side precedence: matching UserGroup tariff, then generic charger tariff, then generic hub tariff."
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/CPOAppIDHeader"
+        - $ref: "#/components/parameters/ChargerPublicID"
+      responses:
+        "200":
+          description: Current price state for the attached charger.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/CustomerPriceResponse"}
+        "400":
+          description: Invalid charger ID or missing app-ID header.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/ErrorEnvelope"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403":
+          description: "`cpo_app_id_mismatch` or wrong session plane."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/ErrorEnvelope"}
+        "404":
+          description: "`charger_not_found` for unknown, unpublished, unassigned, or cross-CPO charger."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/ErrorEnvelope"}
+        "500": {$ref: "#/components/responses/InternalError"}
+
+  /api/v1/app/auth/wallet:
+    get:
+      tags: [App User Wallet]
+      operationId: getCustomerWallet
+      summary: Get the current customer wallet
+      description: Returns the wallet owned by the authenticated CPO-local customer. Balance is an exact decimal string.
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/CPOAppIDHeader"
+      responses:
+        "200":
+          description: Current wallet balance and currency.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/CustomerWalletResponse"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403":
+          description: "`cpo_app_id_mismatch` or wrong session plane."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/ErrorEnvelope"}
+        "404":
+          description: Customer wallet invariant is missing.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/ErrorEnvelope"}
+        "500": {$ref: "#/components/responses/InternalError"}
+
+  /api/v1/app/auth/wallet/transactions:
+    get:
+      tags: [App User Wallet]
+      operationId: listCustomerWalletTransactions
+      summary: List the current customer wallet history
+      description: Returns only wallet transactions for the authenticated CPO-local customer using bounded descending keyset pagination.
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/CPOAppIDHeader"
+        - $ref: "#/components/parameters/ListBefore"
+        - $ref: "#/components/parameters/ListBeforeID"
+        - $ref: "#/components/parameters/ListLimit"
+      responses:
+        "200":
+          description: Wallet summary and transaction history.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/CustomerWalletTransactionListResponse"}
+        "400":
+          description: Invalid limit or cursor.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/ErrorEnvelope"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403":
+          description: "`cpo_app_id_mismatch` or wrong session plane."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/ErrorEnvelope"}
+        "404":
+          description: Customer wallet invariant is missing.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/ErrorEnvelope"}
+        "500": {$ref: "#/components/responses/InternalError"}
+
+  /api/v1/app/auth/wallet/recharge/orders:
+    post:
+      tags: [App User Wallet]
+      operationId: createCustomerWalletRechargeOrder
+      summary: Create a Razorpay wallet recharge order
+      description: |
+        Creates one CPO/customer-scoped Razorpay order for the exact INR
+        amount. The server resolves encrypted CPO credentials internally,
+        stores the provider order snapshot, and returns only the public key ID
+        needed by the frontend checkout. The Idempotency-Key must be reused
+        for a retried request with the same amount.
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/CPOAppIDHeader"
+        - $ref: "#/components/parameters/IdempotencyKeyHeader"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CustomerRechargeOrderRequest"
+      responses:
+        "201":
+          description: Provider order created or the existing idempotent order returned.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CustomerRechargeOrderResponse"
+        "400":
+          description: Invalid amount, idempotency key, or JSON body.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/ErrorEnvelope"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403":
+          description: "`cpo_app_id_mismatch` or wrong session plane."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/ErrorEnvelope"}
+        "409":
+          description: Idempotency conflict, pending order, or unsupported wallet currency.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/ErrorEnvelope"}
+        "502":
+          description: Razorpay order creation failed.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/ErrorEnvelope"}
+        "503":
+          description: Razorpay credentials are not configured or unavailable.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/ErrorEnvelope"}
+
+  /api/v1/app/auth/wallet/recharge/verify:
+    post:
+      tags: [App User Wallet]
+      operationId: verifyCustomerWalletRecharge
+      summary: Verify and credit a captured Razorpay recharge
+      description: |
+        Verifies the Razorpay checkout signature, fetches the provider payment
+        through the SDK, requires a captured payment matching the stored order,
+        and atomically records the provider payment, wallet credit, and
+        completed recharge order. Repeated verification is idempotent.
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/CPOAppIDHeader"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CustomerRechargeVerifyRequest"
+      responses:
+        "200":
+          description: Recharge verified and wallet credited, or existing completed result returned.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CustomerRechargeOrderResponse"
+        "400":
+          description: Invalid request or payment signature.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/ErrorEnvelope"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403":
+          description: "`cpo_app_id_mismatch` or wrong session plane."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/ErrorEnvelope"}
+        "404":
+          description: Recharge order is not owned by the current customer.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/ErrorEnvelope"}
+        "409":
+          description: Payment mismatch, already-completed order, or uncaptured payment.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/ErrorEnvelope"}
+        "502":
+          description: Razorpay verification fetch failed.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/ErrorEnvelope"}
+        "503":
+          description: Razorpay credentials are not configured or unavailable.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/ErrorEnvelope"}
+
+  /api/v1/app/auth/favorites:
+    get:
+      tags: [App User Network]
+      operationId: listCustomerFavorites
+      summary: List the current customer's published favorites
+      description: |
+        Returns customer-owned hub and charger favorites using safe published
+        network projections. A hub or charger unpublished after it was saved is
+        omitted rather than leaked. Hub and charger collections have separate
+        bounded keyset cursors because their durable favorite rows are separate.
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/CPOAppIDHeader"
+        - name: limit
+          in: query
+          required: false
+          schema: {type: integer, minimum: 1, maximum: 100, default: 25}
+        - name: hub_before
+          in: query
+          required: false
+          schema: {type: string, format: date-time}
+        - name: hub_before_id
+          in: query
+          required: false
+          schema: {type: string, format: uuid}
+        - name: charger_before
+          in: query
+          required: false
+          schema: {type: string, format: date-time}
+        - name: charger_before_id
+          in: query
+          required: false
+          schema: {type: string, format: uuid}
+      responses:
+        "200":
+          description: Current customer's visible favorite projections.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CustomerFavoritesResponse"
+        "400":
+          description: Invalid limit, cursor, or missing app-ID header.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          description: "`cpo_app_id_mismatch` or wrong session plane."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /api/v1/app/auth/favorite-hubs/{hub_id}:
+    put:
+      tags: [App User Network]
+      operationId: addCustomerFavoriteHub
+      summary: Save a published hub as a customer favorite
+      description: Idempotently saves a hub only when it is published in the current customer CPO.
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/CPOAppIDHeader"
+        - $ref: "#/components/parameters/HubID"
+      responses:
+        "204": {description: Favorite saved or already present.}
+        "400":
+          description: Invalid hub ID or missing app-ID header.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/CPOBusinessForbidden"}
+        "404":
+          description: "`hub_not_found` for unknown, unpublished, or cross-CPO hub."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/ErrorEnvelope"}
+        "500": {$ref: "#/components/responses/InternalError"}
+    delete:
+      tags: [App User Network]
+      operationId: removeCustomerFavoriteHub
+      summary: Remove a customer hub favorite
+      description: Idempotently removes the current customer's hub favorite; an absent or cross-CPO resource is not enumerated.
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/CPOAppIDHeader"
+        - $ref: "#/components/parameters/HubID"
+      responses:
+        "204": {description: Favorite removed or already absent.}
+        "400":
+          description: Invalid hub ID or missing app-ID header.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/ErrorEnvelope"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/CPOBusinessForbidden"}
+        "500": {$ref: "#/components/responses/InternalError"}
+
+  /api/v1/app/auth/favorite-chargers/{charger_id}:
+    put:
+      tags: [App User Network]
+      operationId: addCustomerFavoriteCharger
+      summary: Save a published charger as a customer favorite
+      description: Uses the public six-character charger ID and requires attachment to a published hub in the current customer CPO.
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/CPOAppIDHeader"
+        - $ref: "#/components/parameters/ChargerPublicID"
+      responses:
+        "204": {description: Favorite saved or already present.}
+        "400":
+          description: Invalid charger ID or missing app-ID header.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/ErrorEnvelope"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/CPOBusinessForbidden"}
+        "404":
+          description: "`charger_not_found` for unknown, unpublished, unassigned, or cross-CPO charger."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/ErrorEnvelope"}
+        "500": {$ref: "#/components/responses/InternalError"}
+    delete:
+      tags: [App User Network]
+      operationId: removeCustomerFavoriteCharger
+      summary: Remove a customer charger favorite
+      description: Uses the public six-character charger ID and is idempotent without cross-CPO enumeration.
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/CPOAppIDHeader"
+        - $ref: "#/components/parameters/ChargerPublicID"
+      responses:
+        "204": {description: Favorite removed or already absent.}
+        "400":
+          description: Invalid charger ID or missing app-ID header.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/ErrorEnvelope"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/CPOBusinessForbidden"}
+        "500": {$ref: "#/components/responses/InternalError"}
+
   /api/v1/app/auth/sessions:
     get:
       tags: [App User Authentication]
@@ -3514,6 +4193,15 @@ components:
         type: string
         minLength: 16
         maxLength: 100
+    IdempotencyKeyHeader:
+      name: Idempotency-Key
+      in: header
+      required: true
+      description: Reuse the same key only with the same recharge amount when retrying order creation.
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 120
     CPOID:
       name: cpo_id
       in: path
@@ -4286,6 +4974,26 @@ components:
           type: string
           format: date-time
 
+    UpdateCustomerProfileRequest:
+      type: object
+      additionalProperties: false
+      required: [full_name]
+      properties:
+        full_name:
+          type: string
+          minLength: 1
+          maxLength: 255
+          description: Trimmed CPO-local customer display name.
+          example: Asha Das
+        phone:
+          type: string
+          nullable: true
+          minLength: 7
+          maxLength: 16
+          pattern: "^\\+?[0-9]{7,15}$"
+          description: Optional normalized phone. Omit to preserve; send null to clear.
+          example: "+919876543210"
+
     CustomerRelationship:
       type: object
       additionalProperties: false
@@ -4372,6 +5080,239 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/CustomerSession"
+
+    CustomerHubListResponse:
+      type: object
+      additionalProperties: false
+      required: [hubs, has_more]
+      properties:
+        hubs:
+          type: array
+          items:
+            $ref: "#/components/schemas/CustomerHubSummary"
+        next_before: {type: string, format: date-time}
+        next_before_id: {type: string, format: uuid}
+        has_more: {type: boolean}
+
+    CustomerHubSummary:
+      type: object
+      additionalProperties: false
+      required: [id, name, address, latitude, longitude, open_24_hours, customer_visible, charger_count, is_favorite]
+      properties:
+        id: {type: string, format: uuid}
+        name: {type: string}
+        address: {type: string}
+        latitude: {type: number}
+        longitude: {type: number}
+        open_24_hours: {type: boolean}
+        customer_visible:
+          type: boolean
+          enum: [true]
+          description: Always true because unpublished hubs are not returned.
+        charger_count: {type: integer, minimum: 0}
+        is_favorite: {type: boolean}
+
+    CustomerHub:
+      allOf:
+        - $ref: "#/components/schemas/CustomerHubSummary"
+        - type: object
+          additionalProperties: false
+          required: [chargers]
+          properties:
+            chargers:
+              type: array
+              items:
+                $ref: "#/components/schemas/CustomerCharger"
+
+    CustomerCharger:
+      type: object
+      additionalProperties: false
+      required: [id, hub_id, charger_id, vendor, model, max_power_kw, ocpp_version, availability, is_favorite, connectors]
+      properties:
+        id: {type: string, format: uuid}
+        hub_id: {type: string, format: uuid}
+        charger_id:
+          type: string
+          pattern: "^[a-z0-9]{6}$"
+          description: Public six-character charger identifier.
+        vendor: {type: string, maxLength: 100}
+        model: {type: string, maxLength: 100}
+        max_power_kw: {type: number, minimum: 0}
+        ocpp_version: {type: string, maxLength: 20}
+        hub_name: {type: string, maxLength: 255}
+        hub_address: {type: string}
+        hub_latitude: {type: number, minimum: -90, maximum: 90}
+        hub_longitude: {type: number, minimum: -180, maximum: 180}
+        open_24_hours: {type: boolean}
+        distance_km: {type: number, minimum: 0}
+        availability:
+          type: string
+          enum: [UNKNOWN]
+          description: HAL-backed live availability is not implemented in this slice.
+        is_favorite: {type: boolean}
+        connectors:
+          type: array
+          items:
+            $ref: "#/components/schemas/CustomerConnector"
+
+    CustomerConnector:
+      type: object
+      additionalProperties: false
+      required: [id, connector_number, connector_type, max_current, max_voltage, availability]
+      properties:
+        id: {type: string, format: uuid}
+        connector_number: {type: integer, minimum: 1}
+        connector_type: {type: string, maxLength: 50}
+        max_current: {type: number, minimum: 0}
+        max_voltage: {type: number, minimum: 0}
+        availability:
+          type: string
+          enum: [UNKNOWN]
+          description: HAL-backed live availability is not implemented in this slice.
+
+    CustomerChargerListResponse:
+      type: object
+      additionalProperties: false
+      required: [chargers, has_more]
+      properties:
+        chargers:
+          type: array
+          items:
+            $ref: "#/components/schemas/CustomerCharger"
+        next_before: {type: string, format: date-time}
+        next_before_id: {type: string, format: uuid}
+        has_more: {type: boolean}
+
+    CustomerWalletResponse:
+      type: object
+      additionalProperties: false
+      required: [wallet]
+      properties:
+        wallet:
+          $ref: "#/components/schemas/CustomerWalletDetails"
+
+    CustomerWalletTransaction:
+      type: object
+      additionalProperties: false
+      required: [id, amount, transaction_type, description, status, created_at]
+      properties:
+        id: {type: string, format: uuid}
+        amount: {type: string, pattern: "^[0-9]+(?:\\.[0-9]{1,2})?$"}
+        transaction_type: {type: string, enum: [CREDIT, DEBIT]}
+        description: {type: string, maxLength: 255}
+        session_id: {type: string, format: uuid}
+        status: {type: string, enum: [PENDING, COMPLETED, FAILED, REVERSED]}
+        created_at: {type: string, format: date-time}
+
+    CustomerWalletTransactionListResponse:
+      type: object
+      additionalProperties: false
+      required: [wallet, transactions, has_more]
+      properties:
+        wallet:
+          $ref: "#/components/schemas/CustomerWalletDetails"
+        transactions:
+          type: array
+          items:
+            $ref: "#/components/schemas/CustomerWalletTransaction"
+        next_before: {type: string, format: date-time}
+        next_before_id: {type: string, format: uuid}
+        has_more: {type: boolean}
+
+    CustomerWalletDetails:
+      type: object
+      additionalProperties: false
+      required: [id, balance, currency, updated_at]
+      properties:
+        id: {type: string, format: uuid}
+        balance: {type: string, pattern: "^[0-9]+(?:\\.[0-9]{1,2})?$"}
+        currency: {type: string, pattern: "^[A-Z]{3}$"}
+        updated_at: {type: string, format: date-time}
+
+    CustomerRechargeOrderRequest:
+      type: object
+      additionalProperties: false
+      required: [amount]
+      properties:
+        amount:
+          type: string
+          pattern: "^[0-9]+(?:\\.[0-9]{1,2})?$"
+          description: Positive INR amount with at most two decimal places.
+
+    CustomerRechargeVerifyRequest:
+      type: object
+      additionalProperties: false
+      required: [razorpay_order_id, razorpay_payment_id, razorpay_signature]
+      properties:
+        razorpay_order_id: {type: string, minLength: 1, maxLength: 100}
+        razorpay_payment_id: {type: string, minLength: 1, maxLength: 100}
+        razorpay_signature: {type: string, minLength: 1, maxLength: 128}
+
+    CustomerRechargeOrderResponse:
+      type: object
+      additionalProperties: false
+      required: [recharge_order_id, provider, provider_order_id, amount, amount_minor, currency, status, created_at]
+      properties:
+        recharge_order_id: {type: string, format: uuid}
+        provider: {type: string, enum: [RAZORPAY]}
+        provider_order_id: {type: string, minLength: 1, maxLength: 100}
+        amount: {type: string, pattern: "^[0-9]+\\.[0-9]{2}$"}
+        amount_minor: {type: integer, format: int64, minimum: 1}
+        currency: {type: string, enum: [INR]}
+        provider_key_id: {type: string, maxLength: 100, description: Public Razorpay key ID; present on order creation.}
+        status: {type: string, enum: [PAYMENT_PENDING, PAID]}
+        created_at: {type: string, format: date-time}
+
+    CustomerFavoritesResponse:
+      type: object
+      additionalProperties: false
+      required: [hubs, chargers, has_more_hubs, has_more_chargers]
+      properties:
+        hubs:
+          type: array
+          items:
+            $ref: "#/components/schemas/CustomerHubSummary"
+        chargers:
+          type: array
+          items:
+            $ref: "#/components/schemas/CustomerCharger"
+        next_hub_before: {type: string, format: date-time}
+        next_hub_before_id: {type: string, format: uuid}
+        has_more_hubs: {type: boolean}
+        next_charger_before: {type: string, format: date-time}
+        next_charger_before_id: {type: string, format: uuid}
+        has_more_chargers: {type: boolean}
+
+    CustomerPriceResponse:
+      type: object
+      additionalProperties: false
+      required: [status, effective_at]
+      properties:
+        status:
+          type: string
+          enum: [AVAILABLE, UNAVAILABLE]
+        effective_at: {type: string, format: date-time}
+        currency: {type: string, pattern: "^[A-Z]{3}$"}
+        price_per_kwh:
+          type: string
+          pattern: "^[0-9]+(?:\\.[0-9]{1,4})?$"
+          description: Exact decimal energy price; present only when available.
+        idle_fee_per_minute:
+          type: string
+          pattern: "^[0-9]+(?:\\.[0-9]{1,4})?$"
+          description: Exact decimal idle fee per minute; present only when available.
+        gst:
+          type: object
+          additionalProperties: false
+          required: [sgst_rate, cgst_rate, igst_rate]
+          properties:
+            sgst_rate: {type: string}
+            cgst_rate: {type: string}
+            igst_rate: {type: string}
+        unavailable_reason:
+          type: string
+          enum: [no_eligible_tariff]
+          description: Present only when status is UNAVAILABLE.
 
     PlatformLoginRequest:
       type: object
@@ -5805,6 +6746,10 @@ components:
           type: number
           minimum: 0
           description: Site sanctioned electrical capacity in kW. Defaults to 0 when not recorded.
+        customer_visible:
+          type: boolean
+          default: false
+          description: Publish this hub to customer network discovery. CPO ADMIN only.
         charger_ids:
           type: array
           items:
@@ -5835,12 +6780,15 @@ components:
           type: number
           minimum: 0
           description: Site sanctioned electrical capacity in kW.
+        customer_visible:
+          type: boolean
+          description: Publish or unpublish this hub from customer network discovery.
 
     Hub:
       type: object
       additionalProperties: false
       required:
-        [id, cpo_id, name, address, latitude, longitude, open_24_hours, sanction_load, created_at, updated_at]
+        [id, cpo_id, name, address, latitude, longitude, open_24_hours, sanction_load, customer_visible, created_at, updated_at]
       properties:
         id: {type: string, format: uuid}
         cpo_id: {type: string, format: uuid}
@@ -5853,6 +6801,9 @@ components:
           type: number
           minimum: 0
           description: Site sanctioned electrical capacity in kW; 0 means not recorded.
+        customer_visible:
+          type: boolean
+          description: Whether this hub is published to customer network discovery.
         created_at: {type: string, format: date-time}
         updated_at: {type: string, format: date-time}
 

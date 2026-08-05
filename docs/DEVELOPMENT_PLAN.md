@@ -598,7 +598,7 @@ Detailed plan:
 
 ### Feature: Customer app experience
 
-Status: In Progress — customer-account redesign precedes profile release
+Status: In Progress — profile, published-network, favorites, and informational tariff slices implemented; PostgreSQL lifecycle verification deferred by decision
 
 Phase: Phase 4, then Phases 5 and 6 for HAL-dependent work
 
@@ -700,7 +700,7 @@ Current source implementation:
   dates and database-enforced overlap protection.
 - Governance, security, mail, announcement/notification, overview, and status
   routes are implemented and represented with the CPO user lookup in the
-  113-operation source OpenAPI contract. The added CPO charger hub-assignment
+  124-operation source OpenAPI contract. The added CPO charger hub-assignment
   operation is CPO ADMIN-only and does not extend SuperAdmin authority.
 - Focused source tests, route/OpenAPI parity, documentation verification, the
   full Go suite, vet, and diff checks pass.
@@ -835,17 +835,45 @@ Current phase:
 
 Active feature:
 
-- Customer app experience — Slice 1 CPO-local customer accounts
+- Customer app experience — User App Razorpay wallet recharge
 
 Current implementation slice:
 
-- Replaced global customer identities with CPO-local credential-owning
-  customer accounts and dedicated challenge/session/refresh lineage across the
-  complete existing auth surface. Source, route, and contract verification are
-  active; PostgreSQL lifecycle verification requires `TEST_DATABASE_URL`.
+- Added User App Razorpay order creation and checkout verification using the
+  existing encrypted CPO integration credentials. Durable recharge orders,
+  provider payment attempts, future-refund records, provider snapshots, and
+  the atomic wallet-credit ledger link are now in migration 22. No CPO or
+  Superadmin payment API, RFID flow, webhook, refund command, or HAL call is
+  added.
+  Disposable PostgreSQL lifecycle checks remain deferred by decision until
+  explicitly reactivated.
 
 Last completed slice:
 
+- Implemented User App Razorpay wallet recharge order creation and captured
+  payment verification with SDK-backed provider calls, signature and exact
+  order/payment matching, idempotent wallet credit, encrypted CPO credential
+  resolution, and durable provider order/payment/refund records in migration
+  22. Refund execution, webhooks, settlement reconciliation, RFID, and HAL
+  remain separate follow-ups.
+- Implemented User App charger search/filter and bounded near-me results over
+  published hubs, with safe hub/connector projections and explicit UNKNOWN
+  availability; implemented wallet balance and keyset-paginated wallet-history
+  reads. Recharge, refund, charging-session history, RFID, and HAL remain
+  separate slices.
+- Implemented the effective customer tariff resolver and informational hub and
+  charger price APIs with exact decimal projections, explicit unavailable state,
+  active GST resolution, and User Tariff > charger tariff > hub tariff
+  precedence.
+- Implemented customer favorites over the published discovery projection,
+  including bounded independent cursors, idempotent mutations, audit actions,
+  unpublish-safe reads, route/OpenAPI parity, and User App documentation.
+- Implemented published customer network discovery and the CPO hub publication
+  switch, including migration 21, safe projections, route/OpenAPI parity, and
+  User App/CPO documentation.
+- Implemented customer self-service profile editing on the CPO-local customer
+  account with strict fields, omitted-versus-null phone semantics, transactional
+  audit evidence, and the canonical `UserView` response.
 - Reconciled and deployed the tenant-scoped CPO user point lookup plus tariff
   effective dates, with mandatory hub scope and migration-fifteen exclusion
   enforcement
@@ -887,9 +915,9 @@ Last completed slice:
 
 Last deployment milestone:
 
-- Revision `4502934` was built cleanly and rehosted on the development VPS
-  after a validated rollback dump and application of migration nineteen. The
-  live 112-operation route/OpenAPI surface, running-binary identity,
+- Revision `c33da86` was built cleanly and rehosted on the development VPS
+  after a validated rollback dump and application of migration twenty-two. The
+  live 129-operation route/OpenAPI surface, running-binary identity,
   loopback-only listener, loopback/public readiness, zero-restart service
   state, request-ID header, tariff columns/constraints/indexes, required
   workers, and post-start journal were verified. The disposable PostgreSQL
@@ -897,9 +925,8 @@ Last deployment milestone:
 
 Next expected slice:
 
-- Run migration-twenty/customer-auth PostgreSQL lifecycle verification with an
-  explicitly disposable `TEST_DATABASE_URL`, then implement the approved
-  customer self-service profile endpoint.
+- Add supported customer charging-session history projections from durable CMS
+  session records, without inventing HAL control or live availability.
 
 Blocked by:
 
@@ -907,17 +934,16 @@ Blocked by:
 
 ## Next Approved Work
 
-1. Run migration-twenty/customer-auth PostgreSQL lifecycle verification.
-2. Add customer self-service profile editing using `X-CPO-App-ID` on every app
-   request.
-3. Coordinate a default-false CPO-owned customer-publication field for hubs,
-   then add customer station discovery and favorites.
-4. Define and implement the server-side effective tariff resolver before the
-   app displays price.
-5. Run manual-subscription and tariff overlap PostgreSQL lifecycle verification
-   against an explicitly disposable `TEST_DATABASE_URL`.
-6. Design staff invitation and membership management before activating dormant
-   role values.
+1. Add supported customer charging-session history projections from durable CMS
+  session records, without inventing HAL control or live availability.
+2. Design the CMS/HAL QR-scan charging lifecycle before adding start/stop APIs.
+
+Deferred verification decision:
+
+- Disposable PostgreSQL lifecycle tests are intentionally skipped for the
+  foreseeable workstream. Do not treat their absence as a feature blocker or
+  claim stateful verification; preserve the tests and reactivate them only by
+  an explicit decision.
 
 ## Deferred Work
 

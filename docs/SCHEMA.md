@@ -278,6 +278,12 @@ constraint migration were removed before deployment: migration one already owns
 the global OCPP identity uniqueness invariant, and migration sixteen owns the
 complete sanctioned-load invariant.
 
+Migration twenty-one adds `hubs.customer_visible boolean NOT NULL DEFAULT false`.
+The CPO ADMIN hub create/update API owns this publication switch. Customer
+discovery reads only `true` hubs and attached same-CPO chargers; independent
+chargers and unpublished hubs remain durable CMS inventory but are not exposed
+to the User App.
+
 ## CPO Superadmin Dependency
 
 Migration ten completes the durable state required by the CPO control-plane

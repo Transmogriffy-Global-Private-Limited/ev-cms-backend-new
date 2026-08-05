@@ -3,9 +3,10 @@
 ## Current Capability
 
 The CMS can store, rotate, list metadata for, internally resolve, and remove one
-Razorpay credential set per CPO. It does not yet call Razorpay, execute
-payments, verify webhooks, reconcile settlements, or expose secret plaintext
-through HTTP.
+Razorpay credential set per CPO. The User App now uses those credentials
+internally to create Razorpay wallet-recharge orders and verify checkout
+payments. It does not expose secret plaintext through HTTP or add a CPO-side
+payment API.
 
 ## Authorization
 
@@ -72,26 +73,57 @@ CPO's rows.
 
 ## Internal Use Boundary
 
-`ResolveRazorpay(ctx, cpoID)` is an internal service method for future payment
-orchestration. Its caller must independently establish a trusted CPO context.
-There is deliberately no generic secret-read endpoint.
+`ResolveRazorpay(ctx, cpoID)` is an internal service method used by the trusted
+User App payment orchestration callback. Its caller must independently
+establish a trusted CPO context. There is deliberately no generic secret-read
+endpoint.
 
 The method refuses records encrypted under an unavailable key ID. Before an
 encryption key is removed, every affected row must be deliberately
 re-encrypted; changing the environment key without migration makes resolution
 fail closed.
 
-Before payment execution is implemented, define provider idempotency, webhook
-authentication, retry policy, transaction ownership, reconciliation, and audit
-behavior as one coherent feature.
+## User App recharge flow
+
+The customer calls `POST /api/v1/app/auth/wallet/recharge/orders` with a
+positive two-decimal INR amount and an `Idempotency-Key`. The CMS derives the
+customer, CPO, and wallet from the validated customer principal, creates a
+durable internal recharge order, resolves the encrypted CPO credentials, and
+uses the official Razorpay Go SDK to create the provider order. The response
+contains the provider order ID, amount in rupees and minor units, currency,
+status, and public Razorpay key ID for checkout.
+
+The customer then calls `POST /api/v1/app/auth/wallet/recharge/verify` with the
+Razorpay order ID, payment ID, and checkout signature. The CMS verifies the
+signature, fetches the payment through the SDK, requires matching order ID,
+amount, currency, and captured status, and commits one transaction containing:
+
+```text
+verified provider payment
+-> completed wallet CREDIT ledger row
+-> wallet balance increment
+-> PAID internal recharge order
+```
+
+The wallet credit is protected by the recharge order link, a wallet lock, and
+the existing wallet idempotency constraint. Repeated verification cannot credit
+the wallet twice. Authorized-but-not-captured payments are stored but do not
+credit the wallet.
+
+The implementation stores the non-secret provider order/payment snapshots,
+provider IDs, amounts, currency, status, method, fee/tax fields, provider
+timestamps, error fields, checkout signature evidence, and a future refund
+record shape. Sensitive provider credentials, card numbers, CVV, and
+authorization headers are excluded from stored snapshots. Refund execution and
+webhook ingestion remain separate follow-up work; the durable refund table is
+already linked to the recharge order/payment so that later refund orchestration
+does not need a schema rewrite.
 
 ## Explicit Non-Capabilities
 
 Stored credentials do not mean the CMS currently:
 
-- creates Razorpay orders or captures payments;
-- verifies signatures or webhook secrets;
-- retries provider calls;
-- stores provider event IDs;
-- reconciles payments or settlements;
+- captures payments on the provider or performs refunds yet;
+- ingests Razorpay webhooks or reconciles provider settlements yet;
+- retries provider calls after an ambiguous order-creation timeout;
 - grants platform staff secret access.
