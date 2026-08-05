@@ -2,6 +2,17 @@
 
 ## 2026-08-05
 
+### Rehosted customer network and Razorpay wallet release
+
+- Applied migrations 21 and 22 from a mode-0600 rollback dump. The live
+  database had one customer and two hubs; recharge tables started empty.
+- Built and rehosted revision `c33da86`. The enabled service is active and
+  serves the 129-operation contract through Caddy.
+- Verified public readiness and synchronized the deployment, project-state,
+  CPO, SuperAdmin, and User App documentation with the live release.
+
+## 2026-08-05
+
 ### Implemented User App Razorpay wallet recharge
 
 - Added User App order creation and checkout verification using the existing

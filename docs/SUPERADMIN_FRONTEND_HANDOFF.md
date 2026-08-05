@@ -53,8 +53,8 @@ the development deployment.
 The CPO application also has two notification operations under its own
 authenticated `ADMIN` session and verified `X-CPO-App-ID` header.
 
-The development origin serves the deployed 113-operation OpenAPI document from
-revision `be6fd34` with migration twenty. The manual subscription API is
+The development origin serves the deployed 129-operation OpenAPI document from
+revision `c33da86` with migration twenty-two. The manual subscription API is
 platform-superadmin-only, excludes feature-key entitlements, and does not
 activate provider billing or automatic lifecycle behavior.
 
@@ -178,7 +178,7 @@ Add a subscription-management area only for platform superadmins, following
 checkout, webhook, automatic-renewal, scheduled-change, or provider UI:
 those routes do not exist. Platform-admin management, generic mail jobs,
 announcements, notifications, and bounded overview/status are available in the
-deployed 113-operation development origin described below.
+deployed 129-operation development origin described below.
 
 ## HTTP Conventions
 

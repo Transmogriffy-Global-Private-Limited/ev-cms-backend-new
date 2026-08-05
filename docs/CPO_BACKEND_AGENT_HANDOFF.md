@@ -565,7 +565,7 @@ Before completion, prove:
 - PostgreSQL is durable truth.
 - Fifteen migrations are already deployment history. Do not edit an applied
   migration to change new behavior; add the next forward migration.
-- Migration twenty is the current deployed migration. It adds CPO-local
+- Migration twenty-two is the current deployed migration. Migration twenty adds CPO-local
   customer credentials and dedicated customer auth lineage; migration fifteen
   adds tariff effective-date columns and a PostgreSQL overlap constraint.
 - Prefer additive, backward-compatible migrations.

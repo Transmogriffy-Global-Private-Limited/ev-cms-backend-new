@@ -159,8 +159,8 @@ provides:
   handler;
 - the additive PostgreSQL database `devevcmsnewdb`, owned by `postgres`.
 
-The active development VPS runs source revision `be6fd34`, with migrations
-through twenty recorded and the deployed 113-operation contract. CPO GSTIN and address
+The active development VPS runs source revision `c33da86`, with migrations
+through twenty-two recorded and the deployed 129-operation contract. CPO GSTIN and address
 identity are database-required, authenticated platform clients can use the
 advisory slug-availability operation, and known uniqueness races return
 field- or relationship-specific conflict codes. All four CPOs were complete
@@ -175,12 +175,12 @@ Migration fifteen adds tariff effective-date fields and a tenant/scope-aware
 PostgreSQL exclusion constraint and is deployed. The disposable PostgreSQL
 lifecycle test remains unexecuted because no `TEST_DATABASE_URL` is configured.
 
-The deployed contract has 113 operations: the added
+The deployed contract has 129 operations: the added
 `GET /api/v1/cpo/users/{user_id}` is a tenant-scoped staff-membership point
 lookup, not a customer or staff directory. CPO-local customer accounts are not
 reachable through it.
 
-The deployed source has 113 operations. The current source tree has 129
+The deployed source has 129 operations. It includes
 operations after adding customer self-service profile editing, published
 network discovery, favorites, informational customer price reads, charger
 search and wallet reads, and Razorpay recharge order/verification; the deployed binary remains at 113 until a
@@ -190,9 +190,11 @@ source includes the CPO ADMIN-only
 allows an independent charger to be created without `hub_id`, and adds
 non-negative hub `sanction_load` plus the upgrade-time removal of the legacy
 charger-hub `NOT NULL` in migration sixteen. These changes are deployed at
-`be6fd34`; migration nineteen reconciles databases that had already recorded
+`c33da86`; migration nineteen reconciles databases that had already recorded
 the removed follow-up migrations so `chargers.hub_id` is nullable, and migration
-twenty makes customer accounts CPO-local with dedicated authentication lineage.
+twenty makes customer accounts CPO-local with dedicated authentication lineage,
+and migrations 21–22 add customer-visible network discovery and Razorpay wallet
+recharge ledger support.
 
 The deployed recovery flow fixes a recovery-specific OTP mapper defect that discarded
 `challenge_id` before outbox validation and caused eligible administrative and
@@ -244,9 +246,9 @@ implemented yet.
 - `git diff --check` passed. Stateful PostgreSQL lifecycle verification is
   intentionally deferred by the current workstream decision; no stateful
   result is claimed.
-- Revision `be6fd34` was built cleanly and rehosted after a validated mode-0600
-  rollback dump and migration twenty. The installed identity, loopback-only
-  listener, loopback/public readiness, live 113-operation Swagger/OpenAPI,
+- Revision `c33da86` was built cleanly and rehosted after a validated mode-0600
+  rollback dump and migration twenty-two. The installed identity, loopback-only
+  listener, loopback/public readiness, live 129-operation Swagger/OpenAPI,
   request-ID header, protected CPO routes, nullable charger hub assignment,
   required workers, and absence of startup errors or panics passed.
 - Revision `396bae5` was built cleanly and rehosted after a validated

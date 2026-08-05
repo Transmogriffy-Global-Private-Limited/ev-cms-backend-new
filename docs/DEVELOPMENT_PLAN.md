@@ -915,9 +915,9 @@ Last completed slice:
 
 Last deployment milestone:
 
-- Revision `be6fd34` was built cleanly and rehosted on the development VPS
-  after a validated rollback dump and application of migration twenty. The
-  live 113-operation route/OpenAPI surface, running-binary identity,
+- Revision `c33da86` was built cleanly and rehosted on the development VPS
+  after a validated rollback dump and application of migration twenty-two. The
+  live 129-operation route/OpenAPI surface, running-binary identity,
   loopback-only listener, loopback/public readiness, zero-restart service
   state, request-ID header, tariff columns/constraints/indexes, required
   workers, and post-start journal were verified. The disposable PostgreSQL
