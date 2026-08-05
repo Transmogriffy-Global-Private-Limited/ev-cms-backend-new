@@ -133,7 +133,7 @@ UUID or a row UUID.
 ## Current Implemented CPO Surface
 
 The authoritative machine contract is
-`docs/contracts/openapi/openapi.yaml`. The source currently has 113 total
+`docs/contracts/openapi/openapi.yaml`. The source currently has 114 total
 HTTP operations across all planes. Runtime/OpenAPI parity is tested.
 
 ### Administrative authentication
@@ -234,6 +234,8 @@ Implemented:
 - CPO-scoped signup start, verify, and resend;
 - password plus mail-OTP login, verify, and resend;
 - refresh rotation;
+- authenticated `GET /me` bootstrap and `PATCH /profile` self-service name/phone
+  updates; profile writes are CPO-local and audit changed field names only;
 - current customer (`me`);
 - customer-scoped session listing/revocation/logout/logout-all;
 - password recovery/reset and authenticated change. Forgot-password stays
@@ -244,8 +246,8 @@ Successful signup transactionally creates one CPO-local customer account and
 its zero-balance INR wallet without creating or reusing `users`.
 
 Not implemented: a CPO ADMIN customer directory, customer suspension API,
-groups/RFID management APIs, customer profile editing, or verified email
-change. Do not confuse implemented customer self-authentication with CPO-side
+groups/RFID management APIs, or verified email change. Customer self-service
+profile editing is implemented, but this must not be confused with CPO-side
 customer administration.
 
 ## Current Data Model: Schema Is Capacity, Not Behavior

@@ -234,7 +234,7 @@ func (service *Service) loadCustomerContext(tx *gorm.DB, customerID, cpoID uuid.
 func principalFromContext(context customerContext, session models.CustomerAuthSession) Principal {
 	return Principal{
 		UserID: context.Customer.ID, CustomerID: context.Customer.ID, CPOID: context.CPO.ID, SessionID: session.ID, CPOAppID: context.CPO.AppID, TokenVersion: session.TokenVersion,
-		User:     UserView{ID: context.Customer.ID, Email: context.Customer.Email, FullName: context.Customer.FullName, Phone: context.Customer.Phone, IsVerified: context.Customer.IsVerified, LastLoginAt: context.Customer.LastLoginAt},
+		User:     userView(context.Customer),
 		Customer: CustomerView{ID: context.Customer.ID, Status: string(context.Customer.Status), UserGroupID: context.Customer.UserGroupID},
 		CPO:      CPOView{ID: context.CPO.ID, BusinessName: context.CPO.BusinessName, AppID: context.CPO.AppID, AppIDMode: string(context.CPO.AppIDMode)},
 		Wallet:   WalletView{ID: context.Wallet.ID, Balance: context.Wallet.Balance.StringFixed(2), Currency: context.Wallet.Currency},

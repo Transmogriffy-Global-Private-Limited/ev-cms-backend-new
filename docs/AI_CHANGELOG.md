@@ -1,5 +1,25 @@
 # AI Changelog
 
+## 2026-08-05
+
+### Implemented customer self-service profile editing
+
+- Added authenticated `PATCH /api/v1/app/auth/profile` using the validated
+  CPO-local customer principal and matching `X-CPO-App-ID`.
+- Restricted mutation to trimmed full name and normalized phone; omitted phone
+  preserves the value and explicit JSON `null` clears it.
+- Added transactional customer update and `CUSTOMER_PROFILE_UPDATED` audit
+  evidence containing changed field names only, with no old/new PII values.
+- Updated runtime route tests, OpenAPI, the exhaustive HTTP contract, User App
+  frontend handoff, CPO agent handoff, development plan, and project state.
+
+Verification:
+
+- `go test ./src/customerauth ./src/routes -count=1` passes.
+- OpenAPI/runtime parity and Swagger/raw-schema route verification passes.
+- PostgreSQL lifecycle verification remains pending because no explicitly
+  disposable `TEST_DATABASE_URL` is configured.
+
 ## 2026-08-04
 
 ### Rehosted CPO-local customer authentication

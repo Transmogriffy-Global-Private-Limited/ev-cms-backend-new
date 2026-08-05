@@ -505,6 +505,67 @@ paths:
         "500":
           $ref: "#/components/responses/InternalError"
 
+  /api/v1/app/auth/profile:
+    patch:
+      tags: [App User Authentication]
+      operationId: updateCurrentCustomerProfile
+      summary: Update the current customer profile
+      description: |
+        Updates only the authenticated CPO-local customer's display name and
+        phone. The customer and CPO are derived from the validated bearer
+        session; no customer or CPO identifier is accepted. Omitting `phone`
+        preserves it, while explicit JSON null clears it. Email, password,
+        status, group, wallet, sessions, and identifiers are immutable here.
+        Successful changes write one CPO-scoped audit record containing field
+        names only, never old or new personal values.
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/CPOAppIDHeader"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateCustomerProfileRequest"
+            examples:
+              update:
+                value:
+                  full_name: Asha Das
+                  phone: "+919876543210"
+              clearPhone:
+                value:
+                  full_name: Asha Das
+                  phone: null
+      responses:
+        "200":
+          description: Updated canonical customer user projection.
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+              example: no-store
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CustomerUser"
+        "400":
+          description: Invalid JSON, full name, phone, or unknown field.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          description: "`cpo_app_id_mismatch` or wrong session plane."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
   /api/v1/app/auth/sessions:
     get:
       tags: [App User Authentication]
@@ -4275,6 +4336,26 @@ components:
         last_login_at:
           type: string
           format: date-time
+
+    UpdateCustomerProfileRequest:
+      type: object
+      additionalProperties: false
+      required: [full_name]
+      properties:
+        full_name:
+          type: string
+          minLength: 1
+          maxLength: 255
+          description: Trimmed CPO-local customer display name.
+          example: Asha Das
+        phone:
+          type: string
+          nullable: true
+          minLength: 7
+          maxLength: 16
+          pattern: "^\\+?[0-9]{7,15}$"
+          description: Optional normalized phone. Omit to preserve; send null to clear.
+          example: "+919876543210"
 
     CustomerRelationship:
       type: object

@@ -81,7 +81,7 @@ provides:
   workflows, governance, security, mail, notifications, overview/status,
   audit/workers, SSE/replay, error UX, security, verification, and explicit
   deployment gaps;
-- canonical OpenAPI 3.1 for all 111 current source-tree business/health
+- canonical OpenAPI 3.1 for all 114 current source-tree business/health
   operations;
 - embedded same-origin Swagger UI at `/docs/` and raw OpenAPI at
   `/openapi.yaml`;
@@ -100,6 +100,10 @@ provides:
   rotating/reuse-detecting refresh tokens;
 - app-user `me`, customer-scoped session listing/revocation/logout, CPO-local
   password reset/change, and eligible-recipient recovery-ID/code delivery;
+- authenticated customer self-service profile updates through
+  `PATCH /api/v1/app/auth/profile`, with omitted-versus-null phone semantics,
+  canonical user projection responses, and CPO-scoped field-name-only audit
+  evidence;
 - trusted backend current-principal, customer, CPO, and app-ID helpers, with
   `CurrentUserID` retained as a customer-ID compatibility alias;
 - environment-controlled permissive CORS middleware and a current development
@@ -154,7 +158,10 @@ The deployed contract has 113 operations: the added
 lookup, not a customer or staff directory. CPO-local customer accounts are not
 reachable through it.
 
-The deployed source has 113 operations. It includes the CPO ADMIN-only
+The deployed source has 113 operations. The current source tree has 114
+operations after adding customer self-service profile editing; the deployed
+binary remains at 113 until a separately approved deployment. The deployed
+source includes the CPO ADMIN-only
 `POST /api/v1/cpo/hubs/{hub_id}/chargers` hub attachment/reassignment command,
 allows an independent charger to be created without `hub_id`, and adds
 non-negative hub `sanction_load` plus the upgrade-time removal of the legacy
@@ -169,12 +176,12 @@ customer forgot-password transactions to roll back with `500 internal_error`.
 Administrative and customer recovery now enqueue the complete canonical mail
 payload before outbox validation.
 
-Customer-app implementation requires `X-CPO-App-ID` on every
+CPO customer-app implementation requires `X-CPO-App-ID` on every
 `/api/v1/app/auth/...` request, including signup. The approved next user-work
-plan retains that app-only header and sequences customer profile,
-published-station discovery, favorites, tariff display, and later
-HAL-dependent charging/billing work. This is planned only; CPO ADMIN routes
-remain owned by the CPO workstream.
+plan retains that app-only header. Customer self-service name and phone
+editing is implemented in source; published-station discovery, favorites,
+tariff display, and later HAL-dependent charging/billing work remain planned.
+CPO ADMIN routes remain owned by the CPO workstream.
 
 No CMS/HAL transport or handshake, live charger state ingestion, charging
 workflow, tenant payment workflow, tenant commercial-management workflow,
@@ -201,7 +208,7 @@ yet.
   content, and affected package tests passed for the source-tree change.
 - Superadmin migration fourteen static coverage, input/privacy regression
   tests, and the affected package tests passed for the source-tree change.
-- The 113-operation source OpenAPI and runtime route sets match; documentation
+- The 114-operation source OpenAPI and runtime route sets match; documentation
   contract verification passed.
 - Source migration coverage verifies both sanctioned-load constraints and the
   upgrade/rollback guard for independent charger inventory. The targeted

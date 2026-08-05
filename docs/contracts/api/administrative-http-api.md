@@ -433,7 +433,49 @@ not identify a row in the administrative `users` table.
 Errors: `400 missing_cpo_app_id`, `401 unauthorized`,
 `403 cpo_app_id_mismatch`, or `500 internal_error`.
 
-### 4.9 Backend current-customer helpers
+### 4.9 `PATCH /api/v1/app/auth/profile`
+
+Requires bearer customer access token plus matching `X-CPO-App-ID`.
+
+Request:
+
+```json
+{
+  "full_name": "Asha Das",
+  "phone": "+919876543210"
+}
+```
+
+`full_name` is required, trimmed, and limited to 255 characters. `phone` is
+optional and must contain 7 to 15 digits with an optional leading `+`. Omit it
+to preserve the current value; send explicit JSON `null` to clear it. Email is
+not editable here and password changes remain owned by the password endpoints.
+
+The customer and CPO are derived from the validated session. The request has
+no customer, CPO, status, group, wallet, session, or identifier fields. The
+transaction updates only this CPO-local customer account and, when a value
+actually changes, writes `CUSTOMER_PROFILE_UPDATED` audit evidence containing
+the changed field names and no old/new personal values.
+
+`200 OK` returns the canonical `UserView` projection:
+
+```json
+{
+  "id": "e8a751ff-d7d4-4ce8-ab30-cdd8c8111363",
+  "email": "driver@example.com",
+  "full_name": "Asha Das",
+  "phone": "+919876543210",
+  "is_verified": true,
+  "last_login_at": "2026-07-23T12:00:00Z"
+}
+```
+
+The authentication route group returns `Cache-Control: no-store`.
+Errors: `400 invalid_request`, `400 invalid_full_name`, `400 invalid_phone`,
+`400 missing_cpo_app_id`, `401 unauthorized`, `403 cpo_app_id_mismatch`, or
+`500 internal_error`.
+
+### 4.10 Backend current-customer helpers
 
 After `service.Authenticate()` and `customerauth.RequireAppID()` succeed,
 backend app handlers use:
@@ -452,7 +494,7 @@ token plus authoritative PostgreSQL revalidation. An app handler must not take
 `CurrentUserID` remains as a source-compatibility alias and returns the exact
 same value as `CurrentCustomerID`; new app code should use `CurrentCustomerID`.
 
-### 4.10 `GET /api/v1/app/auth/sessions`
+### 4.11 `GET /api/v1/app/auth/sessions`
 
 Requires customer bearer token and matching app ID. Returns only active,
 unexpired `CUSTOMER` sessions for the current `customer_id` in the current CPO:
@@ -475,7 +517,7 @@ unexpired `CUSTOMER` sessions for the current `customer_id` in the current CPO:
 
 It does not expose platform, CPO-staff, or another CPO's customer sessions.
 
-### 4.11 `DELETE /api/v1/app/auth/sessions/{session_id}`
+### 4.12 `DELETE /api/v1/app/auth/sessions/{session_id}`
 
 Requires customer bearer token and matching app ID. `204 No Content` revokes
 the selected session and unused refresh token only when it belongs to this
@@ -485,13 +527,13 @@ Errors: `400 invalid_session_id` or `missing_cpo_app_id`,
 `401 unauthorized`, `403 cpo_app_id_mismatch`, `404 session_not_found`, or
 `500 internal_error`.
 
-### 4.12 `POST /api/v1/app/auth/logout`
+### 4.13 `POST /api/v1/app/auth/logout`
 
 Requires customer bearer token and matching app ID.
 
 `204 No Content` revokes the current session and unused refresh token.
 
-### 4.13 `POST /api/v1/app/auth/logout-all`
+### 4.14 `POST /api/v1/app/auth/logout-all`
 
 Requires customer bearer token and matching app ID.
 
@@ -499,7 +541,7 @@ Requires customer bearer token and matching app ID.
 It deliberately does not revoke platform sessions, CPO-staff sessions, or
 customer sessions for another CPO.
 
-### 4.14 `POST /api/v1/app/auth/password/forgot`
+### 4.15 `POST /api/v1/app/auth/password/forgot`
 
 Request: `{"email":"driver@example.com"}` plus the app-ID header.
 
@@ -519,7 +561,7 @@ That eligible recipient's encrypted email contains the opaque recovery ID
 (`challenge_id`), six-digit code, and shared expiry. The generic response does
 not expose whether the ID is real, so account enumeration remains blocked.
 
-### 4.15 Customer password-reset resend and completion
+### 4.16 Customer password-reset resend and completion
 
 Both operations use the recovery ID delivered in the eligible recipient's
 email. Resend returns a replacement challenge response and mails a replacement
@@ -549,7 +591,7 @@ lockout state, and revokes every customer session for this exact
 untouched. Any other unconsumed login/reset challenge for this account is also
 invalidated so a pre-change OTP cannot create a post-change session.
 
-### 4.16 `POST /api/v1/app/auth/password/change`
+### 4.17 `POST /api/v1/app/auth/password/change`
 
 Requires customer bearer token and matching app ID.
 

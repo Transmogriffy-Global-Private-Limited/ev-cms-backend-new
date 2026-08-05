@@ -1,6 +1,7 @@
 package customerauth
 
 import (
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -21,6 +22,39 @@ func TestNormalizePhone(t *testing.T) {
 	invalid := "9876 abc"
 	if _, err := normalizePhone(&invalid); err == nil {
 		t.Fatal("expected invalid phone to fail")
+	}
+}
+
+func TestUpdateProfileRequestDistinguishesOmittedAndNullPhone(t *testing.T) {
+	t.Parallel()
+
+	var omitted UpdateProfileRequest
+	if err := json.Unmarshal([]byte(`{"full_name":"Updated Customer"}`), &omitted); err != nil {
+		t.Fatalf("decode omitted phone: %v", err)
+	}
+	if omitted.phoneSet || omitted.Phone != nil {
+		t.Fatalf("omitted phone was treated as a mutation: %#v", omitted)
+	}
+
+	var cleared UpdateProfileRequest
+	if err := json.Unmarshal([]byte(`{"full_name":"Updated Customer","phone":null}`), &cleared); err != nil {
+		t.Fatalf("decode null phone: %v", err)
+	}
+	if !cleared.phoneSet || cleared.Phone != nil {
+		t.Fatalf("null phone was not treated as a clear: %#v", cleared)
+	}
+
+	var supplied UpdateProfileRequest
+	if err := json.Unmarshal([]byte(`{"full_name":"Updated Customer","phone":"+919876543210"}`), &supplied); err != nil {
+		t.Fatalf("decode supplied phone: %v", err)
+	}
+	if !supplied.phoneSet || supplied.Phone == nil || *supplied.Phone != "+919876543210" {
+		t.Fatalf("supplied phone was not retained: %#v", supplied)
+	}
+
+	var unknown UpdateProfileRequest
+	if err := json.Unmarshal([]byte(`{"full_name":"Updated Customer","unknown":true}`), &unknown); err == nil {
+		t.Fatal("unknown profile field was accepted")
 	}
 }
 

@@ -124,6 +124,87 @@ func (service *Service) Start(
 	return response, err
 }
 
+func (service *Service) UpdateProfile(
+	ctx context.Context,
+	principal Principal,
+	request UpdateProfileRequest,
+) (UserView, error) {
+	fullName := strings.TrimSpace(request.FullName)
+	if fullName == "" || len(fullName) > 255 {
+		return UserView{}, &APIError{http.StatusBadRequest, "invalid_full_name", "Full name must contain 1 to 255 characters."}
+	}
+	var phone *string
+	if request.phoneSet || request.Phone != nil {
+		var err error
+		phone, err = normalizePhone(request.Phone)
+		if err != nil {
+			return UserView{}, err
+		}
+	}
+
+	var profile UserView
+	err := service.database.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var customer models.Customer
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where(
+			"id = ? AND cpo_id = ? AND status = ?", principal.CustomerID, principal.CPOID, constants.CustomerStatusActive,
+		).First(&customer).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return errUnauthorized
+			}
+			return fmt.Errorf("load customer profile: %w", err)
+		}
+
+		updates := map[string]any{}
+		changedFields := make([]string, 0, 2)
+		if customer.FullName != fullName {
+			updates["full_name"] = fullName
+			customer.FullName = fullName
+			changedFields = append(changedFields, "full_name")
+		}
+		if request.phoneSet || request.Phone != nil {
+			phoneChanged := (customer.Phone == nil) != (phone == nil)
+			if !phoneChanged && customer.Phone != nil && phone != nil {
+				phoneChanged = *customer.Phone != *phone
+			}
+			if phoneChanged {
+				updates["phone"] = phone
+				customer.Phone = phone
+				changedFields = append(changedFields, "phone")
+			}
+		}
+
+		now := service.now()
+		if len(changedFields) > 0 {
+			updates["updated_at"] = now
+			customer.UpdatedAt = now
+			if err := tx.Model(&models.Customer{}).Where(
+				"id = ? AND cpo_id = ?", customer.ID, principal.CPOID,
+			).Updates(updates).Error; err != nil {
+				return fmt.Errorf("update customer profile: %w", err)
+			}
+			if err := createCustomerAudit(
+				tx, customer.ID, principal.CPOID, "CUSTOMER_PROFILE_UPDATED", "CUSTOMER", customer.ID,
+				models.JSONB{"changed_fields": changedFields}, now,
+			); err != nil {
+				return err
+			}
+		}
+		profile = userView(customer)
+		return nil
+	})
+	if err != nil {
+		return UserView{}, err
+	}
+	return profile, nil
+}
+
+func userView(customer models.Customer) UserView {
+	return UserView{
+		ID: customer.ID, Email: customer.Email, FullName: customer.FullName,
+		Phone: customer.Phone, IsVerified: customer.IsVerified, LastLoginAt: customer.LastLoginAt,
+	}
+}
+
 func (service *Service) Verify(
 	ctx context.Context,
 	appID string,

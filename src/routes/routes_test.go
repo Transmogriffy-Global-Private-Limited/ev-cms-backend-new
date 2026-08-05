@@ -132,6 +132,7 @@ func TestCredentialRoutesAreRegisteredAndProtected(t *testing.T) {
 		{http.MethodGet, "/api/v1/cpo/gsts/00000000-0000-0000-0000-000000000001"},
 		{http.MethodPatch, "/api/v1/cpo/gsts/00000000-0000-0000-0000-000000000001"},
 		{http.MethodGet, "/api/v1/app/auth/me"},
+		{http.MethodPatch, "/api/v1/app/auth/profile"},
 		{http.MethodGet, "/api/v1/app/auth/sessions"},
 		{http.MethodDelete, "/api/v1/app/auth/sessions/00000000-0000-0000-0000-000000000001"},
 		{http.MethodPost, "/api/v1/app/auth/logout"},

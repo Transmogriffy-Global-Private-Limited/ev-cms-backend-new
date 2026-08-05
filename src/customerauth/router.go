@@ -35,6 +35,7 @@ func RegisterRoutes(group *gin.RouterGroup, service *Service) {
 	protected := group.Group("")
 	protected.Use(service.Authenticate(), RequireAppID())
 	protected.GET("/me", handler.me)
+	protected.PATCH("/profile", handler.updateProfile)
 	protected.GET("/sessions", handler.sessions)
 	protected.DELETE("/sessions/:session_id", handler.revokeSession)
 	protected.POST("/logout", handler.logout)
@@ -216,6 +217,27 @@ func (handler *Handler) me(ctx *gin.Context) {
 		return
 	}
 	ctx.JSON(http.StatusOK, handler.service.Me(principal))
+}
+
+func (handler *Handler) updateProfile(ctx *gin.Context) {
+	principal, ok := CurrentPrincipal(ctx)
+	if !ok {
+		writeError(ctx, errUnauthorized)
+		return
+	}
+	var request UpdateProfileRequest
+	if err := decodeJSON(ctx, &request); err != nil {
+		writeError(ctx, invalidRequest(err))
+		return
+	}
+	profile, err := handler.service.UpdateProfile(
+		ctx.Request.Context(), principal, request,
+	)
+	if err != nil {
+		writeError(ctx, err)
+		return
+	}
+	ctx.JSON(http.StatusOK, profile)
 }
 
 func (handler *Handler) sessions(ctx *gin.Context) {

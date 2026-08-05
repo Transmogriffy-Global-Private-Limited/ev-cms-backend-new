@@ -143,6 +143,13 @@ export type CustomerMe = {
   };
 };
 
+export type UpdateCustomerProfileRequest = {
+  full_name: string;
+  phone?: string | null; // omit to preserve; null to clear
+};
+
+export type CustomerUser = CustomerMe["user"];
+
 export type CustomerSession = {
   id: string;
   ip_address?: string;
@@ -172,6 +179,7 @@ export type CustomerSession = {
 | `POST /password/reset/resend` | No | `202 ChallengeResponse` | Replace recovery ID/code pair. |
 | `POST /password/reset` | No | `200 MessageResponse` | Replace forgotten password. |
 | `GET /me` | Yes | `200 CustomerMe` | Bootstrap authenticated app state. |
+| `PATCH /profile` | Yes | `200 CustomerUser` | Update this account's name or phone. |
 | `GET /sessions` | Yes | `200 SessionList` | List this account's active sessions. |
 | `DELETE /sessions/{session_id}` | Yes | `204` | Revoke one owned session. |
 | `POST /logout` | Yes | `204` | Revoke current session. |
@@ -330,7 +338,32 @@ The backend revalidates the durable session, active customer, active CPO,
 wallet ownership, and current CPO app ID. A token alone is not durable
 authority.
 
-### 9.2 Session list
+### 9.2 Edit profile
+
+`PATCH /profile` updates the authenticated CPO-local account only:
+
+```json
+{
+  "full_name": "Asha Das",
+  "phone": "+919876543210"
+}
+```
+
+`full_name` is required and must be 1–255 trimmed characters. `phone` is
+optional and must contain 7–15 digits with an optional leading `+`. Omit
+`phone` to preserve the current value; send JSON `null` to clear it. Email,
+password, status, group, wallet, sessions, CPO, and identifiers cannot be
+changed by this route.
+
+The response is the canonical `CustomerUser` projection. Treat it as the new
+local profile state and do not replace the complete `CustomerMe` bootstrap
+object with it. The backend returns `Cache-Control: no-store` and records only
+changed field names in the CPO-scoped audit event.
+
+Errors are `400 invalid_request`, `400 invalid_full_name`,
+`400 invalid_phone`, `401 unauthorized`, or `403 cpo_app_id_mismatch`.
+
+### 9.3 Session list
 
 `GET /sessions`
 
@@ -353,14 +386,14 @@ authority.
 Only active, unexpired sessions for this exact `(cpo_id, customer_id)` are
 returned.
 
-### 9.3 Revoke one session
+### 9.4 Revoke one session
 
 `DELETE /sessions/{session_id}` returns `204`. The customer may revoke their
 current session; if `is_current` was true, clear local authentication state
 immediately. `404 session_not_found` means the session is not owned by this
 account or does not exist.
 
-### 9.4 Logout
+### 9.5 Logout
 
 - `POST /logout` returns `204` and revokes the current session.
 - `POST /logout-all` returns `204` and revokes all sessions for only this
@@ -502,15 +535,16 @@ compile or deploy one trusted app-ID value per branded CPO distribution.
 The authentication boundary is ready. These customer-product surfaces are not
 part of this slice and the frontend must not invent calls for them:
 
-- edit email, name, or phone;
+- edit email;
 - charger/hub discovery and favorites;
 - RFID/access-token management;
 - start/stop charging and live transaction telemetry;
 - wallet funding, charging bills, or payment history;
 - customer notifications and realtime feeds.
 
-The next approved customer slice is authenticated profile editing. Keep those
-screens disabled until their routes appear in the same OpenAPI document.
+Authenticated name and phone editing is now available through `PATCH /profile`.
+Keep email editing and the other listed customer-product surfaces disabled
+until their routes appear in the same OpenAPI document.
 
 ## 14. Frontend Acceptance Checklist
 

@@ -1,6 +1,8 @@
 package customerauth
 
 import (
+	"bytes"
+	"encoding/json"
 	"time"
 
 	"github.com/google/uuid"
@@ -56,6 +58,36 @@ type ResetPasswordRequest struct {
 type ChangePasswordRequest struct {
 	CurrentPassword string `json:"current_password"`
 	NewPassword     string `json:"new_password"`
+}
+
+// UpdateProfileRequest deliberately tracks whether phone was present so the
+// API can distinguish an omitted field (preserve it) from explicit null
+// (clear it).
+type UpdateProfileRequest struct {
+	FullName string  `json:"full_name"`
+	Phone    *string `json:"phone,omitempty"`
+	phoneSet bool
+}
+
+func (request *UpdateProfileRequest) UnmarshalJSON(data []byte) error {
+	type wireRequest struct {
+		FullName string  `json:"full_name"`
+		Phone    *string `json:"phone"`
+	}
+	decoder := json.NewDecoder(bytes.NewReader(data))
+	decoder.DisallowUnknownFields()
+	var wire wireRequest
+	if err := decoder.Decode(&wire); err != nil {
+		return err
+	}
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal(data, &fields); err != nil {
+		return err
+	}
+	_, request.phoneSet = fields["phone"]
+	request.FullName = wire.FullName
+	request.Phone = wire.Phone
+	return nil
 }
 
 type TokenResponse struct {

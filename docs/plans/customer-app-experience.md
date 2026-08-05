@@ -81,6 +81,8 @@ the deployment assumption changes. Profile mutation remains Slice 2.
 
 ## Slice 2 — Customer Self-Service Profile
 
+Status: Implemented; PostgreSQL lifecycle verification pending
+
 ### Goal
 
 Let a signed-in customer update their CPO-scoped account display identity using
@@ -115,7 +117,9 @@ the customer principal and current `X-CPO-App-ID` request contract.
 - Cross-CPO/customer/body-ID attempts cannot redirect the update.
 - Response uses the canonical user projection and `Cache-Control: no-store`.
 - Add handler/service tests, PostgreSQL lifecycle proof, route/OpenAPI parity,
-  exhaustive contract and FE workflow updates.
+  exhaustive contract and FE workflow updates. Source implementation and
+  focused contract verification are complete; the lifecycle proof remains
+  pending until an explicitly disposable `TEST_DATABASE_URL` is available.
 
 ## Slice 3 — Published Customer Network Read Model
 
