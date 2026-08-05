@@ -213,23 +213,29 @@ At a supplied server timestamp, select active, effective tariffs scoped to the
 customer’s CPO and hub. Use this deterministic precedence:
 
 1. charger + customer user group;
-2. charger + generic customer;
-3. hub + customer user group;
+2. hub + customer user group;
+3. charger + generic customer;
 4. hub + generic customer.
+
+In the current schema, “User Tariff” means a tariff matching the customer’s
+existing `UserGroupID`; this slice does not add a new per-customer or group
+assignment API. User-specific scope therefore wins before charger scope, and
+charger scope wins before hub scope.
 
 The resolver loads the active GST profile referenced by the tariff and returns
 exact decimal strings. A missing eligible tariff returns an explicit
-`price_unavailable` state, never a zero price. The result is informational and
+`UNAVAILABLE` state with a reason, never a zero price. The result is informational and
 not a charge commitment; a charging session later snapshots the selected tariff
 and tax atomically.
 
-### Proposed Endpoints
+### Implemented Endpoints
 
 - `GET /api/v1/app/hubs/{hub_id}/price`
 - `GET /api/v1/app/chargers/{charger_id}/price`
 
-The exact route shape may be folded into discovery detail only if the response
-remains independently cacheable and its server-calculated semantics are clear.
+Both routes return the same informational `AVAILABLE`/`UNAVAILABLE` response
+and do not contact HAL. Missing or inactive referenced GST makes the price
+unavailable rather than returning a price without tax context.
 
 ### Dependencies
 

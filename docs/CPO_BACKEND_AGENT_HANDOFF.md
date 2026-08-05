@@ -133,7 +133,7 @@ UUID or a row UUID.
 ## Current Implemented CPO Surface
 
 The authoritative machine contract is
-`docs/contracts/openapi/openapi.yaml`. The source currently has 122 total
+`docs/contracts/openapi/openapi.yaml`. The source currently has 124 total
 HTTP operations across all planes. Runtime/OpenAPI parity is tested.
 
 ### Administrative authentication
@@ -245,6 +245,10 @@ Implemented:
 - authenticated favorites list and idempotent add/remove routes use the
   existing composite customer-favorite tables; unpublishing hides saved
   resources from the list without leaking them;
+- authenticated hub and charger price reads resolve active effective tariffs
+  with matching user-group charger, matching user-group hub, generic charger,
+  then generic hub precedence; missing/inactive GST returns `UNAVAILABLE` and
+  no HAL call occurs;
 - current customer (`me`);
 - customer-scoped session listing/revocation/logout/logout-all;
 - password recovery/reset and authenticated change. Forgot-password stays

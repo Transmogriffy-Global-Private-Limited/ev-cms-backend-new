@@ -208,6 +208,20 @@ export type CustomerFavorites = {
   next_charger_before_id?: string;
   has_more_chargers: boolean;
 };
+
+export type CustomerPriceResponse = {
+  status: "AVAILABLE" | "UNAVAILABLE";
+  effective_at: string;
+  currency?: string;
+  price_per_kwh?: string;
+  idle_fee_per_minute?: string;
+  gst?: {
+    sgst_rate: string;
+    cgst_rate: string;
+    igst_rate: string;
+  };
+  unavailable_reason?: "no_eligible_tariff";
+};
 ```
 
 `me.user` is a compatibility presentation object. `me.user.id` always equals
@@ -237,6 +251,8 @@ export type CustomerFavorites = {
 | `DELETE /favorite-hubs/{hub_id}` | Yes | `204` | Idempotently remove a hub favorite. |
 | `PUT /favorite-chargers/{charger_id}` | Yes | `204` | Idempotently save an attached published charger. |
 | `DELETE /favorite-chargers/{charger_id}` | Yes | `204` | Idempotently remove a charger favorite. |
+| `GET /hubs/{hub_id}/price` | Yes | `200 CustomerPriceResponse` | Resolve the current informational hub price. |
+| `GET /chargers/{charger_id}/price` | Yes | `200 CustomerPriceResponse` | Resolve the current informational charger price. |
 | `GET /sessions` | Yes | `200 SessionList` | List this account's active sessions. |
 | `DELETE /sessions/{session_id}` | Yes | `204` | Revoke one owned session. |
 | `POST /logout` | Yes | `204` | Revoke current session. |
@@ -276,6 +292,26 @@ intent without leaking unpublished inventory.
 `GET /favorites` uses independent bounded cursors for hubs and chargers:
 preserve each `next_*` pair together and send it back as the corresponding
 `hub_before`/`hub_before_id` or `charger_before`/`charger_before_id` pair.
+
+### 5.2 Informational Price Display
+
+The price routes are authenticated, CPO-scoped reads. The server chooses the
+tariff at `effective_at`; the frontend must not reconstruct precedence from CPO
+tariff rows. The precedence is:
+
+1. matching user-group charger tariff;
+2. matching user-group hub tariff;
+3. generic charger tariff;
+4. generic hub tariff.
+
+In the current backend schema, “User Tariff” is the tariff whose
+`user_group_id` matches the authenticated customer’s existing group assignment.
+No new group-management or per-customer tariff API is introduced here. A
+customer without a group uses only generic tariffs. `AVAILABLE` includes exact
+decimal strings for currency, energy price, idle fee, and GST when referenced;
+`UNAVAILABLE` is a valid `200` response with `unavailable_reason` and never a
+zero-price fallback. The response is informational and is not a charging or
+payment commitment. HAL is not called.
 
 ## 6. Signup Flow
 

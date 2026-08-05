@@ -40,7 +40,9 @@ func RegisterRoutes(group *gin.RouterGroup, service *Service) {
 	protected.PATCH("/profile", handler.updateProfile)
 	protected.GET("/hubs", handler.listHubs)
 	protected.GET("/hubs/:hub_id", handler.getHub)
+	protected.GET("/hubs/:hub_id/price", handler.getHubPrice)
 	protected.GET("/chargers/:charger_id", handler.getCharger)
+	protected.GET("/chargers/:charger_id/price", handler.getChargerPrice)
 	protected.GET("/favorites", handler.listFavorites)
 	protected.PUT("/favorite-hubs/:hub_id", handler.addFavoriteHub)
 	protected.DELETE("/favorite-hubs/:hub_id", handler.removeFavoriteHub)
@@ -295,6 +297,39 @@ func (handler *Handler) getCharger(ctx *gin.Context) {
 		return
 	}
 	response, err := handler.service.GetCustomerCharger(ctx.Request.Context(), principal, ctx.Param("charger_id"))
+	if err != nil {
+		writeError(ctx, err)
+		return
+	}
+	ctx.JSON(http.StatusOK, response)
+}
+
+func (handler *Handler) getHubPrice(ctx *gin.Context) {
+	principal, ok := CurrentPrincipal(ctx)
+	if !ok {
+		writeError(ctx, errUnauthorized)
+		return
+	}
+	hubID, err := uuid.Parse(ctx.Param("hub_id"))
+	if err != nil {
+		writeError(ctx, &APIError{http.StatusBadRequest, "invalid_hub_id", "The hub ID is invalid."})
+		return
+	}
+	response, err := handler.service.GetCustomerHubPrice(ctx.Request.Context(), principal, hubID)
+	if err != nil {
+		writeError(ctx, err)
+		return
+	}
+	ctx.JSON(http.StatusOK, response)
+}
+
+func (handler *Handler) getChargerPrice(ctx *gin.Context) {
+	principal, ok := CurrentPrincipal(ctx)
+	if !ok {
+		writeError(ctx, errUnauthorized)
+		return
+	}
+	response, err := handler.service.GetCustomerChargerPrice(ctx.Request.Context(), principal, ctx.Param("charger_id"))
 	if err != nil {
 		writeError(ctx, err)
 		return

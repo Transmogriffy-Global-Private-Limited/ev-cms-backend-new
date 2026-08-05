@@ -680,6 +680,31 @@ Removes the current customer's charger favorite idempotently and returns
 `204`. An absent or cross-CPO public ID is not enumerated. A real removal
 records `CUSTOMER_FAVORITE_CHARGER_REMOVED`.
 
+### 4.26 `GET /api/v1/app/auth/hubs/{hub_id}/price`
+
+Requires the authenticated customer bearer token and matching
+`X-CPO-App-ID`. The hub must be published in the customer’s CPO. The server
+selects the active tariff effective at the response’s `effective_at` timestamp.
+For this hub-only route, charger-scoped candidates are not applicable, so the
+order is matching user-group hub tariff, then generic hub tariff. In the current schema,
+“User Tariff” means a tariff whose `user_group_id` matches the customer’s
+existing group assignment.
+
+`200 OK` returns `CustomerPriceResponse`. `AVAILABLE` contains exact decimal
+strings for currency, energy price, idle fee, and referenced active GST rates.
+`UNAVAILABLE` with `unavailable_reason: no_eligible_tariff` is returned when no
+eligible tariff exists or a referenced GST profile is inactive/missing; the API
+never substitutes a zero price. The response is informational and is not a
+charging or payment commitment. It does not contact HAL.
+
+### 4.27 `GET /api/v1/app/auth/chargers/{charger_id}/price`
+
+Uses the six-character public charger ID and the same authentication, CPO,
+publication, and response rules as the hub price route. The charger must be
+attached to a published hub. Because charger candidates are applicable here,
+the effective order is matching user-group charger, matching user-group hub,
+generic charger, then generic hub.
+
 ## 5. Authentication Workflow
 
 ### 5.1 `POST /api/v1/auth/login`

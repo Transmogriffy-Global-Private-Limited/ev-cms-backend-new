@@ -660,6 +660,50 @@ paths:
         "500":
           $ref: "#/components/responses/InternalError"
 
+  /api/v1/app/auth/hubs/{hub_id}/price:
+    get:
+      tags: [App User Network]
+      operationId: getCustomerHubPrice
+      summary: Get the current informational hub price
+      description: |
+        Resolves the current active effective hub tariff on the server. The
+        result is informational and is not a charging or payment commitment.
+        A missing eligible tariff returns HTTP 200 with status `UNAVAILABLE`,
+        never a zero price. When the authenticated customer has an existing
+        user-group assignment, its matching tariff takes precedence over
+        generic charger and hub tariffs. For this hub endpoint the applicable
+        order is user-group hub, then generic hub; the charger endpoint also
+        considers charger-scoped tiers.
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/CPOAppIDHeader"
+        - $ref: "#/components/parameters/HubID"
+      responses:
+        "200":
+          description: Current price state for the published hub.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CustomerPriceResponse"
+        "400":
+          description: Invalid hub ID or missing app-ID header.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/ErrorEnvelope"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403":
+          description: "`cpo_app_id_mismatch` or wrong session plane."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/ErrorEnvelope"}
+        "404":
+          description: "`hub_not_found` for unknown, unpublished, or cross-CPO hub."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/ErrorEnvelope"}
+        "500": {$ref: "#/components/responses/InternalError"}
+
   /api/v1/app/auth/chargers/{charger_id}:
     get:
       tags: [App User Network]
@@ -704,6 +748,41 @@ paths:
                 $ref: "#/components/schemas/ErrorEnvelope"
         "500":
           $ref: "#/components/responses/InternalError"
+
+  /api/v1/app/auth/chargers/{charger_id}/price:
+    get:
+      tags: [App User Network]
+      operationId: getCustomerChargerPrice
+      summary: Get the current informational charger price
+      description: "Uses the public charger ID and the same server-side precedence: matching user-group tariff, then charger tariff, then hub tariff."
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/CPOAppIDHeader"
+        - $ref: "#/components/parameters/ChargerPublicID"
+      responses:
+        "200":
+          description: Current price state for the attached charger.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/CustomerPriceResponse"}
+        "400":
+          description: Invalid charger ID or missing app-ID header.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/ErrorEnvelope"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403":
+          description: "`cpo_app_id_mismatch` or wrong session plane."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/ErrorEnvelope"}
+        "404":
+          description: "`charger_not_found` for unknown, unpublished, unassigned, or cross-CPO charger."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/ErrorEnvelope"}
+        "500": {$ref: "#/components/responses/InternalError"}
 
   /api/v1/app/auth/favorites:
     get:
@@ -4838,6 +4917,37 @@ components:
         next_charger_before: {type: string, format: date-time}
         next_charger_before_id: {type: string, format: uuid}
         has_more_chargers: {type: boolean}
+
+    CustomerPriceResponse:
+      type: object
+      additionalProperties: false
+      required: [status, effective_at]
+      properties:
+        status:
+          type: string
+          enum: [AVAILABLE, UNAVAILABLE]
+        effective_at: {type: string, format: date-time}
+        currency: {type: string, pattern: "^[A-Z]{3}$"}
+        price_per_kwh:
+          type: string
+          pattern: "^[0-9]+(?:\\.[0-9]{1,4})?$"
+          description: Exact decimal energy price; present only when available.
+        idle_fee_per_minute:
+          type: string
+          pattern: "^[0-9]+(?:\\.[0-9]{1,4})?$"
+          description: Exact decimal idle fee per minute; present only when available.
+        gst:
+          type: object
+          additionalProperties: false
+          required: [sgst_rate, cgst_rate, igst_rate]
+          properties:
+            sgst_rate: {type: string}
+            cgst_rate: {type: string}
+            igst_rate: {type: string}
+        unavailable_reason:
+          type: string
+          enum: [no_eligible_tariff]
+          description: Present only when status is UNAVAILABLE.
 
     PlatformLoginRequest:
       type: object

@@ -2,6 +2,26 @@
 
 ## 2026-08-05
 
+### Implemented User App informational tariff resolution
+
+- Added authenticated hub and public-charger price reads over published
+  customer network resources.
+- Added deterministic server-side precedence: matching User Tariff (the
+  existing customer `UserGroupID`) over charger tariff over hub tariff, with
+  charger-specific scope winning within the User Tariff and generic tiers.
+- Added exact decimal price/GST projections and an explicit `UNAVAILABLE`
+  response when no eligible tariff or active referenced GST exists. The result
+  is informational and does not contact HAL or commit a charging price.
+- Updated OpenAPI/Swagger, runtime route tests, exhaustive HTTP contract, User
+  App handoff, CPO handoff, development plan, and project state.
+
+Verification:
+
+- Database-free tariff precedence tests and focused customer-auth/route tests
+  pass.
+- Disposable PostgreSQL lifecycle verification remains intentionally deferred
+  by decision and is not claimed as passed.
+
 ### Deferred disposable PostgreSQL lifecycle testing for the User App workstream
 
 - The current implementation workstream will skip disposable PostgreSQL

@@ -81,7 +81,7 @@ provides:
   workflows, governance, security, mail, notifications, overview/status,
   audit/workers, SSE/replay, error UX, security, verification, and explicit
   deployment gaps;
-- canonical OpenAPI 3.1 for all 122 current source-tree business/health
+- canonical OpenAPI 3.1 for all 124 current source-tree business/health
   operations;
 - embedded same-origin Swagger UI at `/docs/` and raw OpenAPI at
   `/openapi.yaml`;
@@ -111,6 +111,10 @@ provides:
 - customer-owned favorite list and idempotent add/remove APIs over published
   hubs and attached chargers, with unpublish-safe reads and CPO/customer
   composite ownership;
+- authenticated informational hub and charger price resolution using active
+  effective tariffs, active GST projections, explicit `AVAILABLE`/
+  `UNAVAILABLE` states, and User Tariff > charger tariff > hub tariff
+  precedence;
 - trusted backend current-principal, customer, CPO, and app-ID helpers, with
   `CurrentUserID` retained as a customer-ID compatibility alias;
 - environment-controlled permissive CORS middleware and a current development
@@ -165,9 +169,9 @@ The deployed contract has 113 operations: the added
 lookup, not a customer or staff directory. CPO-local customer accounts are not
 reachable through it.
 
-The deployed source has 113 operations. The current source tree has 122
+The deployed source has 113 operations. The current source tree has 124
 operations after adding customer self-service profile editing, published
-network discovery, and favorites; the deployed binary remains at 113 until a
+network discovery, favorites, and informational customer price reads; the deployed binary remains at 113 until a
 separately approved deployment. The deployed
 source includes the CPO ADMIN-only
 `POST /api/v1/cpo/hubs/{hub_id}/chargers` hub attachment/reassignment command,
@@ -187,8 +191,9 @@ payload before outbox validation.
 CPO customer-app implementation requires `X-CPO-App-ID` on every
 `/api/v1/app/auth/...` request, including signup. The approved next user-work
 plan retains that app-only header. Customer self-service name and phone
-editing, published-station discovery, and favorites are implemented in source;
-tariff display and later HAL-dependent charging/billing work remain planned.
+editing, published-station discovery, favorites, and informational tariff
+display are implemented in source; HAL-dependent charging/billing work remains
+planned.
 CPO ADMIN routes remain owned by the CPO workstream.
 
 No CMS/HAL transport or handshake, live charger state ingestion, charging
@@ -216,7 +221,7 @@ yet.
   content, and affected package tests passed for the source-tree change.
 - Superadmin migration fourteen static coverage, input/privacy regression
   tests, and the affected package tests passed for the source-tree change.
-- The 122-operation source OpenAPI and runtime route sets match; documentation
+- The 124-operation source OpenAPI and runtime route sets match; documentation
   contract verification passed.
 - Source migration coverage verifies both sanctioned-load constraints and the
   upgrade/rollback guard for independent charger inventory. The targeted
@@ -392,7 +397,8 @@ repository. The integration contract has not been implemented yet.
 - Only the initial administrator profile and network/GST/tariff subset has
   handlers. Customer directory, access tokens, charging, wallets, payments,
   reporting, and most other domain tables remain without business APIs;
-  published read-only customer network discovery and favorites are implemented.
+  published read-only customer network discovery, favorites, and informational
+  tariff price reads are implemented.
 - CPO staff invitation after the first admin and customer email/profile-change
   workflows are not implemented.
 - Manual subscriptions are Superadmin-managed records; a CPO ADMIN has only a

@@ -598,7 +598,7 @@ Detailed plan:
 
 ### Feature: Customer app experience
 
-Status: In Progress — profile, published-network, and favorites slices implemented; PostgreSQL lifecycle verification deferred by decision
+Status: In Progress — profile, published-network, favorites, and informational tariff slices implemented; PostgreSQL lifecycle verification deferred by decision
 
 Phase: Phase 4, then Phases 5 and 6 for HAL-dependent work
 
@@ -700,7 +700,7 @@ Current source implementation:
   dates and database-enforced overlap protection.
 - Governance, security, mail, announcement/notification, overview, and status
   routes are implemented and represented with the CPO user lookup in the
-  122-operation source OpenAPI contract. The added CPO charger hub-assignment
+  124-operation source OpenAPI contract. The added CPO charger hub-assignment
   operation is CPO ADMIN-only and does not extend SuperAdmin authority.
 - Focused source tests, route/OpenAPI parity, documentation verification, the
   full Go suite, vet, and diff checks pass.
@@ -835,18 +835,22 @@ Current phase:
 
 Active feature:
 
-- Customer app experience — Slice 4 customer favorites
+- Customer app experience — Slice 5 effective tariff resolver and price display
 
 Current implementation slice:
 
-- Added idempotent customer favorite list/add/remove APIs over published hubs
-  and attached chargers. Reads omit later-unpublished resources, mutations
-  use composite CPO/customer ownership, and no HAL call is made. Focused source
-  and contract verification pass. Disposable PostgreSQL lifecycle checks are
-  deferred by decision until explicitly reactivated.
+- Added server-calculated informational hub and charger price APIs. Tariff
+  precedence is matching user-group charger, matching user-group hub, generic
+  charger, then generic hub; no HAL call is made. Focused source and contract
+  verification pass. Disposable PostgreSQL lifecycle checks are deferred by
+  decision until explicitly reactivated.
 
 Last completed slice:
 
+- Implemented the effective customer tariff resolver and informational hub and
+  charger price APIs with exact decimal projections, explicit unavailable state,
+  active GST resolution, and User Tariff > charger tariff > hub tariff
+  precedence.
 - Implemented customer favorites over the published discovery projection,
   including bounded independent cursors, idempotent mutations, audit actions,
   unpublish-safe reads, route/OpenAPI parity, and User App documentation.
@@ -907,8 +911,8 @@ Last deployment milestone:
 
 Next expected slice:
 
-- Define and implement the server-side effective tariff resolver before the
-  app displays price.
+- Design staff invitation and membership management before activating dormant
+  role values.
 
 Blocked by:
 
@@ -916,9 +920,7 @@ Blocked by:
 
 ## Next Approved Work
 
-1. Define and implement the server-side effective tariff resolver before the
-   app displays price.
-2. Design staff invitation and membership management before activating dormant
+1. Design staff invitation and membership management before activating dormant
    role values.
 
 Deferred verification decision:
