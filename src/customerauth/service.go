@@ -255,8 +255,9 @@ func (service *Service) Verify(
 			return fmt.Errorf("consume signup challenge: %w", err)
 		}
 		if err := tx.Exec(
-			"SELECT pg_advisory_xact_lock(hashtext(?))",
-			challenge.CPOID.String()+"\x00"+strings.ToLower(strings.TrimSpace(challenge.Email)),
+			"SELECT pg_advisory_xact_lock(hashtextextended(?, 0))",
+			"customer-signup:"+challenge.CPOID.String()+":"+
+				strings.ToLower(strings.TrimSpace(challenge.Email)),
 		).Error; err != nil {
 			return fmt.Errorf("lock signup identity: %w", err)
 		}
