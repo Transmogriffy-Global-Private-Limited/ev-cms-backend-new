@@ -1909,8 +1909,9 @@ Rules:
 
 - `hub_id` is an optional UUID owned by this CPO; omit it to create an
   independent, unassigned charger;
-- vendor, model, and serial number are required, trimmed, and at most 100
-  characters each;
+- vendor and model are optional, trimmed when supplied, and at most 100
+  characters each; serial number is required, trimmed, and at most 100
+  characters;
 - `max_power_kw` is optional/default zero and cannot be negative;
 - All new charger fields are required.
 - at least one connector is required;

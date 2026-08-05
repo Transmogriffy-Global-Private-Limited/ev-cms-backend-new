@@ -1858,6 +1858,11 @@ func (service *Service) CreateCharger(
 		}
 	}
 
+	request = normalizeCreateChargerRequest(request)
+	if err := validateCreateChargerRequest(request); err != nil {
+		return ChargerResponse{}, err
+	}
+
 	var vendor *string
 	if request.Vendor != "" {
 		v := request.Vendor
@@ -1868,11 +1873,6 @@ func (service *Service) CreateCharger(
 	if request.Model != "" {
 		m := request.Model
 		model = &m
-	}
-
-	request = normalizeCreateChargerRequest(request)
-	if err := validateCreateChargerRequest(request); err != nil {
-		return ChargerResponse{}, err
 	}
 
 	var record models.Charger
