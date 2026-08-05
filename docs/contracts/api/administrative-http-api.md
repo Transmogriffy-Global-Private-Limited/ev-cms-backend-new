@@ -762,6 +762,57 @@ and Razorpay provider verification are separate contracts. Errors include
 `400 invalid_request`, `404 wallet_not_found`, standard authentication/app-ID
 errors, or `500 internal_error`.
 
+### 4.31 `POST /api/v1/app/auth/wallet/recharge/orders`
+
+Requires customer bearer authentication, matching `X-CPO-App-ID`, and an
+`Idempotency-Key` header of 1–120 safe characters. The JSON body is:
+
+```json
+{"amount":"500.00"}
+```
+
+The amount must be a positive INR value with at most two decimal places. The
+backend derives the wallet and CPO from the customer principal, creates a
+durable recharge intent, resolves the encrypted CPO Razorpay credentials
+internally, and creates the provider order through the Razorpay Go SDK. It
+returns `201` with the internal recharge ID, Razorpay order ID, exact amount,
+minor-unit amount, INR currency, `PAYMENT_PENDING` status, and public Razorpay
+key ID. It never returns the key secret. Reusing the key with a different
+amount returns `409 idempotency_conflict`; an ambiguous in-progress order
+returns `409 recharge_order_pending` rather than creating an uncontrolled
+duplicate provider order.
+
+The operation stores a non-secret provider order snapshot and provider
+metadata. It does not credit the wallet.
+
+### 4.32 `POST /api/v1/app/auth/wallet/recharge/verify`
+
+Requires customer bearer authentication and matching `X-CPO-App-ID`. The body
+contains the three values returned by Razorpay Checkout:
+
+```json
+{
+  "razorpay_order_id":"order_example",
+  "razorpay_payment_id":"pay_example",
+  "razorpay_signature":"<checkout-signature>"
+}
+```
+
+The CMS verifies the signature with the internally resolved CPO key secret,
+fetches the payment through the Razorpay SDK, and requires the provider order
+ID, payment amount, currency, and captured status to match the durable recharge
+intent. A captured payment is committed transactionally with its provider
+snapshot, one completed wallet `CREDIT` transaction linked to the recharge
+order, the wallet balance increment, and `PAID` order state. Repeated
+verification is idempotent and cannot credit the same recharge twice.
+
+Authorized-but-not-captured payments are stored without funding the wallet and
+return `409 payment_not_captured`. Invalid signatures, provider mismatches,
+missing orders, and provider failures use the standard error envelope.
+Refund execution and webhook ingestion are not callable yet, but the durable
+provider payment and future-refund records retain the IDs and non-secret
+metadata needed for a later refund/reconciliation slice.
+
 ## 5. Authentication Workflow
 
 ### 5.1 `POST /api/v1/auth/login`

@@ -46,6 +46,8 @@ func RegisterRoutes(group *gin.RouterGroup, service *Service) {
 	protected.GET("/chargers/:charger_id/price", handler.getChargerPrice)
 	protected.GET("/wallet", handler.getWallet)
 	protected.GET("/wallet/transactions", handler.listWalletTransactions)
+	protected.POST("/wallet/recharge/orders", handler.createRechargeOrder)
+	protected.POST("/wallet/recharge/verify", handler.verifyRecharge)
 	protected.GET("/favorites", handler.listFavorites)
 	protected.PUT("/favorite-hubs/:hub_id", handler.addFavoriteHub)
 	protected.DELETE("/favorite-hubs/:hub_id", handler.removeFavoriteHub)
@@ -352,6 +354,46 @@ func (handler *Handler) listWalletTransactions(ctx *gin.Context) {
 		return
 	}
 	response, err := handler.service.ListCustomerWalletTransactions(ctx.Request.Context(), principal, query)
+	if err != nil {
+		writeError(ctx, err)
+		return
+	}
+	ctx.JSON(http.StatusOK, response)
+}
+
+func (handler *Handler) createRechargeOrder(ctx *gin.Context) {
+	principal, ok := CurrentPrincipal(ctx)
+	if !ok {
+		writeError(ctx, errUnauthorized)
+		return
+	}
+	var request CustomerRechargeOrderRequest
+	if err := decodeJSON(ctx, &request); err != nil {
+		writeError(ctx, invalidRequest(err))
+		return
+	}
+	response, err := handler.service.CreateWalletRechargeOrder(
+		ctx.Request.Context(), principal, ctx.GetHeader(IdempotencyKeyHeader), request,
+	)
+	if err != nil {
+		writeError(ctx, err)
+		return
+	}
+	ctx.JSON(http.StatusCreated, response)
+}
+
+func (handler *Handler) verifyRecharge(ctx *gin.Context) {
+	principal, ok := CurrentPrincipal(ctx)
+	if !ok {
+		writeError(ctx, errUnauthorized)
+		return
+	}
+	var request CustomerRechargeVerifyRequest
+	if err := decodeJSON(ctx, &request); err != nil {
+		writeError(ctx, invalidRequest(err))
+		return
+	}
+	response, err := handler.service.VerifyWalletRecharge(ctx.Request.Context(), principal, request)
 	if err != nil {
 		writeError(ctx, err)
 		return

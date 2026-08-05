@@ -835,19 +835,27 @@ Current phase:
 
 Active feature:
 
-- Customer app experience — User App charger search and wallet read projections
+- Customer app experience — User App Razorpay wallet recharge
 
 Current implementation slice:
 
-- Added User App charger search/filter and near-me reads over published DB
-  inventory, plus CPO/customer-scoped wallet balance and wallet-history reads.
-  No wallet mutation, payment-provider call, RFID flow, or HAL call is made.
-  Focused source, route/OpenAPI, and documentation verification pass.
+- Added User App Razorpay order creation and checkout verification using the
+  existing encrypted CPO integration credentials. Durable recharge orders,
+  provider payment attempts, future-refund records, provider snapshots, and
+  the atomic wallet-credit ledger link are now in migration 22. No CPO or
+  Superadmin payment API, RFID flow, webhook, refund command, or HAL call is
+  added.
   Disposable PostgreSQL lifecycle checks remain deferred by decision until
   explicitly reactivated.
 
 Last completed slice:
 
+- Implemented User App Razorpay wallet recharge order creation and captured
+  payment verification with SDK-backed provider calls, signature and exact
+  order/payment matching, idempotent wallet credit, encrypted CPO credential
+  resolution, and durable provider order/payment/refund records in migration
+  22. Refund execution, webhooks, settlement reconciliation, RFID, and HAL
+  remain separate follow-ups.
 - Implemented User App charger search/filter and bounded near-me results over
   published hubs, with safe hub/connector projections and explicit UNKNOWN
   availability; implemented wallet balance and keyset-paginated wallet-history
@@ -917,10 +925,8 @@ Last deployment milestone:
 
 Next expected slice:
 
-- Add the User App Razorpay recharge foundation: durable internal recharge
-  orders, provider payment attempts and future-refund records, SDK-backed order
-  creation, and idempotent payment verification using encrypted CPO integration
-  credentials. Do not add CPO/Superadmin APIs; keep provider secrets internal.
+- Add supported customer charging-session history projections from durable CMS
+  session records, without inventing HAL control or live availability.
 
 Blocked by:
 
@@ -928,10 +934,9 @@ Blocked by:
 
 ## Next Approved Work
 
-1. Complete User App Razorpay recharge and durable provider-payment records.
-2. Add supported customer charging-session history projections from durable CMS
-   session records, without inventing HAL control or live availability.
-3. Design the CMS/HAL QR-scan charging lifecycle before adding start/stop APIs.
+1. Add supported customer charging-session history projections from durable CMS
+  session records, without inventing HAL control or live availability.
+2. Design the CMS/HAL QR-scan charging lifecycle before adding start/stop APIs.
 
 Deferred verification decision:
 

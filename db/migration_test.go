@@ -130,6 +130,45 @@ func TestInitialMigrationContainsCompleteCMSDomain(t *testing.T) {
 	}
 }
 
+func TestWalletRazorpayRechargeMigrationContainsDurableProviderRecords(t *testing.T) {
+	t.Parallel()
+
+	upBody, err := migrationFiles.ReadFile("migrations/000022_wallet_razorpay_recharge.up.sql")
+	if err != nil {
+		t.Fatalf("read Razorpay recharge up migration: %v", err)
+	}
+	downBody, err := migrationFiles.ReadFile("migrations/000022_wallet_razorpay_recharge.down.sql")
+	if err != nil {
+		t.Fatalf("read Razorpay recharge down migration: %v", err)
+	}
+	upSQL := string(upBody)
+	downSQL := string(downBody)
+	for _, table := range []string{
+		"wallet_recharge_orders",
+		"wallet_recharge_payments",
+		"wallet_recharge_refunds",
+	} {
+		if !strings.Contains(upSQL, "CREATE TABLE "+table) {
+			t.Errorf("up migration does not create table %q", table)
+		}
+		if !strings.Contains(downSQL, "DROP TABLE IF EXISTS "+table) {
+			t.Errorf("down migration does not drop table %q", table)
+		}
+	}
+	for _, column := range []string{
+		"provider_order_id",
+		"provider_payment_id",
+		"provider_refund_id",
+		"provider_payload",
+		"payment_signature",
+		"recharge_order_id",
+	} {
+		if !strings.Contains(upSQL, column) {
+			t.Errorf("up migration does not retain provider field %q", column)
+		}
+	}
+}
+
 func TestAuthMigrationContainsCredentialBoundary(t *testing.T) {
 	t.Parallel()
 

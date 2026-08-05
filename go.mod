@@ -9,6 +9,7 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/jackc/pgx/v5 v5.6.0
 	github.com/joho/godotenv v1.5.1
+	github.com/razorpay/razorpay-go v1.4.0
 	github.com/shopspring/decimal v1.4.0
 	github.com/swaggest/swgui v1.8.9
 	github.com/wneessen/go-mail v0.7.2

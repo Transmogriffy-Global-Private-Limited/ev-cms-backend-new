@@ -26,11 +26,11 @@ Implemented customer routes are confined to `/api/v1/app/auth`:
 - CPO-local password recovery, reset, and change.
 
 Customer profile mutation, published station discovery, favorites, charger
-search/near-me, and wallet balance/history reads are implemented. Tariff quote
-is implemented as an informational read. Wallet recharge, charging-session
-history, wallet mutation, payment-provider execution, notifications, and
-reporting APIs remain unimplemented. Existing tables alone do not imply that
-those APIs exist.
+search/near-me, wallet balance/history reads, and Razorpay wallet recharge
+order/verification are implemented. Tariff quote is implemented as an
+informational read. Charging-session history, refund/webhook/settlement
+operations, notifications, and reporting APIs remain unimplemented. Existing
+tables alone do not imply that those APIs exist.
 
 ## Permanent User-Surface Rules
 
@@ -284,6 +284,48 @@ client-supplied ownership.
 ### Verification
 
 - Database-free query validation and distance tests.
+- Route/OpenAPI parity and documentation verification.
+- Full Go checks; disposable PostgreSQL lifecycle remains deferred by decision.
+
+## Slice 5B — Razorpay Wallet Recharge
+
+Status: Implemented in source; PostgreSQL lifecycle verification deferred by
+decision
+
+### Goal
+
+Allow an authenticated customer to create an idempotent Razorpay checkout
+order and verify a completed checkout using the encrypted Razorpay credentials
+already stored for that customer’s CPO. A successful verification credits the
+customer wallet exactly once.
+
+### Implemented Endpoints
+
+- `POST /api/v1/app/auth/wallet/recharge/orders`
+- `POST /api/v1/app/auth/wallet/recharge/verify`
+
+### Durable State and Rules
+
+- Migration 22 stores CMS recharge orders, Razorpay payment attempts, and a
+  refund-ready record shape. Provider IDs, amounts, currencies, statuses,
+  method/fee/tax fields, timestamps, sanitized provider snapshots, and payment
+  signature evidence are retained; provider credentials, authorization data,
+  card numbers, CVV, and other secret fields are not stored in snapshots.
+- Order creation requires `Idempotency-Key`, validates positive INR amounts,
+  resolves credentials only through the internal CPO integration service, and
+  returns the public Razorpay key ID without exposing the secret.
+- Verification checks the checkout signature, fetches the payment through the
+  official Razorpay Go SDK, requires exact order/amount/currency matching and
+  captured status, and atomically links one completed wallet credit to the
+  recharge order.
+- Authorized or failed provider payments are retained without wallet credit.
+- No CPO/Superadmin payment API, webhook, refund command, settlement worker,
+  RFID flow, or HAL call is part of this slice.
+
+### Verification
+
+- Database-free Razorpay amount, signature, provider-snapshot, and route tests.
+- Static migration durability checks.
 - Route/OpenAPI parity and documentation verification.
 - Full Go checks; disposable PostgreSQL lifecycle remains deferred by decision.
 

@@ -916,6 +916,121 @@ paths:
               schema: {$ref: "#/components/schemas/ErrorEnvelope"}
         "500": {$ref: "#/components/responses/InternalError"}
 
+  /api/v1/app/auth/wallet/recharge/orders:
+    post:
+      tags: [App User Wallet]
+      operationId: createCustomerWalletRechargeOrder
+      summary: Create a Razorpay wallet recharge order
+      description: |
+        Creates one CPO/customer-scoped Razorpay order for the exact INR
+        amount. The server resolves encrypted CPO credentials internally,
+        stores the provider order snapshot, and returns only the public key ID
+        needed by the frontend checkout. The Idempotency-Key must be reused
+        for a retried request with the same amount.
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/CPOAppIDHeader"
+        - $ref: "#/components/parameters/IdempotencyKeyHeader"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CustomerRechargeOrderRequest"
+      responses:
+        "201":
+          description: Provider order created or the existing idempotent order returned.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CustomerRechargeOrderResponse"
+        "400":
+          description: Invalid amount, idempotency key, or JSON body.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/ErrorEnvelope"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403":
+          description: "`cpo_app_id_mismatch` or wrong session plane."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/ErrorEnvelope"}
+        "409":
+          description: Idempotency conflict, pending order, or unsupported wallet currency.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/ErrorEnvelope"}
+        "502":
+          description: Razorpay order creation failed.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/ErrorEnvelope"}
+        "503":
+          description: Razorpay credentials are not configured or unavailable.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/ErrorEnvelope"}
+
+  /api/v1/app/auth/wallet/recharge/verify:
+    post:
+      tags: [App User Wallet]
+      operationId: verifyCustomerWalletRecharge
+      summary: Verify and credit a captured Razorpay recharge
+      description: |
+        Verifies the Razorpay checkout signature, fetches the provider payment
+        through the SDK, requires a captured payment matching the stored order,
+        and atomically records the provider payment, wallet credit, and
+        completed recharge order. Repeated verification is idempotent.
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/CPOAppIDHeader"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CustomerRechargeVerifyRequest"
+      responses:
+        "200":
+          description: Recharge verified and wallet credited, or existing completed result returned.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CustomerRechargeOrderResponse"
+        "400":
+          description: Invalid request or payment signature.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/ErrorEnvelope"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403":
+          description: "`cpo_app_id_mismatch` or wrong session plane."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/ErrorEnvelope"}
+        "404":
+          description: Recharge order is not owned by the current customer.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/ErrorEnvelope"}
+        "409":
+          description: Payment mismatch, already-completed order, or uncaptured payment.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/ErrorEnvelope"}
+        "502":
+          description: Razorpay verification fetch failed.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/ErrorEnvelope"}
+        "503":
+          description: Razorpay credentials are not configured or unavailable.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/ErrorEnvelope"}
+
   /api/v1/app/auth/favorites:
     get:
       tags: [App User Network]
@@ -4068,6 +4183,15 @@ components:
         type: string
         minLength: 16
         maxLength: 100
+    IdempotencyKeyHeader:
+      name: Idempotency-Key
+      in: header
+      required: true
+      description: Reuse the same key only with the same recharge amount when retrying order creation.
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 120
     CPOID:
       name: cpo_id
       in: path
@@ -5094,6 +5218,40 @@ components:
         balance: {type: string, pattern: "^[0-9]+(?:\\.[0-9]{1,2})?$"}
         currency: {type: string, pattern: "^[A-Z]{3}$"}
         updated_at: {type: string, format: date-time}
+
+    CustomerRechargeOrderRequest:
+      type: object
+      additionalProperties: false
+      required: [amount]
+      properties:
+        amount:
+          type: string
+          pattern: "^[0-9]+(?:\\.[0-9]{1,2})?$"
+          description: Positive INR amount with at most two decimal places.
+
+    CustomerRechargeVerifyRequest:
+      type: object
+      additionalProperties: false
+      required: [razorpay_order_id, razorpay_payment_id, razorpay_signature]
+      properties:
+        razorpay_order_id: {type: string, minLength: 1, maxLength: 100}
+        razorpay_payment_id: {type: string, minLength: 1, maxLength: 100}
+        razorpay_signature: {type: string, minLength: 1, maxLength: 128}
+
+    CustomerRechargeOrderResponse:
+      type: object
+      additionalProperties: false
+      required: [recharge_order_id, provider, provider_order_id, amount, amount_minor, currency, status, created_at]
+      properties:
+        recharge_order_id: {type: string, format: uuid}
+        provider: {type: string, enum: [RAZORPAY]}
+        provider_order_id: {type: string, minLength: 1, maxLength: 100}
+        amount: {type: string, pattern: "^[0-9]+\\.[0-9]{2}$"}
+        amount_minor: {type: integer, format: int64, minimum: 1}
+        currency: {type: string, enum: [INR]}
+        provider_key_id: {type: string, maxLength: 100, description: Public Razorpay key ID; present on order creation.}
+        status: {type: string, enum: [PAYMENT_PENDING, PAID]}
+        created_at: {type: string, format: date-time}
 
     CustomerFavoritesResponse:
       type: object

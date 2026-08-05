@@ -334,6 +334,8 @@ type WalletTransaction struct {
 	Wallet          Wallet                          `gorm:"foreignKey:WalletID;constraint:OnUpdate:CASCADE,OnDelete:RESTRICT" json:"wallet,omitempty"`
 	SessionID       *uuid.UUID                      `gorm:"type:uuid;index" json:"session_id,omitempty"`
 	Session         *ChargingSession                `gorm:"foreignKey:SessionID;constraint:OnUpdate:CASCADE,OnDelete:RESTRICT" json:"session,omitempty"`
+	RechargeOrderID *uuid.UUID                      `gorm:"type:uuid;index" json:"recharge_order_id,omitempty"`
+	RechargeOrder   *WalletRechargeOrder            `gorm:"foreignKey:RechargeOrderID;constraint:OnUpdate:CASCADE,OnDelete:RESTRICT" json:"recharge_order,omitempty"`
 	Amount          decimal.Decimal                 `gorm:"type:numeric(14,2);not null" json:"amount"`
 	TransactionType constants.WalletTransactionType `gorm:"type:varchar(20);not null" json:"transaction_type"`
 	Description     string                          `gorm:"type:varchar(255);not null;default:''" json:"description"`

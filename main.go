@@ -105,6 +105,19 @@ func run() error {
 		return err
 	}
 	integrationService := integrations.NewService(gormDB, credentialSecretBox)
+	customerAuthService.WithRazorpayCredentialResolver(func(
+		ctx context.Context,
+		cpoID uuid.UUID,
+	) (customerauth.RazorpayCredentials, error) {
+		credentials, err := integrationService.ResolveRazorpay(ctx, cpoID)
+		if err != nil {
+			return customerauth.RazorpayCredentials{}, err
+		}
+		return customerauth.RazorpayCredentials{
+			KeyID: credentials.KeyID, KeySecret: credentials.KeySecret,
+			WebhookSecret: credentials.WebhookSecret,
+		}, nil
+	})
 	go platformService.RunMaintenance(ctx, uuid.NewString())
 
 	if cfg.Mail.Enabled {

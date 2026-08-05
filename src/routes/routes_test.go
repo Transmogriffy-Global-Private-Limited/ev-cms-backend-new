@@ -141,6 +141,8 @@ func TestCredentialRoutesAreRegisteredAndProtected(t *testing.T) {
 		{http.MethodGet, "/api/v1/app/auth/chargers/abc123/price"},
 		{http.MethodGet, "/api/v1/app/auth/wallet"},
 		{http.MethodGet, "/api/v1/app/auth/wallet/transactions"},
+		{http.MethodPost, "/api/v1/app/auth/wallet/recharge/orders"},
+		{http.MethodPost, "/api/v1/app/auth/wallet/recharge/verify"},
 		{http.MethodGet, "/api/v1/app/auth/favorites"},
 		{http.MethodPut, "/api/v1/app/auth/favorite-hubs/00000000-0000-0000-0000-000000000001"},
 		{http.MethodDelete, "/api/v1/app/auth/favorite-hubs/00000000-0000-0000-0000-000000000001"},

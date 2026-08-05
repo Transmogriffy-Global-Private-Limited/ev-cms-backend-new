@@ -2,6 +2,33 @@
 
 ## 2026-08-05
 
+### Implemented User App Razorpay wallet recharge
+
+- Added User App order creation and checkout verification using the existing
+  encrypted CPO Razorpay integration credentials; no CPO or Superadmin payment
+  API was added.
+- Added migration 22 and durable models for recharge orders, provider payment
+  attempts, future refund records, sanitized provider payloads, and payment
+  signature evidence. A captured payment credits the customer wallet and
+  creates one linked completed ledger transaction atomically and idempotently.
+- Used `github.com/razorpay/razorpay-go` for provider order/payment calls and
+  standard-library HMAC verification for the checkout signature.
+- Updated OpenAPI/Swagger, route parity, the exhaustive HTTP contract, Razorpay
+  integration record, User App frontend handoff, development plan, customer
+  app plan, and project state. Refund execution, webhooks, settlement
+  reconciliation, RFID, and HAL remain deferred.
+
+Verification:
+
+- Focused customer-auth, model, migration, and route tests pass.
+- `scripts/verify-docs.ps1` and OpenAPI/runtime parity pass after the operation
+  count was updated to 129.
+- `go test ./...`, `go vet ./...`, and `git diff --check` pass.
+- Disposable PostgreSQL lifecycle verification remains intentionally deferred
+  by decision and is not claimed as passed.
+
+## 2026-08-05
+
 ### Implemented User App charger search and wallet read APIs
 
 - Added authenticated charger search/filter and bounded near-me reads over

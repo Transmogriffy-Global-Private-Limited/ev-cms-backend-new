@@ -232,6 +232,24 @@ export type CustomerWalletTransactionList = {
   has_more: boolean;
 };
 
+export type CustomerRechargeOrder = {
+  recharge_order_id: string;
+  provider: "RAZORPAY";
+  provider_order_id: string;
+  amount: string;
+  amount_minor: number;
+  currency: "INR";
+  provider_key_id?: string; // present when creating the checkout order
+  status: "PAYMENT_PENDING" | "PAID";
+  created_at: string;
+};
+
+export type CustomerRechargeVerifyRequest = {
+  razorpay_order_id: string;
+  razorpay_payment_id: string;
+  razorpay_signature: string;
+};
+
 export type CustomerHub = CustomerHubSummary & {
   chargers: CustomerCharger[];
 };
@@ -294,6 +312,8 @@ export type CustomerPriceResponse = {
 | `GET /chargers/{charger_id}/price` | Yes | `200 CustomerPriceResponse` | Resolve the current informational charger price. |
 | `GET /wallet` | Yes | `200 CustomerWalletResponse` | Read the current exact-decimal wallet balance. |
 | `GET /wallet/transactions` | Yes | `200 CustomerWalletTransactionList` | Read this customer’s bounded wallet ledger history. |
+| `POST /wallet/recharge/orders` | Yes | `201 CustomerRechargeOrder` | Create an idempotent Razorpay checkout order. |
+| `POST /wallet/recharge/verify` | Yes | `200 CustomerRechargeOrder` | Verify a captured Razorpay payment and credit the wallet once. |
 | `GET /sessions` | Yes | `200 SessionList` | List this account's active sessions. |
 | `DELETE /sessions/{session_id}` | Yes | `204` | Revoke one owned session. |
 | `POST /logout` | Yes | `204` | Revoke current session. |
@@ -354,6 +374,19 @@ descending `(created_at, id)` keyset order. Preserve `next_before` and
 expose internal idempotency keys or provider credentials. These routes are
 read-only; wallet recharge, refund, charging-session billing, and payment
 provider verification are separate implementation slices.
+
+`POST /wallet/recharge/orders` requires an `Idempotency-Key` header and a body
+such as `{"amount":"500.00"}`. Reuse the same key only with the same amount.
+The response supplies the public Razorpay `provider_key_id` and
+`provider_order_id` for the checkout SDK. The frontend must never receive or
+store the CPO key secret.
+
+After checkout succeeds, send the provider-returned order ID, payment ID, and
+signature to `POST /wallet/recharge/verify`. The backend verifies the signature,
+fetches the payment through Razorpay, requires captured status and exact order
+amount/currency matches, then atomically credits the wallet. Do not treat an
+authorized-but-not-captured response as funded, and do not retry with a new
+idempotency key when the original order request is still pending.
 
 ### 5.3 Informational Price Display
 
@@ -728,7 +761,8 @@ routed contract and the frontend must not invent calls for them:
 - edit email;
 - RFID/access-token management;
 - start/stop charging and live transaction telemetry;
-- wallet recharge, refunds, charging bills, or payment-provider history;
+- refunds, charging bills, or payment-provider history beyond the recharge
+  order/verification flow;
 - customer notifications and realtime feeds.
 
 Authenticated name and phone editing is now available through `PATCH /profile`.

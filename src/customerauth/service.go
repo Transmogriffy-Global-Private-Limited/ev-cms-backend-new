@@ -44,13 +44,25 @@ var (
 )
 
 type Service struct {
-	database    *gorm.DB
-	config      config.Auth
-	mailEnabled bool
-	outbox      *cmsmail.Outbox
-	tokens      *security.TokenManager
-	dummyHash   string
-	now         func() time.Time
+	database         *gorm.DB
+	config           config.Auth
+	mailEnabled      bool
+	outbox           *cmsmail.Outbox
+	tokens           *security.TokenManager
+	dummyHash        string
+	now              func() time.Time
+	razorpayResolver RazorpayCredentialResolver
+	razorpayFactory  RazorpayClientFactory
+}
+
+// WithRazorpayCredentialResolver connects the User App payment flow to the
+// existing encrypted CPO integration store without exposing that store or its
+// credentials through a CPO/User App HTTP contract.
+func (service *Service) WithRazorpayCredentialResolver(
+	resolver RazorpayCredentialResolver,
+) *Service {
+	service.razorpayResolver = resolver
+	return service
 }
 
 func NewService(
@@ -66,7 +78,7 @@ func NewService(
 	}
 	return &Service{
 		database: database, config: cfg, mailEnabled: mailEnabled, outbox: outbox,
-		tokens: tokens, dummyHash: dummyHash,
+		tokens: tokens, dummyHash: dummyHash, razorpayFactory: newRazorpayClient,
 		now: func() time.Time { return time.Now().UTC() },
 	}, nil
 }

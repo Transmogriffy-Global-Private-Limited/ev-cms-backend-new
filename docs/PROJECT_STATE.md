@@ -81,7 +81,7 @@ provides:
   workflows, governance, security, mail, notifications, overview/status,
   audit/workers, SSE/replay, error UX, security, verification, and explicit
   deployment gaps;
-- canonical OpenAPI 3.1 for all 127 current source-tree business/health
+- canonical OpenAPI 3.1 for all 129 current source-tree business/health
   operations;
 - embedded same-origin Swagger UI at `/docs/` and raw OpenAPI at
   `/openapi.yaml`;
@@ -119,8 +119,13 @@ provides:
   published hubs, with safe hub/connector projections and explicit UNKNOWN
   availability;
 - authenticated CPO/customer-scoped wallet balance and keyset-paginated wallet
-  history reads using exact decimal projections; recharge, refund, and payment
-  provider execution are not yet exposed;
+  history reads using exact decimal projections;
+- User App Razorpay recharge order creation and captured-payment verification
+  through the existing encrypted CPO integration credentials, with migration
+  twenty-two durable recharge orders, provider payment attempts, future-refund
+  records, provider snapshots, signature evidence, and atomic wallet-credit
+  ledger linkage; no CPO/Superadmin payment APIs, refund execution, webhook,
+  settlement reconciliation, RFID, or HAL integration;
 - trusted backend current-principal, customer, CPO, and app-ID helpers, with
   `CurrentUserID` retained as a customer-ID compatibility alias;
 - environment-controlled permissive CORS middleware and a current development
@@ -175,9 +180,10 @@ The deployed contract has 113 operations: the added
 lookup, not a customer or staff directory. CPO-local customer accounts are not
 reachable through it.
 
-The deployed source has 113 operations. The current source tree has 124
+The deployed source has 113 operations. The current source tree has 129
 operations after adding customer self-service profile editing, published
-network discovery, favorites, and informational customer price reads; the deployed binary remains at 113 until a
+network discovery, favorites, informational customer price reads, charger
+search and wallet reads, and Razorpay recharge order/verification; the deployed binary remains at 113 until a
 separately approved deployment. The deployed
 source includes the CPO ADMIN-only
 `POST /api/v1/cpo/hubs/{hub_id}/chargers` hub attachment/reassignment command,
@@ -203,9 +209,9 @@ planned.
 CPO ADMIN routes remain owned by the CPO workstream.
 
 No CMS/HAL transport or handshake, live charger state ingestion, charging
-workflow, tenant payment workflow, tenant commercial-management workflow,
-staff-management workflow, or reporting behavior is implemented
-yet.
+workflow, Razorpay refund/webhook/settlement workflow, tenant commercial-
+management workflow, staff-management workflow, or reporting behavior is
+implemented yet.
 
 ## Verification
 
