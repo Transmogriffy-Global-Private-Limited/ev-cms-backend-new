@@ -2,6 +2,42 @@
 
 ## 2026-08-05
 
+### Fixed subscription history table resolution
+
+- Corrected `CPOSubscriptionHistory` to use the existing singular
+  `cpo_subscription_history` table created by migration seven. GORM had been
+  defaulting to `cpo_subscription_histories`, causing platform subscription
+  commands to fail with PostgreSQL `42P01` after deployment.
+- No database migration is required; this is an application mapping correction
+  compatible with existing subscription data.
+
+Verification:
+
+- `git diff --check` and documentation verification pass.
+- Go tests were skipped per the current instruction.
+
+## 2026-08-05
+
+### Removed the local `.env` from version control
+
+- Removed the tracked root `.env` from the Git index while preserving the local
+  file on disk for the current environment.
+- Expanded ignore rules for root `.env.*` files while explicitly retaining the
+  checked-in `.env.example` template as the safe configuration inventory.
+- This is a forward cleanup only: it does not rewrite historical commits. A
+  deployment or checkout can recreate its ignored `.env` from `.env.example`
+  and inject real values locally or through process environment variables.
+
+Verification:
+
+- Confirmed `.env` is no longer tracked and remains present locally.
+- Confirmed `.env.example` remains tracked and `.env.local`-style files are
+  ignored.
+- Full application verification is unchanged; no secret contents were printed
+  or added to the repository.
+
+## 2026-08-05
+
 ### Rehosted customer network and Razorpay wallet release
 
 - Applied migrations 21 and 22 from a mode-0600 rollback dump. The live

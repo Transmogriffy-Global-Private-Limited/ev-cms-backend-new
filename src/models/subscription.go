@@ -73,3 +73,10 @@ type CPOSubscriptionHistory struct {
 	Metadata              JSONB      `gorm:"type:jsonb;not null;default:'{}'" json:"metadata"`
 	CreatedAt             time.Time  `gorm:"not null" json:"created_at"`
 }
+
+// TableName preserves the singular table created by the subscription
+// migrations. GORM's default pluralization would query the nonexistent
+// cpo_subscription_histories table.
+func (CPOSubscriptionHistory) TableName() string {
+	return "cpo_subscription_history"
+}
