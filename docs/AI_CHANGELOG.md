@@ -2,6 +2,22 @@
 
 ## 2026-08-05
 
+### Fixed subscription history table resolution
+
+- Corrected `CPOSubscriptionHistory` to use the existing singular
+  `cpo_subscription_history` table created by migration seven. GORM had been
+  defaulting to `cpo_subscription_histories`, causing platform subscription
+  commands to fail with PostgreSQL `42P01` after deployment.
+- No database migration is required; this is an application mapping correction
+  compatible with existing subscription data.
+
+Verification:
+
+- `git diff --check` and documentation verification pass.
+- Go tests were skipped per the current instruction.
+
+## 2026-08-05
+
 ### Removed the local `.env` from version control
 
 - Removed the tracked root `.env` from the Git index while preserving the local
