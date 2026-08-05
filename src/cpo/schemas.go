@@ -189,56 +189,98 @@ type OrganizationView struct {
 }
 
 type CreateChargerRequest struct {
-	HubID        *uuid.UUID               `json:"hub_id,omitempty"`
-	Vendor       string                   `json:"vendor"`
-	Model        string                   `json:"model"`
-	SerialNumber string                   `json:"serial_number"`
-	MaxPowerKW   float64                  `json:"max_power_kw"`
-	Connectors   []CreateConnectorRequest `json:"connectors"`
+	HubID              *uuid.UUID               `json:"hub_id,omitempty"`
+	Vendor             string                   `json:"vendor"`
+	Model              string                   `json:"model"`
+	SerialNumber       string                   `json:"serial_number"`
+	MaxPowerKW         float64                  `json:"max_power_kw"`
+	ChargerName        string                   `json:"charger_name"`
+	ChargerHostName    string                   `json:"charger_host_name"`
+	ChargerHostPhoneNo string                   `json:"charger_host_phone_no"`
+	ChargerType        string                   `json:"charger_type"`
+	Segment            string                   `json:"segment"`
+	SubSegment         string                   `json:"sub_segment"`
+	TotalCapacity      float64                  `json:"total_capacity"`
+	ChargerUseType     string                   `json:"charger_use_type"`
+	NumberOfConnectors int                      `json:"number_of_connectors"`
+	Parking            string                   `json:"parking"`
+	Protocol           string                   `json:"protocol"`
+	TwentyFourSevenOpen bool                     `json:"twenty_four_seven_open_status"`
+	Connectors         []CreateConnectorRequest `json:"connectors"`
 }
 
 type CreateConnectorRequest struct {
-	ConnectorNumber int     `json:"connector_number"`
-	ConnectorType   string  `json:"connector_type"`
-	MaxCurrent      float64 `json:"max_current"`
-	MaxVoltage      float64 `json:"max_voltage"`
+	ConnectorNumber        int     `json:"connector_number"`
+	ConnectorType          string  `json:"connector_type"`
+	MaxCurrent             float64 `json:"max_current"`
+	MaxVoltage             float64 `json:"max_voltage"`
+	ConnectorTotalCapacity float64 `json:"connector_total_capacity"`
 }
 
 type UpdateChargerRequest struct {
-	HubID        *uuid.UUID                `json:"hub_id,omitempty"`
-	Vendor       *string                   `json:"vendor,omitempty"`
-	Model        *string                   `json:"model,omitempty"`
-	SerialNumber *string                   `json:"serial_number,omitempty"`
-	MaxPowerKW   *float64                  `json:"max_power_kw,omitempty"`
-	Connectors   *[]UpdateConnectorRequest `json:"connectors,omitempty"`
+	HubID              *uuid.UUID                `json:"hub_id,omitempty"`
+	Vendor             *string                   `json:"vendor,omitempty"`
+	Model              *string                   `json:"model,omitempty"`
+	SerialNumber       *string                   `json:"serial_number,omitempty"`
+	MaxPowerKW         *float64                  `json:"max_power_kw,omitempty"`
+	ChargerName        *string                   `json:"charger_name,omitempty"`
+	ChargerHostName    *string                   `json:"charger_host_name,omitempty"`
+	ChargerHostPhoneNo *string                   `json:"charger_host_phone_no,omitempty"`
+	ChargerType        *string                   `json:"charger_type,omitempty"`
+	Segment            *string                   `json:"segment,omitempty"`
+	SubSegment         *string                   `json:"sub_segment,omitempty"`
+	TotalCapacity      *float64                  `json:"total_capacity,omitempty"`
+	ChargerUseType     *string                   `json:"charger_use_type,omitempty"`
+	NumberOfConnectors *int                      `json:"number_of_connectors,omitempty"`
+	Parking            *string                   `json:"parking,omitempty"`
+	Protocol           *string                   `json:"protocol,omitempty"`
+	TwentyFourSevenOpen *bool                     `json:"twenty_four_seven_open_status,omitempty"`
+	Connectors         *[]UpdateConnectorRequest `json:"connectors,omitempty"`
 }
 
 type UpdateConnectorRequest struct {
-	ID              uuid.UUID `json:"id"`
-	ConnectorNumber *int      `json:"connector_number,omitempty"`
-	ConnectorType   *string   `json:"connector_type,omitempty"`
-	MaxCurrent      *float64  `json:"max_current,omitempty"`
-	MaxVoltage      *float64  `json:"max_voltage,omitempty"`
+	ID                     uuid.UUID `json:"id"`
+	ConnectorNumber        *int      `json:"connector_number,omitempty"`
+	ConnectorType          *string   `json:"connector_type,omitempty"`
+	MaxCurrent             *float64  `json:"max_current,omitempty"`
+	MaxVoltage             *float64  `json:"max_voltage,omitempty"`
+	ConnectorTotalCapacity *float64  `json:"connector_total_capacity,omitempty"`
 }
 
 type ChargerView struct {
-	ID           uuid.UUID               `json:"id"`
-	CPOID        uuid.UUID               `json:"cpo_id"`
-	HubID        *uuid.UUID              `json:"hub_id,omitempty"`
-	ChargerID    string                  `json:"charger_id"`
-	OCPPIdentity string                  `json:"ocpp_identity"`
-	Vendor       string                  `json:"vendor"`
-	Model        string                  `json:"model"`
-	SerialNumber string                  `json:"serial_number"`
-	MaxPowerKW   float64                 `json:"max_power_kw"`
-	Status       constants.ChargerStatus `json:"status"`
-	OCPPVersion  string                  `json:"ocpp_version"`
-	LastSeenAt   *time.Time              `json:"last_seen_at,omitempty"`
+	ID                  uuid.UUID               `json:"id"`
+	CPOID               uuid.UUID               `json:"cpo_id"`
+	HubID               *uuid.UUID              `json:"hub_id,omitempty"`
+	ChargerID           string                  `json:"charger_id"`
+	OCPPIdentity        string                  `json:"ocpp_identity"`
+	Vendor              string                  `json:"vendor"`
+	Model               string                  `json:"model"`
+	SerialNumber        string                  `json:"serial_number"`
+	MaxPowerKW          float64                 `json:"max_power_kw"`
+	Status              constants.ChargerStatus `json:"status"`
+	OCPPVersion         string                  `json:"ocpp_version"`
+	LastSeenAt          *time.Time              `json:"last_seen_at,omitempty"`
+	ChargerName         string                  `json:"charger_name"`
+	ChargerHostName     string                  `json:"charger_host_name"`
+	ChargerHostPhoneNo  string                  `json:"charger_host_phone_no"`
+	ChargerType         string                  `json:"charger_type"`
+	Segment             string                  `json:"segment"`
+	SubSegment          string                  `json:"sub_segment"`
+	TotalCapacity       float64                 `json:"total_capacity"`
+	ChargerImage        string                  `json:"charger_image"`
+	ChargerUseType      string                  `json:"charger_use_type"`
+	NumberOfConnectors  int                     `json:"number_of_connectors"`
+	Parking             string                  `json:"parking"`
+	Protocol            string                  `json:"protocol"`
+	TwentyFourSevenOpen bool                    `json:"twenty_four_seven_open_status"`
+	Connectors          []ConnectorView         `json:"connectors"`
+	CreatedAt           time.Time               `json:"created_at"`
+	UpdatedAt           time.Time               `json:"updated_at"`
+}
 
-	Connectors []ConnectorView `json:"connectors"`
-
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
+type ChargerResponse struct {
+	ChargerView
+	Email string `json:"email,omitempty"`
 }
 
 type TenantListQuery struct {
@@ -248,23 +290,24 @@ type TenantListQuery struct {
 }
 
 type ChargerListResponse struct {
-	Chargers     []ChargerView `json:"chargers"`
-	NextBefore   *time.Time    `json:"next_before,omitempty"`
-	NextBeforeID *uuid.UUID    `json:"next_before_id,omitempty"`
-	HasMore      bool          `json:"has_more"`
+	Chargers     []ChargerResponse `json:"chargers"`
+	NextBefore   *time.Time        `json:"next_before,omitempty"`
+	NextBeforeID *uuid.UUID        `json:"next_before_id,omitempty"`
+	HasMore      bool              `json:"has_more"`
 }
 
 type ConnectorView struct {
-	ID              uuid.UUID               `json:"id"`
-	CPOID           uuid.UUID               `json:"cpo_id"`
-	ChargerID       uuid.UUID               `json:"charger_id"`
-	ConnectorNumber int                     `json:"connector_number"`
-	ConnectorType   string                  `json:"connector_type"`
-	MaxCurrent      float64                 `json:"max_current"`
-	MaxVoltage      float64                 `json:"max_voltage"`
-	Status          constants.ChargerStatus `json:"status"`
-	CreatedAt       time.Time               `json:"created_at"`
-	UpdatedAt       time.Time               `json:"updated_at"`
+	ID                     uuid.UUID               `json:"id"`
+	CPOID                  uuid.UUID               `json:"cpo_id"`
+	ChargerID              uuid.UUID               `json:"charger_id"`
+	ConnectorNumber        int                     `json:"connector_number"`
+	ConnectorType          string                  `json:"connector_type"`
+	MaxCurrent             float64                 `json:"max_current"`
+	MaxVoltage             float64                 `json:"max_voltage"`
+	ConnectorTotalCapacity float64                 `json:"connector_total_capacity"`
+	Status                 constants.ChargerStatus `json:"status"`
+	CreatedAt              time.Time               `json:"created_at"`
+	UpdatedAt              time.Time               `json:"updated_at"`
 }
 
 type CreateHubRequest struct {

@@ -1,10 +1,12 @@
 package cpo
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -1251,7 +1253,10 @@ func TestCPOAdminProfileAndNetworkConfigurationWithPostgreSQL(t *testing.T) {
 		t.Fatalf("create hub: %v", err)
 	}
 	hubID := hub.ID
-	charger, err := service.CreateCharger(ctx, adminPrincipal, CreateChargerRequest{
+
+	body := new(bytes.Buffer)
+	writer := multipart.NewWriter(body)
+	createChargerReq := CreateChargerRequest{
 		HubID:        &hubID,
 		Vendor:       "Delta",
 		Model:        "DC Wallbox",
@@ -1263,7 +1268,19 @@ func TestCPOAdminProfileAndNetworkConfigurationWithPostgreSQL(t *testing.T) {
 			MaxCurrent:      60,
 			MaxVoltage:      500,
 		}},
-	})
+	}
+	reqBytes, _ := json.Marshal(createChargerReq)
+	writer.WriteField("data", string(reqBytes))
+	writer.Close()
+
+	req := httptest.NewRequest(http.MethodPost, "/cpo/chargers", body)
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+
+	w := httptest.NewRecorder()
+	ginCtx, _ := gin.CreateTestContext(w)
+	ginCtx.Request = req
+
+	charger, err := service.CreateCharger(ginCtx, adminPrincipal)
 	if err != nil {
 		t.Fatalf("create charger: %v", err)
 	}
@@ -1588,7 +1605,10 @@ func TestAssignChargerToHubTenantScope(t *testing.T) {
 		t.Fatalf("create hub: %v", err)
 	}
 	hub1ID := hub1.ID
-	charger, err := service.CreateCharger(ctx, admin1Principal, CreateChargerRequest{
+
+	body := new(bytes.Buffer)
+	writer := multipart.NewWriter(body)
+	createChargerReq := CreateChargerRequest{
 		HubID:        &hub1ID,
 		Vendor:       "Delta",
 		Model:        "DC Wallbox",
@@ -1600,7 +1620,19 @@ func TestAssignChargerToHubTenantScope(t *testing.T) {
 			MaxCurrent:      60,
 			MaxVoltage:      500,
 		}},
-	})
+	}
+	reqBytes, _ := json.Marshal(createChargerReq)
+	writer.WriteField("data", string(reqBytes))
+	writer.Close()
+
+	req := httptest.NewRequest(http.MethodPost, "/cpo/chargers", body)
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+
+	w := httptest.NewRecorder()
+	ginCtx, _ := gin.CreateTestContext(w)
+	ginCtx.Request = req
+
+	charger, err := service.CreateCharger(ginCtx, admin1Principal)
 	if err != nil {
 		t.Fatalf("create charger: %v", err)
 	}
@@ -1631,7 +1663,9 @@ func TestAssignChargerToHubTenantScope(t *testing.T) {
 		t.Fatalf("repeat assignment changed charger hub. got %s, want %s", idempotentCharger.HubID, hub2.ID)
 	}
 
-	independentCharger, err := service.CreateCharger(ctx, admin1Principal, CreateChargerRequest{
+	bodyIndependent := new(bytes.Buffer)
+	writerIndependent := multipart.NewWriter(bodyIndependent)
+	createIndependentChargerReq := CreateChargerRequest{
 		Vendor:       "Delta",
 		Model:        "Standalone Wallbox",
 		SerialNumber: "SN-" + strings.ToUpper(uuid.NewString()[:8]),
@@ -1642,7 +1676,19 @@ func TestAssignChargerToHubTenantScope(t *testing.T) {
 			MaxCurrent:      32,
 			MaxVoltage:      230,
 		}},
-	})
+	}
+	reqBytesIndependent, _ := json.Marshal(createIndependentChargerReq)
+	writerIndependent.WriteField("data", string(reqBytesIndependent))
+	writerIndependent.Close()
+
+	reqIndependent := httptest.NewRequest(http.MethodPost, "/cpo/chargers", bodyIndependent)
+	reqIndependent.Header.Set("Content-Type", writerIndependent.FormDataContentType())
+
+	wIndependent := httptest.NewRecorder()
+	ginCtxIndependent, _ := gin.CreateTestContext(wIndependent)
+	ginCtxIndependent.Request = reqIndependent
+
+	independentCharger, err := service.CreateCharger(ginCtxIndependent, admin1Principal)
 	if err != nil {
 		t.Fatalf("create independent charger: %v", err)
 	}

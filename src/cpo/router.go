@@ -530,23 +530,26 @@ func (handler *Handler) getUser(ctx *gin.Context) {
 	ctx.JSON(http.StatusOK, record)
 }
 
+// @Summary Create a new charger
+// @Description Create a new charger with connectors. This endpoint uses multipart/form-data to allow for charger image uploads.
+// @Tags CPO Network
+// @Accept multipart/form-data
+// @Produce json
+// @Param data formData cpo.CreateChargerRequest true "Charger creation data in JSON format"
+// @Param charger_image formData file false "Charger image file"
+// @Success 201 {object} cpo.ChargerResponse "Successfully created charger"
+// @Failure 400 {object} auth.APIError "Invalid request body or parameters"
+// @Failure 401 {object} auth.APIError "Unauthorized"
+// @Failure 403 {object} auth.APIError "Forbidden"
+// @Failure 404 {object} auth.APIError "Hub not found"
+// @Failure 500 {object} auth.APIError "Internal server error"
+// @Router /cpo/chargers [post]
 func (handler *Handler) createCharger(ctx *gin.Context) {
 	principal, _ := auth.CurrentPrincipal(ctx)
 
-	var request CreateChargerRequest
-	if err := decodeJSON(ctx, &request); err != nil {
-		writeError(ctx, &auth.APIError{
-			Status:  http.StatusBadRequest,
-			Code:    "invalid_request",
-			Message: "The request body is invalid.",
-		})
-		return
-	}
-
 	record, err := handler.service.CreateCharger(
-		ctx.Request.Context(),
+		ctx,
 		principal,
-		request,
 	)
 	if err != nil {
 		writeError(ctx, err)
@@ -607,6 +610,18 @@ func parseTenantListQuery(ctx *gin.Context) (TenantListQuery, bool) {
 	return query, true
 }
 
+// @Summary Get a charger by ID
+// @Description Retrieves details for a specific charger, including connector information and the email of the associated user.
+// @Tags CPO Network
+// @Produce json
+// @Param charger_id path string true "Charger ID"
+// @Success 200 {object} cpo.ChargerResponse "Successfully retrieved charger details"
+// @Failure 400 {object} auth.APIError "Invalid charger ID format"
+// @Failure 401 {object} auth.APIError "Unauthorized"
+// @Failure 403 {object} auth.APIError "Forbidden"
+// @Failure 404 {object} auth.APIError "Charger not found"
+// @Failure 500 {object} auth.APIError "Internal server error"
+// @Router /cpo/chargers/{charger_id} [get]
 func (handler *Handler) getCharger(ctx *gin.Context) {
 	principal, _ := auth.CurrentPrincipal(ctx)
 
@@ -623,24 +638,28 @@ func (handler *Handler) getCharger(ctx *gin.Context) {
 	ctx.JSON(http.StatusOK, record)
 }
 
+// @Summary Update a charger
+// @Description Update an existing charger's details. This endpoint uses multipart/form-data to allow for charger image uploads.
+// @Tags CPO Network
+// @Accept multipart/form-data
+// @Produce json
+// @Param charger_id path string true "Charger ID"
+// @Param data formData cpo.UpdateChargerRequest true "Charger update data in JSON format"
+// @Param charger_image formData file false "New charger image file"
+// @Success 200 {object} cpo.ChargerResponse "Successfully updated charger"
+// @Failure 400 {object} auth.APIError "Invalid request body or parameters"
+// @Failure 401 {object} auth.APIError "Unauthorized"
+// @Failure 403 {object} auth.APIError "Forbidden"
+// @Failure 404 {object} auth.APIError "Charger or associated hub not found"
+// @Failure 500 {object} auth.APIError "Internal server error"
+// @Router /cpo/chargers/{charger_id} [patch]
 func (handler *Handler) updateCharger(ctx *gin.Context) {
 	principal, _ := auth.CurrentPrincipal(ctx)
 
-	var request UpdateChargerRequest
-	if err := decodeJSON(ctx, &request); err != nil {
-		writeError(ctx, &auth.APIError{
-			Status:  http.StatusBadRequest,
-			Code:    "invalid_request",
-			Message: "The request body is invalid.",
-		})
-		return
-	}
-
 	record, err := handler.service.UpdateCharger(
-		ctx.Request.Context(),
+		ctx,
 		principal,
 		ctx.Param("charger_id"),
-		request,
 	)
 	if err != nil {
 		writeError(ctx, err)

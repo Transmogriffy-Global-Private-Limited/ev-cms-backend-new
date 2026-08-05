@@ -2,10 +2,13 @@ package cpo
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
 	netmail "net/mail"
+	"os"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"time"
@@ -16,6 +19,7 @@ import (
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/models"
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/platformops"
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/security"
+	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/shopspring/decimal"
@@ -1828,22 +1832,39 @@ func (service *Service) GetSubscription(
 	return view, nil
 }
 func (service *Service) CreateCharger(
-	ctx context.Context,
+	ctx *gin.Context,
 	principal auth.Principal,
-	request CreateChargerRequest,
-) (ChargerView, error) {
+) (ChargerResponse, error) {
 	if err := requireCPOAdminAccess(principal); err != nil {
-		return ChargerView{}, err
+		return ChargerResponse{}, err
 	}
 
 	cpoID := *principal.CPOID
+	err := ctx.Request.ParseMultipartForm(32 << 20) // 32MB
+	if err != nil {
+		return ChargerResponse{}, &auth.APIError{
+			Status:  http.StatusBadRequest,
+			Code:    "invalid_request",
+			Message: "The request body is invalid.",
+		}
+	}
+
+	var request CreateChargerRequest
+	if err := json.Unmarshal([]byte(ctx.Request.FormValue("data")), &request); err != nil {
+		return ChargerResponse{}, &auth.APIError{
+			Status:  http.StatusBadRequest,
+			Code:    "invalid_request",
+			Message: "The request body is invalid.",
+		}
+	}
+
 	request = normalizeCreateChargerRequest(request)
 	if err := validateCreateChargerRequest(request); err != nil {
-		return ChargerView{}, err
+		return ChargerResponse{}, err
 	}
 
 	var record models.Charger
-	err := service.database.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+	err = service.database.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if request.HubID != nil {
 			var hub models.Hub
 			if err := tx.First(&hub, "id = ? AND cpo_id = ?", *request.HubID, cpoID).Error; err != nil {
@@ -1861,21 +1882,51 @@ func (service *Service) CreateCharger(
 			return err
 		}
 
+		file, err := ctx.FormFile("charger_image")
+		var chargerImagePath string
+		if err == nil {
+			filename := uuid.New().String() + filepath.Ext(file.Filename)
+			uploads := "uploads"
+			if _, err := os.Stat(uploads); os.IsNotExist(err) {
+				if err := os.Mkdir(uploads, 0755); err != nil {
+					return err
+				}
+			}
+
+			chargerImagePath = filepath.Join(uploads, filename)
+			if err := ctx.SaveUploadedFile(file, chargerImagePath); err != nil {
+				return err
+			}
+		}
+
 		now := service.now()
 		record = models.Charger{
-			ID:           uuid.New(),
-			CPOID:        cpoID,
-			HubID:        request.HubID,
-			ChargerID:    chargerID,
-			OCPPIdentity: ocppIdentity,
-			Vendor:       request.Vendor,
-			Model:        request.Model,
-			SerialNumber: request.SerialNumber,
-			MaxPowerKW:   request.MaxPowerKW,
-			Status:       constants.ChargerStatus("OFFLINE"),
-			OCPPVersion:  "1.6J",
-			CreatedAt:    now,
-			UpdatedAt:    now,
+			ID:                  uuid.New(),
+			CPOID:               cpoID,
+			HubID:               request.HubID,
+			ChargerID:           chargerID,
+			OCPPIdentity:        ocppIdentity,
+			Vendor:              request.Vendor,
+			Model:               request.Model,
+			SerialNumber:        request.SerialNumber,
+			MaxPowerKW:          request.MaxPowerKW,
+			ChargerName:         request.ChargerName,
+			ChargerHostName:     request.ChargerHostName,
+			ChargerHostPhoneNo:  request.ChargerHostPhoneNo,
+			ChargerType:         request.ChargerType,
+			Segment:             request.Segment,
+			SubSegment:          request.SubSegment,
+			TotalCapacity:       request.TotalCapacity,
+			ChargerImage:        chargerImagePath,
+			ChargerUseType:      request.ChargerUseType,
+			NumberOfConnectors:  request.NumberOfConnectors,
+			Parking:             request.Parking,
+			Protocol:            request.Protocol,
+			TwentyFourSevenOpen: request.TwentyFourSevenOpen,
+			Status:              constants.ChargerStatus("OFFLINE"),
+			OCPPVersion:         "1.6J",
+			CreatedAt:           now,
+			UpdatedAt:           now,
 		}
 
 		if err := tx.Create(&record).Error; err != nil {
@@ -1885,16 +1936,17 @@ func (service *Service) CreateCharger(
 		for _, connector := range request.Connectors {
 			connectorType := strings.TrimSpace(connector.ConnectorType)
 			connectorRecord := models.Connector{
-				ID:              uuid.New(),
-				CPOID:           cpoID,
-				ChargerID:       record.ID,
-				ConnectorNumber: connector.ConnectorNumber,
-				ConnectorType:   connectorType,
-				MaxCurrent:      connector.MaxCurrent,
-				MaxVoltage:      connector.MaxVoltage,
-				Status:          constants.ChargerStatus("AVAILABLE"),
-				CreatedAt:       now,
-				UpdatedAt:       now,
+				ID:                     uuid.New(),
+				CPOID:                  cpoID,
+				ChargerID:              record.ID,
+				ConnectorNumber:        connector.ConnectorNumber,
+				ConnectorType:          connectorType,
+				MaxCurrent:             connector.MaxCurrent,
+				MaxVoltage:             connector.MaxVoltage,
+				ConnectorTotalCapacity: connector.ConnectorTotalCapacity,
+				Status:                 constants.ChargerStatus("AVAILABLE"),
+				CreatedAt:              now,
+				UpdatedAt:              now,
 			}
 
 			if err := tx.Create(&connectorRecord).Error; err != nil {
@@ -1918,24 +1970,24 @@ func (service *Service) CreateCharger(
 		)
 	})
 	if err != nil {
-		return ChargerView{}, err
+		return ChargerResponse{}, err
 	}
 
-	return chargerView(record), nil
+	return chargerView(record, principal), nil
 }
 
 func (service *Service) GetCharger(
 	ctx context.Context,
 	principal auth.Principal,
 	chargerID string,
-) (ChargerView, error) {
+) (ChargerResponse, error) {
 	if err := requireCPOAdminAccess(principal); err != nil {
-		return ChargerView{}, err
+		return ChargerResponse{}, err
 	}
 
 	chargerID = normalizeChargerID(chargerID)
 	if !chargerIDPattern.MatchString(chargerID) {
-		return ChargerView{}, &auth.APIError{
+		return ChargerResponse{}, &auth.APIError{
 			Status:  http.StatusBadRequest,
 			Code:    "invalid_charger_id",
 			Message: "The charger ID is invalid.",
@@ -1948,39 +2000,56 @@ func (service *Service) GetCharger(
 			return tx.Order("connector_number ASC")
 		}).
 		First(&record, "cpo_id = ? AND charger_id = ?", *principal.CPOID, chargerID).Error; err != nil {
-		return ChargerView{}, mapChargerNotFound(err)
+		return ChargerResponse{}, mapChargerNotFound(err)
 	}
-	return chargerView(record), nil
+	return chargerView(record, principal), nil
 }
 
 func (service *Service) UpdateCharger(
-	ctx context.Context,
+	ctx *gin.Context,
 	principal auth.Principal,
 	chargerID string,
-	request UpdateChargerRequest,
-) (ChargerView, error) {
+) (ChargerResponse, error) {
 	if err := requireCPOAdminAccess(principal); err != nil {
-		return ChargerView{}, err
+		return ChargerResponse{}, err
 	}
 
 	chargerID = normalizeChargerID(chargerID)
 	if !chargerIDPattern.MatchString(chargerID) {
-		return ChargerView{}, &auth.APIError{
+		return ChargerResponse{}, &auth.APIError{
 			Status:  http.StatusBadRequest,
 			Code:    "invalid_charger_id",
 			Message: "The charger ID is invalid.",
 		}
 	}
 
+	err := ctx.Request.ParseMultipartForm(32 << 20) // 32MB
+	if err != nil {
+		return ChargerResponse{}, &auth.APIError{
+			Status:  http.StatusBadRequest,
+			Code:    "invalid_request",
+			Message: "The request body is invalid.",
+		}
+	}
+
+	var request UpdateChargerRequest
+	if err := json.Unmarshal([]byte(ctx.Request.FormValue("data")), &request); err != nil {
+		return ChargerResponse{}, &auth.APIError{
+			Status:  http.StatusBadRequest,
+			Code:    "invalid_request",
+			Message: "The request body is invalid.",
+		}
+	}
+
 	request = normalizeUpdateChargerRequest(request)
 	if err := validateUpdateChargerRequest(request); err != nil {
-		return ChargerView{}, err
+		return ChargerResponse{}, err
 	}
 
 	cpoID := *principal.CPOID
 	var record models.Charger
 
-	err := service.database.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+	err = service.database.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
 			Preload("Connectors", func(tx *gorm.DB) *gorm.DB {
 				return tx.Order("connector_number ASC")
@@ -2021,6 +2090,85 @@ func (service *Service) UpdateCharger(
 			record.MaxPowerKW = *request.MaxPowerKW
 			changedFields["max_power_kw"] = *request.MaxPowerKW
 		}
+		if request.ChargerName != nil {
+			updates["charger_name"] = *request.ChargerName
+			record.ChargerName = *request.ChargerName
+			changedFields["charger_name"] = *request.ChargerName
+		}
+		if request.ChargerHostName != nil {
+			updates["charger_host_name"] = *request.ChargerHostName
+			record.ChargerHostName = *request.ChargerHostName
+			changedFields["charger_host_name"] = *request.ChargerHostName
+		}
+		if request.ChargerHostPhoneNo != nil {
+			updates["charger_host_phone_no"] = *request.ChargerHostPhoneNo
+			record.ChargerHostPhoneNo = *request.ChargerHostPhoneNo
+			changedFields["charger_host_phone_no"] = *request.ChargerHostPhoneNo
+		}
+		if request.ChargerType != nil {
+			updates["charger_type"] = *request.ChargerType
+			record.ChargerType = *request.ChargerType
+			changedFields["charger_type"] = *request.ChargerType
+		}
+		if request.Segment != nil {
+			updates["segment"] = *request.Segment
+			record.Segment = *request.Segment
+			changedFields["segment"] = *request.Segment
+		}
+		if request.SubSegment != nil {
+			updates["sub_segment"] = *request.SubSegment
+			record.SubSegment = *request.SubSegment
+			changedFields["sub_segment"] = *request.SubSegment
+		}
+		if request.TotalCapacity != nil {
+			updates["total_capacity"] = *request.TotalCapacity
+			record.TotalCapacity = *request.TotalCapacity
+			changedFields["total_capacity"] = *request.TotalCapacity
+		}
+		if request.ChargerUseType != nil {
+			updates["charger_use_type"] = *request.ChargerUseType
+			record.ChargerUseType = *request.ChargerUseType
+			changedFields["charger_use_type"] = *request.ChargerUseType
+		}
+		if request.NumberOfConnectors != nil {
+			updates["number_of_connectors"] = *request.NumberOfConnectors
+			record.NumberOfConnectors = *request.NumberOfConnectors
+			changedFields["number_of_connectors"] = *request.NumberOfConnectors
+		}
+		if request.Parking != nil {
+			updates["parking"] = *request.Parking
+			record.Parking = *request.Parking
+			changedFields["parking"] = *request.Parking
+		}
+		if request.Protocol != nil {
+			updates["protocol"] = *request.Protocol
+			record.Protocol = *request.Protocol
+			changedFields["protocol"] = *request.Protocol
+		}
+		if request.TwentyFourSevenOpen != nil {
+			updates["twenty_four_seven_open"] = *request.TwentyFourSevenOpen
+			record.TwentyFourSevenOpen = *request.TwentyFourSevenOpen
+			changedFields["twenty_four_seven_open"] = *request.TwentyFourSevenOpen
+		}
+
+		file, err := ctx.FormFile("charger_image")
+		if err == nil {
+			filename := uuid.New().String() + filepath.Ext(file.Filename)
+			uploads := "uploads"
+			if _, err := os.Stat(uploads); os.IsNotExist(err) {
+				if err := os.Mkdir(uploads, 0755); err != nil {
+					return err
+				}
+			}
+
+			chargerImagePath := filepath.Join(uploads, filename)
+			if err := ctx.SaveUploadedFile(file, chargerImagePath); err != nil {
+				return err
+			}
+			updates["charger_image"] = chargerImagePath
+			record.ChargerImage = chargerImagePath
+			changedFields["charger_image"] = chargerImagePath
+		}
 
 		now := service.now()
 
@@ -2043,11 +2191,42 @@ func (service *Service) UpdateCharger(
 
 			for _, connectorReq := range *request.Connectors {
 				if connectorReq.ID == uuid.Nil {
-					return &auth.APIError{
-						Status:  http.StatusBadRequest,
-						Code:    "invalid_connector_id",
-						Message: "Connector ID is required.",
+					// This is a new connector
+					if connectorReq.ConnectorNumber == nil || *connectorReq.ConnectorNumber <= 0 {
+						return invalid("connector_number", "Connector number must be greater than zero.")
 					}
+					if connectorReq.ConnectorType == nil || strings.TrimSpace(*connectorReq.ConnectorType) == "" {
+						return invalid("connector_type", "Connector type is required.")
+					}
+					if connectorReq.MaxCurrent == nil || *connectorReq.MaxCurrent < 0 {
+						return invalid("max_current", "Max current cannot be negative.")
+					}
+					if connectorReq.MaxVoltage == nil || *connectorReq.MaxVoltage < 0 {
+						return invalid("max_voltage", "Max voltage cannot be negative.")
+					}
+					if connectorReq.ConnectorTotalCapacity == nil || *connectorReq.ConnectorTotalCapacity < 0 {
+						return invalid("connector_total_capacity", "Connector total capacity cannot be negative.")
+					}
+
+					connectorRecord := models.Connector{
+						ID:                     uuid.New(),
+						CPOID:                  cpoID,
+						ChargerID:              record.ID,
+						ConnectorNumber:        *connectorReq.ConnectorNumber,
+						ConnectorType:          *connectorReq.ConnectorType,
+						MaxCurrent:             *connectorReq.MaxCurrent,
+						MaxVoltage:             *connectorReq.MaxVoltage,
+						ConnectorTotalCapacity: *connectorReq.ConnectorTotalCapacity,
+						Status:                 constants.ChargerStatus("AVAILABLE"),
+						CreatedAt:              now,
+						UpdatedAt:              now,
+					}
+
+					if err := tx.Create(&connectorRecord).Error; err != nil {
+						return mapConnectorWriteError(err, "create connector")
+					}
+					record.Connectors = append(record.Connectors, connectorRecord)
+					continue
 				}
 				if _, dup := seenIDs[connectorReq.ID]; dup {
 					return &auth.APIError{
@@ -2099,12 +2278,17 @@ func (service *Service) UpdateCharger(
 					existing.MaxVoltage = *connectorReq.MaxVoltage
 					connChanged = true
 				}
-				if !connChanged {
-					return &auth.APIError{
-						Status:  http.StatusBadRequest,
-						Code:    "invalid_request",
-						Message: "At least one connector field must be supplied.",
+				if connectorReq.ConnectorTotalCapacity != nil {
+					if *connectorReq.ConnectorTotalCapacity < 0 {
+						return invalid("connector_total_capacity", "Connector total capacity cannot be negative.")
 					}
+					connUpdates["connector_total_capacity"] = *connectorReq.ConnectorTotalCapacity
+					existing.ConnectorTotalCapacity = *connectorReq.ConnectorTotalCapacity
+					connChanged = true
+				}
+
+				if !connChanged {
+					continue
 				}
 
 				connUpdates["updated_at"] = now
@@ -2151,10 +2335,10 @@ func (service *Service) UpdateCharger(
 		)
 	})
 	if err != nil {
-		return ChargerView{}, err
+		return ChargerResponse{}, err
 	}
 
-	return chargerView(record), nil
+	return chargerView(record, principal), nil
 }
 
 func (service *Service) DeleteCharger(
@@ -2532,40 +2716,57 @@ func mapChargerDeleteError(err error) error {
 	return fmt.Errorf("delete charger: %w", err)
 }
 
-func chargerView(record models.Charger) ChargerView {
+func chargerView(record models.Charger, principal auth.Principal) ChargerResponse {
 	connectorsView := make([]ConnectorView, 0, len(record.Connectors))
 
 	for _, conn := range record.Connectors {
 		connectorsView = append(connectorsView, ConnectorView{
-			ID:              conn.ID,
-			CPOID:           conn.CPOID,
-			ChargerID:       conn.ChargerID,
-			ConnectorNumber: conn.ConnectorNumber,
-			ConnectorType:   conn.ConnectorType,
-			MaxCurrent:      conn.MaxCurrent,
-			MaxVoltage:      conn.MaxVoltage,
-			Status:          conn.Status,
-			CreatedAt:       conn.CreatedAt,
-			UpdatedAt:       conn.UpdatedAt,
+			ID:                     conn.ID,
+			CPOID:                  conn.CPOID,
+			ChargerID:              conn.ChargerID,
+			ConnectorNumber:        conn.ConnectorNumber,
+			ConnectorType:          conn.ConnectorType,
+			MaxCurrent:             conn.MaxCurrent,
+			MaxVoltage:             conn.MaxVoltage,
+			ConnectorTotalCapacity: conn.ConnectorTotalCapacity,
+			Status:                 conn.Status,
+			CreatedAt:              conn.CreatedAt,
+			UpdatedAt:              conn.UpdatedAt,
 		})
 	}
 
-	return ChargerView{
-		ID:           record.ID,
-		CPOID:        record.CPOID,
-		HubID:        record.HubID,
-		ChargerID:    record.ChargerID,
-		OCPPIdentity: record.OCPPIdentity,
-		Vendor:       record.Vendor,
-		Model:        record.Model,
-		SerialNumber: record.SerialNumber,
-		MaxPowerKW:   record.MaxPowerKW,
-		Status:       record.Status,
-		OCPPVersion:  record.OCPPVersion,
-		LastSeenAt:   record.LastSeenAt,
-		Connectors:   connectorsView,
-		CreatedAt:    record.CreatedAt,
-		UpdatedAt:    record.UpdatedAt,
+	return ChargerResponse{
+		ChargerView: ChargerView{
+			ID:                  record.ID,
+			CPOID:               record.CPOID,
+			HubID:               record.HubID,
+			ChargerID:           record.ChargerID,
+			OCPPIdentity:        record.OCPPIdentity,
+			Vendor:              record.Vendor,
+			Model:               record.Model,
+			SerialNumber:        record.SerialNumber,
+			MaxPowerKW:          record.MaxPowerKW,
+			Status:              record.Status,
+			OCPPVersion:         record.OCPPVersion,
+			LastSeenAt:          record.LastSeenAt,
+			ChargerName:         record.ChargerName,
+			ChargerHostName:     record.ChargerHostName,
+			ChargerHostPhoneNo:  record.ChargerHostPhoneNo,
+			ChargerType:         record.ChargerType,
+			Segment:             record.Segment,
+			SubSegment:          record.SubSegment,
+			TotalCapacity:       record.TotalCapacity,
+			ChargerImage:        record.ChargerImage,
+			ChargerUseType:      record.ChargerUseType,
+			NumberOfConnectors:  record.NumberOfConnectors,
+			Parking:             record.Parking,
+			Protocol:            record.Protocol,
+			TwentyFourSevenOpen: record.TwentyFourSevenOpen,
+			Connectors:          connectorsView,
+			CreatedAt:           record.CreatedAt,
+			UpdatedAt:           record.UpdatedAt,
+		},
+		Email: principal.User.Email,
 	}
 }
 
@@ -2606,9 +2807,9 @@ func (service *Service) ListChargers(
 	if hasMore {
 		chargers = chargers[:query.Limit]
 	}
-	response := make([]ChargerView, 0, len(chargers))
+	response := make([]ChargerResponse, 0, len(chargers))
 	for _, charger := range chargers {
-		response = append(response, chargerView(charger))
+		response = append(response, chargerView(charger, principal))
 	}
 
 	result := ChargerListResponse{Chargers: response, HasMore: hasMore}
@@ -2917,12 +3118,12 @@ func (service *Service) AssignChargerToHub(
 	principal auth.Principal,
 	hubID uuid.UUID,
 	chargerID uuid.UUID,
-) (ChargerView, error) {
+) (ChargerResponse, error) {
 	if err := requireCPOAdminAccess(principal); err != nil {
-		return ChargerView{}, err
+		return ChargerResponse{}, err
 	}
 	if chargerID == uuid.Nil {
-		return ChargerView{}, invalid("charger_id", "Charger ID is required.")
+		return ChargerResponse{}, invalid("charger_id", "Charger ID is required.")
 	}
 
 	cpoID := *principal.CPOID
@@ -2970,17 +3171,17 @@ func (service *Service) AssignChargerToHub(
 		return nil
 	})
 	if err != nil {
-		return ChargerView{}, err
+		return ChargerResponse{}, err
 	}
 	if err := service.database.WithContext(ctx).
 		Preload("Connectors", func(tx *gorm.DB) *gorm.DB {
 			return tx.Order("connector_number ASC")
 		}).
 		First(&charger, "id = ? AND cpo_id = ?", chargerID, cpoID).Error; err != nil {
-		return ChargerView{}, fmt.Errorf("reload charger after assignment: %w", err)
+		return ChargerResponse{}, fmt.Errorf("reload charger after assignment: %w", err)
 	}
 
-	return chargerView(charger), nil
+	return chargerView(charger, principal), nil
 }
 
 func normalizeCreateHubRequest(request CreateHubRequest) CreateHubRequest {

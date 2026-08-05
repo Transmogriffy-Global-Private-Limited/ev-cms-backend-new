@@ -2386,16 +2386,21 @@ paths:
       requestBody:
         required: true
         content:
-          application/json:
+          multipart/form-data:
             schema:
-              $ref: "#/components/schemas/CreateChargerRequest"
+              $ref: "#/components/schemas/CreateChargerMultipartRequest"
+            encoding:
+              data:
+                contentType: application/json
+              charger_image:
+                contentType: image/*
       responses:
         "201":
           description: Charger and connectors created.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Charger"
+                $ref: "#/components/schemas/ChargerResponse"
         "400":
           description: Invalid body, field, hub, connector, or app-ID header.
           content:
@@ -2505,16 +2510,21 @@ paths:
       requestBody:
         required: true
         content:
-          application/json:
+          multipart/form-data:
             schema:
-              $ref: "#/components/schemas/UpdateChargerRequest"
+              $ref: "#/components/schemas/UpdateChargerMultipartRequest"
+            encoding:
+              data:
+                contentType: application/json
+              charger_image:
+                contentType: image/*
       responses:
         "200":
           description: Updated charger.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Charger"
+                $ref: "#/components/schemas/ChargerResponse"
         "400":
           description: Invalid body, field, connector, charger ID, or app-ID header.
           content:
@@ -5421,7 +5431,7 @@ components:
     CreateConnectorRequest:
       type: object
       additionalProperties: false
-      required: [connector_number, connector_type]
+      required: [connector_number, connector_type, connector_total_capacity]
       properties:
         connector_number:
           type: integer
@@ -5439,11 +5449,15 @@ components:
           type: number
           minimum: 0
           default: 0
+        connector_total_capacity:
+          type: number
+          minimum: 0
+          default: 0
 
     CreateChargerRequest:
       type: object
       additionalProperties: false
-      required: [vendor, model, serial_number, connectors]
+      required: [vendor, model, serial_number, connectors, charger_name, charger_host_name, charger_host_phone_no, charger_type, segment, sub_segment, total_capacity, charger_use_type, number_of_connectors, parking, protocol, twenty_four_seven_open_status]
       properties:
         hub_id:
           type: string
@@ -5466,6 +5480,41 @@ components:
           type: number
           minimum: 0
           default: 0
+        charger_name:
+          type: string
+          maxLength: 255
+        charger_host_name:
+          type: string
+          maxLength: 255
+        charger_host_phone_no:
+          type: string
+          maxLength: 20
+        charger_type:
+          type: string
+          maxLength: 100
+        segment:
+          type: string
+          maxLength: 100
+        sub_segment:
+          type: string
+          maxLength: 100
+        total_capacity:
+          type: number
+          minimum: 0
+        charger_use_type:
+          type: string
+          maxLength: 100
+        number_of_connectors:
+          type: integer
+          minimum: 1
+        parking:
+          type: string
+          maxLength: 100
+        protocol:
+          type: string
+          maxLength: 50
+        twenty_four_seven_open_status:
+          type: boolean
         connectors:
           type: array
           minItems: 1
@@ -5476,11 +5525,24 @@ components:
         model: DC Wallbox
         serial_number: SN-001
         max_power_kw: 25
+        charger_name: "My Charger"
+        charger_host_name: "Host Name"
+        charger_host_phone_no: "1234567890"
+        charger_type: "DC"
+        segment: "Public"
+        sub_segment: "Highway"
+        total_capacity: 22.5
+        charger_use_type: "Commercial"
+        number_of_connectors: 1
+        parking: "Paid"
+        protocol: "OCPP 1.6J"
+        twenty_four_seven_open_status: true
         connectors:
           - connector_number: 1
             connector_type: CCS2
             max_current: 60
             max_voltage: 500
+            connector_total_capacity: 22.5
 
     UpdateConnectorRequest:
       type: object
@@ -5502,6 +5564,9 @@ components:
           type: number
           minimum: 0
         max_voltage:
+          type: number
+          minimum: 0
+        connector_total_capacity:
           type: number
           minimum: 0
     UpdateChargerRequest:
@@ -5528,6 +5593,41 @@ components:
         max_power_kw:
           type: number
           minimum: 0
+        charger_name:
+          type: string
+          maxLength: 255
+        charger_host_name:
+          type: string
+          maxLength: 255
+        charger_host_phone_no:
+          type: string
+          maxLength: 20
+        charger_type:
+          type: string
+          maxLength: 100
+        segment:
+          type: string
+          maxLength: 100
+        sub_segment:
+          type: string
+          maxLength: 100
+        total_capacity:
+          type: number
+          minimum: 0
+        charger_use_type:
+          type: string
+          maxLength: 100
+        number_of_connectors:
+          type: integer
+          minimum: 1
+        parking:
+          type: string
+          maxLength: 100
+        protocol:
+          type: string
+          maxLength: 50
+        twenty_four_seven_open_status:
+          type: boolean
         connectors:
           type: array
           minItems: 1
@@ -5545,6 +5645,7 @@ components:
         - connector_type
         - max_current
         - max_voltage
+        - connector_total_capacity
         - status
         - created_at
         - updated_at
@@ -5556,6 +5657,9 @@ components:
         connector_type: {type: string, maxLength: 50}
         max_current: {type: number, minimum: 0}
         max_voltage: {type: number, minimum: 0}
+        connector_total_capacity:
+          type: number
+          minimum: 0
         status:
           $ref: "#/components/schemas/ChargerStatus"
         created_at: {type: string, format: date-time}
@@ -5578,6 +5682,18 @@ components:
         - connectors
         - created_at
         - updated_at
+        - charger_name
+        - charger_host_name
+        - charger_host_phone_no
+        - charger_type
+        - segment
+        - sub_segment
+        - total_capacity
+        - charger_use_type
+        - number_of_connectors
+        - parking
+        - protocol
+        - twenty_four_seven_open_status
       properties:
         id: {type: string, format: uuid}
         cpo_id: {type: string, format: uuid}
@@ -5596,6 +5712,44 @@ components:
         model: {type: string, maxLength: 100}
         serial_number: {type: string, maxLength: 100}
         max_power_kw: {type: number, minimum: 0}
+        charger_name:
+          type: string
+          maxLength: 255
+        charger_host_name:
+          type: string
+          maxLength: 255
+        charger_host_phone_no:
+          type: string
+          maxLength: 20
+        charger_type:
+          type: string
+          maxLength: 100
+        segment:
+          type: string
+          maxLength: 100
+        sub_segment:
+          type: string
+          maxLength: 100
+        total_capacity:
+          type: number
+          minimum: 0
+        charger_image:
+          type: string
+          description: Path to the charger image.
+        charger_use_type:
+          type: string
+          maxLength: 100
+        number_of_connectors:
+          type: integer
+          minimum: 1
+        parking:
+          type: string
+          maxLength: 100
+        protocol:
+          type: string
+          maxLength: 50
+        twenty_four_seven_open_status:
+          type: boolean
         status:
           $ref: "#/components/schemas/ChargerStatus"
         ocpp_version: {type: string, maxLength: 20}
@@ -5609,6 +5763,15 @@ components:
             $ref: "#/components/schemas/Connector"
         created_at: {type: string, format: date-time}
         updated_at: {type: string, format: date-time}
+
+    ChargerResponse:
+      type: object
+      properties:
+        charger:
+          $ref: "#/components/schemas/Charger"
+        email:
+          type: string
+          format: email
 
     ChargerListResponse:
       type: object
@@ -5862,18 +6025,30 @@ components:
         created_at: {type: string, format: date-time}
         updated_at: {type: string, format: date-time}
 
-    TariffListResponse:
+    CreateChargerMultipartRequest:
       type: object
-      additionalProperties: false
-      required: [tariffs, has_more]
       properties:
-        tariffs:
-          type: array
-          items:
-            $ref: "#/components/schemas/Tariff"
-        next_before: {type: string, format: date-time}
-        next_before_id: {type: string, format: uuid}
-        has_more: {type: boolean}
+        data:
+          description: JSON payload containing charger details.
+          allOf:
+            - $ref: "#/components/schemas/CreateChargerRequest"
+        charger_image:
+          type: string
+          format: binary
+          description: Charger image file (e.g., JPEG, PNG).
+      required: [data, charger_image]
+
+    UpdateChargerMultipartRequest:
+      type: object
+      properties:
+        data:
+          description: JSON payload containing charger details.
+          allOf:
+            - $ref: "#/components/schemas/UpdateChargerRequest"
+        charger_image:
+          type: string
+          format: binary
+          description: Optional charger image file (e.g., JPEG, PNG).
 
     ChargerStatus:
       type: string

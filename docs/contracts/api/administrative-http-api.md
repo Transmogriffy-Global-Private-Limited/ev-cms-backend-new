@@ -1611,21 +1611,47 @@ tenant-safe `404 hub_not_found` or `charger_not_found`.
 
 Creates one CMS charger projection and all initial connectors atomically.
 
-```json
+The request should be sent as `multipart/form-data`. The main JSON payload should be in a form field named `data`, and the charger image should be in a file field named `charger_image`.
+
+```http
+Content-Type: multipart/form-data; boundary=----WebKitFormBoundary7MA4YWxkTrZu0gW
+
+------WebKitFormBoundary7MA4YWxkTrZu0gW
+Content-Disposition: form-data; name="data"
+
 {
   "vendor": "Delta",
   "model": "DC Wallbox",
   "serial_number": "SN-001",
   "max_power_kw": 25,
+  "charger_name": "My Charger",
+  "charger_host_name": "Host Name",
+  "charger_host_phone_no": "1234567890",
+  "charger_type": "DC",
+  "segment": "Public",
+  "sub_segment": "Highway",
+  "total_capacity": 25,
+  "charger_use_type": "Commercial",
+  "number_of_connectors": 1,
+  "parking": "Covered",
+  "protocol": "OCPP 1.6J",
+  "twenty_four_seven_open_status": true,
   "connectors": [
     {
       "connector_number": 1,
       "connector_type": "CCS2",
       "max_current": 60,
-      "max_voltage": 500
+      "max_voltage": 500,
+      "connector_total_capacity": 25
     }
   ]
 }
+------WebKitFormBoundary7MA4YWxkTrZu0gW
+Content-Disposition: form-data; name="charger_image"; filename="charger.jpg"
+Content-Type: image/jpeg
+
+(binary data)
+------WebKitFormBoundary7MA4YWxkTrZu0gW--
 ```
 
 Rules:
@@ -1635,10 +1661,12 @@ Rules:
 - vendor, model, and serial number are required, trimmed, and at most 100
   characters each;
 - `max_power_kw` is optional/default zero and cannot be negative;
+- All new charger fields are required.
 - at least one connector is required;
 - connector numbers are positive and unique within this request;
 - connector type is required and at most 50 characters;
 - current and voltage are optional/default zero and cannot be negative.
+- `connector_total_capacity` is required and cannot be negative.
 
 The server generates:
 
@@ -1665,6 +1693,19 @@ The server generates:
   "max_power_kw": 25,
   "status": "OFFLINE",
   "ocpp_version": "1.6J",
+  "charger_name": "My Charger",
+  "charger_host_name": "Host Name",
+  "charger_host_phone_no": "1234567890",
+  "charger_type": "DC",
+  "segment": "Public",
+  "sub_segment": "Highway",
+  "total_capacity": 25,
+  "charger_image": "/uploads/some-uuid.jpg",
+  "charger_use_type": "Commercial",
+  "number_of_connectors": 1,
+  "parking": "Covered",
+  "protocol": "OCPP 1.6J",
+  "twenty_four_seven_open_status": true,
   "connectors": [
     {
       "id": "540b3214-bd67-4f61-9134-ab462168fd92",
@@ -1674,13 +1715,15 @@ The server generates:
       "connector_type": "CCS2",
       "max_current": 60,
       "max_voltage": 500,
+      "connector_total_capacity": 25,
       "status": "AVAILABLE",
       "created_at": "2026-07-31T12:05:00Z",
       "updated_at": "2026-07-31T12:05:00Z"
     }
   ],
   "created_at": "2026-07-31T12:05:00Z",
-  "updated_at": "2026-07-31T12:05:00Z"
+  "updated_at": "2026-07-31T12:05:00Z",
+  "email": "admin@example.com"
 }
 ```
 
@@ -1708,7 +1751,51 @@ Both cursor fields must be supplied together. `200 OK`:
 
 ```json
 {
-  "chargers": [],
+  "chargers": [
+    {
+      "id": "7cc2d481-3ccb-4336-b03c-c8851a59ff9a",
+      "cpo_id": "c821a013-5041-42f7-80c8-aa153cf9d455",
+      "charger_id": "a1b2c3",
+      "ocpp_identity": "CMS-4a58ce2df470b2b1",
+      "vendor": "Delta",
+      "model": "DC Wallbox",
+      "serial_number": "SN-001",
+      "max_power_kw": 25,
+      "status": "OFFLINE",
+      "ocpp_version": "1.6J",
+      "charger_name": "My Charger",
+      "charger_host_name": "Host Name",
+      "charger_host_phone_no": "1234567890",
+      "charger_type": "DC",
+      "segment": "Public",
+      "sub_segment": "Highway",
+      "total_capacity": 25,
+      "charger_image": "/uploads/some-uuid.jpg",
+      "charger_use_type": "Commercial",
+      "number_of_connectors": 1,
+      "parking": "Covered",
+      "protocol": "OCPP 1.6J",
+      "twenty_four_seven_open_status": true,
+      "connectors": [
+        {
+          "id": "540b3214-bd67-4f61-9134-ab462168fd92",
+          "cpo_id": "c821a013-5041-42f7-80c8-aa153cf9d455",
+          "charger_id": "7cc2d481-3ccb-4336-b03c-c8851a59ff9a",
+          "connector_number": 1,
+          "connector_type": "CCS2",
+          "max_current": 60,
+          "max_voltage": 500,
+          "connector_total_capacity": 25,
+          "status": "AVAILABLE",
+          "created_at": "2026-07-31T12:05:00Z",
+          "updated_at": "2026-07-31T12:05:00Z"
+        }
+      ],
+      "created_at": "2026-07-31T12:05:00Z",
+      "updated_at": "2026-07-31T12:05:00Z",
+      "email": "admin@example.com"
+    }
+  ],
   "next_before": "2026-07-31T12:05:00Z",
   "next_before_id": "7cc2d481-3ccb-4336-b03c-c8851a59ff9a",
   "has_more": true
@@ -1723,12 +1810,12 @@ The cursor fields are omitted when `has_more` is false. Errors:
 
 Uses the six-character public charger ID, not the charger UUID. Input is trimmed
 and lowercased before validation. `200 OK` returns the Charger object including
-connectors ordered by connector number. Unknown or cross-tenant IDs return
-`404 charger_not_found`; malformed IDs return `400 invalid_charger_id`.
+connectors ordered by connector number. The response will also contain the `email` of the CPO admin.
+Unknown or cross-tenant IDs return `404 charger_not_found`; malformed IDs return `400 invalid_charger_id`.
 
 ### 9.13 `PATCH /api/v1/cpo/chargers/{charger_id}`
 
-Updates any non-empty subset of:
+Updates any non-empty subset of the charger's properties. The request should be `multipart/form-data`, with the JSON payload in a form field named `data` and an optional new charger image in a file field named `charger_image`.
 
 ```json
 {
@@ -1737,13 +1824,15 @@ Updates any non-empty subset of:
   "model": "DC Wallbox V2",
   "serial_number": "SN-001",
   "max_power_kw": 30,
+  "charger_name": "My Updated Charger",
   "connectors": [
     {
       "id": "540b3214-bd67-4f61-9134-ab462168fd92",
       "connector_number": 1,
       "connector_type": "CCS2",
       "max_current": 75,
-      "max_voltage": 500
+      "max_voltage": 500,
+      "connector_total_capacity": 30
     }
   ]
 }
@@ -1751,9 +1840,9 @@ Updates any non-empty subset of:
 
 Each supplied connector must be an existing connector UUID on this charger and
 must include at least one changed field. Connector IDs cannot repeat in one
-request.
+request. New connectors can also be added by omitting the `id` field in the connector object.
 
-This route does not add or remove connectors and cannot change public
+This route does not change public
 `charger_id`, `ocpp_identity`, charger or connector status, OCPP version, or
 `last_seen_at`. Runtime status is reserved for the future HAL projection.
 If `hub_id` is supplied it assigns or reassigns the charger to that tenant hub;

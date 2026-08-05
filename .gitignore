@@ -1,6 +1,3 @@
-*.exe
-*.out
-/.env
-/.local/
-/builds/
-/tmp/
+
+
+/uploads
