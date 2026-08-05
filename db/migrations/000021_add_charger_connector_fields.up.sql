@@ -1,0 +1,17 @@
+ALTER TABLE chargers
+    ADD COLUMN charger_name VARCHAR(255) NOT NULL DEFAULT '',
+    ADD COLUMN charger_host_name VARCHAR(255) NOT NULL DEFAULT '',
+    ADD COLUMN charger_host_phone_no VARCHAR(20) NOT NULL DEFAULT '',
+    ADD COLUMN charger_type VARCHAR(100) NOT NULL DEFAULT '',
+    ADD COLUMN segment VARCHAR(100) NOT NULL DEFAULT '',
+    ADD COLUMN sub_segment VARCHAR(100) NOT NULL DEFAULT '',
+    ADD COLUMN total_capacity NUMERIC(10, 2) NOT NULL DEFAULT 0,
+    ADD COLUMN charger_image TEXT NOT NULL DEFAULT '',
+    ADD COLUMN charger_use_type VARCHAR(100) NOT NULL DEFAULT '',
+    ADD COLUMN number_of_connectors INTEGER NOT NULL DEFAULT 1,
+    ADD COLUMN parking VARCHAR(100) NOT NULL DEFAULT '',
+    ADD COLUMN protocol VARCHAR(50) NOT NULL DEFAULT 'OCPP 1.6J',
+    ADD COLUMN twenty_four_seven_open_status BOOLEAN NOT NULL DEFAULT FALSE;
+
+ALTER TABLE connectors
+    ADD COLUMN connector_max_capacity NUMERIC(10, 2) NOT NULL DEFAULT 0;

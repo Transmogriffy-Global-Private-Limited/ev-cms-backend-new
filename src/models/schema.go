@@ -186,37 +186,51 @@ type Hub struct {
 }
 
 type Charger struct {
-	ID           uuid.UUID               `gorm:"type:uuid;primaryKey;default:gen_random_uuid()" json:"id"`
-	CPOID        uuid.UUID               `gorm:"type:uuid;not null;index" json:"cpo_id"`
-	HubID        *uuid.UUID              `gorm:"type:uuid;index" json:"hub_id,omitempty"`
-	Hub          *Hub                    `gorm:"foreignKey:HubID;constraint:OnUpdate:CASCADE,OnDelete:RESTRICT" json:"hub,omitempty"`
-	ChargerID    string                  `gorm:"type:varchar(6);not null" json:"charger_id"`
-	OCPPIdentity string                  `gorm:"type:varchar(255);not null" json:"ocpp_identity"`
-	Vendor       string                  `gorm:"type:varchar(100);not null;default:''" json:"vendor"`
-	Model        string                  `gorm:"type:varchar(100);not null;default:''" json:"model"`
-	SerialNumber string                  `gorm:"type:varchar(100);not null;default:''" json:"serial_number"`
-	MaxPowerKW   float64                 `gorm:"type:numeric(8,2);not null;default:0" json:"max_power_kw"`
-	Status       constants.ChargerStatus `gorm:"type:varchar(30);not null;default:'OFFLINE'" json:"status"`
-	OCPPVersion  string                  `gorm:"type:varchar(20);not null;default:'1.6J'" json:"ocpp_version"`
-	LastSeenAt   *time.Time              `json:"last_seen_at,omitempty"`
-	Connectors   []Connector             `gorm:"foreignKey:ChargerID" json:"connectors,omitempty"`
-	Tariffs      []Tariff                `gorm:"foreignKey:ChargerID" json:"tariffs,omitempty"`
-	CreatedAt    time.Time               `gorm:"not null" json:"created_at"`
-	UpdatedAt    time.Time               `gorm:"not null" json:"updated_at"`
+	ID                  uuid.UUID               `gorm:"type:uuid;primaryKey;default:gen_random_uuid()" json:"id"`
+	CPOID               uuid.UUID               `gorm:"type:uuid;not null;index" json:"cpo_id"`
+	HubID               *uuid.UUID              `gorm:"type:uuid;index" json:"hub_id,omitempty"`
+	Hub                 *Hub                    `gorm:"foreignKey:HubID;constraint:OnUpdate:CASCADE,OnDelete:RESTRICT" json:"hub,omitempty"`
+	ChargerID           string                  `gorm:"type:varchar(6);not null" json:"charger_id"`
+	OCPPIdentity        string                  `gorm:"type:varchar(255);not null" json:"ocpp_identity"`
+	Vendor              string                  `gorm:"type:varchar(100);not null;default:''" json:"vendor"`
+	Model               string                  `gorm:"type:varchar(100);not null;default:''" json:"model"`
+	SerialNumber        string                  `gorm:"type:varchar(100);not null;default:''" json:"serial_number"`
+	MaxPowerKW          float64                 `gorm:"type:numeric(8,2);not null;default:0" json:"max_power_kw"`
+	Status              constants.ChargerStatus `gorm:"type:varchar(30);not null;default:'OFFLINE'" json:"status"`
+	OCPPVersion         string                  `gorm:"type:varchar(20);not null;default:'1.6J'" json:"ocpp_version"`
+	LastSeenAt          *time.Time              `json:"last_seen_at,omitempty"`
+	ChargerName         string                  `gorm:"type:varchar(255);not null;default:''" json:"charger_name"`
+	ChargerHostName     string                  `gorm:"type:varchar(255);not null;default:''" json:"charger_host_name"`
+	ChargerHostPhoneNo  string                  `gorm:"type:varchar(20);not null;default:''" json:"charger_host_phone_no"`
+	ChargerType         string                  `gorm:"type:varchar(100);not null;default:''" json:"charger_type"`
+	Segment             string                  `gorm:"type:varchar(100);not null;default:''" json:"segment"`
+	SubSegment          string                  `gorm:"type:varchar(100);not null;default:''" json:"sub_segment"`
+	TotalCapacity       float64                 `gorm:"type:numeric(10,2);not null;default:0" json:"total_capacity"`
+	ChargerImage        string                  `gorm:"type:text;not null;default:''" json:"charger_image"`
+	ChargerUseType      string                  `gorm:"type:varchar(100);not null;default:''" json:"charger_use_type"`
+	NumberOfConnectors  int                     `gorm:"not null;default:1" json:"number_of_connectors"`
+	Parking             string                  `gorm:"type:varchar(100);not null;default:''" json:"parking"`
+	Protocol            string                  `gorm:"type:varchar(50);not null;default:'OCPP 1.6J'" json:"protocol"`
+	TwentyFourSevenOpen bool                    `gorm:"not null;default:false" json:"twenty_four_seven_open_status"`
+	Connectors          []Connector             `gorm:"foreignKey:ChargerID" json:"connectors,omitempty"`
+	Tariffs             []Tariff                `gorm:"foreignKey:ChargerID" json:"tariffs,omitempty"`
+	CreatedAt           time.Time               `gorm:"not null" json:"created_at"`
+	UpdatedAt           time.Time               `gorm:"not null" json:"updated_at"`
 }
 
 type Connector struct {
-	ID              uuid.UUID               `gorm:"type:uuid;primaryKey;default:gen_random_uuid()" json:"id"`
-	CPOID           uuid.UUID               `gorm:"type:uuid;not null;index" json:"cpo_id"`
-	ChargerID       uuid.UUID               `gorm:"type:uuid;not null;index" json:"charger_id"`
-	Charger         Charger                 `gorm:"foreignKey:ChargerID;constraint:OnUpdate:CASCADE,OnDelete:RESTRICT" json:"charger,omitempty"`
-	ConnectorNumber int                     `gorm:"not null" json:"connector_number"`
-	ConnectorType   string                  `gorm:"type:varchar(50);not null" json:"connector_type"`
-	MaxCurrent      float64                 `gorm:"type:numeric(8,2);not null;default:0" json:"max_current"`
-	MaxVoltage      float64                 `gorm:"type:numeric(8,2);not null;default:0" json:"max_voltage"`
-	Status          constants.ChargerStatus `gorm:"type:varchar(30);not null;default:'AVAILABLE'" json:"status"`
-	CreatedAt       time.Time               `gorm:"not null" json:"created_at"`
-	UpdatedAt       time.Time               `gorm:"not null" json:"updated_at"`
+	ID                     uuid.UUID               `gorm:"type:uuid;primaryKey;default:gen_random_uuid()" json:"id"`
+	CPOID                  uuid.UUID               `gorm:"type:uuid;not null;index" json:"cpo_id"`
+	ChargerID              uuid.UUID               `gorm:"type:uuid;not null;index" json:"charger_id"`
+	Charger                Charger                 `gorm:"foreignKey:ChargerID;constraint:OnUpdate:CASCADE,OnDelete:RESTRICT" json:"charger,omitempty"`
+	ConnectorNumber        int                     `gorm:"not null" json:"connector_number"`
+	ConnectorType          string                  `gorm:"type:varchar(50);not null" json:"connector_type"`
+	MaxCurrent             float64                 `gorm:"type:numeric(8,2);not null;default:0" json:"max_current"`
+	MaxVoltage             float64                 `gorm:"type:numeric(8,2);not null;default:0" json:"max_voltage"`
+	ConnectorTotalCapacity float64                 `gorm:"type:numeric(10,2);not null;default:0" json:"connector_total_capacity"`
+	Status                 constants.ChargerStatus `gorm:"type:varchar(30);not null;default:'AVAILABLE'" json:"status"`
+	CreatedAt              time.Time               `gorm:"not null" json:"created_at"`
+	UpdatedAt              time.Time               `gorm:"not null" json:"updated_at"`
 }
 
 type UserGroupHub struct {
