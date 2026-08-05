@@ -2,6 +2,22 @@
 
 ## 2026-08-05
 
+### Rehosted charger capacity contract update
+
+- Applied migration 25, removing the obsolete charger-level `total_capacity`
+  column; connector-level capacity remains supported.
+- Reconciled the administrative API documentation and OpenAPI schema, including
+  the missing `TariffListResponse` component referenced by the runtime contract.
+- Built and rehosted revision `dfc5039`; the live API remains the 129-operation
+  contract.
+
+Verification:
+
+- Focused OpenAPI/runtime parity, full Go tests, and `go vet` passed.
+- PostgreSQL reports migration 25 applied and no charger `total_capacity` column.
+- Service is active/enabled; public readiness and `/docs/` were verified.
+- The PowerShell documentation verifier is unavailable on this host.
+
 ### Rehosted optional charger metadata persistence
 
 - Applied migration 24 from a mode-0600 rollback dump so charger `vendor` and

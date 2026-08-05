@@ -1882,7 +1882,6 @@ Content-Disposition: form-data; name="data"
   "charger_type": "DC",
   "segment": "Public",
   "sub_segment": "Highway",
-  "total_capacity": 25,
   "charger_use_type": "Commercial",
   "number_of_connectors": 1,
   "parking": "Covered",
@@ -1918,7 +1917,9 @@ Rules:
 - connector numbers are positive and unique within this request;
 - connector type is required and at most 50 characters;
 - current and voltage are optional/default zero and cannot be negative.
-- `connector_total_capacity` is required and cannot be negative.
+- `connector_total_capacity` is required and cannot be negative. Charger-level
+  `total_capacity` is no longer part of the CMS charger contract; capacity is
+  represented per connector.
 
 The server generates:
 
@@ -1951,7 +1952,6 @@ The server generates:
   "charger_type": "DC",
   "segment": "Public",
   "sub_segment": "Highway",
-  "total_capacity": 25,
   "charger_image": "/uploads/some-uuid.jpg",
   "charger_use_type": "Commercial",
   "number_of_connectors": 1,
@@ -2021,7 +2021,6 @@ Both cursor fields must be supplied together. `200 OK`:
       "charger_type": "DC",
       "segment": "Public",
       "sub_segment": "Highway",
-      "total_capacity": 25,
       "charger_image": "/uploads/some-uuid.jpg",
       "charger_use_type": "Commercial",
       "number_of_connectors": 1,

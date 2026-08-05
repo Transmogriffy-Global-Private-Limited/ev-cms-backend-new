@@ -6398,7 +6398,7 @@ components:
     CreateChargerRequest:
       type: object
       additionalProperties: false
-      required: [vendor, model, serial_number, connectors, charger_name, charger_host_name, charger_host_phone_no, charger_type, segment, sub_segment, total_capacity, charger_use_type, number_of_connectors, parking, protocol, twenty_four_seven_open_status]
+      required: [vendor, model, serial_number, connectors, charger_name, charger_host_name, charger_host_phone_no, charger_type, segment, sub_segment, charger_use_type, number_of_connectors, parking, protocol, twenty_four_seven_open_status]
       properties:
         hub_id:
           type: string
@@ -6439,9 +6439,6 @@ components:
         sub_segment:
           type: string
           maxLength: 100
-        total_capacity:
-          type: number
-          minimum: 0
         charger_use_type:
           type: string
           maxLength: 100
@@ -6472,7 +6469,6 @@ components:
         charger_type: "DC"
         segment: "Public"
         sub_segment: "Highway"
-        total_capacity: 22.5
         charger_use_type: "Commercial"
         number_of_connectors: 1
         parking: "Paid"
@@ -6552,9 +6548,6 @@ components:
         sub_segment:
           type: string
           maxLength: 100
-        total_capacity:
-          type: number
-          minimum: 0
         charger_use_type:
           type: string
           maxLength: 100
@@ -6670,9 +6663,6 @@ components:
         sub_segment:
           type: string
           maxLength: 100
-        total_capacity:
-          type: number
-          minimum: 0
         charger_image:
           type: string
           description: Path to the charger image.
@@ -6974,6 +6964,24 @@ components:
         end_date: {type: string, format: date-time}
         created_at: {type: string, format: date-time}
         updated_at: {type: string, format: date-time}
+
+    TariffListResponse:
+      type: object
+      additionalProperties: false
+      required: [tariffs, has_more]
+      properties:
+        tariffs:
+          type: array
+          items:
+            $ref: "#/components/schemas/Tariff"
+        next_before:
+          type: string
+          format: date-time
+        next_before_id:
+          type: string
+          format: uuid
+        has_more:
+          type: boolean
 
     CreateChargerMultipartRequest:
       type: object
