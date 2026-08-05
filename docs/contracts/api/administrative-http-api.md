@@ -475,7 +475,43 @@ Errors: `400 invalid_request`, `400 invalid_full_name`, `400 invalid_phone`,
 `400 missing_cpo_app_id`, `401 unauthorized`, `403 cpo_app_id_mismatch`, or
 `500 internal_error`.
 
-### 4.10 Backend current-customer helpers
+### 4.10 `GET /api/v1/app/auth/hubs`
+
+Requires a customer bearer token and matching `X-CPO-App-ID`. Returns only
+customer-visible hubs belonging to the authenticated customer's CPO. `limit`
+is 1–100 and defaults to 25; `before` and `before_id` are a paired descending
+`(created_at, id)` keyset cursor. `q` searches the hub name or address. When
+the filter changes, the frontend must discard the old cursor.
+
+The response contains safe hub projections, `charger_count`, and the
+customer-owned `is_favorite` flag. It never returns the CPO ID, sanctioned
+load, audit data, or unpublished hubs. Errors include `400 invalid_limit`,
+`400 invalid_cursor`, `400 invalid_search`, authentication/header errors, or
+`500 internal_error`.
+
+### 4.11 `GET /api/v1/app/auth/hubs/{hub_id}`
+
+Returns a published hub in the current CPO and its attached chargers and
+connectors. Independent chargers are excluded. The projection includes only
+public charger ID, vendor, model, maximum power, OCPP version, connector
+capability, and customer favorite flags. It excludes OCPP identity, serial
+number, sanctioned load, raw status, last-seen data, and audit information.
+
+Until a separate CMS/HAL contract is implemented, charger and connector
+`availability` is always `UNKNOWN`; this endpoint makes no HAL call and does
+not claim live or online state. Unknown, unpublished, and cross-CPO hubs all
+return `404 hub_not_found`.
+
+### 4.12 `GET /api/v1/app/auth/chargers/{charger_id}`
+
+Uses the six-character public charger ID, not the CMS charger UUID. The charger
+must belong to the authenticated CPO and be attached to a customer-visible hub;
+otherwise the response is `404 charger_not_found` without cross-tenant
+enumeration. The response uses the same safe projection and explicit
+`availability: "UNKNOWN"` described in 4.11. Malformed IDs return
+`400 invalid_charger_id`.
+
+### 4.13 Backend current-customer helpers
 
 After `service.Authenticate()` and `customerauth.RequireAppID()` succeed,
 backend app handlers use:
@@ -494,7 +530,7 @@ token plus authoritative PostgreSQL revalidation. An app handler must not take
 `CurrentUserID` remains as a source-compatibility alias and returns the exact
 same value as `CurrentCustomerID`; new app code should use `CurrentCustomerID`.
 
-### 4.11 `GET /api/v1/app/auth/sessions`
+### 4.14 `GET /api/v1/app/auth/sessions`
 
 Requires customer bearer token and matching app ID. Returns only active,
 unexpired `CUSTOMER` sessions for the current `customer_id` in the current CPO:
@@ -517,7 +553,7 @@ unexpired `CUSTOMER` sessions for the current `customer_id` in the current CPO:
 
 It does not expose platform, CPO-staff, or another CPO's customer sessions.
 
-### 4.12 `DELETE /api/v1/app/auth/sessions/{session_id}`
+### 4.15 `DELETE /api/v1/app/auth/sessions/{session_id}`
 
 Requires customer bearer token and matching app ID. `204 No Content` revokes
 the selected session and unused refresh token only when it belongs to this
@@ -527,13 +563,13 @@ Errors: `400 invalid_session_id` or `missing_cpo_app_id`,
 `401 unauthorized`, `403 cpo_app_id_mismatch`, `404 session_not_found`, or
 `500 internal_error`.
 
-### 4.13 `POST /api/v1/app/auth/logout`
+### 4.16 `POST /api/v1/app/auth/logout`
 
 Requires customer bearer token and matching app ID.
 
 `204 No Content` revokes the current session and unused refresh token.
 
-### 4.14 `POST /api/v1/app/auth/logout-all`
+### 4.17 `POST /api/v1/app/auth/logout-all`
 
 Requires customer bearer token and matching app ID.
 
@@ -541,7 +577,7 @@ Requires customer bearer token and matching app ID.
 It deliberately does not revoke platform sessions, CPO-staff sessions, or
 customer sessions for another CPO.
 
-### 4.15 `POST /api/v1/app/auth/password/forgot`
+### 4.18 `POST /api/v1/app/auth/password/forgot`
 
 Request: `{"email":"driver@example.com"}` plus the app-ID header.
 
@@ -561,7 +597,7 @@ That eligible recipient's encrypted email contains the opaque recovery ID
 (`challenge_id`), six-digit code, and shared expiry. The generic response does
 not expose whether the ID is real, so account enumeration remains blocked.
 
-### 4.16 Customer password-reset resend and completion
+### 4.19 Customer password-reset resend and completion
 
 Both operations use the recovery ID delivered in the eligible recipient's
 email. Resend returns a replacement challenge response and mails a replacement
@@ -591,7 +627,7 @@ lockout state, and revokes every customer session for this exact
 untouched. Any other unconsumed login/reset challenge for this account is also
 invalidated so a pre-change OTP cannot create a post-change session.
 
-### 4.17 `POST /api/v1/app/auth/password/change`
+### 4.20 `POST /api/v1/app/auth/password/change`
 
 Requires customer bearer token and matching app ID.
 
@@ -1547,6 +1583,7 @@ timestamps.
   "longitude": 88.3521,
   "open_24_hours": true,
   "sanction_load": 120.5,
+  "customer_visible": false,
   "charger_id": "7cc2d481-3ccb-4336-b03c-c8851a59ff9a"
 }
 ```
@@ -1560,6 +1597,9 @@ Rules:
 - `open_24_hours`: optional, defaults to `true`;
 - `sanction_load`: optional non-negative site electrical capacity in kW; it
   defaults to `0`, which means not recorded rather than zero capacity;
+- `customer_visible`: optional publication switch, defaulting to `false`;
+  CPO ADMIN may set it to `true` only when the hub is ready for User App
+  discovery. It is not a live-availability claim;
 - `charger_id`: optional UUID of an existing charger to assign to this hub.
 
 `201 Created` returns:
@@ -1574,6 +1614,7 @@ Rules:
   "longitude": 88.3521,
   "open_24_hours": true,
   "sanction_load": 120.5,
+  "customer_visible": false,
   "created_at": "2026-07-31T12:00:00Z",
   "updated_at": "2026-07-31T12:00:00Z"
 }
@@ -1609,13 +1650,14 @@ when it belongs to the authenticated CPO. A cross-tenant or unknown ID returns
 
 ### 9.8 `PATCH /api/v1/cpo/hubs/{hub_id}`
 
-Accepts any non-empty subset of the six create fields using the same
+Accepts any non-empty subset of the seven create fields using the same
 validation. Omitted fields are unchanged.
 
 ```json
 {
   "address": "12A Park Street, Kolkata",
-  "open_24_hours": false
+  "open_24_hours": false,
+  "customer_visible": true
 }
 ```
 

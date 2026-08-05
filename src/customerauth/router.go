@@ -5,7 +5,9 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"strconv"
 	"strings"
+	"time"
 
 	cmsmiddleware "github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/middleware"
 	"github.com/gin-gonic/gin"
@@ -36,6 +38,9 @@ func RegisterRoutes(group *gin.RouterGroup, service *Service) {
 	protected.Use(service.Authenticate(), RequireAppID())
 	protected.GET("/me", handler.me)
 	protected.PATCH("/profile", handler.updateProfile)
+	protected.GET("/hubs", handler.listHubs)
+	protected.GET("/hubs/:hub_id", handler.getHub)
+	protected.GET("/chargers/:charger_id", handler.getCharger)
 	protected.GET("/sessions", handler.sessions)
 	protected.DELETE("/sessions/:session_id", handler.revokeSession)
 	protected.POST("/logout", handler.logout)
@@ -238,6 +243,84 @@ func (handler *Handler) updateProfile(ctx *gin.Context) {
 		return
 	}
 	ctx.JSON(http.StatusOK, profile)
+}
+
+func (handler *Handler) listHubs(ctx *gin.Context) {
+	principal, ok := CurrentPrincipal(ctx)
+	if !ok {
+		writeError(ctx, errUnauthorized)
+		return
+	}
+	query, err := customerHubListQuery(ctx)
+	if err != nil {
+		writeError(ctx, err)
+		return
+	}
+	response, err := handler.service.ListCustomerHubs(ctx.Request.Context(), principal, query)
+	if err != nil {
+		writeError(ctx, err)
+		return
+	}
+	ctx.JSON(http.StatusOK, response)
+}
+
+func (handler *Handler) getHub(ctx *gin.Context) {
+	principal, ok := CurrentPrincipal(ctx)
+	if !ok {
+		writeError(ctx, errUnauthorized)
+		return
+	}
+	hubID, err := uuid.Parse(ctx.Param("hub_id"))
+	if err != nil {
+		writeError(ctx, &APIError{http.StatusBadRequest, "invalid_hub_id", "The hub ID is invalid."})
+		return
+	}
+	response, err := handler.service.GetCustomerHub(ctx.Request.Context(), principal, hubID)
+	if err != nil {
+		writeError(ctx, err)
+		return
+	}
+	ctx.JSON(http.StatusOK, response)
+}
+
+func (handler *Handler) getCharger(ctx *gin.Context) {
+	principal, ok := CurrentPrincipal(ctx)
+	if !ok {
+		writeError(ctx, errUnauthorized)
+		return
+	}
+	response, err := handler.service.GetCustomerCharger(ctx.Request.Context(), principal, ctx.Param("charger_id"))
+	if err != nil {
+		writeError(ctx, err)
+		return
+	}
+	ctx.JSON(http.StatusOK, response)
+}
+
+func customerHubListQuery(ctx *gin.Context) (CustomerHubListQuery, error) {
+	query := CustomerHubListQuery{Search: ctx.Query("q")}
+	if raw := strings.TrimSpace(ctx.Query("limit")); raw != "" {
+		limit, err := strconv.Atoi(raw)
+		if err != nil {
+			return CustomerHubListQuery{}, &APIError{http.StatusBadRequest, "invalid_limit", "Limit must be a number between 1 and 100."}
+		}
+		query.Limit = limit
+	}
+	if raw := strings.TrimSpace(ctx.Query("before")); raw != "" {
+		before, err := time.Parse(time.RFC3339Nano, raw)
+		if err != nil {
+			return CustomerHubListQuery{}, &APIError{http.StatusBadRequest, "invalid_cursor", "The before cursor timestamp is invalid."}
+		}
+		query.Before = &before
+	}
+	if raw := strings.TrimSpace(ctx.Query("before_id")); raw != "" {
+		beforeID, err := uuid.Parse(raw)
+		if err != nil {
+			return CustomerHubListQuery{}, &APIError{http.StatusBadRequest, "invalid_cursor", "The before cursor ID is invalid."}
+		}
+		query.BeforeID = &beforeID
+	}
+	return query, nil
 }
 
 func (handler *Handler) sessions(ctx *gin.Context) {

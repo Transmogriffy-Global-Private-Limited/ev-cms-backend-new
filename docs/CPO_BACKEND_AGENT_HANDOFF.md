@@ -133,7 +133,7 @@ UUID or a row UUID.
 ## Current Implemented CPO Surface
 
 The authoritative machine contract is
-`docs/contracts/openapi/openapi.yaml`. The source currently has 114 total
+`docs/contracts/openapi/openapi.yaml`. The source currently has 117 total
 HTTP operations across all planes. Runtime/OpenAPI parity is tested.
 
 ### Administrative authentication
@@ -189,6 +189,8 @@ Current behavior:
 - IDs are server-generated;
 - a hub records non-negative `sanction_load` in kW; `0` means the capacity is
   not recorded;
+- `customer_visible` is CPO ADMIN-controlled, defaults to `false`, and is the
+  only publication gate for User App discovery;
 - charger creation atomically creates its initial connectors and audit record;
 - a charger may be created independently with no hub and later attached using
   `POST /hubs/{hub_id}/chargers`;
@@ -236,6 +238,10 @@ Implemented:
 - refresh rotation;
 - authenticated `GET /me` bootstrap and `PATCH /profile` self-service name/phone
   updates; profile writes are CPO-local and audit changed field names only;
+- authenticated `GET /hubs`, `GET /hubs/{hub_id}`, and
+  `GET /chargers/{charger_id}` expose only published same-CPO network data;
+  independent/unpublished resources are hidden and charger/connector
+  availability is explicitly `UNKNOWN` until HAL integration;
 - current customer (`me`);
 - customer-scoped session listing/revocation/logout/logout-all;
 - password recovery/reset and authenticated change. Forgot-password stays

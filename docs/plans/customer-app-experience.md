@@ -1,6 +1,6 @@
 # Customer App Experience Plan
 
-Status: In Progress — CPO-scoped customer accounts implemented; DB lifecycle pending
+Status: In Progress — CPO-scoped customer accounts implemented; DB lifecycle deferred by decision
 
 ## Objective
 
@@ -24,9 +24,10 @@ Implemented customer routes are confined to `/api/v1/app/auth`:
 - customer-scoped session list/revoke/logout;
 - CPO-local password recovery, reset, and change.
 
-There is no customer profile mutation, station discovery, favorites, tariff
-quote, charging-session, wallet-ledger, payment, notification, or reporting
-API today. Existing tables alone do not imply that those APIs exist.
+Customer profile mutation and published station discovery are implemented.
+Favorites, tariff quote, charging-session, wallet-ledger, payment,
+notification, and reporting APIs remain unimplemented. Existing tables alone
+do not imply that those APIs exist.
 
 ## Permanent User-Surface Rules
 
@@ -70,7 +71,7 @@ The customer-account migration starts first.
 
 ## Slice 1 — CPO-Scoped Customer Account Migration
 
-Status: Implemented; PostgreSQL lifecycle verification pending
+Status: Implemented; PostgreSQL lifecycle verification deferred by decision
 
 Migration twenty adds the CPO-owned account fields and customer-only
 challenge/session/refresh lineage. Signup, login, recovery, password mutation,
@@ -81,7 +82,7 @@ the deployment assumption changes. Profile mutation remains Slice 2.
 
 ## Slice 2 — Customer Self-Service Profile
 
-Status: Implemented; PostgreSQL lifecycle verification pending
+Status: Implemented; PostgreSQL lifecycle verification deferred by decision
 
 ### Goal
 
@@ -119,9 +120,12 @@ the customer principal and current `X-CPO-App-ID` request contract.
 - Add handler/service tests, PostgreSQL lifecycle proof, route/OpenAPI parity,
   exhaustive contract and FE workflow updates. Source implementation and
   focused contract verification are complete; the lifecycle proof remains
-  pending until an explicitly disposable `TEST_DATABASE_URL` is available.
+  intentionally deferred by decision until the workstream reactivates
+  disposable database testing.
 
 ## Slice 3 — Published Customer Network Read Model
+
+Status: Implemented in source; PostgreSQL lifecycle verification deferred by decision
 
 ### Goal
 
@@ -167,7 +171,9 @@ Until HAL integration, the response explicitly uses
 - Tenant, published/unpublished, attached/unassigned, and missing-resource
   tests.
 - Cursor/filter stability and no cross-CPO enumeration.
-- CPO publication lifecycle PostgreSQL test jointly owned with its CPO slice.
+- CPO publication lifecycle PostgreSQL test is retained but deferred by the
+  current workstream decision; source and database-free contract checks remain
+  mandatory.
 - App-route auth/header/OpenAPI and human/FE contract coverage.
 
 ## Slice 4 — Customer Favorites
@@ -313,12 +319,14 @@ and REST snapshot recovery before adding a socket.
 
 1. Implement and verify Slice 1.
 2. Coordinate the CPO publication dependency, then implement Slices 2 and 3.
-3. Implement Slice 4 only after tariff/group semantics are accepted.
+3. Implement Slice 4 over the published discovery projection; it does not
+   require HAL integration or group-specific tariff semantics.
 4. Do not begin HAL or financial work before their prerequisite contracts.
 
 Each implemented slice includes: affected-schema review/migration when needed,
 trusted scope and authorization, transactional state/audit effects, strict JSON
 validation, error contract, OpenAPI/Swagger, human and FE documentation,
-focused tests, PostgreSQL lifecycle verification against an explicitly
-disposable database, full Go checks, documentation verification, and residue
-scan. No slice is considered complete merely because a route returns `200`.
+  focused tests, full Go checks, documentation verification, and residue scan.
+  PostgreSQL lifecycle tests remain in the repository but are deferred by
+  decision. No slice is considered complete merely because a route returns
+  `200`.

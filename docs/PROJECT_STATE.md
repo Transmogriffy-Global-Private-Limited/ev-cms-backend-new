@@ -81,7 +81,7 @@ provides:
   workflows, governance, security, mail, notifications, overview/status,
   audit/workers, SSE/replay, error UX, security, verification, and explicit
   deployment gaps;
-- canonical OpenAPI 3.1 for all 114 current source-tree business/health
+- canonical OpenAPI 3.1 for all 117 current source-tree business/health
   operations;
 - embedded same-origin Swagger UI at `/docs/` and raw OpenAPI at
   `/openapi.yaml`;
@@ -104,6 +104,10 @@ provides:
   `PATCH /api/v1/app/auth/profile`, with omitted-versus-null phone semantics,
   canonical user projection responses, and CPO-scoped field-name-only audit
   evidence;
+- CPO ADMIN-controlled default-false hub publication through
+  `customer_visible`, plus authenticated customer-safe published network
+  discovery for hubs, attached chargers, and connectors; discovery never calls
+  HAL and reports availability as `UNKNOWN`;
 - trusted backend current-principal, customer, CPO, and app-ID helpers, with
   `CurrentUserID` retained as a customer-ID compatibility alias;
 - environment-controlled permissive CORS middleware and a current development
@@ -158,9 +162,10 @@ The deployed contract has 113 operations: the added
 lookup, not a customer or staff directory. CPO-local customer accounts are not
 reachable through it.
 
-The deployed source has 113 operations. The current source tree has 114
-operations after adding customer self-service profile editing; the deployed
-binary remains at 113 until a separately approved deployment. The deployed
+The deployed source has 113 operations. The current source tree has 117
+operations after adding customer self-service profile editing and published
+network discovery; the deployed binary remains at 113 until a separately
+approved deployment. The deployed
 source includes the CPO ADMIN-only
 `POST /api/v1/cpo/hubs/{hub_id}/chargers` hub attachment/reassignment command,
 allows an independent charger to be created without `hub_id`, and adds
@@ -179,7 +184,7 @@ payload before outbox validation.
 CPO customer-app implementation requires `X-CPO-App-ID` on every
 `/api/v1/app/auth/...` request, including signup. The approved next user-work
 plan retains that app-only header. Customer self-service name and phone
-editing is implemented in source; published-station discovery, favorites,
+editing plus published-station discovery are implemented in source; favorites,
 tariff display, and later HAL-dependent charging/billing work remain planned.
 CPO ADMIN routes remain owned by the CPO workstream.
 
@@ -208,7 +213,7 @@ yet.
   content, and affected package tests passed for the source-tree change.
 - Superadmin migration fourteen static coverage, input/privacy regression
   tests, and the affected package tests passed for the source-tree change.
-- The 114-operation source OpenAPI and runtime route sets match; documentation
+- The 117-operation source OpenAPI and runtime route sets match; documentation
   contract verification passed.
 - Source migration coverage verifies both sanctioned-load constraints and the
   upgrade/rollback guard for independent charger inventory. The targeted
@@ -216,8 +221,9 @@ yet.
   disposable `TEST_DATABASE_URL` is configured.
 - `go test ./...` passed.
 - `go vet ./...` passed.
-- `git diff --check` passed. Stateful PostgreSQL lifecycle verification remains
-  pending because no disposable `TEST_DATABASE_URL` is configured.
+- `git diff --check` passed. Stateful PostgreSQL lifecycle verification is
+  intentionally deferred by the current workstream decision; no stateful
+  result is claimed.
 - Revision `be6fd34` was built cleanly and rehosted after a validated mode-0600
   rollback dump and migration twenty. The installed identity, loopback-only
   listener, loopback/public readiness, live 113-operation Swagger/OpenAPI,
@@ -381,8 +387,9 @@ repository. The integration contract has not been implemented yet.
   committed, not that SMTP sent it. Operators must use primary-admin delivery
   status; only a newly created global identity receives a temporary password.
 - Only the initial administrator profile and network/GST/tariff subset has
-  handlers. Customer directory, access tokens, charging, wallets, payments,
-  reporting, and most other domain tables remain without business APIs.
+  handlers. Customer directory, favorites, access tokens, charging, wallets,
+  payments, reporting, and most other domain tables remain without business
+  APIs; published read-only customer network discovery is implemented.
 - CPO staff invitation after the first admin and customer email/profile-change
   workflows are not implemented.
 - Manual subscriptions are Superadmin-managed records; a CPO ADMIN has only a
@@ -397,8 +404,8 @@ repository. The integration contract has not been implemented yet.
   in the ignored deployment environment.
 - No generated frontend SDK exists yet; consumers use the reviewed OpenAPI
   contract directly.
-- Migration twenty's disposable PostgreSQL lifecycle coverage has not
-  executed because no disposable `TEST_DATABASE_URL` is configured. The live
-  development deployment is current on migration twenty and the
-  113-operation contract; the two dormant feature-key tables are in
+- Migration twenty's disposable PostgreSQL lifecycle coverage is intentionally
+  deferred by decision. The live development deployment is current on
+  migration twenty and the 113-operation contract; the two dormant feature-key
+  tables are in
   `retired_commercial` while automatic lifecycle workers remain disabled.

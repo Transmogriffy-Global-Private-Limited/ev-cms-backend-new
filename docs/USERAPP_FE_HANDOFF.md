@@ -159,6 +159,44 @@ export type CustomerSession = {
   expires_at: string;
   is_current: boolean;
 };
+
+export type CustomerHubSummary = {
+  id: string;
+  name: string;
+  address: string;
+  latitude: number;
+  longitude: number;
+  open_24_hours: boolean;
+  customer_visible: true;
+  charger_count: number;
+  is_favorite: boolean;
+};
+
+export type CustomerConnector = {
+  id: string;
+  connector_number: number;
+  connector_type: string;
+  max_current: number;
+  max_voltage: number;
+  availability: "UNKNOWN";
+};
+
+export type CustomerCharger = {
+  id: string;
+  hub_id: string;
+  charger_id: string; // six-character public ID
+  vendor: string;
+  model: string;
+  max_power_kw: number;
+  ocpp_version: string;
+  availability: "UNKNOWN";
+  is_favorite: boolean;
+  connectors: CustomerConnector[];
+};
+
+export type CustomerHub = CustomerHubSummary & {
+  chargers: CustomerCharger[];
+};
 ```
 
 `me.user` is a compatibility presentation object. `me.user.id` always equals
@@ -180,6 +218,9 @@ export type CustomerSession = {
 | `POST /password/reset` | No | `200 MessageResponse` | Replace forgotten password. |
 | `GET /me` | Yes | `200 CustomerMe` | Bootstrap authenticated app state. |
 | `PATCH /profile` | Yes | `200 CustomerUser` | Update this account's name or phone. |
+| `GET /hubs` | Yes | `200 CustomerHubList` | List published hubs in this CPO. |
+| `GET /hubs/{hub_id}` | Yes | `200 CustomerHub` | Read one published hub and attached chargers. |
+| `GET /chargers/{charger_id}` | Yes | `200 CustomerCharger` | Read one attached charger by public ID. |
 | `GET /sessions` | Yes | `200 SessionList` | List this account's active sessions. |
 | `DELETE /sessions/{session_id}` | Yes | `204` | Revoke one owned session. |
 | `POST /logout` | Yes | `204` | Revoke current session. |
@@ -187,6 +228,28 @@ export type CustomerSession = {
 | `POST /password/change` | Yes | `200 MessageResponse` | Change password and revoke all sessions. |
 
 Paths in the table are relative to `/api/v1/app/auth`.
+
+## 8. Published Network Discovery
+
+The discovery endpoints are read-only and use the same customer auth plus
+matching app-ID header as `/me`. The backend derives CPO and customer scope
+from the validated session. The frontend must never send a customer ID or CPO
+ID to select ownership.
+
+`GET /hubs` uses bounded keyset pagination. Preserve both `next_before` and
+`next_before_id` together; discard them when `q` changes. A `customer_visible`
+hub is explicitly published by a CPO ADMIN. Unpublished hubs, independent
+chargers, and cross-CPO resources are not returned.
+
+The backend deliberately does not contact HAL in this slice. `availability` is
+`UNKNOWN` for chargers and connectors. Do not render it as online, available,
+offline, or live status; a later HAL-backed contract must define those states,
+reconnect behavior, and REST recovery before the app depends on them.
+
+The safe projection omits OCPP identity, serial number, raw CMS status,
+last-seen timestamps, sanctioned load, CPO notes, and audit data. Favorite
+flags are present for compatibility with the next favorites slice, but the
+favorite mutation endpoints are not yet callable.
 
 ## 6. Signup Flow
 

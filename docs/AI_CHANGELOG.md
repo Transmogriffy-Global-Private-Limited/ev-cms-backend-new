@@ -2,6 +2,39 @@
 
 ## 2026-08-05
 
+### Deferred disposable PostgreSQL lifecycle testing for the User App workstream
+
+- The current implementation workstream will skip disposable PostgreSQL
+  lifecycle execution until explicitly reactivated.
+- Stateful tests remain in the repository and must not be described as passed;
+  source, database-free, contract, documentation, and full Go checks remain the
+  verification path for the non-HAL User App slices.
+- Work continues only on `anubhab-work`; `main` is not updated by this
+  workstream.
+
+### Implemented published User App network discovery
+
+- Added migration 21 and CPO ADMIN-controlled `customer_visible` hub
+  publication, defaulting to false on create and supporting explicit update.
+- Added authenticated customer routes for published hub listing/detail and
+  public charger-ID detail. Queries derive CPO/customer scope from the
+  validated principal, hide unpublished/unassigned/cross-CPO resources, and
+  return safe projections only.
+- Kept HAL out of this slice: charger and connector availability is explicitly
+  `UNKNOWN`, with no claim of live state or OCPP connectivity.
+- Updated OpenAPI/Swagger, runtime route tests, exhaustive HTTP contract, User
+  App handoff, CPO handoff, schema/workflow docs, development plan, and state.
+
+Verification:
+
+- `go test ./src/customerauth ./src/routes ./src/cpo -count=1` passes.
+- `go test ./...`, `go vet ./...`, `scripts/verify-docs.ps1`, and
+  `git diff --check` pass.
+- Disposable PostgreSQL lifecycle verification is intentionally deferred by
+  decision and is not claimed as passed.
+
+## 2026-08-05
+
 ### Implemented customer self-service profile editing
 
 - Added authenticated `PATCH /api/v1/app/auth/profile` using the validated

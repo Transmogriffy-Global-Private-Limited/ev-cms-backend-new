@@ -566,6 +566,145 @@ paths:
         "500":
           $ref: "#/components/responses/InternalError"
 
+  /api/v1/app/auth/hubs:
+    get:
+      tags: [App User Network]
+      operationId: listCustomerHubs
+      summary: List published charging hubs for the current customer CPO
+      description: |
+        Returns only hubs explicitly published by the current CPO and never
+        crosses the CPO from the validated customer session. Results use
+        bounded descending keyset pagination. Search and cursor values are
+        client-owned query state; when search changes, the client must discard
+        the old cursor. Favorite flags are customer-owned. No HAL call occurs;
+        live availability is not represented by this read model.
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/CPOAppIDHeader"
+        - $ref: "#/components/parameters/ListBefore"
+        - $ref: "#/components/parameters/ListBeforeID"
+        - $ref: "#/components/parameters/ListLimit"
+        - name: q
+          in: query
+          required: false
+          schema: {type: string, maxLength: 255}
+          description: Case-insensitive name or address search.
+      responses:
+        "200":
+          description: Published hubs visible to the current customer CPO.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CustomerHubListResponse"
+        "400":
+          description: Invalid limit, cursor, search, or missing app-ID header.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          description: "`cpo_app_id_mismatch` or wrong session plane."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /api/v1/app/auth/hubs/{hub_id}:
+    get:
+      tags: [App User Network]
+      operationId: getCustomerHub
+      summary: Get one published hub and its attached chargers
+      description: |
+        Returns a safe customer projection only when the hub belongs to the
+        authenticated customer CPO and is published. Unassigned chargers are
+        excluded. Connector and charger availability are `UNKNOWN` until the
+        separate CMS/HAL integration is implemented; stored CMS status is not
+        presented as live status.
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/CPOAppIDHeader"
+        - $ref: "#/components/parameters/HubID"
+      responses:
+        "200":
+          description: Published customer hub detail.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CustomerHub"
+        "400":
+          description: Invalid hub ID or missing app-ID header.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          description: "`cpo_app_id_mismatch` or wrong session plane."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "404":
+          description: "`hub_not_found` for an unknown, unpublished, or cross-CPO hub."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /api/v1/app/auth/chargers/{charger_id}:
+    get:
+      tags: [App User Network]
+      operationId: getCustomerCharger
+      summary: Get one charger attached to a published hub
+      description: |
+        Uses the six-character public charger ID. The charger is returned only
+        when it belongs to the customer CPO and is attached to a published hub.
+        OCPP identity, serial number, raw stored status, and last-seen data are
+        intentionally omitted. Availability is `UNKNOWN` until HAL integration.
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/CPOAppIDHeader"
+        - $ref: "#/components/parameters/ChargerPublicID"
+      responses:
+        "200":
+          description: Published customer charger detail.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CustomerCharger"
+        "400":
+          description: Invalid charger ID or missing app-ID header.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          description: "`cpo_app_id_mismatch` or wrong session plane."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "404":
+          description: "`charger_not_found` for an unknown, unpublished, unassigned, or cross-CPO charger."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
   /api/v1/app/auth/sessions:
     get:
       tags: [App User Authentication]
@@ -4444,6 +4583,89 @@ components:
           items:
             $ref: "#/components/schemas/CustomerSession"
 
+    CustomerHubListResponse:
+      type: object
+      additionalProperties: false
+      required: [hubs, has_more]
+      properties:
+        hubs:
+          type: array
+          items:
+            $ref: "#/components/schemas/CustomerHubSummary"
+        next_before: {type: string, format: date-time}
+        next_before_id: {type: string, format: uuid}
+        has_more: {type: boolean}
+
+    CustomerHubSummary:
+      type: object
+      additionalProperties: false
+      required: [id, name, address, latitude, longitude, open_24_hours, customer_visible, charger_count, is_favorite]
+      properties:
+        id: {type: string, format: uuid}
+        name: {type: string}
+        address: {type: string}
+        latitude: {type: number}
+        longitude: {type: number}
+        open_24_hours: {type: boolean}
+        customer_visible:
+          type: boolean
+          enum: [true]
+          description: Always true because unpublished hubs are not returned.
+        charger_count: {type: integer, minimum: 0}
+        is_favorite: {type: boolean}
+
+    CustomerHub:
+      allOf:
+        - $ref: "#/components/schemas/CustomerHubSummary"
+        - type: object
+          additionalProperties: false
+          required: [chargers]
+          properties:
+            chargers:
+              type: array
+              items:
+                $ref: "#/components/schemas/CustomerCharger"
+
+    CustomerCharger:
+      type: object
+      additionalProperties: false
+      required: [id, hub_id, charger_id, vendor, model, max_power_kw, ocpp_version, availability, is_favorite, connectors]
+      properties:
+        id: {type: string, format: uuid}
+        hub_id: {type: string, format: uuid}
+        charger_id:
+          type: string
+          pattern: "^[a-z0-9]{6}$"
+          description: Public six-character charger identifier.
+        vendor: {type: string, maxLength: 100}
+        model: {type: string, maxLength: 100}
+        max_power_kw: {type: number, minimum: 0}
+        ocpp_version: {type: string, maxLength: 20}
+        availability:
+          type: string
+          enum: [UNKNOWN]
+          description: HAL-backed live availability is not implemented in this slice.
+        is_favorite: {type: boolean}
+        connectors:
+          type: array
+          items:
+            $ref: "#/components/schemas/CustomerConnector"
+
+    CustomerConnector:
+      type: object
+      additionalProperties: false
+      required: [id, connector_number, connector_type, max_current, max_voltage, availability]
+      properties:
+        id: {type: string, format: uuid}
+        connector_number: {type: integer, minimum: 1}
+        connector_type: {type: string, maxLength: 50}
+        max_current: {type: number, minimum: 0}
+        max_voltage: {type: number, minimum: 0}
+        availability:
+          type: string
+          enum: [UNKNOWN]
+          description: HAL-backed live availability is not implemented in this slice.
+
     PlatformLoginRequest:
       type: object
       additionalProperties: false
@@ -5723,6 +5945,10 @@ components:
           type: number
           minimum: 0
           description: Site sanctioned electrical capacity in kW. Defaults to 0 when not recorded.
+        customer_visible:
+          type: boolean
+          default: false
+          description: Publish this hub to customer network discovery. CPO ADMIN only.
         charger_ids:
           type: array
           items:
@@ -5753,12 +5979,15 @@ components:
           type: number
           minimum: 0
           description: Site sanctioned electrical capacity in kW.
+        customer_visible:
+          type: boolean
+          description: Publish or unpublish this hub from customer network discovery.
 
     Hub:
       type: object
       additionalProperties: false
       required:
-        [id, cpo_id, name, address, latitude, longitude, open_24_hours, sanction_load, created_at, updated_at]
+        [id, cpo_id, name, address, latitude, longitude, open_24_hours, sanction_load, customer_visible, created_at, updated_at]
       properties:
         id: {type: string, format: uuid}
         cpo_id: {type: string, format: uuid}
@@ -5771,6 +6000,9 @@ components:
           type: number
           minimum: 0
           description: Site sanctioned electrical capacity in kW; 0 means not recorded.
+        customer_visible:
+          type: boolean
+          description: Whether this hub is published to customer network discovery.
         created_at: {type: string, format: date-time}
         updated_at: {type: string, format: date-time}
 

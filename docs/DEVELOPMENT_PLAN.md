@@ -598,7 +598,7 @@ Detailed plan:
 
 ### Feature: Customer app experience
 
-Status: In Progress — profile slice implemented; PostgreSQL lifecycle verification pending
+Status: In Progress — profile and published-network slices implemented; PostgreSQL lifecycle verification deferred by decision
 
 Phase: Phase 4, then Phases 5 and 6 for HAL-dependent work
 
@@ -700,7 +700,7 @@ Current source implementation:
   dates and database-enforced overlap protection.
 - Governance, security, mail, announcement/notification, overview, and status
   routes are implemented and represented with the CPO user lookup in the
-  114-operation source OpenAPI contract. The added CPO charger hub-assignment
+  117-operation source OpenAPI contract. The added CPO charger hub-assignment
   operation is CPO ADMIN-only and does not extend SuperAdmin authority.
 - Focused source tests, route/OpenAPI parity, documentation verification, the
   full Go suite, vet, and diff checks pass.
@@ -835,18 +835,21 @@ Current phase:
 
 Active feature:
 
-- Customer app experience — Slice 2 customer self-service profile
+- Customer app experience — Slice 3 published customer network read model
 
 Current implementation slice:
 
-- Added authenticated `PATCH /api/v1/app/auth/profile` for CPO-local customer
-  name and phone updates, including explicit phone clearing, field-name-only
-  audit evidence, route/OpenAPI parity, and User App guidance. Focused source
-  verification passes; PostgreSQL lifecycle verification requires
-  `TEST_DATABASE_URL`.
+- Added CPO ADMIN-controlled default-false hub publication and authenticated
+  customer-safe hub/charger discovery. The read model hides unpublished and
+  unassigned resources, reports availability as `UNKNOWN`, and makes no HAL
+  call. Focused source and contract verification pass. Disposable PostgreSQL
+  lifecycle checks are deferred by decision until explicitly reactivated.
 
 Last completed slice:
 
+- Implemented published customer network discovery and the CPO hub publication
+  switch, including migration 21, safe projections, route/OpenAPI parity, and
+  User App/CPO documentation.
 - Implemented customer self-service profile editing on the CPO-local customer
   account with strict fields, omitted-versus-null phone semantics, transactional
   audit evidence, and the canonical `UserView` response.
@@ -901,10 +904,8 @@ Last deployment milestone:
 
 Next expected slice:
 
-- Run migration-twenty/customer-auth PostgreSQL lifecycle verification with an
-  explicitly disposable `TEST_DATABASE_URL`, including the profile lifecycle
-  assertions, then coordinate the approved customer-publication field with the
-  CPO network slice.
+- Implement customer favorites over the published discovery projection with
+  idempotent mutation and safe unpublish behavior.
 
 Blocked by:
 
@@ -912,15 +913,20 @@ Blocked by:
 
 ## Next Approved Work
 
-1. Run migration-twenty/customer-auth PostgreSQL lifecycle verification.
-2. Coordinate a default-false CPO-owned customer-publication field for hubs,
-   then add customer station discovery and favorites.
+1. Coordinate a default-false CPO-owned customer-publication field for hubs,
+   then add customer station discovery.
+2. Add customer favorites over the published discovery projection.
 3. Define and implement the server-side effective tariff resolver before the
    app displays price.
-4. Run manual-subscription and tariff overlap PostgreSQL lifecycle verification
-   against an explicitly disposable `TEST_DATABASE_URL`.
-5. Design staff invitation and membership management before activating dormant
+4. Design staff invitation and membership management before activating dormant
    role values.
+
+Deferred verification decision:
+
+- Disposable PostgreSQL lifecycle tests are intentionally skipped for the
+  foreseeable workstream. Do not treat their absence as a feature blocker or
+  claim stateful verification; preserve the tests and reactivate them only by
+  an explicit decision.
 
 ## Deferred Work
 
