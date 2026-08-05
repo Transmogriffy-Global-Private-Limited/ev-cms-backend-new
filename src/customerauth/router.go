@@ -41,6 +41,11 @@ func RegisterRoutes(group *gin.RouterGroup, service *Service) {
 	protected.GET("/hubs", handler.listHubs)
 	protected.GET("/hubs/:hub_id", handler.getHub)
 	protected.GET("/chargers/:charger_id", handler.getCharger)
+	protected.GET("/favorites", handler.listFavorites)
+	protected.PUT("/favorite-hubs/:hub_id", handler.addFavoriteHub)
+	protected.DELETE("/favorite-hubs/:hub_id", handler.removeFavoriteHub)
+	protected.PUT("/favorite-chargers/:charger_id", handler.addFavoriteCharger)
+	protected.DELETE("/favorite-chargers/:charger_id", handler.removeFavoriteCharger)
 	protected.GET("/sessions", handler.sessions)
 	protected.DELETE("/sessions/:session_id", handler.revokeSession)
 	protected.POST("/logout", handler.logout)
@@ -321,6 +326,128 @@ func customerHubListQuery(ctx *gin.Context) (CustomerHubListQuery, error) {
 		query.BeforeID = &beforeID
 	}
 	return query, nil
+}
+
+func (handler *Handler) listFavorites(ctx *gin.Context) {
+	principal, ok := CurrentPrincipal(ctx)
+	if !ok {
+		writeError(ctx, errUnauthorized)
+		return
+	}
+	query, err := customerFavoritesQuery(ctx)
+	if err != nil {
+		writeError(ctx, err)
+		return
+	}
+	response, err := handler.service.ListCustomerFavorites(ctx.Request.Context(), principal, query)
+	if err != nil {
+		writeError(ctx, err)
+		return
+	}
+	ctx.JSON(http.StatusOK, response)
+}
+
+func (handler *Handler) addFavoriteHub(ctx *gin.Context) {
+	principal, ok := CurrentPrincipal(ctx)
+	if !ok {
+		writeError(ctx, errUnauthorized)
+		return
+	}
+	hubID, err := uuid.Parse(ctx.Param("hub_id"))
+	if err != nil {
+		writeError(ctx, invalidFavoriteID("hub"))
+		return
+	}
+	if err := handler.service.AddFavoriteHub(ctx.Request.Context(), principal, hubID); err != nil {
+		writeError(ctx, err)
+		return
+	}
+	ctx.Status(http.StatusNoContent)
+}
+
+func (handler *Handler) removeFavoriteHub(ctx *gin.Context) {
+	principal, ok := CurrentPrincipal(ctx)
+	if !ok {
+		writeError(ctx, errUnauthorized)
+		return
+	}
+	hubID, err := uuid.Parse(ctx.Param("hub_id"))
+	if err != nil {
+		writeError(ctx, invalidFavoriteID("hub"))
+		return
+	}
+	if err := handler.service.RemoveFavoriteHub(ctx.Request.Context(), principal, hubID); err != nil {
+		writeError(ctx, err)
+		return
+	}
+	ctx.Status(http.StatusNoContent)
+}
+
+func (handler *Handler) addFavoriteCharger(ctx *gin.Context) {
+	principal, ok := CurrentPrincipal(ctx)
+	if !ok {
+		writeError(ctx, errUnauthorized)
+		return
+	}
+	if err := handler.service.AddFavoriteCharger(ctx.Request.Context(), principal, ctx.Param("charger_id")); err != nil {
+		writeError(ctx, err)
+		return
+	}
+	ctx.Status(http.StatusNoContent)
+}
+
+func (handler *Handler) removeFavoriteCharger(ctx *gin.Context) {
+	principal, ok := CurrentPrincipal(ctx)
+	if !ok {
+		writeError(ctx, errUnauthorized)
+		return
+	}
+	if err := handler.service.RemoveFavoriteCharger(ctx.Request.Context(), principal, ctx.Param("charger_id")); err != nil {
+		writeError(ctx, err)
+		return
+	}
+	ctx.Status(http.StatusNoContent)
+}
+
+func customerFavoritesQuery(ctx *gin.Context) (CustomerFavoritesQuery, error) {
+	query := CustomerFavoritesQuery{}
+	if raw := strings.TrimSpace(ctx.Query("limit")); raw != "" {
+		limit, err := strconv.Atoi(raw)
+		if err != nil {
+			return CustomerFavoritesQuery{}, &APIError{http.StatusBadRequest, "invalid_limit", "Limit must be a number between 1 and 100."}
+		}
+		query.Limit = limit
+	}
+	var err error
+	query.HubBefore, query.HubBeforeID, err = favoriteCursor(ctx, "hub_before", "hub_before_id")
+	if err != nil {
+		return CustomerFavoritesQuery{}, err
+	}
+	query.ChargerBefore, query.ChargerBeforeID, err = favoriteCursor(ctx, "charger_before", "charger_before_id")
+	if err != nil {
+		return CustomerFavoritesQuery{}, err
+	}
+	return query, nil
+}
+
+func favoriteCursor(ctx *gin.Context, timestampKey, idKey string) (*time.Time, *uuid.UUID, error) {
+	timestamp := strings.TrimSpace(ctx.Query(timestampKey))
+	id := strings.TrimSpace(ctx.Query(idKey))
+	if timestamp == "" && id == "" {
+		return nil, nil, nil
+	}
+	if timestamp == "" || id == "" {
+		return nil, nil, &APIError{http.StatusBadRequest, "invalid_cursor", "Favorite cursors require both timestamp and ID."}
+	}
+	parsedTime, err := time.Parse(time.RFC3339Nano, timestamp)
+	if err != nil {
+		return nil, nil, &APIError{http.StatusBadRequest, "invalid_cursor", "The favorite cursor timestamp is invalid."}
+	}
+	parsedID, err := uuid.Parse(id)
+	if err != nil {
+		return nil, nil, &APIError{http.StatusBadRequest, "invalid_cursor", "The favorite cursor ID is invalid."}
+	}
+	return &parsedTime, &parsedID, nil
 }
 
 func (handler *Handler) sessions(ctx *gin.Context) {

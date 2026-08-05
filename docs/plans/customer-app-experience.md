@@ -24,8 +24,8 @@ Implemented customer routes are confined to `/api/v1/app/auth`:
 - customer-scoped session list/revoke/logout;
 - CPO-local password recovery, reset, and change.
 
-Customer profile mutation and published station discovery are implemented.
-Favorites, tariff quote, charging-session, wallet-ledger, payment,
+Customer profile mutation, published station discovery, and favorites are
+implemented. Tariff quote, charging-session, wallet-ledger, payment,
 notification, and reporting APIs remain unimplemented. Existing tables alone
 do not imply that those APIs exist.
 
@@ -177,6 +177,8 @@ Until HAL integration, the response explicitly uses
 - App-route auth/header/OpenAPI and human/FE contract coverage.
 
 ## Slice 4 — Customer Favorites
+
+Status: Implemented in source; PostgreSQL lifecycle verification deferred by decision
 
 ### Goal
 

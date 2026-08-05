@@ -2,6 +2,7 @@ package customerauth
 
 import (
 	"testing"
+	"time"
 
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/models"
 	"github.com/google/uuid"
@@ -47,5 +48,21 @@ func TestCustomerNetworkProjectionDoesNotClaimLiveAvailability(t *testing.T) {
 	}
 	if projection.Connectors[0].Availability != customerAvailabilityUnknown {
 		t.Fatalf("connector availability=%q, want UNKNOWN", projection.Connectors[0].Availability)
+	}
+}
+
+func TestCustomerFavoritesQueryValidation(t *testing.T) {
+	t.Parallel()
+
+	query := CustomerFavoritesQuery{}
+	if err := validateCustomerFavoritesQuery(&query); err != nil {
+		t.Fatalf("default favorites query rejected: %v", err)
+	}
+	if query.Limit != customerNetworkDefaultLimit {
+		t.Fatalf("default favorite limit=%d, want %d", query.Limit, customerNetworkDefaultLimit)
+	}
+	query = CustomerFavoritesQuery{HubBefore: func() *time.Time { value := time.Now(); return &value }()}
+	if err := validateCustomerFavoritesQuery(&query); err == nil {
+		t.Fatal("incomplete hub favorite cursor was accepted")
 	}
 }

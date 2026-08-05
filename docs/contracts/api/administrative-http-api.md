@@ -645,6 +645,41 @@ challenge for that account. Errors include
 `401 invalid_current_password`, normal bearer/app-ID errors, and
 `500 internal_error`.
 
+### 4.21 `GET /api/v1/app/auth/favorites`
+
+Returns the current customer's saved hubs and chargers as safe published
+network projections. Hubs and chargers use independent bounded keyset cursors:
+`hub_before` with `hub_before_id`, and `charger_before` with
+`charger_before_id`. `limit` is 1–100 and defaults to 25. A favorite whose
+resource was later unpublished is omitted; no unpublished inventory is leaked.
+
+### 4.22 `PUT /api/v1/app/auth/favorite-hubs/{hub_id}`
+
+Requires a published same-CPO hub and creates the composite
+`(cpo_id, customer_id, hub_id)` favorite idempotently. It returns `204 No
+Content` whether the favorite was newly created or already present. The
+transaction records a `CUSTOMER_FAVORITE_HUB_ADDED` audit action only for a
+new row. Unknown, unpublished, and cross-CPO hubs return `404 hub_not_found`.
+
+### 4.23 `DELETE /api/v1/app/auth/favorite-hubs/{hub_id}`
+
+Deletes only the current customer's composite hub favorite and returns `204`
+whether it existed or was already absent. Cross-CPO and unknown resources are
+not enumerated. A real removal records `CUSTOMER_FAVORITE_HUB_REMOVED`.
+
+### 4.24 `PUT /api/v1/app/auth/favorite-chargers/{charger_id}`
+
+Uses the six-character public charger ID. The charger must be attached to a
+published hub in the current CPO. The composite favorite is created
+idempotently and returns `204`; a new row records
+`CUSTOMER_FAVORITE_CHARGER_ADDED`. No HAL call occurs.
+
+### 4.25 `DELETE /api/v1/app/auth/favorite-chargers/{charger_id}`
+
+Removes the current customer's charger favorite idempotently and returns
+`204`. An absent or cross-CPO public ID is not enumerated. A real removal
+records `CUSTOMER_FAVORITE_CHARGER_REMOVED`.
+
 ## 5. Authentication Workflow
 
 ### 5.1 `POST /api/v1/auth/login`

@@ -598,7 +598,7 @@ Detailed plan:
 
 ### Feature: Customer app experience
 
-Status: In Progress — profile and published-network slices implemented; PostgreSQL lifecycle verification deferred by decision
+Status: In Progress — profile, published-network, and favorites slices implemented; PostgreSQL lifecycle verification deferred by decision
 
 Phase: Phase 4, then Phases 5 and 6 for HAL-dependent work
 
@@ -700,7 +700,7 @@ Current source implementation:
   dates and database-enforced overlap protection.
 - Governance, security, mail, announcement/notification, overview, and status
   routes are implemented and represented with the CPO user lookup in the
-  117-operation source OpenAPI contract. The added CPO charger hub-assignment
+  122-operation source OpenAPI contract. The added CPO charger hub-assignment
   operation is CPO ADMIN-only and does not extend SuperAdmin authority.
 - Focused source tests, route/OpenAPI parity, documentation verification, the
   full Go suite, vet, and diff checks pass.
@@ -835,18 +835,21 @@ Current phase:
 
 Active feature:
 
-- Customer app experience — Slice 3 published customer network read model
+- Customer app experience — Slice 4 customer favorites
 
 Current implementation slice:
 
-- Added CPO ADMIN-controlled default-false hub publication and authenticated
-  customer-safe hub/charger discovery. The read model hides unpublished and
-  unassigned resources, reports availability as `UNKNOWN`, and makes no HAL
-  call. Focused source and contract verification pass. Disposable PostgreSQL
-  lifecycle checks are deferred by decision until explicitly reactivated.
+- Added idempotent customer favorite list/add/remove APIs over published hubs
+  and attached chargers. Reads omit later-unpublished resources, mutations
+  use composite CPO/customer ownership, and no HAL call is made. Focused source
+  and contract verification pass. Disposable PostgreSQL lifecycle checks are
+  deferred by decision until explicitly reactivated.
 
 Last completed slice:
 
+- Implemented customer favorites over the published discovery projection,
+  including bounded independent cursors, idempotent mutations, audit actions,
+  unpublish-safe reads, route/OpenAPI parity, and User App documentation.
 - Implemented published customer network discovery and the CPO hub publication
   switch, including migration 21, safe projections, route/OpenAPI parity, and
   User App/CPO documentation.
@@ -904,8 +907,8 @@ Last deployment milestone:
 
 Next expected slice:
 
-- Implement customer favorites over the published discovery projection with
-  idempotent mutation and safe unpublish behavior.
+- Define and implement the server-side effective tariff resolver before the
+  app displays price.
 
 Blocked by:
 
@@ -913,12 +916,9 @@ Blocked by:
 
 ## Next Approved Work
 
-1. Coordinate a default-false CPO-owned customer-publication field for hubs,
-   then add customer station discovery.
-2. Add customer favorites over the published discovery projection.
-3. Define and implement the server-side effective tariff resolver before the
+1. Define and implement the server-side effective tariff resolver before the
    app displays price.
-4. Design staff invitation and membership management before activating dormant
+2. Design staff invitation and membership management before activating dormant
    role values.
 
 Deferred verification decision:

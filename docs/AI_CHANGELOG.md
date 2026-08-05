@@ -33,6 +33,31 @@ Verification:
 - Disposable PostgreSQL lifecycle verification is intentionally deferred by
   decision and is not claimed as passed.
 
+### Implemented customer favorites over published network data
+
+- Added `GET /favorites` with independent bounded hub and charger cursors.
+- Added idempotent `PUT`/`DELETE` favorite routes for published same-CPO hubs
+  and attached public-ID chargers, with composite tenant ownership and audit
+  actions for actual mutations.
+- Unpublished resources are omitted from favorite reads without deleting or
+  leaking the customer's durable saved intent; no HAL call is made.
+- Updated OpenAPI/Swagger, route tests, exhaustive HTTP contract, User App
+  handoff, CPO handoff, development plan, and project state.
+
+Verification:
+
+- Focused customer-auth and route/OpenAPI checks pass.
+- Disposable PostgreSQL lifecycle verification is intentionally deferred by
+  decision and is not claimed as passed.
+
+### Fixed PostgreSQL-invalid customer signup advisory-lock key
+
+- Replaced the NUL-containing signup lock key with a text-safe
+  `customer-signup:<cpo-id>:<normalized-email>` key and
+  `hashtextextended(?, 0)`, preserving transaction-scoped serialization.
+- Committed as `70da3e6` on `anubhab-work` and published to `main` as
+  `cf9a000` because signup verification was failing at PostgreSQL text input.
+
 ## 2026-08-05
 
 ### Implemented customer self-service profile editing

@@ -197,6 +197,17 @@ export type CustomerCharger = {
 export type CustomerHub = CustomerHubSummary & {
   chargers: CustomerCharger[];
 };
+
+export type CustomerFavorites = {
+  hubs: CustomerHubSummary[];
+  chargers: CustomerCharger[];
+  next_hub_before?: string;
+  next_hub_before_id?: string;
+  has_more_hubs: boolean;
+  next_charger_before?: string;
+  next_charger_before_id?: string;
+  has_more_chargers: boolean;
+};
 ```
 
 `me.user` is a compatibility presentation object. `me.user.id` always equals
@@ -221,6 +232,11 @@ export type CustomerHub = CustomerHubSummary & {
 | `GET /hubs` | Yes | `200 CustomerHubList` | List published hubs in this CPO. |
 | `GET /hubs/{hub_id}` | Yes | `200 CustomerHub` | Read one published hub and attached chargers. |
 | `GET /chargers/{charger_id}` | Yes | `200 CustomerCharger` | Read one attached charger by public ID. |
+| `GET /favorites` | Yes | `200 CustomerFavorites` | List current published favorites. |
+| `PUT /favorite-hubs/{hub_id}` | Yes | `204` | Idempotently save a published hub. |
+| `DELETE /favorite-hubs/{hub_id}` | Yes | `204` | Idempotently remove a hub favorite. |
+| `PUT /favorite-chargers/{charger_id}` | Yes | `204` | Idempotently save an attached published charger. |
+| `DELETE /favorite-chargers/{charger_id}` | Yes | `204` | Idempotently remove a charger favorite. |
 | `GET /sessions` | Yes | `200 SessionList` | List this account's active sessions. |
 | `DELETE /sessions/{session_id}` | Yes | `204` | Revoke one owned session. |
 | `POST /logout` | Yes | `204` | Revoke current session. |
@@ -229,7 +245,7 @@ export type CustomerHub = CustomerHubSummary & {
 
 Paths in the table are relative to `/api/v1/app/auth`.
 
-## 8. Published Network Discovery
+### 5.1 Published Network Discovery
 
 The discovery endpoints are read-only and use the same customer auth plus
 matching app-ID header as `/me`. The backend derives CPO and customer scope
@@ -248,8 +264,18 @@ reconnect behavior, and REST recovery before the app depends on them.
 
 The safe projection omits OCPP identity, serial number, raw CMS status,
 last-seen timestamps, sanctioned load, CPO notes, and audit data. Favorite
-flags are present for compatibility with the next favorites slice, but the
-favorite mutation endpoints are not yet callable.
+flags are present in the same safe projection used by the favorite list.
+
+Favorite mutations are now callable. `PUT` is idempotent and accepts no body;
+`DELETE` is idempotent and returns `204` when the favorite is absent. A hub or
+charger must be published and in the current CPO when it is added. If a CPO
+later unpublishes the resource, `GET /favorites` omits it while the durable
+favorite may remain until the customer removes it. This preserves the saved
+intent without leaking unpublished inventory.
+
+`GET /favorites` uses independent bounded cursors for hubs and chargers:
+preserve each `next_*` pair together and send it back as the corresponding
+`hub_before`/`hub_before_id` or `charger_before`/`charger_before_id` pair.
 
 ## 6. Signup Flow
 
