@@ -1,0 +1,3 @@
+ALTER TABLE chargers
+    ALTER COLUMN vendor SET NOT NULL,
+    ALTER COLUMN model SET NOT NULL;

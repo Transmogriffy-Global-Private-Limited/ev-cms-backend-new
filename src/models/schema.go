@@ -193,8 +193,8 @@ type Charger struct {
 	Hub                 *Hub                    `gorm:"foreignKey:HubID;constraint:OnUpdate:CASCADE,OnDelete:RESTRICT" json:"hub,omitempty"`
 	ChargerID           string                  `gorm:"type:varchar(6);not null" json:"charger_id"`
 	OCPPIdentity        string                  `gorm:"type:varchar(255);not null" json:"ocpp_identity"`
-	Vendor              string                  `gorm:"type:varchar(100);not null;default:''" json:"vendor"`
-	Model               string                  `gorm:"type:varchar(100);not null;default:''" json:"model"`
+	Vendor              string                  `gorm:"type:varchar(100);default:''" json:"vendor"`
+	Model               string                  `gorm:"type:varchar(100);default:''" json:"model"`
 	SerialNumber        string                  `gorm:"type:varchar(100);not null;default:''" json:"serial_number"`
 	MaxPowerKW          float64                 `gorm:"type:numeric(8,2);not null;default:0" json:"max_power_kw"`
 	Status              constants.ChargerStatus `gorm:"type:varchar(30);not null;default:'OFFLINE'" json:"status"`

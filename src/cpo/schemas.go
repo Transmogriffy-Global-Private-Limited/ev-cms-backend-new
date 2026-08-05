@@ -190,8 +190,8 @@ type OrganizationView struct {
 
 type CreateChargerRequest struct {
 	HubID              *uuid.UUID               `json:"hub_id,omitempty"`
-	Vendor             string                   `json:"vendor"`
-	Model              string                   `json:"model"`
+	Vendor             string                   `json:"vendor,omitempty"`
+	Model              string                   `json:"model,omitempty"`
 	SerialNumber       string                   `json:"serial_number"`
 	MaxPowerKW         float64                  `json:"max_power_kw"`
 	ChargerName        string                   `json:"charger_name"`

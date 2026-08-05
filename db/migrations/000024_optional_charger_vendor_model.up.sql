@@ -1,0 +1,3 @@
+ALTER TABLE chargers
+    ALTER COLUMN vendor DROP NOT NULL,
+    ALTER COLUMN model DROP NOT NULL;
