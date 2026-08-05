@@ -159,8 +159,8 @@ provides:
   handler;
 - the additive PostgreSQL database `devevcmsnewdb`, owned by `postgres`.
 
-The active development VPS runs source revision `4e06f10`, with migrations
-through twenty-four recorded and the deployed 129-operation contract. CPO GSTIN and address
+The active development VPS runs source revision `dfc5039`, with migrations
+through twenty-five recorded and the deployed 129-operation contract. CPO GSTIN and address
 identity are database-required, authenticated platform clients can use the
 advisory slug-availability operation, and known uniqueness races return
 field- or relationship-specific conflict codes. All four CPOs were complete
@@ -190,7 +190,7 @@ source includes the CPO ADMIN-only
 allows an independent charger to be created without `hub_id`, and adds
 non-negative hub `sanction_load` plus the upgrade-time removal of the legacy
 charger-hub `NOT NULL` in migration sixteen. These changes are deployed at
-`4e06f10`; migration nineteen reconciles databases that had already recorded
+`dfc5039`; migration nineteen reconciles databases that had already recorded
 the removed follow-up migrations so `chargers.hub_id` is nullable, and migration
 twenty makes customer accounts CPO-local with dedicated authentication lineage,
 and migrations 21–22 add customer-visible network discovery and Razorpay wallet
@@ -246,13 +246,14 @@ implemented yet.
 - `git diff --check` passed. Stateful PostgreSQL lifecycle verification is
   intentionally deferred by the current workstream decision; no stateful
   result is claimed.
-- Revision `4e06f10` was built cleanly and rehosted after a validated mode-0600
-  rollback dump and migrations twenty-three and twenty-four. The installed identity, loopback-only
+- Revision `dfc5039` was built cleanly and rehosted after a validated mode-0600
+  rollback dump and migration twenty-five. The installed identity, loopback-only
   listener, loopback/public readiness, live 129-operation Swagger/OpenAPI,
   request-ID header, protected CPO routes, nullable charger hub assignment,
   required workers, and absence of startup errors or panics passed. Charger
   vendor and model persistence columns are nullable; the create endpoint still
-  validates those fields for CPO clients.
+  validates those fields for CPO clients. Charger-level `total_capacity` was
+  removed; connector-level capacity remains part of the connector contract.
 - Revision `396bae5` was built cleanly and rehosted after a validated
   mode-0600 rollback dump and migration fourteen. The installed identity,
   loopback-only listener, loopback/public readiness, live 110-operation
