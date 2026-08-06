@@ -1891,8 +1891,6 @@ Content-Disposition: form-data; name="data"
     {
       "connector_number": 1,
       "connector_type": "CCS2",
-      "max_current": 60,
-      "max_voltage": 500,
       "connector_total_capacity": 25
     }
   ]
@@ -1917,7 +1915,6 @@ Rules:
 - at least one connector is required;
 - connector numbers are positive and unique within this request;
 - connector type is required and at most 50 characters;
-- current and voltage are optional/default zero and cannot be negative.
 - `connector_total_capacity` is required and cannot be negative. Charger-level
   `total_capacity` is no longer part of the CMS charger contract; capacity is
   represented per connector.
@@ -1966,8 +1963,6 @@ The server generates:
       "charger_id": "7cc2d481-3ccb-4336-b03c-c8851a59ff9a",
       "connector_number": 1,
       "connector_type": "CCS2",
-      "max_current": 60,
-      "max_voltage": 500,
       "connector_total_capacity": 25,
       "status": "AVAILABLE",
       "created_at": "2026-07-31T12:05:00Z",
@@ -2035,8 +2030,6 @@ Both cursor fields must be supplied together. `200 OK`:
           "charger_id": "7cc2d481-3ccb-4336-b03c-c8851a59ff9a",
           "connector_number": 1,
           "connector_type": "CCS2",
-          "max_current": 60,
-          "max_voltage": 500,
           "connector_total_capacity": 25,
           "status": "AVAILABLE",
           "created_at": "2026-07-31T12:05:00Z",
@@ -2082,8 +2075,6 @@ Updates any non-empty subset of the charger's properties. The request should be 
       "id": "540b3214-bd67-4f61-9134-ab462168fd92",
       "connector_number": 1,
       "connector_type": "CCS2",
-      "max_current": 75,
-      "max_voltage": 500,
       "connector_total_capacity": 30
     }
   ]

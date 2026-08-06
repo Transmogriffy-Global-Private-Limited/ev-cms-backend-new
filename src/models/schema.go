@@ -225,8 +225,6 @@ type Connector struct {
 	Charger                Charger                 `gorm:"foreignKey:ChargerID;constraint:OnUpdate:CASCADE,OnDelete:RESTRICT" json:"charger,omitempty"`
 	ConnectorNumber        int                     `gorm:"not null" json:"connector_number"`
 	ConnectorType          string                  `gorm:"type:varchar(50);not null" json:"connector_type"`
-	MaxCurrent             float64                 `gorm:"type:numeric(8,2);not null;default:0" json:"max_current"`
-	MaxVoltage             float64                 `gorm:"type:numeric(8,2);not null;default:0" json:"max_voltage"`
 	ConnectorTotalCapacity float64                 `gorm:"type:numeric(10,2);not null;default:0" json:"connector_total_capacity"`
 	Status                 constants.ChargerStatus `gorm:"type:varchar(30);not null;default:'AVAILABLE'" json:"status"`
 	CreatedAt              time.Time               `gorm:"not null" json:"created_at"`

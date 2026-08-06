@@ -183,8 +183,6 @@ type CustomerConnectorView struct {
 	ID              uuid.UUID `json:"id"`
 	ConnectorNumber int       `json:"connector_number"`
 	ConnectorType   string    `json:"connector_type"`
-	MaxCurrent      float64   `json:"max_current"`
-	MaxVoltage      float64   `json:"max_voltage"`
 	Availability    string    `json:"availability"`
 }
 
@@ -399,7 +397,7 @@ func customerChargerView(record models.Charger, favorite bool) CustomerChargerVi
 	}
 	connectors := make([]CustomerConnectorView, 0, len(record.Connectors))
 	for _, connector := range record.Connectors {
-		connectors = append(connectors, CustomerConnectorView{ID: connector.ID, ConnectorNumber: connector.ConnectorNumber, ConnectorType: connector.ConnectorType, MaxCurrent: connector.MaxCurrent, MaxVoltage: connector.MaxVoltage, Availability: customerAvailabilityUnknown})
+		connectors = append(connectors, CustomerConnectorView{ID: connector.ID, ConnectorNumber: connector.ConnectorNumber, ConnectorType: connector.ConnectorType, Availability: customerAvailabilityUnknown})
 	}
 	view := CustomerChargerView{ID: record.ID, HubID: hubID, ChargerID: record.ChargerID, Vendor: record.Vendor, Model: record.Model, MaxPowerKW: record.MaxPowerKW, OCPPVersion: record.OCPPVersion, Availability: customerAvailabilityUnknown, IsFavorite: favorite, Connectors: connectors}
 	if record.Hub != nil {

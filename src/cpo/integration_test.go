@@ -1265,8 +1265,6 @@ func TestCPOAdminProfileAndNetworkConfigurationWithPostgreSQL(t *testing.T) {
 		Connectors: []CreateConnectorRequest{{
 			ConnectorNumber: 1,
 			ConnectorType:   "CCS2",
-			MaxCurrent:      60,
-			MaxVoltage:      500,
 		}},
 	}
 	reqBytes, _ := json.Marshal(createChargerReq)
@@ -1617,8 +1615,6 @@ func TestAssignChargerToHubTenantScope(t *testing.T) {
 		Connectors: []CreateConnectorRequest{{
 			ConnectorNumber: 1,
 			ConnectorType:   "CCS2",
-			MaxCurrent:      60,
-			MaxVoltage:      500,
 		}},
 	}
 	reqBytes, _ := json.Marshal(createChargerReq)
@@ -1673,8 +1669,6 @@ func TestAssignChargerToHubTenantScope(t *testing.T) {
 		Connectors: []CreateConnectorRequest{{
 			ConnectorNumber: 1,
 			ConnectorType:   "TYPE2",
-			MaxCurrent:      32,
-			MaxVoltage:      230,
 		}},
 	}
 	reqBytesIndependent, _ := json.Marshal(createIndependentChargerReq)

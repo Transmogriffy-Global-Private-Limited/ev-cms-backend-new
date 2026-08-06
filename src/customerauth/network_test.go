@@ -80,7 +80,7 @@ func TestCustomerNetworkProjectionDoesNotClaimLiveAvailability(t *testing.T) {
 		Model: &model, MaxPowerKW: 7.4, OCPPVersion: "1.6J",
 		Status: "AVAILABLE", Connectors: []models.Connector{{
 			ID: uuid.New(), ConnectorNumber: 1, ConnectorType: "TYPE2",
-			MaxCurrent: 32, MaxVoltage: 230, Status: "AVAILABLE",
+			Status: "AVAILABLE",
 		}},
 	}
 	projection := customerChargerView(charger, false)
