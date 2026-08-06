@@ -267,6 +267,8 @@ type ChargerView struct {
 	Protocol            string                  `json:"protocol"`
 	TwentyFourSevenOpen bool                    `json:"twenty_four_seven_open_status"`
 	Connectors          []ConnectorView         `json:"connectors"`
+	ChargerConnectionURLWS string `json:"charger_connection_url_ws"`
+	ChargerConnectionURLWSS string `json:"charger_connection_url_wss"`
 	CreatedAt           time.Time               `json:"created_at"`
 	UpdatedAt           time.Time               `json:"updated_at"`
 }
@@ -345,6 +347,22 @@ type HubListResponse struct {
 	NextBefore   *time.Time `json:"next_before,omitempty"`
 	NextBeforeID *uuid.UUID `json:"next_before_id,omitempty"`
 	HasMore      bool       `json:"has_more"`
+}
+
+// HubResponse represents the detailed view of a hub, including a paginated list of its chargers.
+type HubResponse struct {
+	ID              uuid.UUID            `json:"id"`
+	CPOID           uuid.UUID            `json:"cpo_id"`
+	Name            string               `json:"name"`
+	Address         string               `json:"address"`
+	Latitude        float64              `json:"latitude"`
+	Longitude       float64              `json:"longitude"`
+	Open24Hours     bool                 `json:"open_24_hours"`
+	SanctionLoad    float64              `json:"sanction_load"`
+	CustomerVisible bool                 `json:"customer_visible"`
+	Chargers        *ChargerListResponse `json:"chargers,omitempty"`
+	CreatedAt       time.Time            `json:"created_at"`
+	UpdatedAt       time.Time            `json:"updated_at"`
 }
 
 type CreateTariffRequest struct {

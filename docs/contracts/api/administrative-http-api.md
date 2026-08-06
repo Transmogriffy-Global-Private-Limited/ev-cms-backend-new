@@ -1956,6 +1956,8 @@ The server generates:
   "parking": "Covered",
   "protocol": "OCPP 1.6J",
   "twenty_four_seven_open_status": true,
+  "charger_connection_url_ws": "ws://localhost:8080/CMS-4a58ce2df470b2b1",
+  "charger_connection_url_wss": "wss://localhost:8080/CMS-4a58ce2df470b2b1",
   "connectors": [
     {
       "id": "540b3214-bd67-4f61-9134-ab462168fd92",
@@ -2023,6 +2025,8 @@ Both cursor fields must be supplied together. `200 OK`:
       "parking": "Covered",
       "protocol": "OCPP 1.6J",
       "twenty_four_seven_open_status": true,
+      "charger_connection_url_ws": "ws://localhost:8080/CMS-4a58ce2df470b2b1",
+      "charger_connection_url_wss": "wss://localhost:8080/CMS-4a58ce2df470b2b1",
       "connectors": [
         {
           "id": "540b3214-bd67-4f61-9134-ab462168fd92",

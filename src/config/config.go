@@ -23,16 +23,17 @@ const (
 )
 
 type Config struct {
-	DatabaseURL    string
-	HTTPAddress    string
-	CORSAllowAll   bool
-	APIDocsEnabled bool
-	LogLevel       LogLevel
-	Superadmin     Superadmin
-	Auth           Auth
-	Mail           Mail
-	Platform       Platform
-	Credentials    Encryption
+	DatabaseURL          string
+	HTTPAddress          string
+	CORSAllowAll         bool
+	APIDocsEnabled       bool
+	LogLevel             LogLevel
+	Superadmin           Superadmin
+	Auth                 Auth
+	Mail                 Mail
+	Platform             Platform
+	Credentials          Encryption
+	ChargerConnectionURL string
 }
 
 type Superadmin struct {
@@ -155,6 +156,7 @@ func Load() (Config, error) {
 			WorkerStaleAfter:  durationOrDefault("PLATFORM_WORKER_STALE_AFTER", 2*time.Minute),
 			MaintenanceEvery:  durationOrDefault("PLATFORM_MAINTENANCE_INTERVAL", time.Minute),
 		},
+		ChargerConnectionURL: envOrDefault("CHARGER_CONNECTION_URL", "localhost:8080"),
 	}
 
 	if cfg.Auth.SigningKey, err = decodeKey("JWT_SIGNING_KEY_B64", 32, false); err != nil {

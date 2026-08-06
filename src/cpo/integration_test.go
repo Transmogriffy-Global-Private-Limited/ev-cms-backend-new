@@ -66,7 +66,7 @@ func TestConcurrentCPOCreationReusesOneAdminIdentityWithPostgreSQL(t *testing.T)
 	if err != nil {
 		t.Fatalf("create mail box: %v", err)
 	}
-	service := NewService(gormDB, cmsmail.NewOutbox(mailBox), true)
+	service := NewService(gormDB, cmsmail.NewOutbox(mailBox), true, "dummy.connection.url")
 	principal := auth.Principal{
 		UserID: actor.ID,
 		Scope:  constants.AuthScopePlatform,
@@ -174,7 +174,7 @@ func TestCPOProvisioningAndFirstAdminLifecycleWithPostgreSQL(t *testing.T) {
 		t.Fatalf("create mail encryption box: %v", err)
 	}
 	outbox := cmsmail.NewOutbox(mailBox)
-	service := NewService(gormDB, outbox, true)
+	service := NewService(gormDB, outbox, true, "dummy.connection.url")
 
 	adminEmail := "admin-" + uuid.NewString() + "@example.com"
 	created, err := service.Create(ctx, platformPrincipal, CreateRequest{
@@ -581,6 +581,7 @@ func TestCPOSuperadminDependencyLifecycleWithPostgreSQL(t *testing.T) {
 		gormDB,
 		cmsmail.NewOutbox(mailBox),
 		true,
+		"dummy.connection.url",
 	).WithPlatformEvents(eventService)
 
 	oldAdminEmail := "primary-old-" + uuid.NewString() + "@example.com"
@@ -1167,7 +1168,7 @@ func TestCPOAdminProfileAndNetworkConfigurationWithPostgreSQL(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create mail secret box: %v", err)
 	}
-	service := NewService(gormDB, cmsmail.NewOutbox(mailBox), true)
+	service := NewService(gormDB, cmsmail.NewOutbox(mailBox), true, "dummy.connection.url")
 	created, err := service.Create(ctx, platformPrincipal, CreateRequest{
 		Slug:         "network-" + strings.ToLower(uuid.NewString()),
 		BusinessName: "Network Configuration CPO",
@@ -1345,7 +1346,7 @@ func TestCPOAdminProfileAndNetworkConfigurationWithPostgreSQL(t *testing.T) {
 	ownerRole := constants.CPORoleOwner
 	ownerPrincipal := adminPrincipal
 	ownerPrincipal.Role = &ownerRole
-	if _, err := service.GetHub(ctx, ownerPrincipal, hub.ID); err == nil {
+	if _, err := service.GetHub(ctx, ownerPrincipal, hub.ID, TenantListQuery{}); err == nil {
 		t.Fatal("dormant OWNER role was allowed to call a CPO operation")
 	}
 
@@ -1521,7 +1522,7 @@ func TestAssignChargerToHubTenantScope(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create mail secret box: %v", err)
 	}
-	service := NewService(gormDB, cmsmail.NewOutbox(mailBox), true)
+	service := NewService(gormDB, cmsmail.NewOutbox(mailBox), true, "dummy.connection.url")
 
 	// Create CPO 1
 	cpo1, err := service.Create(ctx, platformPrincipal, CreateRequest{

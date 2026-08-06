@@ -96,7 +96,7 @@ func run() error {
 	platformService := platformops.NewService(gormDB, cfg.Platform)
 	superadminService := superadmin.NewService(gormDB, platformService, outbox, cfg.Mail.Enabled)
 	subscriptionService := subscriptions.NewService(gormDB, platformService)
-	cpoService := cpo.NewService(gormDB, outbox, cfg.Mail.Enabled).
+	cpoService := cpo.NewService(gormDB, outbox, cfg.Mail.Enabled, cfg.ChargerConnectionURL).
 		WithPlatformEvents(platformService)
 	customerAuthService, err := customerauth.NewService(
 		gormDB, cfg.Auth, cfg.Mail.Enabled, outbox, tokenManager,

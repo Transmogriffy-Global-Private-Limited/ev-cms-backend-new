@@ -321,7 +321,7 @@ func newCredentialRouteTestRouterWithLog(
 		pingerStub{},
 		authService,
 		customerAuthService,
-		cpo.NewService(nil, cmsmail.NewOutbox(mailBox), true),
+		cpo.NewService(nil, cmsmail.NewOutbox(mailBox), true, "dummy.connection.url"),
 		integrations.NewService(nil, credentialBox),
 		platformops.NewService(nil, config.Platform{}),
 		subscriptions.NewService(nil, nil),

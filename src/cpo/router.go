@@ -720,6 +720,19 @@ func (handler *Handler) listHubs(ctx *gin.Context) {
 	ctx.JSON(http.StatusOK, records)
 }
 
+// @Summary Get a hub by ID
+// @Description Get a hub by ID, with an optional paginated list of chargers.
+// @Tags CPO Network
+// @Produce json
+// @Param hub_id path string true "Hub ID"
+// @Param limit query int false "Number of chargers to return"
+// @Param before query string false "Timestamp for pagination"
+// @Param before_id query string false "ID for pagination"
+// @Success 200 {object} cpo.HubResponse "Successfully retrieved hub"
+// @Failure 400 {object} auth.APIError "Invalid request"
+// @Failure 401 {object} auth.APIError "Unauthorized"
+// @Failure 404 {object} auth.APIError "Hub not found"
+// @Router /cpo/hubs/{hub_id} [get]
 func (handler *Handler) getHub(ctx *gin.Context) {
 	principal, _ := auth.CurrentPrincipal(ctx)
 
@@ -728,7 +741,12 @@ func (handler *Handler) getHub(ctx *gin.Context) {
 		return
 	}
 
-	record, err := handler.service.GetHub(ctx.Request.Context(), principal, hubID)
+	query, ok := parseTenantListQuery(ctx)
+	if !ok {
+		return
+	}
+
+	record, err := handler.service.GetHub(ctx.Request.Context(), principal, hubID, query)
 	if err != nil {
 		writeError(ctx, err)
 		return

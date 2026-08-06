@@ -45,11 +45,12 @@ var (
 )
 
 type Service struct {
-	database    *gorm.DB
-	outbox      *cmsmail.Outbox
-	mailEnabled bool
-	events      *platformops.Service
-	now         func() time.Time
+	database             *gorm.DB
+	outbox               *cmsmail.Outbox
+	mailEnabled          bool
+	events               *platformops.Service
+	now                  func() time.Time
+	chargerConnectionURL string
 }
 
 type sessionRevocationCounts struct {
@@ -66,12 +67,14 @@ func NewService(
 	database *gorm.DB,
 	outbox *cmsmail.Outbox,
 	mailEnabled bool,
+	chargerConnectionURL string,
 ) *Service {
 	return &Service{
-		database:    database,
-		outbox:      outbox,
-		mailEnabled: mailEnabled,
-		now:         func() time.Time { return time.Now().UTC() },
+		database:             database,
+		outbox:               outbox,
+		mailEnabled:          mailEnabled,
+		now:                  func() time.Time { return time.Now().UTC() },
+		chargerConnectionURL: chargerConnectionURL,
 	}
 }
 
@@ -1982,7 +1985,7 @@ func (service *Service) CreateCharger(
 		return ChargerResponse{}, err
 	}
 
-	return chargerView(record, principal), nil
+	return service.chargerView(record, principal), nil
 }
 
 func (service *Service) GetCharger(
@@ -2011,7 +2014,7 @@ func (service *Service) GetCharger(
 		First(&record, "cpo_id = ? AND charger_id = ?", *principal.CPOID, chargerID).Error; err != nil {
 		return ChargerResponse{}, mapChargerNotFound(err)
 	}
-	return chargerView(record, principal), nil
+	return service.chargerView(record, principal), nil
 }
 
 func (service *Service) UpdateCharger(
@@ -2318,7 +2321,7 @@ func (service *Service) UpdateCharger(
 		return ChargerResponse{}, err
 	}
 
-	return chargerView(record, principal), nil
+	return service.chargerView(record, principal), nil
 }
 
 func (service *Service) DeleteCharger(
@@ -2678,7 +2681,7 @@ func mapChargerDeleteError(err error) error {
 	return fmt.Errorf("delete charger: %w", err)
 }
 
-func chargerView(record models.Charger, principal auth.Principal) ChargerResponse {
+func (service *Service) chargerView(record models.Charger, principal auth.Principal) ChargerResponse {
 	connectorsView := make([]ConnectorView, 0, len(record.Connectors))
 
 	for _, conn := range record.Connectors {
@@ -2722,6 +2725,8 @@ func chargerView(record models.Charger, principal auth.Principal) ChargerRespons
 			Protocol:            record.Protocol,
 			TwentyFourSevenOpen: record.TwentyFourSevenOpen,
 			Connectors:          connectorsView,
+			ChargerConnectionURLWS:  fmt.Sprintf("ws://%s/%s", service.chargerConnectionURL, record.OCPPIdentity),
+			ChargerConnectionURLWSS: fmt.Sprintf("wss://%s/%s", service.chargerConnectionURL, record.OCPPIdentity),
 			CreatedAt:           record.CreatedAt,
 			UpdatedAt:           record.UpdatedAt,
 		},
@@ -2768,7 +2773,7 @@ func (service *Service) ListChargers(
 	}
 	response := make([]ChargerResponse, 0, len(chargers))
 	for _, charger := range chargers {
-		response = append(response, chargerView(charger, principal))
+		response = append(response, service.chargerView(charger, principal))
 	}
 
 	result := ChargerListResponse{Chargers: response, HasMore: hasMore}
@@ -2955,18 +2960,80 @@ func (service *Service) GetHub(
 	ctx context.Context,
 	principal auth.Principal,
 	hubID uuid.UUID,
-) (HubView, error) {
+	query TenantListQuery,
+) (HubResponse, error) {
 	if err := requireCPOAdminAccess(principal); err != nil {
-		return HubView{}, err
+		return HubResponse{}, err
 	}
 
-	var record models.Hub
+	var hub models.Hub
 	if err := service.database.WithContext(ctx).
-		First(&record, "cpo_id = ? AND id = ?", *principal.CPOID, hubID).Error; err != nil {
-		return HubView{}, mapHubNotFound(err)
+		First(&hub, "cpo_id = ? AND id = ?", *principal.CPOID, hubID).Error; err != nil {
+		return HubResponse{}, mapHubNotFound(err)
 	}
 
-	return hubView(record), nil
+	query, err := validateTenantListQuery(query)
+	if err != nil {
+		return HubResponse{}, err
+	}
+
+	databaseQuery := service.database.WithContext(ctx).
+		Where("cpo_id = ? AND hub_id = ?", *principal.CPOID, hubID)
+	if query.Before != nil {
+		databaseQuery = databaseQuery.Where(
+			"(created_at, id) < (?, ?)",
+			*query.Before,
+			*query.BeforeID,
+		)
+	}
+
+	var chargers []models.Charger
+	if err := databaseQuery.
+		Preload("Connectors", func(tx *gorm.DB) *gorm.DB {
+			return tx.Order("connector_number ASC")
+		}).
+		Order("created_at DESC, id DESC").
+		Limit(query.Limit + 1).
+		Find(&chargers).Error; err != nil {
+		return HubResponse{}, fmt.Errorf("list chargers for hub: %w", err)
+	}
+
+	hasMore := len(chargers) > query.Limit
+	if hasMore {
+		chargers = chargers[:query.Limit]
+	}
+
+	chargerResponses := make([]ChargerResponse, 0, len(chargers))
+	for _, charger := range chargers {
+		chargerResponses = append(chargerResponses, service.chargerView(charger, principal))
+	}
+
+	chargerListResponse := ChargerListResponse{
+		Chargers: chargerResponses,
+		HasMore:  hasMore,
+	}
+
+	if hasMore && len(chargers) > 0 {
+		nextBefore := chargers[len(chargers)-1].CreatedAt
+		nextBeforeID := chargers[len(chargers)-1].ID
+		chargerListResponse.NextBefore = &nextBefore
+		chargerListResponse.NextBeforeID = &nextBeforeID
+	}
+
+	return HubResponse{
+		ID:              hub.ID,
+		CPOID:           hub.CPOID,
+		Name:            hub.Name,
+		Address:         hub.Address,
+		Latitude:        hub.Latitude,
+		Longitude:       hub.Longitude,
+		Open24Hours:     hub.Open24Hours,
+		SanctionLoad:    hub.SanctionLoad,
+		CustomerVisible: hub.CustomerVisible,
+		CreatedAt:       hub.CreatedAt,
+		UpdatedAt:       hub.UpdatedAt,
+		Chargers:        &chargerListResponse,
+	}, nil
 }
 
 func (service *Service) UpdateHub(
@@ -3152,7 +3219,7 @@ func (service *Service) AssignChargerToHub(
 		return ChargerResponse{}, fmt.Errorf("reload charger after assignment: %w", err)
 	}
 
-	return chargerView(charger, principal), nil
+	return service.chargerView(charger, principal), nil
 }
 
 func normalizeCreateHubRequest(request CreateHubRequest) CreateHubRequest {

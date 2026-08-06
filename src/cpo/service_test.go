@@ -87,7 +87,7 @@ func TestTemporaryPasswordMeetsPasswordPolicy(t *testing.T) {
 func TestCreateRequiresPlatformScopeBeforeDatabaseAccess(t *testing.T) {
 	t.Parallel()
 
-	service := NewService(nil, nil, true)
+	service := NewService(nil, nil, true, "dummy.connection.url")
 	_, err := service.Create(
 		t.Context(),
 		auth.Principal{
@@ -105,7 +105,7 @@ func TestCreateRequiresPlatformScopeBeforeDatabaseAccess(t *testing.T) {
 func TestCreateRejectsMailDisabledBeforeDatabaseAccess(t *testing.T) {
 	t.Parallel()
 
-	service := NewService(nil, nil, false)
+	service := NewService(nil, nil, false, "dummy.connection.url")
 	_, err := service.Create(
 		t.Context(),
 		auth.Principal{
@@ -200,7 +200,7 @@ func TestNormalizeAndValidateProfileRequest(t *testing.T) {
 func TestSlugAvailabilityRequiresPlatformBeforeDatabaseAccess(t *testing.T) {
 	t.Parallel()
 
-	service := NewService(nil, nil, true)
+	service := NewService(nil, nil, true, "dummy.connection.url")
 	_, err := service.CheckSlugAvailability(t.Context(), auth.Principal{
 		UserID: uuid.New(),
 		Scope:  constants.AuthScopeCPO,
@@ -218,7 +218,7 @@ func TestSlugAvailabilityNormalizesAndValidatesBeforeDatabaseAccess(t *testing.T
 		t.Fatalf("normalized slug %q, want example-cpo", got)
 	}
 
-	service := NewService(nil, nil, true)
+	service := NewService(nil, nil, true, "dummy.connection.url")
 	_, err := service.CheckSlugAvailability(t.Context(), auth.Principal{
 		UserID: uuid.New(),
 		Scope:  constants.AuthScopePlatform,
@@ -232,7 +232,7 @@ func TestSlugAvailabilityNormalizesAndValidatesBeforeDatabaseAccess(t *testing.T
 func TestCPORecoveryOperationsRequirePlatformBeforeDatabaseAccess(t *testing.T) {
 	t.Parallel()
 
-	service := NewService(nil, nil, true)
+	service := NewService(nil, nil, true, "dummy.connection.url")
 	principal := auth.Principal{
 		UserID: uuid.New(),
 		Scope:  constants.AuthScopeCPO,
@@ -431,7 +431,7 @@ func TestChargerListRejectsInvalidCursorBeforeDatabaseAccess(t *testing.T) {
 
 	cpoID := uuid.New()
 	role := constants.CPORoleAdmin
-	service := NewService(nil, nil, false)
+	service := NewService(nil, nil, false, "dummy.connection.url")
 	_, err := service.ListChargers(
 		t.Context(),
 		auth.Principal{
