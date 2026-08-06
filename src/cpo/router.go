@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"mime"
 	"net/http"
 	"strconv"
 	"strings"
@@ -460,12 +461,14 @@ func RegisterCPORoutes(
 	group.POST("/chargers", handler.createCharger)
 	group.GET("/chargers", handler.listChargers)
 	group.GET("/chargers/:charger_id", handler.getCharger)
+	group.GET("/chargers/:charger_id/image", handler.getChargerImage)
 	group.PATCH("/chargers/:charger_id", handler.updateCharger)
 	group.DELETE("/chargers/:charger_id", handler.deleteCharger)
 	group.POST("/hubs", handler.createHub)
 	group.GET("/hubs", handler.listHubs)
 	group.GET("/hubs/:hub_id", handler.getHub)
 	group.PATCH("/hubs/:hub_id", handler.updateHub)
+	group.DELETE("/hubs/:hub_id", handler.deleteHub)
 	group.PUT("/hubs/:hub_id/customer-visibility", handler.updateHubCustomerVisibility)
 	group.POST("/hubs/:hub_id/chargers", handler.assignChargerToHub)
 	group.POST("/tariffs", handler.createTariff)
@@ -765,6 +768,36 @@ func (handler *Handler) getCharger(ctx *gin.Context) {
 	ctx.JSON(http.StatusOK, record)
 }
 
+func (handler *Handler) getChargerImage(ctx *gin.Context) {
+	principal, _ := auth.CurrentPrincipal(ctx)
+	chargerID := ctx.Param("charger_id")
+
+	download, err := handler.service.DownloadChargerImage(ctx.Request.Context(), principal, chargerID)
+	if err != nil {
+		writeError(ctx, err)
+		return
+	}
+	defer download.Content.(io.Closer).Close()
+
+	disposition := mime.FormatMediaType("inline", map[string]string{"filename": download.OriginalName})
+	if disposition == "" {
+		writeError(ctx, &auth.APIError{
+			Status:  http.StatusInternalServerError,
+			Code:    "internal_error",
+			Message: "The request could not be completed.",
+		})
+		return
+	}
+
+	ctx.Header("Content-Disposition", disposition)
+	ctx.Header("Content-Type", download.DetectedMIME)
+	ctx.Header("Accept-Ranges", "bytes")
+	ctx.Header("Cache-Control", "public, max-age=3600")
+	ctx.Header("X-Content-Type-Options", "nosniff")
+
+	http.ServeContent(ctx.Writer, ctx.Request, download.OriginalName, download.ModTime, download.Content)
+}
+
 // @Summary Update a charger
 // @Description Update an existing charger's details. This endpoint uses multipart/form-data to allow for charger image uploads.
 // @Tags CPO Network
@@ -907,6 +940,21 @@ func (handler *Handler) updateHub(ctx *gin.Context) {
 	}
 
 	ctx.JSON(http.StatusOK, record)
+}
+
+func (handler *Handler) deleteHub(ctx *gin.Context) {
+	principal, _ := auth.CurrentPrincipal(ctx)
+	hubID, ok := parseHubID(ctx)
+	if !ok {
+		return
+	}
+
+	if err := handler.service.DeleteHub(ctx.Request.Context(), principal, hubID); err != nil {
+		writeError(ctx, err)
+		return
+	}
+
+	ctx.Status(http.StatusNoContent)
 }
 
 func parseHubID(ctx *gin.Context) (uuid.UUID, bool) {

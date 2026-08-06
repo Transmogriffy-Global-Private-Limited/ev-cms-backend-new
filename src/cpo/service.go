@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	netmail "net/mail"
 	"os"
@@ -2698,6 +2699,8 @@ func (service *Service) chargerView(record models.Charger, principal auth.Princi
 		})
 	}
 
+	ocppIdentityForURL := strings.TrimPrefix(record.OCPPIdentity, "ocpp_")
+
 	return ChargerResponse{
 		ChargerView: ChargerView{
 			ID:                      record.ID,
@@ -2725,8 +2728,8 @@ func (service *Service) chargerView(record models.Charger, principal auth.Princi
 			Protocol:                record.Protocol,
 			TwentyFourSevenOpen:     record.TwentyFourSevenOpen,
 			Connectors:              connectorsView,
-			ChargerConnectionURLWS:  fmt.Sprintf("ws://%s/%s", service.chargerConnectionURL, record.OCPPIdentity),
-			ChargerConnectionURLWSS: fmt.Sprintf("wss://%s/%s", service.chargerConnectionURL, record.OCPPIdentity),
+			ChargerConnectionURLWS:  fmt.Sprintf("ws://%s/%s", service.chargerConnectionURL, ocppIdentityForURL),
+			ChargerConnectionURLWSS: fmt.Sprintf("wss://%s/%s", service.chargerConnectionURL, ocppIdentityForURL),
 			CreatedAt:               record.CreatedAt,
 			UpdatedAt:               record.UpdatedAt,
 		},
@@ -3151,6 +3154,74 @@ func (service *Service) UpdateHub(
 	return hubView(record), nil
 }
 
+func (service *Service) DeleteHub(
+	ctx context.Context,
+	principal auth.Principal,
+	hubID uuid.UUID,
+) error {
+	if err := requireCPOAdminAccess(principal); err != nil {
+		return err
+	}
+
+	return service.database.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var tariffCount int64
+		if err := tx.Model(&models.Tariff{}).
+			Where("hub_id = ? AND cpo_id = ?", hubID, *principal.CPOID).
+			Count(&tariffCount).Error; err != nil {
+			return fmt.Errorf("checking for tariffs associated with hub: %w", err)
+		}
+		if tariffCount > 0 {
+			return &auth.APIError{
+				Status:  http.StatusConflict,
+				Code:    "hub_has_tariffs",
+				Message: "The hub cannot be deleted because it has associated tariffs.",
+			}
+		}
+
+		if err := tx.Model(&models.Charger{}).
+			Where("hub_id = ? AND cpo_id = ?", hubID, *principal.CPOID).
+			Update("hub_id", nil).Error; err != nil {
+			return fmt.Errorf("disassociating chargers from hub: %w", err)
+		}
+
+		if err := tx.Exec("DELETE FROM user_group_hubs WHERE hub_id = ?", hubID).Error; err != nil {
+			return fmt.Errorf("deleting user group hub associations: %w", err)
+		}
+
+		if err := tx.Exec("DELETE FROM customer_favorite_hubs WHERE hub_id = ?", hubID).Error; err != nil {
+			return fmt.Errorf("deleting customer favorite hub associations: %w", err)
+		}
+
+		if result := tx.Delete(&models.Hub{}, "id = ? AND cpo_id = ?", hubID, *principal.CPOID); result.Error != nil {
+			return fmt.Errorf("deleting hub: %w", result.Error)
+		} else if result.RowsAffected == 0 {
+			return mapHubNotFound(gorm.ErrRecordNotFound)
+		}
+
+		if err := writeAudit(
+			tx,
+			principal.UserID,
+			*principal.CPOID,
+			"HUB_DELETED",
+			models.JSONB{
+				"hub_id": hubID,
+			},
+			service.now(),
+		); err != nil {
+			return err
+		}
+
+		hubResourceID := hubID.String()
+		_, err := service.events.Emit(tx, platformops.EventInput{
+			Type:         "cpo.hub.deleted",
+			ActorUserID:  &principal.User.ID,
+			ResourceType: "HUB",
+			ResourceID:   &hubResourceID,
+			Data:         models.JSONB{},
+		})
+		return err
+	})
+}
 func (service *Service) AssignChargerToHub(
 	ctx context.Context,
 	principal auth.Principal,
@@ -4214,6 +4285,91 @@ func (service *Service) GetChargerStatus(
 		ChargerID:    charger.ID,
 		OCPPIdentity: charger.OCPPIdentity,
 		Status:       charger.Status,
+	}, nil
+}
+
+type ImageDownload struct {
+	Content      io.ReadSeeker
+	OriginalName string
+	DetectedMIME string
+	ModTime      time.Time
+}
+
+func (service *Service) DownloadChargerImage(ctx context.Context, principal auth.Principal, chargerID string) (*ImageDownload, error) {
+	if err := requireCPOAdminAccess(principal); err != nil {
+		return nil, err
+	}
+
+	chargerID = normalizeChargerID(chargerID)
+	if !chargerIDPattern.MatchString(chargerID) {
+		return nil, &auth.APIError{
+			Status:  http.StatusBadRequest,
+			Code:    "invalid_charger_id",
+			Message: "The charger ID is invalid.",
+		}
+	}
+
+	var record models.Charger
+	if err := service.database.WithContext(ctx).
+		First(&record, "cpo_id = ? AND charger_id = ?", *principal.CPOID, chargerID).Error; err != nil {
+		return nil, mapChargerNotFound(err)
+	}
+
+	if record.ChargerImage == "" {
+		return nil, &auth.APIError{
+			Status:  http.StatusNotFound,
+			Code:    "image_not_found",
+			Message: "The charger does not have an image.",
+		}
+	}
+
+	if strings.Contains(record.ChargerImage, "..") {
+		return nil, &auth.APIError{
+			Status:  http.StatusBadRequest,
+			Code:    "invalid_image_path",
+			Message: "The image path is invalid.",
+		}
+	}
+
+	imagePath := record.ChargerImage
+
+	file, err := os.Open(imagePath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, &auth.APIError{
+				Status:  http.StatusNotFound,
+				Code:    "image_not_found",
+				Message: "The charger image file was not found.",
+			}
+		}
+		return nil, fmt.Errorf("open charger image: %w", err)
+	}
+
+	info, err := file.Stat()
+	if err != nil {
+		file.Close()
+		return nil, fmt.Errorf("stat charger image: %w", err)
+	}
+
+	buffer := make([]byte, 512)
+	_, err = file.Read(buffer)
+	if err != nil && err != io.EOF {
+		file.Close()
+		return nil, fmt.Errorf("read charger image for mime type detection: %w", err)
+	}
+
+	if _, err := file.Seek(0, 0); err != nil {
+		file.Close()
+		return nil, fmt.Errorf("seek charger image after mime type detection: %w", err)
+	}
+
+	mimeType := http.DetectContentType(buffer)
+
+	return &ImageDownload{
+		Content:      file,
+		OriginalName: filepath.Base(imagePath),
+		DetectedMIME: mimeType,
+		ModTime:      info.ModTime(),
 	}, nil
 }
 
