@@ -495,7 +495,7 @@ Returns a published hub in the current CPO and its attached chargers and
 connectors. Independent chargers are excluded. The projection includes only
 public charger ID, vendor, model, maximum power, OCPP version, connector
 capability, and customer favorite flags. It excludes OCPP identity, serial
-number, sanctioned load, raw status, last-seen data, and audit information.
+number, sanctioned load, last-seen data, and audit information.
 
 Each charger and connector also includes its DB-backed CMS administrative
 `status` (`ACTIVE`, `INACTIVE`, `SUSPENDED`, `UNDERMAINTENANCE`, or
@@ -514,6 +514,21 @@ otherwise the response is `404 charger_not_found` without cross-tenant
 enumeration. The response uses the same safe projection and explicit
 `availability: "UNKNOWN"` described in 4.11. Malformed IDs return
 `400 invalid_charger_id`.
+
+### 4.12A `GET /api/v1/app/chargers/{charger_id}/image`
+
+Uses the same six-character public charger ID, customer bearer token,
+`X-CPO-App-ID`, current-CPO, and published-hub rules as charger detail. It
+serves only a regular JPEG, PNG, GIF, or WebP file from the existing charger
+upload directory. The stored filesystem path is never returned or used as a
+request input.
+
+`CustomerCharger.charger_image_url` contains this relative API path only when
+an uploaded image is recorded. Because the endpoint is authenticated, frontend
+clients must request it with their normal auth headers and render the fetched
+blob; a bare `<img src>` request cannot provide those headers. It returns
+`404 charger_image_not_found` when the published charger has no safe image or
+the stored file is absent.
 
 ### 4.13 Backend current-customer helpers
 
@@ -1867,10 +1882,17 @@ validation. Omitted fields are unchanged.
 changed-field metadata. Additional errors: `400 invalid_hub`,
 `400 invalid_hub_id`, `404 hub_not_found`, or `409 hub_conflict`.
 
-There is currently no hub delete route. Durable charger/tariff relationships
-must not be erased through implicit cascading behavior.
+### 9.8A `DELETE /api/v1/cpo/hubs/{hub_id}`
 
-### 9.8A `PUT /api/v1/cpo/hubs/{hub_id}/customer-visibility`
+Takes no body. The request requires CPO ADMIN, locks the tenant hub, and
+returns `204 No Content` after it transactionally unassigns its chargers and
+removes User App hub and favorite links. Chargers themselves are retained.
+
+If the same-CPO hub has tariffs, it returns `409 hub_has_tariffs` and changes
+nothing. Unknown or cross-tenant hubs return `404 hub_not_found`; malformed
+IDs return `400 invalid_hub_id`.
+
+### 9.8B `PUT /api/v1/cpo/hubs/{hub_id}/customer-visibility`
 
 Updates only the CPO ADMIN-controlled publication gate:
 
@@ -2114,6 +2136,14 @@ Uses the six-character public charger ID, not the charger UUID. Input is trimmed
 and lowercased before validation. `200 OK` returns the Charger object including
 connectors ordered by connector number. The response will also contain the `email` of the CPO admin.
 Unknown or cross-tenant IDs return `404 charger_not_found`; malformed IDs return `400 invalid_charger_id`.
+
+### 9.12A `GET /api/v1/cpo/chargers/{charger_id}/image`
+
+Uses the six-character public charger ID and returns the uploaded image as an
+inline binary response for a charger owned by the caller's CPO. The response
+sets the detected content type and supports byte ranges. A charger without an
+uploaded file returns `404 image_not_found`; unknown or cross-tenant chargers
+return `404 charger_not_found`.
 
 ### 9.13 `PATCH /api/v1/cpo/chargers/{charger_id}`
 
@@ -2778,7 +2808,7 @@ The contract does not provide:
 - customer profile/email editing;
 - CPO staff invitation after the first administrator;
 - custom roles or permission APIs;
-- hub deletion; standalone connector creation/deletion; GST or tariff deletion;
+- standalone connector creation/deletion; GST or tariff deletion;
   wallet, charging, payment, or reporting APIs;
 - any tenant-side CPO profile route;
 - payment execution or Razorpay webhook verification;

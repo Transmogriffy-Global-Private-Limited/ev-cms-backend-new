@@ -133,7 +133,7 @@ UUID or a row UUID.
 ## Current Implemented CPO Surface
 
 The authoritative machine contract is
-`docs/contracts/openapi/openapi.yaml`. The source currently has 132 total
+`docs/contracts/openapi/openapi.yaml`. The source currently has 135 total
 HTTP operations across all planes. Runtime/OpenAPI parity is tested.
 
 ### Administrative authentication
@@ -174,11 +174,12 @@ organization response omits privileged lifecycle reason and platform actor ID.
 ### Network and pricing
 
 - `POST/GET /hubs`
-- `GET/PATCH /hubs/{hub_id}`
+- `GET/PATCH/DELETE /hubs/{hub_id}`
 - `PUT /hubs/{hub_id}/customer-visibility`
 - `POST /hubs/{hub_id}/chargers`
 - `POST/GET /chargers`
 - `GET/PATCH/DELETE /chargers/{charger_id}`
+- `GET /chargers/{charger_id}/image`
 - `GET/PUT /chargers/{charger_id}/status` (internal charger UUID)
 - `POST/GET /gsts`
 - `GET/PATCH /gsts/{gst_id}`
@@ -201,6 +202,9 @@ Current behavior:
   target hub;
 - a reassignment that would create an overlapping active tariff after the
   relational hub-scope cascade rolls back with `409 tariff_schedule_conflict`;
+- hub deletion first rejects a hub with tenant tariffs using
+  `409 hub_has_tariffs`, then transactionally unassigns its chargers and
+  removes User App hub/favorite links before recording `HUB_DELETED`;
 - the six-character public charger ID, CMS UUID, connector UUIDs, and
   `ocpp_identity` are different identifiers;
 - `ocpp_identity` is only a mapping value; no HAL call occurs;
@@ -213,8 +217,8 @@ Current behavior:
 - referenced chargers return `409 charger_in_use` rather than cascading data
   loss;
 - GST and tariff retirement uses `is_active=false`;
-- hub deletion, GST deletion, tariff deletion, and connector add/remove after
-  charger creation are not implemented;
+- GST deletion, tariff deletion, and connector add/remove after charger
+  creation are not implemented;
 - optional tariff relationships can currently be omitted or replaced, but not
   explicitly cleared to null.
 
@@ -244,9 +248,11 @@ Implemented:
   updates; profile writes are CPO-local and audit changed field names only;
 - authenticated `GET /hubs`, `GET /hubs/{hub_id}`, and
   `GET /chargers/{charger_id}` expose only published same-CPO network data;
-  independent/unpublished resources are hidden, connector total capacity and
-  static CMS administrative status are included, and charger/connector
-  availability is explicitly `UNKNOWN` until HAL integration;
+  authenticated `GET /chargers/{charger_id}/image` safely serves an existing
+  uploaded image only for that same published charger. Independent/unpublished
+  resources are hidden, connector total capacity and static CMS administrative
+  status are included, and charger/connector availability is explicitly
+  `UNKNOWN` until HAL integration;
 - authenticated favorites list and idempotent add/remove routes use the
   existing composite customer-favorite tables; unpublishing hides saved
   resources from the list without leaking them;

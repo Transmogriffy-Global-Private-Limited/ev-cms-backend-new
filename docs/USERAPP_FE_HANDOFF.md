@@ -288,6 +288,7 @@ export type CustomerCharger = {
   max_power_kw: number;
   ocpp_version: string;
   status: CustomerNetworkStatus;
+  charger_image_url?: string; // authenticated relative API path
   hub_name?: string;
   hub_address?: string;
   hub_latitude?: number;
@@ -402,6 +403,7 @@ export type CustomerPriceResponse = {
 | `GET /hubs/{hub_id}` | Yes | `200 CustomerHub` | Read one published hub and attached chargers. |
 | `GET /chargers` | Yes | `200 CustomerChargerList` | Search/filter published chargers, including optional near-me results. |
 | `GET /chargers/{charger_id}` | Yes | `200 CustomerCharger` | Read one attached charger by public ID. |
+| `GET /chargers/{charger_id}/image` | Yes | `200 image/*` | Download one uploaded charger image by public ID. |
 | `GET /favorites` | Yes | `200 CustomerFavorites` | List current published favorites. |
 | `PUT /favorite-hubs/{hub_id}` | Yes | `204` | Idempotently save a published hub. |
 | `DELETE /favorite-hubs/{hub_id}` | Yes | `204` | Idempotently remove a hub favorite. |
@@ -449,6 +451,27 @@ recovery before the app depends on them.
 The safe projection omits OCPP identity, serial number, last-seen timestamps,
 sanctioned load, CPO notes, and audit data. Favorite flags are present in the
 same safe projection used by the favorite list.
+
+When present, `charger_image_url` is a relative path such as
+`/api/v1/app/chargers/a1b2c3/image`; it is not the storage path. The image
+route requires the normal Bearer and `X-CPO-App-ID` headers, so a browser
+`<img>` tag cannot call it directly. Fetch it as a blob with the app's normal
+authenticated client, then use a temporary object URL:
+
+```ts
+const response = await fetch(`${origin}${charger.charger_image_url}`, {
+  headers: {
+    Authorization: `Bearer ${accessToken}`,
+    "X-CPO-App-ID": cpoAppID,
+  },
+});
+if (!response.ok) throw new Error("charger image unavailable");
+const imageURL = URL.createObjectURL(await response.blob());
+```
+
+`404 charger_image_not_found` means the published charger has no safe uploaded
+image (or its stored file is unavailable). The API only serves JPEG, PNG, GIF,
+and WebP content from the existing upload directory.
 
 Favorite mutations are now callable. `PUT` is idempotent and accepts no body;
 `DELETE` is idempotent and returns `204` when the favorite is absent. For

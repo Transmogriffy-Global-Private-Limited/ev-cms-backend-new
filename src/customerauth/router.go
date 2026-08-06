@@ -44,6 +44,7 @@ func RegisterRoutes(group *gin.RouterGroup, service *Service) {
 	protected.GET("/hubs/:hub_id", handler.getHub)
 	protected.GET("/hubs/:hub_id/price", handler.getHubPrice)
 	protected.GET("/chargers", handler.listChargers)
+	protected.GET("/chargers/:charger_id/image", handler.chargerImage)
 	protected.GET("/chargers/:charger_id", handler.getCharger)
 	protected.GET("/chargers/:charger_id/price", handler.getChargerPrice)
 	protected.GET("/wallet", handler.getWallet)
@@ -63,6 +64,27 @@ func RegisterRoutes(group *gin.RouterGroup, service *Service) {
 	protectedAuth.POST("/logout", handler.logout)
 	protectedAuth.POST("/logout-all", handler.logoutAll)
 	protectedAuth.POST("/password/change", handler.changePassword)
+}
+
+func (handler *Handler) chargerImage(ctx *gin.Context) {
+	principal, ok := CurrentPrincipal(ctx)
+	if !ok {
+		writeError(ctx, errUnauthorized)
+		return
+	}
+
+	image, err := handler.service.OpenCustomerChargerImage(
+		ctx.Request.Context(), principal, ctx.Param("charger_id"),
+	)
+	if err != nil {
+		writeError(ctx, err)
+		return
+	}
+	defer image.File.Close()
+
+	ctx.Header("Content-Type", image.ContentType)
+	ctx.Header("X-Content-Type-Options", "nosniff")
+	http.ServeContent(ctx.Writer, ctx.Request, image.Name, image.ModifiedAt, image.File)
 }
 
 func (handler *Handler) start(ctx *gin.Context) {

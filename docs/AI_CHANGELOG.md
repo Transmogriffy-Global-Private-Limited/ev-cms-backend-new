@@ -2,6 +2,54 @@
 
 ## 2026-08-06
 
+### Rehosted published charger-image and hub-delete release
+
+- Rebuilt and rehosted revision `9894b26` without a new migration; migration
+  27 remains current.
+- Confirmed the User App charger-image route and CPO hub-delete route are
+  registered, protected, and present in the live 135-operation OpenAPI/Swagger
+  contract.
+- Formatted the merged CPO source files without changing their behavior.
+
+Verification:
+
+- OpenAPI/runtime parity, full Go tests, `go vet`, formatting, and diff checks
+  passed.
+- Service active/enabled state, loopback listener, local/public liveness and
+  readiness, live route protection, OpenAPI, and Swagger UI passed after
+  rehost.
+- The PowerShell documentation verifier is unavailable on this host.
+
+### Reconciled merged CPO network routes
+
+- Repaired the duplicated `deleteCPOHub` OpenAPI operation introduced on the
+  merged mainline and restored one canonical operation.
+- Completed route-inventory and human-contract coverage for CPO charger-image
+  reads and hub deletion; the source OpenAPI now has 135 operations.
+
+Verification:
+
+- Documentation verification, static analysis, and route/OpenAPI inventory
+  reconciliation are pending after the merge; Go tests remain skipped by the
+  requested workspace policy.
+
+### Added authenticated User App charger images
+
+- Added `GET /api/v1/app/chargers/{charger_id}/image`, using the public
+  six-character charger ID and the same customer/CPO/published-hub boundary as
+  charger detail.
+- Charger projections now expose an optional relative `charger_image_url`, not
+  the stored filesystem path. The route only serves regular JPEG, PNG, GIF, or
+  WebP files from the established upload directory and requires the normal
+  Bearer and app-ID headers.
+- Updated OpenAPI, the User App handoff, human API contract, plan/state, and
+  operation-count verifier for the 133-operation source tree.
+
+Verification:
+
+- Pending focused static checks after implementation; Go tests remain skipped
+  by the requested workspace policy.
+
 ### Rehosted charger-status and User App projection release
 
 - Rebuilt and rehosted revision `9ccdff2` after confirming migration 27 and

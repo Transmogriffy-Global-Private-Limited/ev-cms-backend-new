@@ -381,7 +381,6 @@ func parseChargerID(ctx *gin.Context) (uuid.UUID, bool) {
 	return chargerID, true
 }
 
-
 func parseUserID(ctx *gin.Context) (uuid.UUID, bool) {
 	userID, err := uuid.Parse(ctx.Param("user_id"))
 	if err != nil || userID == uuid.Nil {
@@ -591,7 +590,6 @@ func (handler *Handler) updateHubCustomerVisibility(ctx *gin.Context) {
 
 	ctx.JSON(http.StatusOK, record)
 }
-
 
 func (handler *Handler) getSubscription(ctx *gin.Context) {
 	principal, _ := auth.CurrentPrincipal(ctx)

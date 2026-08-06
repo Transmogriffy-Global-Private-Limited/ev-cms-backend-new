@@ -861,7 +861,8 @@ Last completed slice:
   remain separate follow-ups.
 - Implemented User App charger search/filter and bounded near-me results over
   published hubs, with safe hub/connector projections, DB-backed administrative
-  status and connector total capacity, and explicit UNKNOWN live availability;
+  status and connector total capacity, an authenticated charger-image route
+  keyed by public charger ID, and explicit UNKNOWN live availability;
   implemented wallet balance and keyset-paginated wallet-history reads.
   Recharge, refund, charging-session history, RFID, and HAL remain separate
   slices.
@@ -919,13 +920,12 @@ Last completed slice:
 
 Last deployment milestone:
 
-- Revision `9ccdff2` was built cleanly and rehosted on the development VPS.
-  Migration twenty-seven was already applied with the replacement
-  charger/connector status constraints. The live 132-operation route/OpenAPI
-  surface, running-binary identity, loopback-only listener, loopback/public
-  readiness, CPO status/publication operations, and post-start journal were
-  verified. The disposable PostgreSQL lifecycle remains pending without
-  `TEST_DATABASE_URL`.
+- Revision `9894b26` was built cleanly and rehosted on the development VPS
+  without a new migration. The live 135-operation route/OpenAPI surface,
+  running-binary identity, loopback-only listener, loopback/public readiness,
+  protected User App charger-image and CPO hub-delete routes, and post-start
+  journal were verified. The disposable PostgreSQL lifecycle remains pending
+  without `TEST_DATABASE_URL`.
 
 Next expected slice:
 

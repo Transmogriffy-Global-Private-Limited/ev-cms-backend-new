@@ -81,7 +81,7 @@ provides:
   workflows, governance, security, mail, notifications, overview/status,
   audit/workers, SSE/replay, error UX, security, verification, and explicit
   deployment gaps;
-- canonical OpenAPI 3.1 for all 132 current source-tree business/health
+- canonical OpenAPI 3.1 for all 135 current source-tree business/health
   operations;
 - embedded same-origin Swagger UI at `/docs/` and raw OpenAPI at
   `/openapi.yaml`;
@@ -118,7 +118,8 @@ provides:
   precedence;
 - authenticated User App charger search/filter and bounded near-me reads over
   published hubs, with safe hub/connector projections, DB-backed status and
-  connector total capacity, and explicit UNKNOWN live availability;
+  connector total capacity, an authenticated charger-image route keyed by
+  public charger ID, and explicit UNKNOWN live availability;
 - authenticated CPO/customer-scoped wallet balance and keyset-paginated wallet
   history reads using exact decimal projections;
 - User App Razorpay recharge order creation and captured-payment verification
@@ -164,8 +165,11 @@ provides:
   handler;
 - the additive PostgreSQL database `devevcmsnewdb`, owned by `postgres`.
 
-The active development VPS runs source revision `9ccdff2`, with migrations
-through twenty-seven recorded and the deployed 132-operation contract. Migration
+The active development VPS runs source revision `9894b26`, with migrations
+through twenty-seven recorded and the deployed 135-operation contract. The
+User App can serve an authenticated published charger's allowed image through
+its relative `charger_image_url`, without exposing the stored upload path.
+Migration
 twenty-seven replaces legacy charger/connector protocol-style states with the
 static CMS administrative values `ACTIVE`, `INACTIVE`, `SUSPENDED`,
 `UNDERMAINTENANCE`, and `DECOMMISSIONED`. CPO GSTIN and address
@@ -256,6 +260,10 @@ implemented yet.
 - `git diff --check` passed. Stateful PostgreSQL lifecycle verification is
   intentionally deferred by the current workstream decision; no stateful
   result is claimed.
+- Revision `9894b26` was built cleanly and rehosted without a new migration.
+  The installed binary, loopback-only listener, local/public liveness and
+  readiness, live 135-operation Swagger/OpenAPI, authenticated User App image
+  route, protected CPO hub-delete route, and post-start journal passed.
 - Revision `9ccdff2` was built cleanly and rehosted after confirming migration
   twenty-seven and its replacement status constraints were already applied.
   The installed binary, loopback-only listener, local/public liveness and

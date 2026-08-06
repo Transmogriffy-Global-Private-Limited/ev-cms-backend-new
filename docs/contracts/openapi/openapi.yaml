@@ -711,8 +711,9 @@ paths:
       description: |
         Uses the six-character public charger ID. The charger is returned only
         when it belongs to the customer CPO and is attached to a published hub.
-        OCPP identity, serial number, raw stored status, and last-seen data are
-        intentionally omitted. Availability is `UNKNOWN` until HAL integration.
+        OCPP identity, serial number, and last-seen data are intentionally
+        omitted. Static CMS administrative status is separate from live
+        availability, which remains `UNKNOWN` until HAL integration.
       security:
         - BearerAuth: []
       parameters:
@@ -747,6 +748,47 @@ paths:
                 $ref: "#/components/schemas/ErrorEnvelope"
         "500":
           $ref: "#/components/responses/InternalError"
+
+  /api/v1/app/chargers/{charger_id}/image:
+    get:
+      tags: [App User Network]
+      operationId: getCustomerChargerImage
+      summary: Download the uploaded image for one published charger
+      description: Uses the six-character public charger ID and the same customer/CPO/published-hub boundary as charger detail. The returned image requires Bearer and `X-CPO-App-ID` headers; fetch it as a blob rather than using an unauthenticated browser image request.
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/CPOAppIDHeader"
+        - $ref: "#/components/parameters/ChargerPublicID"
+      responses:
+        "200":
+          description: Uploaded JPEG, PNG, GIF, or WebP charger image.
+          content:
+            image/jpeg:
+              schema: {type: string, format: binary}
+            image/png:
+              schema: {type: string, format: binary}
+            image/gif:
+              schema: {type: string, format: binary}
+            image/webp:
+              schema: {type: string, format: binary}
+        "400":
+          description: Invalid charger ID or missing app-ID header.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/ErrorEnvelope"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403":
+          description: "`cpo_app_id_mismatch` or wrong session plane."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/ErrorEnvelope"}
+        "404":
+          description: "`charger_not_found` for inaccessible inventory, or `charger_image_not_found` when no safe uploaded image exists."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/ErrorEnvelope"}
+        "500": {$ref: "#/components/responses/InternalError"}
 
   /api/v1/app/chargers:
     get:
@@ -3592,146 +3634,6 @@ paths:
                 $ref: "#/components/schemas/ErrorEnvelope"
         "500":
           $ref: "#/components/responses/InternalError"
-    delete:
-      tags: [CPO Operations]
-      operationId: deleteCPOHub
-      summary: Delete a hub
-      description: Deletes a hub and disassociates all chargers from it. The chargers themselves are not deleted. The hub cannot be deleted if it has any tariffs associated with it.
-      security:
-        - BearerAuth: []
-          CPOAppID: []
-      responses:
-        "204":
-          description: Hub deleted successfully.
-        "400":
-          description: Invalid hub ID or missing app-ID header.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorEnvelope"
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-        "403":
-          $ref: "#/components/responses/CPOBusinessForbidden"
-        "404":
-          description: "`hub_not_found`."
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorEnvelope"
-        "409":
-          description: "`hub_has_tariffs`."
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorEnvelope"
-        "500":
-          $ref: "#/components/responses/InternalError"
-    delete:
-      tags: [CPO Operations]
-      operationId: deleteCPOHub
-      summary: Delete a hub
-      description: Deletes a hub and disassociates all chargers from it. The chargers themselves are not deleted. The hub cannot be deleted if it has any tariffs associated with it.
-      security:
-        - BearerAuth: []
-          CPOAppID: []
-      responses:
-        "204":
-          description: Hub deleted successfully.
-        "400":
-          description: Invalid hub ID or missing app-ID header.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorEnvelope"
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-        "403":
-          $ref: "#/components/responses/CPOBusinessForbidden"
-        "404":
-          description: "`hub_not_found`."
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorEnvelope"
-        "409":
-          description: "`hub_has_tariffs`."
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorEnvelope"
-        "500":
-          $ref: "#/components/responses/InternalError"
-    delete:
-      tags: [CPO Operations]
-      operationId: deleteCPOHub
-      summary: Delete a hub
-      description: Deletes a hub and disassociates all chargers from it. The chargers themselves are not deleted. The hub cannot be deleted if it has any tariffs associated with it.
-      security:
-        - BearerAuth: []
-          CPOAppID: []
-      responses:
-        "204":
-          description: Hub deleted successfully.
-        "400":
-          description: Invalid hub ID or missing app-ID header.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorEnvelope"
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-        "403":
-          $ref: "#/components/responses/CPOBusinessForbidden"
-        "404":
-          description: "`hub_not_found`."
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorEnvelope"
-        "409":
-          description: "`hub_has_tariffs`."
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorEnvelope"
-        "500":
-          $ref: "#/components/responses/InternalError"
-    delete:
-      tags: [CPO Operations]
-      operationId: deleteCPOHub
-      summary: Delete a hub
-      description: Deletes a hub and disassociates all chargers from it. The chargers themselves are not deleted. The hub cannot be deleted if it has any tariffs associated with it.
-      security:
-        - BearerAuth: []
-          CPOAppID: []
-      responses:
-        "204":
-          description: Hub deleted successfully.
-        "400":
-          description: Invalid hub ID or missing app-ID header.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorEnvelope"
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-        "403":
-          $ref: "#/components/responses/CPOBusinessForbidden"
-        "404":
-          description: "`hub_not_found`."
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorEnvelope"
-        "409":
-          description: "`hub_has_tariffs`."
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorEnvelope"
-        "500":
-          $ref: "#/components/responses/InternalError"
 
   /api/v1/cpo/hubs/{hub_id}/customer-visibility:
     parameters:
@@ -5496,6 +5398,10 @@ components:
         ocpp_version: {type: string, maxLength: 20}
         status:
           $ref: "#/components/schemas/ChargerStatus"
+        charger_image_url:
+          type: string
+          format: uri-reference
+          description: Relative authenticated User App image route, present only when this charger has an uploaded image.
         hub_name: {type: string, maxLength: 255}
         hub_address: {type: string}
         hub_latitude: {type: number, minimum: -90, maximum: 90}

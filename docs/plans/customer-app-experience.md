@@ -166,7 +166,7 @@ bounded, stable keyset pagination. Query/filter changes discard old cursors.
   metadata, and a customer-owned favorite flag.
 - Charger: ID, public charger ID, vendor/model only if approved for display,
   maximum power, OCPP version, static CMS administrative status, attached
-  connector summaries, and favorite flag.
+  connector summaries, optional authenticated image route, and favorite flag.
 - Connector: ID, number, connector type, connector total capacity, and static
   CMS administrative status.
 
