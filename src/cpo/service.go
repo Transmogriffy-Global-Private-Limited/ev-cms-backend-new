@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	netmail "net/mail"
 	"os"
@@ -2698,6 +2699,8 @@ func (service *Service) chargerView(record models.Charger, principal auth.Princi
 		})
 	}
 
+	ocppIdentityForURL := strings.TrimPrefix(record.OCPPIdentity, "ocpp_")
+
 	return ChargerResponse{
 		ChargerView: ChargerView{
 			ID:                      record.ID,
@@ -2725,8 +2728,8 @@ func (service *Service) chargerView(record models.Charger, principal auth.Princi
 			Protocol:                record.Protocol,
 			TwentyFourSevenOpen:     record.TwentyFourSevenOpen,
 			Connectors:              connectorsView,
-			ChargerConnectionURLWS:  fmt.Sprintf("ws://%s/%s", service.chargerConnectionURL, record.OCPPIdentity),
-			ChargerConnectionURLWSS: fmt.Sprintf("wss://%s/%s", service.chargerConnectionURL, record.OCPPIdentity),
+			ChargerConnectionURLWS:  fmt.Sprintf("ws://%s/%s", service.chargerConnectionURL, ocppIdentityForURL),
+			ChargerConnectionURLWSS: fmt.Sprintf("wss://%s/%s", service.chargerConnectionURL, ocppIdentityForURL),
 			CreatedAt:               record.CreatedAt,
 			UpdatedAt:               record.UpdatedAt,
 		},
@@ -4214,6 +4217,91 @@ func (service *Service) GetChargerStatus(
 		ChargerID:    charger.ID,
 		OCPPIdentity: charger.OCPPIdentity,
 		Status:       charger.Status,
+	}, nil
+}
+
+type ImageDownload struct {
+	Content      io.ReadSeeker
+	OriginalName string
+	DetectedMIME string
+	ModTime      time.Time
+}
+
+func (service *Service) DownloadChargerImage(ctx context.Context, principal auth.Principal, chargerID string) (*ImageDownload, error) {
+	if err := requireCPOAdminAccess(principal); err != nil {
+		return nil, err
+	}
+
+	chargerID = normalizeChargerID(chargerID)
+	if !chargerIDPattern.MatchString(chargerID) {
+		return nil, &auth.APIError{
+			Status:  http.StatusBadRequest,
+			Code:    "invalid_charger_id",
+			Message: "The charger ID is invalid.",
+		}
+	}
+
+	var record models.Charger
+	if err := service.database.WithContext(ctx).
+		First(&record, "cpo_id = ? AND charger_id = ?", *principal.CPOID, chargerID).Error; err != nil {
+		return nil, mapChargerNotFound(err)
+	}
+
+	if record.ChargerImage == "" {
+		return nil, &auth.APIError{
+			Status:  http.StatusNotFound,
+			Code:    "image_not_found",
+			Message: "The charger does not have an image.",
+		}
+	}
+
+	if strings.Contains(record.ChargerImage, "..") {
+		return nil, &auth.APIError{
+			Status:  http.StatusBadRequest,
+			Code:    "invalid_image_path",
+			Message: "The image path is invalid.",
+		}
+	}
+
+	imagePath := record.ChargerImage
+
+	file, err := os.Open(imagePath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, &auth.APIError{
+				Status:  http.StatusNotFound,
+				Code:    "image_not_found",
+				Message: "The charger image file was not found.",
+			}
+		}
+		return nil, fmt.Errorf("open charger image: %w", err)
+	}
+
+	info, err := file.Stat()
+	if err != nil {
+		file.Close()
+		return nil, fmt.Errorf("stat charger image: %w", err)
+	}
+
+	buffer := make([]byte, 512)
+	_, err = file.Read(buffer)
+	if err != nil && err != io.EOF {
+		file.Close()
+		return nil, fmt.Errorf("read charger image for mime type detection: %w", err)
+	}
+
+	if _, err := file.Seek(0, 0); err != nil {
+		file.Close()
+		return nil, fmt.Errorf("seek charger image after mime type detection: %w", err)
+	}
+
+	mimeType := http.DetectContentType(buffer)
+
+	return &ImageDownload{
+		Content:      file,
+		OriginalName: filepath.Base(imagePath),
+		DetectedMIME: mimeType,
+		ModTime:      info.ModTime(),
 	}, nil
 }
 

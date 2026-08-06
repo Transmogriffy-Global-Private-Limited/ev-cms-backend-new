@@ -3350,6 +3350,44 @@ paths:
         "500":
           $ref: "#/components/responses/InternalError"
 
+  /api/v1/cpo/chargers/{charger_id}/image:
+    parameters:
+      - $ref: "#/components/parameters/ChargerPublicID"
+    get:
+      tags: [CPO Operations]
+      operationId: getCPOChargerImage
+      summary: Get the charger's image
+      description: Returns the charger's image file. The response is an image file with the appropriate content type.
+      security:
+        - BearerAuth: []
+          CPOAppID: []
+      responses:
+        "200":
+          description: Charger image.
+          content:
+            image/*:
+              schema:
+                type: string
+                format: binary
+        "400":
+          description: Invalid charger ID or missing app-ID header.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/CPOBusinessForbidden"
+        "404":
+          description: "`charger_not_found` or `image_not_found`."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
   /api/v1/cpo/hubs:
     post:
       tags: [CPO Operations]
