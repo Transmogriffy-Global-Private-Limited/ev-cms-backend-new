@@ -472,7 +472,7 @@ paths:
         "500":
           $ref: "#/components/responses/InternalError"
 
-  /api/v1/app/auth/me:
+  /api/v1/app/me:
     get:
       tags: [App User Authentication]
       operationId: getCurrentCustomer
@@ -505,7 +505,7 @@ paths:
         "500":
           $ref: "#/components/responses/InternalError"
 
-  /api/v1/app/auth/profile:
+  /api/v1/app/profile:
     patch:
       tags: [App User Authentication]
       operationId: updateCurrentCustomerProfile
@@ -566,7 +566,7 @@ paths:
         "500":
           $ref: "#/components/responses/InternalError"
 
-  /api/v1/app/auth/hubs:
+  /api/v1/app/hubs:
     get:
       tags: [App User Network]
       operationId: listCustomerHubs
@@ -614,7 +614,7 @@ paths:
         "500":
           $ref: "#/components/responses/InternalError"
 
-  /api/v1/app/auth/hubs/{hub_id}:
+  /api/v1/app/hubs/{hub_id}:
     get:
       tags: [App User Network]
       operationId: getCustomerHub
@@ -660,7 +660,7 @@ paths:
         "500":
           $ref: "#/components/responses/InternalError"
 
-  /api/v1/app/auth/hubs/{hub_id}/price:
+  /api/v1/app/hubs/{hub_id}/price:
     get:
       tags: [App User Network]
       operationId: getCustomerHubPrice
@@ -703,7 +703,7 @@ paths:
               schema: {$ref: "#/components/schemas/ErrorEnvelope"}
         "500": {$ref: "#/components/responses/InternalError"}
 
-  /api/v1/app/auth/chargers/{charger_id}:
+  /api/v1/app/chargers/{charger_id}:
     get:
       tags: [App User Network]
       operationId: getCustomerCharger
@@ -748,7 +748,7 @@ paths:
         "500":
           $ref: "#/components/responses/InternalError"
 
-  /api/v1/app/auth/chargers:
+  /api/v1/app/chargers:
     get:
       tags: [App User Network]
       operationId: listCustomerChargers
@@ -815,7 +815,7 @@ paths:
               schema: {$ref: "#/components/schemas/ErrorEnvelope"}
         "500": {$ref: "#/components/responses/InternalError"}
 
-  /api/v1/app/auth/chargers/{charger_id}/price:
+  /api/v1/app/chargers/{charger_id}/price:
     get:
       tags: [App User Network]
       operationId: getCustomerChargerPrice
@@ -850,7 +850,7 @@ paths:
               schema: {$ref: "#/components/schemas/ErrorEnvelope"}
         "500": {$ref: "#/components/responses/InternalError"}
 
-  /api/v1/app/auth/wallet:
+  /api/v1/app/wallet:
     get:
       tags: [App User Wallet]
       operationId: getCustomerWallet
@@ -879,7 +879,7 @@ paths:
               schema: {$ref: "#/components/schemas/ErrorEnvelope"}
         "500": {$ref: "#/components/responses/InternalError"}
 
-  /api/v1/app/auth/wallet/transactions:
+  /api/v1/app/wallet/transactions:
     get:
       tags: [App User Wallet]
       operationId: listCustomerWalletTransactions
@@ -916,7 +916,7 @@ paths:
               schema: {$ref: "#/components/schemas/ErrorEnvelope"}
         "500": {$ref: "#/components/responses/InternalError"}
 
-  /api/v1/app/auth/wallet/recharge/orders:
+  /api/v1/app/wallet/recharge/orders:
     post:
       tags: [App User Wallet]
       operationId: createCustomerWalletRechargeOrder
@@ -972,7 +972,7 @@ paths:
             application/json:
               schema: {$ref: "#/components/schemas/ErrorEnvelope"}
 
-  /api/v1/app/auth/wallet/recharge/verify:
+  /api/v1/app/wallet/recharge/verify:
     post:
       tags: [App User Wallet]
       operationId: verifyCustomerWalletRecharge
@@ -1031,7 +1031,7 @@ paths:
             application/json:
               schema: {$ref: "#/components/schemas/ErrorEnvelope"}
 
-  /api/v1/app/auth/favorites:
+  /api/v1/app/favorites:
     get:
       tags: [App User Network]
       operationId: listCustomerFavorites
@@ -1089,7 +1089,7 @@ paths:
         "500":
           $ref: "#/components/responses/InternalError"
 
-  /api/v1/app/auth/favorite-hubs/{hub_id}:
+  /api/v1/app/favorite-hubs/{hub_id}:
     put:
       tags: [App User Network]
       operationId: addCustomerFavoriteHub
@@ -1137,7 +1137,7 @@ paths:
         "403": {$ref: "#/components/responses/CPOBusinessForbidden"}
         "500": {$ref: "#/components/responses/InternalError"}
 
-  /api/v1/app/auth/favorite-chargers/{charger_id}:
+  /api/v1/app/favorite-chargers/{charger_id}:
     put:
       tags: [App User Network]
       operationId: addCustomerFavoriteCharger

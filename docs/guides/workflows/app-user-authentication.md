@@ -2,9 +2,10 @@
 
 ## Frontend Sequence
 
-The CPO app carries its current `X-CPO-App-ID` on every app-auth request. The
+The CPO app carries its current `X-CPO-App-ID` on every User App request. The
 value may be bundled with the frontend because it identifies the CPO but is not
-a credential.
+a credential. Credential and session routes use `/api/v1/app/auth`; customer
+resources use `/api/v1/app`.
 
 New customer:
 
@@ -21,7 +22,7 @@ Returning customer:
 4. Call `POST /api/v1/app/auth/login/verify`.
 5. Keep the access token in short-lived application state and the refresh token
    in the platform's most protected practical client storage.
-6. Call `GET /api/v1/app/auth/me` to bootstrap the user, customer, CPO, and
+6. Call `GET /api/v1/app/me` to bootstrap the user, customer, CPO, and
    wallet view.
 7. Atomically replace the refresh token after every successful refresh.
 
@@ -59,7 +60,7 @@ authority.
 
 `principal` contains the same validated CPO-local account, customer, CPO,
 wallet, and
-session context returned by `GET /api/v1/app/auth/me`. Use `service.Me` for the
+session context returned by `GET /api/v1/app/me`. Use `service.Me` for the
 canonical external response rather than rebuilding its fields ad hoc.
 
 `customerauth.CurrentUserID` is retained only for source compatibility and

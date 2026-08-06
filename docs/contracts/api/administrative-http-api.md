@@ -389,7 +389,7 @@ customer-bound session, and current app ID.
 Errors: `400 invalid_request` or `missing_cpo_app_id`,
 `401 invalid_refresh_token`, `429 rate_limited`, or `500 internal_error`.
 
-### 4.8 `GET /api/v1/app/auth/me`
+### 4.8 `GET /api/v1/app/me`
 
 Requires bearer customer access token plus matching `X-CPO-App-ID`.
 
@@ -433,7 +433,7 @@ not identify a row in the administrative `users` table.
 Errors: `400 missing_cpo_app_id`, `401 unauthorized`,
 `403 cpo_app_id_mismatch`, or `500 internal_error`.
 
-### 4.9 `PATCH /api/v1/app/auth/profile`
+### 4.9 `PATCH /api/v1/app/profile`
 
 Requires bearer customer access token plus matching `X-CPO-App-ID`.
 
@@ -475,7 +475,7 @@ Errors: `400 invalid_request`, `400 invalid_full_name`, `400 invalid_phone`,
 `400 missing_cpo_app_id`, `401 unauthorized`, `403 cpo_app_id_mismatch`, or
 `500 internal_error`.
 
-### 4.10 `GET /api/v1/app/auth/hubs`
+### 4.10 `GET /api/v1/app/hubs`
 
 Requires a customer bearer token and matching `X-CPO-App-ID`. Returns only
 customer-visible hubs belonging to the authenticated customer's CPO. `limit`
@@ -489,7 +489,7 @@ load, audit data, or unpublished hubs. Errors include `400 invalid_limit`,
 `400 invalid_cursor`, `400 invalid_search`, authentication/header errors, or
 `500 internal_error`.
 
-### 4.11 `GET /api/v1/app/auth/hubs/{hub_id}`
+### 4.11 `GET /api/v1/app/hubs/{hub_id}`
 
 Returns a published hub in the current CPO and its attached chargers and
 connectors. Independent chargers are excluded. The projection includes only
@@ -502,7 +502,7 @@ Until a separate CMS/HAL contract is implemented, charger and connector
 not claim live or online state. Unknown, unpublished, and cross-CPO hubs all
 return `404 hub_not_found`.
 
-### 4.12 `GET /api/v1/app/auth/chargers/{charger_id}`
+### 4.12 `GET /api/v1/app/chargers/{charger_id}`
 
 Uses the six-character public charger ID, not the CMS charger UUID. The charger
 must belong to the authenticated CPO and be attached to a customer-visible hub;
@@ -645,7 +645,7 @@ challenge for that account. Errors include
 `401 invalid_current_password`, normal bearer/app-ID errors, and
 `500 internal_error`.
 
-### 4.21 `GET /api/v1/app/auth/favorites`
+### 4.21 `GET /api/v1/app/favorites`
 
 Returns the current customer's saved hubs and chargers as safe published
 network projections. Hubs and chargers use independent bounded keyset cursors:
@@ -653,7 +653,7 @@ network projections. Hubs and chargers use independent bounded keyset cursors:
 `charger_before_id`. `limit` is 1–100 and defaults to 25. A favorite whose
 resource was later unpublished is omitted; no unpublished inventory is leaked.
 
-### 4.22 `PUT /api/v1/app/auth/favorite-hubs/{hub_id}`
+### 4.22 `PUT /api/v1/app/favorite-hubs/{hub_id}`
 
 Requires a published same-CPO hub and creates the composite
 `(cpo_id, customer_id, hub_id)` favorite idempotently. It returns `204 No
@@ -661,26 +661,26 @@ Content` whether the favorite was newly created or already present. The
 transaction records a `CUSTOMER_FAVORITE_HUB_ADDED` audit action only for a
 new row. Unknown, unpublished, and cross-CPO hubs return `404 hub_not_found`.
 
-### 4.23 `DELETE /api/v1/app/auth/favorite-hubs/{hub_id}`
+### 4.23 `DELETE /api/v1/app/favorite-hubs/{hub_id}`
 
 Deletes only the current customer's composite hub favorite and returns `204`
 whether it existed or was already absent. Cross-CPO and unknown resources are
 not enumerated. A real removal records `CUSTOMER_FAVORITE_HUB_REMOVED`.
 
-### 4.24 `PUT /api/v1/app/auth/favorite-chargers/{charger_id}`
+### 4.24 `PUT /api/v1/app/favorite-chargers/{charger_id}`
 
 Uses the six-character public charger ID. The charger must be attached to a
 published hub in the current CPO. The composite favorite is created
 idempotently and returns `204`; a new row records
 `CUSTOMER_FAVORITE_CHARGER_ADDED`. No HAL call occurs.
 
-### 4.25 `DELETE /api/v1/app/auth/favorite-chargers/{charger_id}`
+### 4.25 `DELETE /api/v1/app/favorite-chargers/{charger_id}`
 
 Removes the current customer's charger favorite idempotently and returns
 `204`. An absent or cross-CPO public ID is not enumerated. A real removal
 records `CUSTOMER_FAVORITE_CHARGER_REMOVED`.
 
-### 4.26 `GET /api/v1/app/auth/hubs/{hub_id}/price`
+### 4.26 `GET /api/v1/app/hubs/{hub_id}/price`
 
 Requires the authenticated customer bearer token and matching
 `X-CPO-App-ID`. The hub must be published in the customer’s CPO. The server
@@ -697,7 +697,7 @@ eligible tariff exists or a referenced GST profile is inactive/missing; the API
 never substitutes a zero price. The response is informational and is not a
 charging or payment commitment. It does not contact HAL.
 
-### 4.27 `GET /api/v1/app/auth/chargers/{charger_id}/price`
+### 4.27 `GET /api/v1/app/chargers/{charger_id}/price`
 
 Uses the six-character public charger ID and the same authentication, CPO,
 publication, and response rules as the hub price route. The charger must be
@@ -706,7 +706,7 @@ then generic charger tariff, then generic hub tariff. If both group/charger and
 group/hub rows apply, charger scope is only a tie-breaker inside the UserGroup
 tier.
 
-### 4.28 `GET /api/v1/app/auth/chargers`
+### 4.28 `GET /api/v1/app/chargers`
 
 Requires the authenticated customer bearer token and matching
 `X-CPO-App-ID`. Returns only chargers attached to published hubs in the
@@ -727,7 +727,7 @@ and tenant errors use the standard app envelope.
 Availability remains `UNKNOWN` for chargers and connectors until a separate
 CMS/HAL contract is implemented. This route does not contact HAL.
 
-### 4.29 `GET /api/v1/app/auth/wallet`
+### 4.29 `GET /api/v1/app/wallet`
 
 Requires the authenticated customer bearer token and matching
 `X-CPO-App-ID`. Returns the wallet owned by that CPO-local customer:
@@ -747,7 +747,7 @@ Balance is an exact decimal string. A missing wallet invariant returns
 `404 wallet_not_found`; no customer or CPO ID is accepted from the request.
 The route is read-only and does not perform recharge or provider operations.
 
-### 4.30 `GET /api/v1/app/auth/wallet/transactions`
+### 4.30 `GET /api/v1/app/wallet/transactions`
 
 Requires the authenticated customer bearer token and matching
 `X-CPO-App-ID`. Returns the current customer’s wallet summary plus wallet
@@ -762,7 +762,7 @@ and Razorpay provider verification are separate contracts. Errors include
 `400 invalid_request`, `404 wallet_not_found`, standard authentication/app-ID
 errors, or `500 internal_error`.
 
-### 4.31 `POST /api/v1/app/auth/wallet/recharge/orders`
+### 4.31 `POST /api/v1/app/wallet/recharge/orders`
 
 Requires customer bearer authentication, matching `X-CPO-App-ID`, and an
 `Idempotency-Key` header of 1–120 safe characters. The JSON body is:
@@ -785,7 +785,7 @@ duplicate provider order.
 The operation stores a non-secret provider order snapshot and provider
 metadata. It does not credit the wallet.
 
-### 4.32 `POST /api/v1/app/auth/wallet/recharge/verify`
+### 4.32 `POST /api/v1/app/wallet/recharge/verify`
 
 Requires customer bearer authentication and matching `X-CPO-App-ID`. The body
 contains the three values returned by Razorpay Checkout:

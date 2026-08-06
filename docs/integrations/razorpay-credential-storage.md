@@ -85,7 +85,7 @@ fail closed.
 
 ## User App recharge flow
 
-The customer calls `POST /api/v1/app/auth/wallet/recharge/orders` with a
+The customer calls `POST /api/v1/app/wallet/recharge/orders` with a
 positive two-decimal INR amount and an `Idempotency-Key`. The CMS derives the
 customer, CPO, and wallet from the validated customer principal, creates a
 durable internal recharge order, resolves the encrypted CPO credentials, and
@@ -93,7 +93,7 @@ uses the official Razorpay Go SDK to create the provider order. The response
 contains the provider order ID, amount in rupees and minor units, currency,
 status, and public Razorpay key ID for checkout.
 
-The customer then calls `POST /api/v1/app/auth/wallet/recharge/verify` with the
+The customer then calls `POST /api/v1/app/wallet/recharge/verify` with the
 Razorpay order ID, payment ID, and checkout signature. The CMS verifies the
 signature, fetches the payment through the SDK, requires matching order ID,
 amount, currency, and captured status, and commits one transaction containing:

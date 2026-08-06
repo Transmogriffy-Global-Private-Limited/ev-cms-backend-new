@@ -1,7 +1,9 @@
 # User App Frontend Handoff
 
-This is the implementation handoff for the customer-facing app authentication
-surface. It describes the currently routed backend contract. The authoritative
+This is the implementation handoff for the customer-facing User App HTTP
+surface: customer authentication, published-network discovery, favorites,
+informational pricing, wallet history, and Razorpay wallet recharge. It
+describes the currently routed backend contract. The authoritative
 machine-readable contract is `docs/contracts/openapi/openapi.yaml`; when
 `API_DOCS_ENABLED=true`, the same contract is available through Swagger UI at
 `/docs/` and as YAML at `/openapi.yaml`.
@@ -17,7 +19,7 @@ machine-readable contract is `docs/contracts/openapi/openapi.yaml`; when
   the other CPO app.
 - `users` is reserved for Superadmin and CPO staff. The app never receives or
   authenticates a global administrative user ID.
-- Every `/api/v1/app/auth/...` request must carry the current
+- Every `/api/v1/app/...` request must carry the current
   `X-CPO-App-ID`, including signup, login, refresh, recovery, and protected
   calls.
 - The app ID selects a CPO before authentication. It is routing metadata, not a
@@ -27,15 +29,90 @@ machine-readable contract is `docs/contracts/openapi/openapi.yaml`; when
 - The backend can replace a CPO's dummy app ID with its live app ID. Treat the
   app ID as deploy-time app configuration, not customer state.
 
-## 2. Base URL, Headers, and API Explorer
+## 2. Base URL, Environment Selection, Headers, and API Explorer
 
-Production-style base URL example:
+The frontend uses one configured CMS API base for the selected environment.
+Do not invent a second origin per endpoint, and do not put the CPO app ID into
+the URL. The shared base stops at `/api/v1`; each route group appends its own
+path.
 
-```text
-https://<cms-api-host>/api/v1/app/auth
+| Environment | API origin (`API_ORIGIN`) | Shared API base (`API_BASE_URL`) | User App root (`USER_APP_ROOT`) | Credential root (`USER_APP_AUTH_ROOT`) |
+| --- | --- | --- | --- | --- |
+| Local backend on the same development machine | `http://127.0.0.1:8080` | `http://127.0.0.1:8080/api/v1` | `http://127.0.0.1:8080/api/v1/app` | `http://127.0.0.1:8080/api/v1/app/auth` |
+| Current shared development deployment | `https://dev-evcmsnew.transev.site` | `https://dev-evcmsnew.transev.site/api/v1` | `https://dev-evcmsnew.transev.site/api/v1/app` | `https://dev-evcmsnew.transev.site/api/v1/app/auth` |
+| Another approved deployment | `<configured-https-origin>` | `<configured-https-origin>/api/v1` | `<configured-https-origin>/api/v1/app` | `<configured-https-origin>/api/v1/app/auth` |
+
+The repository does not define a separate production hostname. A frontend or
+AI agent must receive that deployment origin through its environment
+configuration; it must not guess one.
+
+Frontend environment examples:
+
+```dotenv
+# local frontend configuration
+VITE_EV_CMS_API_ORIGIN=http://127.0.0.1:8080
+
+# shared development frontend configuration
+VITE_EV_CMS_API_ORIGIN=https://dev-evcmsnew.transev.site
 ```
 
-Headers on every request:
+Store the origin without a trailing slash. `API_ORIGIN` is only the scheme,
+host, and optional port; it must not contain a path, `/api/v1`, or a route-group
+path. `API_BASE_URL` must contain `/api/v1` exactly once and must not contain
+`/app/auth`, `/cpo`, or `/platform`.
+The backend server listen address `0.0.0.0:8080` is not a browser base URL;
+use `127.0.0.1`, `localhost`, or the explicitly approved host/IP that resolves
+to the backend.
+
+For an AI coding agent, the deterministic selection rule is:
+
+1. Read the frontend environment's `VITE_EV_CMS_API_ORIGIN` (or the
+   framework-equivalent public runtime variable).
+2. If developing against the local backend and no override is supplied, use
+   `http://127.0.0.1:8080`.
+3. If using the shared development deployment, use
+   `https://dev-evcmsnew.transev.site`.
+4. If neither applies, ask for the approved API origin; never infer a URL from
+   a database name, CPO app ID, frontend host, mockup, or old documentation.
+
+The CPO app ID is a separate trusted frontend configuration value. The API
+origin selects the CMS deployment; `X-CPO-App-ID` selects the CPO application
+within that deployment. One white-label CPO build may therefore use the same
+API base with its own app-ID value.
+
+Route-group derivation for an AI agent or shared frontend client is:
+
+```ts
+const API_BASE_URL = `${API_ORIGIN.replace(/\/+$/, "")}/api/v1`;
+const USER_APP_ROOT = `${API_BASE_URL}/app`;
+const USER_APP_AUTH_ROOT = `${USER_APP_ROOT}/auth`;
+const CPO_ROOT = `${API_BASE_URL}/cpo`;
+const PLATFORM_ROOT = `${API_BASE_URL}/platform`;
+```
+
+`USER_APP_ROOT` owns current customer-facing app resources. Use it for `me`,
+profile, hubs, chargers, pricing, favorites, wallet, and recharge endpoints;
+for example, call `GET ${USER_APP_ROOT}/chargers`.
+
+`USER_APP_AUTH_ROOT` owns credential and session operations only: signup,
+login, refresh, password recovery/change, session list/revocation, and logout.
+`CPO_ROOT` and `PLATFORM_ROOT` are administrative route groups and must not be
+called by the customer app.
+
+This is a route migration, not an alias arrangement. The former resource URLs
+under `/api/v1/app/auth` (for example, `/api/v1/app/auth/chargers`) are no
+longer registered. Update the frontend and backend together to the canonical
+`/api/v1/app/...` resource URLs; do not retry a `404` by calling an undocumented
+legacy path.
+
+The shared-development hostname identifies a deployment, not a source checkout.
+Use these new resource paths against it only after this source revision has
+been deployed there. Until then, obtain that deployment's served
+`/openapi.yaml` (when enabled) or deploy the matching backend and frontend
+together; do not assume an unpublished local route migration is live.
+
+Headers on every currently callable User App API request under
+`USER_APP_ROOT` (including its `/auth` child):
 
 ```http
 X-CPO-App-ID: <configured-current-cpo-app-id>
@@ -51,13 +128,27 @@ Authorization: Bearer <access_token>
 
 Do not send an access token to signup, login, OTP verification, refresh, or
 forgot/reset-password endpoints. Refresh uses the refresh token in its JSON
-body. The backend does not use authentication cookies, so frontend requests do
-not need `credentials: "include"`.
+body. Health and documentation URLs are not User App API calls and do not
+require `X-CPO-App-ID`. The backend does not use authentication cookies, so
+frontend requests do not need `credentials: "include"`.
 
 If browser access is cross-origin, the deployment must set
 `CORS_ALLOW_ALL=true`; the current permissive mode accepts requested headers,
 including `Authorization` and `X-CPO-App-ID`. CORS is disabled when that setting
 is false.
+
+Health and API documentation use the same origin, without the User App API
+prefix:
+
+```text
+GET {API_ORIGIN}/health/live
+GET {API_ORIGIN}/health/ready
+GET {API_ORIGIN}/docs/
+GET {API_ORIGIN}/openapi.yaml
+```
+
+`/docs/` and `/openapi.yaml` require `API_DOCS_ENABLED=true`; they are not User
+App business endpoints.
 
 ## 3. Canonical Error Envelope
 
@@ -127,7 +218,7 @@ export type CustomerMe = {
   };
   customer: {
     id: string;
-    status: "ACTIVE" | "BLOCKED" | "DELETED";
+    status: "ACTIVE" | "BLOCKED";
     user_group_id?: string;
   };
   cpo: {
@@ -287,16 +378,16 @@ export type CustomerPriceResponse = {
 
 | Method and path | Bearer | Success | Purpose |
 | --- | --- | --- | --- |
-| `POST /signup` | No | `202 ChallengeResponse` | Start verified signup. |
-| `POST /signup/verify` | No | `201 SignupResponse` | Create customer and wallet. |
-| `POST /signup/resend` | No | `202 ChallengeResponse` | Replace signup OTP challenge. |
-| `POST /login` | No | `202 ChallengeResponse` | Verify password and start mail OTP. |
-| `POST /login/verify` | No | `200 CustomerTokenResponse` | Create authenticated session. |
-| `POST /login/resend` | No | `202 ChallengeResponse` | Replace login OTP challenge. |
-| `POST /refresh` | No | `200 CustomerTokenResponse` | Rotate refresh and renew access. |
-| `POST /password/forgot` | No | `202 MessageResponse` | Enumeration-safe recovery start. |
-| `POST /password/reset/resend` | No | `202 ChallengeResponse` | Replace recovery ID/code pair. |
-| `POST /password/reset` | No | `200 MessageResponse` | Replace forgotten password. |
+| `POST /auth/signup` | No | `202 ChallengeResponse` | Start verified signup. |
+| `POST /auth/signup/verify` | No | `201 SignupResponse` | Create customer and wallet. |
+| `POST /auth/signup/resend` | No | `202 ChallengeResponse` | Replace signup OTP challenge. |
+| `POST /auth/login` | No | `202 ChallengeResponse` | Verify password and start mail OTP. |
+| `POST /auth/login/verify` | No | `200 CustomerTokenResponse` | Create authenticated session. |
+| `POST /auth/login/resend` | No | `202 ChallengeResponse` | Replace login OTP challenge. |
+| `POST /auth/refresh` | No | `200 CustomerTokenResponse` | Rotate refresh and renew access. |
+| `POST /auth/password/forgot` | No | `202 MessageResponse` | Enumeration-safe recovery start. |
+| `POST /auth/password/reset/resend` | No | `202 ChallengeResponse` | Replace recovery ID/code pair. |
+| `POST /auth/password/reset` | No | `200 MessageResponse` | Replace forgotten password. |
 | `GET /me` | Yes | `200 CustomerMe` | Bootstrap authenticated app state. |
 | `PATCH /profile` | Yes | `200 CustomerUser` | Update this account's name or phone. |
 | `GET /hubs` | Yes | `200 CustomerHubList` | List published hubs in this CPO. |
@@ -314,13 +405,14 @@ export type CustomerPriceResponse = {
 | `GET /wallet/transactions` | Yes | `200 CustomerWalletTransactionList` | Read this customer’s bounded wallet ledger history. |
 | `POST /wallet/recharge/orders` | Yes | `201 CustomerRechargeOrder` | Create an idempotent Razorpay checkout order. |
 | `POST /wallet/recharge/verify` | Yes | `200 CustomerRechargeOrder` | Verify a captured Razorpay payment and credit the wallet once. |
-| `GET /sessions` | Yes | `200 SessionList` | List this account's active sessions. |
-| `DELETE /sessions/{session_id}` | Yes | `204` | Revoke one owned session. |
-| `POST /logout` | Yes | `204` | Revoke current session. |
-| `POST /logout-all` | Yes | `204` | Revoke all sessions for this CPO account. |
-| `POST /password/change` | Yes | `200 MessageResponse` | Change password and revoke all sessions. |
+| `GET /auth/sessions` | Yes | `200 SessionList` | List this account's active sessions. |
+| `DELETE /auth/sessions/{session_id}` | Yes | `204` | Revoke one owned session. |
+| `POST /auth/logout` | Yes | `204` | Revoke current session. |
+| `POST /auth/logout-all` | Yes | `204` | Revoke all sessions for this CPO account. |
+| `POST /auth/password/change` | Yes | `200 MessageResponse` | Change password and revoke all sessions. |
 
-Paths in the table are relative to `/api/v1/app/auth`.
+Every listed path is relative to `USER_APP_ROOT` (`/api/v1/app`). Only rows
+whose path starts with `/auth` use `USER_APP_AUTH_ROOT`.
 
 ### 5.1 Published Network Discovery
 
@@ -354,45 +446,81 @@ intent without leaking unpublished inventory.
 preserve each `next_*` pair together and send it back as the corresponding
 `hub_before`/`hub_before_id` or `charger_before`/`charger_before_id` pair.
 
-`GET /chargers` supports optional `q`, `connector_type`, `min_power_kw`,
-`max_power_kw`, and `open_24_hours` filters. Supplying `lat` and `lng` uses the
-customer’s current location and returns chargers within `radius_km` (default
-10 km, maximum 100 km), ordered by calculated distance. Location searches are
-bounded and do not return a continuation cursor; ordinary searches use the
-same descending keyset cursor as other collections. All results remain limited
-to attached chargers in published hubs belonging to the authenticated CPO.
-Stored CMS status is not live availability: charger and connector
-`availability` remains `UNKNOWN` until the separate HAL contract exists.
+`GET /hubs` accepts `q`, `limit`, `before`, and `before_id`. `q` is a
+case-insensitive name/address search with a maximum of 255 characters. The
+default page size is 25 and the maximum is 100; cursor timestamp and ID must
+always be sent as a pair.
+
+`GET /chargers` accepts the following query parameters. All ordinary list
+queries default to `limit=25` and reject a limit above 100.
+
+| Parameter | Meaning and validation |
+| --- | --- |
+| `q` | Case-insensitive public charger ID, vendor, model, hub name, or hub address search; maximum 255 characters. |
+| `connector_type` | Case-insensitive connector-type match; maximum 50 characters. |
+| `min_power_kw`, `max_power_kw` | Non-negative numbers; minimum cannot exceed maximum. |
+| `open_24_hours` | Boolean hub opening-hours filter. |
+| `before`, `before_id` | Ordinary descending `(created_at, id)` keyset cursor; both are required together. |
+| `lat`, `lng` | Customer location for a near-me query; both are required together (`-90..90`, `-180..180`). |
+| `radius_km` | Only valid with `lat` and `lng`; greater than 0 and at most 100; defaults to 10. |
+
+Near-me results are ordered by calculated distance and are intentionally
+bounded without a continuation cursor (`has_more` is false and no `next_*`
+cursor is returned). A location query cannot include `before`/`before_id`.
+All results remain limited to attached chargers in published hubs belonging to
+the authenticated CPO. Stored CMS status is not live availability: charger and
+connector `availability` remains `UNKNOWN` until the separate HAL contract
+exists.
 
 ### 5.2 Wallet Reads
 
 `GET /wallet` returns the authenticated customer’s CPO-local wallet with an
 exact two-decimal balance string, currency, and durable wallet update time.
 `GET /wallet/transactions` returns only that wallet’s transactions in
-descending `(created_at, id)` keyset order. Preserve `next_before` and
-`next_before_id` together when fetching the next page. The response does not
-expose internal idempotency keys or provider credentials. These routes are
-read-only; wallet recharge, refund, charging-session billing, and payment
-provider verification are separate implementation slices.
+descending `(created_at, id)` keyset order. It accepts `limit` (default 25,
+maximum 100) plus the paired `before` and `before_id` cursor. Preserve
+`next_before` and `next_before_id` together when fetching the next page. The
+response does not expose internal idempotency keys, recharge-order IDs, or
+provider credentials.
 
-`POST /wallet/recharge/orders` requires an `Idempotency-Key` header and a body
-such as `{"amount":"500.00"}`. Reuse the same key only with the same amount.
-The response supplies the public Razorpay `provider_key_id` and
-`provider_order_id` for the checkout SDK. The frontend must never receive or
-store the CPO key secret.
+Wallet recharge is implemented through the two Razorpay routes below. A
+successful verified recharge appears as a completed `CREDIT` ledger entry.
+Refund execution, charging-session billing, charging bills, payment-provider
+history, webhook ingestion, settlement reconciliation, and general transaction
+history beyond this wallet ledger are not implemented.
+
+`POST /wallet/recharge/orders` requires an `Idempotency-Key` header (1–120
+characters; CR, LF, and NUL are rejected) and a body such as `{"amount":"500.00"}`.
+`amount` is a positive INR decimal with at most two decimal places. Reuse the
+same key only for the same amount. The response supplies the public Razorpay
+`provider_key_id`, `provider_order_id`, `amount_minor`, and `currency` for a
+checkout SDK while the order is `PAYMENT_PENDING`; an idempotent replay of an
+already `PAID` order can omit `provider_key_id`. The frontend must never
+receive or store the CPO key secret.
 
 After checkout succeeds, send the provider-returned order ID, payment ID, and
 signature to `POST /wallet/recharge/verify`. The backend verifies the signature,
 fetches the payment through Razorpay, requires captured status and exact order
 amount/currency matches, then atomically credits the wallet. Do not treat an
-authorized-but-not-captured response as funded, and do not retry with a new
-idempotency key when the original order request is still pending.
+authorized-but-not-captured response as funded. Repeating a successful verify
+with the same payment ID is safe; a different payment ID for an already paid
+order returns `409 recharge_already_completed`.
+
+Treat `400 invalid_idempotency_key`, `400 invalid_amount`,
+`400 invalid_payment_signature`, `404 recharge_order_not_found`, and the
+`409` payment/idempotency errors as user- or checkout-flow errors rather than
+generic retry candidates. If order creation returns
+`502 payment_provider_unavailable`, retry creation only after recovery and
+with a **new** idempotency key: the failed key is durably terminal. If
+verification returns that `502`, retry `/wallet/recharge/verify` with the same
+provider-returned IDs and signature. `503 payment_provider_not_configured`
+means this CPO cannot currently offer wallet recharge.
 
 ### 5.3 Informational Price Display
 
 The price routes are authenticated, CPO-scoped reads. The server chooses the
 tariff at `effective_at`; the frontend must not reconstruct precedence from CPO
-tariff rows. The precedence is:
+tariff rows. For a charger read, the precedence is:
 
 1. matching UserGroup tariff;
 2. generic charger tariff;
@@ -402,9 +530,11 @@ In the current backend schema, “User Tariff” is the tariff whose
 `user_group_id` matches the authenticated customer’s existing group assignment.
 No new group-management or per-customer tariff API is introduced here. A
 matching UserGroup tariff always wins over generic charger and hub tariffs. If
-both a matching group/charger and group/hub row exist, the charger row is only
-the more-specific tie-breaker within the UserGroup tier. A customer without a
-group uses only generic tariffs. `AVAILABLE` includes exact
+both a matching group/charger and group/hub row exist, the charger row is the
+more-specific tie-breaker within the UserGroup tier. A customer without a group
+uses only generic tariffs. A hub-price read cannot use a charger-scoped tariff:
+it resolves a matching UserGroup hub tariff first, then the generic hub tariff.
+`AVAILABLE` includes exact
 decimal strings for currency, energy price, idle fee, and GST when referenced;
 `UNAVAILABLE` is a valid `200` response with `unavailable_reason` and never a
 zero-price fallback. The response is informational and is not a charging or
@@ -414,7 +544,7 @@ payment commitment. HAL is not called.
 
 ### 6.1 Start signup
 
-`POST /signup`
+`POST /auth/signup`
 
 ```json
 {
@@ -436,7 +566,7 @@ UTC timestamps rather than a hardcoded duration.
 
 ### 6.2 Verify signup
 
-`POST /signup/verify`
+`POST /auth/signup/verify`
 
 ```json
 {
@@ -460,7 +590,7 @@ customer in. Navigate to login after success.
 
 ### 6.3 Resend signup OTP
 
-`POST /signup/resend`
+`POST /auth/signup/resend`
 
 ```json
 {"challenge_id":"<current-signup-challenge-id>"}
@@ -473,7 +603,7 @@ challenge and OTP are invalid immediately.
 
 ### 7.1 Password step
 
-`POST /login`
+`POST /auth/login`
 
 ```json
 {
@@ -488,7 +618,7 @@ the returned challenge/timestamps.
 
 ### 7.2 Verify login OTP
 
-`POST /login/verify`
+`POST /auth/login/verify`
 
 ```json
 {
@@ -504,7 +634,7 @@ contract.
 
 ### 7.3 Resend login OTP
 
-`POST /login/resend`
+`POST /auth/login/resend`
 
 ```json
 {"challenge_id":"<current-login-challenge-id>"}
@@ -515,7 +645,7 @@ complete login.
 
 ## 8. Refresh and Request Serialization
 
-`POST /refresh`
+`POST /auth/refresh`
 
 ```json
 {"refresh_token":"<current-opaque-refresh-token>"}
@@ -587,7 +717,7 @@ Errors are `400 invalid_request`, `400 invalid_full_name`,
 
 ### 9.3 Session list
 
-`GET /sessions`
+`GET /auth/sessions`
 
 ```json
 {
@@ -610,15 +740,15 @@ returned.
 
 ### 9.4 Revoke one session
 
-`DELETE /sessions/{session_id}` returns `204`. The customer may revoke their
+`DELETE /auth/sessions/{session_id}` returns `204`. The customer may revoke their
 current session; if `is_current` was true, clear local authentication state
 immediately. `404 session_not_found` means the session is not owned by this
 account or does not exist.
 
 ### 9.5 Logout
 
-- `POST /logout` returns `204` and revokes the current session.
-- `POST /logout-all` returns `204` and revokes all sessions for only this
+- `POST /auth/logout` returns `204` and revokes the current session.
+- `POST /auth/logout-all` returns `204` and revokes all sessions for only this
   CPO-local account.
 
 Clear local tokens even if logout fails due to an already invalid session.
@@ -629,7 +759,7 @@ affect Superadmin/CPO-staff sessions.
 
 ### 10.1 Forgot password
 
-`POST /password/forgot`
+`POST /auth/password/forgot`
 
 ```json
 {"email":"driver@example.com"}
@@ -649,7 +779,7 @@ recovery ID/code.
 
 ### 10.2 Resend recovery
 
-`POST /password/reset/resend`
+`POST /auth/password/reset/resend`
 
 ```json
 {"challenge_id":"<current-recovery-id>"}
@@ -660,7 +790,7 @@ stored pair; the old pair is unusable.
 
 ### 10.3 Complete recovery
 
-`POST /password/reset`
+`POST /auth/password/reset`
 
 ```json
 {
@@ -682,7 +812,7 @@ clear any existing token bundle.
 
 ### 10.4 Authenticated password change
 
-`POST /password/change`
+`POST /auth/password/change`
 
 ```json
 {
@@ -704,7 +834,10 @@ The current session is revoked too. Clear auth state and route to login. Handle
 ## 11. Minimal Fetch Client
 
 ```ts
-const API_ROOT = "https://<cms-api-host>/api/v1/app/auth";
+const API_ORIGIN = getRequiredPublicEnv("VITE_EV_CMS_API_ORIGIN");
+const API_BASE_URL = `${API_ORIGIN.replace(/\/+$/, "")}/api/v1`;
+const USER_APP_ROOT = `${API_BASE_URL}/app`;
+const USER_APP_AUTH_ROOT = `${USER_APP_ROOT}/auth`;
 const CPO_APP_ID = "<configured-app-id>";
 
 async function api<T>(
@@ -718,7 +851,7 @@ async function api<T>(
   if (init.body) headers.set("Content-Type", "application/json");
   if (accessToken) headers.set("Authorization", `Bearer ${accessToken}`);
 
-  const response = await fetch(`${API_ROOT}${path}`, { ...init, headers });
+  const response = await fetch(`${USER_APP_ROOT}${path}`, { ...init, headers });
   if (response.status === 204) return undefined as T;
 
   const body = await response.json().catch(() => undefined);
@@ -735,6 +868,9 @@ async function api<T>(
 
 Keep the CPO app ID outside editable customer input. For a white-label app,
 compile or deploy one trusted app-ID value per branded CPO distribution.
+Keep `API_ORIGIN` outside editable customer input as well. The frontend must
+not let a customer change the backend host or CPO app ID from a profile form,
+query parameter, or deep link.
 
 ## 12. Frontend State and Security Rules
 
@@ -771,7 +907,7 @@ until their routes appear in the same OpenAPI document.
 
 ## 14. Frontend Acceptance Checklist
 
-- Every app-auth request carries the configured `X-CPO-App-ID`.
+- Every User App request carries the configured `X-CPO-App-ID`.
 - Signup finishes at account creation, then explicitly enters login.
 - Login creates no local authenticated state until OTP verification succeeds.
 - The token bundle is replaced atomically on login and every refresh.

@@ -101,7 +101,7 @@ provides:
 - app-user `me`, customer-scoped session listing/revocation/logout, CPO-local
   password reset/change, and eligible-recipient recovery-ID/code delivery;
 - authenticated customer self-service profile updates through
-  `PATCH /api/v1/app/auth/profile`, with omitted-versus-null phone semantics,
+  `PATCH /api/v1/app/profile`, with omitted-versus-null phone semantics,
   canonical user projection responses, and CPO-scoped field-name-only audit
   evidence;
 - CPO ADMIN-controlled default-false hub publication through
@@ -128,6 +128,10 @@ provides:
   settlement reconciliation, RFID, or HAL integration;
 - trusted backend current-principal, customer, CPO, and app-ID helpers, with
   `CurrentUserID` retained as a customer-ID compatibility alias;
+- a separated User App route topology: credential/session operations remain
+  under `/api/v1/app/auth`, while authenticated app resources (`me`, profile,
+  discovery, favorites, pricing, wallet, and recharge) are under
+  `/api/v1/app`;
 - environment-controlled permissive CORS middleware and a current development
   configuration that listens on all IPv4 interfaces for access from other
   machines;
@@ -203,7 +207,7 @@ Administrative and customer recovery now enqueue the complete canonical mail
 payload before outbox validation.
 
 CPO customer-app implementation requires `X-CPO-App-ID` on every
-`/api/v1/app/auth/...` request, including signup. The approved next user-work
+`/api/v1/app/...` request, including signup. The approved next user-work
 plan retains that app-only header. Customer self-service name and phone
 editing, published-station discovery, favorites, and informational tariff
 display are implemented in source; HAL-dependent charging/billing work remains

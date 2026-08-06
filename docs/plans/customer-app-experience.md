@@ -16,14 +16,18 @@ add CPO staff features, change CPO organization ownership, or embed the HAL.
 
 ## Existing Baseline
 
-Implemented customer routes are confined to `/api/v1/app/auth`:
+Credential and session routes are confined to `/api/v1/app/auth`:
 
 - email-verified signup and resend;
 - password plus mail-OTP login and resend;
 - rotating refresh tokens;
-- `me` bootstrap;
 - customer-scoped session list/revoke/logout;
 - CPO-local password recovery, reset, and change.
+
+Authenticated User App resources are under `/api/v1/app`: `me`, profile,
+published-network discovery, favorites, informational pricing, wallet reads,
+and Razorpay recharge. This separation keeps a feature URL from inheriting an
+`/auth` prefix merely because it requires a customer bearer token.
 
 Customer profile mutation, published station discovery, favorites, charger
 search/near-me, wallet balance/history reads, and Razorpay wallet recharge
@@ -94,8 +98,8 @@ the customer principal and current `X-CPO-App-ID` request contract.
 
 ### Endpoints
 
-- Keep `GET /api/v1/app/auth/me` as the authoritative bootstrap response.
-- Add `PATCH /api/v1/app/auth/profile` with only:
+- Keep `GET /api/v1/app/me` as the authoritative bootstrap response.
+- Add `PATCH /api/v1/app/profile` with only:
 
 ```json
 {"full_name":"Asha Das","phone":"+919876543210"}
@@ -262,9 +266,9 @@ client-supplied ownership.
 
 ### Implemented Endpoints
 
-- `GET /api/v1/app/auth/chargers`
-- `GET /api/v1/app/auth/wallet`
-- `GET /api/v1/app/auth/wallet/transactions`
+- `GET /api/v1/app/chargers`
+- `GET /api/v1/app/wallet`
+- `GET /api/v1/app/wallet/transactions`
 
 ### Rules
 
@@ -301,8 +305,8 @@ customer wallet exactly once.
 
 ### Implemented Endpoints
 
-- `POST /api/v1/app/auth/wallet/recharge/orders`
-- `POST /api/v1/app/auth/wallet/recharge/verify`
+- `POST /api/v1/app/wallet/recharge/orders`
+- `POST /api/v1/app/wallet/recharge/verify`
 
 ### Durable State and Rules
 

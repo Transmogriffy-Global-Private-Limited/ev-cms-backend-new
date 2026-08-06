@@ -839,6 +839,9 @@ Active feature:
 
 Current implementation slice:
 
+- Separated User App credential/session routes at `/api/v1/app/auth` from
+  authenticated app-resource routes at `/api/v1/app`; handlers, OpenAPI,
+  verification expectations, and frontend/integration guidance move together.
 - Added User App Razorpay order creation and checkout verification using the
   existing encrypted CPO integration credentials. Durable recharge orders,
   provider payment attempts, future-refund records, provider snapshots, and

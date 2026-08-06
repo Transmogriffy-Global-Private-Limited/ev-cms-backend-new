@@ -73,7 +73,7 @@ func New(
 		auth.RegisterRoutes(router.Group("/api/v1/auth"), authService)
 	}
 	if customerAuthService != nil {
-		customerauth.RegisterRoutes(router.Group("/api/v1/app/auth"), customerAuthService)
+		customerauth.RegisterRoutes(router.Group("/api/v1/app"), customerAuthService)
 	}
 	if authService != nil && cpoService != nil {
 		cpo.RegisterPlatformRoutes(

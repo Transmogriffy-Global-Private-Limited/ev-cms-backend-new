@@ -18,6 +18,42 @@ Verification:
   rehost.
 - The PowerShell documentation verifier is unavailable on this host.
 
+### Clarified User App environment base URLs
+
+- Expanded the User App frontend/AI-agent handoff with explicit local,
+  shared-development, and approved-deployment API-origin rules.
+- Defined deterministic `VITE_EV_CMS_API_ORIGIN` selection, shared
+  `/api/v1` base derivation, separate `/app/auth`, `/cpo`, and `/platform`
+  route groups, health/docs URLs, CPO app-ID separation, and the prohibition
+  on using `0.0.0.0` as a browser URL or guessing a production hostname.
+
+### Corrected User App handoff against routed behavior
+
+- Reclassified the handoff as the full User App HTTP surface, corrected the
+  customer status union to `ACTIVE | BLOCKED`, and removed the invalid notion
+  that an API origin can include a path.
+- Corrected wallet documentation to reflect the implemented Razorpay order and
+  verification routes, durable wallet credit, idempotency, provider failure
+  responses, and still-unsupported refund/billing/reconciliation surfaces.
+- Added exact hub/charger/wallet pagination and near-me filter rules, and
+  corrected tariff wording so hub-price reads cannot select charger-scoped
+  tariffs.
+- Established the separate User App namespace and credential-root derivation
+  used by the canonical `/api/v1/app` and `/api/v1/app/auth` route split.
+
+### Separated User App resource routes from credential routes
+
+- Moved authenticated User App resources to `/api/v1/app`: current customer
+  bootstrap/profile, published hubs and chargers, pricing, favorites, wallet
+  reads, and Razorpay recharge.
+- Kept credential and session operations under `/api/v1/app/auth`: signup,
+  login, refresh, password recovery/change, session list/revocation, and
+  logout. Updated route checks, OpenAPI, human contracts, guides, integration
+  guidance, project state, plan, and the User App handoff in the same slice.
+- This is intentionally not an alias release: the former `/api/v1/app/auth`
+  resource URLs are removed and frontend clients must use the canonical
+  `/api/v1/app` resource paths in the same deployment.
+
 ## 2026-08-05
 
 ### Rehosted optional charger metadata behavior

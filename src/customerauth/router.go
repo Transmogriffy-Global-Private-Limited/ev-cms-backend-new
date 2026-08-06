@@ -23,16 +23,18 @@ type Handler struct {
 func RegisterRoutes(group *gin.RouterGroup, service *Service) {
 	handler := &Handler{service: service}
 	group.Use(noStore)
-	group.POST("/signup", handler.start)
-	group.POST("/signup/verify", handler.verify)
-	group.POST("/signup/resend", handler.resend)
-	group.POST("/login", handler.login)
-	group.POST("/login/verify", handler.verifyLogin)
-	group.POST("/login/resend", handler.resendLogin)
-	group.POST("/refresh", handler.refresh)
-	group.POST("/password/forgot", handler.forgotPassword)
-	group.POST("/password/reset/resend", handler.resendPasswordReset)
-	group.POST("/password/reset", handler.resetPassword)
+
+	auth := group.Group("/auth")
+	auth.POST("/signup", handler.start)
+	auth.POST("/signup/verify", handler.verify)
+	auth.POST("/signup/resend", handler.resend)
+	auth.POST("/login", handler.login)
+	auth.POST("/login/verify", handler.verifyLogin)
+	auth.POST("/login/resend", handler.resendLogin)
+	auth.POST("/refresh", handler.refresh)
+	auth.POST("/password/forgot", handler.forgotPassword)
+	auth.POST("/password/reset/resend", handler.resendPasswordReset)
+	auth.POST("/password/reset", handler.resetPassword)
 
 	protected := group.Group("")
 	protected.Use(service.Authenticate(), RequireAppID())
@@ -53,11 +55,14 @@ func RegisterRoutes(group *gin.RouterGroup, service *Service) {
 	protected.DELETE("/favorite-hubs/:hub_id", handler.removeFavoriteHub)
 	protected.PUT("/favorite-chargers/:charger_id", handler.addFavoriteCharger)
 	protected.DELETE("/favorite-chargers/:charger_id", handler.removeFavoriteCharger)
-	protected.GET("/sessions", handler.sessions)
-	protected.DELETE("/sessions/:session_id", handler.revokeSession)
-	protected.POST("/logout", handler.logout)
-	protected.POST("/logout-all", handler.logoutAll)
-	protected.POST("/password/change", handler.changePassword)
+
+	protectedAuth := auth.Group("")
+	protectedAuth.Use(service.Authenticate(), RequireAppID())
+	protectedAuth.GET("/sessions", handler.sessions)
+	protectedAuth.DELETE("/sessions/:session_id", handler.revokeSession)
+	protectedAuth.POST("/logout", handler.logout)
+	protectedAuth.POST("/logout-all", handler.logoutAll)
+	protectedAuth.POST("/password/change", handler.changePassword)
 }
 
 func (handler *Handler) start(ctx *gin.Context) {
