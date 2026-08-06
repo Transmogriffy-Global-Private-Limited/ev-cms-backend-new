@@ -4,6 +4,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/constants"
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/models"
 	"github.com/google/uuid"
 )
@@ -78,9 +79,9 @@ func TestCustomerNetworkProjectionDoesNotClaimLiveAvailability(t *testing.T) {
 	charger := models.Charger{
 		ID: chargerID, HubID: &hubID, ChargerID: "abc123", Vendor: &vendor,
 		Model: &model, MaxPowerKW: 7.4, OCPPVersion: "1.6J",
-		Status: "AVAILABLE", Connectors: []models.Connector{{
+		Status: constants.ChargerStatusActive, Connectors: []models.Connector{{
 			ID: uuid.New(), ConnectorNumber: 1, ConnectorType: "TYPE2",
-			Status: "AVAILABLE",
+			Status: constants.ChargerStatusActive,
 		}},
 	}
 	projection := customerChargerView(charger, false)

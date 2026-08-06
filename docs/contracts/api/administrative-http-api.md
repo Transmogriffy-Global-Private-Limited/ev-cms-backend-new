@@ -497,10 +497,14 @@ public charger ID, vendor, model, maximum power, OCPP version, connector
 capability, and customer favorite flags. It excludes OCPP identity, serial
 number, sanctioned load, raw status, last-seen data, and audit information.
 
-Until a separate CMS/HAL contract is implemented, charger and connector
-`availability` is always `UNKNOWN`; this endpoint makes no HAL call and does
-not claim live or online state. Unknown, unpublished, and cross-CPO hubs all
-return `404 hub_not_found`.
+Each charger and connector also includes its DB-backed CMS administrative
+`status` (`ACTIVE`, `INACTIVE`, `SUSPENDED`, `UNDERMAINTENANCE`, or
+`DECOMMISSIONED`), and each connector includes `connector_total_capacity`.
+The former connector `max_current` and `max_voltage` fields are absent. The CMS
+status is not live availability: until a separate CMS/HAL contract is
+implemented, charger and connector `availability` is always `UNKNOWN`; this
+endpoint makes no HAL call and does not claim live or online state. Unknown,
+unpublished, and cross-CPO hubs all return `404 hub_not_found`.
 
 ### 4.12 `GET /api/v1/app/chargers/{charger_id}`
 
@@ -713,8 +717,10 @@ tier.
 Requires the authenticated customer bearer token and matching
 `X-CPO-App-ID`. Returns only chargers attached to published hubs in the
 customer’s CPO. The safe projection includes hub display/location fields,
-connector summaries, and the customer’s charger favorite flag; it excludes
-OCPP identity, serial number, raw CMS status, and audit data.
+connector summaries with `connector_total_capacity`, static CMS administrative
+status for chargers/connectors, and the customer's charger favorite flag. It
+excludes OCPP identity, serial number, and audit data. CMS `status` is not live
+availability; `availability` remains `UNKNOWN` until HAL integration.
 
 Optional filters are `q`, `connector_type`, `min_power_kw`, `max_power_kw`,
 and `open_24_hours`. `q` searches the public charger ID, vendor, model, hub
@@ -1864,6 +1870,20 @@ changed-field metadata. Additional errors: `400 invalid_hub`,
 There is currently no hub delete route. Durable charger/tariff relationships
 must not be erased through implicit cascading behavior.
 
+### 9.8A `PUT /api/v1/cpo/hubs/{hub_id}/customer-visibility`
+
+Updates only the CPO ADMIN-controlled publication gate:
+
+```json
+{"customer_visible":true}
+```
+
+`200 OK` returns the updated hub and writes `HUB_CUSTOMER_VISIBILITY_UPDATED`.
+When false, the hub and all attached chargers are omitted from User App network
+discovery and favorite reads. This is a static publication decision, not live
+availability. The route requires the same current CPO bearer session and
+`X-CPO-App-ID` as every CPO business route.
+
 ### 9.9 `POST /api/v1/cpo/hubs/{hub_id}/chargers`
 
 Assigns or reassigns one existing charger to the target hub. The request body
@@ -1953,8 +1973,8 @@ The server generates:
 - a globally unique six-character lowercase `charger_id`;
 - a globally unique `ocpp_identity`;
 - each connector UUID;
-- initial charger status `OFFLINE`;
-- initial connector status `AVAILABLE`;
+- initial charger status `INACTIVE`;
+- initial connector status `ACTIVE`;
 - OCPP version projection `1.6J`;
 - timestamps.
 
@@ -1970,7 +1990,7 @@ The server generates:
   "model": "DC Wallbox",
   "serial_number": "SN-001",
   "max_power_kw": 25,
-  "status": "OFFLINE",
+  "status": "INACTIVE",
   "ocpp_version": "1.6J",
   "charger_name": "My Charger",
   "charger_host_name": "Host Name",
@@ -1994,7 +2014,7 @@ The server generates:
       "connector_number": 1,
       "connector_type": "CCS2",
       "connector_total_capacity": 25,
-      "status": "AVAILABLE",
+      "status": "ACTIVE",
       "created_at": "2026-07-31T12:05:00Z",
       "updated_at": "2026-07-31T12:05:00Z"
     }
@@ -2044,7 +2064,7 @@ Both cursor fields must be supplied together. `200 OK`:
       "model": "DC Wallbox",
       "serial_number": "SN-001",
       "max_power_kw": 25,
-      "status": "OFFLINE",
+      "status": "INACTIVE",
       "ocpp_version": "1.6J",
       "charger_name": "My Charger",
       "charger_host_name": "Host Name",
@@ -2068,7 +2088,7 @@ Both cursor fields must be supplied together. `200 OK`:
           "connector_number": 1,
           "connector_type": "CCS2",
           "connector_total_capacity": 25,
-          "status": "AVAILABLE",
+          "status": "ACTIVE",
           "created_at": "2026-07-31T12:05:00Z",
           "updated_at": "2026-07-31T12:05:00Z"
         }
@@ -2124,7 +2144,9 @@ request. New connectors can also be added by omitting the `id` field in the conn
 
 This route does not change public
 `charger_id`, `ocpp_identity`, charger or connector status, OCPP version, or
-`last_seen_at`. Runtime status is reserved for the future HAL projection.
+`last_seen_at`. Use the dedicated status route for the static CMS
+administrative status; that status remains separate from future HAL live
+availability.
 If `hub_id` is supplied it assigns or reassigns the charger to that tenant hub;
 the dedicated hub-assignment route provides the same operation with an
 idempotent same-hub retry. A move can return `409 tariff_schedule_conflict`
@@ -2144,6 +2166,27 @@ PostgreSQL rejects deletion with `409 charger_in_use` while a tariff, charging
 session, favorite, user-group access link, or another durable record references
 the charger. The caller must explicitly remove or retire those dependent
 records through their owning workflow; the API does not cascade business data.
+
+### 9.14A `GET /api/v1/cpo/chargers/{charger_id}/status`
+
+Uses the charger's internal UUID (`Charger.id`), not its six-character public
+`Charger.charger_id`. Returns the CPO-owned static CMS administrative status
+and stored OCPP identity mapping. It does not contact HAL and does not return
+live charger availability.
+
+### 9.14B `PUT /api/v1/cpo/chargers/{charger_id}/status`
+
+Uses the same internal charger UUID. Request:
+
+```json
+{"status":"UNDERMAINTENANCE","ocpp_identity":"CP-001"}
+```
+
+`status` is required and must be one of `ACTIVE`, `INACTIVE`, `SUSPENDED`,
+`UNDERMAINTENANCE`, or `DECOMMISSIONED`. `ocpp_identity` is optional; when
+included it must exactly match the stored mapping or the request returns
+`409 ocpp_identity_mismatch`. A successful update is CPO-scoped,
+transactional, and writes `CHARGER_STATUS_UPDATED`.
 
 ### 9.15 `POST /api/v1/cpo/gsts`
 

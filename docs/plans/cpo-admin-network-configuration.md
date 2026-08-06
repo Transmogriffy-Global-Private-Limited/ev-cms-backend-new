@@ -101,8 +101,9 @@ tenant-scoped hubs, chargers/connectors, GST profiles, and tariffs.
 - Tariff dates are both absent or form a valid half-open interval, and
   overlapping active periods in the same scope return
   `tariff_schedule_conflict` under concurrent writes.
-- CPO callers cannot write charger or connector runtime status; those fields
-  remain read-only HAL projections.
+- CPO callers can update the static CMS administrative status of a charger;
+  connector status remains created by the CMS. Neither is a live HAL
+  projection or availability signal.
 - Charger listing is bounded and cursor-recoverable.
 - A referenced charger cannot be deleted and returns `charger_in_use`.
 - A charger can be created without a hub, then assigned to a same-CPO hub;

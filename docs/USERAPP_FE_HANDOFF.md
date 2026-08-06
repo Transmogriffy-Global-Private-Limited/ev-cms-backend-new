@@ -263,10 +263,19 @@ export type CustomerHubSummary = {
   is_favorite: boolean;
 };
 
+export type CustomerNetworkStatus =
+  | "ACTIVE"
+  | "INACTIVE"
+  | "SUSPENDED"
+  | "UNDERMAINTENANCE"
+  | "DECOMMISSIONED";
+
 export type CustomerConnector = {
   id: string;
   connector_number: number;
   connector_type: string;
+  connector_total_capacity: number;
+  status: CustomerNetworkStatus;
   availability: "UNKNOWN";
 };
 
@@ -278,6 +287,7 @@ export type CustomerCharger = {
   model?: string;
   max_power_kw: number;
   ocpp_version: string;
+  status: CustomerNetworkStatus;
   hub_name?: string;
   hub_address?: string;
   hub_latitude?: number;
@@ -424,14 +434,21 @@ ID to select ownership.
 hub is explicitly published by a CPO ADMIN. Unpublished hubs, independent
 chargers, and cross-CPO resources are not returned.
 
-The backend deliberately does not contact HAL in this slice. `availability` is
-`UNKNOWN` for chargers and connectors. Do not render it as online, available,
-offline, or live status; a later HAL-backed contract must define those states,
-reconnect behavior, and REST recovery before the app depends on them.
+The DB-backed `status` on chargers and connectors is the CPO's static CMS
+administrative lifecycle (`ACTIVE`, `INACTIVE`, `SUSPENDED`,
+`UNDERMAINTENANCE`, or `DECOMMISSIONED`). It is not a live OCPP/HAL state.
+`connector_total_capacity` is the connector capacity value; the obsolete
+`max_current` and `max_voltage` fields are not returned.
 
-The safe projection omits OCPP identity, serial number, raw CMS status,
-last-seen timestamps, sanctioned load, CPO notes, and audit data. Favorite
-flags are present in the same safe projection used by the favorite list.
+The backend deliberately does not contact HAL in this slice. `availability` is
+`UNKNOWN` for chargers and connectors. Do not render either `availability` or
+the CMS `status` as online, available, offline, or live state; a later
+HAL-backed contract must define those states, reconnect behavior, and REST
+recovery before the app depends on them.
+
+The safe projection omits OCPP identity, serial number, last-seen timestamps,
+sanctioned load, CPO notes, and audit data. Favorite flags are present in the
+same safe projection used by the favorite list.
 
 Favorite mutations are now callable. `PUT` is idempotent and accepts no body;
 `DELETE` is idempotent and returns `204` when the favorite is absent. For

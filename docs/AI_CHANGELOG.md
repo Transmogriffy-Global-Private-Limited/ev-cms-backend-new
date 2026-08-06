@@ -2,6 +2,46 @@
 
 ## 2026-08-06
 
+### Rehosted charger-status and User App projection release
+
+- Rebuilt and rehosted revision `9ccdff2` after confirming migration 27 and
+  its replacement charger/connector status constraints were already applied.
+- Corrected the remaining charger-create and new-connector defaults to the
+  migration-27 CMS status values: new chargers are `INACTIVE`; new connectors
+  are `ACTIVE`.
+- Reconciled the CPO network plan and administrative contract so the dedicated
+  CPO charger-status route is documented as static CMS administration, never
+  HAL-backed live availability.
+
+Verification:
+
+- OpenAPI/runtime parity, full Go tests, `go vet`, formatting, and diff checks
+  passed.
+- Service active/enabled state, loopback listener, local/public liveness and
+  readiness, live OpenAPI operations, Swagger UI, migration ledger, and live
+  status constraints passed after rehost.
+- The PowerShell documentation verifier is unavailable on this host.
+
+### Consolidated current charger data into User App and repaired route contracts
+
+- Added DB-backed static CMS `status` to User App charger and connector
+  projections, and added connector `connector_total_capacity`; `availability`
+  remains the separate HAL-owned live field and is still always `UNKNOWN`.
+- Repaired migration 27's legacy-status conversion so every previously allowed
+  charger/connector status maps to a value accepted by the replacement
+  constraint before that constraint is added.
+- Added the already registered CPO hub-publication and charger-status routes to
+  canonical OpenAPI and the human CPO contract. Charger-status endpoints use
+  the internal charger UUID, while the established CPO charger detail route
+  continues to use the public six-character charger ID.
+- Updated the CPO agent handoff, User App handoff, project plan/state, and
+  documentation operation-count verifier for the 132-operation source tree.
+
+Verification:
+
+- Pending focused static checks after the full contract update; Go tests remain
+  skipped by the requested workspace policy.
+
 ### Clarified User App favorite charger identifier
 
 - Documented that User App favorite-charger mutations accept the six-character

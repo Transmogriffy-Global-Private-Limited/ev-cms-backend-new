@@ -860,10 +860,11 @@ Last completed slice:
   22. Refund execution, webhooks, settlement reconciliation, RFID, and HAL
   remain separate follow-ups.
 - Implemented User App charger search/filter and bounded near-me results over
-  published hubs, with safe hub/connector projections and explicit UNKNOWN
-  availability; implemented wallet balance and keyset-paginated wallet-history
-  reads. Recharge, refund, charging-session history, RFID, and HAL remain
-  separate slices.
+  published hubs, with safe hub/connector projections, DB-backed administrative
+  status and connector total capacity, and explicit UNKNOWN live availability;
+  implemented wallet balance and keyset-paginated wallet-history reads.
+  Recharge, refund, charging-session history, RFID, and HAL remain separate
+  slices.
 - Implemented the effective customer tariff resolver and informational hub and
   charger price APIs with exact decimal projections, explicit unavailable state,
   active GST resolution, and User Tariff > charger tariff > hub tariff
@@ -918,13 +919,13 @@ Last completed slice:
 
 Last deployment milestone:
 
-- Revision `782dd7b` was built cleanly and rehosted on the development VPS
-  after a validated rollback dump and application of migration twenty-six. The
-  live 129-operation route/OpenAPI surface, running-binary identity,
-  loopback-only listener, loopback/public readiness, zero-restart service
-  state, request-ID header, tariff columns/constraints/indexes, required
-  workers, and post-start journal were verified. The disposable PostgreSQL
-  lifecycle remains pending without `TEST_DATABASE_URL`.
+- Revision `9ccdff2` was built cleanly and rehosted on the development VPS.
+  Migration twenty-seven was already applied with the replacement
+  charger/connector status constraints. The live 132-operation route/OpenAPI
+  surface, running-binary identity, loopback-only listener, loopback/public
+  readiness, CPO status/publication operations, and post-start journal were
+  verified. The disposable PostgreSQL lifecycle remains pending without
+  `TEST_DATABASE_URL`.
 
 Next expected slice:
 
