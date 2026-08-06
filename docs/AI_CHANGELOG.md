@@ -2,6 +2,19 @@
 
 ## 2026-08-06
 
+### Reconciled merged CPO network routes
+
+- Repaired the duplicated `deleteCPOHub` OpenAPI operation introduced on the
+  merged mainline and restored one canonical operation.
+- Completed route-inventory and human-contract coverage for CPO charger-image
+  reads and hub deletion; the source OpenAPI now has 135 operations.
+
+Verification:
+
+- Documentation verification, static analysis, and route/OpenAPI inventory
+  reconciliation are pending after the merge; Go tests remain skipped by the
+  requested workspace policy.
+
 ### Added authenticated User App charger images
 
 - Added `GET /api/v1/app/chargers/{charger_id}/image`, using the public
