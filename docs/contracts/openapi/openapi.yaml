@@ -5127,7 +5127,7 @@ components:
     CustomerCharger:
       type: object
       additionalProperties: false
-      required: [id, hub_id, charger_id, vendor, model, max_power_kw, ocpp_version, availability, is_favorite, connectors]
+      required: [id, hub_id, charger_id, max_power_kw, ocpp_version, availability, is_favorite, connectors]
       properties:
         id: {type: string, format: uuid}
         hub_id: {type: string, format: uuid}
@@ -5135,8 +5135,8 @@ components:
           type: string
           pattern: "^[a-z0-9]{6}$"
           description: Public six-character charger identifier.
-        vendor: {type: string, maxLength: 100}
-        model: {type: string, maxLength: 100}
+        vendor: {type: string, maxLength: 100, nullable: true}
+        model: {type: string, maxLength: 100, nullable: true}
         max_power_kw: {type: number, minimum: 0}
         ocpp_version: {type: string, maxLength: 20}
         hub_name: {type: string, maxLength: 255}
@@ -6398,7 +6398,7 @@ components:
     CreateChargerRequest:
       type: object
       additionalProperties: false
-      required: [vendor, model, serial_number, connectors, charger_name, charger_host_name, charger_host_phone_no, charger_type, segment, sub_segment, charger_use_type, number_of_connectors, parking, protocol, twenty_four_seven_open_status]
+      required: [serial_number, connectors, charger_name, charger_host_name, charger_host_phone_no, charger_type, segment, sub_segment, charger_use_type, number_of_connectors, parking, protocol, twenty_four_seven_open_status]
       properties:
         hub_id:
           type: string
@@ -6641,8 +6641,8 @@ components:
           type: string
           maxLength: 255
           description: CMS mapping value; not proof of a live HAL connection.
-        vendor: {type: string, maxLength: 100}
-        model: {type: string, maxLength: 100}
+        vendor: {type: string, maxLength: 100, nullable: true}
+        model: {type: string, maxLength: 100, nullable: true}
         serial_number: {type: string, maxLength: 100}
         max_power_kw: {type: number, minimum: 0}
         charger_name:
