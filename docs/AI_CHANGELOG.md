@@ -1,5 +1,23 @@
 # AI Changelog
 
+## 2026-08-06
+
+### Rehosted charger part-time field correction
+
+- Corrected CPO charger updates to write the actual
+  `twenty_four_seven_open_status` database column.
+- Aligned customer network response contracts and the User App handoff with
+  the runtime `twenty_four_seven_open_status` field; the `open_24_hours` query
+  filter remains unchanged.
+- Built and rehosted revision `3645529` without a new migration.
+
+Verification:
+
+- Full Go tests, `go vet`, OpenAPI/runtime parity, and diff checks passed.
+- PostgreSQL remains through migration 25; service readiness passed after
+  rehost.
+- The PowerShell documentation verifier is unavailable on this host.
+
 ## 2026-08-05
 
 ### Rehosted optional charger metadata behavior

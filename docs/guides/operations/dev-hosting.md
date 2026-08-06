@@ -21,7 +21,7 @@ started as a second systemd service because that would create an unnecessary
 duplicate worker.
 
 The active deployment was updated on August 5, 2026 to source revision
-`0b344f9`. It has migrations one through twenty-five and the current 129-operation
+`3645529`. It has migrations one through twenty-five and the current 129-operation
 API. Migration thirteen keeps feature-key/entitlement tables retired pending a
 defined module catalog, migration fourteen completes the Superadmin authority,
 mail, announcement, notification, and status surface, and migration fifteen
@@ -131,7 +131,7 @@ content exclusions are defined in
 `docs/contracts/internal/http-request-logging.md`. Long-lived SSE requests are
 recorded when they disconnect. A recovered panic first emits a correlated safe
 JSON stack diagnostic without Gin's request dump or the panic value. The
-currently deployed `0b344f9` binary includes this logger.
+currently deployed `3645529` binary includes this logger.
 
 For a developer diagnostic session, set `LOG_LEVEL=DEBUG` in the ignored
 deployment environment and rehost. This adds request-start and handled-error
