@@ -2,6 +2,18 @@
 
 ## 2026-08-06
 
+### Clarified User App favorite charger identifier
+
+- Documented that User App favorite-charger mutations accept the six-character
+  `CustomerCharger.charger_id`, not the internal UUID in `CustomerCharger.id`.
+  This aligns the frontend handoff, human HTTP contract, and OpenAPI with the
+  runtime validator.
+
+Verification:
+
+- Documentation verifier and whitespace check passed; Go tests remain skipped
+  by the requested workspace policy.
+
 ### Rehosted current main and reconciled CPO network contracts
 
 - Rebuilt and restarted the current `782dd7b` deployment after confirming

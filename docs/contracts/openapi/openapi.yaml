@@ -1142,7 +1142,7 @@ paths:
       tags: [App User Network]
       operationId: addCustomerFavoriteCharger
       summary: Save a published charger as a customer favorite
-      description: Uses the public six-character charger ID and requires attachment to a published hub in the current customer CPO.
+      description: Uses `CustomerCharger.charger_id`, the public six-character charger ID, not the internal UUID `CustomerCharger.id`; requires attachment to a published hub in the current customer CPO.
       security:
         - BearerAuth: []
       parameters:
@@ -1167,7 +1167,7 @@ paths:
       tags: [App User Network]
       operationId: removeCustomerFavoriteCharger
       summary: Remove a customer charger favorite
-      description: Uses the public six-character charger ID and is idempotent without cross-CPO enumeration.
+      description: Uses `CustomerCharger.charger_id`, the public six-character charger ID, not the internal UUID `CustomerCharger.id`; is idempotent without cross-CPO enumeration.
       security:
         - BearerAuth: []
       parameters:

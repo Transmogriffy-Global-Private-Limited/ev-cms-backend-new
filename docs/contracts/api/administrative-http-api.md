@@ -669,15 +669,17 @@ not enumerated. A real removal records `CUSTOMER_FAVORITE_HUB_REMOVED`.
 
 ### 4.24 `PUT /api/v1/app/favorite-chargers/{charger_id}`
 
-Uses the six-character public charger ID. The charger must be attached to a
-published hub in the current CPO. The composite favorite is created
+Uses `CustomerCharger.charger_id`, the six-character public charger ID; do not
+use the internal UUID in `CustomerCharger.id`. The charger must be attached to
+a published hub in the current CPO. The composite favorite is created
 idempotently and returns `204`; a new row records
 `CUSTOMER_FAVORITE_CHARGER_ADDED`. No HAL call occurs.
 
 ### 4.25 `DELETE /api/v1/app/favorite-chargers/{charger_id}`
 
-Removes the current customer's charger favorite idempotently and returns
-`204`. An absent or cross-CPO public ID is not enumerated. A real removal
+Removes the current customer's charger favorite by `CustomerCharger.charger_id`
+idempotently and returns `204`; the internal UUID is not accepted. An absent
+or cross-CPO public ID is not enumerated. A real removal
 records `CUSTOMER_FAVORITE_CHARGER_REMOVED`.
 
 ### 4.26 `GET /api/v1/app/hubs/{hub_id}/price`

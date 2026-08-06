@@ -395,8 +395,8 @@ export type CustomerPriceResponse = {
 | `GET /favorites` | Yes | `200 CustomerFavorites` | List current published favorites. |
 | `PUT /favorite-hubs/{hub_id}` | Yes | `204` | Idempotently save a published hub. |
 | `DELETE /favorite-hubs/{hub_id}` | Yes | `204` | Idempotently remove a hub favorite. |
-| `PUT /favorite-chargers/{charger_id}` | Yes | `204` | Idempotently save an attached published charger. |
-| `DELETE /favorite-chargers/{charger_id}` | Yes | `204` | Idempotently remove a charger favorite. |
+| `PUT /favorite-chargers/{charger_id}` | Yes | `204` | Idempotently save an attached published charger by its public `charger_id`, never its UUID `id`. |
+| `DELETE /favorite-chargers/{charger_id}` | Yes | `204` | Idempotently remove a charger favorite by its public `charger_id`, never its UUID `id`. |
 | `GET /hubs/{hub_id}/price` | Yes | `200 CustomerPriceResponse` | Resolve the current informational hub price. |
 | `GET /chargers/{charger_id}/price` | Yes | `200 CustomerPriceResponse` | Resolve the current informational charger price. |
 | `GET /wallet` | Yes | `200 CustomerWalletResponse` | Read the current exact-decimal wallet balance. |
@@ -434,11 +434,13 @@ last-seen timestamps, sanctioned load, CPO notes, and audit data. Favorite
 flags are present in the same safe projection used by the favorite list.
 
 Favorite mutations are now callable. `PUT` is idempotent and accepts no body;
-`DELETE` is idempotent and returns `204` when the favorite is absent. A hub or
-charger must be published and in the current CPO when it is added. If a CPO
-later unpublishes the resource, `GET /favorites` omits it while the durable
-favorite may remain until the customer removes it. This preserves the saved
-intent without leaking unpublished inventory.
+`DELETE` is idempotent and returns `204` when the favorite is absent. For
+`/favorite-chargers/{charger_id}`, pass `CustomerCharger.charger_id`: it is the
+six-character lowercase public ID. Never pass `CustomerCharger.id`, which is
+the internal UUID. A hub or charger must be published and in the current CPO
+when it is added. If a CPO later unpublishes the resource, `GET /favorites`
+omits it while the durable favorite may remain until the customer removes it.
+This preserves the saved intent without leaking unpublished inventory.
 
 `GET /favorites` uses independent bounded cursors for hubs and chargers:
 preserve each `next_*` pair together and send it back as the corresponding
