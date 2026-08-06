@@ -2152,9 +2152,9 @@ func (service *Service) UpdateCharger(
 			changedFields["protocol"] = *request.Protocol
 		}
 		if request.TwentyFourSevenOpen != nil {
-			updates["twenty_four_seven_open"] = *request.TwentyFourSevenOpen
+			updates["twenty_four_seven_open_status"] = *request.TwentyFourSevenOpen
 			record.TwentyFourSevenOpen = *request.TwentyFourSevenOpen
-			changedFields["twenty_four_seven_open"] = *request.TwentyFourSevenOpen
+			changedFields["twenty_four_seven_open_status"] = *request.TwentyFourSevenOpen
 		}
 
 		file, err := ctx.FormFile("charger_image")

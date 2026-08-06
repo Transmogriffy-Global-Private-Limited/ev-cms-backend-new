@@ -48,7 +48,7 @@ type CustomerChargerListQuery struct {
 	Latitude      *float64
 	Longitude     *float64
 	RadiusKM      *float64
-	Open24Hours   *bool
+	Open24Hours   *bool   `json:"twenty_four_seven_open_status"`
 }
 
 type CustomerChargerListResponse struct {
@@ -64,7 +64,7 @@ type CustomerHubSummary struct {
 	Address         string    `json:"address"`
 	Latitude        float64   `json:"latitude"`
 	Longitude       float64   `json:"longitude"`
-	Open24Hours     bool      `json:"open_24_hours"`
+	Open24Hours     bool      `json:"twenty_four_seven_open_status"`
 	CustomerVisible bool      `json:"customer_visible"`
 	ChargerCount    int       `json:"charger_count"`
 	IsFavorite      bool      `json:"is_favorite"`
@@ -87,7 +87,7 @@ type CustomerChargerView struct {
 	HubAddress   string                  `json:"hub_address,omitempty"`
 	HubLatitude  *float64                `json:"hub_latitude,omitempty"`
 	HubLongitude *float64                `json:"hub_longitude,omitempty"`
-	Open24Hours  *bool                   `json:"open_24_hours,omitempty"`
+	Open24Hours  *bool `json:"twenty_four_seven_open_status,omitempty"`
 	DistanceKM   *float64                `json:"distance_km,omitempty"`
 	Availability string                  `json:"availability"`
 	IsFavorite   bool                    `json:"is_favorite"`

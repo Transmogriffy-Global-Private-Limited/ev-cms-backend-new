@@ -204,7 +204,7 @@ type CreateChargerRequest struct {
 	NumberOfConnectors int                      `json:"number_of_connectors"`
 	Parking            string                   `json:"parking"`
 	Protocol           string                   `json:"protocol"`
-	TwentyFourSevenOpen bool                     `json:"twenty_four_seven_open_status"`
+	TwentyFourSevenOpen bool `json:"twenty_four_seven_open_status"`
 	Connectors         []CreateConnectorRequest `json:"connectors"`
 }
 
