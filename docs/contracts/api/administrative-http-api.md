@@ -1973,8 +1973,8 @@ The server generates:
 - a globally unique six-character lowercase `charger_id`;
 - a globally unique `ocpp_identity`;
 - each connector UUID;
-- initial charger status `OFFLINE`;
-- initial connector status `AVAILABLE`;
+- initial charger status `INACTIVE`;
+- initial connector status `ACTIVE`;
 - OCPP version projection `1.6J`;
 - timestamps.
 
@@ -2144,7 +2144,9 @@ request. New connectors can also be added by omitting the `id` field in the conn
 
 This route does not change public
 `charger_id`, `ocpp_identity`, charger or connector status, OCPP version, or
-`last_seen_at`. Runtime status is reserved for the future HAL projection.
+`last_seen_at`. Use the dedicated status route for the static CMS
+administrative status; that status remains separate from future HAL live
+availability.
 If `hub_id` is supplied it assigns or reassigns the charger to that tenant hub;
 the dedicated hub-assignment route provides the same operation with an
 idempotent same-hub retry. A move can return `409 tariff_schedule_conflict`

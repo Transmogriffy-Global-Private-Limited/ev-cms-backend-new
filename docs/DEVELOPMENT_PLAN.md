@@ -919,13 +919,13 @@ Last completed slice:
 
 Last deployment milestone:
 
-- Revision `782dd7b` was built cleanly and rehosted on the development VPS
-  after a validated rollback dump and application of migration twenty-six. The
-  live 129-operation route/OpenAPI surface, running-binary identity,
-  loopback-only listener, loopback/public readiness, zero-restart service
-  state, request-ID header, tariff columns/constraints/indexes, required
-  workers, and post-start journal were verified. The disposable PostgreSQL
-  lifecycle remains pending without `TEST_DATABASE_URL`.
+- Revision `1a33005` was built cleanly and rehosted on the development VPS.
+  Migration twenty-seven was already applied with the replacement
+  charger/connector status constraints. The live 132-operation route/OpenAPI
+  surface, running-binary identity, loopback-only listener, loopback/public
+  readiness, CPO status/publication operations, and post-start journal were
+  verified. The disposable PostgreSQL lifecycle remains pending without
+  `TEST_DATABASE_URL`.
 
 Next expected slice:
 

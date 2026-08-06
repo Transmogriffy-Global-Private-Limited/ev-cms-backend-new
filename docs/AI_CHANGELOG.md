@@ -2,6 +2,26 @@
 
 ## 2026-08-06
 
+### Rehosted charger-status and User App projection release
+
+- Rebuilt and rehosted revision `1a33005` after confirming migration 27 and
+  its replacement charger/connector status constraints were already applied.
+- Corrected the remaining charger-create and new-connector defaults to the
+  migration-27 CMS status values: new chargers are `INACTIVE`; new connectors
+  are `ACTIVE`.
+- Reconciled the CPO network plan and administrative contract so the dedicated
+  CPO charger-status route is documented as static CMS administration, never
+  HAL-backed live availability.
+
+Verification:
+
+- OpenAPI/runtime parity, full Go tests, `go vet`, formatting, and diff checks
+  passed.
+- Service active/enabled state, loopback listener, local/public liveness and
+  readiness, live OpenAPI operations, Swagger UI, migration ledger, and live
+  status constraints passed after rehost.
+- The PowerShell documentation verifier is unavailable on this host.
+
 ### Consolidated current charger data into User App and repaired route contracts
 
 - Added DB-backed static CMS `status` to User App charger and connector
