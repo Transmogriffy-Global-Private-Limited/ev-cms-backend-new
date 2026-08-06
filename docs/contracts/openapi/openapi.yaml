@@ -3354,17 +3354,26 @@ paths:
     get:
       tags: [CPO Operations]
       operationId: getCPOHub
-      summary: Get one tenant hub
+      summary: Get one tenant hub with a paginated charger list
+      description: |
+        Returns the hub and its chargers in descending `(created_at, id)` order.
+        `before` and `before_id` are an exclusive cursor pair and must be sent
+        together when following `chargers.next_before` and
+        `chargers.next_before_id`.
       security:
         - BearerAuth: []
           CPOAppID: []
+      parameters:
+        - $ref: "#/components/parameters/ListBefore"
+        - $ref: "#/components/parameters/ListBeforeID"
+        - $ref: "#/components/parameters/ListLimit"
       responses:
         "200":
           description: Hub detail.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Hub"
+                $ref: "#/components/schemas/HubResponse"
         "400":
           description: Invalid hub ID or missing app-ID header.
           content:
@@ -6585,8 +6594,6 @@ components:
         - cpo_id
         - charger_id
         - ocpp_identity
-        - vendor
-        - model
         - serial_number
         - max_power_kw
         - status
@@ -6605,6 +6612,8 @@ components:
         - parking
         - protocol
         - twenty_four_seven_open_status
+        - charger_connection_url_ws
+        - charger_connection_url_wss
       properties:
         id: {type: string, format: uuid}
         cpo_id: {type: string, format: uuid}
@@ -6658,6 +6667,18 @@ components:
           maxLength: 50
         twenty_four_seven_open_status:
           type: boolean
+        charger_connection_url_ws:
+          type: string
+          format: uri
+          description: OCPP WebSocket endpoint derived from the configured non-TLS charger host and the generated OCPP identity.
+        charger_connection_url_wss:
+          type: string
+          format: uri
+          description: OCPP secure-WebSocket endpoint derived from the configured charger host and the generated OCPP identity.
+        email:
+          type: string
+          format: email
+          description: Authenticated CPO administrator email; omitted only when unavailable.
         status:
           $ref: "#/components/schemas/ChargerStatus"
         ocpp_version: {type: string, maxLength: 20}
@@ -6673,13 +6694,7 @@ components:
         updated_at: {type: string, format: date-time}
 
     ChargerResponse:
-      type: object
-      properties:
-        charger:
-          $ref: "#/components/schemas/Charger"
-        email:
-          type: string
-          format: email
+      $ref: "#/components/schemas/Charger"
 
     ChargerListResponse:
       type: object
@@ -6771,6 +6786,31 @@ components:
         customer_visible:
           type: boolean
           description: Whether this hub is published to customer network discovery.
+        created_at: {type: string, format: date-time}
+        updated_at: {type: string, format: date-time}
+
+    HubResponse:
+      type: object
+      additionalProperties: false
+      required:
+        [id, cpo_id, name, address, latitude, longitude, open_24_hours, sanction_load, customer_visible, chargers, created_at, updated_at]
+      properties:
+        id: {type: string, format: uuid}
+        cpo_id: {type: string, format: uuid}
+        name: {type: string}
+        address: {type: string}
+        latitude: {type: number}
+        longitude: {type: number}
+        open_24_hours: {type: boolean}
+        sanction_load:
+          type: number
+          minimum: 0
+          description: Site sanctioned electrical capacity in kW; 0 means not recorded.
+        customer_visible:
+          type: boolean
+          description: Whether this hub is published to customer network discovery.
+        chargers:
+          $ref: "#/components/schemas/ChargerListResponse"
         created_at: {type: string, format: date-time}
         updated_at: {type: string, format: date-time}
 

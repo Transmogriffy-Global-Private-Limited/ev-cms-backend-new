@@ -2,6 +2,23 @@
 
 ## 2026-08-06
 
+### Rehosted current main and reconciled CPO network contracts
+
+- Rebuilt and restarted the current `782dd7b` deployment after confirming
+  migration 26 was already present; the ignored service environment now
+  supplies the public OCPP WebSocket host for charger response construction.
+- Corrected the documented `GET /api/v1/cpo/hubs/{hub_id}` response to include
+  its paginated charger list and cursor query contract.
+- Corrected the OpenAPI CPO charger response shape and documented the emitted
+  OCPP connection URL fields. The current development OCPP route is plain
+  WebSocket only, so consumers must not use the returned `wss://` address until
+  TLS is configured for that host.
+
+Verification:
+
+- Service active/enabled state, loopback listener, process configuration,
+  local/public liveness, and local/public readiness passed after rehost.
+
 ### Rehosted User App route split and connector contract update
 
 - Applied migration 26, which removes obsolete connector `max_current` and

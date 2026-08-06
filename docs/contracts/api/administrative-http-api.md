@@ -1812,9 +1812,35 @@ Cursor fields are omitted when no next page exists. Errors:
 
 ### 9.7 `GET /api/v1/cpo/hubs/{hub_id}`
 
-`hub_id` must be a non-zero UUID. `200 OK` returns the Hub object from 9.5 only
-when it belongs to the authenticated CPO. A cross-tenant or unknown ID returns
-`404 hub_not_found`; malformed input returns `400 invalid_hub_id`.
+`hub_id` must be a non-zero UUID. The response returns the hub plus its
+chargers in descending `(created_at, id)` order. `limit` is 1–200 and defaults
+to 50. To continue, send `chargers.next_before` and
+`chargers.next_before_id` together as `before` and `before_id`; both cursor
+values are omitted when there is no next page.
+
+```json
+{
+  "id": "8b80ef78-7799-4a09-a0d5-73ac944aa6e0",
+  "cpo_id": "c821a013-5041-42f7-80c8-aa153cf9d455",
+  "name": "Park Street Hub",
+  "address": "12 Park Street, Kolkata",
+  "latitude": 22.5524,
+  "longitude": 88.3521,
+  "open_24_hours": true,
+  "sanction_load": 120.5,
+  "customer_visible": false,
+  "chargers": {
+    "chargers": [],
+    "has_more": false
+  },
+  "created_at": "2026-07-31T12:00:00Z",
+  "updated_at": "2026-07-31T12:00:00Z"
+}
+```
+
+A cross-tenant or unknown ID returns `404 hub_not_found`; malformed input or
+an invalid cursor returns `400 invalid_hub_id`, `400 invalid_limit`,
+`400 invalid_before`, `400 invalid_before_id`, or `400 invalid_cursor`.
 
 ### 9.8 `PATCH /api/v1/cpo/hubs/{hub_id}`
 
@@ -1986,6 +2012,11 @@ cannot be used by a tariff until it is assigned to the tariff's hub.
 
 `ocpp_identity` is only a future CMS/HAL mapping value. Its creation does not
 register a charger in the HAL or prove the charger is online.
+
+`charger_connection_url_ws` and `charger_connection_url_wss` are derived from
+`CHARGER_CONNECTION_URL` and the generated OCPP identity; they are connection
+addresses, not CMS API URLs. The deployment must provide the corresponding
+WebSocket/TLS listener before a charger uses either address.
 
 ### 9.11 `GET /api/v1/cpo/chargers`
 
