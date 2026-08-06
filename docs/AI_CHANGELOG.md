@@ -2,6 +2,24 @@
 
 ## 2026-08-06
 
+### Rehosted published charger-image and hub-delete release
+
+- Rebuilt and rehosted revision `9894b26` without a new migration; migration
+  27 remains current.
+- Confirmed the User App charger-image route and CPO hub-delete route are
+  registered, protected, and present in the live 135-operation OpenAPI/Swagger
+  contract.
+- Formatted the merged CPO source files without changing their behavior.
+
+Verification:
+
+- OpenAPI/runtime parity, full Go tests, `go vet`, formatting, and diff checks
+  passed.
+- Service active/enabled state, loopback listener, local/public liveness and
+  readiness, live route protection, OpenAPI, and Swagger UI passed after
+  rehost.
+- The PowerShell documentation verifier is unavailable on this host.
+
 ### Reconciled merged CPO network routes
 
 - Repaired the duplicated `deleteCPOHub` OpenAPI operation introduced on the
