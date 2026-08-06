@@ -20,6 +20,14 @@ The SMTP outbox worker is part of the application process. It must not be
 started as a second systemd service because that would create an unnecessary
 duplicate worker.
 
+`CHARGER_CONNECTION_URL` is the public OCPP WebSocket host used to construct
+the charger connection fields returned by the CPO charger APIs. On this
+development host it is set in the ignored service environment to
+`dev-ocpphal.transev.site`, whose established Caddy route serves plain
+`ws://`. The current application also derives a `wss://` companion field from
+that setting; it must not be used until the OCPP host is explicitly configured
+with TLS/WebSocket support.
+
 The active deployment was updated on August 6, 2026 to source revision
 `782dd7b`. It has migrations one through twenty-six and the current 129-operation
 API. Migration thirteen keeps feature-key/entitlement tables retired pending a
