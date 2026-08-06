@@ -3557,6 +3557,181 @@ paths:
                 $ref: "#/components/schemas/ErrorEnvelope"
         "500":
           $ref: "#/components/responses/InternalError"
+    delete:
+      tags: [CPO Operations]
+      operationId: deleteCPOHub
+      summary: Delete a hub
+      description: Deletes a hub and disassociates all chargers from it. The chargers themselves are not deleted. The hub cannot be deleted if it has any tariffs associated with it.
+      security:
+        - BearerAuth: []
+          CPOAppID: []
+      responses:
+        "204":
+          description: Hub deleted successfully.
+        "400":
+          description: Invalid hub ID or missing app-ID header.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/CPOBusinessForbidden"
+        "404":
+          description: "`hub_not_found`."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "409":
+          description: "`hub_has_tariffs`."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    delete:
+      tags: [CPO Operations]
+      operationId: deleteCPOHub
+      summary: Delete a hub
+      description: Deletes a hub and disassociates all chargers from it. The chargers themselves are not deleted. The hub cannot be deleted if it has any tariffs associated with it.
+      security:
+        - BearerAuth: []
+          CPOAppID: []
+      responses:
+        "204":
+          description: Hub deleted successfully.
+        "400":
+          description: Invalid hub ID or missing app-ID header.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/CPOBusinessForbidden"
+        "404":
+          description: "`hub_not_found`."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "409":
+          description: "`hub_has_tariffs`."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    delete:
+      tags: [CPO Operations]
+      operationId: deleteCPOHub
+      summary: Delete a hub
+      description: Deletes a hub and disassociates all chargers from it. The chargers themselves are not deleted. The hub cannot be deleted if it has any tariffs associated with it.
+      security:
+        - BearerAuth: []
+          CPOAppID: []
+      responses:
+        "204":
+          description: Hub deleted successfully.
+        "400":
+          description: Invalid hub ID or missing app-ID header.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/CPOBusinessForbidden"
+        "404":
+          description: "`hub_not_found`."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "409":
+          description: "`hub_has_tariffs`."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    delete:
+      tags: [CPO Operations]
+      operationId: deleteCPOHub
+      summary: Delete a hub
+      description: Deletes a hub and disassociates all chargers from it. The chargers themselves are not deleted. The hub cannot be deleted if it has any tariffs associated with it.
+      security:
+        - BearerAuth: []
+          CPOAppID: []
+      responses:
+        "204":
+          description: Hub deleted successfully.
+        "400":
+          description: Invalid hub ID or missing app-ID header.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/CPOBusinessForbidden"
+        "404":
+          description: "`hub_not_found`."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "409":
+          description: "`hub_has_tariffs`."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    delete:
+      tags: [CPO Operations]
+      operationId: deleteCPOHub
+      summary: Delete a hub
+      description: Deletes a hub and disassociates all chargers from it. The chargers themselves are not deleted. The hub cannot be deleted if it has any tariffs associated with it.
+      security:
+        - BearerAuth: []
+          CPOAppID: []
+      responses:
+        "204":
+          description: Hub deleted successfully.
+        "400":
+          description: Invalid hub ID or missing app-ID header.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/CPOBusinessForbidden"
+        "404":
+          description: "`hub_not_found`."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "409":
+          description: "`hub_has_tariffs`."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "500":
+          $ref: "#/components/responses/InternalError"
 
   /api/v1/cpo/hubs/{hub_id}/customer-visibility:
     parameters:

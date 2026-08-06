@@ -3154,6 +3154,74 @@ func (service *Service) UpdateHub(
 	return hubView(record), nil
 }
 
+func (service *Service) DeleteHub(
+	ctx context.Context,
+	principal auth.Principal,
+	hubID uuid.UUID,
+) error {
+	if err := requireCPOAdminAccess(principal); err != nil {
+		return err
+	}
+
+	return service.database.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var tariffCount int64
+		if err := tx.Model(&models.Tariff{}).
+			Where("hub_id = ? AND cpo_id = ?", hubID, *principal.CPOID).
+			Count(&tariffCount).Error; err != nil {
+			return fmt.Errorf("checking for tariffs associated with hub: %w", err)
+		}
+		if tariffCount > 0 {
+			return &auth.APIError{
+				Status:  http.StatusConflict,
+				Code:    "hub_has_tariffs",
+				Message: "The hub cannot be deleted because it has associated tariffs.",
+			}
+		}
+
+		if err := tx.Model(&models.Charger{}).
+			Where("hub_id = ? AND cpo_id = ?", hubID, *principal.CPOID).
+			Update("hub_id", nil).Error; err != nil {
+			return fmt.Errorf("disassociating chargers from hub: %w", err)
+		}
+
+		if err := tx.Exec("DELETE FROM user_group_hubs WHERE hub_id = ?", hubID).Error; err != nil {
+			return fmt.Errorf("deleting user group hub associations: %w", err)
+		}
+
+		if err := tx.Exec("DELETE FROM customer_favorite_hubs WHERE hub_id = ?", hubID).Error; err != nil {
+			return fmt.Errorf("deleting customer favorite hub associations: %w", err)
+		}
+
+		if result := tx.Delete(&models.Hub{}, "id = ? AND cpo_id = ?", hubID, *principal.CPOID); result.Error != nil {
+			return fmt.Errorf("deleting hub: %w", result.Error)
+		} else if result.RowsAffected == 0 {
+			return mapHubNotFound(gorm.ErrRecordNotFound)
+		}
+
+		if err := writeAudit(
+			tx,
+			principal.UserID,
+			*principal.CPOID,
+			"HUB_DELETED",
+			models.JSONB{
+				"hub_id": hubID,
+			},
+			service.now(),
+		); err != nil {
+			return err
+		}
+
+		hubResourceID := hubID.String()
+		_, err := service.events.Emit(tx, platformops.EventInput{
+			Type:         "cpo.hub.deleted",
+			ActorUserID:  &principal.User.ID,
+			ResourceType: "HUB",
+			ResourceID:   &hubResourceID,
+			Data:         models.JSONB{},
+		})
+		return err
+	})
+}
 func (service *Service) AssignChargerToHub(
 	ctx context.Context,
 	principal auth.Principal,

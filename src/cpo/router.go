@@ -468,6 +468,7 @@ func RegisterCPORoutes(
 	group.GET("/hubs", handler.listHubs)
 	group.GET("/hubs/:hub_id", handler.getHub)
 	group.PATCH("/hubs/:hub_id", handler.updateHub)
+	group.DELETE("/hubs/:hub_id", handler.deleteHub)
 	group.PUT("/hubs/:hub_id/customer-visibility", handler.updateHubCustomerVisibility)
 	group.POST("/hubs/:hub_id/chargers", handler.assignChargerToHub)
 	group.POST("/tariffs", handler.createTariff)
@@ -939,6 +940,21 @@ func (handler *Handler) updateHub(ctx *gin.Context) {
 	}
 
 	ctx.JSON(http.StatusOK, record)
+}
+
+func (handler *Handler) deleteHub(ctx *gin.Context) {
+	principal, _ := auth.CurrentPrincipal(ctx)
+	hubID, ok := parseHubID(ctx)
+	if !ok {
+		return
+	}
+
+	if err := handler.service.DeleteHub(ctx.Request.Context(), principal, hubID); err != nil {
+		writeError(ctx, err)
+		return
+	}
+
+	ctx.Status(http.StatusNoContent)
 }
 
 func parseHubID(ctx *gin.Context) (uuid.UUID, bool) {
