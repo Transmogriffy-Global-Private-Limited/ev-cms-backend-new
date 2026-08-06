@@ -3268,6 +3268,88 @@ paths:
         "500":
           $ref: "#/components/responses/InternalError"
 
+  /api/v1/cpo/chargers/{charger_id}/status:
+    parameters:
+      - $ref: "#/components/parameters/ChargerInternalID"
+    get:
+      tags: [CPO Operations]
+      operationId: getCPOChargerStatus
+      summary: Get a tenant charger's CMS administrative status
+      description: Uses the charger's internal UUID, not its public six-character `charger_id`. This is static CMS administrative state, not HAL-backed live availability.
+      security:
+        - BearerAuth: []
+          CPOAppID: []
+      responses:
+        "200":
+          description: Current CMS administrative status for this CPO charger.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChargerStatusResponse"
+        "400":
+          description: Invalid charger UUID or missing app-ID header.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/CPOBusinessForbidden"
+        "404":
+          description: "`charger_not_found` — no charger in this CPO has the UUID."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    put:
+      tags: [CPO Operations]
+      operationId: updateCPOChargerStatus
+      summary: Update a tenant charger's CMS administrative status
+      description: Uses the charger's internal UUID. An optional OCPP identity must match the stored mapping when supplied. This does not contact HAL or report live charger availability.
+      security:
+        - BearerAuth: []
+          CPOAppID: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateChargerStatusRequest"
+      responses:
+        "200":
+          description: Updated CMS administrative status.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChargerStatusResponse"
+        "400":
+          description: Invalid charger UUID, status, body, or missing app-ID header.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/CPOBusinessForbidden"
+        "404":
+          description: "`charger_not_found` — no charger in this CPO has the UUID."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "409":
+          description: "`ocpp_identity_mismatch` — supplied mapping does not match the charger."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
   /api/v1/cpo/hubs:
     post:
       tags: [CPO Operations]
@@ -3431,6 +3513,49 @@ paths:
                 $ref: "#/components/schemas/ErrorEnvelope"
         "409":
           description: "`hub_conflict`."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /api/v1/cpo/hubs/{hub_id}/customer-visibility:
+    parameters:
+      - $ref: "#/components/parameters/HubID"
+    put:
+      tags: [CPO Operations]
+      operationId: updateCPOHubCustomerVisibility
+      summary: Publish or unpublish a hub from User App discovery
+      description: Requires CPO ADMIN and atomically changes only the hub's `customer_visible` publication gate. Unpublished hubs and their attached chargers are omitted from User App discovery and favorites.
+      security:
+        - BearerAuth: []
+          CPOAppID: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateHubCustomerVisibilityRequest"
+      responses:
+        "200":
+          description: Updated hub projection.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Hub"
+        "400":
+          description: Invalid hub UUID, body, or missing app-ID header.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/CPOBusinessForbidden"
+        "404":
+          description: "`hub_not_found` — no hub in this CPO has the UUID."
           content:
             application/json:
               schema:
@@ -4276,6 +4401,14 @@ components:
         type: string
         pattern: "^[a-z0-9]{6}$"
       example: a1b2c3
+    ChargerInternalID:
+      name: charger_id
+      in: path
+      required: true
+      description: Server-generated internal charger UUID owned by the authenticated CPO. This is distinct from the six-character public charger ID.
+      schema:
+        type: string
+        format: uuid
     HubID:
       name: hub_id
       in: path
@@ -5136,7 +5269,7 @@ components:
     CustomerCharger:
       type: object
       additionalProperties: false
-      required: [id, hub_id, charger_id, max_power_kw, ocpp_version, availability, is_favorite, connectors]
+      required: [id, hub_id, charger_id, max_power_kw, ocpp_version, status, availability, is_favorite, connectors]
       properties:
         id: {type: string, format: uuid}
         hub_id: {type: string, format: uuid}
@@ -5148,6 +5281,8 @@ components:
         model: {type: string, maxLength: 100, nullable: true}
         max_power_kw: {type: number, minimum: 0}
         ocpp_version: {type: string, maxLength: 20}
+        status:
+          $ref: "#/components/schemas/ChargerStatus"
         hub_name: {type: string, maxLength: 255}
         hub_address: {type: string}
         hub_latitude: {type: number, minimum: -90, maximum: 90}
@@ -5167,11 +5302,14 @@ components:
     CustomerConnector:
       type: object
       additionalProperties: false
-      required: [id, connector_number, connector_type, availability]
+      required: [id, connector_number, connector_type, connector_total_capacity, status, availability]
       properties:
         id: {type: string, format: uuid}
         connector_number: {type: integer, minimum: 1}
         connector_type: {type: string, maxLength: 50}
+        connector_total_capacity: {type: number, minimum: 0}
+        status:
+          $ref: "#/components/schemas/ChargerStatus"
         availability:
           type: string
           enum: [UNKNOWN]

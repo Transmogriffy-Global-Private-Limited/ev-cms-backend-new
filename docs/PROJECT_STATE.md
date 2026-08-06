@@ -81,7 +81,7 @@ provides:
   workflows, governance, security, mail, notifications, overview/status,
   audit/workers, SSE/replay, error UX, security, verification, and explicit
   deployment gaps;
-- canonical OpenAPI 3.1 for all 129 current source-tree business/health
+- canonical OpenAPI 3.1 for all 132 current source-tree business/health
   operations;
 - embedded same-origin Swagger UI at `/docs/` and raw OpenAPI at
   `/openapi.yaml`;
@@ -106,8 +106,9 @@ provides:
   evidence;
 - CPO ADMIN-controlled default-false hub publication through
   `customer_visible`, plus authenticated customer-safe published network
-  discovery for hubs, attached chargers, and connectors; discovery never calls
-  HAL and reports availability as `UNKNOWN`;
+  discovery for hubs, attached chargers, and connectors; connector total
+  capacity and static CMS administrative statuses are returned separately from
+  HAL-owned live availability, which remains `UNKNOWN`;
 - customer-owned favorite list and idempotent add/remove APIs over published
   hubs and attached chargers, with unpublish-safe reads and CPO/customer
   composite ownership;
@@ -116,8 +117,8 @@ provides:
   `UNAVAILABLE` states, and User Tariff > charger tariff > hub tariff
   precedence;
 - authenticated User App charger search/filter and bounded near-me reads over
-  published hubs, with safe hub/connector projections and explicit UNKNOWN
-  availability;
+  published hubs, with safe hub/connector projections, DB-backed status and
+  connector total capacity, and explicit UNKNOWN live availability;
 - authenticated CPO/customer-scoped wallet balance and keyset-paginated wallet
   history reads using exact decimal projections;
 - User App Razorpay recharge order creation and captured-payment verification

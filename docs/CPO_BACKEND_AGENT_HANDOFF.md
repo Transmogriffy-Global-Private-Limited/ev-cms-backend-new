@@ -133,7 +133,7 @@ UUID or a row UUID.
 ## Current Implemented CPO Surface
 
 The authoritative machine contract is
-`docs/contracts/openapi/openapi.yaml`. The source currently has 124 total
+`docs/contracts/openapi/openapi.yaml`. The source currently has 132 total
 HTTP operations across all planes. Runtime/OpenAPI parity is tested.
 
 ### Administrative authentication
@@ -175,9 +175,11 @@ organization response omits privileged lifecycle reason and platform actor ID.
 
 - `POST/GET /hubs`
 - `GET/PATCH /hubs/{hub_id}`
+- `PUT /hubs/{hub_id}/customer-visibility`
 - `POST /hubs/{hub_id}/chargers`
 - `POST/GET /chargers`
 - `GET/PATCH/DELETE /chargers/{charger_id}`
+- `GET/PUT /chargers/{charger_id}/status` (internal charger UUID)
 - `POST/GET /gsts`
 - `GET/PATCH /gsts/{gst_id}`
 - `POST/GET /tariffs`
@@ -202,7 +204,9 @@ Current behavior:
 - the six-character public charger ID, CMS UUID, connector UUIDs, and
   `ocpp_identity` are different identifiers;
 - `ocpp_identity` is only a mapping value; no HAL call occurs;
-- CPO callers cannot write live charger/connector status;
+- CPO callers can read/write a charger's static CMS administrative status by
+  internal UUID; this does not contact HAL, and connector status remains
+  read-only through the CPO API;
 - exact tax and tariff decimals serialize as strings;
 - blank tariff currency becomes `INR`;
 - related hub, charger, GST, and group records must belong to the same CPO;
@@ -240,7 +244,8 @@ Implemented:
   updates; profile writes are CPO-local and audit changed field names only;
 - authenticated `GET /hubs`, `GET /hubs/{hub_id}`, and
   `GET /chargers/{charger_id}` expose only published same-CPO network data;
-  independent/unpublished resources are hidden and charger/connector
+  independent/unpublished resources are hidden, connector total capacity and
+  static CMS administrative status are included, and charger/connector
   availability is explicitly `UNKNOWN` until HAL integration;
 - authenticated favorites list and idempotent add/remove routes use the
   existing composite customer-favorite tables; unpublishing hides saved

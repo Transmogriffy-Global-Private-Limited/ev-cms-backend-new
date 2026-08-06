@@ -2,6 +2,26 @@
 
 ## 2026-08-06
 
+### Consolidated current charger data into User App and repaired route contracts
+
+- Added DB-backed static CMS `status` to User App charger and connector
+  projections, and added connector `connector_total_capacity`; `availability`
+  remains the separate HAL-owned live field and is still always `UNKNOWN`.
+- Repaired migration 27's legacy-status conversion so every previously allowed
+  charger/connector status maps to a value accepted by the replacement
+  constraint before that constraint is added.
+- Added the already registered CPO hub-publication and charger-status routes to
+  canonical OpenAPI and the human CPO contract. Charger-status endpoints use
+  the internal charger UUID, while the established CPO charger detail route
+  continues to use the public six-character charger ID.
+- Updated the CPO agent handoff, User App handoff, project plan/state, and
+  documentation operation-count verifier for the 132-operation source tree.
+
+Verification:
+
+- Pending focused static checks after the full contract update; Go tests remain
+  skipped by the requested workspace policy.
+
 ### Clarified User App favorite charger identifier
 
 - Documented that User App favorite-charger mutations accept the six-character

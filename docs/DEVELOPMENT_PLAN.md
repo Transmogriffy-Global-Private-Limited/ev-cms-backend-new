@@ -860,10 +860,11 @@ Last completed slice:
   22. Refund execution, webhooks, settlement reconciliation, RFID, and HAL
   remain separate follow-ups.
 - Implemented User App charger search/filter and bounded near-me results over
-  published hubs, with safe hub/connector projections and explicit UNKNOWN
-  availability; implemented wallet balance and keyset-paginated wallet-history
-  reads. Recharge, refund, charging-session history, RFID, and HAL remain
-  separate slices.
+  published hubs, with safe hub/connector projections, DB-backed administrative
+  status and connector total capacity, and explicit UNKNOWN live availability;
+  implemented wallet balance and keyset-paginated wallet-history reads.
+  Recharge, refund, charging-session history, RFID, and HAL remain separate
+  slices.
 - Implemented the effective customer tariff resolver and informational hub and
   charger price APIs with exact decimal projections, explicit unavailable state,
   active GST resolution, and User Tariff > charger tariff > hub tariff

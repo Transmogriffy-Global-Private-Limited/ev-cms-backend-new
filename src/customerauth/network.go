@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/constants"
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/models"
 	"github.com/google/uuid"
 	"gorm.io/gorm"
@@ -83,6 +84,7 @@ type CustomerChargerView struct {
 	Model        *string                 `json:"model,omitempty"`
 	MaxPowerKW   float64                 `json:"max_power_kw"`
 	OCPPVersion  string                  `json:"ocpp_version"`
+	Status       constants.ChargerStatus `json:"status"`
 	HubName      string                  `json:"hub_name,omitempty"`
 	HubAddress   string                  `json:"hub_address,omitempty"`
 	HubLatitude  *float64                `json:"hub_latitude,omitempty"`
@@ -180,10 +182,12 @@ func (service *Service) ListCustomerChargers(ctx context.Context, principal Prin
 }
 
 type CustomerConnectorView struct {
-	ID              uuid.UUID `json:"id"`
-	ConnectorNumber int       `json:"connector_number"`
-	ConnectorType   string    `json:"connector_type"`
-	Availability    string    `json:"availability"`
+	ID                     uuid.UUID               `json:"id"`
+	ConnectorNumber        int                     `json:"connector_number"`
+	ConnectorType          string                  `json:"connector_type"`
+	ConnectorTotalCapacity float64                 `json:"connector_total_capacity"`
+	Status                 constants.ChargerStatus `json:"status"`
+	Availability           string                  `json:"availability"`
 }
 
 func (service *Service) ListCustomerHubs(ctx context.Context, principal Principal, query CustomerHubListQuery) (CustomerHubListResponse, error) {
@@ -397,9 +401,16 @@ func customerChargerView(record models.Charger, favorite bool) CustomerChargerVi
 	}
 	connectors := make([]CustomerConnectorView, 0, len(record.Connectors))
 	for _, connector := range record.Connectors {
-		connectors = append(connectors, CustomerConnectorView{ID: connector.ID, ConnectorNumber: connector.ConnectorNumber, ConnectorType: connector.ConnectorType, Availability: customerAvailabilityUnknown})
+		connectors = append(connectors, CustomerConnectorView{
+			ID:                     connector.ID,
+			ConnectorNumber:        connector.ConnectorNumber,
+			ConnectorType:          connector.ConnectorType,
+			ConnectorTotalCapacity: connector.ConnectorTotalCapacity,
+			Status:                 connector.Status,
+			Availability:           customerAvailabilityUnknown,
+		})
 	}
-	view := CustomerChargerView{ID: record.ID, HubID: hubID, ChargerID: record.ChargerID, Vendor: record.Vendor, Model: record.Model, MaxPowerKW: record.MaxPowerKW, OCPPVersion: record.OCPPVersion, Availability: customerAvailabilityUnknown, IsFavorite: favorite, Connectors: connectors}
+	view := CustomerChargerView{ID: record.ID, HubID: hubID, ChargerID: record.ChargerID, Vendor: record.Vendor, Model: record.Model, MaxPowerKW: record.MaxPowerKW, OCPPVersion: record.OCPPVersion, Status: record.Status, Availability: customerAvailabilityUnknown, IsFavorite: favorite, Connectors: connectors}
 	if record.Hub != nil {
 		open24Hours := record.Hub.Open24Hours
 		view.HubName = record.Hub.Name
