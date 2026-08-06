@@ -189,23 +189,23 @@ type OrganizationView struct {
 }
 
 type CreateChargerRequest struct {
-	HubID              *uuid.UUID               `json:"hub_id,omitempty"`
-	Vendor             string                   `json:"vendor,omitempty"`
-	Model              string                   `json:"model,omitempty"`
-	SerialNumber       string                   `json:"serial_number"`
-	MaxPowerKW         float64                  `json:"max_power_kw"`
-	ChargerName        string                   `json:"charger_name"`
-	ChargerHostName    string                   `json:"charger_host_name"`
-	ChargerHostPhoneNo string                   `json:"charger_host_phone_no"`
-	ChargerType        string                   `json:"charger_type"`
-	Segment            string                   `json:"segment"`
-	SubSegment         string                   `json:"sub_segment"`
-	ChargerUseType     string                   `json:"charger_use_type"`
-	NumberOfConnectors int                      `json:"number_of_connectors"`
-	Parking            string                   `json:"parking"`
-	Protocol           string                   `json:"protocol"`
-	TwentyFourSevenOpen bool `json:"twenty_four_seven_open_status"`
-	Connectors         []CreateConnectorRequest `json:"connectors"`
+	HubID               *uuid.UUID               `json:"hub_id,omitempty"`
+	Vendor              string                   `json:"vendor,omitempty"`
+	Model               string                   `json:"model,omitempty"`
+	SerialNumber        string                   `json:"serial_number"`
+	MaxPowerKW          float64                  `json:"max_power_kw"`
+	ChargerName         string                   `json:"charger_name"`
+	ChargerHostName     string                   `json:"charger_host_name"`
+	ChargerHostPhoneNo  string                   `json:"charger_host_phone_no"`
+	ChargerType         string                   `json:"charger_type"`
+	Segment             string                   `json:"segment"`
+	SubSegment          string                   `json:"sub_segment"`
+	ChargerUseType      string                   `json:"charger_use_type"`
+	NumberOfConnectors  int                      `json:"number_of_connectors"`
+	Parking             string                   `json:"parking"`
+	Protocol            string                   `json:"protocol"`
+	TwentyFourSevenOpen bool                     `json:"twenty_four_seven_open_status"`
+	Connectors          []CreateConnectorRequest `json:"connectors"`
 }
 
 type CreateConnectorRequest struct {
@@ -215,23 +215,23 @@ type CreateConnectorRequest struct {
 }
 
 type UpdateChargerRequest struct {
-	HubID              *uuid.UUID                `json:"hub_id,omitempty"`
-	Vendor             *string                   `json:"vendor,omitempty"`
-	Model              *string                   `json:"model,omitempty"`
-	SerialNumber       *string                   `json:"serial_number,omitempty"`
-	MaxPowerKW         *float64                  `json:"max_power_kw,omitempty"`
-	ChargerName        *string                   `json:"charger_name,omitempty"`
-	ChargerHostName    *string                   `json:"charger_host_name,omitempty"`
-	ChargerHostPhoneNo *string                   `json:"charger_host_phone_no,omitempty"`
-	ChargerType        *string                   `json:"charger_type,omitempty"`
-	Segment            *string                   `json:"segment,omitempty"`
-	SubSegment         *string                   `json:"sub_segment,omitempty"`
-	ChargerUseType     *string                   `json:"charger_use_type,omitempty"`
-	NumberOfConnectors *int                      `json:"number_of_connectors,omitempty"`
-	Parking            *string                   `json:"parking,omitempty"`
-	Protocol           *string                   `json:"protocol,omitempty"`
+	HubID               *uuid.UUID                `json:"hub_id,omitempty"`
+	Vendor              *string                   `json:"vendor,omitempty"`
+	Model               *string                   `json:"model,omitempty"`
+	SerialNumber        *string                   `json:"serial_number,omitempty"`
+	MaxPowerKW          *float64                  `json:"max_power_kw,omitempty"`
+	ChargerName         *string                   `json:"charger_name,omitempty"`
+	ChargerHostName     *string                   `json:"charger_host_name,omitempty"`
+	ChargerHostPhoneNo  *string                   `json:"charger_host_phone_no,omitempty"`
+	ChargerType         *string                   `json:"charger_type,omitempty"`
+	Segment             *string                   `json:"segment,omitempty"`
+	SubSegment          *string                   `json:"sub_segment,omitempty"`
+	ChargerUseType      *string                   `json:"charger_use_type,omitempty"`
+	NumberOfConnectors  *int                      `json:"number_of_connectors,omitempty"`
+	Parking             *string                   `json:"parking,omitempty"`
+	Protocol            *string                   `json:"protocol,omitempty"`
 	TwentyFourSevenOpen *bool                     `json:"twenty_four_seven_open_status,omitempty"`
-	Connectors         *[]UpdateConnectorRequest `json:"connectors,omitempty"`
+	Connectors          *[]UpdateConnectorRequest `json:"connectors,omitempty"`
 }
 
 type UpdateConnectorRequest struct {

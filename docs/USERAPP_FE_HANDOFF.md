@@ -166,7 +166,7 @@ export type CustomerHubSummary = {
   address: string;
   latitude: number;
   longitude: number;
-  open_24_hours: boolean;
+  twenty_four_seven_open_status: boolean;
   customer_visible: true;
   charger_count: number;
   is_favorite: boolean;
@@ -185,15 +185,15 @@ export type CustomerCharger = {
   id: string;
   hub_id: string;
   charger_id: string; // six-character public ID
-  vendor: string;
-  model: string;
+  vendor?: string;
+  model?: string;
   max_power_kw: number;
   ocpp_version: string;
   hub_name?: string;
   hub_address?: string;
   hub_latitude?: number;
   hub_longitude?: number;
-  open_24_hours?: boolean;
+  twenty_four_seven_open_status?: boolean;
   distance_km?: number;
   availability: "UNKNOWN";
   is_favorite: boolean;

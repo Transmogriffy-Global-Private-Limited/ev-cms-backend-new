@@ -5097,14 +5097,14 @@ components:
     CustomerHubSummary:
       type: object
       additionalProperties: false
-      required: [id, name, address, latitude, longitude, open_24_hours, customer_visible, charger_count, is_favorite]
+      required: [id, name, address, latitude, longitude, twenty_four_seven_open_status, customer_visible, charger_count, is_favorite]
       properties:
         id: {type: string, format: uuid}
         name: {type: string}
         address: {type: string}
         latitude: {type: number}
         longitude: {type: number}
-        open_24_hours: {type: boolean}
+        twenty_four_seven_open_status: {type: boolean}
         customer_visible:
           type: boolean
           enum: [true]
@@ -5143,7 +5143,7 @@ components:
         hub_address: {type: string}
         hub_latitude: {type: number, minimum: -90, maximum: 90}
         hub_longitude: {type: number, minimum: -180, maximum: 180}
-        open_24_hours: {type: boolean}
+        twenty_four_seven_open_status: {type: boolean}
         distance_km: {type: number, minimum: 0}
         availability:
           type: string
