@@ -919,7 +919,7 @@ Last completed slice:
 
 Last deployment milestone:
 
-- Revision `1a33005` was built cleanly and rehosted on the development VPS.
+- Revision `9ccdff2` was built cleanly and rehosted on the development VPS.
   Migration twenty-seven was already applied with the replacement
   charger/connector status constraints. The live 132-operation route/OpenAPI
   surface, running-binary identity, loopback-only listener, loopback/public

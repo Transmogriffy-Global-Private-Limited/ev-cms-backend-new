@@ -4,7 +4,7 @@
 
 ### Rehosted charger-status and User App projection release
 
-- Rebuilt and rehosted revision `1a33005` after confirming migration 27 and
+- Rebuilt and rehosted revision `9ccdff2` after confirming migration 27 and
   its replacement charger/connector status constraints were already applied.
 - Corrected the remaining charger-create and new-connector defaults to the
   migration-27 CMS status values: new chargers are `INACTIVE`; new connectors

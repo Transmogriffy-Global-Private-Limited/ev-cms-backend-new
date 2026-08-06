@@ -164,7 +164,7 @@ provides:
   handler;
 - the additive PostgreSQL database `devevcmsnewdb`, owned by `postgres`.
 
-The active development VPS runs source revision `1a33005`, with migrations
+The active development VPS runs source revision `9ccdff2`, with migrations
 through twenty-seven recorded and the deployed 132-operation contract. Migration
 twenty-seven replaces legacy charger/connector protocol-style states with the
 static CMS administrative values `ACTIVE`, `INACTIVE`, `SUSPENDED`,
@@ -256,7 +256,7 @@ implemented yet.
 - `git diff --check` passed. Stateful PostgreSQL lifecycle verification is
   intentionally deferred by the current workstream decision; no stateful
   result is claimed.
-- Revision `1a33005` was built cleanly and rehosted after confirming migration
+- Revision `9ccdff2` was built cleanly and rehosted after confirming migration
   twenty-seven and its replacement status constraints were already applied.
   The installed binary, loopback-only listener, local/public liveness and
   readiness, live 132-operation Swagger/OpenAPI, status and hub-publication
