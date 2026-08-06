@@ -2698,6 +2698,8 @@ func (service *Service) chargerView(record models.Charger, principal auth.Princi
 		})
 	}
 
+	ocppIdentityForURL := strings.TrimPrefix(record.OCPPIdentity, "ocpp_")
+
 	return ChargerResponse{
 		ChargerView: ChargerView{
 			ID:                  record.ID,
@@ -2725,8 +2727,8 @@ func (service *Service) chargerView(record models.Charger, principal auth.Princi
 			Protocol:            record.Protocol,
 			TwentyFourSevenOpen: record.TwentyFourSevenOpen,
 			Connectors:          connectorsView,
-			ChargerConnectionURLWS:  fmt.Sprintf("ws://%s/%s", service.chargerConnectionURL, record.OCPPIdentity),
-			ChargerConnectionURLWSS: fmt.Sprintf("wss://%s/%s", service.chargerConnectionURL, record.OCPPIdentity),
+			ChargerConnectionURLWS:  fmt.Sprintf("ws://%s/%s", service.chargerConnectionURL, ocppIdentityForURL),
+			ChargerConnectionURLWSS: fmt.Sprintf("wss://%s/%s", service.chargerConnectionURL, ocppIdentityForURL),
 			CreatedAt:           record.CreatedAt,
 			UpdatedAt:           record.UpdatedAt,
 		},
