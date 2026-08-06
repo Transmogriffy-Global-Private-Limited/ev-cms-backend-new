@@ -4132,3 +4132,135 @@ func gstView(record models.GST) GSTView {
 		UpdatedAt: record.UpdatedAt,
 	}
 }
+
+func (service *Service) UpdateChargerStatus(
+	ctx context.Context,
+	principal auth.Principal,
+	chargerID uuid.UUID,
+	request UpdateChargerStatusRequest,
+) (ChargerStatusResponse, error) {
+	if err := requireCPOAdminAccess(principal); err != nil {
+		return ChargerStatusResponse{}, err
+	}
+
+	if !request.Status.Valid() {
+		return ChargerStatusResponse{}, invalid("status", "Invalid charger status.")
+	}
+
+	var charger models.Charger
+	err := service.database.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+			First(&charger, "id = ? AND cpo_id = ?", chargerID, *principal.CPOID).Error; err != nil {
+			return mapChargerNotFound(err)
+		}
+
+		if request.OCPPIdentity != "" && charger.OCPPIdentity != request.OCPPIdentity {
+			return &auth.APIError{
+				Status:  http.StatusConflict,
+				Code:    "ocpp_identity_mismatch",
+				Message: "OCPP identity does not match the charger.",
+			}
+		}
+
+		now := service.now()
+		if err := tx.Model(&charger).
+			Updates(map[string]any{
+				"status":     request.Status,
+				"updated_at": now,
+			}).Error; err != nil {
+			return mapChargerWriteError(err, "update charger status")
+		}
+
+		return writeAudit(
+			tx,
+			principal.UserID,
+			*principal.CPOID,
+			"CHARGER_STATUS_UPDATED",
+			models.JSONB{
+				"charger_id": charger.ID,
+				"status":     request.Status,
+			},
+			now,
+		)
+	})
+
+	if err != nil {
+		return ChargerStatusResponse{}, err
+	}
+
+	return ChargerStatusResponse{
+		ChargerID:    charger.ID,
+		OCPPIdentity: charger.OCPPIdentity,
+		Status:       charger.Status,
+	}, nil
+}
+
+func (service *Service) GetChargerStatus(
+	ctx context.Context,
+	principal auth.Principal,
+	chargerID uuid.UUID,
+) (ChargerStatusResponse, error) {
+	if err := requireCPOAdminAccess(principal); err != nil {
+		return ChargerStatusResponse{}, err
+	}
+
+	var charger models.Charger
+	if err := service.database.WithContext(ctx).
+		First(&charger, "id = ? AND cpo_id = ?", chargerID, *principal.CPOID).Error; err != nil {
+		return ChargerStatusResponse{}, mapChargerNotFound(err)
+	}
+
+	return ChargerStatusResponse{
+		ChargerID:    charger.ID,
+		OCPPIdentity: charger.OCPPIdentity,
+		Status:       charger.Status,
+	}, nil
+}
+
+func (service *Service) UpdateHubCustomerVisibility(
+	ctx context.Context,
+	principal auth.Principal,
+	hubID uuid.UUID,
+	request UpdateHubCustomerVisibilityRequest,
+) (HubView, error) {
+	if err := requireCPOAdminAccess(principal); err != nil {
+		return HubView{}, err
+	}
+
+	var hub models.Hub
+	err := service.database.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+			First(&hub, "id = ? AND cpo_id = ?", hubID, *principal.CPOID).Error; err != nil {
+			return mapHubNotFound(err)
+		}
+
+		now := service.now()
+		if err := tx.Model(&hub).
+			Updates(map[string]any{
+				"customer_visible": request.CustomerVisible,
+				"updated_at":       now,
+			}).Error; err != nil {
+			return mapHubWriteError(err, "update hub customer visibility")
+		}
+		hub.CustomerVisible = request.CustomerVisible
+
+		return writeAudit(
+			tx,
+			principal.UserID,
+			*principal.CPOID,
+			"HUB_CUSTOMER_VISIBILITY_UPDATED",
+			models.JSONB{
+				"hub_id":           hub.ID,
+				"customer_visible": request.CustomerVisible,
+			},
+			now,
+		)
+	})
+
+	if err != nil {
+		return HubView{}, err
+	}
+
+	return hubView(hub), nil
+}
+

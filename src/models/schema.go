@@ -197,7 +197,7 @@ type Charger struct {
 	Model               *string                 `gorm:"type:varchar(100)" json:"model"`
 	SerialNumber        string                  `gorm:"type:varchar(100);not null;default:''" json:"serial_number"`
 	MaxPowerKW          float64                 `gorm:"type:numeric(8,2);not null;default:0" json:"max_power_kw"`
-	Status              constants.ChargerStatus `gorm:"type:varchar(30);not null;default:'OFFLINE'" json:"status"`
+	Status              constants.ChargerStatus `gorm:"type:varchar(30);not null;default:'INACTIVE'" json:"status"`
 	OCPPVersion         string                  `gorm:"type:varchar(20);not null;default:'1.6J'" json:"ocpp_version"`
 	LastSeenAt          *time.Time              `json:"last_seen_at,omitempty"`
 	ChargerName         string                  `gorm:"type:varchar(255);not null;default:''" json:"charger_name"`
@@ -226,7 +226,7 @@ type Connector struct {
 	ConnectorNumber        int                     `gorm:"not null" json:"connector_number"`
 	ConnectorType          string                  `gorm:"type:varchar(50);not null" json:"connector_type"`
 	ConnectorTotalCapacity float64                 `gorm:"type:numeric(10,2);not null;default:0" json:"connector_total_capacity"`
-	Status                 constants.ChargerStatus `gorm:"type:varchar(30);not null;default:'AVAILABLE'" json:"status"`
+	Status                 constants.ChargerStatus `gorm:"type:varchar(30);not null;default:'INACTIVE'" json:"status"`
 	CreatedAt              time.Time               `gorm:"not null" json:"created_at"`
 	UpdatedAt              time.Time               `gorm:"not null" json:"updated_at"`
 }

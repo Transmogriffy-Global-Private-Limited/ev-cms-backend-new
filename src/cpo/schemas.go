@@ -472,3 +472,18 @@ type CPOSubscriptionView struct {
 	EndedAt               *time.Time              `json:"ended_at,omitempty"`
 	Plan                  CPOSubscriptionPlanView `json:"plan"`
 }
+
+type UpdateChargerStatusRequest struct {
+	Status       constants.ChargerStatus `json:"status"`
+	OCPPIdentity string                  `json:"ocpp_identity,omitempty"`
+}
+
+type UpdateHubCustomerVisibilityRequest struct {
+	CustomerVisible bool `json:"customer_visible"`
+}
+
+type ChargerStatusResponse struct {
+	ChargerID    uuid.UUID               `json:"charger_id"`
+	OCPPIdentity string                  `json:"ocpp_identity"`
+	Status       constants.ChargerStatus `json:"status"`
+}

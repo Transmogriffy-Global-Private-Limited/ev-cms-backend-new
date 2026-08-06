@@ -17,7 +17,7 @@ func TestStatusValidation(t *testing.T) {
 	if !CustomerStatusBlocked.Valid() || CustomerStatus("SUSPENDED").Valid() {
 		t.Fatal("unexpected customer status validation result")
 	}
-	if !ChargerStatusSuspendedEVSE.Valid() || ChargerStatus("BROKEN").Valid() {
+	if !ChargerStatusSuspended.Valid() || ChargerStatus("BROKEN").Valid() {
 		t.Fatal("unexpected charger status validation result")
 	}
 	if !SessionStatusStopPending.Valid() || SessionStatus("STOPPED").Valid() {

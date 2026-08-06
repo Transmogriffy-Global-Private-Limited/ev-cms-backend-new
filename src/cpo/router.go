@@ -367,6 +367,20 @@ func parseCPOID(ctx *gin.Context) (uuid.UUID, bool) {
 	return cpoID, true
 }
 
+func parseChargerID(ctx *gin.Context) (uuid.UUID, bool) {
+	chargerID, err := uuid.Parse(ctx.Param("charger_id"))
+	if err != nil || chargerID == uuid.Nil {
+		writeError(ctx, &auth.APIError{
+			Status:  http.StatusBadRequest,
+			Code:    "invalid_charger_id",
+			Message: "The charger ID is invalid.",
+		})
+		return uuid.Nil, false
+	}
+	return chargerID, true
+}
+
+
 func parseUserID(ctx *gin.Context) (uuid.UUID, bool) {
 	userID, err := uuid.Parse(ctx.Param("user_id"))
 	if err != nil || userID == uuid.Nil {
@@ -452,6 +466,7 @@ func RegisterCPORoutes(
 	group.GET("/hubs", handler.listHubs)
 	group.GET("/hubs/:hub_id", handler.getHub)
 	group.PATCH("/hubs/:hub_id", handler.updateHub)
+	group.PUT("/hubs/:hub_id/customer-visibility", handler.updateHubCustomerVisibility)
 	group.POST("/hubs/:hub_id/chargers", handler.assignChargerToHub)
 	group.POST("/tariffs", handler.createTariff)
 	group.GET("/tariffs", handler.listTariffs)
@@ -461,7 +476,119 @@ func RegisterCPORoutes(
 	group.GET("/gsts", handler.listGSTs)
 	group.GET("/gsts/:gst_id", handler.getGST)
 	group.PATCH("/gsts/:gst_id", handler.updateGST)
+	group.PUT("/chargers/:charger_id/status", handler.updateChargerStatus)
+	group.GET("/chargers/:charger_id/status", handler.getChargerStatus)
 }
+
+// @Summary Update charger status
+// @Description Update the status of a specific charger.
+// @Tags CPO Network
+// @Accept json
+// @Produce json
+// @Param charger_id path string true "Charger ID"
+// @Param status body UpdateChargerStatusRequest true "Charger status update data"
+// @Success 200 {object} ChargerStatusResponse "Successfully updated charger status"
+// @Failure 400 {object} auth.APIError "Invalid request body or parameters"
+// @Failure 401 {object} auth.APIError "Unauthorized"
+// @Failure 403 {object} auth.APIError "Forbidden"
+// @Failure 404 {object} auth.APIError "Charger not found"
+// @Failure 409 {object} auth.APIError "OCPP identity mismatch"
+// @Failure 500 {object} auth.APIError "Internal server error"
+// @Router /cpo/chargers/{charger_id}/status [put]
+func (handler *Handler) updateChargerStatus(ctx *gin.Context) {
+	principal, _ := auth.CurrentPrincipal(ctx)
+	chargerID, ok := parseChargerID(ctx)
+	if !ok {
+		return
+	}
+
+	var request UpdateChargerStatusRequest
+	if err := decodeJSON(ctx, &request); err != nil {
+		writeError(ctx, &auth.APIError{
+			Status:  http.StatusBadRequest,
+			Code:    "invalid_request",
+			Message: "The request body is invalid.",
+		})
+		return
+	}
+
+	record, err := handler.service.UpdateChargerStatus(ctx.Request.Context(), principal, chargerID, request)
+	if err != nil {
+		writeError(ctx, err)
+		return
+	}
+
+	ctx.JSON(http.StatusOK, record)
+}
+
+// @Summary Get charger status
+// @Description Get the current status of a specific charger.
+// @Tags CPO Network
+// @Produce json
+// @Param charger_id path string true "Charger ID"
+// @Success 200 {object} ChargerStatusResponse "Successfully retrieved charger status"
+// @Failure 400 {object} auth.APIError "Invalid charger ID format"
+// @Failure 401 {object} auth.APIError "Unauthorized"
+// @Failure 403 {object} auth.APIError "Forbidden"
+// @Failure 404 {object} auth.APIError "Charger not found"
+// @Failure 500 {object} auth.APIError "Internal server error"
+// @Router /cpo/chargers/{charger_id}/status [get]
+func (handler *Handler) getChargerStatus(ctx *gin.Context) {
+	principal, _ := auth.CurrentPrincipal(ctx)
+	chargerID, ok := parseChargerID(ctx)
+	if !ok {
+		return
+	}
+
+	record, err := handler.service.GetChargerStatus(ctx.Request.Context(), principal, chargerID)
+	if err != nil {
+		writeError(ctx, err)
+		return
+	}
+
+	ctx.JSON(http.StatusOK, record)
+}
+
+// @Summary Update hub customer visibility
+// @Description Update the customer visibility of a specific hub.
+// @Tags CPO Network
+// @Accept json
+// @Produce json
+// @Param hub_id path string true "Hub ID"
+// @Param visibility body UpdateHubCustomerVisibilityRequest true "Hub customer visibility update data"
+// @Success 200 {object} HubView "Successfully updated hub customer visibility"
+// @Failure 400 {object} auth.APIError "Invalid request body or parameters"
+// @Failure 401 {object} auth.APIError "Unauthorized"
+// @Failure 403 {object} auth.APIError "Forbidden"
+// @Failure 404 {object} auth.APIError "Hub not found"
+// @Failure 500 {object} auth.APIError "Internal server error"
+// @Router /cpo/hubs/{hub_id}/customer-visibility [put]
+func (handler *Handler) updateHubCustomerVisibility(ctx *gin.Context) {
+	principal, _ := auth.CurrentPrincipal(ctx)
+	hubID, ok := parseHubID(ctx)
+	if !ok {
+		return
+	}
+
+	var request UpdateHubCustomerVisibilityRequest
+	if err := decodeJSON(ctx, &request); err != nil {
+		writeError(ctx, &auth.APIError{
+			Status:  http.StatusBadRequest,
+			Code:    "invalid_request",
+			Message: "The request body is invalid.",
+		})
+		return
+	}
+
+	record, err := handler.service.UpdateHubCustomerVisibility(ctx.Request.Context(), principal, hubID, request)
+	if err != nil {
+		writeError(ctx, err)
+		return
+	}
+
+	ctx.JSON(http.StatusOK, record)
+}
+
 
 func (handler *Handler) getSubscription(ctx *gin.Context) {
 	principal, _ := auth.CurrentPrincipal(ctx)

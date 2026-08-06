@@ -6550,6 +6550,42 @@ components:
           items:
             $ref: "#/components/schemas/UpdateConnectorRequest"
 
+    UpdateChargerStatusRequest:
+      type: object
+      additionalProperties: false
+      required: [status]
+      properties:
+        status:
+          $ref: "#/components/schemas/ChargerStatus"
+        ocpp_identity:
+          type: string
+          maxLength: 255
+          description: Optional. If provided, it will be validated against the charger's OCPP identity.
+
+    ChargerStatusResponse:
+      type: object
+      additionalProperties: false
+      required: [charger_id, ocpp_identity, status]
+      properties:
+        charger_id:
+          type: string
+          format: uuid
+        ocpp_identity:
+          type: string
+          maxLength: 255
+        status:
+          $ref: "#/components/schemas/ChargerStatus"
+          
+    UpdateHubCustomerVisibilityRequest:
+      type: object
+      additionalProperties: false
+      required: [customer_visible]
+      properties:
+        customer_visible:
+          type: boolean
+          description: Publish or unpublish this hub from customer network discovery.
+
+
     Connector:
       type: object
       additionalProperties: false
@@ -6989,16 +7025,11 @@ components:
     ChargerStatus:
       type: string
       enum:
-        - AVAILABLE
-        - PREPARING
-        - CHARGING
-        - SUSPENDED_EV
-        - SUSPENDED_EVSE
-        - FINISHING
-        - RESERVED
-        - UNAVAILABLE
-        - FAULTED
-        - OFFLINE
+        - ACTIVE
+        - INACTIVE
+        - SUSPENDED
+        - UNDERMAINTENANCE
+        - DECOMMISSIONED
 
     AuthScope:
       type: string

@@ -3,30 +3,20 @@ package constants
 type ChargerStatus string
 
 const (
-	ChargerStatusAvailable     ChargerStatus = "AVAILABLE"
-	ChargerStatusPreparing     ChargerStatus = "PREPARING"
-	ChargerStatusCharging      ChargerStatus = "CHARGING"
-	ChargerStatusSuspendedEV   ChargerStatus = "SUSPENDED_EV"
-	ChargerStatusSuspendedEVSE ChargerStatus = "SUSPENDED_EVSE"
-	ChargerStatusFinishing     ChargerStatus = "FINISHING"
-	ChargerStatusReserved      ChargerStatus = "RESERVED"
-	ChargerStatusUnavailable   ChargerStatus = "UNAVAILABLE"
-	ChargerStatusFaulted       ChargerStatus = "FAULTED"
-	ChargerStatusOffline       ChargerStatus = "OFFLINE"
+	ChargerStatusActive           ChargerStatus = "ACTIVE"
+	ChargerStatusInactive         ChargerStatus = "INACTIVE"
+	ChargerStatusSuspended        ChargerStatus = "SUSPENDED"
+	ChargerStatusUnderMaintenance ChargerStatus = "UNDERMAINTENANCE"
+	ChargerStatusDecommissioned   ChargerStatus = "DECOMMISSIONED"
 )
 
 func (status ChargerStatus) Valid() bool {
 	switch status {
-	case ChargerStatusAvailable,
-		ChargerStatusPreparing,
-		ChargerStatusCharging,
-		ChargerStatusSuspendedEV,
-		ChargerStatusSuspendedEVSE,
-		ChargerStatusFinishing,
-		ChargerStatusReserved,
-		ChargerStatusUnavailable,
-		ChargerStatusFaulted,
-		ChargerStatusOffline:
+	case ChargerStatusActive,
+		ChargerStatusInactive,
+		ChargerStatusSuspended,
+		ChargerStatusUnderMaintenance,
+		ChargerStatusDecommissioned:
 		return true
 	default:
 		return false
