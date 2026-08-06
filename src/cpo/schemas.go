@@ -211,8 +211,6 @@ type CreateChargerRequest struct {
 type CreateConnectorRequest struct {
 	ConnectorNumber        int     `json:"connector_number"`
 	ConnectorType          string  `json:"connector_type"`
-	MaxCurrent             float64 `json:"max_current"`
-	MaxVoltage             float64 `json:"max_voltage"`
 	ConnectorTotalCapacity float64 `json:"connector_total_capacity"`
 }
 
@@ -240,8 +238,6 @@ type UpdateConnectorRequest struct {
 	ID                     uuid.UUID `json:"id"`
 	ConnectorNumber        *int      `json:"connector_number,omitempty"`
 	ConnectorType          *string   `json:"connector_type,omitempty"`
-	MaxCurrent             *float64  `json:"max_current,omitempty"`
-	MaxVoltage             *float64  `json:"max_voltage,omitempty"`
 	ConnectorTotalCapacity *float64  `json:"connector_total_capacity,omitempty"`
 }
 
@@ -299,8 +295,6 @@ type ConnectorView struct {
 	ChargerID              uuid.UUID               `json:"charger_id"`
 	ConnectorNumber        int                     `json:"connector_number"`
 	ConnectorType          string                  `json:"connector_type"`
-	MaxCurrent             float64                 `json:"max_current"`
-	MaxVoltage             float64                 `json:"max_voltage"`
 	ConnectorTotalCapacity float64                 `json:"connector_total_capacity"`
 	Status                 constants.ChargerStatus `json:"status"`
 	CreatedAt              time.Time               `json:"created_at"`

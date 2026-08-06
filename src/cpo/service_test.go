@@ -369,8 +369,6 @@ func TestTenantOperationValidation(t *testing.T) {
 		Connectors: []CreateConnectorRequest{{
 			ConnectorNumber: 1,
 			ConnectorType:   "TYPE2",
-			MaxCurrent:      32,
-			MaxVoltage:      230,
 		}},
 	}
 	if err := validateCreateChargerRequest(standaloneCharger); err != nil {

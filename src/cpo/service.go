@@ -1952,8 +1952,6 @@ func (service *Service) CreateCharger(
 				ChargerID:              record.ID,
 				ConnectorNumber:        connector.ConnectorNumber,
 				ConnectorType:          connectorType,
-				MaxCurrent:             connector.MaxCurrent,
-				MaxVoltage:             connector.MaxVoltage,
 				ConnectorTotalCapacity: connector.ConnectorTotalCapacity,
 				Status:                 constants.ChargerStatus("AVAILABLE"),
 				CreatedAt:              now,
@@ -2204,12 +2202,6 @@ func (service *Service) UpdateCharger(
 					if connectorReq.ConnectorType == nil || strings.TrimSpace(*connectorReq.ConnectorType) == "" {
 						return invalid("connector_type", "Connector type is required.")
 					}
-					if connectorReq.MaxCurrent == nil || *connectorReq.MaxCurrent < 0 {
-						return invalid("max_current", "Max current cannot be negative.")
-					}
-					if connectorReq.MaxVoltage == nil || *connectorReq.MaxVoltage < 0 {
-						return invalid("max_voltage", "Max voltage cannot be negative.")
-					}
 					if connectorReq.ConnectorTotalCapacity == nil || *connectorReq.ConnectorTotalCapacity < 0 {
 						return invalid("connector_total_capacity", "Connector total capacity cannot be negative.")
 					}
@@ -2220,8 +2212,6 @@ func (service *Service) UpdateCharger(
 						ChargerID:              record.ID,
 						ConnectorNumber:        *connectorReq.ConnectorNumber,
 						ConnectorType:          *connectorReq.ConnectorType,
-						MaxCurrent:             *connectorReq.MaxCurrent,
-						MaxVoltage:             *connectorReq.MaxVoltage,
 						ConnectorTotalCapacity: *connectorReq.ConnectorTotalCapacity,
 						Status:                 constants.ChargerStatus("AVAILABLE"),
 						CreatedAt:              now,
@@ -2266,22 +2256,6 @@ func (service *Service) UpdateCharger(
 					}
 					connUpdates["connector_type"] = connType
 					existing.ConnectorType = connType
-					connChanged = true
-				}
-				if connectorReq.MaxCurrent != nil {
-					if *connectorReq.MaxCurrent < 0 {
-						return invalid("max_current", "Max current cannot be negative.")
-					}
-					connUpdates["max_current"] = *connectorReq.MaxCurrent
-					existing.MaxCurrent = *connectorReq.MaxCurrent
-					connChanged = true
-				}
-				if connectorReq.MaxVoltage != nil {
-					if *connectorReq.MaxVoltage < 0 {
-						return invalid("max_voltage", "Max voltage cannot be negative.")
-					}
-					connUpdates["max_voltage"] = *connectorReq.MaxVoltage
-					existing.MaxVoltage = *connectorReq.MaxVoltage
 					connChanged = true
 				}
 				if connectorReq.ConnectorTotalCapacity != nil {
@@ -2456,12 +2430,6 @@ func validateCreateChargerRequest(request CreateChargerRequest) error {
 		if strings.TrimSpace(connector.ConnectorType) == "" || len(connector.ConnectorType) > 50 {
 			return invalid("connector_type", "Connector type is required and must not exceed 50 characters.")
 		}
-		if connector.MaxCurrent < 0 {
-			return invalid("max_current", "Max current cannot be negative.")
-		}
-		if connector.MaxVoltage < 0 {
-			return invalid("max_voltage", "Max voltage cannot be negative.")
-		}
 		if _, dup := seenNumbers[connector.ConnectorNumber]; dup {
 			return invalid("connector_number", "Connector numbers must be unique within a charger.")
 		}
@@ -2518,18 +2486,6 @@ func validateUpdateChargerRequest(request UpdateChargerRequest) error {
 			if connector.ConnectorType != nil {
 				if strings.TrimSpace(*connector.ConnectorType) == "" || len(*connector.ConnectorType) > 50 {
 					return invalid("connector_type", "Connector type must not exceed 50 characters.")
-				}
-				changed = true
-			}
-			if connector.MaxCurrent != nil {
-				if *connector.MaxCurrent < 0 {
-					return invalid("max_current", "Max current cannot be negative.")
-				}
-				changed = true
-			}
-			if connector.MaxVoltage != nil {
-				if *connector.MaxVoltage < 0 {
-					return invalid("max_voltage", "Max voltage cannot be negative.")
 				}
 				changed = true
 			}
@@ -2732,8 +2688,6 @@ func chargerView(record models.Charger, principal auth.Principal) ChargerRespons
 			ChargerID:              conn.ChargerID,
 			ConnectorNumber:        conn.ConnectorNumber,
 			ConnectorType:          conn.ConnectorType,
-			MaxCurrent:             conn.MaxCurrent,
-			MaxVoltage:             conn.MaxVoltage,
 			ConnectorTotalCapacity: conn.ConnectorTotalCapacity,
 			Status:                 conn.Status,
 			CreatedAt:              conn.CreatedAt,
