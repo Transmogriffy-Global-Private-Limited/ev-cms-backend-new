@@ -163,12 +163,12 @@ provides:
   handler;
 - the additive PostgreSQL database `devevcmsnewdb`, owned by `postgres`.
 
-The active development VPS runs source revision `3645529`, with migrations
-through twenty-five recorded and the deployed 129-operation contract. CPO GSTIN and address
+The active development VPS runs source revision `782dd7b`, with migrations
+through twenty-six recorded and the deployed 129-operation contract. CPO GSTIN and address
 identity are database-required, authenticated platform clients can use the
 advisory slug-availability operation, and known uniqueness races return
-field- or relationship-specific conflict codes. All four CPOs were complete
-and preserved during deployment. Migration nine continues to preserve the
+field- or relationship-specific conflict codes. The current database contains
+two CPO records. Migration nine continues to preserve the
 `retired_commercial` schema. Safe structured HTTP request logging is active;
 the current development environment uses `LOG_LEVEL=DEBUG` for correlated
 request-start and completion diagnostics.
@@ -194,11 +194,13 @@ source includes the CPO ADMIN-only
 allows an independent charger to be created without `hub_id`, and adds
 non-negative hub `sanction_load` plus the upgrade-time removal of the legacy
 charger-hub `NOT NULL` in migration sixteen. These changes are deployed at
-`3645529`; migration nineteen reconciles databases that had already recorded
+`782dd7b`; migration nineteen reconciles databases that had already recorded
 the removed follow-up migrations so `chargers.hub_id` is nullable, and migration
 twenty makes customer accounts CPO-local with dedicated authentication lineage,
 and migrations 21–22 add customer-visible network discovery and Razorpay wallet
-recharge ledger support.
+recharge ledger support. Migration twenty-six removes obsolete connector
+current/voltage fields; connector capacity is represented by
+`connector_total_capacity`.
 
 The deployed recovery flow fixes a recovery-specific OTP mapper defect that discarded
 `challenge_id` before outbox validation and caused eligible administrative and
@@ -250,16 +252,19 @@ implemented yet.
 - `git diff --check` passed. Stateful PostgreSQL lifecycle verification is
   intentionally deferred by the current workstream decision; no stateful
   result is claimed.
-- Revision `3645529` was built cleanly and rehosted after a validated mode-0600
-  rollback dump and migration twenty-five. The installed identity, loopback-only
+- Revision `782dd7b` was built cleanly and rehosted after a validated mode-0600
+  rollback dump and migration twenty-six. The installed identity, loopback-only
   listener, loopback/public readiness, live 129-operation Swagger/OpenAPI,
   request-ID header, protected CPO routes, nullable charger hub assignment,
   required workers, and absence of startup errors or panics passed. Charger
   vendor and model persistence columns are nullable; charger create/update and
   customer network projections now preserve omitted metadata as null. Charger
   and customer-network part-time fields use `twenty_four_seven_open_status`.
-  Charger-level `total_capacity` was
-  removed; connector-level capacity remains part of the connector contract.
+  User App resources are served under `/api/v1/app`, while credentials and
+  sessions remain under `/api/v1/app/auth`; the retired resource URLs return
+  `404`. Charger-level `total_capacity`, connector current, and connector
+  voltage fields are removed; connector-level capacity remains part of the
+  connector contract.
 - Revision `396bae5` was built cleanly and rehosted after a validated
   mode-0600 rollback dump and migration fourteen. The installed identity,
   loopback-only listener, loopback/public readiness, live 110-operation

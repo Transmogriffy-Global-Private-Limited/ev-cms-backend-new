@@ -267,8 +267,6 @@ export type CustomerConnector = {
   id: string;
   connector_number: number;
   connector_type: string;
-  max_current: number;
-  max_voltage: number;
   availability: "UNKNOWN";
 };
 

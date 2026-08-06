@@ -918,8 +918,8 @@ Last completed slice:
 
 Last deployment milestone:
 
-- Revision `3645529` was built cleanly and rehosted on the development VPS
-  after a validated rollback dump and application of migration twenty-five. The
+- Revision `782dd7b` was built cleanly and rehosted on the development VPS
+  after a validated rollback dump and application of migration twenty-six. The
   live 129-operation route/OpenAPI surface, running-binary identity,
   loopback-only listener, loopback/public readiness, zero-restart service
   state, request-ID header, tariff columns/constraints/indexes, required

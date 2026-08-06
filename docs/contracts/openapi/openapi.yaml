@@ -5158,13 +5158,11 @@ components:
     CustomerConnector:
       type: object
       additionalProperties: false
-      required: [id, connector_number, connector_type, max_current, max_voltage, availability]
+      required: [id, connector_number, connector_type, availability]
       properties:
         id: {type: string, format: uuid}
         connector_number: {type: integer, minimum: 1}
         connector_type: {type: string, maxLength: 50}
-        max_current: {type: number, minimum: 0}
-        max_voltage: {type: number, minimum: 0}
         availability:
           type: string
           enum: [UNKNOWN]
@@ -6382,14 +6380,6 @@ components:
           minLength: 1
           maxLength: 50
           example: CCS2
-        max_current:
-          type: number
-          minimum: 0
-          default: 0
-        max_voltage:
-          type: number
-          minimum: 0
-          default: 0
         connector_total_capacity:
           type: number
           minimum: 0
@@ -6477,8 +6467,6 @@ components:
         connectors:
           - connector_number: 1
             connector_type: CCS2
-            max_current: 60
-            max_voltage: 500
             connector_total_capacity: 22.5
 
     UpdateConnectorRequest:
@@ -6497,12 +6485,6 @@ components:
           type: string
           minLength: 1
           maxLength: 50
-        max_current:
-          type: number
-          minimum: 0
-        max_voltage:
-          type: number
-          minimum: 0
         connector_total_capacity:
           type: number
           minimum: 0
@@ -6577,8 +6559,6 @@ components:
         - charger_id
         - connector_number
         - connector_type
-        - max_current
-        - max_voltage
         - connector_total_capacity
         - status
         - created_at
@@ -6589,8 +6569,6 @@ components:
         charger_id: {type: string, format: uuid}
         connector_number: {type: integer, minimum: 1}
         connector_type: {type: string, maxLength: 50}
-        max_current: {type: number, minimum: 0}
-        max_voltage: {type: number, minimum: 0}
         connector_total_capacity:
           type: number
           minimum: 0

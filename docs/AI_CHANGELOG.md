@@ -2,6 +2,26 @@
 
 ## 2026-08-06
 
+### Rehosted User App route split and connector contract update
+
+- Applied migration 26, which removes obsolete connector `max_current` and
+  `max_voltage` columns; `connector_total_capacity` remains the supported
+  connector capacity field.
+- Deployed the separated User App route topology: authenticated resources are
+  under `/api/v1/app`, while credential/session operations remain under
+  `/api/v1/app/auth`; the former resource URLs are intentionally absent.
+- Reconciled the OpenAPI and User App handoff connector schemas with the runtime
+  removal of current/voltage fields.
+- Built and rehosted revision `782dd7b`.
+
+Verification:
+
+- Public readiness, loopback listener, service active/enabled state, migration
+  ledger, OpenAPI route presence, and the new-vs-retired resource route status
+  were verified after rehost.
+- Full Go tests, `go vet`, OpenAPI/runtime parity, and diff checks passed.
+- The PowerShell documentation verifier is unavailable on this host.
+
 ### Rehosted charger part-time field correction
 
 - Corrected CPO charger updates to write the actual

@@ -20,8 +20,8 @@ The SMTP outbox worker is part of the application process. It must not be
 started as a second systemd service because that would create an unnecessary
 duplicate worker.
 
-The active deployment was updated on August 5, 2026 to source revision
-`3645529`. It has migrations one through twenty-five and the current 129-operation
+The active deployment was updated on August 6, 2026 to source revision
+`782dd7b`. It has migrations one through twenty-six and the current 129-operation
 API. Migration thirteen keeps feature-key/entitlement tables retired pending a
 defined module catalog, migration fourteen completes the Superadmin authority,
 mail, announcement, notification, and status surface, and migration fifteen
@@ -34,7 +34,8 @@ Migration 23 reconciles the charger connector-field upgrade, migration 24
 makes charger vendor/model persistence nullable for incomplete projections, and
 migration 25 removes charger-level `total_capacity`; connector-level capacity
 remains supported. Charger vendor/model metadata is optional and is preserved as
-null when omitted.
+null when omitted. Migration 26 removes obsolete connector current/voltage
+columns; `connector_total_capacity` remains the connector capacity field.
 GSTIN and complete address identity
 are database-required for CPOs, the
 authenticated platform slug-availability route is live, and known uniqueness
@@ -131,7 +132,7 @@ content exclusions are defined in
 `docs/contracts/internal/http-request-logging.md`. Long-lived SSE requests are
 recorded when they disconnect. A recovered panic first emits a correlated safe
 JSON stack diagnostic without Gin's request dump or the panic value. The
-currently deployed `3645529` binary includes this logger.
+currently deployed `782dd7b` binary includes this logger.
 
 For a developer diagnostic session, set `LOG_LEVEL=DEBUG` in the ignored
 deployment environment and rehost. This adds request-start and handled-error
