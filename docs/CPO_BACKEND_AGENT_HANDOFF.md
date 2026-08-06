@@ -133,7 +133,7 @@ UUID or a row UUID.
 ## Current Implemented CPO Surface
 
 The authoritative machine contract is
-`docs/contracts/openapi/openapi.yaml`. The source currently has 132 total
+`docs/contracts/openapi/openapi.yaml`. The source currently has 133 total
 HTTP operations across all planes. Runtime/OpenAPI parity is tested.
 
 ### Administrative authentication
@@ -244,9 +244,11 @@ Implemented:
   updates; profile writes are CPO-local and audit changed field names only;
 - authenticated `GET /hubs`, `GET /hubs/{hub_id}`, and
   `GET /chargers/{charger_id}` expose only published same-CPO network data;
-  independent/unpublished resources are hidden, connector total capacity and
-  static CMS administrative status are included, and charger/connector
-  availability is explicitly `UNKNOWN` until HAL integration;
+  authenticated `GET /chargers/{charger_id}/image` safely serves an existing
+  uploaded image only for that same published charger. Independent/unpublished
+  resources are hidden, connector total capacity and static CMS administrative
+  status are included, and charger/connector availability is explicitly
+  `UNKNOWN` until HAL integration;
 - authenticated favorites list and idempotent add/remove routes use the
   existing composite customer-favorite tables; unpublishing hides saved
   resources from the list without leaking them;

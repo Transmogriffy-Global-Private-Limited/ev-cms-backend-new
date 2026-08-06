@@ -495,7 +495,7 @@ Returns a published hub in the current CPO and its attached chargers and
 connectors. Independent chargers are excluded. The projection includes only
 public charger ID, vendor, model, maximum power, OCPP version, connector
 capability, and customer favorite flags. It excludes OCPP identity, serial
-number, sanctioned load, raw status, last-seen data, and audit information.
+number, sanctioned load, last-seen data, and audit information.
 
 Each charger and connector also includes its DB-backed CMS administrative
 `status` (`ACTIVE`, `INACTIVE`, `SUSPENDED`, `UNDERMAINTENANCE`, or
@@ -514,6 +514,21 @@ otherwise the response is `404 charger_not_found` without cross-tenant
 enumeration. The response uses the same safe projection and explicit
 `availability: "UNKNOWN"` described in 4.11. Malformed IDs return
 `400 invalid_charger_id`.
+
+### 4.12A `GET /api/v1/app/chargers/{charger_id}/image`
+
+Uses the same six-character public charger ID, customer bearer token,
+`X-CPO-App-ID`, current-CPO, and published-hub rules as charger detail. It
+serves only a regular JPEG, PNG, GIF, or WebP file from the existing charger
+upload directory. The stored filesystem path is never returned or used as a
+request input.
+
+`CustomerCharger.charger_image_url` contains this relative API path only when
+an uploaded image is recorded. Because the endpoint is authenticated, frontend
+clients must request it with their normal auth headers and render the fetched
+blob; a bare `<img src>` request cannot provide those headers. It returns
+`404 charger_image_not_found` when the published charger has no safe image or
+the stored file is absent.
 
 ### 4.13 Backend current-customer helpers
 

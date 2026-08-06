@@ -2,6 +2,23 @@
 
 ## 2026-08-06
 
+### Added authenticated User App charger images
+
+- Added `GET /api/v1/app/chargers/{charger_id}/image`, using the public
+  six-character charger ID and the same customer/CPO/published-hub boundary as
+  charger detail.
+- Charger projections now expose an optional relative `charger_image_url`, not
+  the stored filesystem path. The route only serves regular JPEG, PNG, GIF, or
+  WebP files from the established upload directory and requires the normal
+  Bearer and app-ID headers.
+- Updated OpenAPI, the User App handoff, human API contract, plan/state, and
+  operation-count verifier for the 133-operation source tree.
+
+Verification:
+
+- Pending focused static checks after implementation; Go tests remain skipped
+  by the requested workspace policy.
+
 ### Rehosted charger-status and User App projection release
 
 - Rebuilt and rehosted revision `9ccdff2` after confirming migration 27 and

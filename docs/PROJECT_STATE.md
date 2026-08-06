@@ -81,7 +81,7 @@ provides:
   workflows, governance, security, mail, notifications, overview/status,
   audit/workers, SSE/replay, error UX, security, verification, and explicit
   deployment gaps;
-- canonical OpenAPI 3.1 for all 132 current source-tree business/health
+- canonical OpenAPI 3.1 for all 133 current source-tree business/health
   operations;
 - embedded same-origin Swagger UI at `/docs/` and raw OpenAPI at
   `/openapi.yaml`;
@@ -118,7 +118,8 @@ provides:
   precedence;
 - authenticated User App charger search/filter and bounded near-me reads over
   published hubs, with safe hub/connector projections, DB-backed status and
-  connector total capacity, and explicit UNKNOWN live availability;
+  connector total capacity, an authenticated charger-image route keyed by
+  public charger ID, and explicit UNKNOWN live availability;
 - authenticated CPO/customer-scoped wallet balance and keyset-paginated wallet
   history reads using exact decimal projections;
 - User App Razorpay recharge order creation and captured-payment verification

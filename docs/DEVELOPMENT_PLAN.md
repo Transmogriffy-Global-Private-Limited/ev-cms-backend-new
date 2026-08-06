@@ -861,7 +861,8 @@ Last completed slice:
   remain separate follow-ups.
 - Implemented User App charger search/filter and bounded near-me results over
   published hubs, with safe hub/connector projections, DB-backed administrative
-  status and connector total capacity, and explicit UNKNOWN live availability;
+  status and connector total capacity, an authenticated charger-image route
+  keyed by public charger ID, and explicit UNKNOWN live availability;
   implemented wallet balance and keyset-paginated wallet-history reads.
   Recharge, refund, charging-session history, RFID, and HAL remain separate
   slices.
