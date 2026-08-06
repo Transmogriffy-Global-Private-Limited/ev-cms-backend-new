@@ -211,7 +211,7 @@ type Charger struct {
 	NumberOfConnectors  int                     `gorm:"not null;default:1" json:"number_of_connectors"`
 	Parking             string                  `gorm:"type:varchar(100);not null;default:''" json:"parking"`
 	Protocol            string                  `gorm:"type:varchar(50);not null;default:'OCPP 1.6J'" json:"protocol"`
-	TwentyFourSevenOpen bool `gorm:"column:twenty_four_seven_open_status;not null;default:false" json:"twenty_four_seven_open_status"`
+	TwentyFourSevenOpen bool                    `gorm:"column:twenty_four_seven_open_status;not null;default:false" json:"twenty_four_seven_open_status"`
 	Connectors          []Connector             `gorm:"foreignKey:ChargerID" json:"connectors,omitempty"`
 	Tariffs             []Tariff                `gorm:"foreignKey:ChargerID" json:"tariffs,omitempty"`
 	CreatedAt           time.Time               `gorm:"not null" json:"created_at"`
