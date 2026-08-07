@@ -364,6 +364,12 @@ read CPO organization
 → query authoritative REST projections
 ```
 
+The charger response exposes the read-only `assigned` projection: it is `true`
+exactly when `hub_id` is present and `false` for independent inventory. Clients
+must use this returned state rather than infer attachment from list placement;
+create and update requests change attachment through `hub_id`, never through
+`assigned`.
+
 This flow ends in CMS inventory. It does not register the charger in the HAL or
 prove the device is online.
 

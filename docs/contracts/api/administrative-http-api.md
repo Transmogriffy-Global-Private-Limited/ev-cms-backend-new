@@ -2028,6 +2028,7 @@ The server generates:
   "twenty_four_seven_open_status": true,
   "charger_connection_url_ws": "ws://localhost:8080/CMS-4a58ce2df470b2b1",
   "charger_connection_url_wss": "wss://localhost:8080/CMS-4a58ce2df470b2b1",
+  "assigned": false,
   "connectors": [
     {
       "id": "540b3214-bd67-4f61-9134-ab462168fd92",
@@ -2051,8 +2052,11 @@ The server generates:
 `CHARGER_CREATED`. Additional errors: field-specific `400 invalid_*`,
 `404 hub_not_found`, `409 charger_conflict`, or `409 connector_conflict`.
 
-When unassigned, `hub_id` is omitted from the response. An independent charger
-cannot be used by a tariff until it is assigned to the tariff's hub.
+When unassigned, `hub_id` is omitted and `assigned` is `false`; after
+attachment, `hub_id` is returned and `assigned` is `true`. `assigned` is a
+server-generated response projection and is not accepted by create or update
+requests. An independent charger cannot be used by a tariff until it is
+assigned to the tariff's hub.
 
 `ocpp_identity` is only a future CMS/HAL mapping value. Its creation does not
 register a charger in the HAL or prove the charger is online.
@@ -2102,6 +2106,7 @@ Both cursor fields must be supplied together. `200 OK`:
       "twenty_four_seven_open_status": true,
       "charger_connection_url_ws": "ws://localhost:8080/CMS-4a58ce2df470b2b1",
       "charger_connection_url_wss": "wss://localhost:8080/CMS-4a58ce2df470b2b1",
+      "assigned": false,
       "connectors": [
         {
           "id": "540b3214-bd67-4f61-9134-ab462168fd92",
