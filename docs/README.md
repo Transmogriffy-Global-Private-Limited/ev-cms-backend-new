@@ -6,6 +6,7 @@ This directory is the durable project memory for the EV CMS backend.
 
 | Need | Canonical source |
 |---|---|
+| Repository operating contract and safe development workflow | `../AGENTS.md` |
 | Approved sequence and active work | `DEVELOPMENT_PLAN.md` |
 | Active implementation ownership and handoffs | `work/active/` |
 | Implemented and verified reality | `PROJECT_STATE.md` |

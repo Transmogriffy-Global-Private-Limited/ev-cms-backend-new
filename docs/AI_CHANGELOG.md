@@ -29,7 +29,23 @@ Verification:
 
 - Documentation verification and `git diff --check` passed.
 
-## 2026-08-07
+### Made the repository operating contract self-contained
+
+- Expanded the root `AGENTS.md` from a narrow documentation/verification note
+  into the repository's standalone operating contract. It now records the
+  actual Go module ownership, PostgreSQL migration safety, configuration and
+  runtime references, CMS/HAL and tenant boundaries, contract/recovery rules,
+  active-work coordination, operational/Git approval limits, and honest
+  verification requirements.
+- Added the root operating contract to the documentation map so a new agent can
+  discover the authoritative workflow without relying on machine-wide
+  bootstrap instructions.
+
+Verification:
+
+- Route/OpenAPI parity, full Go tests, `go vet`, and whitespace checks passed.
+- The PowerShell documentation verifier was not run because this Ubuntu host
+  does not provide `pwsh`; its documented validation remains unverified here.
 
 ### Registered active ownership for platform, User App, and operations work
 
