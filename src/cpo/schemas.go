@@ -209,9 +209,9 @@ type CreateChargerRequest struct {
 }
 
 type CreateConnectorRequest struct {
-	ConnectorNumber        int     `json:"connector_number"`
-	ConnectorType          string  `json:"connector_type"`
-	TotalCapacity float64 `json:"total_capacity"`
+	ConnectorNumber int     `json:"connector_number"`
+	ConnectorType   string  `json:"connector_type"`
+	TotalCapacity   float64 `json:"total_capacity"`
 }
 
 type UpdateChargerRequest struct {
@@ -235,10 +235,10 @@ type UpdateChargerRequest struct {
 }
 
 type UpdateConnectorRequest struct {
-	ID                     uuid.UUID `json:"id"`
-	ConnectorNumber        *int      `json:"connector_number,omitempty"`
-	ConnectorType          *string   `json:"connector_type,omitempty"`
-	TotalCapacity *float64  `json:"total_capacity,omitempty"`
+	ID              uuid.UUID `json:"id"`
+	ConnectorNumber *int      `json:"connector_number,omitempty"`
+	ConnectorType   *string   `json:"connector_type,omitempty"`
+	TotalCapacity   *float64  `json:"total_capacity,omitempty"`
 }
 
 type ChargerView struct {
@@ -294,15 +294,15 @@ type ChargerListResponse struct {
 }
 
 type ConnectorView struct {
-	ID                     uuid.UUID               `json:"id"`
-	CPOID                  uuid.UUID               `json:"cpo_id"`
-	ChargerID              uuid.UUID               `json:"charger_id"`
-	ConnectorNumber        int                     `json:"connector_number"`
-	ConnectorType          string                  `json:"connector_type"`
-	TotalCapacity float64                 `json:"total_capacity"`
-	Status                 constants.ChargerStatus `json:"status"`
-	CreatedAt              time.Time               `json:"created_at"`
-	UpdatedAt              time.Time               `json:"updated_at"`
+	ID              uuid.UUID               `json:"id"`
+	CPOID           uuid.UUID               `json:"cpo_id"`
+	ChargerID       uuid.UUID               `json:"charger_id"`
+	ConnectorNumber int                     `json:"connector_number"`
+	ConnectorType   string                  `json:"connector_type"`
+	TotalCapacity   float64                 `json:"total_capacity"`
+	Status          constants.ChargerStatus `json:"status"`
+	CreatedAt       time.Time               `json:"created_at"`
+	UpdatedAt       time.Time               `json:"updated_at"`
 }
 
 type CreateHubRequest struct {

@@ -3007,6 +3007,12 @@ paths:
           schema:
             type: string
             maxLength: 200
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [ACTIVE, BLOCKED]
       responses:
         "200":
           description: A paginated list of customers.

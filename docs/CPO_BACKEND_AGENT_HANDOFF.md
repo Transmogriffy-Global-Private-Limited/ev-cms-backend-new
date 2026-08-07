@@ -133,7 +133,7 @@ UUID or a row UUID.
 ## Current Implemented CPO Surface
 
 The authoritative machine contract is
-`docs/contracts/openapi/openapi.yaml`. The source currently has 135 total
+`docs/contracts/openapi/openapi.yaml`. The source currently has 137 total
 HTTP operations across all planes. Runtime/OpenAPI parity is tested.
 
 Swagger UI renders the CPO plane as four adjacent, consistently prefixed
@@ -592,9 +592,9 @@ Before completion, prove:
 ## Database and Migration Rules
 
 - PostgreSQL is durable truth.
-- Fifteen migrations are already deployment history. Do not edit an applied
+- Twenty-seven migrations are already deployment history. Do not edit an applied
   migration to change new behavior; add the next forward migration.
-- Migration twenty-two is the current deployed migration. Migration twenty adds CPO-local
+- Migration twenty-seven is the current deployed migration. Migration twenty adds CPO-local
   customer credentials and dedicated customer auth lineage; migration fifteen
   adds tariff effective-date columns and a PostgreSQL overlap constraint.
 - Prefer additive, backward-compatible migrations.
@@ -613,8 +613,11 @@ Before completion, prove:
   Superadmin control-plane records; migration fifteen adds deployed tariff
   effective-date enforcement, migration sixteen adds independent charger and
   sanctioned-load support, and migration nineteen reconciles the live hub
-  assignment schema. Platform billing and automatic workers remain
-  retired; subscription state never controls CPO access.
+  assignment schema. Migrations twenty-three through twenty-seven add and
+  reconcile charger/connector fields, optional charger vendor/model, per-
+  connector capacity, and static CMS charger-status values. Platform billing
+  and automatic workers remain retired; subscription state never controls CPO
+  access.
 
 ## API and Error Conventions
 

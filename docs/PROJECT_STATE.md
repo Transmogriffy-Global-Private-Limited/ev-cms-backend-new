@@ -168,13 +168,17 @@ provides:
   handler;
 - the additive PostgreSQL database `devevcmsnewdb`, owned by `postgres`.
 
-The active development VPS runs source revision `5ed7cb8`, with migrations
-through twenty-seven recorded and the deployed 135-operation contract. The
+The active development VPS runs source revision `79683f0`, with migrations
+through twenty-seven recorded and the deployed 137-operation contract. The
 User App can serve an authenticated published charger's allowed image through
 its relative `charger_image_url`, without exposing the stored upload path.
 The CPO charger response also exposes a read-only `assigned` projection that
 matches hub attachment, and Swagger groups CPO operations by account/network,
 pricing/tax, and integration responsibilities.
+The CPO ADMIN customer directory is read-only and tenant-scoped, and CPO
+charger projections expose `hub_name` when assigned. Connector capacity remains
+stored as `connector_total_capacity` but is represented as `total_capacity` in
+the CPO API contract.
 Migration
 twenty-seven replaces legacy charger/connector protocol-style states with the
 static CMS administrative values `ACTIVE`, `INACTIVE`, `SUSPENDED`,
@@ -214,7 +218,8 @@ twenty makes customer accounts CPO-local with dedicated authentication lineage,
 and migrations 21–22 add customer-visible network discovery and Razorpay wallet
 recharge ledger support. Migration twenty-six removes obsolete connector
 current/voltage fields; connector capacity is represented by
-`connector_total_capacity`.
+`connector_total_capacity`, while CPO API requests and responses call the
+field `total_capacity`.
 
 The deployed recovery flow fixes a recovery-specific OTP mapper defect that discarded
 `challenge_id` before outbox validation and caused eligible administrative and
@@ -266,10 +271,10 @@ implemented yet.
 - `git diff --check` passed. Stateful PostgreSQL lifecycle verification is
   intentionally deferred by the current workstream decision; no stateful
   result is claimed.
-- Revision `5ed7cb8` was built cleanly and rehosted without a new migration.
+- Revision `79683f0` was built cleanly and rehosted without a new migration.
   The installed binary, loopback-only listener, local/public liveness and
-  readiness, live 135-operation Swagger/OpenAPI with grouped CPO operations,
-  protected CPO charger-list route, and post-start journal passed.
+  readiness, live 137-operation Swagger/OpenAPI with grouped CPO operations,
+  protected CPO customer-list route, and post-start journal passed.
 - Revision `9ccdff2` was built cleanly and rehosted after confirming migration
   twenty-seven and its replacement status constraints were already applied.
   The installed binary, loopback-only listener, local/public liveness and
