@@ -6789,7 +6789,7 @@ components:
     CreateConnectorRequest:
       type: object
       additionalProperties: false
-      required: [connector_number, connector_type, total_capacity]
+      required: [connector_number, connector_type, connector_total_capacity]
       properties:
         connector_number:
           type: integer
@@ -6799,7 +6799,7 @@ components:
           minLength: 1
           maxLength: 50
           example: CCS2
-        total_capacity:
+        connector_total_capacity:
           type: number
           minimum: 0
           default: 0
@@ -6904,7 +6904,7 @@ components:
           type: string
           minLength: 1
           maxLength: 50
-        total_capacity:
+        connector_total_capacity:
           type: number
           minimum: 0
     UpdateChargerRequest:
@@ -7014,7 +7014,7 @@ components:
         - charger_id
         - connector_number
         - connector_type
-        - total_capacity
+        - connector_total_capacity
         - status
         - created_at
         - updated_at
@@ -7024,7 +7024,7 @@ components:
         charger_id: {type: string, format: uuid}
         connector_number: {type: integer, minimum: 1}
         connector_type: {type: string, maxLength: 50}
-        total_capacity:
+        connector_total_capacity:
           type: number
           minimum: 0
         status:
