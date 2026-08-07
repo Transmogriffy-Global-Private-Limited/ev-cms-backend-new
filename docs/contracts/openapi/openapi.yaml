@@ -44,10 +44,14 @@ tags:
     description: Platform authority, security, mail, communication, and bounded status operations.
   - name: Manual Subscriptions
     description: Platform-superadmin issued subscription plans and periods without a payment provider or automatic lifecycle worker.
-  - name: CPO Operations
-    description: Tenant-scoped profile, charging-network inventory, tax, and tariff operations.
-  - name: CPO Integrations
-    description: CPO owner/admin write-only integration credential management.
+  - name: CPO Operations - Account & Notifications
+    description: Tenant-scoped organization, administrator profile, subscription, user lookup, and notification operations.
+  - name: CPO Operations - Network
+    description: Tenant-scoped hub and charger inventory, publication, status, and image operations.
+  - name: CPO Operations - Pricing & Tax
+    description: Tenant-scoped tariff and GST profile operations.
+  - name: CPO Operations - Integrations
+    description: CPO ADMIN write-only integration credential management.
 
 paths:
   /health/live:
@@ -2875,7 +2879,7 @@ paths:
 
   /api/v1/cpo/notifications:
     get:
-      tags: [CPO Operations]
+      tags: [CPO Operations - Account & Notifications]
       operationId: listCPONotifications
       summary: List notifications for the authenticated CPO administrator
       security:
@@ -2896,7 +2900,7 @@ paths:
 
   /api/v1/cpo/notifications/{notification_id}/read:
     post:
-      tags: [CPO Operations]
+      tags: [CPO Operations - Account & Notifications]
       operationId: markCPONotificationRead
       summary: Mark a CPO notification read
       security:
@@ -2914,7 +2918,7 @@ paths:
 
   /api/v1/cpo/organization:
     get:
-      tags: [CPO Operations]
+      tags: [CPO Operations - Account & Notifications]
       operationId: getCPOOrganization
       summary: Read the authenticated CPO's organization details
       description: |
@@ -2946,7 +2950,7 @@ paths:
 
   /api/v1/cpo/subscription:
     get:
-      tags: [CPO Operations]
+      tags: [CPO Operations - Account & Notifications]
       operationId: getCPOSubscription
       summary: Get the current CPO subscription
       description: Returns the subscription details for the authenticated CPO.
@@ -2979,7 +2983,7 @@ paths:
 
   /api/v1/cpo/admin/profile:
     get:
-      tags: [CPO Operations]
+      tags: [CPO Operations - Account & Notifications]
       operationId: getCPOAdminProfile
       summary: Read the authenticated CPO administrator profile
       description: |
@@ -3006,7 +3010,7 @@ paths:
         "500":
           $ref: "#/components/responses/InternalError"
     patch:
-      tags: [CPO Operations]
+      tags: [CPO Operations - Account & Notifications]
       operationId: updateCPOAdminProfile
       summary: Update the authenticated administrator name or phone
       description: |
@@ -3044,7 +3048,7 @@ paths:
 
   /api/v1/cpo/users/{user_id}:
     get:
-      tags: [CPO Operations]
+      tags: [CPO Operations - Account & Notifications]
       operationId: getCPOUser
       summary: Read one staff identity registered to the authenticated CPO
       description: |
@@ -3092,7 +3096,7 @@ paths:
 
   /api/v1/cpo/chargers:
     post:
-      tags: [CPO Operations]
+      tags: [CPO Operations - Network]
       operationId: createCPOCharger
       summary: Register a CMS charger and its initial connectors
       description: |
@@ -3147,7 +3151,7 @@ paths:
         "500":
           $ref: "#/components/responses/InternalError"
     get:
-      tags: [CPO Operations]
+      tags: [CPO Operations - Network]
       operationId: listCPOChargers
       summary: List tenant chargers with connectors
       description: |
@@ -3185,7 +3189,7 @@ paths:
     parameters:
       - $ref: "#/components/parameters/ChargerPublicID"
     get:
-      tags: [CPO Operations]
+      tags: [CPO Operations - Network]
       operationId: getCPOCharger
       summary: Get one tenant charger and its connectors
       security:
@@ -3217,7 +3221,7 @@ paths:
         "500":
           $ref: "#/components/responses/InternalError"
     patch:
-      tags: [CPO Operations]
+      tags: [CPO Operations - Network]
       operationId: updateCPOCharger
       summary: Update a charger and selected existing connectors
       description: |
@@ -3271,7 +3275,7 @@ paths:
         "500":
           $ref: "#/components/responses/InternalError"
     delete:
-      tags: [CPO Operations]
+      tags: [CPO Operations - Network]
       operationId: deleteCPOCharger
       summary: Delete an unused charger and its connectors
       description: |
@@ -3314,7 +3318,7 @@ paths:
     parameters:
       - $ref: "#/components/parameters/ChargerInternalID"
     get:
-      tags: [CPO Operations]
+      tags: [CPO Operations - Network]
       operationId: getCPOChargerStatus
       summary: Get a tenant charger's CMS administrative status
       description: Uses the charger's internal UUID, not its public six-character `charger_id`. This is static CMS administrative state, not HAL-backed live availability.
@@ -3347,7 +3351,7 @@ paths:
         "500":
           $ref: "#/components/responses/InternalError"
     put:
-      tags: [CPO Operations]
+      tags: [CPO Operations - Network]
       operationId: updateCPOChargerStatus
       summary: Update a tenant charger's CMS administrative status
       description: Uses the charger's internal UUID. An optional OCPP identity must match the stored mapping when supplied. This does not contact HAL or report live charger availability.
@@ -3396,7 +3400,7 @@ paths:
     parameters:
       - $ref: "#/components/parameters/ChargerPublicID"
     get:
-      tags: [CPO Operations]
+      tags: [CPO Operations - Network]
       operationId: getCPOChargerImage
       summary: Get the charger's image
       description: Returns the charger's image file. The response is an image file with the appropriate content type.
@@ -3432,7 +3436,7 @@ paths:
 
   /api/v1/cpo/hubs:
     post:
-      tags: [CPO Operations]
+      tags: [CPO Operations - Network]
       operationId: createCPOHub
       summary: Create a tenant charging hub
       description: |
@@ -3479,7 +3483,7 @@ paths:
         "500":
           $ref: "#/components/responses/InternalError"
     get:
-      tags: [CPO Operations]
+      tags: [CPO Operations - Network]
       operationId: listCPOHubs
       summary: List tenant hubs
       description: Requires CPO ADMIN and uses stable descending keyset pagination.
@@ -3514,7 +3518,7 @@ paths:
     parameters:
       - $ref: "#/components/parameters/HubID"
     get:
-      tags: [CPO Operations]
+      tags: [CPO Operations - Network]
       operationId: getCPOHub
       summary: Get one tenant hub with a paginated charger list
       description: |
@@ -3555,7 +3559,7 @@ paths:
         "500":
           $ref: "#/components/responses/InternalError"
     patch:
-      tags: [CPO Operations]
+      tags: [CPO Operations - Network]
       operationId: updateCPOHub
       summary: Update a tenant hub
       description: Requires CPO ADMIN and at least one mutable field.
@@ -3600,7 +3604,7 @@ paths:
         "500":
           $ref: "#/components/responses/InternalError"
     delete:
-      tags: [CPO Operations]
+      tags: [CPO Operations - Network]
       operationId: deleteCPOHub
       summary: Delete a hub
       description: Deletes a hub and disassociates all chargers from it. The chargers themselves are not deleted. The hub cannot be deleted if it has any tariffs associated with it.
@@ -3639,7 +3643,7 @@ paths:
     parameters:
       - $ref: "#/components/parameters/HubID"
     put:
-      tags: [CPO Operations]
+      tags: [CPO Operations - Network]
       operationId: updateCPOHubCustomerVisibility
       summary: Publish or unpublish a hub from User App discovery
       description: Requires CPO ADMIN and atomically changes only the hub's `customer_visible` publication gate. Unpublished hubs and their attached chargers are omitted from User App discovery and favorites.
@@ -3682,7 +3686,7 @@ paths:
     parameters:
       - $ref: "#/components/parameters/HubID"
     post:
-      tags: [CPO Operations]
+      tags: [CPO Operations - Network]
       operationId: assignChargerToCPOHub
       summary: Assign or reassign a tenant charger to a hub
       description: |
@@ -3739,7 +3743,7 @@ paths:
 
   /api/v1/cpo/tariffs:
     post:
-      tags: [CPO Operations]
+      tags: [CPO Operations - Pricing & Tax]
       operationId: createCPOTariff
       summary: Create a tenant tariff
       description: |
@@ -3789,7 +3793,7 @@ paths:
         "500":
           $ref: "#/components/responses/InternalError"
     get:
-      tags: [CPO Operations]
+      tags: [CPO Operations - Pricing & Tax]
       operationId: listCPOTariffs
       summary: List tenant tariffs
       description: Requires CPO ADMIN and uses stable descending keyset pagination.
@@ -3824,7 +3828,7 @@ paths:
     parameters:
       - $ref: "#/components/parameters/TariffID"
     get:
-      tags: [CPO Operations]
+      tags: [CPO Operations - Pricing & Tax]
       operationId: getCPOTariff
       summary: Get one tenant tariff
       security:
@@ -3856,7 +3860,7 @@ paths:
         "500":
           $ref: "#/components/responses/InternalError"
     patch:
-      tags: [CPO Operations]
+      tags: [CPO Operations - Pricing & Tax]
       operationId: updateCPOTariff
       summary: Update a tenant tariff
       description: |
@@ -3905,7 +3909,7 @@ paths:
 
   /api/v1/cpo/gsts:
     post:
-      tags: [CPO Operations]
+      tags: [CPO Operations - Pricing & Tax]
       operationId: createCPOGST
       summary: Create a tenant GST profile
       description: Requires CPO ADMIN; rates are exact decimals from 0 through 100.
@@ -3944,7 +3948,7 @@ paths:
         "500":
           $ref: "#/components/responses/InternalError"
     get:
-      tags: [CPO Operations]
+      tags: [CPO Operations - Pricing & Tax]
       operationId: listCPOGSTs
       summary: List tenant GST profiles
       description: Requires CPO ADMIN and uses stable descending keyset pagination.
@@ -3979,7 +3983,7 @@ paths:
     parameters:
       - $ref: "#/components/parameters/GSTID"
     get:
-      tags: [CPO Operations]
+      tags: [CPO Operations - Pricing & Tax]
       operationId: getCPOGST
       summary: Get one tenant GST profile
       security:
@@ -4011,7 +4015,7 @@ paths:
         "500":
           $ref: "#/components/responses/InternalError"
     patch:
-      tags: [CPO Operations]
+      tags: [CPO Operations - Pricing & Tax]
       operationId: updateCPOGST
       summary: Update a tenant GST profile
       description: Requires CPO ADMIN and at least one mutable field.
@@ -4058,7 +4062,7 @@ paths:
 
   /api/v1/cpo/integrations:
     get:
-      tags: [CPO Integrations]
+      tags: [CPO Operations - Integrations]
       operationId: listCPOIntegrations
       summary: List configured integration metadata
       description: |
@@ -4093,7 +4097,7 @@ paths:
     parameters:
       - $ref: "#/components/parameters/IntegrationProvider"
     get:
-      tags: [CPO Integrations]
+      tags: [CPO Operations - Integrations]
       operationId: getCPOIntegration
       summary: Get one integration's metadata
       security:
@@ -4121,7 +4125,7 @@ paths:
         "500":
           $ref: "#/components/responses/InternalError"
     put:
-      tags: [CPO Integrations]
+      tags: [CPO Operations - Integrations]
       operationId: putCPOIntegration
       summary: Configure or atomically rotate Razorpay credentials
       description: |
@@ -4160,7 +4164,7 @@ paths:
         "500":
           $ref: "#/components/responses/InternalError"
     delete:
-      tags: [CPO Integrations]
+      tags: [CPO Operations - Integrations]
       operationId: deleteCPOIntegration
       summary: Remove the CPO's provider credentials
       description: Deletes the encrypted credential row and records a safe audit event.

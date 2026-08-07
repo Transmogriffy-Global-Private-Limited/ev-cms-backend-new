@@ -136,6 +136,13 @@ The authoritative machine contract is
 `docs/contracts/openapi/openapi.yaml`. The source currently has 135 total
 HTTP operations across all planes. Runtime/OpenAPI parity is tested.
 
+Swagger UI renders the CPO plane as four adjacent, consistently prefixed
+sections: CPO Operations - Account & Notifications, CPO Operations - Network,
+CPO Operations - Pricing & Tax, and CPO Operations - Integrations. Swagger UI
+supports flat tags rather than a nested parent tag; the shared prefix keeps
+these CPO-only operations together without mixing in platform or User App
+operations.
+
 ### Administrative authentication
 
 Base: `/api/v1/auth`

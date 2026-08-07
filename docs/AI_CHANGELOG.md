@@ -1,5 +1,19 @@
 # AI Changelog
 
+## 2026-08-07
+
+### Organized CPO Swagger operations
+
+- Split the flat CPO Swagger tag into four consistently prefixed sections:
+  Account & Notifications, Network, Pricing & Tax, and Integrations.
+- Kept all CPO-plane operations together while leaving platform and User App
+  endpoints in their existing separate Swagger sections.
+
+Verification:
+
+- Documentation contract verification, CPO tag inventory, and diff checks
+  passed. Go tests remain skipped by the requested workspace policy.
+
 ## 2026-08-06
 
 ### Rehosted published charger-image and hub-delete release

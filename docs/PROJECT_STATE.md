@@ -85,6 +85,9 @@ provides:
   operations;
 - embedded same-origin Swagger UI at `/docs/` and raw OpenAPI at
   `/openapi.yaml`;
+- CPO Swagger operations organized into Account & Notifications, Network,
+  Pricing & Tax, and Integrations sections without mixing platform or User App
+  operations;
 - `API_DOCS_ENABLED` registration control for both documentation surfaces,
   defaulting on for compatibility and returning `404` when disabled;
 - bidirectional verification that Gin and OpenAPI expose the same operation
