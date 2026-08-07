@@ -2,6 +2,21 @@
 
 ## 2026-08-07
 
+### Implemented CPO Customer Directory Endpoints
+
+- Added read-only endpoints for CPO administrators to view their registered app
+  customers: `GET /api/v1/cpo/customers` for a paginated and searchable list,
+  and `GET /api/v1/cpo/customers/{customer_id}` for a single customer view.
+- Updated the administrative API contract, CPO backend handoff, and Superadmin
+  handoff to document the new endpoints, their read-only nature, and the strict
+  tenant boundary.
+- The OpenAPI specification was updated to include these new operations.
+
+Verification:
+
+- Documentation verification and `git diff --check` passed.
+## 2026-08-07
+
 ### Assigned CPO network, pricing, and integration ownership
 
 - Created `WI-20260807-cpo-network-pricing-operations` to assign Abhranil Pal

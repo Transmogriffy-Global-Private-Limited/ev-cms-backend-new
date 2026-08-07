@@ -193,6 +193,13 @@ organization response omits privileged lifecycle reason and platform actor ID.
 - `POST/GET /tariffs`
 - `GET/PATCH /tariffs/{tariff_id}`
 
+### Customer Directory
+
+Base: `/api/v1/cpo`
+
+- `GET /customers`
+- `GET /customers/{customer_id}`
+
 Current behavior:
 
 - collections use bounded keyset pagination;
@@ -276,10 +283,9 @@ Implemented:
 Successful signup transactionally creates one CPO-local customer account and
 its zero-balance INR wallet without creating or reusing `users`.
 
-Not implemented: a CPO ADMIN customer directory, customer suspension API,
-groups/RFID management APIs, or verified email change. Customer self-service
-profile editing is implemented, but this must not be confused with CPO-side
-customer administration.
+Not implemented: CPO ADMIN customer creation, modification, or suspension API,
+customer user-groups/RFID management APIs, or verified email change for
+customers.
 
 ## Current Data Model: Schema Is Capacity, Not Behavior
 
@@ -391,11 +397,10 @@ human must assign or approve a specific slice before an agent changes code.
 
 ### Candidate A: CPO customer administration
 
-Can be designed without HAL transport:
+A read-only customer directory is now implemented. Future work on customer
+administration can be designed without HAL transport:
 
-- bounded customer list/detail/search/filter;
 - customer activation/suspension policy;
-- safe identity/contact visibility;
 - customer session revocation;
 - user groups and customer assignment;
 - RFID/idTag issuance, assignment, replacement, block, and revoke;

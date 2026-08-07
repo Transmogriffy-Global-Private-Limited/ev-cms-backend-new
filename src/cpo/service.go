@@ -1986,6 +1986,13 @@ func (service *Service) CreateCharger(
 		return ChargerResponse{}, err
 	}
 
+	if record.HubID != nil {
+		var hub models.Hub
+		if err := service.database.WithContext(ctx).First(&hub, "id = ?", *record.HubID).Error; err == nil {
+			record.Hub = &hub
+		}
+	}
+
 	return service.chargerView(record, principal), nil
 }
 
@@ -2321,6 +2328,13 @@ func (service *Service) UpdateCharger(
 	})
 	if err != nil {
 		return ChargerResponse{}, err
+	}
+
+	if record.HubID != nil {
+		var hub models.Hub
+		if err := service.database.WithContext(ctx).First(&hub, "id = ?", *record.HubID).Error; err == nil {
+			record.Hub = &hub
+		}
 	}
 
 	return service.chargerView(record, principal), nil
@@ -3231,6 +3245,139 @@ func (service *Service) DeleteHub(
 		return err
 	})
 }
+
+func (service *Service) ListCustomers(
+	ctx context.Context,
+	principal auth.Principal,
+	query CPOAdminCustomerListQuery,
+) (CPOAdminCustomerListResponse, error) {
+	if err := requireCPOAdminAccess(principal); err != nil {
+		return CPOAdminCustomerListResponse{}, err
+	}
+
+	query.Search = strings.TrimSpace(query.Search)
+	if len(query.Search) > maxSearchLength {
+		return CPOAdminCustomerListResponse{}, invalid(
+			"q",
+			"Search text must not exceed 200 characters.",
+		)
+	}
+	if query.Limit == 0 {
+		query.Limit = defaultListLimit
+	}
+	if query.Limit < 1 || query.Limit > maxListLimit {
+		return CPOAdminCustomerListResponse{}, invalid(
+			"limit",
+			"Limit must be between 1 and 200.",
+		)
+	}
+	if query.Status != nil && !query.Status.Valid() {
+		return CPOAdminCustomerListResponse{}, invalid(
+			"status",
+			"Status must be ACTIVE or BLOCKED.",
+		)
+	}
+	if (query.Before == nil) != (query.BeforeID == nil) {
+		return CPOAdminCustomerListResponse{}, invalid(
+			"cursor",
+			"before and before_id must be supplied together.",
+		)
+	}
+
+	cpoID := *principal.CPOID
+	databaseQuery := service.database.WithContext(ctx).Model(&models.Customer{}).
+		Where("cpo_id = ?", cpoID)
+
+	if query.Search != "" {
+		search := strings.ToLower(query.Search)
+		databaseQuery = databaseQuery.Where(
+			`strpos(lower(email), ?) > 0 OR strpos(lower(full_name), ?) > 0 OR strpos(lower(coalesce(phone, '')), ?) > 0`,
+			search, search, search,
+		)
+	}
+	if query.Status != nil {
+		databaseQuery = databaseQuery.Where("status = ?", *query.Status)
+	}
+	if query.Before != nil {
+		databaseQuery = databaseQuery.Where(
+			"(created_at, id) < (?, ?)",
+			*query.Before,
+			*query.BeforeID,
+		)
+	}
+
+	var records []models.Customer
+	if err := databaseQuery.
+		Order("created_at DESC, id DESC").
+		Limit(query.Limit + 1).
+		Find(&records).Error; err != nil {
+		return CPOAdminCustomerListResponse{}, fmt.Errorf("list CPO customers: %w", err)
+	}
+
+	hasMore := len(records) > query.Limit
+	if hasMore {
+		records = records[:query.Limit]
+	}
+
+	result := make([]CPOAdminCustomerView, 0, len(records))
+	for _, record := range records {
+		result = append(result, cpoAdminCustomerView(record))
+	}
+
+	response := CPOAdminCustomerListResponse{Customers: result, HasMore: hasMore}
+	if hasMore && len(records) > 0 {
+		nextBefore := records[len(records)-1].CreatedAt
+		nextBeforeID := records[len(records)-1].ID
+		response.NextBefore = &nextBefore
+		response.NextBeforeID = &nextBeforeID
+	}
+	return response, nil
+}
+
+func (service *Service) GetCustomer(
+	ctx context.Context,
+	principal auth.Principal,
+	customerID uuid.UUID,
+) (CPOAdminCustomerView, error) {
+	if err := requireCPOAdminAccess(principal); err != nil {
+		return CPOAdminCustomerView{}, err
+	}
+
+	var record models.Customer
+	if err := service.database.WithContext(ctx).
+		First(&record, "cpo_id = ? AND id = ?", *principal.CPOID, customerID).Error; err != nil {
+		return CPOAdminCustomerView{}, mapCustomerNotFound(err)
+	}
+
+	return cpoAdminCustomerView(record), nil
+}
+
+func cpoAdminCustomerView(record models.Customer) CPOAdminCustomerView {
+	return CPOAdminCustomerView{
+		ID:          record.ID,
+		CPOID:       record.CPOID,
+		Email:       record.Email,
+		FullName:    record.FullName,
+		Phone:       record.Phone,
+		Status:      record.Status,
+		IsVerified:  record.IsVerified,
+		LastLoginAt: record.LastLoginAt,
+		CreatedAt:   record.CreatedAt,
+		UpdatedAt:   record.UpdatedAt,
+	}
+}
+
+func mapCustomerNotFound(err error) error {
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return &auth.APIError{
+			Status:  http.StatusNotFound,
+			Code:    "customer_not_found",
+			Message: "The customer was not found for this CPO.",
+		}
+	}
+	return fmt.Errorf("load customer: %w", err)
+}
+
 func (service *Service) AssignChargerToHub(
 	ctx context.Context,
 	principal auth.Principal,
@@ -3295,6 +3442,7 @@ func (service *Service) AssignChargerToHub(
 		Preload("Connectors", func(tx *gorm.DB) *gorm.DB {
 			return tx.Order("connector_number ASC")
 		}).
+		Preload("Hub").
 		First(&charger, "id = ? AND cpo_id = ?", chargerID, cpoID).Error; err != nil {
 		return ChargerResponse{}, fmt.Errorf("reload charger after assignment: %w", err)
 	}

@@ -211,7 +211,7 @@ type CreateChargerRequest struct {
 type CreateConnectorRequest struct {
 	ConnectorNumber        int     `json:"connector_number"`
 	ConnectorType          string  `json:"connector_type"`
-	ConnectorTotalCapacity float64 `json:"connector_total_capacity"`
+	ConnectorTotalCapacity float64 `json:"total_capacity"`
 }
 
 type UpdateChargerRequest struct {
@@ -299,7 +299,7 @@ type ConnectorView struct {
 	ChargerID              uuid.UUID               `json:"charger_id"`
 	ConnectorNumber        int                     `json:"connector_number"`
 	ConnectorType          string                  `json:"connector_type"`
-	ConnectorTotalCapacity float64                 `json:"connector_total_capacity"`
+	ConnectorTotalCapacity float64                 `json:"total_capacity"`
 	Status                 constants.ChargerStatus `json:"status"`
 	CreatedAt              time.Time               `json:"created_at"`
 	UpdatedAt              time.Time               `json:"updated_at"`
@@ -365,6 +365,37 @@ type HubResponse struct {
 	Chargers        *ChargerListResponse `json:"chargers,omitempty"`
 	CreatedAt       time.Time            `json:"created_at"`
 	UpdatedAt       time.Time            `json:"updated_at"`
+}
+
+// CPOAdminCustomerView is the CPO administrator's view of a customer account.
+type CPOAdminCustomerView struct {
+	ID          uuid.UUID                `json:"id"`
+	CPOID       uuid.UUID                `json:"cpo_id"`
+	Email       string                   `json:"email"`
+	FullName    string                   `json:"full_name"`
+	Phone       *string                  `json:"phone,omitempty"`
+	Status      constants.CustomerStatus `json:"status"`
+	IsVerified  bool                     `json:"is_verified"`
+	LastLoginAt *time.Time               `json:"last_login_at,omitempty"`
+	CreatedAt   time.Time                `json:"created_at"`
+	UpdatedAt   time.Time                `json:"updated_at"`
+}
+
+// CPOAdminCustomerListQuery defines the query parameters for listing customers.
+type CPOAdminCustomerListQuery struct {
+	Search   string
+	Status   *constants.CustomerStatus
+	Before   *time.Time
+	BeforeID *uuid.UUID
+	Limit    int
+}
+
+// CPOAdminCustomerListResponse is the paginated list of customer views.
+type CPOAdminCustomerListResponse struct {
+	Customers    []CPOAdminCustomerView `json:"customers"`
+	NextBefore   *time.Time             `json:"next_before,omitempty"`
+	NextBeforeID *uuid.UUID             `json:"next_before_id,omitempty"`
+	HasMore      bool                   `json:"has_more"`
 }
 
 type CreateTariffRequest struct {

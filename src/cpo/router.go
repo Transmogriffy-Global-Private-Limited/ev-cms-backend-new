@@ -480,6 +480,8 @@ func RegisterCPORoutes(
 	group.PATCH("/gsts/:gst_id", handler.updateGST)
 	group.PUT("/chargers/:charger_id/status", handler.updateChargerStatus)
 	group.GET("/chargers/:charger_id/status", handler.getChargerStatus)
+	group.GET("/customers", handler.listCustomers)
+	group.GET("/customers/:customer_id", handler.getCustomer)
 }
 
 // @Summary Update charger status
@@ -1141,6 +1143,93 @@ func (handler *Handler) getGST(ctx *gin.Context) {
 	ctx.JSON(http.StatusOK, record)
 }
 
+// @Summary List CPO customers
+// @Description Returns a paginated list of customers for the authenticated CPO, ordered by newest first.
+// @Tags CPO Operations - Account & Notifications
+// @Produce json
+// @Param q query string false "Case-insensitive substring search across customer name, email, and phone"
+// @Param status query string false "Filter by customer status (ACTIVE or BLOCKED)"
+// @Param limit query int false "Number of records to return (1-100, default 25)"
+// @Param before query string false "RFC3339 creation timestamp for keyset pagination"
+// @Param before_id query string false "UUID tie-breaker to be paired with before"
+// @Success 200 {object} CPOAdminCustomerListResponse "Successfully retrieved customer list"
+// @Failure 400 {object} auth.APIError "Invalid query parameters"
+// @Failure 401 {object} auth.APIError "Unauthorized"
+// @Failure 403 {object} auth.APIError "Forbidden"
+// @Security BearerAuth
+// @Security CPOAppID
+// @Failure 500 {object} auth.APIError "Internal server error"
+// @Router /cpo/customers [get]
+func (handler *Handler) listCustomers(ctx *gin.Context) {
+	principal, _ := auth.CurrentPrincipal(ctx)
+	query, ok := parseCPOAdminCustomerListQuery(ctx)
+	if !ok {
+		return
+	}
+
+	records, err := handler.service.ListCustomers(ctx.Request.Context(), principal, query)
+	if err != nil {
+		writeError(ctx, err)
+		return
+	}
+
+	ctx.JSON(http.StatusOK, records)
+}
+
+// @Summary Get CPO customer details
+// @Description Returns a single customer belonging to the authenticated CPO.
+// @Tags CPO Operations - Account & Notifications
+// @Produce json
+// @Param customer_id path string true "Customer ID"
+// @Success 200 {object} CPOAdminCustomerView "Successfully retrieved customer details"
+// @Failure 400 {object} auth.APIError "Invalid customer ID format"
+// @Failure 401 {object} auth.APIError "Unauthorized"
+// @Failure 403 {object} auth.APIError "Forbidden"
+// @Failure 404 {object} auth.APIError "Customer not found"
+// @Security BearerAuth
+// @Security CPOAppID
+// @Failure 500 {object} auth.APIError "Internal server error"
+// @Router /cpo/customers/{customer_id} [get]
+func (handler *Handler) getCustomer(ctx *gin.Context) {
+	principal, _ := auth.CurrentPrincipal(ctx)
+	customerID, ok := parseCustomerID(ctx)
+	if !ok {
+		return
+	}
+
+	record, err := handler.service.GetCustomer(ctx.Request.Context(), principal, customerID)
+	if err != nil {
+		writeError(ctx, err)
+		return
+	}
+
+	ctx.JSON(http.StatusOK, record)
+}
+
+func parseCPOAdminCustomerListQuery(ctx *gin.Context) (CPOAdminCustomerListQuery, bool) {
+	query := CPOAdminCustomerListQuery{Search: strings.TrimSpace(ctx.Query("q"))}
+	if statusText := strings.TrimSpace(ctx.Query("status")); statusText != "" {
+		status := constants.CustomerStatus(strings.ToUpper(statusText))
+		query.Status = &status
+	}
+	if limitText := strings.TrimSpace(ctx.Query("limit")); limitText != "" {
+		limit, err := strconv.Atoi(limitText)
+		if err != nil {
+			writeError(ctx, invalid("limit", "Limit must be an integer."))
+			return CPOAdminCustomerListQuery{}, false
+		}
+		query.Limit = limit
+	}
+	// Reuse parseTenantListQuery's logic for before/before_id
+	tenantQuery, ok := parseTenantListQuery(ctx)
+	if !ok {
+		return CPOAdminCustomerListQuery{}, false
+	}
+	query.Before = tenantQuery.Before
+	query.BeforeID = tenantQuery.BeforeID
+	return query, true
+}
+
 func (handler *Handler) updateGST(ctx *gin.Context) {
 	principal, _ := auth.CurrentPrincipal(ctx)
 
@@ -1179,4 +1268,17 @@ func parseGSTID(ctx *gin.Context) (uuid.UUID, bool) {
 		return uuid.Nil, false
 	}
 	return gstID, true
+}
+
+func parseCustomerID(ctx *gin.Context) (uuid.UUID, bool) {
+	customerID, err := uuid.Parse(ctx.Param("customer_id"))
+	if err != nil || customerID == uuid.Nil {
+		writeError(ctx, &auth.APIError{
+			Status:  http.StatusBadRequest,
+			Code:    "invalid_customer_id",
+			Message: "The customer ID is invalid.",
+		})
+		return uuid.Nil, false
+	}
+	return customerID, true
 }

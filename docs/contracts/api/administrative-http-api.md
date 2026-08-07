@@ -2391,6 +2391,114 @@ subscription state never controls CPO authorization.
 
 Errors: `401 unauthorized`, `403 forbidden`, `404 subscription_not_found`, or `500 internal_error`.
 
+### 9.24 CPO Customer Directory
+
+These read-only endpoints allow a CPO ADMIN to view the app customers
+registered under their CPO. They require the standard CPO bearer session and
+matching `X-CPO-App-ID`. The CPO is derived from the session; no request
+parameter can select another tenant's customers.
+
+#### 9.24.1 `GET /api/v1/cpo/customers`
+
+Returns a paginated list of customers for the authenticated CPO, ordered by
+newest first.
+
+Query parameters:
+
+- `q`: case-insensitive substring search across customer name, email, and
+  phone; at most 255 characters.
+- `status`: exact `ACTIVE` or `BLOCKED`.
+- `limit`: 1 through 100, default 25.
+- `before`: RFC3339 creation timestamp for keyset pagination.
+- `before_id`: UUID tie-breaker to be paired with `before`.
+
+The response contains a list of safe customer projections, omitting wallet and
+credential details, plus the standard `next_before`, `next_before_id`, and
+`has_more` cursor fields.
+
+Errors: `400 invalid_q`, `invalid_status`, `invalid_limit`, `invalid_cursor`;
+shared authentication errors; or `500 internal_error`.
+
+<details>
+<summary>OpenAPI Specification</summary>
+
+```yaml
+paths:
+  /api/v1/cpo/customers:
+    get:
+      tags:
+        - "CPO Operations - Account & Notifications"
+      summary: "List CPO customers"
+      description: "Returns a paginated list of customers for the authenticated CPO, ordered by newest first."
+      produces:
+        - "application/json"
+      parameters:
+        - name: "q"
+          in: "query"
+          description: "Case-insensitive substring search across customer name, email, and phone"
+          required: false
+          type: "string"
+        - name: "status"
+          in: "query"
+          description: "Filter by customer status (ACTIVE or BLOCKED)"
+          required: false
+          type: "string"
+        - name: "limit"
+          in: "query"
+          description: "Number of records to return (1-100, default 25)"
+          required: false
+          type: "integer"
+        - name: "before"
+          in: "query"
+          description: "RFC3339 creation timestamp for keyset pagination"
+          required: false
+          type: "string"
+          format: "date-time"
+        - name: "before_id"
+          in: "query"
+          description: "UUID tie-breaker to be paired with before"
+          required: false
+          type: "string"
+          format: "uuid"
+      responses:
+        "200":
+          description: "Successfully retrieved customer list"
+        "400":
+          description: "Invalid query parameters"
+        "401":
+          description: "Unauthorized"
+        "403":
+          description: "Forbidden"
+        "500":
+          description: "Internal server error"
+      security:
+        - BearerAuth: []
+        - CPOAppID: []
+```
+
+</details>
+
+#### 9.24.2 `GET /api/v1/cpo/customers/{customer_id}`
+
+Returns a single customer belonging to the authenticated CPO. A cross-tenant
+or unknown ID returns `404 customer_not_found`.
+
+The response is a safe projection:
+
+```json
+{
+  "id": "e8a751ff-d7d4-4ce8-ab30-cdd8c8111363",
+  "cpo_id": "c821a013-5041-42f7-80c8-aa153cf9d455",
+  "email": "driver@example.com",
+  "full_name": "Example Driver",
+  "phone": "+919876543210",
+  "status": "ACTIVE",
+  "is_verified": true,
+  "created_at": "2026-07-23T12:00:00Z",
+  "last_login_at": "2026-07-23T12:05:00Z"
+}
+```
+
 ## 10. CPO Integration Credentials
 
 All endpoints require:

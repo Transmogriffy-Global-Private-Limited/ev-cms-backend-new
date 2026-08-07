@@ -5407,6 +5407,7 @@ components:
           format: uri-reference
           description: Relative authenticated User App image route, present only when this charger has an uploaded image.
         hub_name: {type: string, maxLength: 255}
+        hub_name: {type: string, maxLength: 255}
         hub_address: {type: string}
         hub_latitude: {type: number, minimum: -90, maximum: 90}
         hub_longitude: {type: number, minimum: -180, maximum: 180}
@@ -5425,12 +5426,12 @@ components:
     CustomerConnector:
       type: object
       additionalProperties: false
-      required: [id, connector_number, connector_type, connector_total_capacity, status, availability]
+      required: [id, connector_number, connector_type, total_capacity, status, availability]
       properties:
         id: {type: string, format: uuid}
         connector_number: {type: integer, minimum: 1}
         connector_type: {type: string, maxLength: 50}
-        connector_total_capacity: {type: number, minimum: 0}
+        total_capacity: {type: number, minimum: 0}
         status:
           $ref: "#/components/schemas/ChargerStatus"
         availability:
@@ -6640,7 +6641,7 @@ components:
     CreateConnectorRequest:
       type: object
       additionalProperties: false
-      required: [connector_number, connector_type, connector_total_capacity]
+      required: [connector_number, connector_type, total_capacity]
       properties:
         connector_number:
           type: integer
@@ -6650,7 +6651,7 @@ components:
           minLength: 1
           maxLength: 50
           example: CCS2
-        connector_total_capacity:
+        total_capacity:
           type: number
           minimum: 0
           default: 0
@@ -6737,7 +6738,7 @@ components:
         connectors:
           - connector_number: 1
             connector_type: CCS2
-            connector_total_capacity: 22.5
+            total_capacity: 22.5
 
     UpdateConnectorRequest:
       type: object
@@ -6755,7 +6756,7 @@ components:
           type: string
           minLength: 1
           maxLength: 50
-        connector_total_capacity:
+        total_capacity:
           type: number
           minimum: 0
     UpdateChargerRequest:
@@ -6865,7 +6866,7 @@ components:
         - charger_id
         - connector_number
         - connector_type
-        - connector_total_capacity
+        - total_capacity
         - status
         - created_at
         - updated_at
@@ -6875,7 +6876,7 @@ components:
         charger_id: {type: string, format: uuid}
         connector_number: {type: integer, minimum: 1}
         connector_type: {type: string, maxLength: 50}
-        connector_total_capacity:
+        total_capacity:
           type: number
           minimum: 0
         status:
@@ -6919,6 +6920,9 @@ components:
           type: string
           format: uuid
           description: Absent for an independent charger that has not been assigned to a hub.
+        hub_name:
+          type: string
+          maxLength: 255
         charger_id:
           type: string
           pattern: "^[a-z0-9]{6}$"
