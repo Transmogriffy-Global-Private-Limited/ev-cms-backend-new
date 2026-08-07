@@ -6911,6 +6911,7 @@ components:
         - twenty_four_seven_open_status
         - charger_connection_url_ws
         - charger_connection_url_wss
+        - assigned
       properties:
         id: {type: string, format: uuid}
         cpo_id: {type: string, format: uuid}
@@ -6972,6 +6973,9 @@ components:
           type: string
           format: uri
           description: OCPP secure-WebSocket endpoint derived from the configured charger host and the generated OCPP identity.
+        assigned:
+          type: boolean
+          description: Whether the charger is assigned to a hub.
         email:
           type: string
           format: email

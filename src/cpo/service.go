@@ -2730,6 +2730,7 @@ func (service *Service) chargerView(record models.Charger, principal auth.Princi
 			Connectors:              connectorsView,
 			ChargerConnectionURLWS:  fmt.Sprintf("ws://%s/%s", service.chargerConnectionURL, ocppIdentityForURL),
 			ChargerConnectionURLWSS: fmt.Sprintf("wss://%s/%s", service.chargerConnectionURL, ocppIdentityForURL),
+			Assigned:                record.HubID != nil,
 			CreatedAt:               record.CreatedAt,
 			UpdatedAt:               record.UpdatedAt,
 		},

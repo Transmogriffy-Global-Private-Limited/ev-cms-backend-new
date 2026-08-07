@@ -269,6 +269,7 @@ type ChargerView struct {
 	Connectors              []ConnectorView         `json:"connectors"`
 	ChargerConnectionURLWS  string                  `json:"charger_connection_url_ws"`
 	ChargerConnectionURLWSS string                  `json:"charger_connection_url_wss"`
+	Assigned                bool                    `json:"assigned"`
 	CreatedAt               time.Time               `json:"created_at"`
 	UpdatedAt               time.Time               `json:"updated_at"`
 }
