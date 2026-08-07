@@ -7,6 +7,7 @@ This directory is the durable project memory for the EV CMS backend.
 | Need | Canonical source |
 |---|---|
 | Approved sequence and active work | `DEVELOPMENT_PLAN.md` |
+| Active implementation ownership and handoffs | `work/active/` |
 | Implemented and verified reality | `PROJECT_STATE.md` |
 | Agent-assisted change history | `AI_CHANGELOG.md` |
 | Database ownership and model mapping | `SCHEMA.md` |

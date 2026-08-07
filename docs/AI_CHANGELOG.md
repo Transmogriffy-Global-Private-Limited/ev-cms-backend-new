@@ -2,6 +2,22 @@
 
 ## 2026-08-07
 
+### Registered active ownership for platform, User App, and operations work
+
+- Added the repository-native active-work ledger and registered Anubhab Dey as
+  the owner of SuperAdmin and User App backend work, shared authentication,
+  mail, and notification infrastructure, and related hosting, database, and
+  DNS operations.
+- Registered Anubhab as the owner of HAL-to-CMS and CMS-to-HAL communication
+  changes, while assigning CMS-side receipt and handling to the respective
+  CMS surface owner.
+- The work item is an ownership record only; it does not report a code,
+  database, DNS, hosting, or deployment change.
+
+Verification:
+
+- Documentation verification and whitespace checks passed.
+
 ### Organized CPO Swagger operations
 
 - Split the flat CPO Swagger tag into four consistently prefixed sections:
