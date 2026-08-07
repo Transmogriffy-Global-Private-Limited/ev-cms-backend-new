@@ -2703,15 +2703,15 @@ func (service *Service) chargerView(record models.Charger, principal auth.Princi
 
 	for _, conn := range record.Connectors {
 		connectorsView = append(connectorsView, ConnectorView{
-			ID:              conn.ID,
-			CPOID:           conn.CPOID,
-			ChargerID:       conn.ChargerID,
-			ConnectorNumber: conn.ConnectorNumber,
-			ConnectorType:   conn.ConnectorType,
-			TotalCapacity:   conn.ConnectorTotalCapacity,
-			Status:          conn.Status,
-			CreatedAt:       conn.CreatedAt,
-			UpdatedAt:       conn.UpdatedAt,
+			ID:                     conn.ID,
+			CPOID:                  conn.CPOID,
+			ChargerID:              conn.ChargerID,
+			ConnectorNumber:        conn.ConnectorNumber,
+			ConnectorType:          conn.ConnectorType,
+			ConnectorTotalCapacity: conn.ConnectorTotalCapacity,
+			Status:                 conn.Status,
+			CreatedAt:              conn.CreatedAt,
+			UpdatedAt:              conn.UpdatedAt,
 		})
 	}
 

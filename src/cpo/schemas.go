@@ -294,15 +294,15 @@ type ChargerListResponse struct {
 }
 
 type ConnectorView struct {
-	ID              uuid.UUID               `json:"id"`
-	CPOID           uuid.UUID               `json:"cpo_id"`
-	ChargerID       uuid.UUID               `json:"charger_id"`
-	ConnectorNumber int                     `json:"connector_number"`
-	ConnectorType   string                  `json:"connector_type"`
-	TotalCapacity   float64                 `json:"total_capacity"`
-	Status          constants.ChargerStatus `json:"status"`
-	CreatedAt       time.Time               `json:"created_at"`
-	UpdatedAt       time.Time               `json:"updated_at"`
+	ID                     uuid.UUID               `json:"id"`
+	CPOID                  uuid.UUID               `json:"cpo_id"`
+	ChargerID              uuid.UUID               `json:"charger_id"`
+	ConnectorNumber        int                     `json:"connector_number"`
+	ConnectorType          string                  `json:"connector_type"`
+	ConnectorTotalCapacity float64                 `json:"connector_total_capacity"`
+	Status                 constants.ChargerStatus `json:"status"`
+	CreatedAt              time.Time               `json:"created_at"`
+	UpdatedAt              time.Time               `json:"updated_at"`
 }
 
 type CreateHubRequest struct {
