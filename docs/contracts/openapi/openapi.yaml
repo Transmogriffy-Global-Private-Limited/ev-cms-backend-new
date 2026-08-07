@@ -7014,7 +7014,7 @@ components:
         - charger_id
         - connector_number
         - connector_type
-        - total_capacity
+        - connector_total_capacity
         - status
         - created_at
         - updated_at
@@ -7024,7 +7024,7 @@ components:
         charger_id: {type: string, format: uuid}
         connector_number: {type: integer, minimum: 1}
         connector_type: {type: string, maxLength: 50}
-        total_capacity:
+        connector_total_capacity:
           type: number
           minimum: 0
         status:

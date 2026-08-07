@@ -52,8 +52,9 @@ backend work.
 ## Contract impact
 
 - CPO ADMIN customer list/detail reads are tenant-scoped and read-only.
-- CPO connector create/update/response contracts use `total_capacity`; the
-  database column remains `connector_total_capacity`.
+- CPO connector create/update requests use `total_capacity`; CPO connector
+  response objects use `connector_total_capacity`, matching the persisted
+  connector-capacity field.
 - Charger projections may include `hub_name` when a same-CPO hub is assigned.
 
 ## Data and migration impact
@@ -79,8 +80,11 @@ validation, full Go tests, and static analysis. The live service exposes the
 
 The CPO implementation remains owned by Abhranil Pal. The current deployment
 contains no schema change. Future changes to the listed CPO contracts must
-retain the exact `total_capacity` API name and update the canonical OpenAPI,
-human contract, consumer guidance, and verification together.
+preserve the deliberate capacity-field split: `total_capacity` for connector
+create/update request payloads and `connector_total_capacity` for connector
+response objects. Update
+the canonical OpenAPI, human contract, consumer guidance, and verification
+together.
 
 ## Completion
 

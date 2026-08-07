@@ -177,8 +177,9 @@ matches hub attachment, and Swagger groups CPO operations by account/network,
 pricing/tax, and integration responsibilities.
 The CPO ADMIN customer directory is read-only and tenant-scoped, and CPO
 charger projections expose `hub_name` when assigned. Connector capacity remains
-stored as `connector_total_capacity` but is represented as `total_capacity` in
-the CPO API contract.
+stored as `connector_total_capacity`; CPO connector create/update requests use
+`total_capacity`, while CPO connector response projections use
+`connector_total_capacity`.
 Migration
 twenty-seven replaces legacy charger/connector protocol-style states with the
 static CMS administrative values `ACTIVE`, `INACTIVE`, `SUSPENDED`,
@@ -218,8 +219,9 @@ twenty makes customer accounts CPO-local with dedicated authentication lineage,
 and migrations 21–22 add customer-visible network discovery and Razorpay wallet
 recharge ledger support. Migration twenty-six removes obsolete connector
 current/voltage fields; connector capacity is represented by
-`connector_total_capacity`, while CPO API requests and responses call the
-field `total_capacity`.
+`connector_total_capacity`. CPO connector create/update requests use
+`total_capacity`, while connector response projections use
+`connector_total_capacity`.
 
 The deployed recovery flow fixes a recovery-specific OTP mapper defect that discarded
 `challenge_id` before outbox validation and caused eligible administrative and
