@@ -3007,6 +3007,12 @@ paths:
           schema:
             type: string
             maxLength: 200
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [ACTIVE, BLOCKED]
       responses:
         "200":
           description: A paginated list of customers.
@@ -6275,13 +6281,18 @@ components:
       additionalProperties: false
       required:
         - id
+        - cpo_id
         - email
         - full_name
-        - phone
         - status
+        - is_verified
         - created_at
+        - updated_at
       properties:
         id:
+          type: string
+          format: uuid
+        cpo_id:
           type: string
           format: uuid
         email:
@@ -6291,10 +6302,20 @@ components:
           type: string
         phone:
           type: string
+          nullable: true
         status:
           type: string
           enum: [ACTIVE, BLOCKED]
+        is_verified:
+          type: boolean
+        last_login_at:
+          type: string
+          format: date-time
+          nullable: true
         created_at:
+          type: string
+          format: date-time
+        updated_at:
           type: string
           format: date-time
 

@@ -2406,9 +2406,9 @@ newest first.
 Query parameters:
 
 - `q`: case-insensitive substring search across customer name, email, and
-  phone; at most 255 characters.
+  phone; at most 200 characters.
 - `status`: exact `ACTIVE` or `BLOCKED`.
-- `limit`: 1 through 100, default 25.
+- `limit`: 1 through 200, default 50.
 - `before`: RFC3339 creation timestamp for keyset pagination.
 - `before_id`: UUID tie-breaker to be paired with `before`.
 
@@ -2445,7 +2445,7 @@ paths:
           type: "string"
         - name: "limit"
           in: "query"
-          description: "Number of records to return (1-100, default 25)"
+          description: "Number of records to return (1-200, default 50)"
           required: false
           type: "integer"
         - name: "before"
