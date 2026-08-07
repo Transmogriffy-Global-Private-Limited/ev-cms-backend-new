@@ -2,6 +2,46 @@
 
 ## 2026-08-07
 
+### Rehosted CPO connector-capacity contract revision
+
+- Built and rehosted revision `86170d3` on the development VPS without a new
+  migration; the application remains on migrations through twenty-seven.
+- The running process matches the installed binary SHA-256 and embeds
+  `86170d32f6114f480833a4cd6388d058ed0983ca` with
+  `vcs.modified=false`.
+- The live 137-operation OpenAPI CPO `Connector` response schema exposes
+  `connector_total_capacity`, matching the runtime response projection.
+
+Verification:
+
+- `evcmsnew-dev.service` is active and enabled.
+- Loopback and public liveness/readiness checks passed.
+- Running-binary SHA/VCS identity, live OpenAPI operation count, live CPO
+  connector schema, and post-start fatal-error scan passed.
+- No migration file changed from the previously deployed revision.
+- The PowerShell documentation verifier was not run because `pwsh` is
+  unavailable on this Ubuntu host.
+
+### Reconciled CPO connector-capacity response contract
+
+- Reconciled the CPO connector response contract with the runtime projection:
+  connector create/update request payloads continue to use `total_capacity`,
+  while CPO connector response objects use `connector_total_capacity`.
+- Updated canonical OpenAPI, the administrative HTTP contract, current project
+  state, development-hosting guidance, and the active CPO work item.
+- No database migration or runtime behavior change was introduced by this
+  documentation reconciliation.
+
+Verification:
+
+- OpenAPI/runtime route-contract verification passed.
+- `go test ./...` passed.
+- `go vet ./...` passed.
+- `git diff --check` passed.
+- The PowerShell documentation verifier was not run because `pwsh` is
+  unavailable on this Ubuntu host.
+
+
 ### Corrected User App connector-capacity documentation
 
 - Corrected the User App hub-detail and charger-discovery descriptions to use

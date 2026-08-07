@@ -1986,9 +1986,11 @@ Rules:
 - at least one connector is required;
 - connector numbers are positive and unique within this request;
 - connector type is required and at most 50 characters;
-- `total_capacity` is required and cannot be negative. Charger-level
-  `total_capacity` is no longer part of the CMS charger contract; capacity is
-  represented per connector.
+- `total_capacity` is the create/update request field, is required on
+  connector creation, and cannot be negative. Charger-level `total_capacity`
+  is no longer part of the CMS charger contract; capacity is represented per
+  connector. CPO connector response objects expose the persisted value as
+  `connector_total_capacity`.
 
 The server generates:
 
@@ -2037,7 +2039,7 @@ The server generates:
       "charger_id": "7cc2d481-3ccb-4336-b03c-c8851a59ff9a",
       "connector_number": 1,
       "connector_type": "CCS2",
-      "total_capacity": 25,
+      "connector_total_capacity": 25,
       "status": "ACTIVE",
       "created_at": "2026-07-31T12:05:00Z",
       "updated_at": "2026-07-31T12:05:00Z"
@@ -2115,7 +2117,7 @@ Both cursor fields must be supplied together. `200 OK`:
           "charger_id": "7cc2d481-3ccb-4336-b03c-c8851a59ff9a",
           "connector_number": 1,
           "connector_type": "CCS2",
-          "total_capacity": 25,
+          "connector_total_capacity": 25,
           "status": "ACTIVE",
           "created_at": "2026-07-31T12:05:00Z",
           "updated_at": "2026-07-31T12:05:00Z"

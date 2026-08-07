@@ -29,7 +29,7 @@ that setting; it must not be used until the OCPP host is explicitly configured
 with TLS/WebSocket support.
 
 The active deployment was updated on August 7, 2026 to source revision
-`79683f0`. It has migrations one through twenty-seven and the current 137-operation
+`86170d3`. It has migrations one through twenty-seven and the current 137-operation
 API. Migration twenty-seven replaces the legacy charger/connector protocol-style
 status values with static CMS administrative states (`ACTIVE`, `INACTIVE`,
 `SUSPENDED`, `UNDERMAINTENANCE`, and `DECOMMISSIONED`). Migration thirteen keeps
@@ -47,6 +47,8 @@ migration 25 removes charger-level `total_capacity`; connector-level capacity
 remains supported. Charger vendor/model metadata is optional and is preserved as
 null when omitted. Migration 26 removes obsolete connector current/voltage
 columns; `connector_total_capacity` remains the connector capacity field.
+CPO connector create/update requests use `total_capacity`; CPO connector
+responses use `connector_total_capacity`.
 GSTIN and complete address identity
 are database-required for CPOs, the
 authenticated platform slug-availability route is live, and known uniqueness
@@ -143,7 +145,7 @@ content exclusions are defined in
 `docs/contracts/internal/http-request-logging.md`. Long-lived SSE requests are
 recorded when they disconnect. A recovered panic first emits a correlated safe
 JSON stack diagnostic without Gin's request dump or the panic value. The
-currently deployed `79683f0` binary includes this logger.
+currently deployed `86170d3` binary includes this logger.
 
 For a developer diagnostic session, set `LOG_LEVEL=DEBUG` in the ignored
 deployment environment and rehost. This adds request-start and handled-error
