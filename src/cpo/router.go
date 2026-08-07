@@ -1149,7 +1149,7 @@ func (handler *Handler) getGST(ctx *gin.Context) {
 // @Produce json
 // @Param q query string false "Case-insensitive substring search across customer name, email, and phone"
 // @Param status query string false "Filter by customer status (ACTIVE or BLOCKED)"
-// @Param limit query int false "Number of records to return (1-100, default 25)"
+// @Param limit query int false "Number of records to return (1-200, default 50)"
 // @Param before query string false "RFC3339 creation timestamp for keyset pagination"
 // @Param before_id query string false "UUID tie-breaker to be paired with before"
 // @Success 200 {object} CPOAdminCustomerListResponse "Successfully retrieved customer list"
