@@ -3018,6 +3018,7 @@ func (service *Service) GetHub(
 		Preload("Connectors", func(tx *gorm.DB) *gorm.DB {
 			return tx.Order("connector_number ASC")
 		}).
+		Preload("Hub").
 		Order("created_at DESC, id DESC").
 		Limit(query.Limit + 1).
 		Find(&chargers).Error; err != nil {

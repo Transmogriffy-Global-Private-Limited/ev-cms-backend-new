@@ -5407,7 +5407,6 @@ components:
           format: uri-reference
           description: Relative authenticated User App image route, present only when this charger has an uploaded image.
         hub_name: {type: string, maxLength: 255}
-        hub_name: {type: string, maxLength: 255}
         hub_address: {type: string}
         hub_latitude: {type: number, minimum: -90, maximum: 90}
         hub_longitude: {type: number, minimum: -180, maximum: 180}

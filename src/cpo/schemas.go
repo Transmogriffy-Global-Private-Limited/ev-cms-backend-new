@@ -211,7 +211,7 @@ type CreateChargerRequest struct {
 type CreateConnectorRequest struct {
 	ConnectorNumber        int     `json:"connector_number"`
 	ConnectorType          string  `json:"connector_type"`
-	ConnectorTotalCapacity float64 `json:"total_capacity"`
+	TotalCapacity float64 `json:"total_capacity"`
 }
 
 type UpdateChargerRequest struct {
@@ -238,7 +238,7 @@ type UpdateConnectorRequest struct {
 	ID                     uuid.UUID `json:"id"`
 	ConnectorNumber        *int      `json:"connector_number,omitempty"`
 	ConnectorType          *string   `json:"connector_type,omitempty"`
-	ConnectorTotalCapacity *float64  `json:"connector_total_capacity,omitempty"`
+	TotalCapacity *float64  `json:"total_capacity,omitempty"`
 }
 
 type ChargerView struct {
@@ -299,7 +299,7 @@ type ConnectorView struct {
 	ChargerID              uuid.UUID               `json:"charger_id"`
 	ConnectorNumber        int                     `json:"connector_number"`
 	ConnectorType          string                  `json:"connector_type"`
-	ConnectorTotalCapacity float64                 `json:"total_capacity"`
+	TotalCapacity float64                 `json:"total_capacity"`
 	Status                 constants.ChargerStatus `json:"status"`
 	CreatedAt              time.Time               `json:"created_at"`
 	UpdatedAt              time.Time               `json:"updated_at"`
