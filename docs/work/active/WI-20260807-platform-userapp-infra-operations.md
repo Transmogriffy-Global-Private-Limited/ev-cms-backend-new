@@ -81,12 +81,18 @@ verification before execution.
 ## Current state
 
 Ownership registration only. No code, database, DNS, hosting, or deployment
-change was performed by creating this work item.
+change was performed by creating this work item. The User App discovery
+descriptions were corrected to use the established
+`connector_total_capacity` response field; the User App OpenAPI schema and FE
+handoff already used that field.
 
 ## Verification
 
-- `./scripts/verify-docs.ps1` passed.
+- The documentation verifier is updated for the 137-operation OpenAPI surface;
+  it was not executable on this Ubuntu host because `pwsh` is unavailable.
 - `git diff --check` passed.
+- The User App documentation correction was checked against the User App FE
+  handoff and OpenAPI schema.
 
 ## Handoff
 

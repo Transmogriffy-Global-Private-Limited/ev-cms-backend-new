@@ -499,7 +499,8 @@ number, sanctioned load, last-seen data, and audit information.
 
 Each charger and connector also includes its DB-backed CMS administrative
 `status` (`ACTIVE`, `INACTIVE`, `SUSPENDED`, `UNDERMAINTENANCE`, or
-`DECOMMISSIONED`), and each connector includes `total_capacity`.
+`DECOMMISSIONED`), and each connector includes
+`connector_total_capacity`.
 The former connector `max_current` and `max_voltage` fields are absent. The CMS
 status is not live availability: until a separate CMS/HAL contract is
 implemented, charger and connector `availability` is always `UNKNOWN`; this
@@ -732,7 +733,7 @@ tier.
 Requires the authenticated customer bearer token and matching
 `X-CPO-App-ID`. Returns only chargers attached to published hubs in the
 customer’s CPO. The safe projection includes hub display/location fields,
-connector summaries with `total_capacity`, static CMS administrative
+connector summaries with `connector_total_capacity`, static CMS administrative
 status for chargers/connectors, and the customer's charger favorite flag. It
 excludes OCPP identity, serial number, and audit data. CMS `status` is not live
 availability; `availability` remains `UNKNOWN` until HAL integration.
@@ -2438,6 +2439,7 @@ paths:
           description: "Case-insensitive substring search across customer name, email, and phone"
           required: false
           type: "string"
+          maxLength: 200
         - name: "status"
           in: "query"
           description: "Filter by customer status (ACTIVE or BLOCKED)"

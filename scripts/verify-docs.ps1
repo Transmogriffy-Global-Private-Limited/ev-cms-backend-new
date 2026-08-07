@@ -65,7 +65,7 @@ $requiredCPOAgentRules = @(
     'Current callable CPO staff authority is `ADMIN` only.',
     'The presence of a table or Go model does not mean its workflow exists.',
     '`src/cpo/repository.go` is currently an empty package file.',
-    'Fifteen migrations are already deployment history.',
+    'Twenty-seven migrations are already deployment history.',
     'do not embed or copy the HAL into this process',
     'Treat `main` and `anubhab-work` as the authoritative lines'
 )
@@ -180,6 +180,8 @@ $requiredRoutes = @(
     '/api/v1/cpo/hubs',
     '/api/v1/cpo/hubs/{hub_id}/chargers',
     '/api/v1/cpo/chargers',
+    '/api/v1/cpo/customers',
+    '/api/v1/cpo/customers/{customer_id}',
     '/api/v1/cpo/gsts',
     '/api/v1/cpo/tariffs',
     '/docs/',

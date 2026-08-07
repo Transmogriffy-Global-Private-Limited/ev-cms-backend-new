@@ -2,6 +2,41 @@
 
 ## 2026-08-07
 
+### Corrected User App connector-capacity documentation
+
+- Corrected the User App hub-detail and charger-discovery descriptions to use
+  the runtime and User App OpenAPI field name `connector_total_capacity`.
+- This preserves the distinct CPO administrative connector contract, which
+  uses `total_capacity`; no CPO-facing code or contract was changed.
+
+Verification:
+
+- Checked the User App FE handoff and `CustomerConnector` OpenAPI schema
+  against the documented field name.
+- `git diff --check` passed.
+- Updated the documentation verifier's route and 137-operation expectations;
+  the PowerShell execution remains unavailable on this Ubuntu host.
+
+### Rehosted CPO customer-directory and charger contract release
+
+- Rebuilt and rehosted revision `79683f0` without a new migration; migration
+  27 remains current.
+- Published the tenant-scoped, read-only CPO customer list/detail operations,
+  the charger `hub_name` projection, and the consistent CPO API
+  `total_capacity` connector field.
+- Reconciled the customer-list query contract with runtime validation: search
+  is bounded to 200 characters, `status` accepts `ACTIVE` or `BLOCKED`, and
+  `limit` is 1–200 with a default of 50.
+
+Verification:
+
+- OpenAPI/runtime parity, full Go tests, `go vet`, formatting, and diff checks
+  passed.
+- Service active/enabled state, loopback listener, local/public liveness and
+  readiness, 137-operation live OpenAPI, Swagger UI, protected CPO
+  customer-list route, migration ledger, and post-start journal passed.
+- The PowerShell documentation verifier is unavailable on this host.
+
 ### Implemented CPO Customer Directory Endpoints
 
 - Added read-only endpoints for CPO administrators to view their registered app
