@@ -63,18 +63,28 @@ No new migration. The production ledger remains at migration 27.
 
 ## Current state
 
-Revision `79683f0` was rebuilt and rehosted on August 7, 2026 after OpenAPI
-validation, full Go tests, and static analysis. The live service exposes the
-137-operation OpenAPI document and keeps the new CPO customer routes protected.
+Revision `86170d3` was built from a clean worktree and rehosted on
+August 7, 2026 without a new migration. The live service exposes the
+137-operation OpenAPI document, and the CPO `Connector` response schema now
+documents the runtime `connector_total_capacity` projection.
 
 ## Verification
 
-- OpenAPI/runtime parity, full Go tests, `go vet`, formatting, and whitespace
-  checks passed.
-- Active/enabled service, loopback listener, local/public liveness/readiness,
-  public Swagger/OpenAPI, protected CPO customer-list route, migration ledger,
-  and post-start journal were verified.
-- The PowerShell documentation verifier is unavailable on this Ubuntu host.
+- OpenAPI/runtime route-contract verification passed.
+- `go test ./...` passed.
+- `go vet ./...` passed.
+- `git diff --check` passed.
+- Revision `86170d3` is active under `evcmsnew-dev.service`; the running
+  process matches the installed binary SHA-256 and embeds
+  `86170d32f6114f480833a4cd6388d058ed0983ca` with
+  `vcs.modified=false`.
+- Loopback/public liveness and readiness passed.
+- The live OpenAPI exposes 137 operations, and the live CPO `Connector`
+  response schema exposes `connector_total_capacity`.
+- The post-start fatal-error scan passed.
+- No migration file changed from the previously deployed revision.
+- The PowerShell documentation verifier was not run because `pwsh` is
+  unavailable on this Ubuntu host.
 
 ## Handoff
 
@@ -82,9 +92,8 @@ The CPO implementation remains owned by Abhranil Pal. The current deployment
 contains no schema change. Future changes to the listed CPO contracts must
 preserve the deliberate capacity-field split: `total_capacity` for connector
 create/update request payloads and `connector_total_capacity` for connector
-response objects. Update
-the canonical OpenAPI, human contract, consumer guidance, and verification
-together.
+response objects. Update the canonical OpenAPI, human contract, consumer
+guidance, and verification together.
 
 ## Completion
 

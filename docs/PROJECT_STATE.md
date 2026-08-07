@@ -168,7 +168,7 @@ provides:
   handler;
 - the additive PostgreSQL database `devevcmsnewdb`, owned by `postgres`.
 
-The active development VPS runs source revision `79683f0`, with migrations
+The active development VPS runs source revision `86170d3`, with migrations
 through twenty-seven recorded and the deployed 137-operation contract. The
 User App can serve an authenticated published charger's allowed image through
 its relative `charger_image_url`, without exposing the stored upload path.
@@ -273,6 +273,15 @@ implemented yet.
 - `git diff --check` passed. Stateful PostgreSQL lifecycle verification is
   intentionally deferred by the current workstream decision; no stateful
   result is claimed.
+- Revision `86170d3` was built from a clean worktree and rehosted without a
+  new migration. The running systemd process matches the installed binary
+  SHA-256 and embeds revision `86170d32f6114f480833a4cd6388d058ed0983ca`
+  with `vcs.modified=false`. The service is active and enabled; loopback and
+  public liveness/readiness passed; the live OpenAPI contains 137 operations;
+  the live CPO `Connector` response schema exposes
+  `connector_total_capacity`; and the post-start fatal-error scan passed.
+  The PowerShell documentation verifier remains unavailable on this Ubuntu
+  host.
 - Revision `79683f0` was built cleanly and rehosted without a new migration.
   The installed binary, loopback-only listener, local/public liveness and
   readiness, live 137-operation Swagger/OpenAPI with grouped CPO operations,

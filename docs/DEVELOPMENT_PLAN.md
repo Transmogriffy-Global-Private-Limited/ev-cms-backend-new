@@ -952,12 +952,13 @@ Last completed slice:
 
 Last deployment milestone:
 
-- Revision `79683f0` was built cleanly and rehosted on the development VPS
-  without a new migration. The live 137-operation route/OpenAPI surface,
-  CPO customer-directory operations, running-binary identity, loopback-only
-  listener, loopback/public readiness, protected CPO customer-list route, and
-  post-start journal were verified. The disposable PostgreSQL lifecycle remains
-  pending without `TEST_DATABASE_URL`.
+- Revision `86170d3` was built from a clean worktree and rehosted on the
+  development VPS without a new migration. Running-binary SHA/VCS identity,
+  active/enabled systemd state, loopback/public liveness and readiness, the
+  live 137-operation OpenAPI surface, the CPO `Connector`
+  `connector_total_capacity` response contract, and the post-start fatal-error
+  scan were verified. The disposable PostgreSQL lifecycle remains pending
+  without `TEST_DATABASE_URL`.
 
 Next expected slice:
 

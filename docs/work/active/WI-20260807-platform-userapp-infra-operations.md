@@ -80,19 +80,31 @@ verification before execution.
 
 ## Current state
 
-Ownership registration only. No code, database, DNS, hosting, or deployment
-change was performed by creating this work item. The User App discovery
-descriptions were corrected to use the established
-`connector_total_capacity` response field; the User App OpenAPI schema and FE
-handoff already used that field.
+The ownership registration remains active. The User App discovery
+descriptions use the established `connector_total_capacity` response field.
+The development VPS now runs application revision `86170d3`; this deployment
+introduced no new migration or DNS/configuration change and reconciles the CPO
+connector response contract with the runtime projection while preserving the
+existing User App contract.
 
 ## Verification
 
-- The documentation verifier is updated for the 137-operation OpenAPI surface;
-  it was not executable on this Ubuntu host because `pwsh` is unavailable.
+- OpenAPI/runtime route-contract verification passed.
+- `go test ./...` passed.
+- `go vet ./...` passed.
 - `git diff --check` passed.
-- The User App documentation correction was checked against the User App FE
-  handoff and OpenAPI schema.
+- Revision `86170d3` is active under `evcmsnew-dev.service`; the running
+  process matches the installed binary SHA-256 and embeds the expected clean
+  VCS revision.
+- Loopback/public liveness and readiness passed.
+- The live OpenAPI exposes 137 operations, and the live CPO connector
+  response schema reflects `connector_total_capacity`.
+- The post-start fatal-error scan passed.
+- No migration file changed from the previously deployed revision.
+- The User App documentation remains aligned with its FE handoff and OpenAPI
+  `connector_total_capacity` field.
+- The PowerShell documentation verifier was not run because `pwsh` is
+  unavailable on this Ubuntu host.
 
 ## Handoff
 
