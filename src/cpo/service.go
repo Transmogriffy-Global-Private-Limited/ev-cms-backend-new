@@ -1956,7 +1956,7 @@ func (service *Service) CreateCharger(
 				ChargerID:              record.ID,
 				ConnectorNumber:        connector.ConnectorNumber,
 				ConnectorType:          connectorType,
-				ConnectorTotalCapacity: connector.ConnectorTotalCapacity,
+				ConnectorTotalCapacity: connector.TotalCapacity,
 				Status:                 constants.ChargerStatusActive,
 				CreatedAt:              now,
 				UpdatedAt:              now,
@@ -2075,6 +2075,7 @@ func (service *Service) UpdateCharger(
 			Preload("Connectors", func(tx *gorm.DB) *gorm.DB {
 				return tx.Order("connector_number ASC")
 			}).
+			Preload("Hub").
 			First(&record, "cpo_id = ? AND charger_id = ?", cpoID, chargerID).Error; err != nil {
 			return mapChargerNotFound(err)
 		}
@@ -2214,7 +2215,7 @@ func (service *Service) UpdateCharger(
 					if connectorReq.ConnectorType == nil || strings.TrimSpace(*connectorReq.ConnectorType) == "" {
 						return invalid("connector_type", "Connector type is required.")
 					}
-					if connectorReq.ConnectorTotalCapacity == nil || *connectorReq.ConnectorTotalCapacity < 0 {
+					if connectorReq.TotalCapacity == nil || *connectorReq.TotalCapacity < 0 {
 						return invalid("connector_total_capacity", "Connector total capacity cannot be negative.")
 					}
 
@@ -2224,7 +2225,7 @@ func (service *Service) UpdateCharger(
 						ChargerID:              record.ID,
 						ConnectorNumber:        *connectorReq.ConnectorNumber,
 						ConnectorType:          *connectorReq.ConnectorType,
-						ConnectorTotalCapacity: *connectorReq.ConnectorTotalCapacity,
+						ConnectorTotalCapacity: *connectorReq.TotalCapacity,
 						Status:                 constants.ChargerStatusActive,
 						CreatedAt:              now,
 						UpdatedAt:              now,
@@ -2270,12 +2271,12 @@ func (service *Service) UpdateCharger(
 					existing.ConnectorType = connType
 					connChanged = true
 				}
-				if connectorReq.ConnectorTotalCapacity != nil {
-					if *connectorReq.ConnectorTotalCapacity < 0 {
+				if connectorReq.TotalCapacity != nil {
+					if *connectorReq.TotalCapacity < 0 {
 						return invalid("connector_total_capacity", "Connector total capacity cannot be negative.")
 					}
-					connUpdates["connector_total_capacity"] = *connectorReq.ConnectorTotalCapacity
-					existing.ConnectorTotalCapacity = *connectorReq.ConnectorTotalCapacity
+					connUpdates["connector_total_capacity"] = *connectorReq.TotalCapacity
+					existing.ConnectorTotalCapacity = *connectorReq.TotalCapacity
 					connChanged = true
 				}
 
@@ -2707,7 +2708,7 @@ func (service *Service) chargerView(record models.Charger, principal auth.Princi
 			ChargerID:              conn.ChargerID,
 			ConnectorNumber:        conn.ConnectorNumber,
 			ConnectorType:          conn.ConnectorType,
-			ConnectorTotalCapacity: conn.ConnectorTotalCapacity,
+			TotalCapacity: conn.ConnectorTotalCapacity,
 			Status:                 conn.Status,
 			CreatedAt:              conn.CreatedAt,
 			UpdatedAt:              conn.UpdatedAt,

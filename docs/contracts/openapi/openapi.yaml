@@ -2981,6 +2981,86 @@ paths:
         "500":
           $ref: "#/components/responses/InternalError"
 
+  /api/v1/cpo/customers:
+    get:
+      tags: [CPO Operations - Account & Notifications]
+      operationId: listCPOCustomers
+      summary: List customers for the authenticated CPO
+      security:
+        - BearerAuth: []
+        - CPOAppID: []
+      parameters:
+        - $ref: "#/components/parameters/CPOAppIDHeader"
+        - $ref: "#/components/parameters/ListBefore"
+        - $ref: "#/components/parameters/ListBeforeID"
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 200
+            default: 50
+        - name: q
+          in: query
+          required: false
+          schema:
+            type: string
+            maxLength: 200
+      responses:
+        "200":
+          description: A paginated list of customers.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CPOCustomerListResponse"
+        "400":
+          $ref: "#/components/responses/InvalidRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/CPOBusinessForbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /api/v1/cpo/customers/{customer_id}:
+    get:
+      tags: [CPO Operations - Account & Notifications]
+      operationId: getCPOCustomer
+      summary: Get a specific customer for the authenticated CPO
+      security:
+        - BearerAuth: []
+        - CPOAppID: []
+      parameters:
+        - $ref: "#/components/parameters/CPOAppIDHeader"
+        - name: customer_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: The requested customer.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CPOCustomer"
+        "400":
+          $ref: "#/components/responses/InvalidRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/CPOBusinessForbidden"
+        "404":
+          description: "`customer_not_found`"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
   /api/v1/cpo/admin/profile:
     get:
       tags: [CPO Operations - Account & Notifications]
@@ -5425,12 +5505,12 @@ components:
     CustomerConnector:
       type: object
       additionalProperties: false
-      required: [id, connector_number, connector_type, total_capacity, status, availability]
+      required: [id, connector_number, connector_type, connector_total_capacity, status, availability]
       properties:
         id: {type: string, format: uuid}
         connector_number: {type: integer, minimum: 1}
         connector_type: {type: string, maxLength: 50}
-        total_capacity: {type: number, minimum: 0}
+        connector_total_capacity: {type: number, minimum: 0}
         status:
           $ref: "#/components/schemas/ChargerStatus"
         availability:
@@ -6189,6 +6269,54 @@ components:
           description: The time the subscription ended.
         plan:
           $ref: '#/components/schemas/CPOSubscriptionPlanView'
+
+    CPOCustomer:
+      type: object
+      additionalProperties: false
+      required:
+        - id
+        - email
+        - full_name
+        - phone
+        - status
+        - created_at
+      properties:
+        id:
+          type: string
+          format: uuid
+        email:
+          type: string
+          format: email
+        full_name:
+          type: string
+        phone:
+          type: string
+        status:
+          type: string
+          enum: [ACTIVE, BLOCKED]
+        created_at:
+          type: string
+          format: date-time
+
+    CPOCustomerListResponse:
+      type: object
+      additionalProperties: false
+      required:
+        - customers
+        - has_more
+      properties:
+        customers:
+          type: array
+          items:
+            $ref: "#/components/schemas/CPOCustomer"
+        next_before:
+          type: string
+          format: date-time
+        next_before_id:
+          type: string
+          format: uuid
+        has_more:
+          type: boolean
 
     CPOListResponse:
       type: object

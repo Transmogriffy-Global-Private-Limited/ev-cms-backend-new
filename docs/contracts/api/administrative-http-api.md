@@ -499,7 +499,7 @@ number, sanctioned load, last-seen data, and audit information.
 
 Each charger and connector also includes its DB-backed CMS administrative
 `status` (`ACTIVE`, `INACTIVE`, `SUSPENDED`, `UNDERMAINTENANCE`, or
-`DECOMMISSIONED`), and each connector includes `connector_total_capacity`.
+`DECOMMISSIONED`), and each connector includes `total_capacity`.
 The former connector `max_current` and `max_voltage` fields are absent. The CMS
 status is not live availability: until a separate CMS/HAL contract is
 implemented, charger and connector `availability` is always `UNKNOWN`; this
@@ -732,7 +732,7 @@ tier.
 Requires the authenticated customer bearer token and matching
 `X-CPO-App-ID`. Returns only chargers attached to published hubs in the
 customer’s CPO. The safe projection includes hub display/location fields,
-connector summaries with `connector_total_capacity`, static CMS administrative
+connector summaries with `total_capacity`, static CMS administrative
 status for chargers/connectors, and the customer's charger favorite flag. It
 excludes OCPP identity, serial number, and audit data. CMS `status` is not live
 availability; `availability` remains `UNKNOWN` until HAL integration.
@@ -1961,7 +1961,7 @@ Content-Disposition: form-data; name="data"
     {
       "connector_number": 1,
       "connector_type": "CCS2",
-      "connector_total_capacity": 25
+      "total_capacity": 25
     }
   ]
 }
@@ -1985,7 +1985,7 @@ Rules:
 - at least one connector is required;
 - connector numbers are positive and unique within this request;
 - connector type is required and at most 50 characters;
-- `connector_total_capacity` is required and cannot be negative. Charger-level
+- `total_capacity` is required and cannot be negative. Charger-level
   `total_capacity` is no longer part of the CMS charger contract; capacity is
   represented per connector.
 
@@ -2036,7 +2036,7 @@ The server generates:
       "charger_id": "7cc2d481-3ccb-4336-b03c-c8851a59ff9a",
       "connector_number": 1,
       "connector_type": "CCS2",
-      "connector_total_capacity": 25,
+      "total_capacity": 25,
       "status": "ACTIVE",
       "created_at": "2026-07-31T12:05:00Z",
       "updated_at": "2026-07-31T12:05:00Z"
@@ -2114,7 +2114,7 @@ Both cursor fields must be supplied together. `200 OK`:
           "charger_id": "7cc2d481-3ccb-4336-b03c-c8851a59ff9a",
           "connector_number": 1,
           "connector_type": "CCS2",
-          "connector_total_capacity": 25,
+          "total_capacity": 25,
           "status": "ACTIVE",
           "created_at": "2026-07-31T12:05:00Z",
           "updated_at": "2026-07-31T12:05:00Z"
@@ -2167,7 +2167,7 @@ Updates any non-empty subset of the charger's properties. The request should be 
       "id": "540b3214-bd67-4f61-9134-ab462168fd92",
       "connector_number": 1,
       "connector_type": "CCS2",
-      "connector_total_capacity": 30
+      "total_capacity": 30
     }
   ]
 }
