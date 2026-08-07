@@ -88,12 +88,11 @@ handoff already used that field.
 
 ## Verification
 
-- `./scripts/verify-docs.ps1` passed.
+- The documentation verifier is updated for the 137-operation OpenAPI surface;
+  it was not executable on this Ubuntu host because `pwsh` is unavailable.
 - `git diff --check` passed.
 - The User App documentation correction was checked against the User App FE
-  handoff and OpenAPI schema. The current documentation verifier fails only
-  because a separately added CPO route changed the operation count from 135 to
-  137 without updating its assertion.
+  handoff and OpenAPI schema.
 
 ## Handoff
 

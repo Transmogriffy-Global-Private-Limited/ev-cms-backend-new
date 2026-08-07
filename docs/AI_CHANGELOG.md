@@ -14,9 +14,8 @@ Verification:
 - Checked the User App FE handoff and `CustomerConnector` OpenAPI schema
   against the documented field name.
 - `git diff --check` passed.
-- `scripts/verify-docs.ps1` remains blocked by the separately added CPO
-  customer operations: its stale assertion expects 135 rather than the
-  current 137 OpenAPI operations.
+- Updated the documentation verifier's route and 137-operation expectations;
+  the PowerShell execution remains unavailable on this Ubuntu host.
 
 ### Rehosted CPO customer-directory and charger contract release
 
