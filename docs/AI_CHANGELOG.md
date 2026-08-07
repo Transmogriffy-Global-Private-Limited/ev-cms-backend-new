@@ -2,6 +2,25 @@
 
 ## 2026-08-07
 
+### Rehosted CPO assignment and Swagger grouping release
+
+- Rebuilt and rehosted revision `5ed7cb8` without a new migration; migration
+  27 remains current.
+- Confirmed the newly exposed CPO charger `assigned` response projection is
+  described consistently in the administrative contract and CPO agent handoff:
+  it mirrors whether a same-CPO hub is attached through `hub_id`.
+- Recorded the live 135-operation Swagger grouping for CPO account and
+  notifications, network, pricing and tax, and integrations.
+
+Verification:
+
+- OpenAPI/runtime parity, full Go tests, `go vet`, formatting, and diff checks
+  passed.
+- Service active/enabled state, loopback listener, local/public liveness and
+  readiness, live OpenAPI, Swagger UI, protected CPO charger-list route, and
+  post-start journal passed after rehost.
+- The PowerShell documentation verifier is unavailable on this host.
+
 ### Organized CPO Swagger operations
 
 - Split the flat CPO Swagger tag into four consistently prefixed sections:
