@@ -2012,6 +2012,7 @@ func (service *Service) GetCharger(
 		Preload("Connectors", func(tx *gorm.DB) *gorm.DB {
 			return tx.Order("connector_number ASC")
 		}).
+		Preload("Hub").
 		First(&record, "cpo_id = ? AND charger_id = ?", *principal.CPOID, chargerID).Error; err != nil {
 		return ChargerResponse{}, mapChargerNotFound(err)
 	}
@@ -2699,6 +2700,11 @@ func (service *Service) chargerView(record models.Charger, principal auth.Princi
 		})
 	}
 
+	var hubName *string
+	if record.Hub != nil {
+		hubName = &record.Hub.Name
+	}
+
 	ocppIdentityForURL := strings.TrimPrefix(record.OCPPIdentity, "ocpp_")
 
 	return ChargerResponse{
@@ -2706,6 +2712,7 @@ func (service *Service) chargerView(record models.Charger, principal auth.Princi
 			ID:                      record.ID,
 			CPOID:                   record.CPOID,
 			HubID:                   record.HubID,
+			HubName:                 hubName,
 			ChargerID:               record.ChargerID,
 			OCPPIdentity:            record.OCPPIdentity,
 			Vendor:                  record.Vendor,
@@ -2765,6 +2772,7 @@ func (service *Service) ListChargers(
 		Preload("Connectors", func(tx *gorm.DB) *gorm.DB {
 			return tx.Order("connector_number ASC")
 		}).
+		Preload("Hub").
 		Order("created_at DESC, id DESC").
 		Limit(query.Limit + 1).
 		Find(&chargers).Error; err != nil {

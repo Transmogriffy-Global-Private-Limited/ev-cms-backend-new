@@ -2,6 +2,20 @@
 
 ## 2026-08-07
 
+### Assigned CPO network, pricing, and integration ownership
+
+- Created `WI-20260807-cpo-network-pricing-operations` to assign Abhranil Pal
+  ownership of the CPO network (hub/charger), pricing (GST/tariff), and
+  integration-credential backend surfaces.
+- The work item clarifies that platform CPO control, authentication, and
+  customer-facing APIs remain owned by their respective work items.
+
+Verification:
+
+- Documentation verification and `git diff --check` passed.
+
+## 2026-08-07
+
 ### Registered active ownership for platform, User App, and operations work
 
 - Added the repository-native active-work ledger and registered Anubhab Dey as

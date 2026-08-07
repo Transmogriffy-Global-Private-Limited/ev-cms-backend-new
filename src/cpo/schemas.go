@@ -245,6 +245,7 @@ type ChargerView struct {
 	ID                      uuid.UUID               `json:"id"`
 	CPOID                   uuid.UUID               `json:"cpo_id"`
 	HubID                   *uuid.UUID              `json:"hub_id,omitempty"`
+	HubName                 *string                 `json:"hub_name,omitempty"`
 	ChargerID               string                  `json:"charger_id"`
 	OCPPIdentity            string                  `json:"ocpp_identity"`
 	Vendor                  *string                 `json:"vendor,omitempty"`
