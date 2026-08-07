@@ -81,12 +81,19 @@ verification before execution.
 ## Current state
 
 Ownership registration only. No code, database, DNS, hosting, or deployment
-change was performed by creating this work item.
+change was performed by creating this work item. The User App discovery
+descriptions were corrected to use the established
+`connector_total_capacity` response field; the User App OpenAPI schema and FE
+handoff already used that field.
 
 ## Verification
 
 - `./scripts/verify-docs.ps1` passed.
 - `git diff --check` passed.
+- The User App documentation correction was checked against the User App FE
+  handoff and OpenAPI schema. The current documentation verifier fails only
+  because a separately added CPO route changed the operation count from 135 to
+  137 without updating its assertion.
 
 ## Handoff
 

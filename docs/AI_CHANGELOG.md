@@ -2,6 +2,22 @@
 
 ## 2026-08-07
 
+### Corrected User App connector-capacity documentation
+
+- Corrected the User App hub-detail and charger-discovery descriptions to use
+  the runtime and User App OpenAPI field name `connector_total_capacity`.
+- This preserves the distinct CPO administrative connector contract, which
+  uses `total_capacity`; no CPO-facing code or contract was changed.
+
+Verification:
+
+- Checked the User App FE handoff and `CustomerConnector` OpenAPI schema
+  against the documented field name.
+- `git diff --check` passed.
+- `scripts/verify-docs.ps1` remains blocked by the separately added CPO
+  customer operations: its stale assertion expects 135 rather than the
+  current 137 OpenAPI operations.
+
 ### Implemented CPO Customer Directory Endpoints
 
 - Added read-only endpoints for CPO administrators to view their registered app
