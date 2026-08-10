@@ -1300,19 +1300,6 @@ func TestCPOAdminProfileAndNetworkConfigurationWithPostgreSQL(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create GST: %v", err)
 	}
-	price := decimal.RequireFromString("18.5000")
-	tariff, err := service.CreateTariff(ctx, adminPrincipal, CreateTariffRequest{
-		HubID:       hub.ID,
-		ChargerID:   &charger.ID,
-		GSTID:       &gst.ID,
-		PricePerKWh: price,
-	})
-	if err != nil {
-		t.Fatalf("create tariff: %v", err)
-	}
-	if tariff.Currency != "INR" {
-		t.Fatalf("tariff currency is %q, want INR", tariff.Currency)
-	}
 	hubPage, err := service.ListHubs(ctx, adminPrincipal, TenantListQuery{Limit: 1})
 	if err != nil || len(hubPage.Hubs) != 1 || hubPage.Hubs[0].ID != hub.ID {
 		t.Fatalf("unexpected hub page %#v: %v", hubPage, err)
@@ -1331,10 +1318,6 @@ func TestCPOAdminProfileAndNetworkConfigurationWithPostgreSQL(t *testing.T) {
 	gstPage, err := service.ListGSTs(ctx, adminPrincipal, TenantListQuery{Limit: 1})
 	if err != nil || len(gstPage.GSTs) != 1 || gstPage.GSTs[0].ID != gst.ID {
 		t.Fatalf("unexpected GST page %#v: %v", gstPage, err)
-	}
-	tariffPage, err := service.ListTariffs(ctx, adminPrincipal, TenantListQuery{Limit: 1})
-	if err != nil || len(tariffPage.Tariffs) != 1 || tariffPage.Tariffs[0].ID != tariff.ID {
-		t.Fatalf("unexpected tariff page %#v: %v", tariffPage, err)
 	}
 
 	err = service.DeleteCharger(ctx, adminPrincipal, charger.ChargerID)
@@ -1707,5 +1690,136 @@ func TestAssignChargerToHubTenantScope(t *testing.T) {
 	var apiErr *auth.APIError
 	if !errors.As(err, &apiErr) || apiErr.Code != "charger_not_found" {
 		t.Fatalf("expected charger_not_found error, got %v", err)
+	}
+}
+
+func TestHubTariffLifecycleWithPostgreSQL(t *testing.T) {
+	databaseURL := os.Getenv("TEST_DATABASE_URL")
+	if databaseURL == "" {
+		t.Skip("TEST_DATABASE_URL is not set")
+	}
+	ctx := context.Background()
+	gormDB, sqlDB, err := db.Open(ctx, databaseURL)
+	if err != nil {
+		t.Fatalf("open test database: %v", err)
+	}
+	defer sqlDB.Close()
+	if err := db.ApplyMigrations(ctx, sqlDB); err != nil {
+		t.Fatalf("apply migrations: %v", err)
+	}
+
+	platformEmail := "network-platform-" + uuid.NewString() + "@example.com"
+	if err := db.SeedSuperadmin(ctx, gormDB, config.Superadmin{
+		Email:    platformEmail,
+		Password: "PlatformPassword!123",
+		FullName: "Network Platform Admin",
+	}); err != nil {
+		t.Fatalf("seed platform administrator: %v", err)
+	}
+	var platformUser models.User
+	if err := gormDB.First(&platformUser, "email = ?", platformEmail).Error; err != nil {
+		t.Fatalf("load platform administrator: %v", err)
+	}
+	platformPrincipal := auth.Principal{
+		UserID: platformUser.ID,
+		Scope:  constants.AuthScopePlatform,
+	}
+	mailBox, err := security.NewSecretBox(
+		"network-config-test-v1",
+		[]byte(strings.Repeat("n", 32)),
+	)
+	if err != nil {
+		t.Fatalf("create mail secret box: %v", err)
+	}
+	service := NewService(gormDB, cmsmail.NewOutbox(mailBox), true, "dummy.connection.url")
+	created, err := service.Create(ctx, platformPrincipal, CreateRequest{
+		Slug:         "network-" + strings.ToLower(uuid.NewString()),
+		BusinessName: "Network Configuration CPO",
+		CompanyType:  constants.CPOCompanyTypeCompany,
+		GSTIN:        uniqueCPOGSTIN(),
+		Address:      "1 Test Road",
+		City:         "Kolkata",
+		State:        "West Bengal",
+		Pincode:      "700001",
+		Admin: InitialAdminRequest{
+			Email:    "network-admin-" + uuid.NewString() + "@example.com",
+			FullName: "Network Administrator",
+		},
+	})
+	if err != nil {
+		t.Fatalf("create CPO: %v", err)
+	}
+	if _, err := service.Activate(
+		ctx,
+		platformPrincipal,
+		created.CPO.ID,
+		LifecycleRequest{Reason: "Approved for network configuration"},
+	); err != nil {
+		t.Fatalf("activate CPO: %v", err)
+	}
+
+	adminRole := constants.CPORoleAdmin
+	adminPrincipal := auth.Principal{
+		UserID: created.Admin.UserID,
+		Scope:  constants.AuthScopeCPO,
+		CPOID:  &created.CPO.ID,
+		Role:   &adminRole,
+	}
+
+	latitude := 22.5524
+	longitude := 88.3521
+	hub, err := service.CreateHub(ctx, adminPrincipal, CreateHubRequest{
+		Name:      "Park Street Hub",
+		Address:   "12 Park Street, Kolkata",
+		Latitude:  &latitude,
+		Longitude: &longitude,
+	})
+	if err != nil {
+		t.Fatalf("create hub: %v", err)
+	}
+	hubID := hub.ID
+
+	price := decimal.RequireFromString("18.5000")
+	tariff, err := service.CreateHubTariff(ctx, adminPrincipal, hubID, CreateTariffRequest{
+		PricePerKWh: price,
+	})
+	if err != nil {
+		t.Fatalf("create hub tariff: %v", err)
+	}
+	if tariff.Currency != "INR" {
+		t.Fatalf("tariff currency is %q, want INR", tariff.Currency)
+	}
+	if tariff.HubID != hubID {
+		t.Fatalf("tariff hub id is %q, want %q", tariff.HubID, hubID)
+	}
+
+	// Get tariff
+	getTariff, err := service.GetHubTariff(ctx, adminPrincipal, hubID, tariff.ID)
+	if err != nil {
+		t.Fatalf("get hub tariff: %v", err)
+	}
+	if getTariff.ID != tariff.ID {
+		t.Fatalf("get hub tariff id is %q, want %q", getTariff.ID, tariff.ID)
+	}
+
+	// List tariffs
+	tariffPage, err := service.ListHubTariffs(ctx, adminPrincipal, hubID, TenantListQuery{Limit: 1})
+	if err != nil {
+		t.Fatalf("list hub tariffs: %v", err)
+	}
+	if len(tariffPage.Tariffs) != 1 || tariffPage.Tariffs[0].ID != tariff.ID {
+		t.Fatalf("unexpected hub tariff page %#v", tariffPage.Tariffs)
+	}
+
+	// Update tariff
+	updatedPrice := decimal.RequireFromString("20.0000")
+	updatedTariff, err := service.UpdateHubTariff(ctx, adminPrincipal, hubID, tariff.ID, UpdateTariffRequest{
+		PricePerKWh: &updatedPrice,
+	})
+	if err != nil {
+		t.Fatalf("update hub tariff: %v", err)
+	}
+	if !updatedTariff.PricePerKWh.Equal(updatedPrice) {
+		t.Fatalf("updated tariff price is %q, want %q", updatedTariff.PricePerKWh, updatedPrice)
 	}
 }

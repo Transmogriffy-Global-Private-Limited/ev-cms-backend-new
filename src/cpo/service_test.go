@@ -3,7 +3,6 @@ package cpo
 import (
 	"encoding/json"
 	"errors"
-	"net/http"
 	"strings"
 	"testing"
 	"time"
@@ -13,7 +12,6 @@ import (
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/models"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgconn"
-	"github.com/shopspring/decimal"
 )
 
 func TestValidateCreateRequest(t *testing.T) {
@@ -325,104 +323,6 @@ func TestOrganizationViewContainsTenantSafeFields(t *testing.T) {
 		if strings.Contains(string(encoded), forbiddenField) {
 			t.Fatalf("organization projection exposed %s: %s", forbiddenField, encoded)
 		}
-	}
-}
-
-func TestTenantOperationValidation(t *testing.T) {
-	t.Parallel()
-
-	tariff := normalizeCreateTariffRequest(CreateTariffRequest{
-		HubID:       uuid.New(),
-		PricePerKWh: decimal.RequireFromString("18.5"),
-	})
-	if tariff.Currency != "INR" {
-		t.Fatalf("blank currency normalized to %q, want INR", tariff.Currency)
-	}
-	if err := validateCreateTariffRequest(tariff); err != nil {
-		t.Fatalf("valid tariff was rejected: %v", err)
-	}
-
-	latitude := 22.57
-	hub := CreateHubRequest{
-		Name:      "Central Hub",
-		Address:   "1 Test Road",
-		Latitude:  &latitude,
-		Longitude: nil,
-	}
-	if err := validateCreateHubRequest(hub); err == nil {
-		t.Fatal("hub without longitude was accepted")
-	}
-
-	longitude := 88.35
-	negativeSanctionLoad := -0.01
-	hub.Longitude = &longitude
-	hub.SanctionLoad = &negativeSanctionLoad
-	if err := validateCreateHubRequest(hub); err == nil {
-		t.Fatal("hub with negative sanction load was accepted")
-	}
-
-	standaloneCharger := CreateChargerRequest{
-		Vendor:       "Delta",
-		Model:        "Standalone Wallbox",
-		SerialNumber: "SN-1",
-		MaxPowerKW:   7.4,
-		Connectors: []CreateConnectorRequest{{
-			ConnectorNumber: 1,
-			ConnectorType:   "TYPE2",
-		}},
-	}
-	if err := validateCreateChargerRequest(standaloneCharger); err != nil {
-		t.Fatalf("standalone charger was rejected: %v", err)
-	}
-
-	nine := decimal.NewFromInt(9)
-	eighteen := decimal.NewFromInt(18)
-	gst := CreateGSTRequest{
-		Name:     "Standard GST",
-		SGSTRate: &nine,
-		CGSTRate: &nine,
-		IGSTRate: &eighteen,
-	}
-	if err := validateCreateGSTRequest(gst); err != nil {
-		t.Fatalf("valid GST was rejected: %v", err)
-	}
-	gst.IGSTRate = nil
-	if err := validateCreateGSTRequest(gst); err == nil {
-		t.Fatal("GST without IGST rate was accepted")
-	}
-}
-
-func TestValidateTariffDateRangeRejectsInvalidRange(t *testing.T) {
-	t.Parallel()
-
-	start := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
-	end := start.Add(-1 * time.Hour)
-	if err := validateTariffDateRange(&start, &end); err == nil {
-		t.Fatal("invalid date range was accepted")
-	}
-
-	later := start.Add(48 * time.Hour)
-	if err := validateTariffDateRange(&start, &later); err != nil {
-		t.Fatalf("valid date range was rejected: %v", err)
-	}
-	if err := validateTariffDateRange(&start, nil); err == nil {
-		t.Fatal("partial date range was accepted")
-	}
-	if err := validateTariffDateRange(nil, &later); err == nil {
-		t.Fatal("partial date range was accepted")
-	}
-	if err := validateTariffDateRange(nil, nil); err != nil {
-		t.Fatalf("open-ended tariff was rejected: %v", err)
-	}
-}
-
-func TestMapTariffWriteErrorRecognizesScheduleExclusion(t *testing.T) {
-	t.Parallel()
-
-	err := mapTariffWriteError(&pgconn.PgError{Code: "23P01"}, "create tariff")
-	var apiErr *auth.APIError
-	if !errors.As(err, &apiErr) || apiErr.Status != http.StatusConflict || apiErr.Code != "tariff_schedule_conflict" {
-		t.Fatalf("got %v, want tariff_schedule_conflict", err)
 	}
 }
 

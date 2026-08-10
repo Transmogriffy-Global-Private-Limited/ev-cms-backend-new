@@ -394,6 +394,32 @@ func parseUserID(ctx *gin.Context) (uuid.UUID, bool) {
 	return userID, true
 }
 
+func parseTariffID(ctx *gin.Context) (uuid.UUID, bool) {
+	tariffID, err := uuid.Parse(ctx.Param("tariff_id"))
+	if err != nil || tariffID == uuid.Nil {
+		writeError(ctx, &auth.APIError{
+			Status:  http.StatusBadRequest,
+			Code:    "invalid_tariff_id",
+			Message: "The tariff ID is invalid.",
+		})
+		return uuid.Nil, false
+	}
+	return tariffID, true
+}
+
+func parseGSTID(ctx *gin.Context) (uuid.UUID, bool) {
+	gstID, err := uuid.Parse(ctx.Param("gst_id"))
+	if err != nil || gstID == uuid.Nil {
+		writeError(ctx, &auth.APIError{
+			Status:  http.StatusBadRequest,
+			Code:    "invalid_gst_id",
+			Message: "The GST ID is invalid.",
+		})
+		return uuid.Nil, false
+	}
+	return gstID, true
+}
+
 func decodeJSON(ctx *gin.Context, destination any) error {
 	ctx.Request.Body = http.MaxBytesReader(ctx.Writer, ctx.Request.Body, 32*1024)
 	decoder := json.NewDecoder(ctx.Request.Body)
@@ -470,10 +496,25 @@ func RegisterCPORoutes(
 	group.DELETE("/hubs/:hub_id", handler.deleteHub)
 	group.PUT("/hubs/:hub_id/customer-visibility", handler.updateHubCustomerVisibility)
 	group.POST("/hubs/:hub_id/chargers", handler.assignChargerToHub)
-	group.POST("/tariffs", handler.createTariff)
-	group.GET("/tariffs", handler.listTariffs)
-	group.GET("/tariffs/:tariff_id", handler.getTariff)
-	group.PATCH("/tariffs/:tariff_id", handler.updateTariff)
+
+	// Hub tariffs
+	group.POST("/hubs/:hub_id/tariffs", handler.createHubTariff)
+	group.GET("/hubs/:hub_id/tariffs", handler.listHubTariffs)
+	group.GET("/hubs/:hub_id/tariffs/:tariff_id", handler.getHubTariff)
+	group.PATCH("/hubs/:hub_id/tariffs/:tariff_id", handler.updateHubTariff)
+
+	// Charger tariffs
+	group.POST("/chargers/:charger_id/tariffs", handler.createChargerTariff)
+	group.GET("/chargers/:charger_id/tariffs", handler.listChargerTariffs)
+	group.GET("/chargers/:charger_id/tariffs/:tariff_id", handler.getChargerTariff)
+	group.PATCH("/chargers/:charger_id/tariffs/:tariff_id", handler.updateChargerTariff)
+
+	// User group tariffs
+	group.POST("/user-groups/:user_group_id/tariffs", handler.createUserGroupTariff)
+	group.GET("/user-groups/:user_group_id/tariffs", handler.listUserGroupTariffs)
+	group.GET("/user-groups/:user_group_id/tariffs/:tariff_id", handler.getUserGroupTariff)
+	group.PATCH("/user-groups/:user_group_id/tariffs/:tariff_id", handler.updateUserGroupTariff)
+
 	group.POST("/gsts", handler.createGST)
 	group.GET("/gsts", handler.listGSTs)
 	group.GET("/gsts/:gst_id", handler.getGST)
@@ -482,6 +523,12 @@ func RegisterCPORoutes(
 	group.GET("/chargers/:charger_id/status", handler.getChargerStatus)
 	group.GET("/customers", handler.listCustomers)
 	group.GET("/customers/:customer_id", handler.getCustomer)
+
+	group.POST("/user-groups", handler.createUserGroup)
+	group.GET("/user-groups", handler.listUserGroups)
+	group.GET("/user-groups/:user_group_id", handler.getUserGroup)
+	group.PATCH("/user-groups/:user_group_id", handler.updateUserGroup)
+	group.DELETE("/user-groups/:user_group_id", handler.deleteUserGroup)
 }
 
 // @Summary Update charger status
@@ -997,99 +1044,18 @@ func (handler *Handler) assignChargerToHub(ctx *gin.Context) {
 	ctx.JSON(http.StatusOK, record)
 }
 
-func (handler *Handler) createTariff(ctx *gin.Context) {
-	principal, _ := auth.CurrentPrincipal(ctx)
-
-	var request CreateTariffRequest
-	if err := decodeJSON(ctx, &request); err != nil {
-		writeError(ctx, &auth.APIError{
-			Status:  http.StatusBadRequest,
-			Code:    "invalid_request",
-			Message: "The request body is invalid.",
-		})
-		return
-	}
-
-	record, err := handler.service.CreateTariff(ctx.Request.Context(), principal, request)
-	if err != nil {
-		writeError(ctx, err)
-		return
-	}
-
-	ctx.JSON(http.StatusCreated, record)
-}
-
-func (handler *Handler) listTariffs(ctx *gin.Context) {
-	principal, _ := auth.CurrentPrincipal(ctx)
-	query, ok := parseTenantListQuery(ctx)
-	if !ok {
-		return
-	}
-	records, err := handler.service.ListTariffs(ctx.Request.Context(), principal, query)
-	if err != nil {
-		writeError(ctx, err)
-		return
-	}
-	ctx.JSON(http.StatusOK, records)
-}
-
-func (handler *Handler) getTariff(ctx *gin.Context) {
-	principal, _ := auth.CurrentPrincipal(ctx)
-
-	tariffID, ok := parseTariffID(ctx)
-	if !ok {
-		return
-	}
-
-	record, err := handler.service.GetTariff(ctx.Request.Context(), principal, tariffID)
-	if err != nil {
-		writeError(ctx, err)
-		return
-	}
-
-	ctx.JSON(http.StatusOK, record)
-}
-
-func (handler *Handler) updateTariff(ctx *gin.Context) {
-	principal, _ := auth.CurrentPrincipal(ctx)
-
-	tariffID, ok := parseTariffID(ctx)
-	if !ok {
-		return
-	}
-
-	var request UpdateTariffRequest
-	if err := decodeJSON(ctx, &request); err != nil {
-		writeError(ctx, &auth.APIError{
-			Status:  http.StatusBadRequest,
-			Code:    "invalid_request",
-			Message: "The request body is invalid.",
-		})
-		return
-	}
-
-	record, err := handler.service.UpdateTariff(ctx.Request.Context(), principal, tariffID, request)
-	if err != nil {
-		writeError(ctx, err)
-		return
-	}
-
-	ctx.JSON(http.StatusOK, record)
-}
-
-func parseTariffID(ctx *gin.Context) (uuid.UUID, bool) {
-	tariffID, err := uuid.Parse(ctx.Param("tariff_id"))
-	if err != nil || tariffID == uuid.Nil {
-		writeError(ctx, &auth.APIError{
-			Status:  http.StatusBadRequest,
-			Code:    "invalid_tariff_id",
-			Message: "The tariff ID is invalid.",
-		})
-		return uuid.Nil, false
-	}
-	return tariffID, true
-}
-
+// @Summary Create a GST record
+// @Description Creates a new GST record for the CPO.
+// @Tags CPO Network - Tariffs
+// @Accept json
+// @Produce json
+// @Param gst body CreateGSTRequest true "GST creation data"
+// @Success 201 {object} GSTView "Successfully created GST record"
+// @Failure 400 {object} auth.APIError "Invalid request body"
+// @Failure 401 {object} auth.APIError "Unauthorized"
+// @Failure 403 {object} auth.APIError "Forbidden"
+// @Failure 500 {object} auth.APIError "Internal server error"
+// @Router /cpo/gsts [post]
 func (handler *Handler) createGST(ctx *gin.Context) {
 	principal, _ := auth.CurrentPrincipal(ctx)
 
@@ -1112,6 +1078,19 @@ func (handler *Handler) createGST(ctx *gin.Context) {
 	ctx.JSON(http.StatusCreated, record)
 }
 
+// @Summary List GST records
+// @Description Lists all GST records for the CPO.
+// @Tags CPO Network - Tariffs
+// @Produce json
+// @Param limit query int false "Number of records to return"
+// @Param before query string false "Timestamp for pagination"
+// @Param before_id query string false "ID for pagination"
+// @Success 200 {object} GSTListResponse "Successfully retrieved GST records"
+// @Failure 400 {object} auth.APIError "Invalid query parameters"
+// @Failure 401 {object} auth.APIError "Unauthorized"
+// @Failure 403 {object} auth.APIError "Forbidden"
+// @Failure 500 {object} auth.APIError "Internal server error"
+// @Router /cpo/gsts [get]
 func (handler *Handler) listGSTs(ctx *gin.Context) {
 	principal, _ := auth.CurrentPrincipal(ctx)
 	query, ok := parseTenantListQuery(ctx)
@@ -1126,6 +1105,18 @@ func (handler *Handler) listGSTs(ctx *gin.Context) {
 	ctx.JSON(http.StatusOK, records)
 }
 
+// @Summary Get a GST record
+// @Description Retrieves a specific GST record by its ID.
+// @Tags CPO Network - Tariffs
+// @Produce json
+// @Param gst_id path string true "GST ID"
+// @Success 200 {object} GSTView "Successfully retrieved GST record"
+// @Failure 400 {object} auth.APIError "Invalid GST ID format"
+// @Failure 401 {object} auth.APIError "Unauthorized"
+// @Failure 403 {object} auth.APIError "Forbidden"
+// @Failure 404 {object} auth.APIError "GST record not found"
+// @Failure 500 {object} auth.APIError "Internal server error"
+// @Router /cpo/gsts/{gst_id} [get]
 func (handler *Handler) getGST(ctx *gin.Context) {
 	principal, _ := auth.CurrentPrincipal(ctx)
 
@@ -1230,6 +1221,20 @@ func parseCPOAdminCustomerListQuery(ctx *gin.Context) (CPOAdminCustomerListQuery
 	return query, true
 }
 
+// @Summary Update a GST record
+// @Description Updates an existing GST record.
+// @Tags CPO Network - Tariffs
+// @Accept json
+// @Produce json
+// @Param gst_id path string true "GST ID"
+// @Param gst body UpdateGSTRequest true "GST update data"
+// @Success 200 {object} GSTView "Successfully updated GST record"
+// @Failure 400 {object} auth.APIError "Invalid request body or parameters"
+// @Failure 401 {object} auth.APIError "Unauthorized"
+// @Failure 403 {object} auth.APIError "Forbidden"
+// @Failure 404 {object} auth.APIError "GST record not found"
+// @Failure 500 {object} auth.APIError "Internal server error"
+// @Router /cpo/gsts/{gst_id} [patch]
 func (handler *Handler) updateGST(ctx *gin.Context) {
 	principal, _ := auth.CurrentPrincipal(ctx)
 
@@ -1257,19 +1262,6 @@ func (handler *Handler) updateGST(ctx *gin.Context) {
 	ctx.JSON(http.StatusOK, record)
 }
 
-func parseGSTID(ctx *gin.Context) (uuid.UUID, bool) {
-	gstID, err := uuid.Parse(ctx.Param("gst_id"))
-	if err != nil || gstID == uuid.Nil {
-		writeError(ctx, &auth.APIError{
-			Status:  http.StatusBadRequest,
-			Code:    "invalid_gst_id",
-			Message: "The GST ID is invalid.",
-		})
-		return uuid.Nil, false
-	}
-	return gstID, true
-}
-
 func parseCustomerID(ctx *gin.Context) (uuid.UUID, bool) {
 	customerID, err := uuid.Parse(ctx.Param("customer_id"))
 	if err != nil || customerID == uuid.Nil {
@@ -1281,4 +1273,595 @@ func parseCustomerID(ctx *gin.Context) (uuid.UUID, bool) {
 		return uuid.Nil, false
 	}
 	return customerID, true
+}
+
+func parseUserGroupID(ctx *gin.Context) (uuid.UUID, bool) {
+	userGroupID, err := uuid.Parse(ctx.Param("user_group_id"))
+	if err != nil || userGroupID == uuid.Nil {
+		writeError(ctx, &auth.APIError{
+			Status:  http.StatusBadRequest,
+			Code:    "invalid_user_group_id",
+			Message: "The user group ID is invalid.",
+		})
+		return uuid.Nil, false
+	}
+	return userGroupID, true
+}
+
+// @Summary Create a user group
+// @Description Creates a new user group for the CPO.
+// @Tags CPO Network - User Groups
+// @Accept json
+// @Produce json
+// @Param user_group body CreateUserGroupRequest true "User group creation data"
+// @Success 201 {object} UserGroupView "Successfully created user group"
+// @Failure 400 {object} auth.APIError "Invalid request body"
+// @Failure 401 {object} auth.APIError "Unauthorized"
+// @Failure 403 {object} auth.APIError "Forbidden"
+// @Failure 500 {object} auth.APIError "Internal server error"
+// @Router /cpo/user-groups [post]
+func (handler *Handler) createUserGroup(ctx *gin.Context) {
+	principal, _ := auth.CurrentPrincipal(ctx)
+
+	var request CreateUserGroupRequest
+	if err := decodeJSON(ctx, &request); err != nil {
+		writeError(ctx, &auth.APIError{
+			Status:  http.StatusBadRequest,
+			Code:    "invalid_request",
+			Message: "The request body is invalid.",
+		})
+		return
+	}
+
+	record, err := handler.service.CreateUserGroup(ctx.Request.Context(), principal, request)
+	if err != nil {
+		writeError(ctx, err)
+		return
+	}
+
+	ctx.JSON(http.StatusCreated, record)
+}
+
+// @Summary List user groups
+// @Description Lists all user groups for the CPO.
+// @Tags CPO Network - User Groups
+// @Produce json
+// @Param limit query int false "Number of records to return"
+// @Param before query string false "Timestamp for pagination"
+// @Param before_id query string false "ID for pagination"
+// @Success 200 {object} UserGroupListResponse "Successfully retrieved user groups"
+// @Failure 400 {object} auth.APIError "Invalid query parameters"
+// @Failure 401 {object} auth.APIError "Unauthorized"
+// @Failure 403 {object} auth.APIError "Forbidden"
+// @Failure 500 {object} auth.APIError "Internal server error"
+// @Router /cpo/user-groups [get]
+func (handler *Handler) listUserGroups(ctx *gin.Context) {
+	principal, _ := auth.CurrentPrincipal(ctx)
+	query, ok := parseTenantListQuery(ctx)
+	if !ok {
+		return
+	}
+	records, err := handler.service.ListUserGroups(ctx.Request.Context(), principal, query)
+	if err != nil {
+		writeError(ctx, err)
+		return
+	}
+	ctx.JSON(http.StatusOK, records)
+}
+
+// @Summary Get a user group
+// @Description Retrieves a specific user group by its ID.
+// @Tags CPO Network - User Groups
+// @Produce json
+// @Param user_group_id path string true "User Group ID"
+// @Success 200 {object} UserGroupView "Successfully retrieved user group"
+// @Failure 400 {object} auth.APIError "Invalid user group ID format"
+// @Failure 401 {object} auth.APIError "Unauthorized"
+// @Failure 403 {object} auth.APIError "Forbidden"
+// @Failure 404 {object} auth.APIError "User group not found"
+// @Failure 500 {object} auth.APIError "Internal server error"
+// @Router /cpo/user-groups/{user_group_id} [get]
+func (handler *Handler) getUserGroup(ctx *gin.Context) {
+	principal, _ := auth.CurrentPrincipal(ctx)
+	userGroupID, ok := parseUserGroupID(ctx)
+	if !ok {
+		return
+	}
+	record, err := handler.service.GetUserGroup(ctx.Request.Context(), principal, userGroupID)
+	if err != nil {
+		writeError(ctx, err)
+		return
+	}
+	ctx.JSON(http.StatusOK, record)
+}
+
+// @Summary Update a user group
+// @Description Updates an existing user group.
+// @Tags CPO Network - User Groups
+// @Accept json
+// @Produce json
+// @Param user_group_id path string true "User Group ID"
+// @Param user_group body UpdateUserGroupRequest true "User group update data"
+// @Success 200 {object} UserGroupView "Successfully updated user group"
+// @Failure 400 {object} auth.APIError "Invalid request body or parameters"
+// @Failure 401 {object} auth.APIError "Unauthorized"
+// @Failure 403 {object} auth.APIError "Forbidden"
+// @Failure 404 {object} auth.APIError "User group not found"
+// @Failure 500 {object} auth.APIError "Internal server error"
+// @Router /cpo/user-groups/{user_group_id} [patch]
+func (handler *Handler) updateUserGroup(ctx *gin.Context) {
+	principal, _ := auth.CurrentPrincipal(ctx)
+	userGroupID, ok := parseUserGroupID(ctx)
+	if !ok {
+		return
+	}
+	var request UpdateUserGroupRequest
+	if err := decodeJSON(ctx, &request); err != nil {
+		writeError(ctx, &auth.APIError{
+			Status:  http.StatusBadRequest,
+			Code:    "invalid_request",
+			Message: "The request body is invalid.",
+		})
+		return
+	}
+	record, err := handler.service.UpdateUserGroup(ctx.Request.Context(), principal, userGroupID, request)
+	if err != nil {
+		writeError(ctx, err)
+		return
+	}
+	ctx.JSON(http.StatusOK, record)
+}
+
+// @Summary Delete a user group
+// @Description Deletes a user group by its ID.
+// @Tags CPO Network - User Groups
+// @Param user_group_id path string true "User Group ID"
+// @Success 204 "Successfully deleted user group"
+// @Failure 400 {object} auth.APIError "Invalid user group ID format"
+// @Failure 401 {object} auth.APIError "Unauthorized"
+// @Failure 403 {object} auth.APIError "Forbidden"
+// @Failure 404 {object} auth.APIError "User group not found"
+// @Failure 500 {object} auth.APIError "Internal server error"
+// @Router /cpo/user-groups/{user_group_id} [delete]
+func (handler *Handler) deleteUserGroup(ctx *gin.Context) {
+	principal, _ := auth.CurrentPrincipal(ctx)
+	userGroupID, ok := parseUserGroupID(ctx)
+	if !ok {
+		return
+	}
+	err := handler.service.DeleteUserGroup(ctx.Request.Context(), principal, userGroupID)
+	if err != nil {
+		writeError(ctx, err)
+		return
+	}
+	ctx.Status(http.StatusNoContent)
+}
+
+// @Summary Create a hub tariff
+// @Description Creates a new tariff for a specific hub.
+// @Tags CPO Network - Tariffs
+// @Accept json
+// @Produce json
+// @Param hub_id path string true "Hub ID"
+// @Param tariff body CreateTariffRequest true "Tariff creation data"
+// @Success 201 {object} TariffView "Successfully created hub tariff"
+// @Failure 400 {object} auth.APIError "Invalid request body or parameters"
+// @Failure 401 {object} auth.APIError "Unauthorized"
+// @Failure 403 {object} auth.APIError "Forbidden"
+// @Failure 404 {object} auth.APIError "Hub not found"
+// @Failure 500 {object} auth.APIError "Internal server error"
+// @Router /cpo/hubs/{hub_id}/tariffs [post]
+func (handler *Handler) createHubTariff(ctx *gin.Context) {
+	principal, _ := auth.CurrentPrincipal(ctx)
+	hubID, ok := parseHubID(ctx)
+	if !ok {
+		return
+	}
+	var request CreateTariffRequest
+	if err := decodeJSON(ctx, &request); err != nil {
+		writeError(ctx, &auth.APIError{
+			Status:  http.StatusBadRequest,
+			Code:    "invalid_request",
+			Message: "The request body is invalid.",
+		})
+		return
+	}
+	record, err := handler.service.CreateHubTariff(ctx.Request.Context(), principal, hubID, request)
+	if err != nil {
+		writeError(ctx, err)
+		return
+	}
+	ctx.JSON(http.StatusCreated, record)
+}
+
+// @Summary List hub tariffs
+// @Description Lists all tariffs for a specific hub.
+// @Tags CPO Network - Tariffs
+// @Produce json
+// @Param hub_id path string true "Hub ID"
+// @Param limit query int false "Number of records to return"
+// @Param before query string false "Timestamp for pagination"
+// @Param before_id query string false "ID for pagination"
+// @Success 200 {object} TariffListResponse "Successfully retrieved hub tariffs"
+// @Failure 400 {object} auth.APIError "Invalid query parameters"
+// @Failure 401 {object} auth.APIError "Unauthorized"
+// @Failure 403 {object} auth.APIError "Forbidden"
+// @Failure 404 {object} auth.APIError "Hub not found"
+// @Failure 500 {object} auth.APIError "Internal server error"
+// @Router /cpo/hubs/{hub_id}/tariffs [get]
+func (handler *Handler) listHubTariffs(ctx *gin.Context) {
+	principal, _ := auth.CurrentPrincipal(ctx)
+	hubID, ok := parseHubID(ctx)
+	if !ok {
+		return
+	}
+	query, ok := parseTenantListQuery(ctx)
+	if !ok {
+		return
+	}
+	records, err := handler.service.ListHubTariffs(ctx.Request.Context(), principal, hubID, query)
+	if err != nil {
+		writeError(ctx, err)
+		return
+	}
+	ctx.JSON(http.StatusOK, records)
+}
+
+// @Summary Get a hub tariff
+// @Description Retrieves a specific tariff by its ID for a specific hub.
+// @Tags CPO Network - Tariffs
+// @Produce json
+// @Param hub_id path string true "Hub ID"
+// @Param tariff_id path string true "Tariff ID"
+// @Success 200 {object} TariffView "Successfully retrieved hub tariff"
+// @Failure 400 {object} auth.APIError "Invalid ID format"
+// @Failure 401 {object} auth.APIError "Unauthorized"
+// @Failure 403 {object} auth.APIError "Forbidden"
+// @Failure 404 {object} auth.APIError "Hub or tariff not found"
+// @Failure 500 {object} auth.APIError "Internal server error"
+// @Router /cpo/hubs/{hub_id}/tariffs/{tariff_id} [get]
+func (handler *Handler) getHubTariff(ctx *gin.Context) {
+	principal, _ := auth.CurrentPrincipal(ctx)
+	hubID, ok := parseHubID(ctx)
+	if !ok {
+		return
+	}
+	tariffID, ok := parseTariffID(ctx)
+	if !ok {
+		return
+	}
+	record, err := handler.service.GetHubTariff(ctx.Request.Context(), principal, hubID, tariffID)
+	if err != nil {
+		writeError(ctx, err)
+		return
+	}
+	ctx.JSON(http.StatusOK, record)
+}
+
+// @Summary Update a hub tariff
+// @Description Updates an existing tariff for a specific hub.
+// @Tags CPO Network - Tariffs
+// @Accept json
+// @Produce json
+// @Param hub_id path string true "Hub ID"
+// @Param tariff_id path string true "Tariff ID"
+// @Param tariff body UpdateTariffRequest true "Tariff update data"
+// @Success 200 {object} TariffView "Successfully updated hub tariff"
+// @Failure 400 {object} auth.APIError "Invalid request body or parameters"
+// @Failure 401 {object} auth.APIError "Unauthorized"
+// @Failure 403 {object} auth.APIError "Forbidden"
+// @Failure 404 {object} auth.APIError "Hub or tariff not found"
+// @Failure 500 {object} auth.APIError "Internal server error"
+// @Router /cpo/hubs/{hub_id}/tariffs/{tariff_id} [patch]
+func (handler *Handler) updateHubTariff(ctx *gin.Context) {
+	principal, _ := auth.CurrentPrincipal(ctx)
+	hubID, ok := parseHubID(ctx)
+	if !ok {
+		return
+	}
+	tariffID, ok := parseTariffID(ctx)
+	if !ok {
+		return
+	}
+	var request UpdateTariffRequest
+	if err := decodeJSON(ctx, &request); err != nil {
+		writeError(ctx, &auth.APIError{
+			Status:  http.StatusBadRequest,
+			Code:    "invalid_request",
+			Message: "The request body is invalid.",
+		})
+		return
+	}
+	record, err := handler.service.UpdateHubTariff(ctx.Request.Context(), principal, hubID, tariffID, request)
+	if err != nil {
+		writeError(ctx, err)
+		return
+	}
+	ctx.JSON(http.StatusOK, record)
+}
+
+// @Summary Create a charger tariff
+// @Description Creates a new tariff for a specific charger.
+// @Tags CPO Network - Tariffs
+// @Accept json
+// @Produce json
+// @Param charger_id path string true "Charger ID"
+// @Param tariff body CreateTariffRequest true "Tariff creation data"
+// @Success 201 {object} TariffView "Successfully created charger tariff"
+// @Failure 400 {object} auth.APIError "Invalid request body or parameters"
+// @Failure 401 {object} auth.APIError "Unauthorized"
+// @Failure 403 {object} auth.APIError "Forbidden"
+// @Failure 404 {object} auth.APIError "Charger not found"
+// @Failure 500 {object} auth.APIError "Internal server error"
+// @Router /cpo/chargers/{charger_id}/tariffs [post]
+func (handler *Handler) createChargerTariff(ctx *gin.Context) {
+	principal, _ := auth.CurrentPrincipal(ctx)
+	chargerID, ok := parseChargerID(ctx)
+	if !ok {
+		return
+	}
+	var request CreateTariffRequest
+	if err := decodeJSON(ctx, &request); err != nil {
+		writeError(ctx, &auth.APIError{
+			Status:  http.StatusBadRequest,
+			Code:    "invalid_request",
+			Message: "The request body is invalid.",
+		})
+		return
+	}
+	record, err := handler.service.CreateChargerTariff(ctx.Request.Context(), principal, chargerID, request)
+	if err != nil {
+		writeError(ctx, err)
+		return
+	}
+	ctx.JSON(http.StatusCreated, record)
+}
+
+// @Summary List charger tariffs
+// @Description Lists all tariffs for a specific charger.
+// @Tags CPO Network - Tariffs
+// @Produce json
+// @Param charger_id path string true "Charger ID"
+// @Param limit query int false "Number of records to return"
+// @Param before query string false "Timestamp for pagination"
+// @Param before_id query string false "ID for pagination"
+// @Success 200 {object} TariffListResponse "Successfully retrieved charger tariffs"
+// @Failure 400 {object} auth.APIError "Invalid query parameters"
+// @Failure 401 {object} auth.APIError "Unauthorized"
+// @Failure 403 {object} auth.APIError "Forbidden"
+// @Failure 404 {object} auth.APIError "Charger not found"
+// @Failure 500 {object} auth.APIError "Internal server error"
+// @Router /cpo/chargers/{charger_id}/tariffs [get]
+func (handler *Handler) listChargerTariffs(ctx *gin.Context) {
+	principal, _ := auth.CurrentPrincipal(ctx)
+	chargerID, ok := parseChargerID(ctx)
+	if !ok {
+		return
+	}
+	query, ok := parseTenantListQuery(ctx)
+	if !ok {
+		return
+	}
+	records, err := handler.service.ListChargerTariffs(ctx.Request.Context(), principal, chargerID, query)
+	if err != nil {
+		writeError(ctx, err)
+		return
+	}
+	ctx.JSON(http.StatusOK, records)
+}
+
+// @Summary Get a charger tariff
+// @Description Retrieves a specific tariff by its ID for a specific charger.
+// @Tags CPO Network - Tariffs
+// @Produce json
+// @Param charger_id path string true "Charger ID"
+// @Param tariff_id path string true "Tariff ID"
+// @Success 200 {object} TariffView "Successfully retrieved charger tariff"
+// @Failure 400 {object} auth.APIError "Invalid ID format"
+// @Failure 401 {object} auth.APIError "Unauthorized"
+// @Failure 403 {object} auth.APIError "Forbidden"
+// @Failure 404 {object} auth.APIError "Charger or tariff not found"
+// @Failure 500 {object} auth.APIError "Internal server error"
+// @Router /cpo/chargers/{charger_id}/tariffs/{tariff_id} [get]
+func (handler *Handler) getChargerTariff(ctx *gin.Context) {
+	principal, _ := auth.CurrentPrincipal(ctx)
+	chargerID, ok := parseChargerID(ctx)
+	if !ok {
+		return
+	}
+	tariffID, ok := parseTariffID(ctx)
+	if !ok {
+		return
+	}
+	record, err := handler.service.GetChargerTariff(ctx.Request.Context(), principal, chargerID, tariffID)
+	if err != nil {
+		writeError(ctx, err)
+		return
+	}
+	ctx.JSON(http.StatusOK, record)
+}
+
+// @Summary Update a charger tariff
+// @Description Updates an existing tariff for a specific charger.
+// @Tags CPO Network - Tariffs
+// @Accept json
+// @Produce json
+// @Param charger_id path string true "Charger ID"
+// @Param tariff_id path string true "Tariff ID"
+// @Param tariff body UpdateTariffRequest true "Tariff update data"
+// @Success 200 {object} TariffView "Successfully updated charger tariff"
+// @Failure 400 {object} auth.APIError "Invalid request body or parameters"
+// @Failure 401 {object} auth.APIError "Unauthorized"
+// @Failure 403 {object} auth.APIError "Forbidden"
+// @Failure 404 {object} auth.APIError "Charger or tariff not found"
+// @Failure 500 {object} auth.APIError "Internal server error"
+// @Router /cpo/chargers/{charger_id}/tariffs/{tariff_id} [patch]
+func (handler *Handler) updateChargerTariff(ctx *gin.Context) {
+	principal, _ := auth.CurrentPrincipal(ctx)
+	chargerID, ok := parseChargerID(ctx)
+	if !ok {
+		return
+	}
+	tariffID, ok := parseTariffID(ctx)
+	if !ok {
+		return
+	}
+	var request UpdateTariffRequest
+	if err := decodeJSON(ctx, &request); err != nil {
+		writeError(ctx, &auth.APIError{
+			Status:  http.StatusBadRequest,
+			Code:    "invalid_request",
+			Message: "The request body is invalid.",
+		})
+		return
+	}
+	record, err := handler.service.UpdateChargerTariff(ctx.Request.Context(), principal, chargerID, tariffID, request)
+	if err != nil {
+		writeError(ctx, err)
+		return
+	}
+	ctx.JSON(http.StatusOK, record)
+}
+
+// @Summary Create a user group tariff
+// @Description Creates a new tariff for a specific user group.
+// @Tags CPO Network - Tariffs
+// @Accept json
+// @Produce json
+// @Param user_group_id path string true "User Group ID"
+// @Param tariff body CreateTariffRequest true "Tariff creation data"
+// @Success 201 {object} TariffView "Successfully created user group tariff"
+// @Failure 400 {object} auth.APIError "Invalid request body or parameters"
+// @Failure 401 {object} auth.APIError "Unauthorized"
+// @Failure 403 {object} auth.APIError "Forbidden"
+// @Failure 404 {object} auth.APIError "User group not found"
+// @Failure 500 {object} auth.APIError "Internal server error"
+// @Router /cpo/user-groups/{user_group_id}/tariffs [post]
+func (handler *Handler) createUserGroupTariff(ctx *gin.Context) {
+	principal, _ := auth.CurrentPrincipal(ctx)
+	userGroupID, ok := parseUserGroupID(ctx)
+	if !ok {
+		return
+	}
+	var request CreateTariffRequest
+	if err := decodeJSON(ctx, &request); err != nil {
+		writeError(ctx, &auth.APIError{
+			Status:  http.StatusBadRequest,
+			Code:    "invalid_request",
+			Message: "The request body is invalid.",
+		})
+		return
+	}
+	record, err := handler.service.CreateUserGroupTariff(ctx.Request.Context(), principal, userGroupID, request)
+	if err != nil {
+		writeError(ctx, err)
+		return
+	}
+	ctx.JSON(http.StatusCreated, record)
+}
+
+// @Summary List user group tariffs
+// @Description Lists all tariffs for a specific user group.
+// @Tags CPO Network - Tariffs
+// @Produce json
+// @Param user_group_id path string true "User Group ID"
+// @Param limit query int false "Number of records to return"
+// @Param before query string false "Timestamp for pagination"
+// @Param before_id query string false "ID for pagination"
+// @Success 200 {object} TariffListResponse "Successfully retrieved user group tariffs"
+// @Failure 400 {object} auth.APIError "Invalid query parameters"
+// @Failure 401 {object} auth.APIError "Unauthorized"
+// @Failure 403 {object} auth.APIError "Forbidden"
+// @Failure 404 {object} auth.APIError "User group not found"
+// @Failure 500 {object} auth.APIError "Internal server error"
+// @Router /cpo/user-groups/{user_group_id}/tariffs [get]
+func (handler *Handler) listUserGroupTariffs(ctx *gin.Context) {
+	principal, _ := auth.CurrentPrincipal(ctx)
+	userGroupID, ok := parseUserGroupID(ctx)
+	if !ok {
+		return
+	}
+	query, ok := parseTenantListQuery(ctx)
+	if !ok {
+		return
+	}
+	records, err := handler.service.ListUserGroupTariffs(ctx.Request.Context(), principal, userGroupID, query)
+	if err != nil {
+		writeError(ctx, err)
+		return
+	}
+	ctx.JSON(http.StatusOK, records)
+}
+
+// @Summary Get a user group tariff
+// @Description Retrieves a specific tariff by its ID for a specific user group.
+// @Tags CPO Network - Tariffs
+// @Produce json
+// @Param user_group_id path string true "User Group ID"
+// @Param tariff_id path string true "Tariff ID"
+// @Success 200 {object} TariffView "Successfully retrieved user group tariff"
+// @Failure 400 {object} auth.APIError "Invalid ID format"
+// @Failure 401 {object} auth.APIError "Unauthorized"
+// @Failure 403 {object} auth.APIError "Forbidden"
+// @Failure 404 {object} auth.APIError "User group or tariff not found"
+// @Failure 500 {object} auth.APIError "Internal server error"
+// @Router /cpo/user-groups/{user_group_id}/tariffs/{tariff_id} [get]
+func (handler *Handler) getUserGroupTariff(ctx *gin.Context) {
+	principal, _ := auth.CurrentPrincipal(ctx)
+	userGroupID, ok := parseUserGroupID(ctx)
+	if !ok {
+		return
+	}
+	tariffID, ok := parseTariffID(ctx)
+	if !ok {
+		return
+	}
+	record, err := handler.service.GetUserGroupTariff(ctx.Request.Context(), principal, userGroupID, tariffID)
+	if err != nil {
+		writeError(ctx, err)
+		return
+	}
+	ctx.JSON(http.StatusOK, record)
+}
+
+// @Summary Update a user group tariff
+// @Description Updates an existing tariff for a specific user group.
+// @Tags CPO Network - Tariffs
+// @Accept json
+// @Produce json
+// @Param user_group_id path string true "User Group ID"
+// @Param tariff_id path string true "Tariff ID"
+// @Param tariff body UpdateTariffRequest true "Tariff update data"
+// @Success 200 {object} TariffView "Successfully updated user group tariff"
+// @Failure 400 {object} auth.APIError "Invalid request body or parameters"
+// @Failure 401 {object} auth.APIError "Unauthorized"
+// @Failure 403 {object} auth.APIError "Forbidden"
+// @Failure 404 {object} auth.APIError "User group or tariff not found"
+// @Failure 500 {object} auth.APIError "Internal server error"
+// @Router /cpo/user-groups/{user_group_id}/tariffs/{tariff_id} [patch]
+func (handler *Handler) updateUserGroupTariff(ctx *gin.Context) {
+	principal, _ := auth.CurrentPrincipal(ctx)
+	userGroupID, ok := parseUserGroupID(ctx)
+	if !ok {
+		return
+	}
+	tariffID, ok := parseTariffID(ctx)
+	if !ok {
+		return
+	}
+	var request UpdateTariffRequest
+	if err := decodeJSON(ctx, &request); err != nil {
+		writeError(ctx, &auth.APIError{
+			Status:  http.StatusBadRequest,
+			Code:    "invalid_request",
+			Message: "The request body is invalid.",
+		})
+		return
+	}
+	record, err := handler.service.UpdateUserGroupTariff(ctx.Request.Context(), principal, userGroupID, tariffID, request)
+	if err != nil {
+		writeError(ctx, err)
+		return
+	}
+	ctx.JSON(http.StatusOK, record)
 }

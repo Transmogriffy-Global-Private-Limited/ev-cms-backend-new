@@ -483,6 +483,35 @@ type GSTListResponse struct {
 	HasMore      bool       `json:"has_more"`
 }
 
+type CreateUserGroupRequest struct {
+	Name        string `json:"name"`
+	Description string `json:"description"`
+	IsActive    *bool  `json:"is_active,omitempty"`
+}
+
+type UpdateUserGroupRequest struct {
+	Name        *string `json:"name,omitempty"`
+	Description *string `json:"description,omitempty"`
+	IsActive    *bool   `json:"is_active,omitempty"`
+}
+
+type UserGroupView struct {
+	ID          uuid.UUID `json:"id"`
+	CPOID       uuid.UUID `json:"cpo_id"`
+	Name        string    `json:"name"`
+	Description string    `json:"description"`
+	IsActive    bool      `json:"is_active"`
+	CreatedAt   time.Time `json:"created_at"`
+	UpdatedAt   time.Time `json:"updated_at"`
+}
+
+type UserGroupListResponse struct {
+	UserGroups   []UserGroupView `json:"user_groups"`
+	NextBefore   *time.Time      `json:"next_before,omitempty"`
+	NextBeforeID *uuid.UUID      `json:"next_before_id,omitempty"`
+	HasMore      bool            `json:"has_more"`
+}
+
 type CPOSubscriptionPlanView struct {
 	Name            string `json:"name"`
 	Description     string `json:"description"`

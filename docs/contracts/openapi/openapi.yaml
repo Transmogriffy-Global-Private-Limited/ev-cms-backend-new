@@ -3827,17 +3827,13 @@ paths:
         "500":
           $ref: "#/components/responses/InternalError"
 
-  /api/v1/cpo/tariffs:
+  /api/v1/cpo/hubs/{hub_id}/tariffs:
+    parameters:
+      - $ref: "#/components/parameters/HubID"
     post:
       tags: [CPO Operations - Pricing & Tax]
-      operationId: createCPOTariff
-      summary: Create a tenant tariff
-      description: |
-        Requires CPO ADMIN. Related hub, optional charger, GST profile,
-        and user group must belong to the authenticated CPO; a selected charger
-        must belong to the selected hub. Currency defaults to INR. `hub_id` is
-        always required. An effective period is either omitted for an open-ended
-        tariff or supplied as a half-open `[start_date, end_date)` interval.
+      operationId: createHubTariff
+      summary: Create a hub tariff
       security:
         - BearerAuth: []
           CPOAppID: []
@@ -3849,40 +3845,31 @@ paths:
               $ref: "#/components/schemas/CreateTariffRequest"
       responses:
         "201":
-          description: Tariff created with a server-generated UUID.
+          description: Tariff created.
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/Tariff"
         "400":
-          description: Invalid body, pricing, currency, relation, or app-ID header.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorEnvelope"
+          $ref: "#/components/responses/InvalidRequest"
         "401":
           $ref: "#/components/responses/Unauthorized"
         "403":
           $ref: "#/components/responses/CPOBusinessForbidden"
         "404":
-          description: Referenced tenant resource was not found.
+          description: "`hub_not_found` or other referenced resource not found."
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorEnvelope"
         "409":
-          description: "`tariff_conflict` or `tariff_schedule_conflict`."
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorEnvelope"
+          $ref: "#/components/responses/Conflict"
         "500":
           $ref: "#/components/responses/InternalError"
     get:
       tags: [CPO Operations - Pricing & Tax]
-      operationId: listCPOTariffs
-      summary: List tenant tariffs
-      description: Requires CPO ADMIN and uses stable descending keyset pagination.
+      operationId: listHubTariffs
+      summary: List hub tariffs
       security:
         - BearerAuth: []
           CPOAppID: []
@@ -3892,17 +3879,13 @@ paths:
         - $ref: "#/components/parameters/ListLimit"
       responses:
         "200":
-          description: One bounded page of tariffs.
+          description: A page of tariffs for the hub.
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/TariffListResponse"
         "400":
-          description: Invalid cursor, limit, or missing app-ID header.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorEnvelope"
+          $ref: "#/components/responses/InvalidRequest"
         "401":
           $ref: "#/components/responses/Unauthorized"
         "403":
@@ -3910,13 +3893,14 @@ paths:
         "500":
           $ref: "#/components/responses/InternalError"
 
-  /api/v1/cpo/tariffs/{tariff_id}:
+  /api/v1/cpo/hubs/{hub_id}/tariffs/{tariff_id}:
     parameters:
+      - $ref: "#/components/parameters/HubID"
       - $ref: "#/components/parameters/TariffID"
     get:
       tags: [CPO Operations - Pricing & Tax]
-      operationId: getCPOTariff
-      summary: Get one tenant tariff
+      operationId: getHubTariff
+      summary: Get one hub tariff
       security:
         - BearerAuth: []
           CPOAppID: []
@@ -3928,11 +3912,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/Tariff"
         "400":
-          description: Invalid tariff ID or missing app-ID header.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorEnvelope"
+          $ref: "#/components/responses/InvalidRequest"
         "401":
           $ref: "#/components/responses/Unauthorized"
         "403":
@@ -3947,11 +3927,8 @@ paths:
           $ref: "#/components/responses/InternalError"
     patch:
       tags: [CPO Operations - Pricing & Tax]
-      operationId: updateCPOTariff
-      summary: Update a tenant tariff
-      description: |
-        Requires CPO ADMIN and at least one mutable field. Updating either
-        effective-date bound validates the resulting complete interval.
+      operationId: updateHubTariff
+      summary: Update a hub tariff
       security:
         - BearerAuth: []
           CPOAppID: []
@@ -3969,27 +3946,289 @@ paths:
               schema:
                 $ref: "#/components/schemas/Tariff"
         "400":
-          description: Invalid body, tariff ID, pricing, relation, or app-ID header.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorEnvelope"
+          $ref: "#/components/responses/InvalidRequest"
         "401":
           $ref: "#/components/responses/Unauthorized"
         "403":
           $ref: "#/components/responses/CPOBusinessForbidden"
         "404":
-          description: Tariff or referenced tenant resource was not found.
+          description: "`tariff_not_found` or other referenced resource not found."
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorEnvelope"
         "409":
-          description: "`tariff_conflict` or `tariff_schedule_conflict`."
+          $ref: "#/components/responses/Conflict"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /api/v1/cpo/chargers/{charger_id}/tariffs:
+    parameters:
+      - $ref: "#/components/parameters/ChargerInternalID"
+    post:
+      tags: [CPO Operations - Pricing & Tax]
+      operationId: createChargerTariff
+      summary: Create a charger tariff
+      security:
+        - BearerAuth: []
+          CPOAppID: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateTariffRequest"
+      responses:
+        "201":
+          description: Tariff created.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Tariff"
+        "400":
+          $ref: "#/components/responses/InvalidRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/CPOBusinessForbidden"
+        "404":
+          description: "`charger_not_found` or other referenced resource not found."
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorEnvelope"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    get:
+      tags: [CPO Operations - Pricing & Tax]
+      operationId: listChargerTariffs
+      summary: List charger tariffs
+      security:
+        - BearerAuth: []
+          CPOAppID: []
+      parameters:
+        - $ref: "#/components/parameters/ListBefore"
+        - $ref: "#/components/parameters/ListBeforeID"
+        - $ref: "#/components/parameters/ListLimit"
+      responses:
+        "200":
+          description: A page of tariffs for the charger.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TariffListResponse"
+        "400":
+          $ref: "#/components/responses/InvalidRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/CPOBusinessForbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /api/v1/cpo/chargers/{charger_id}/tariffs/{tariff_id}:
+    parameters:
+      - $ref: "#/components/parameters/ChargerInternalID"
+      - $ref: "#/components/parameters/TariffID"
+    get:
+      tags: [CPO Operations - Pricing & Tax]
+      operationId: getChargerTariff
+      summary: Get one charger tariff
+      security:
+        - BearerAuth: []
+          CPOAppID: []
+      responses:
+        "200":
+          description: Tariff detail.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Tariff"
+        "400":
+          $ref: "#/components/responses/InvalidRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/CPOBusinessForbidden"
+        "404":
+          description: "`tariff_not_found`."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    patch:
+      tags: [CPO Operations - Pricing & Tax]
+      operationId: updateChargerTariff
+      summary: Update a charger tariff
+      security:
+        - BearerAuth: []
+          CPOAppID: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateTariffRequest"
+      responses:
+        "200":
+          description: Updated tariff.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Tariff"
+        "400":
+          $ref: "#/components/responses/InvalidRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/CPOBusinessForbidden"
+        "404":
+          description: "`tariff_not_found` or other referenced resource not found."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /api/v1/cpo/user-groups/{user_group_id}/tariffs:
+    parameters:
+      - $ref: "#/components/parameters/UserGroupID"
+    post:
+      tags: [CPO Operations - Pricing & Tax]
+      operationId: createUserGroupTariff
+      summary: Create a user group tariff
+      security:
+        - BearerAuth: []
+          CPOAppID: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateTariffRequest"
+      responses:
+        "201":
+          description: Tariff created.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Tariff"
+        "400":
+          $ref: "#/components/responses/InvalidRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/CPOBusinessForbidden"
+        "404":
+          description: "`user_group_not_found` or other referenced resource not found."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    get:
+      tags: [CPO Operations - Pricing & Tax]
+      operationId: listUserGroupTariffs
+      summary: List user group tariffs
+      security:
+        - BearerAuth: []
+          CPOAppID: []
+      parameters:
+        - $ref: "#/components/parameters/ListBefore"
+        - $ref: "#/components/parameters/ListBeforeID"
+        - $ref: "#/components/parameters/ListLimit"
+      responses:
+        "200":
+          description: A page of tariffs for the user group.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TariffListResponse"
+        "400":
+          $ref: "#/components/responses/InvalidRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/CPOBusinessForbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /api/v1/cpo/user-groups/{user_group_id}/tariffs/{tariff_id}:
+    parameters:
+      - $ref: "#/components/parameters/UserGroupID"
+      - $ref: "#/components/parameters/TariffID"
+    get:
+      tags: [CPO Operations - Pricing & Tax]
+      operationId: getUserGroupTariff
+      summary: Get one user group tariff
+      security:
+        - BearerAuth: []
+          CPOAppID: []
+      responses:
+        "200":
+          description: Tariff detail.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Tariff"
+        "400":
+          $ref: "#/components/responses/InvalidRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/CPOBusinessForbidden"
+        "404":
+          description: "`tariff_not_found`."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    patch:
+      tags: [CPO Operations - Pricing & Tax]
+      operationId: updateUserGroupTariff
+      summary: Update a user group tariff
+      security:
+        - BearerAuth: []
+          CPOAppID: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateTariffRequest"
+      responses:
+        "200":
+          description: Updated tariff.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Tariff"
+        "400":
+          $ref: "#/components/responses/InvalidRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/CPOBusinessForbidden"
+        "404":
+          description: "`tariff_not_found` or other referenced resource not found."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "409":
+          $ref: "#/components/responses/Conflict"
         "500":
           $ref: "#/components/responses/InternalError"
 
@@ -4139,6 +4378,194 @@ paths:
                 $ref: "#/components/schemas/ErrorEnvelope"
         "409":
           description: "`gst_conflict`."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /api/v1/cpo/user-groups:
+    post:
+      tags: [CPO Operations - Pricing & Tax]
+      operationId: createCPOUserGroup
+      summary: Create a tenant user group
+      description: Requires CPO ADMIN.
+      security:
+        - BearerAuth: []
+          CPOAppID: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateUserGroupRequest"
+      responses:
+        "201":
+          description: User group created with a server-generated UUID.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserGroup"
+        "400":
+          description: Invalid body, name, or app-ID header.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/CPOBusinessForbidden"
+        "409":
+          description: "`user_group_conflict`."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    get:
+      tags: [CPO Operations - Pricing & Tax]
+      operationId: listCPOUserGroups
+      summary: List tenant user groups
+      description: Requires CPO ADMIN and uses stable descending keyset pagination.
+      security:
+        - BearerAuth: []
+          CPOAppID: []
+      parameters:
+        - $ref: "#/components/parameters/ListBefore"
+        - $ref: "#/components/parameters/ListBeforeID"
+        - $ref: "#/components/parameters/ListLimit"
+      responses:
+        "200":
+          description: One bounded page of user groups.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserGroupListResponse"
+        "400":
+          description: Invalid cursor, limit, or missing app-ID header.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/CPOBusinessForbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /api/v1/cpo/user-groups/{user_group_id}:
+    parameters:
+      - $ref: "#/components/parameters/UserGroupID"
+    get:
+      tags: [CPO Operations - Pricing & Tax]
+      operationId: getCPOUserGroup
+      summary: Get one tenant user group
+      security:
+        - BearerAuth: []
+          CPOAppID: []
+      responses:
+        "200":
+          description: User group detail.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserGroup"
+        "400":
+          description: Invalid user group ID or missing app-ID header.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/CPOBusinessForbidden"
+        "404":
+          description: "`user_group_not_found`."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    patch:
+      tags: [CPO Operations - Pricing & Tax]
+      operationId: updateCPOUserGroup
+      summary: Update a tenant user group
+      description: Requires CPO ADMIN and at least one mutable field.
+      security:
+        - BearerAuth: []
+          CPOAppID: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateUserGroupRequest"
+      responses:
+        "200":
+          description: Updated user group.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserGroup"
+        "400":
+          description: Invalid body, user group ID, field, or app-ID header.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/CPOBusinessForbidden"
+        "404":
+          description: "`user_group_not_found`."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "409":
+          description: "`user_group_conflict`."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    delete:
+      tags: [CPO Operations - Pricing & Tax]
+      operationId: deleteCPOUserGroup
+      summary: Delete a tenant user group
+      description: Requires CPO ADMIN. A user group cannot be deleted if it is associated with any tariffs.
+      security:
+        - BearerAuth: []
+          CPOAppID: []
+      responses:
+        "204":
+          description: User group deleted. No response body.
+        "400":
+          description: Invalid user group ID or missing app-ID header.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/CPOBusinessForbidden"
+        "404":
+          description: "`user_group_not_found`."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "409":
+          description: "`user_group_in_use`."
           content:
             application/json:
               schema:
@@ -4635,6 +5062,14 @@ components:
       in: path
       required: true
       description: Server-generated GST-profile UUID owned by the authenticated CPO.
+      schema:
+        type: string
+        format: uuid
+    UserGroupID:
+      name: user_group_id
+      in: path
+      required: true
+      description: Server-generated user group UUID owned by the authenticated CPO.
       schema:
         type: string
         format: uuid
@@ -7445,6 +7880,59 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/Tariff"
+        next_before:
+          type: string
+          format: date-time
+        next_before_id:
+          type: string
+          format: uuid
+        has_more:
+          type: boolean
+
+    CreateUserGroupRequest:
+      type: object
+      additionalProperties: false
+      required: [name]
+      properties:
+        name: {type: string, minLength: 1, maxLength: 100}
+        description: {type: string, maxLength: 500}
+        is_active: {type: boolean, default: true}
+      example:
+        name: VIP Customers
+        description: Special pricing for VIPs
+        is_active: true
+
+    UpdateUserGroupRequest:
+      type: object
+      additionalProperties: false
+      minProperties: 1
+      properties:
+        name: {type: string, minLength: 1, maxLength: 100}
+        description: {type: string, maxLength: 500}
+        is_active: {type: boolean}
+
+    UserGroup:
+      type: object
+      additionalProperties: false
+      required: [id, cpo_id, name, is_active, created_at, updated_at]
+      properties:
+        id: {type: string, format: uuid}
+        cpo_id: {type: string, format: uuid}
+        name: {type: string}
+        description: {type: string}
+        is_active: {type: boolean}
+        created_at: {type: string, format: date-time}
+        updated_at: {type: string, format: date-time}
+
+    UserGroupListResponse:
+      type: object
+      additionalProperties: false
+      required: [user_groups, has_more]
+      properties:
+        user_groups:
+          type: array
+          items:
+            $ref: "#/components/schemas/UserGroup"
         next_before:
           type: string
           format: date-time
