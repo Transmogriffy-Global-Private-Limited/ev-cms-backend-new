@@ -530,7 +530,42 @@ func RegisterCPORoutes(
 	group.PATCH("/user-groups/:user_group_id", handler.updateUserGroup)
 	group.DELETE("/user-groups/:user_group_id", handler.deleteUserGroup)
 	group.POST("/user-groups/:user_group_id/members", handler.addMemberToUserGroup)
+	group.DELETE("/user-groups/:user_group_id/members/:customer_id", handler.removeMemberFromUserGroup)
 }
+
+// @Summary Remove a member from a user group
+// @Description Removes a customer from a user group.
+// @Tags CPO Network - User Groups
+// @Produce json
+// @Param user_group_id path string true "User Group ID"
+// @Param customer_id path string true "Customer ID"
+// @Success 204 "Successfully removed member from user group"
+// @Failure 400 {object} auth.APIError "Invalid parameters"
+// @Failure 401 {object} auth.APIError "Unauthorized"
+// @Failure 403 {object} auth.APIError "Forbidden"
+// @Failure 404 {object} auth.APIError "User group or customer not found"
+// @Failure 500 {object} auth.APIError "Internal server error"
+// @Router /cpo/user-groups/{user_group_id}/members/{customer_id} [delete]
+func (handler *Handler) removeMemberFromUserGroup(ctx *gin.Context) {
+	principal, _ := auth.CurrentPrincipal(ctx)
+	userGroupID, ok := parseUserGroupID(ctx)
+	if !ok {
+		return
+	}
+	customerID, ok := parseCustomerID(ctx)
+	if !ok {
+		return
+	}
+
+	err := handler.service.RemoveMemberFromUserGroup(ctx.Request.Context(), principal, userGroupID, customerID)
+	if err != nil {
+		writeError(ctx, err)
+		return
+	}
+
+	ctx.Status(http.StatusNoContent)
+}
+
 
 // @Summary Add a member to a user group
 // @Description Adds a customer to a user group.

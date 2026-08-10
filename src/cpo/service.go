@@ -4215,16 +4215,17 @@ func (service *Service) GetCustomer(
 
 func cpoAdminCustomerView(record models.Customer) CPOAdminCustomerView {
 	return CPOAdminCustomerView{
-		ID:          record.ID,
-		CPOID:       record.CPOID,
-		Email:       record.Email,
-		FullName:    record.FullName,
-		Phone:       record.Phone,
-		Status:      record.Status,
-		IsVerified:  record.IsVerified,
-		LastLoginAt: record.LastLoginAt,
-		CreatedAt:   record.CreatedAt,
-		UpdatedAt:   record.UpdatedAt,
+		ID:                record.ID,
+		CPOID:             record.CPOID,
+		Email:             record.Email,
+		FullName:          record.FullName,
+		Phone:             record.Phone,
+		Status:            record.Status,
+		IsVerified:        record.IsVerified,
+		LastLoginAt:       record.LastLoginAt,
+		UsergroupAssigned: record.UserGroupID != nil,
+		CreatedAt:         record.CreatedAt,
+		UpdatedAt:         record.UpdatedAt,
 	}
 }
 
@@ -5407,6 +5408,56 @@ func (service *Service) AddMemberToUserGroup(
 		)
 	})
 }
+
+func (service *Service) RemoveMemberFromUserGroup(
+	ctx context.Context,
+	principal auth.Principal,
+	userGroupID uuid.UUID,
+	customerID uuid.UUID,
+) error {
+	if err := requireCPOAdminAccess(principal); err != nil {
+		return err
+	}
+
+	cpoID := *principal.CPOID
+	return service.database.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var userGroup models.UserGroup
+		if err := tx.First(&userGroup, "id = ? AND cpo_id = ?", userGroupID, cpoID).Error; err != nil {
+			return mapUserGroupNotFound(err)
+		}
+
+		var customer models.Customer
+		if err := tx.First(&customer, "id = ? AND cpo_id = ?", customerID, cpoID).Error; err != nil {
+			return mapCustomerNotFound(err)
+		}
+
+		if customer.UserGroupID == nil || *customer.UserGroupID != userGroupID {
+			return nil // Not in the group, do nothing.
+		}
+
+		now := service.now()
+		if err := tx.Model(&customer).
+			Updates(map[string]any{
+				"user_group_id": nil,
+				"updated_at":    now,
+			}).Error; err != nil {
+			return fmt.Errorf("remove member from user group: %w", err)
+		}
+
+		return writeAudit(
+			tx,
+			principal.UserID,
+			cpoID,
+			"USER_GROUP_MEMBER_REMOVED",
+			models.JSONB{
+				"user_group_id": userGroupID,
+				"customer_id":   customerID,
+			},
+			now,
+		)
+	})
+}
+
 
 func mapUserGroupDeleteError(err error) error {
 	var postgresError *pgconn.PgError

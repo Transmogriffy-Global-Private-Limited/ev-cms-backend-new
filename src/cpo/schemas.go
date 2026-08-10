@@ -369,16 +369,17 @@ type HubResponse struct {
 
 // CPOAdminCustomerView is the CPO administrator's view of a customer account.
 type CPOAdminCustomerView struct {
-	ID          uuid.UUID                `json:"id"`
-	CPOID       uuid.UUID                `json:"cpo_id"`
-	Email       string                   `json:"email"`
-	FullName    string                   `json:"full_name"`
-	Phone       *string                  `json:"phone,omitempty"`
-	Status      constants.CustomerStatus `json:"status"`
-	IsVerified  bool                     `json:"is_verified"`
-	LastLoginAt *time.Time               `json:"last_login_at,omitempty"`
-	CreatedAt   time.Time                `json:"created_at"`
-	UpdatedAt   time.Time                `json:"updated_at"`
+	ID                uuid.UUID                `json:"id"`
+	CPOID             uuid.UUID                `json:"cpo_id"`
+	Email             string                   `json:"email"`
+	FullName          string                   `json:"full_name"`
+	Phone             *string                  `json:"phone,omitempty"`
+	Status            constants.CustomerStatus `json:"status"`
+	IsVerified        bool                     `json:"is_verified"`
+	LastLoginAt       *time.Time               `json:"last_login_at,omitempty"`
+	UsergroupAssigned bool                     `json:"usergroup_assigned"`
+	CreatedAt         time.Time                `json:"created_at"`
+	UpdatedAt         time.Time                `json:"updated_at"`
 }
 
 // CPOAdminCustomerListQuery defines the query parameters for listing customers.

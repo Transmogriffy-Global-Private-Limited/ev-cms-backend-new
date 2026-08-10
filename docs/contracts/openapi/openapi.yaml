@@ -4616,6 +4616,59 @@ paths:
                 $ref: "#/components/schemas/ErrorEnvelope"
         "500":
           $ref: "#/components/responses/InternalError"
+  /api/v1/cpo/user-groups/{user_group_id}/members/{customer_id}:
+    delete:
+      summary: Remove a member from a user group
+      description: Removes a customer from a user group.
+      tags:
+        - CPO Network - User Groups
+      parameters:
+        - name: user_group_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: customer_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '204':
+          description: Successfully removed member from user group
+        '400':
+          description: Invalid parameters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+        '404':
+          description: User group or customer not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+
 
   /api/v1/cpo/integrations:
     get:
