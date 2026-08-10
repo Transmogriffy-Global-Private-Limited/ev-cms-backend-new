@@ -1,5 +1,26 @@
 # AI Changelog
 
+## 2026-08-10
+
+### Propagated safe CPO charger metadata to User App discovery
+
+- Added `charger_name`, `charger_type`, `segment`, `sub_segment`,
+  `charger_use_type`, and `parking` to the authenticated User App charger
+  projection used by discovery, detail, hubs, and favorites.
+- Preserved the customer boundary: charger-host contact details, connection
+  URLs, sanctioned load, and HAL-owned live state are not exposed.
+- Reconciled CPO connector create/update documentation and the embedded OpenAPI
+  example with the current runtime request field
+  `connector_total_capacity`, eliminating the contract-validation failure.
+
+Verification:
+
+- `./scripts/verify-docs.ps1` passed.
+- `go test ./src/customerauth -count=1` passed.
+- OpenAPI/runtime route-contract verification passed.
+- `go test ./...` and `go vet ./...` passed.
+- The capacity-field residue scan and `git diff --check` passed.
+
 ## 2026-08-07
 
 ### Rehosted CPO connector-capacity contract revision

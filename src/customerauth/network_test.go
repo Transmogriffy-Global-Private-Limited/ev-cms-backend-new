@@ -76,12 +76,15 @@ func TestCustomerNetworkProjectionDoesNotClaimLiveAvailability(t *testing.T) {
 	chargerID := uuid.New()
 	vendor := "Delta"
 	model := "Wallbox"
+	hub := &models.Hub{Name: "Salt Lake Hub", Address: "Sector V", Latitude: 22.5726, Longitude: 88.3639, Open24Hours: true}
 	charger := models.Charger{
 		ID: chargerID, HubID: &hubID, ChargerID: "abc123", Vendor: &vendor,
-		Model: &model, MaxPowerKW: 7.4, OCPPVersion: "1.6J",
+		Hub: hub, Model: &model, MaxPowerKW: 7.4, OCPPVersion: "1.6J",
+		ChargerName: "Lakefront Fast Charger", ChargerType: "DC", Segment: "Public",
+		SubSegment: "Highway", ChargerUseType: "Commercial", Parking: "Covered",
 		Status: constants.ChargerStatusActive, Connectors: []models.Connector{{
 			ID: uuid.New(), ConnectorNumber: 1, ConnectorType: "TYPE2",
-			Status: constants.ChargerStatusActive,
+			ConnectorTotalCapacity: 7.4, Status: constants.ChargerStatusActive,
 		}},
 	}
 	projection := customerChargerView(charger, false)
@@ -90,6 +93,15 @@ func TestCustomerNetworkProjectionDoesNotClaimLiveAvailability(t *testing.T) {
 	}
 	if projection.Connectors[0].Availability != customerAvailabilityUnknown {
 		t.Fatalf("connector availability=%q, want UNKNOWN", projection.Connectors[0].Availability)
+	}
+	if projection.ChargerName != "Lakefront Fast Charger" || projection.ChargerType != "DC" || projection.Segment != "Public" || projection.SubSegment != "Highway" || projection.ChargerUseType != "Commercial" || projection.Parking != "Covered" {
+		t.Fatalf("customer-safe charger metadata was not preserved: %#v", projection)
+	}
+	if projection.HubName != "Salt Lake Hub" || projection.HubAddress != "Sector V" || projection.HubLatitude == nil || *projection.HubLatitude != 22.5726 || projection.HubLongitude == nil || *projection.HubLongitude != 88.3639 || projection.Open24Hours == nil || !*projection.Open24Hours {
+		t.Fatalf("customer-safe hub metadata was not preserved: %#v", projection)
+	}
+	if projection.Connectors[0].ConnectorTotalCapacity != 7.4 {
+		t.Fatalf("connector capacity=%v, want 7.4", projection.Connectors[0].ConnectorTotalCapacity)
 	}
 }
 

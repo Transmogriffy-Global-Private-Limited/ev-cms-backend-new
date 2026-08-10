@@ -80,12 +80,18 @@ type CustomerChargerView struct {
 	ID              uuid.UUID               `json:"id"`
 	HubID           uuid.UUID               `json:"hub_id"`
 	ChargerID       string                  `json:"charger_id"`
+	ChargerName     string                  `json:"charger_name,omitempty"`
 	Vendor          *string                 `json:"vendor,omitempty"`
 	Model           *string                 `json:"model,omitempty"`
 	MaxPowerKW      float64                 `json:"max_power_kw"`
 	OCPPVersion     string                  `json:"ocpp_version"`
 	Status          constants.ChargerStatus `json:"status"`
 	ChargerImageURL *string                 `json:"charger_image_url,omitempty"`
+	ChargerType     string                  `json:"charger_type,omitempty"`
+	Segment         string                  `json:"segment,omitempty"`
+	SubSegment      string                  `json:"sub_segment,omitempty"`
+	ChargerUseType  string                  `json:"charger_use_type,omitempty"`
+	Parking         string                  `json:"parking,omitempty"`
 	HubName         string                  `json:"hub_name,omitempty"`
 	HubAddress      string                  `json:"hub_address,omitempty"`
 	HubLatitude     *float64                `json:"hub_latitude,omitempty"`
@@ -411,7 +417,7 @@ func customerChargerView(record models.Charger, favorite bool) CustomerChargerVi
 			Availability:           customerAvailabilityUnknown,
 		})
 	}
-	view := CustomerChargerView{ID: record.ID, HubID: hubID, ChargerID: record.ChargerID, Vendor: record.Vendor, Model: record.Model, MaxPowerKW: record.MaxPowerKW, OCPPVersion: record.OCPPVersion, Status: record.Status, ChargerImageURL: customerChargerImageURL(record), Availability: customerAvailabilityUnknown, IsFavorite: favorite, Connectors: connectors}
+	view := CustomerChargerView{ID: record.ID, HubID: hubID, ChargerID: record.ChargerID, ChargerName: record.ChargerName, Vendor: record.Vendor, Model: record.Model, MaxPowerKW: record.MaxPowerKW, OCPPVersion: record.OCPPVersion, Status: record.Status, ChargerImageURL: customerChargerImageURL(record), ChargerType: record.ChargerType, Segment: record.Segment, SubSegment: record.SubSegment, ChargerUseType: record.ChargerUseType, Parking: record.Parking, Availability: customerAvailabilityUnknown, IsFavorite: favorite, Connectors: connectors}
 	if record.Hub != nil {
 		open24Hours := record.Hub.Open24Hours
 		view.HubName = record.Hub.Name

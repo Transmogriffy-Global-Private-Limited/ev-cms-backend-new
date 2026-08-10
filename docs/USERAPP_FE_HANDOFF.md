@@ -283,12 +283,18 @@ export type CustomerCharger = {
   id: string;
   hub_id: string;
   charger_id: string; // six-character public ID
+  charger_name?: string;
   vendor?: string;
   model?: string;
   max_power_kw: number;
   ocpp_version: string;
   status: CustomerNetworkStatus;
   charger_image_url?: string; // authenticated relative API path
+  charger_type?: string;
+  segment?: string;
+  sub_segment?: string;
+  charger_use_type?: string;
+  parking?: string;
   hub_name?: string;
   hub_address?: string;
   hub_latitude?: number;
@@ -448,9 +454,12 @@ the CMS `status` as online, available, offline, or live state; a later
 HAL-backed contract must define those states, reconnect behavior, and REST
 recovery before the app depends on them.
 
-The safe projection omits OCPP identity, serial number, last-seen timestamps,
-sanctioned load, CPO notes, and audit data. Favorite flags are present in the
-same safe projection used by the favorite list.
+The safe projection includes display-safe charger metadata (`charger_name`,
+`charger_type`, `segment`, `sub_segment`, `charger_use_type`, and `parking`).
+It omits OCPP identity, serial number, last-seen timestamps, charger-host
+contact details, connection URLs, sanctioned load, CPO notes, and audit data.
+Favorite flags are present in the same safe projection used by the favorite
+list.
 
 When present, `charger_image_url` is a relative path such as
 `/api/v1/app/chargers/a1b2c3/image`; it is not the storage path. The image

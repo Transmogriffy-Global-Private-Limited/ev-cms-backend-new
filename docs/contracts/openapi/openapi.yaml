@@ -5482,6 +5482,7 @@ components:
           type: string
           pattern: "^[a-z0-9]{6}$"
           description: Public six-character charger identifier.
+        charger_name: {type: string, maxLength: 255}
         vendor: {type: string, maxLength: 100, nullable: true}
         model: {type: string, maxLength: 100, nullable: true}
         max_power_kw: {type: number, minimum: 0}
@@ -5492,6 +5493,11 @@ components:
           type: string
           format: uri-reference
           description: Relative authenticated User App image route, present only when this charger has an uploaded image.
+        charger_type: {type: string, maxLength: 100}
+        segment: {type: string, maxLength: 100}
+        sub_segment: {type: string, maxLength: 100}
+        charger_use_type: {type: string, maxLength: 100}
+        parking: {type: string, maxLength: 100}
         hub_name: {type: string, maxLength: 255}
         hub_address: {type: string}
         hub_latitude: {type: number, minimum: -90, maximum: 90}
@@ -6886,7 +6892,7 @@ components:
         connectors:
           - connector_number: 1
             connector_type: CCS2
-            total_capacity: 22.5
+            connector_total_capacity: 22.5
 
     UpdateConnectorRequest:
       type: object

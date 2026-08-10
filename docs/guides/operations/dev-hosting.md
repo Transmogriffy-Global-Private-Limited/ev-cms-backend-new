@@ -47,8 +47,8 @@ migration 25 removes charger-level `total_capacity`; connector-level capacity
 remains supported. Charger vendor/model metadata is optional and is preserved as
 null when omitted. Migration 26 removes obsolete connector current/voltage
 columns; `connector_total_capacity` remains the connector capacity field.
-CPO connector create/update requests use `total_capacity`; CPO connector
-responses use `connector_total_capacity`.
+CPO connector create/update requests and responses use
+`connector_total_capacity`.
 GSTIN and complete address identity
 are database-required for CPOs, the
 authenticated platform slug-availability route is live, and known uniqueness

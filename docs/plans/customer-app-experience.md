@@ -164,14 +164,16 @@ bounded, stable keyset pagination. Query/filter changes discard old cursors.
 
 - Hub: ID, name, address, latitude, longitude, 24-hour flag, customer-visible
   metadata, and a customer-owned favorite flag.
-- Charger: ID, public charger ID, vendor/model only if approved for display,
-  maximum power, OCPP version, static CMS administrative status, attached
-  connector summaries, optional authenticated image route, and favorite flag.
+- Charger: ID, public charger ID, display-safe charger name/category/use and
+  parking metadata, vendor/model only if approved for display, maximum power,
+  OCPP version, static CMS administrative status, attached connector summaries,
+  optional authenticated image route, and favorite flag.
 - Connector: ID, number, connector type, connector total capacity, and static
   CMS administrative status.
 
-Never expose OCPP identity, serial number, sanctioned load, CPO-admin notes,
-or raw audit data. The DB-backed CMS `status` is exposed separately from, and
+Never expose OCPP identity, serial number, charger-host contact details,
+connection URLs, sanctioned load, CPO-admin notes, or raw audit data. The
+DB-backed CMS `status` is exposed separately from, and
 must never be rendered as, current availability. Until HAL integration, the response explicitly uses
 `availability: "UNKNOWN"` and includes no false live/online claim.
 

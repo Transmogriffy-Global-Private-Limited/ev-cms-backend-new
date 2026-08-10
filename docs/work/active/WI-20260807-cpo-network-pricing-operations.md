@@ -4,7 +4,7 @@ Status: In Progress
 Owner: Abhranil Pal
 Collaborators: Codex (guarded development-host deployment and verification)
 Started: 2026-08-07
-Last updated: 2026-08-07
+Last updated: 2026-08-10
 
 Development-plan reference:
 
@@ -52,9 +52,8 @@ backend work.
 ## Contract impact
 
 - CPO ADMIN customer list/detail reads are tenant-scoped and read-only.
-- CPO connector create/update requests use `total_capacity`; CPO connector
-  response objects use `connector_total_capacity`, matching the persisted
-  connector-capacity field.
+- CPO connector create/update requests and response objects use
+  `connector_total_capacity`, matching the persisted connector-capacity field.
 - Charger projections may include `hub_name` when a same-CPO hub is assigned.
 
 ## Data and migration impact
@@ -70,6 +69,9 @@ documents the runtime `connector_total_capacity` projection.
 
 ## Verification
 
+- The current OpenAPI request example, route-contract check, `go test ./...`,
+  `go vet ./...`, and `git diff --check` passed after the capacity-name
+  reconciliation.
 - OpenAPI/runtime route-contract verification passed.
 - `go test ./...` passed.
 - `go vet ./...` passed.
@@ -89,11 +91,9 @@ documents the runtime `connector_total_capacity` projection.
 ## Handoff
 
 The CPO implementation remains owned by Abhranil Pal. The current deployment
-contains no schema change. Future changes to the listed CPO contracts must
-preserve the deliberate capacity-field split: `total_capacity` for connector
-create/update request payloads and `connector_total_capacity` for connector
-response objects. Update the canonical OpenAPI, human contract, consumer
-guidance, and verification together.
+contains no schema change. Connector create/update request payloads and
+response objects use `connector_total_capacity`. Update the canonical OpenAPI,
+human contract, consumer guidance, and verification together.
 
 ## Completion
 

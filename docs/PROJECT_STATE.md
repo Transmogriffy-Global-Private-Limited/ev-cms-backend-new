@@ -120,9 +120,10 @@ provides:
   `UNAVAILABLE` states, and User Tariff > charger tariff > hub tariff
   precedence;
 - authenticated User App charger search/filter and bounded near-me reads over
-  published hubs, with safe hub/connector projections, DB-backed status and
-  connector total capacity, an authenticated charger-image route keyed by
-  public charger ID, and explicit UNKNOWN live availability;
+  published hubs, with safe hub, display/category/parking charger, and
+  connector projections; DB-backed status and connector total capacity; an
+  authenticated charger-image route keyed by public charger ID; and explicit
+  UNKNOWN live availability;
 - authenticated CPO/customer-scoped wallet balance and keyset-paginated wallet
   history reads using exact decimal projections;
 - User App Razorpay recharge order creation and captured-payment verification
@@ -176,10 +177,9 @@ The CPO charger response also exposes a read-only `assigned` projection that
 matches hub attachment, and Swagger groups CPO operations by account/network,
 pricing/tax, and integration responsibilities.
 The CPO ADMIN customer directory is read-only and tenant-scoped, and CPO
-charger projections expose `hub_name` when assigned. Connector capacity remains
-stored as `connector_total_capacity`; CPO connector create/update requests use
-`total_capacity`, while CPO connector response projections use
-`connector_total_capacity`.
+charger projections expose `hub_name` when assigned. Connector capacity is
+stored and exposed as `connector_total_capacity` in CPO create/update requests
+and response projections, as well as User App connector projections.
 Migration
 twenty-seven replaces legacy charger/connector protocol-style states with the
 static CMS administrative values `ACTIVE`, `INACTIVE`, `SUSPENDED`,
@@ -219,9 +219,8 @@ twenty makes customer accounts CPO-local with dedicated authentication lineage,
 and migrations 21–22 add customer-visible network discovery and Razorpay wallet
 recharge ledger support. Migration twenty-six removes obsolete connector
 current/voltage fields; connector capacity is represented by
-`connector_total_capacity`. CPO connector create/update requests use
-`total_capacity`, while connector response projections use
-`connector_total_capacity`.
+`connector_total_capacity` in CPO create/update requests and response
+projections, and in User App connector projections.
 
 The deployed recovery flow fixes a recovery-specific OTP mapper defect that discarded
 `challenge_id` before outbox validation and caused eligible administrative and
