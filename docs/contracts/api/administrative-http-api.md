@@ -2390,6 +2390,18 @@ or removes one CPO-owned user group. `PATCH` accepts a non-empty subset of
 Deletion returns `204 No Content` and returns `409 user_group_in_use` when a
 tariff still references the group.
 
+`POST /api/v1/cpo/user-groups/{user_group_id}/members` assigns a same-CPO
+customer using `{"customer_id":"<uuid>"}`. Assigning a customer already in
+that group is idempotent and returns `204`; a customer assigned to another
+group returns `409 customer_already_in_group`. Unknown or cross-tenant group
+or customer IDs return the corresponding `404` error.
+
+`DELETE /api/v1/cpo/user-groups/{user_group_id}/members/{customer_id}` removes
+that same-CPO customer from the specified group. Removing a customer who is
+already absent is idempotent and returns `204`; the group and customer are
+still validated for tenant ownership before the no-op result. Both commands
+write tenant audit evidence only when membership changes.
+
 ### 9.23 `GET /api/v1/cpo/subscription`
 
 Returns the current non-terminal subscription details for the authenticated
@@ -2530,6 +2542,7 @@ The response is a safe projection:
   "phone": "+919876543210",
   "status": "ACTIVE",
   "is_verified": true,
+  "usergroup_assigned": false,
   "created_at": "2026-07-23T12:00:00Z",
   "last_login_at": "2026-07-23T12:05:00Z"
 }

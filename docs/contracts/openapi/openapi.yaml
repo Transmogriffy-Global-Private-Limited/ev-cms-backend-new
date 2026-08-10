@@ -4618,10 +4618,11 @@ paths:
           $ref: "#/components/responses/InternalError"
   /api/v1/cpo/user-groups/{user_group_id}/members/{customer_id}:
     delete:
+      operationId: removeMemberFromUserGroup
       summary: Remove a member from a user group
       description: Removes a customer from a user group.
       tags:
-        - CPO Network - User Groups
+        - CPO Operations - Pricing & Tax
       parameters:
         - name: user_group_id
           in: path
@@ -4643,31 +4644,31 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/APIError'
+                $ref: '#/components/schemas/ErrorEnvelope'
         '401':
           description: Unauthorized
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/APIError'
+                $ref: '#/components/schemas/ErrorEnvelope'
         '403':
           description: Forbidden
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/APIError'
+                $ref: '#/components/schemas/ErrorEnvelope'
         '404':
           description: User group or customer not found
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/APIError'
+                $ref: '#/components/schemas/ErrorEnvelope'
         '500':
           description: Internal server error
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/APIError'
+                $ref: '#/components/schemas/ErrorEnvelope'
 
 
   /api/v1/cpo/integrations:
@@ -5849,6 +5850,9 @@ components:
           type: string
         is_verified:
           type: boolean
+        usergroup_assigned:
+          type: boolean
+          description: Whether the customer currently belongs to a user group.
         last_login_at:
           type: string
           format: date-time
