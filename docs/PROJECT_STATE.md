@@ -171,8 +171,8 @@ provides:
   handler;
 - the additive PostgreSQL database `devevcmsnewdb`, owned by `postgres`.
 
-The active development VPS runs source revision `9b57f20`, with migrations
-through twenty-seven recorded and the deployed 137-operation contract. The
+The active development VPS runs source revision `ee407da`, with migrations
+through twenty-seven recorded and the deployed 150-operation contract. The
 User App can serve an authenticated published charger's allowed image through
 its relative `charger_image_url`, without exposing the stored upload path.
 The CPO charger response also exposes a read-only `assigned` projection that
@@ -185,6 +185,8 @@ and response projections, as well as User App connector projections.
 User App hub summaries expose `open_24_hours`; charger projections separately
 expose the charger's `twenty_four_seven_open_status` and the attached hub's
 `hub_open_24_hours`.
+CPO hub, charger, and user-group tariff routes are tenant-scoped; CPO user-group
+CRUD is protected by the same administrative authorization boundary.
 Migration
 twenty-seven replaces legacy charger/connector protocol-style states with the
 static CMS administrative values `ACTIVE`, `INACTIVE`, `SUSPENDED`,
@@ -277,11 +279,11 @@ implemented yet.
 - `git diff --check` passed. Stateful PostgreSQL lifecycle verification is
   intentionally deferred by the current workstream decision; no stateful
   result is claimed.
-- Revision `9b57f20` was built from a clean worktree and rehosted without a
+- Revision `ee407da` was built from a clean worktree and rehosted without a
   new migration. The running systemd process matches the installed binary
-  SHA-256 and embeds revision `9b57f20b988431a25f5a24a75ef7eb04f6672a49`
+  SHA-256 and embeds revision `ee407da708ee8b392ca41e754878996ab30f51c0`
   with `vcs.modified=false`. The service is active and enabled; loopback and
-  public liveness/readiness passed; the live OpenAPI contains 137 operations;
+  public liveness/readiness passed; the live OpenAPI contains 150 operations;
   the live CPO `Connector` response schema exposes
   `connector_total_capacity`; and the post-start fatal-error scan passed.
   The PowerShell documentation verifier remains unavailable on this Ubuntu

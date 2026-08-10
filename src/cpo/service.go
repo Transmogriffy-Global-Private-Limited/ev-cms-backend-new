@@ -1996,8 +1996,6 @@ func (service *Service) CreateCharger(
 	return service.chargerView(record, principal), nil
 }
 
-
-
 func (service *Service) CreateHubTariff(
 	ctx context.Context,
 	principal auth.Principal,
@@ -4494,8 +4492,6 @@ func validateTariffDateRange(startDate, endDate *time.Time) error {
 	return nil
 }
 
-
-
 func mapGSTNotFound(err error) error {
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return &auth.APIError{
@@ -4517,8 +4513,6 @@ func mapUserGroupNotFound(err error) error {
 	}
 	return fmt.Errorf("load user group: %w", err)
 }
-
-
 
 func (service *Service) tariffView(record *models.Tariff) TariffView {
 	return TariffView{
@@ -4578,8 +4572,6 @@ func (service *Service) handleTariffError(operation string, err error) error {
 	}
 	return fmt.Errorf("%s: %w", operation, err)
 }
-
-
 
 func (service *Service) CreateGST(
 	ctx context.Context,

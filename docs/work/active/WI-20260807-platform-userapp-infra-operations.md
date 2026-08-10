@@ -89,7 +89,7 @@ alongside safe hub fields and `connector_total_capacity`. Hub
 `open_24_hours`, charger `twenty_four_seven_open_status`, and
 `hub_open_24_hours` are separately represented. Charger-host contact details,
 connection URLs, sanctioned load, and HAL-owned state remain excluded. The
-development VPS now runs application revision `9b57f20`; the correction
+development VPS now runs application revision `ee407da`; the correction
 introduced no migration or DNS/configuration change.
 
 ## Verification
@@ -110,16 +110,16 @@ introduced no migration or DNS/configuration change.
 - `go test ./...` passed.
 - `go vet ./...` passed.
 - `git diff --check` passed.
-- Revision `9b57f20` is active under `evcmsnew-dev.service`; the running
+- Revision `ee407da` is active under `evcmsnew-dev.service`; the running
   process matches the installed binary and the expected VCS revision.
 - Loopback/public liveness and readiness passed.
-- The live OpenAPI exposes 137 operations, and the live CPO connector
+- The live OpenAPI exposes 150 operations, and the live CPO connector
   response schema reflects `connector_total_capacity`.
 - The post-start fatal-error scan passed.
 - No migration file changed from the previously deployed revision.
 - The protected User App charger route returned `401` without credentials.
 - The current release is active on the loopback listener and public health and
-  Swagger routes passed; the live OpenAPI contains 137 operations.
+  Swagger routes passed; the live OpenAPI contains 150 operations.
 - The User App documentation remains aligned with its FE handoff and OpenAPI
   `connector_total_capacity` field.
 - The PowerShell documentation verifier was not run because `pwsh` is

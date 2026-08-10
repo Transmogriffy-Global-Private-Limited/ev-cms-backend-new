@@ -885,6 +885,10 @@ Current implementation slice:
 
 Last completed slice:
 
+- Added tenant-scoped CPO hub, charger, and user-group tariff operations plus
+  protected user-group CRUD, with service validation, OpenAPI parity, and
+  integration coverage. This source revision was rehosted without a new
+  migration.
 - Split User App hub and charger opening-hour fields into distinct serialized
   contract values (`open_24_hours`, `twenty_four_seven_open_status`, and
   `hub_open_24_hours`), with opposing-value projection coverage and synchronized
@@ -961,13 +965,12 @@ Last completed slice:
 
 Last deployment milestone:
 
-- Revision `9b57f20` was built from a clean worktree and rehosted on the
+- Revision `ee407da` was built from a clean worktree and rehosted on the
   development VPS without a new migration. Running-binary SHA/VCS identity,
   active/enabled systemd state, loopback/public liveness and readiness, the
-  live 137-operation OpenAPI surface, the CPO `Connector`
-  `connector_total_capacity` response contract, and the post-start fatal-error
-  scan were verified. The disposable PostgreSQL lifecycle remains pending
-  without `TEST_DATABASE_URL`.
+  live 150-operation OpenAPI surface, protected CPO tariff/user-group routes,
+  and the post-start fatal-error scan were verified. The disposable PostgreSQL
+  lifecycle remains pending without `TEST_DATABASE_URL`.
 
 Next expected slice:
 

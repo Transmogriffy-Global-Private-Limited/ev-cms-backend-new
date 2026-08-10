@@ -2,6 +2,26 @@
 
 ## 2026-08-10
 
+### Reconciled scoped CPO tariff and user-group contracts
+
+- Added and reconciled tenant-scoped CPO tariff operations for hubs, chargers,
+  and user groups, plus CPO user-group CRUD, with matching service validation,
+  authorization, OpenAPI, and route-contract coverage.
+- No database migration was introduced; the live database remains at migration
+  twenty-seven.
+- Built and rehosted source revision `ee407da`; the live contract now exposes
+  150 operations.
+
+Verification:
+
+- OpenAPI/runtime route-contract verification, `go test ./...`, and `go vet ./...`
+  passed.
+- Protected tariff and user-group routes return `401` without credentials.
+- Local/public liveness and readiness, Swagger UI, live OpenAPI, and the
+  post-restart warning journal passed.
+- The PowerShell documentation verifier was not run because `pwsh` is
+  unavailable on this Ubuntu host.
+
 ### Propagated safe CPO charger metadata to User App discovery
 
 - Added `charger_name`, `charger_type`, `segment`, `sub_segment`,
