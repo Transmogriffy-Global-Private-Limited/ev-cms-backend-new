@@ -36,13 +36,13 @@ tags:
     description: Password, email OTP, token, password, and session operations.
   - name: App User Authentication
     description: Public signup and complete customer credential/session operations.
-  - name: Platform CPOs
+  - name: Superadmin - Platform CPOs
     description: Platform-superadmin CPO provisioning and lifecycle control.
-  - name: Platform Operations
+  - name: Superadmin - Platform Operations
     description: Durable audit, event recovery, worker health, and realtime operations.
-  - name: Superadmin Governance
+  - name: Superadmin - Governance
     description: Platform authority, security, mail, communication, and bounded status operations.
-  - name: Manual Subscriptions
+  - name: Superadmin - Manual Subscriptions
     description: Platform-superadmin issued subscription plans and periods without a payment provider or automatic lifecycle worker.
   - name: CPO Operations - Account & Notifications
     description: Tenant-scoped organization, administrator profile, subscription, user lookup, and notification operations.
@@ -1762,7 +1762,7 @@ paths:
 
   /api/v1/platform/events:
     get:
-      tags: [Platform Operations]
+      tags: [Superadmin - Platform Operations]
       operationId: listPlatformEvents
       summary: Recover durable platform events after a cursor
       description: |
@@ -1821,7 +1821,7 @@ paths:
 
   /api/v1/platform/realtime/stream:
     get:
-      tags: [Platform Operations]
+      tags: [Superadmin - Platform Operations]
       operationId: streamPlatformEvents
       summary: Stream durable platform events using SSE
       description: |
@@ -1896,7 +1896,7 @@ paths:
 
   /api/v1/platform/audit-logs:
     get:
-      tags: [Platform Operations]
+      tags: [Superadmin - Platform Operations]
       operationId: listPlatformAuditLogs
       summary: Query privileged audit records
       description: |
@@ -1972,7 +1972,7 @@ paths:
 
   /api/v1/platform/workers:
     get:
-      tags: [Platform Operations]
+      tags: [Superadmin - Platform Operations]
       operationId: listPlatformWorkers
       summary: List durable worker health
       description: |
@@ -1997,7 +1997,7 @@ paths:
 
   /api/v1/platform/administrators:
     get:
-      tags: [Superadmin Governance]
+      tags: [Superadmin - Governance]
       operationId: listPlatformAdministrators
       summary: List platform administrators
       description: Lists platform authority records. Inactive authority is omitted unless requested.
@@ -2015,7 +2015,7 @@ paths:
         "403": {$ref: "#/components/responses/Forbidden"}
         "500": {$ref: "#/components/responses/InternalError"}
     post:
-      tags: [Superadmin Governance]
+      tags: [Superadmin - Governance]
       operationId: invitePlatformAdministrator
       summary: Invite or grant platform authority
       description: Creates a new global identity when needed, or grants authority to an existing active identity. New identities receive an encrypted temporary-password invitation through the mail outbox.
@@ -2032,7 +2032,7 @@ paths:
 
   /api/v1/platform/administrators/{user_id}/activate:
     post:
-      tags: [Superadmin Governance]
+      tags: [Superadmin - Governance]
       operationId: activatePlatformAdministrator
       summary: Activate platform authority
       security: [{BearerAuth: []}]
@@ -2048,7 +2048,7 @@ paths:
 
   /api/v1/platform/administrators/{user_id}/deactivate:
     post:
-      tags: [Superadmin Governance]
+      tags: [Superadmin - Governance]
       operationId: deactivatePlatformAdministrator
       summary: Deactivate platform authority
       description: Retains the global identity, revokes its platform sessions, and refuses to deactivate the last active platform administrator.
@@ -2066,7 +2066,7 @@ paths:
 
   /api/v1/platform/security/locked-identities:
     get:
-      tags: [Superadmin Governance]
+      tags: [Superadmin - Governance]
       operationId: listLockedIdentities
       summary: List currently locked identities
       security: [{BearerAuth: []}]
@@ -2079,7 +2079,7 @@ paths:
 
   /api/v1/platform/security/events:
     get:
-      tags: [Superadmin Governance]
+      tags: [Superadmin - Governance]
       operationId: listSecurityEvents
       summary: List security audit events
       security: [{BearerAuth: []}]
@@ -2092,7 +2092,7 @@ paths:
 
   /api/v1/platform/security/users/{user_id}/unlock:
     post:
-      tags: [Superadmin Governance]
+      tags: [Superadmin - Governance]
       operationId: unlockIdentity
       summary: Unlock a locked identity
       security: [{BearerAuth: []}]
@@ -2109,7 +2109,7 @@ paths:
 
   /api/v1/platform/security/users/{user_id}/sessions/revoke:
     post:
-      tags: [Superadmin Governance]
+      tags: [Superadmin - Governance]
       operationId: revokeUserSessionsAsPlatform
       summary: Revoke a user's administrative sessions
       description: Revokes PLATFORM, CPO, or ALL sessions and their unused refresh tokens. CPO scope requires cpo_id.
@@ -2126,7 +2126,7 @@ paths:
 
   /api/v1/platform/mail/jobs:
     get:
-      tags: [Superadmin Governance]
+      tags: [Superadmin - Governance]
       operationId: listMailJobs
       summary: List safe mail job metadata
       security: [{BearerAuth: []}]
@@ -2155,7 +2155,7 @@ paths:
 
   /api/v1/platform/mail/jobs/{job_id}:
     get:
-      tags: [Superadmin Governance]
+      tags: [Superadmin - Governance]
       operationId: getMailJob
       summary: Get safe mail job metadata
       security: [{BearerAuth: []}]
@@ -2169,7 +2169,7 @@ paths:
 
   /api/v1/platform/mail/jobs/{job_id}/retry:
     post:
-      tags: [Superadmin Governance]
+      tags: [Superadmin - Governance]
       operationId: retryMailJob
       summary: Retry a failed mail job
       security: [{BearerAuth: []}]
@@ -2184,7 +2184,7 @@ paths:
 
   /api/v1/platform/mail/jobs/{job_id}/cancel:
     post:
-      tags: [Superadmin Governance]
+      tags: [Superadmin - Governance]
       operationId: cancelMailJob
       summary: Cancel an unsent mail job
       security: [{BearerAuth: []}]
@@ -2201,7 +2201,7 @@ paths:
 
   /api/v1/platform/mail/metrics:
     get:
-      tags: [Superadmin Governance]
+      tags: [Superadmin - Governance]
       operationId: getMailMetrics
       summary: Get mail delivery metrics
       security: [{BearerAuth: []}]
@@ -2213,7 +2213,7 @@ paths:
 
   /api/v1/platform/mail/reconcile:
     post:
-      tags: [Superadmin Governance]
+      tags: [Superadmin - Governance]
       operationId: reconcileMailJobs
       summary: Requeue stale processing mail jobs
       security: [{BearerAuth: []}]
@@ -2227,7 +2227,7 @@ paths:
 
   /api/v1/platform/mail/retention:
     post:
-      tags: [Superadmin Governance]
+      tags: [Superadmin - Governance]
       operationId: retainMailJobs
       summary: Remove old terminal mail jobs
       description: Deletes only SENT or CANCELED jobs older than the supplied cutoff. The cutoff must be at least 30 days old.
@@ -2242,7 +2242,7 @@ paths:
 
   /api/v1/platform/announcements:
     get:
-      tags: [Superadmin Governance]
+      tags: [Superadmin - Governance]
       operationId: listPlatformAnnouncements
       summary: List platform announcements
       security: [{BearerAuth: []}]
@@ -2253,7 +2253,7 @@ paths:
         "403": {$ref: "#/components/responses/Forbidden"}
         "500": {$ref: "#/components/responses/InternalError"}
     post:
-      tags: [Superadmin Governance]
+      tags: [Superadmin - Governance]
       operationId: createPlatformAnnouncement
       summary: Create a platform or CPO announcement
       description: Creates an immutable audience snapshot and durable notification records in one transaction.
@@ -2269,7 +2269,7 @@ paths:
 
   /api/v1/platform/notifications:
     get:
-      tags: [Superadmin Governance]
+      tags: [Superadmin - Governance]
       operationId: listPlatformNotifications
       summary: List the current Superadmin's notifications
       security: [{BearerAuth: []}]
@@ -2282,7 +2282,7 @@ paths:
 
   /api/v1/platform/notifications/{notification_id}/read:
     post:
-      tags: [Superadmin Governance]
+      tags: [Superadmin - Governance]
       operationId: markPlatformNotificationRead
       summary: Mark a platform notification read
       security: [{BearerAuth: []}]
@@ -2296,7 +2296,7 @@ paths:
 
   /api/v1/platform/overview:
     get:
-      tags: [Superadmin Governance]
+      tags: [Superadmin - Governance]
       operationId: getPlatformOverview
       summary: Get bounded platform overview aggregates
       security: [{BearerAuth: []}]
@@ -2308,7 +2308,7 @@ paths:
 
   /api/v1/platform/status:
     get:
-      tags: [Superadmin Governance]
+      tags: [Superadmin - Governance]
       operationId: getPlatformStatus
       summary: Get service, database, and worker status
       security: [{BearerAuth: []}]
@@ -2320,7 +2320,7 @@ paths:
 
   /api/v1/platform/cpos:
     post:
-      tags: [Platform CPOs]
+      tags: [Superadmin - Platform CPOs]
       operationId: createCPO
       summary: Create a pending CPO and its first administrator
       description: |
@@ -2376,7 +2376,7 @@ paths:
         "500":
           $ref: "#/components/responses/InternalError"
     get:
-      tags: [Platform CPOs]
+      tags: [Superadmin - Platform CPOs]
       operationId: listCPOs
       summary: Search and cursor-page CPOs
       description: |
@@ -2444,7 +2444,7 @@ paths:
 
   /api/v1/platform/cpos/slug-availability:
     get:
-      tags: [Platform CPOs]
+      tags: [Superadmin - Platform CPOs]
       operationId: checkCPOSlugAvailability
       summary: Check whether a normalized CPO slug is currently available
       description: |
@@ -2486,7 +2486,7 @@ paths:
 
   /api/v1/platform/cpos/{cpo_id}:
     get:
-      tags: [Platform CPOs]
+      tags: [Superadmin - Platform CPOs]
       operationId: getCPO
       summary: Get one CPO
       security:
@@ -2513,7 +2513,7 @@ paths:
 
   /api/v1/platform/cpos/{cpo_id}/profile:
     put:
-      tags: [Platform CPOs]
+      tags: [Superadmin - Platform CPOs]
       operationId: updateCPOProfile
       summary: Replace the mutable CPO business profile
       description: |
@@ -2563,7 +2563,7 @@ paths:
 
   /api/v1/platform/cpos/{cpo_id}/activate:
     post:
-      tags: [Platform CPOs]
+      tags: [Superadmin - Platform CPOs]
       operationId: activateCPO
       summary: Set a CPO active
       description: |
@@ -2604,7 +2604,7 @@ paths:
 
   /api/v1/platform/cpos/{cpo_id}/suspend:
     post:
-      tags: [Platform CPOs]
+      tags: [Superadmin - Platform CPOs]
       operationId: suspendCPO
       summary: Suspend a CPO and revoke its sessions
       description: |
@@ -2645,7 +2645,7 @@ paths:
 
   /api/v1/platform/cpos/{cpo_id}/app-id:
     put:
-      tags: [Platform CPOs]
+      tags: [Superadmin - Platform CPOs]
       operationId: setLiveCPOAppID
       summary: Assign or rotate the live CPO app ID
       description: |
@@ -2693,7 +2693,7 @@ paths:
 
   /api/v1/platform/cpos/{cpo_id}/primary-admin:
     get:
-      tags: [Platform CPOs]
+      tags: [Superadmin - Platform CPOs]
       operationId: getCPOPrimaryAdmin
       summary: Get the designated primary administrator
       description: |
@@ -2726,7 +2726,7 @@ paths:
         "500":
           $ref: "#/components/responses/InternalError"
     put:
-      tags: [Platform CPOs]
+      tags: [Superadmin - Platform CPOs]
       operationId: setCPOPrimaryAdmin
       summary: Restore or replace the primary administrator
       description: |
@@ -2784,7 +2784,7 @@ paths:
 
   /api/v1/platform/cpos/{cpo_id}/primary-admin/resend-onboarding:
     post:
-      tags: [Platform CPOs]
+      tags: [Superadmin - Platform CPOs]
       operationId: resendCPOPrimaryAdminOnboarding
       summary: Queue a credential-free onboarding recovery email
       description: |
@@ -2837,7 +2837,7 @@ paths:
 
   /api/v1/platform/cpos/{cpo_id}/administrative-sessions/revoke:
     post:
-      tags: [Platform CPOs]
+      tags: [Superadmin - Platform CPOs]
       operationId: revokeCPOAdministrativeSessions
       summary: Revoke every active CPO-staff session
       description: |
@@ -4748,7 +4748,7 @@ paths:
 
   /api/v1/platform/plans:
     get:
-      tags: [Manual Subscriptions]
+      tags: [Superadmin - Manual Subscriptions]
       operationId: listSubscriptionPlans
       summary: List the platform subscription catalog
       security: [{BearerAuth: []}]
@@ -4758,7 +4758,7 @@ paths:
         "403": {$ref: "#/components/responses/PlatformForbidden"}
         "500": {$ref: "#/components/responses/InternalError"}
     post:
-      tags: [Manual Subscriptions]
+      tags: [Superadmin - Manual Subscriptions]
       operationId: createSubscriptionPlan
       summary: Create a draft subscription plan and its first draft version
       description: The server generates all identifiers. A plan cannot be issued until a superadmin publishes its version.
@@ -4774,7 +4774,7 @@ paths:
 
   /api/v1/platform/plans/{plan_id}:
     get:
-      tags: [Manual Subscriptions]
+      tags: [Superadmin - Manual Subscriptions]
       operationId: getSubscriptionPlan
       summary: Get a subscription plan and its versions
       security: [{BearerAuth: []}]
@@ -4788,7 +4788,7 @@ paths:
 
   /api/v1/platform/plans/{plan_id}/draft:
     put:
-      tags: [Manual Subscriptions]
+      tags: [Superadmin - Manual Subscriptions]
       operationId: updateSubscriptionPlanDraft
       summary: Create or replace the plan's single editable draft version
       description: Published versions are immutable. This operation creates the next server-numbered version when no draft exists.
@@ -4806,7 +4806,7 @@ paths:
 
   /api/v1/platform/plans/{plan_id}/publish:
     post:
-      tags: [Manual Subscriptions]
+      tags: [Superadmin - Manual Subscriptions]
       operationId: publishSubscriptionPlan
       summary: Publish the plan's current draft version
       security: [{BearerAuth: []}]
@@ -4821,7 +4821,7 @@ paths:
 
   /api/v1/platform/plans/{plan_id}/archive:
     post:
-      tags: [Manual Subscriptions]
+      tags: [Superadmin - Manual Subscriptions]
       operationId: archiveSubscriptionPlan
       summary: Archive a plan so it can no longer be issued
       description: Existing subscriptions continue to retain their immutable plan version.
@@ -4836,7 +4836,7 @@ paths:
 
   /api/v1/platform/cpos/{cpo_id}/subscription:
     get:
-      tags: [Manual Subscriptions]
+      tags: [Superadmin - Manual Subscriptions]
       operationId: getCurrentCPOSubscription
       summary: Get the CPO's current manually managed subscription
       security: [{BearerAuth: []}]
@@ -4848,7 +4848,7 @@ paths:
         "404": {$ref: "#/components/responses/SubscriptionNotFound"}
         "500": {$ref: "#/components/responses/InternalError"}
     post:
-      tags: [Manual Subscriptions]
+      tags: [Superadmin - Manual Subscriptions]
       operationId: issueCPOSubscription
       summary: Manually issue a subscription from a published plan version
       description: This is a platform-superadmin command, not payment-provider fulfillment. It records a period but does not automatically renew, activate, expire, or alter CPO access.
@@ -4866,7 +4866,7 @@ paths:
 
   /api/v1/platform/cpos/{cpo_id}/subscription/renew:
     post:
-      tags: [Manual Subscriptions]
+      tags: [Superadmin - Manual Subscriptions]
       operationId: renewCPOSubscription
       summary: Manually record the next subscription period
       description: There is no automatic renewal. This command recalculates the period from the recorded plan terms; it does not reactivate a paused or past-due subscription.
@@ -4884,7 +4884,7 @@ paths:
 
   /api/v1/platform/cpos/{cpo_id}/subscription/change-plan:
     post:
-      tags: [Manual Subscriptions]
+      tags: [Superadmin - Manual Subscriptions]
       operationId: changeCPOSubscriptionPlan
       summary: Immediately switch a current subscription to a published plan version
       description: Scheduled provider changes are intentionally unsupported; this command is the explicit manual action.
@@ -4895,7 +4895,7 @@ paths:
 
   /api/v1/platform/cpos/{cpo_id}/subscription/activate:
     post:
-      tags: [Manual Subscriptions]
+      tags: [Superadmin - Manual Subscriptions]
       operationId: activateCPOTrialSubscription
       summary: Manually activate a trial subscription
       description: Passing a trial end date alone changes nothing. A superadmin must activate it explicitly.
@@ -4906,7 +4906,7 @@ paths:
 
   /api/v1/platform/cpos/{cpo_id}/subscription/pause:
     post:
-      tags: [Manual Subscriptions]
+      tags: [Superadmin - Manual Subscriptions]
       operationId: pauseCPOSubscription
       summary: Manually pause a subscription
       security: [{BearerAuth: []}]
@@ -4916,7 +4916,7 @@ paths:
 
   /api/v1/platform/cpos/{cpo_id}/subscription/resume:
     post:
-      tags: [Manual Subscriptions]
+      tags: [Superadmin - Manual Subscriptions]
       operationId: resumeCPOSubscription
       summary: Manually resume a paused or past-due subscription
       security: [{BearerAuth: []}]
@@ -4926,7 +4926,7 @@ paths:
 
   /api/v1/platform/cpos/{cpo_id}/subscription/mark-past-due:
     post:
-      tags: [Manual Subscriptions]
+      tags: [Superadmin - Manual Subscriptions]
       operationId: markCPOSubscriptionPastDue
       summary: Manually record that a subscription is past due
       description: This does not query or create a payment; it is an audited platform decision.
@@ -4937,7 +4937,7 @@ paths:
 
   /api/v1/platform/cpos/{cpo_id}/subscription/expire:
     post:
-      tags: [Manual Subscriptions]
+      tags: [Superadmin - Manual Subscriptions]
       operationId: expireCPOSubscription
       summary: Manually expire a subscription
       security: [{BearerAuth: []}]
@@ -4947,7 +4947,7 @@ paths:
 
   /api/v1/platform/cpos/{cpo_id}/subscription/cancel:
     post:
-      tags: [Manual Subscriptions]
+      tags: [Superadmin - Manual Subscriptions]
       operationId: cancelCPOSubscription
       summary: Manually cancel a subscription immediately
       description: Cancellation-at-period-end is intentionally unsupported because no automatic lifecycle worker exists.
@@ -4958,7 +4958,7 @@ paths:
 
   /api/v1/platform/cpos/{cpo_id}/subscription/history:
     get:
-      tags: [Manual Subscriptions]
+      tags: [Superadmin - Manual Subscriptions]
       operationId: listCPOSubscriptionHistory
       summary: List up to 500 audited manual subscription transitions
       security: [{BearerAuth: []}]

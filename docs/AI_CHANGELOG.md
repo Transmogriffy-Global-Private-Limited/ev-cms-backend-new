@@ -2,6 +2,19 @@
 
 ## 2026-08-10
 
+### Clarified Superadmin Swagger group headings
+
+- Renamed all platform-management OpenAPI tags to use an explicit `Superadmin -`
+  prefix: Platform CPOs, Platform Operations, Governance, and Manual
+  Subscriptions.
+- Updated every operation assignment so Swagger groups all Superadmin-side APIs
+  under clearly demarcated headings; endpoint paths and behavior are unchanged.
+
+Verification:
+
+- OpenAPI/runtime route-contract verification passed.
+- `git diff --check` passed.
+
 ### Rehosted CPO user-group member assignment
 
 - Added the tenant-scoped `POST /api/v1/cpo/user-groups/{user_group_id}/members`
