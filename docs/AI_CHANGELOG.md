@@ -41,12 +41,19 @@ Verification:
 
 Verification:
 
-- `./scripts/verify-docs.ps1` passed.
 - `go test ./src/customerauth -count=1` passed, including opposing hub/charger
   opening-hour values in the serialized projection.
 - OpenAPI/runtime route-contract verification passed.
 - `go test ./...`, `go vet ./...`, the opening-hour residue scan, and
   `git diff --check` passed.
+- Built and rehosted source revision `9b57f20` on the development VPS without a
+  new migration; the live database remains at migration twenty-seven.
+- The enabled service is active on `127.0.0.1:18080`; local and public
+  liveness/readiness, Swagger UI, and the live 137-operation OpenAPI passed.
+- The protected User App charger route returned `401` without customer
+  credentials, and the post-restart warning journal was empty.
+- The PowerShell documentation verifier was not run because `pwsh` is
+  unavailable on this Ubuntu host.
 
 ## 2026-08-07
 

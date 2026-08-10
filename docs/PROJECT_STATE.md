@@ -171,7 +171,7 @@ provides:
   handler;
 - the additive PostgreSQL database `devevcmsnewdb`, owned by `postgres`.
 
-The active development VPS runs source revision `13479fe`, with migrations
+The active development VPS runs source revision `9b57f20`, with migrations
 through twenty-seven recorded and the deployed 137-operation contract. The
 User App can serve an authenticated published charger's allowed image through
 its relative `charger_image_url`, without exposing the stored upload path.
@@ -182,6 +182,9 @@ The CPO ADMIN customer directory is read-only and tenant-scoped, and CPO
 charger projections expose `hub_name` when assigned. Connector capacity is
 stored and exposed as `connector_total_capacity` in CPO create/update requests
 and response projections, as well as User App connector projections.
+User App hub summaries expose `open_24_hours`; charger projections separately
+expose the charger's `twenty_four_seven_open_status` and the attached hub's
+`hub_open_24_hours`.
 Migration
 twenty-seven replaces legacy charger/connector protocol-style states with the
 static CMS administrative values `ACTIVE`, `INACTIVE`, `SUSPENDED`,
@@ -274,9 +277,9 @@ implemented yet.
 - `git diff --check` passed. Stateful PostgreSQL lifecycle verification is
   intentionally deferred by the current workstream decision; no stateful
   result is claimed.
-- Revision `13479fe` was built from a clean worktree and rehosted without a
+- Revision `9b57f20` was built from a clean worktree and rehosted without a
   new migration. The running systemd process matches the installed binary
-  SHA-256 and embeds revision `13479fe43edd97c45ffdc6bcd7cb55e02bcd59b1`
+  SHA-256 and embeds revision `9b57f20b988431a25f5a24a75ef7eb04f6672a49`
   with `vcs.modified=false`. The service is active and enabled; loopback and
   public liveness/readiness passed; the live OpenAPI contains 137 operations;
   the live CPO `Connector` response schema exposes

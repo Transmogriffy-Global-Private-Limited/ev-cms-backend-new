@@ -62,7 +62,7 @@ No new migration. The production ledger remains at migration 27.
 
 ## Current state
 
-Revision `13479fe` was built from a clean worktree and rehosted on
+Revision `9b57f20` was built from a clean worktree and rehosted on
 August 10, 2026 without a new migration. The live service exposes the
 137-operation OpenAPI document, and the CPO `Connector` response schema now
 documents the runtime `connector_total_capacity` projection.
@@ -76,7 +76,7 @@ documents the runtime `connector_total_capacity` projection.
 - `go test ./...` passed.
 - `go vet ./...` passed.
 - `git diff --check` passed.
-- Revision `13479fe` is active under `evcmsnew-dev.service`; the running
+- Revision `9b57f20` is active under `evcmsnew-dev.service`; the running
   process matches the installed binary and the expected VCS revision.
 - Loopback/public liveness and readiness passed.
 - The live OpenAPI exposes 137 operations, and the live CPO `Connector`
