@@ -566,7 +566,6 @@ func (handler *Handler) removeMemberFromUserGroup(ctx *gin.Context) {
 	ctx.Status(http.StatusNoContent)
 }
 
-
 // @Summary Add a member to a user group
 // @Description Adds a customer to a user group.
 // @Tags CPO Network - User Groups

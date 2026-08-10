@@ -5457,8 +5457,6 @@ func (service *Service) RemoveMemberFromUserGroup(
 		)
 	})
 }
-
-
 func mapUserGroupDeleteError(err error) error {
 	var postgresError *pgconn.PgError
 	if errors.As(err, &postgresError) && (postgresError.Code == "23001" || postgresError.Code == "23503") {
