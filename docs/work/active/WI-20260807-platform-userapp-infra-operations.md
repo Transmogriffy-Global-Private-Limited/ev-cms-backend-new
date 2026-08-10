@@ -84,16 +84,14 @@ The ownership registration remains active. User App charger projections include
 the CPO-owned display-safe `charger_name`, category/use, and parking metadata,
 alongside existing safe hub fields and `connector_total_capacity`. Charger-host
 contact details, connection URLs, sanctioned load, and HAL-owned state remain
-excluded. The development VPS now runs application revision `86170d3`; this
-source-only change has not been deployed and introduces no migration or
-DNS/configuration change.
+excluded. The development VPS now runs application revision `13479fe`; the
+release introduced no migration or DNS/configuration change.
 
 ## Verification
 
 - The database-free User App projection test now covers the propagated
   charger, hub, and connector-capacity fields while retaining `UNKNOWN` live
   availability.
-- `./scripts/verify-docs.ps1` passed.
 - `go test ./src/customerauth -count=1`, OpenAPI/runtime route-contract
   verification, `go test ./...`, `go vet ./...`, and `git diff --check`
   passed.
@@ -101,14 +99,14 @@ DNS/configuration change.
 - `go test ./...` passed.
 - `go vet ./...` passed.
 - `git diff --check` passed.
-- Revision `86170d3` is active under `evcmsnew-dev.service`; the running
-  process matches the installed binary SHA-256 and embeds the expected clean
-  VCS revision.
+- Revision `13479fe` is active under `evcmsnew-dev.service`; the running
+  process matches the installed binary and the expected VCS revision.
 - Loopback/public liveness and readiness passed.
 - The live OpenAPI exposes 137 operations, and the live CPO connector
   response schema reflects `connector_total_capacity`.
 - The post-start fatal-error scan passed.
 - No migration file changed from the previously deployed revision.
+- The protected User App charger route returned `401` without credentials.
 - The User App documentation remains aligned with its FE handoff and OpenAPI
   `connector_total_capacity` field.
 - The PowerShell documentation verifier was not run because `pwsh` is

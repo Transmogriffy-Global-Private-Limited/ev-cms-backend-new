@@ -28,8 +28,8 @@ development host it is set in the ignored service environment to
 that setting; it must not be used until the OCPP host is explicitly configured
 with TLS/WebSocket support.
 
-The active deployment was updated on August 7, 2026 to source revision
-`86170d3`. It has migrations one through twenty-seven and the current 137-operation
+The active deployment was updated on August 10, 2026 to source revision
+`13479fe`. It has migrations one through twenty-seven and the current 137-operation
 API. Migration twenty-seven replaces the legacy charger/connector protocol-style
 status values with static CMS administrative states (`ACTIVE`, `INACTIVE`,
 `SUSPENDED`, `UNDERMAINTENANCE`, and `DECOMMISSIONED`). Migration thirteen keeps
