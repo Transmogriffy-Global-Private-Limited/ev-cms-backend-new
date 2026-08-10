@@ -6835,6 +6835,7 @@ components:
         - full_name
         - status
         - is_verified
+        - usergroup_assigned
         - created_at
         - updated_at
       properties:
@@ -6857,6 +6858,9 @@ components:
           enum: [ACTIVE, BLOCKED]
         is_verified:
           type: boolean
+        usergroup_assigned:
+          type: boolean
+          description: Whether the customer currently belongs to a user group.
         last_login_at:
           type: string
           format: date-time
@@ -8044,6 +8048,11 @@ components:
         name: {type: string}
         description: {type: string}
         is_active: {type: boolean}
+        members:
+          type: array
+          description: Customers currently assigned to this user group when returned by the detail endpoint.
+          items:
+            $ref: "#/components/schemas/CPOCustomer"
         created_at: {type: string, format: date-time}
         updated_at: {type: string, format: date-time}
 
