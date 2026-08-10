@@ -969,13 +969,13 @@ Last completed slice:
 
 Last deployment milestone:
 
-- Revision `8cb1317` was built from a clean worktree and rehosted on the
+- Revision `6930189` was built from a clean worktree and rehosted on the
   development VPS without a new migration. Running-binary SHA/VCS identity,
   active/enabled systemd state, loopback/public liveness and readiness, the
   live 152-operation OpenAPI surface, protected CPO user-group member
-  assignment/removal routes, and the `usergroup_assigned` customer projection
-  were verified. The disposable PostgreSQL lifecycle remains pending without
-  `TEST_DATABASE_URL`.
+  assignment/removal routes, the `UserGroup.members` detail projection, and
+  the `usergroup_assigned` customer projection were verified. The disposable
+  PostgreSQL lifecycle remains pending without `TEST_DATABASE_URL`.
 
 Next expected slice:
 

@@ -2,6 +2,29 @@
 
 ## 2026-08-10
 
+### Rehosted CPO user-group detail members
+
+- Deployed the CPO user-group detail response with its safe `members` customer
+  projections, preserving the tenant-scoped membership boundary.
+- Completed the OpenAPI contract for `UserGroup.members` and the CPO customer
+  `usergroup_assigned` field, then aligned the human administrative API contract.
+- No database migration was introduced; the live database remains at migration
+  twenty-seven.
+- Built and rehosted clean source revision `6930189`; the live contract remains
+  at 152 operations.
+
+Verification:
+
+- Migration-up check completed with no pending migration; OpenAPI/runtime route
+  verification, `go test ./...`, and `go vet ./...` passed.
+- The deployed binary embeds revision `6930189` with `vcs.modified=false`;
+  systemd is enabled and active on `127.0.0.1:18080`.
+- Local/public liveness and readiness, Swagger UI, live OpenAPI, the new
+  `UserGroup.members` and `usergroup_assigned` fields, protected route `401`
+  responses, and the post-start warning scan passed.
+- The PowerShell documentation verifier was not run because `pwsh` is
+  unavailable on this Ubuntu host.
+
 ### Rehosted CPO user-group membership completion
 
 - Completed the CPO user-group membership contract with the tenant-scoped

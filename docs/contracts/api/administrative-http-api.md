@@ -2390,6 +2390,11 @@ or removes one CPO-owned user group. `PATCH` accepts a non-empty subset of
 Deletion returns `204 No Content` and returns `409 user_group_in_use` when a
 tariff still references the group.
 
+The detail `GET` response includes a `members` array containing safe CPO
+customer projections for customers currently assigned to that group. The
+array is omitted when it is empty; each member includes the same
+`usergroup_assigned` boolean exposed by the CPO customer directory.
+
 `POST /api/v1/cpo/user-groups/{user_group_id}/members` assigns a same-CPO
 customer using `{"customer_id":"<uuid>"}`. Assigning a customer already in
 that group is idempotent and returns `204`; a customer assigned to another
@@ -2461,7 +2466,9 @@ Query parameters:
 
 The response contains a list of safe customer projections, omitting wallet and
 credential details, plus the standard `next_before`, `next_before_id`, and
-`has_more` cursor fields.
+`has_more` cursor fields. Each customer projection includes `usergroup_assigned`,
+which is true when that customer currently belongs to any user group in the
+authenticated CPO.
 
 Errors: `400 invalid_q`, `invalid_status`, `invalid_limit`, `invalid_cursor`;
 shared authentication errors; or `500 internal_error`.

@@ -62,11 +62,12 @@ No new migration. The production ledger remains at migration 27.
 
 ## Current state
 
-Revision `8cb1317` was built from a clean worktree and rehosted on
+Revision `6930189` was built from a clean worktree and rehosted on
 August 10, 2026 without a new migration. The live service exposes the
 152-operation OpenAPI document, and the CPO user-group membership contract now
-includes tenant-scoped, idempotent assignment/removal plus the
-`usergroup_assigned` customer projection. The CPO `Connector` response schema now
+includes tenant-scoped, idempotent assignment/removal, the `members` detail
+projection, plus the `usergroup_assigned` customer projection. The CPO
+`Connector` response schema now
 documents the runtime `connector_total_capacity` projection. Scoped tariff
 and user-group routes are protected by the same tenant authorization boundary.
 
@@ -79,11 +80,11 @@ and user-group routes are protected by the same tenant authorization boundary.
 - `go test ./...` passed.
 - `go vet ./...` passed.
 - `git diff --check` passed.
-- Revision `8cb1317` is active under `evcmsnew-dev.service`; the running
+- Revision `6930189` is active under `evcmsnew-dev.service`; the running
   process matches the installed binary and the expected VCS revision.
 - Loopback/public liveness and readiness passed.
-- The live OpenAPI exposes 152 operations, and the live CPO user-group member
-  delete operation plus `usergroup_assigned` response field are present.
+- The live OpenAPI exposes 152 operations, and the live CPO user-group detail
+  `members` projection plus `usergroup_assigned` response field are present.
 - The live CPO `Connector` response schema exposes `connector_total_capacity`.
 - The post-start fatal-error scan passed.
 - No migration file changed from the previously deployed revision.
