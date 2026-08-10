@@ -2286,9 +2286,26 @@ and `is_active`, using the create validation. Omission preserves a field.
 There is currently no GST delete route. An inactive profile remains durable for
 historical references.
 
-### 9.19 `POST /api/v1/cpo/tariffs`
+### 9.19 Scoped tariff routes
 
-Creates a tenant tariff:
+All tariff routes require the authenticated CPO ADMIN and its current
+`X-CPO-App-ID`. Tariffs are created, listed, read, and updated through one
+scope:
+
+- hub: `POST`/`GET /api/v1/cpo/hubs/{hub_id}/tariffs` and
+  `GET`/`PATCH /api/v1/cpo/hubs/{hub_id}/tariffs/{tariff_id}`;
+- charger: `POST`/`GET /api/v1/cpo/chargers/{charger_id}/tariffs` and
+  `GET`/`PATCH /api/v1/cpo/chargers/{charger_id}/tariffs/{tariff_id}`;
+- user group: `POST`/`GET /api/v1/cpo/user-groups/{user_group_id}/tariffs`
+  and `GET`/`PATCH /api/v1/cpo/user-groups/{user_group_id}/tariffs/{tariff_id}`.
+
+The path scope is part of the tenant ownership lookup. A charger tariff also
+requires that the charger is assigned to a hub. The current create schema
+retains required `hub_id`; hub and charger routes derive the persisted scope
+from their path resource, while the user-group route uses `hub_id` and may
+optionally select a charger.
+
+Create requests use this body:
 
 ```json
 {
@@ -2325,15 +2342,14 @@ Rules:
 
 Exact decimal strings are recommended. `201 Created` returns the generated
 tariff UUID, relations, exact decimal strings, currency, active state, and
-timestamps. The transaction writes `TARIFF_CREATED`.
+timestamps. Scope-specific creation writes `HUB_TARIFF_CREATED`,
+`CHARGER_TARIFF_CREATED`, or `USER_GROUP_TARIFF_CREATED`.
 
 Errors include `400 charger_hub_mismatch`, field-specific `400 invalid_*`,
 relation-specific `404` responses, `409 tariff_conflict`, and
 `409 tariff_schedule_conflict`.
 
-### 9.20 `GET /api/v1/cpo/tariffs`
-
-Returns bounded tariff pages using the same keyset pagination:
+Each scoped `GET` collection returns bounded keyset pages:
 
 ```json
 {
@@ -2342,29 +2358,37 @@ Returns bounded tariff pages using the same keyset pagination:
 }
 ```
 
-Every row belongs to the authenticated CPO. Current listing returns all active
-and inactive tariffs; the frontend filters the bounded result for display and
-retains cursor order while requesting additional pages.
+Every row belongs to the authenticated CPO and the path scope. Current listing
+returns active and inactive tariffs.
 
-### 9.21 `GET /api/v1/cpo/tariffs/{tariff_id}`
+A scoped detail `GET` returns `404 tariff_not_found` for an unknown or
+cross-scope tariff; malformed UUIDs return the applicable `400 invalid_*_id`
+error.
 
-Returns one tenant tariff by UUID. Cross-tenant and unknown IDs return
-`404 tariff_not_found`; malformed UUIDs return `400 invalid_tariff_id`.
-
-### 9.22 `PATCH /api/v1/cpo/tariffs/{tariff_id}`
-
-Accepts any non-empty subset of the create fields. Omitted fields remain
-unchanged. Optional relations cannot currently be cleared to null through this
-route; they can only be omitted or replaced with another owned UUID. Supplying
-an effective-date bound validates the resulting full schedule; the schedule
-remains either open-ended or a complete half-open interval.
-
-If hub or charger changes, their resulting relationship is revalidated.
-`200 OK` returns the updated Tariff and writes `TARIFF_UPDATED`. Errors match
-creation plus `404 tariff_not_found`.
+A scoped `PATCH` accepts any non-empty subset of the create fields. Omitted
+fields remain unchanged. Optional relations cannot currently be cleared to null
+through this route; they can only be omitted or replaced with another owned
+UUID. Supplying an effective-date bound validates the resulting full schedule;
+the schedule remains either open-ended or a complete half-open interval. `200
+OK` returns the updated tariff and writes the matching scope-specific update
+audit event. Errors match creation plus `404 tariff_not_found`.
 
 There is currently no tariff delete route. Deactivation through
 `{"is_active":false}` is the supported retention-safe state change.
+
+### 9.20 User groups
+
+`POST`/`GET /api/v1/cpo/user-groups` creates or lists the authenticated CPO's
+user groups using the usual bounded keyset pagination. A create body has
+required non-empty `name`, optional `description`, and optional `is_active`
+(default true). A duplicate-name conflict returns `409 user_group_conflict`.
+
+`GET`/`PATCH`/`DELETE /api/v1/cpo/user-groups/{user_group_id}` reads, updates,
+or removes one CPO-owned user group. `PATCH` accepts a non-empty subset of
+`name`, `description`, and `is_active`. Unknown and cross-tenant IDs return
+`404 user_group_not_found`; malformed IDs return `400 invalid_user_group_id`.
+Deletion returns `204 No Content` and returns `409 user_group_in_use` when a
+tariff still references the group.
 
 ### 9.23 `GET /api/v1/cpo/subscription`
 

@@ -183,7 +183,10 @@ $requiredRoutes = @(
     '/api/v1/cpo/customers',
     '/api/v1/cpo/customers/{customer_id}',
     '/api/v1/cpo/gsts',
-    '/api/v1/cpo/tariffs',
+    '/api/v1/cpo/hubs/{hub_id}/tariffs',
+    '/api/v1/cpo/chargers/{charger_id}/tariffs',
+    '/api/v1/cpo/user-groups',
+    '/api/v1/cpo/user-groups/{user_group_id}/tariffs',
     '/docs/',
     '/openapi.yaml'
 )
@@ -209,8 +212,8 @@ foreach ($route in $retiredRoutes) {
 }
 
 $operationCount = ([regex]::Matches($openAPI, '(?m)^\s{6}operationId:\s+')).Count
-if ($operationCount -ne 137) {
-    throw "OpenAPI contains $operationCount operations; expected 137."
+if ($operationCount -ne 150) {
+    throw "OpenAPI contains $operationCount operations; expected 150."
 }
 
 if ($openAPI.Contains('/api/v1/cpo/profile')) {

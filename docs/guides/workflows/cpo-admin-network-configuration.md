@@ -129,19 +129,24 @@ as JSON strings to avoid client floating-point rounding.
 
 ### 5. Create a tariff
 
-Call `POST /api/v1/cpo/tariffs` with the hub UUID, exact price, and optional
-charger/GST/user-group UUIDs. Every referenced record must belong to the same
-CPO. A selected charger must belong to the selected hub. Currency defaults to
-INR. An active tariff is either open-ended (omit both effective dates) or has a
-complete `[start_date, end_date)` effective period. PostgreSQL rejects
-overlapping active periods for the same hub/optional charger/optional
-user-group scope with `409 tariff_schedule_conflict`; an open-ended active
-tariff overlaps every dated tariff of that same scope.
+Create the tariff through its owning scope: `POST
+/api/v1/cpo/hubs/{hub_id}/tariffs`, `POST
+/api/v1/cpo/chargers/{charger_id}/tariffs`, or `POST
+/api/v1/cpo/user-groups/{user_group_id}/tariffs`. The route fixes that scope;
+the group route requires `hub_id` in the body and may additionally select a
+charger. Every referenced record must belong to the same CPO, and a selected
+charger must belong to the selected hub. Currency defaults to INR. An active
+tariff is either open-ended (omit both effective dates) or has a complete
+`[start_date, end_date)` effective period. PostgreSQL rejects overlapping
+active periods for the same hub/optional charger/optional user-group scope
+with `409 tariff_schedule_conflict`; an open-ended active tariff overlaps every
+dated tariff of that same scope.
 
 ### 6. Read and update
 
-- Hubs, chargers, GST profiles, and tariffs have bounded keyset listing plus
-  get/update.
+- Hubs, chargers, GST profiles, and user groups have bounded keyset listing
+  plus get/update. Tariffs are listed, retrieved, and updated through their
+  hub, charger, or user-group scope.
 - Chargers additionally have dependency-safe deletion.
 - Hubs, GST profiles, and tariffs do not have delete routes.
 - Connector changes occur only as updates to existing connector UUIDs on a
