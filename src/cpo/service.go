@@ -5239,7 +5239,19 @@ func (service *Service) GetUserGroup(
 		return UserGroupView{}, mapUserGroupNotFound(err)
 	}
 
-	return userGroupView(record), nil
+	var members []models.Customer
+	if err := service.database.WithContext(ctx).
+		Where("user_group_id = ?", userGroupID).
+		Find(&members).Error; err != nil {
+		return UserGroupView{}, fmt.Errorf("list user group members: %w", err)
+	}
+
+	memberViews := make([]CPOAdminCustomerView, 0, len(members))
+	for _, member := range members {
+		memberViews = append(memberViews, cpoAdminCustomerView(member))
+	}
+
+	return userGroupView(record, memberViews), nil
 }
 
 func (service *Service) UpdateUserGroup(
@@ -5471,8 +5483,8 @@ func mapUserGroupDeleteError(err error) error {
 	return fmt.Errorf("delete user group: %w", err)
 }
 
-func userGroupView(record models.UserGroup) UserGroupView {
-	return UserGroupView{
+func userGroupView(record models.UserGroup, members ...[]CPOAdminCustomerView) UserGroupView {
+	view := UserGroupView{
 		ID:          record.ID,
 		CPOID:       record.CPOID,
 		Name:        record.Name,
@@ -5481,6 +5493,10 @@ func userGroupView(record models.UserGroup) UserGroupView {
 		CreatedAt:   record.CreatedAt,
 		UpdatedAt:   record.UpdatedAt,
 	}
+	if len(members) > 0 {
+		view.Members = members[0]
+	}
+	return view
 }
 
 func mapUserGroupWriteError(err error, operation string) error {
