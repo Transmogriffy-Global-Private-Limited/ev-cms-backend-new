@@ -5879,14 +5879,16 @@ components:
     CustomerHubSummary:
       type: object
       additionalProperties: false
-      required: [id, name, address, latitude, longitude, twenty_four_seven_open_status, customer_visible, charger_count, is_favorite]
+      required: [id, name, address, latitude, longitude, open_24_hours, customer_visible, charger_count, is_favorite]
       properties:
         id: {type: string, format: uuid}
         name: {type: string}
         address: {type: string}
         latitude: {type: number}
         longitude: {type: number}
-        twenty_four_seven_open_status: {type: boolean}
+        open_24_hours:
+          type: boolean
+          description: Opening-hours flag for this hub.
         customer_visible:
           type: boolean
           enum: [true]
@@ -5909,7 +5911,7 @@ components:
     CustomerCharger:
       type: object
       additionalProperties: false
-      required: [id, hub_id, charger_id, max_power_kw, ocpp_version, status, availability, is_favorite, connectors]
+      required: [id, hub_id, charger_id, max_power_kw, ocpp_version, status, twenty_four_seven_open_status, availability, is_favorite, connectors]
       properties:
         id: {type: string, format: uuid}
         hub_id: {type: string, format: uuid}
@@ -5917,6 +5919,7 @@ components:
           type: string
           pattern: "^[a-z0-9]{6}$"
           description: Public six-character charger identifier.
+        charger_name: {type: string, maxLength: 255}
         vendor: {type: string, maxLength: 100, nullable: true}
         model: {type: string, maxLength: 100, nullable: true}
         max_power_kw: {type: number, minimum: 0}
@@ -5927,11 +5930,21 @@ components:
           type: string
           format: uri-reference
           description: Relative authenticated User App image route, present only when this charger has an uploaded image.
+        charger_type: {type: string, maxLength: 100}
+        segment: {type: string, maxLength: 100}
+        sub_segment: {type: string, maxLength: 100}
+        charger_use_type: {type: string, maxLength: 100}
+        parking: {type: string, maxLength: 100}
         hub_name: {type: string, maxLength: 255}
         hub_address: {type: string}
         hub_latitude: {type: number, minimum: -90, maximum: 90}
         hub_longitude: {type: number, minimum: -180, maximum: 180}
-        twenty_four_seven_open_status: {type: boolean}
+        twenty_four_seven_open_status:
+          type: boolean
+          description: Opening-hours flag for this charger, independent of its hub.
+        hub_open_24_hours:
+          type: boolean
+          description: Opening-hours flag for the attached hub.
         distance_km: {type: number, minimum: 0}
         availability:
           type: string
@@ -7321,7 +7334,7 @@ components:
         connectors:
           - connector_number: 1
             connector_type: CCS2
-            total_capacity: 22.5
+            connector_total_capacity: 22.5
 
     UpdateConnectorRequest:
       type: object

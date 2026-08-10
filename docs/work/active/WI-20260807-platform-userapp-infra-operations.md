@@ -4,7 +4,7 @@ Status: In Progress
 Owner: Anubhab Dey
 Collaborators: None
 Started: 2026-08-07
-Last updated: 2026-08-07
+Last updated: 2026-08-10
 
 Development-plan reference:
 
@@ -63,14 +63,17 @@ None currently recorded.
 
 ## Contract impact
 
-Potentially affects platform and User App HTTP/authentication contracts,
-mail/notification delivery behavior, HAL service communication contracts, and
-hosting configuration. Any concrete contract change must be recorded and
-updated in its canonical contract, OpenAPI or service contract, consumer
-guidance, and verification in the same implementation slice. The communication
-change owner and receiving CMS surface owner must agree on message semantics,
-authentication, idempotency, error handling, and verification before a change
-is completed.
+The User App published-charger projection now includes safe CPO-owned display,
+category, use, and parking metadata. `CustomerHub.open_24_hours` is distinct
+from `CustomerCharger.twenty_four_seven_open_status`; the latter is sourced
+from the charger, and `hub_open_24_hours` identifies the attached hub value.
+The projection continues to omit charger-host contact details, connection URLs,
+sanctioned load, and HAL-owned state. Any concrete contract change must be
+recorded and updated in its canonical contract, OpenAPI or service contract,
+consumer guidance, and verification in the same implementation slice. The
+communication change owner and receiving CMS surface owner must agree on
+message semantics, authentication, idempotency, error handling, and
+verification before a change is completed.
 
 ## Data and migration impact
 
@@ -80,27 +83,43 @@ verification before execution.
 
 ## Current state
 
-The ownership registration remains active. The User App discovery
-descriptions use the established `connector_total_capacity` response field.
-The development VPS now runs application revision `86170d3`; this deployment
-introduced no new migration or DNS/configuration change and reconciles the CPO
-connector response contract with the runtime projection while preserving the
-existing User App contract.
+The ownership registration remains active. User App charger projections include
+the CPO-owned display-safe `charger_name`, category/use, and parking metadata,
+alongside safe hub fields and `connector_total_capacity`. Hub
+`open_24_hours`, charger `twenty_four_seven_open_status`, and
+`hub_open_24_hours` are separately represented. Charger-host contact details,
+connection URLs, sanctioned load, and HAL-owned state remain excluded. The
+development VPS now runs application revision `9b57f20`; the correction
+introduced no migration or DNS/configuration change.
 
 ## Verification
 
+- The database-free User App projection test now proves serialized hub and
+  charger opening-hour values remain separate when they differ.
+- `go test ./src/customerauth -count=1` and OpenAPI/runtime route-contract
+  verification passed for the split.
+- `go test ./...`, `go vet ./...`, the opening-hour residue scan, and
+  `git diff --check` passed for the split.
+- The database-free User App projection test now covers the propagated
+  charger, hub, and connector-capacity fields while retaining `UNKNOWN` live
+  availability.
+- `go test ./src/customerauth -count=1`, OpenAPI/runtime route-contract
+  verification, `go test ./...`, `go vet ./...`, and `git diff --check`
+  passed.
 - OpenAPI/runtime route-contract verification passed.
 - `go test ./...` passed.
 - `go vet ./...` passed.
 - `git diff --check` passed.
-- Revision `86170d3` is active under `evcmsnew-dev.service`; the running
-  process matches the installed binary SHA-256 and embeds the expected clean
-  VCS revision.
+- Revision `9b57f20` is active under `evcmsnew-dev.service`; the running
+  process matches the installed binary and the expected VCS revision.
 - Loopback/public liveness and readiness passed.
 - The live OpenAPI exposes 137 operations, and the live CPO connector
   response schema reflects `connector_total_capacity`.
 - The post-start fatal-error scan passed.
 - No migration file changed from the previously deployed revision.
+- The protected User App charger route returned `401` without credentials.
+- The current release is active on the loopback listener and public health and
+  Swagger routes passed; the live OpenAPI contains 137 operations.
 - The User App documentation remains aligned with its FE handoff and OpenAPI
   `connector_total_capacity` field.
 - The PowerShell documentation verifier was not run because `pwsh` is

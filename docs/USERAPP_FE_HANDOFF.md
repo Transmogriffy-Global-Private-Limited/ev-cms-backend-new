@@ -257,7 +257,7 @@ export type CustomerHubSummary = {
   address: string;
   latitude: number;
   longitude: number;
-  twenty_four_seven_open_status: boolean;
+  open_24_hours: boolean;
   customer_visible: true;
   charger_count: number;
   is_favorite: boolean;
@@ -283,17 +283,24 @@ export type CustomerCharger = {
   id: string;
   hub_id: string;
   charger_id: string; // six-character public ID
+  charger_name?: string;
   vendor?: string;
   model?: string;
   max_power_kw: number;
   ocpp_version: string;
   status: CustomerNetworkStatus;
   charger_image_url?: string; // authenticated relative API path
+  charger_type?: string;
+  segment?: string;
+  sub_segment?: string;
+  charger_use_type?: string;
+  parking?: string;
   hub_name?: string;
   hub_address?: string;
   hub_latitude?: number;
   hub_longitude?: number;
-  twenty_four_seven_open_status?: boolean;
+  twenty_four_seven_open_status: boolean;
+  hub_open_24_hours?: boolean;
   distance_km?: number;
   availability: "UNKNOWN";
   is_favorite: boolean;
@@ -442,15 +449,24 @@ administrative lifecycle (`ACTIVE`, `INACTIVE`, `SUSPENDED`,
 `connector_total_capacity` is the connector capacity value; the obsolete
 `max_current` and `max_voltage` fields are not returned.
 
+`CustomerHubSummary.open_24_hours` is the hub's opening-hours flag.
+`CustomerCharger.twenty_four_seven_open_status` is the charger's own opening
+flag, while `CustomerCharger.hub_open_24_hours` is the attached hub's flag.
+They are distinct fields and may have different values. The `open_24_hours`
+charger-list query filter applies to the hub field.
+
 The backend deliberately does not contact HAL in this slice. `availability` is
 `UNKNOWN` for chargers and connectors. Do not render either `availability` or
 the CMS `status` as online, available, offline, or live state; a later
 HAL-backed contract must define those states, reconnect behavior, and REST
 recovery before the app depends on them.
 
-The safe projection omits OCPP identity, serial number, last-seen timestamps,
-sanctioned load, CPO notes, and audit data. Favorite flags are present in the
-same safe projection used by the favorite list.
+The safe projection includes display-safe charger metadata (`charger_name`,
+`charger_type`, `segment`, `sub_segment`, `charger_use_type`, and `parking`).
+It omits OCPP identity, serial number, last-seen timestamps, charger-host
+contact details, connection URLs, sanctioned load, CPO notes, and audit data.
+Favorite flags are present in the same safe projection used by the favorite
+list.
 
 When present, `charger_image_url` is a relative path such as
 `/api/v1/app/chargers/a1b2c3/image`; it is not the storage path. The image

@@ -733,10 +733,18 @@ tier.
 Requires the authenticated customer bearer token and matching
 `X-CPO-App-ID`. Returns only chargers attached to published hubs in the
 customer’s CPO. The safe projection includes hub display/location fields,
-connector summaries with `connector_total_capacity`, static CMS administrative
-status for chargers/connectors, and the customer's charger favorite flag. It
-excludes OCPP identity, serial number, and audit data. CMS `status` is not live
-availability; `availability` remains `UNKNOWN` until HAL integration.
+customer-safe charger display/category/parking metadata, connector summaries
+with `connector_total_capacity`, static CMS administrative status for
+chargers/connectors, and the customer's charger favorite flag. It excludes
+OCPP identity, serial number, charger-host contact details, connection URLs,
+and audit data. CMS `status` is not live availability; `availability` remains
+`UNKNOWN` until HAL integration.
+
+`CustomerHub.open_24_hours` is the hub's opening-hours value.
+`CustomerCharger.twenty_four_seven_open_status` is the charger's own
+opening-hours value, and `CustomerCharger.hub_open_24_hours` is the attached
+hub's value. The values are independent; the `open_24_hours` query filter
+selects by hub opening hours.
 
 Optional filters are `q`, `connector_type`, `min_power_kw`, `max_power_kw`,
 and `open_24_hours`. `q` searches the public charger ID, vendor, model, hub
@@ -1962,7 +1970,7 @@ Content-Disposition: form-data; name="data"
     {
       "connector_number": 1,
       "connector_type": "CCS2",
-      "total_capacity": 25
+      "connector_total_capacity": 25
     }
   ]
 }
@@ -1986,11 +1994,11 @@ Rules:
 - at least one connector is required;
 - connector numbers are positive and unique within this request;
 - connector type is required and at most 50 characters;
-- `total_capacity` is the create/update request field, is required on
-  connector creation, and cannot be negative. Charger-level `total_capacity`
-  is no longer part of the CMS charger contract; capacity is represented per
-  connector. CPO connector response objects expose the persisted value as
-  `connector_total_capacity`.
+- `connector_total_capacity` is the create/update request field, is required
+  on connector creation, and cannot be negative. Charger-level
+  `total_capacity` is no longer part of the CMS charger contract; capacity is
+  represented per connector and uses the same field name in CPO and User App
+  connector projections.
 
 The server generates:
 
@@ -2170,7 +2178,7 @@ Updates any non-empty subset of the charger's properties. The request should be 
       "id": "540b3214-bd67-4f61-9134-ab462168fd92",
       "connector_number": 1,
       "connector_type": "CCS2",
-      "total_capacity": 30
+      "connector_total_capacity": 30
     }
   ]
 }

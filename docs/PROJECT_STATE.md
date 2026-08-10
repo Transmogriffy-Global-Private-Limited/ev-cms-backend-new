@@ -109,9 +109,11 @@ provides:
   evidence;
 - CPO ADMIN-controlled default-false hub publication through
   `customer_visible`, plus authenticated customer-safe published network
-  discovery for hubs, attached chargers, and connectors; connector total
-  capacity and static CMS administrative statuses are returned separately from
-  HAL-owned live availability, which remains `UNKNOWN`;
+  discovery for hubs, attached chargers, and connectors; the hub
+  `open_24_hours` and charger `twenty_four_seven_open_status` values are
+  separate, connector total capacity and static CMS administrative statuses are
+  returned separately from HAL-owned live availability, which remains
+  `UNKNOWN`;
 - customer-owned favorite list and idempotent add/remove APIs over published
   hubs and attached chargers, with unpublish-safe reads and CPO/customer
   composite ownership;
@@ -120,9 +122,10 @@ provides:
   `UNAVAILABLE` states, and User Tariff > charger tariff > hub tariff
   precedence;
 - authenticated User App charger search/filter and bounded near-me reads over
-  published hubs, with safe hub/connector projections, DB-backed status and
-  connector total capacity, an authenticated charger-image route keyed by
-  public charger ID, and explicit UNKNOWN live availability;
+  published hubs, with safe hub, display/category/parking charger, and
+  connector projections; DB-backed status and connector total capacity; an
+  authenticated charger-image route keyed by public charger ID; and explicit
+  UNKNOWN live availability;
 - authenticated CPO/customer-scoped wallet balance and keyset-paginated wallet
   history reads using exact decimal projections;
 - User App Razorpay recharge order creation and captured-payment verification
@@ -168,7 +171,7 @@ provides:
   handler;
 - the additive PostgreSQL database `devevcmsnewdb`, owned by `postgres`.
 
-The active development VPS runs source revision `86170d3`, with migrations
+The active development VPS runs source revision `9b57f20`, with migrations
 through twenty-seven recorded and the deployed 137-operation contract. The
 User App can serve an authenticated published charger's allowed image through
 its relative `charger_image_url`, without exposing the stored upload path.
@@ -176,10 +179,12 @@ The CPO charger response also exposes a read-only `assigned` projection that
 matches hub attachment, and Swagger groups CPO operations by account/network,
 pricing/tax, and integration responsibilities.
 The CPO ADMIN customer directory is read-only and tenant-scoped, and CPO
-charger projections expose `hub_name` when assigned. Connector capacity remains
-stored as `connector_total_capacity`; CPO connector create/update requests use
-`total_capacity`, while CPO connector response projections use
-`connector_total_capacity`.
+charger projections expose `hub_name` when assigned. Connector capacity is
+stored and exposed as `connector_total_capacity` in CPO create/update requests
+and response projections, as well as User App connector projections.
+User App hub summaries expose `open_24_hours`; charger projections separately
+expose the charger's `twenty_four_seven_open_status` and the attached hub's
+`hub_open_24_hours`.
 Migration
 twenty-seven replaces legacy charger/connector protocol-style states with the
 static CMS administrative values `ACTIVE`, `INACTIVE`, `SUSPENDED`,
@@ -219,9 +224,8 @@ twenty makes customer accounts CPO-local with dedicated authentication lineage,
 and migrations 21–22 add customer-visible network discovery and Razorpay wallet
 recharge ledger support. Migration twenty-six removes obsolete connector
 current/voltage fields; connector capacity is represented by
-`connector_total_capacity`. CPO connector create/update requests use
-`total_capacity`, while connector response projections use
-`connector_total_capacity`.
+`connector_total_capacity` in CPO create/update requests and response
+projections, and in User App connector projections.
 
 The deployed recovery flow fixes a recovery-specific OTP mapper defect that discarded
 `challenge_id` before outbox validation and caused eligible administrative and
@@ -273,9 +277,9 @@ implemented yet.
 - `git diff --check` passed. Stateful PostgreSQL lifecycle verification is
   intentionally deferred by the current workstream decision; no stateful
   result is claimed.
-- Revision `86170d3` was built from a clean worktree and rehosted without a
+- Revision `9b57f20` was built from a clean worktree and rehosted without a
   new migration. The running systemd process matches the installed binary
-  SHA-256 and embeds revision `86170d32f6114f480833a4cd6388d058ed0983ca`
+  SHA-256 and embeds revision `9b57f20b988431a25f5a24a75ef7eb04f6672a49`
   with `vcs.modified=false`. The service is active and enabled; loopback and
   public liveness/readiness passed; the live OpenAPI contains 137 operations;
   the live CPO `Connector` response schema exposes
