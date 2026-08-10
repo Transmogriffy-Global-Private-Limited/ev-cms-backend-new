@@ -5360,6 +5360,62 @@ func (service *Service) DeleteUserGroup(
 	})
 }
 
+func (service *Service) AddMemberToUserGroup(
+	ctx context.Context,
+	principal auth.Principal,
+	userGroupID uuid.UUID,
+	request AddMemberToUserGroupRequest,
+) error {
+	if err := requireCPOAdminAccess(principal); err != nil {
+		return err
+	}
+
+	cpoID := *principal.CPOID
+	return service.database.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var userGroup models.UserGroup
+		if err := tx.First(&userGroup, "id = ? AND cpo_id = ?", userGroupID, cpoID).Error; err != nil {
+			return mapUserGroupNotFound(err)
+		}
+
+		var customer models.Customer
+		if err := tx.First(&customer, "id = ? AND cpo_id = ?", request.CustomerID, cpoID).Error; err != nil {
+			return mapCustomerNotFound(err)
+		}
+
+		if customer.UserGroupID != nil {
+			if *customer.UserGroupID == userGroupID {
+				return nil // Already in the group, do nothing.
+			}
+			return &auth.APIError{
+				Status:  http.StatusConflict,
+				Code:    "customer_already_in_group",
+				Message: "The customer is already a member of another user group.",
+			}
+		}
+
+		now := service.now()
+		if err := tx.Model(&customer).
+			Updates(map[string]any{
+				"user_group_id": userGroupID,
+				"updated_at":    now,
+			}).Error; err != nil {
+			return fmt.Errorf("add member to user group: %w", err)
+		}
+
+		return writeAudit(
+			tx,
+			principal.UserID,
+			cpoID,
+			"USER_GROUP_MEMBER_ADDED",
+			models.JSONB{
+				"user_group_id": userGroupID,
+				"customer_id":   request.CustomerID,
+			},
+			now,
+		)
+	})
+}
+
 func mapUserGroupDeleteError(err error) error {
 	var postgresError *pgconn.PgError
 	if errors.As(err, &postgresError) && (postgresError.Code == "23001" || postgresError.Code == "23503") {

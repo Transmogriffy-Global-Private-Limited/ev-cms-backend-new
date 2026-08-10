@@ -529,6 +529,48 @@ func RegisterCPORoutes(
 	group.GET("/user-groups/:user_group_id", handler.getUserGroup)
 	group.PATCH("/user-groups/:user_group_id", handler.updateUserGroup)
 	group.DELETE("/user-groups/:user_group_id", handler.deleteUserGroup)
+	group.POST("/user-groups/:user_group_id/members", handler.addMemberToUserGroup)
+}
+
+// @Summary Add a member to a user group
+// @Description Adds a customer to a user group.
+// @Tags CPO Network - User Groups
+// @Accept json
+// @Produce json
+// @Param user_group_id path string true "User Group ID"
+// @Param member body AddMemberToUserGroupRequest true "Customer to add"
+// @Success 204 "Successfully added member to user group"
+// @Failure 400 {object} auth.APIError "Invalid request body or parameters"
+// @Failure 401 {object} auth.APIError "Unauthorized"
+// @Failure 403 {object} auth.APIError "Forbidden"
+// @Failure 404 {object} auth.APIError "User group or customer not found"
+// @Failure 409 {object} auth.APIError "Customer is already in a user group"
+// @Failure 500 {object} auth.APIError "Internal server error"
+// @Router /cpo/user-groups/{user_group_id}/members [post]
+func (handler *Handler) addMemberToUserGroup(ctx *gin.Context) {
+	principal, _ := auth.CurrentPrincipal(ctx)
+	userGroupID, ok := parseUserGroupID(ctx)
+	if !ok {
+		return
+	}
+
+	var request AddMemberToUserGroupRequest
+	if err := decodeJSON(ctx, &request); err != nil {
+		writeError(ctx, &auth.APIError{
+			Status:  http.StatusBadRequest,
+			Code:    "invalid_request",
+			Message: "The request body is invalid.",
+		})
+		return
+	}
+
+	err := handler.service.AddMemberToUserGroup(ctx.Request.Context(), principal, userGroupID, request)
+	if err != nil {
+		writeError(ctx, err)
+		return
+	}
+
+	ctx.Status(http.StatusNoContent)
 }
 
 // @Summary Update charger status

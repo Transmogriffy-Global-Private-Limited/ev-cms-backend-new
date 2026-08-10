@@ -495,6 +495,10 @@ type UpdateUserGroupRequest struct {
 	IsActive    *bool   `json:"is_active,omitempty"`
 }
 
+type AddMemberToUserGroupRequest struct {
+	CustomerID uuid.UUID `json:"customer_id"`
+}
+
 type UserGroupView struct {
 	ID          uuid.UUID `json:"id"`
 	CPOID       uuid.UUID `json:"cpo_id"`

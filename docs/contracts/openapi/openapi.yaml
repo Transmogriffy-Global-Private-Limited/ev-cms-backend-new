@@ -4572,6 +4572,50 @@ paths:
                 $ref: "#/components/schemas/ErrorEnvelope"
         "500":
           $ref: "#/components/responses/InternalError"
+  /api/v1/cpo/user-groups/{user_group_id}/members:
+    post:
+      tags: [CPO Operations - Pricing & Tax]
+      operationId: addMemberToUserGroup
+      summary: Add a member to a user group
+      description: Adds a customer to a user group.
+      security:
+        - BearerAuth: []
+          CPOAppID: []
+      parameters:
+        - $ref: "#/components/parameters/UserGroupID"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AddMemberToUserGroupRequest"
+      responses:
+        "204":
+          description: Successfully added member to user group
+        "400":
+          description: Invalid request body or parameters
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/CPOBusinessForbidden"
+        "404":
+          description: User group or customer not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "409":
+          description: Customer is already in a user group
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "500":
+          $ref: "#/components/responses/InternalError"
 
   /api/v1/cpo/integrations:
     get:
@@ -7923,6 +7967,15 @@ components:
         name: {type: string, minLength: 1, maxLength: 100}
         description: {type: string, maxLength: 500}
         is_active: {type: boolean}
+
+    AddMemberToUserGroupRequest:
+      type: object
+      additionalProperties: false
+      required: [customer_id]
+      properties:
+        customer_id:
+          type: string
+          format: uuid
 
     UserGroup:
       type: object
