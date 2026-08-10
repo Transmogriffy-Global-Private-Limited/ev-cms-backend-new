@@ -2,6 +2,29 @@
 
 ## 2026-08-10
 
+### Rehosted CPO user-group membership completion
+
+- Completed the CPO user-group membership contract with the tenant-scoped
+  `DELETE /api/v1/cpo/user-groups/{user_group_id}/members/{customer_id}` route
+  and the `usergroup_assigned` customer projection field.
+- Reconciled the OpenAPI operation ID, tag, canonical error-envelope references,
+  and customer response schema, then aligned the human administrative API
+  contract with idempotency, tenant validation, conflict, and audit semantics.
+- No database migration was introduced; the live database remains at migration
+  twenty-seven.
+- Built and rehosted clean source revision `8cb1317`; the live contract now
+  exposes 152 operations.
+
+Verification:
+
+- OpenAPI/runtime route-contract verification, `go test ./...`, and `go vet ./...`
+  passed.
+- The live delete operation and `usergroup_assigned` schema field are present;
+  the protected user-group listing route rejects unauthenticated requests.
+- Local/public liveness and readiness, Swagger UI, and the live OpenAPI passed.
+- The PowerShell documentation verifier was not run because `pwsh` is
+  unavailable on this Ubuntu host.
+
 ### Clarified Superadmin Swagger group headings
 
 - Renamed all platform-management OpenAPI tags to use an explicit `Superadmin -`
