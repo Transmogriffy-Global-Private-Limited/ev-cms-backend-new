@@ -9,7 +9,7 @@
   authorization, OpenAPI, and route-contract coverage.
 - No database migration was introduced; the live database remains at migration
   twenty-seven.
-- Built and rehosted source revision `ee407da`; the live contract now exposes
+- Built and rehosted source revision `1b298a7`; the live contract now exposes
   150 operations.
 
 Verification:

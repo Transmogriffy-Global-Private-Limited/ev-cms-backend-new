@@ -965,7 +965,7 @@ Last completed slice:
 
 Last deployment milestone:
 
-- Revision `ee407da` was built from a clean worktree and rehosted on the
+- Revision `1b298a7` was built from a clean worktree and rehosted on the
   development VPS without a new migration. Running-binary SHA/VCS identity,
   active/enabled systemd state, loopback/public liveness and readiness, the
   live 150-operation OpenAPI surface, protected CPO tariff/user-group routes,

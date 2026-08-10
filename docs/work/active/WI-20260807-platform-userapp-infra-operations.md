@@ -89,7 +89,7 @@ alongside safe hub fields and `connector_total_capacity`. Hub
 `open_24_hours`, charger `twenty_four_seven_open_status`, and
 `hub_open_24_hours` are separately represented. Charger-host contact details,
 connection URLs, sanctioned load, and HAL-owned state remain excluded. The
-development VPS now runs application revision `ee407da`; the correction
+development VPS now runs application revision `1b298a7`; the correction
 introduced no migration or DNS/configuration change.
 
 ## Verification
@@ -110,7 +110,7 @@ introduced no migration or DNS/configuration change.
 - `go test ./...` passed.
 - `go vet ./...` passed.
 - `git diff --check` passed.
-- Revision `ee407da` is active under `evcmsnew-dev.service`; the running
+- Revision `1b298a7` is active under `evcmsnew-dev.service`; the running
   process matches the installed binary and the expected VCS revision.
 - Loopback/public liveness and readiness passed.
 - The live OpenAPI exposes 150 operations, and the live CPO connector

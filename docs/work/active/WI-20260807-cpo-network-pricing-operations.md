@@ -62,7 +62,7 @@ No new migration. The production ledger remains at migration 27.
 
 ## Current state
 
-Revision `ee407da` was built from a clean worktree and rehosted on
+Revision `1b298a7` was built from a clean worktree and rehosted on
 August 10, 2026 without a new migration. The live service exposes the
 150-operation OpenAPI document, and the CPO `Connector` response schema now
 documents the runtime `connector_total_capacity` projection. Scoped tariff
@@ -77,7 +77,7 @@ and user-group routes are protected by the same tenant authorization boundary.
 - `go test ./...` passed.
 - `go vet ./...` passed.
 - `git diff --check` passed.
-- Revision `ee407da` is active under `evcmsnew-dev.service`; the running
+- Revision `1b298a7` is active under `evcmsnew-dev.service`; the running
   process matches the installed binary and the expected VCS revision.
 - Loopback/public liveness and readiness passed.
 - The live OpenAPI exposes 150 operations, and the live CPO `Connector`

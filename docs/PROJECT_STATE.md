@@ -171,7 +171,7 @@ provides:
   handler;
 - the additive PostgreSQL database `devevcmsnewdb`, owned by `postgres`.
 
-The active development VPS runs source revision `ee407da`, with migrations
+The active development VPS runs source revision `1b298a7`, with migrations
 through twenty-seven recorded and the deployed 150-operation contract. The
 User App can serve an authenticated published charger's allowed image through
 its relative `charger_image_url`, without exposing the stored upload path.
@@ -279,9 +279,9 @@ implemented yet.
 - `git diff --check` passed. Stateful PostgreSQL lifecycle verification is
   intentionally deferred by the current workstream decision; no stateful
   result is claimed.
-- Revision `ee407da` was built from a clean worktree and rehosted without a
+- Revision `1b298a7` was built from a clean worktree and rehosted without a
   new migration. The running systemd process matches the installed binary
-  SHA-256 and embeds revision `ee407da708ee8b392ca41e754878996ab30f51c0`
+  SHA-256 and embeds revision `1b298a7b50199859a7db9b9bbe6dfe588c5b45ea`
   with `vcs.modified=false`. The service is active and enabled; loopback and
   public liveness/readiness passed; the live OpenAPI contains 150 operations;
   the live CPO `Connector` response schema exposes
