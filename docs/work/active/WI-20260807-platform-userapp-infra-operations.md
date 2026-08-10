@@ -64,13 +64,16 @@ None currently recorded.
 ## Contract impact
 
 The User App published-charger projection now includes safe CPO-owned display,
-category, use, and parking metadata. It continues to omit charger-host contact
-details, connection URLs, sanctioned load, and HAL-owned state. Any concrete
-contract change must be recorded and updated in its canonical contract, OpenAPI
-or service contract, consumer guidance, and verification in the same
-implementation slice. The communication change owner and receiving CMS surface
-owner must agree on message semantics, authentication, idempotency, error
-handling, and verification before a change is completed.
+category, use, and parking metadata. `CustomerHub.open_24_hours` is distinct
+from `CustomerCharger.twenty_four_seven_open_status`; the latter is sourced
+from the charger, and `hub_open_24_hours` identifies the attached hub value.
+The projection continues to omit charger-host contact details, connection URLs,
+sanctioned load, and HAL-owned state. Any concrete contract change must be
+recorded and updated in its canonical contract, OpenAPI or service contract,
+consumer guidance, and verification in the same implementation slice. The
+communication change owner and receiving CMS surface owner must agree on
+message semantics, authentication, idempotency, error handling, and
+verification before a change is completed.
 
 ## Data and migration impact
 
@@ -82,13 +85,22 @@ verification before execution.
 
 The ownership registration remains active. User App charger projections include
 the CPO-owned display-safe `charger_name`, category/use, and parking metadata,
-alongside existing safe hub fields and `connector_total_capacity`. Charger-host
-contact details, connection URLs, sanctioned load, and HAL-owned state remain
-excluded. The development VPS now runs application revision `13479fe`; the
-release introduced no migration or DNS/configuration change.
+alongside safe hub fields and `connector_total_capacity`. Hub
+`open_24_hours`, charger `twenty_four_seven_open_status`, and
+`hub_open_24_hours` are separately represented. Charger-host contact details,
+connection URLs, sanctioned load, and HAL-owned state remain excluded. The
+development VPS now runs application revision `13479fe`; this source-only
+correction has not been deployed and introduces no migration or
+DNS/configuration change.
 
 ## Verification
 
+- The database-free User App projection test now proves serialized hub and
+  charger opening-hour values remain separate when they differ.
+- `./scripts/verify-docs.ps1`, `go test ./src/customerauth -count=1`, and
+  OpenAPI/runtime route-contract verification passed for the split.
+- `go test ./...`, `go vet ./...`, the opening-hour residue scan, and
+  `git diff --check` passed for the split.
 - The database-free User App projection test now covers the propagated
   charger, hub, and connector-capacity fields while retaining `UNKNOWN` live
   availability.

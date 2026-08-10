@@ -1,6 +1,7 @@
 package customerauth
 
 import (
+	"encoding/json"
 	"testing"
 	"time"
 
@@ -82,7 +83,8 @@ func TestCustomerNetworkProjectionDoesNotClaimLiveAvailability(t *testing.T) {
 		Hub: hub, Model: &model, MaxPowerKW: 7.4, OCPPVersion: "1.6J",
 		ChargerName: "Lakefront Fast Charger", ChargerType: "DC", Segment: "Public",
 		SubSegment: "Highway", ChargerUseType: "Commercial", Parking: "Covered",
-		Status: constants.ChargerStatusActive, Connectors: []models.Connector{{
+		TwentyFourSevenOpen: false,
+		Status:              constants.ChargerStatusActive, Connectors: []models.Connector{{
 			ID: uuid.New(), ConnectorNumber: 1, ConnectorType: "TYPE2",
 			ConnectorTotalCapacity: 7.4, Status: constants.ChargerStatusActive,
 		}},
@@ -97,11 +99,54 @@ func TestCustomerNetworkProjectionDoesNotClaimLiveAvailability(t *testing.T) {
 	if projection.ChargerName != "Lakefront Fast Charger" || projection.ChargerType != "DC" || projection.Segment != "Public" || projection.SubSegment != "Highway" || projection.ChargerUseType != "Commercial" || projection.Parking != "Covered" {
 		t.Fatalf("customer-safe charger metadata was not preserved: %#v", projection)
 	}
-	if projection.HubName != "Salt Lake Hub" || projection.HubAddress != "Sector V" || projection.HubLatitude == nil || *projection.HubLatitude != 22.5726 || projection.HubLongitude == nil || *projection.HubLongitude != 88.3639 || projection.Open24Hours == nil || !*projection.Open24Hours {
+	if projection.HubName != "Salt Lake Hub" || projection.HubAddress != "Sector V" || projection.HubLatitude == nil || *projection.HubLatitude != 22.5726 || projection.HubLongitude == nil || *projection.HubLongitude != 88.3639 || projection.HubOpen24Hours == nil || !*projection.HubOpen24Hours {
 		t.Fatalf("customer-safe hub metadata was not preserved: %#v", projection)
+	}
+	if projection.TwentyFourSevenOpen {
+		t.Fatalf("charger opening status=%t, want false", projection.TwentyFourSevenOpen)
 	}
 	if projection.Connectors[0].ConnectorTotalCapacity != 7.4 {
 		t.Fatalf("connector capacity=%v, want 7.4", projection.Connectors[0].ConnectorTotalCapacity)
+	}
+	encoded, err := json.Marshal(struct {
+		Hub     CustomerHubSummary  `json:"hub"`
+		Charger CustomerChargerView `json:"charger"`
+	}{Hub: customerHubSummary(*hub, false), Charger: projection})
+	if err != nil {
+		t.Fatalf("marshal customer network projection: %v", err)
+	}
+	var payload struct {
+		Hub     map[string]json.RawMessage `json:"hub"`
+		Charger map[string]json.RawMessage `json:"charger"`
+	}
+	if err := json.Unmarshal(encoded, &payload); err != nil {
+		t.Fatalf("unmarshal customer network projection: %v", err)
+	}
+	for key, want := range map[string]bool{"open_24_hours": true} {
+		value, ok := payload.Hub[key]
+		if !ok {
+			t.Fatalf("hub response omitted %q", key)
+		}
+		var got bool
+		if err := json.Unmarshal(value, &got); err != nil || got != want {
+			t.Fatalf("hub %s=%s, want %t", key, value, want)
+		}
+	}
+	if _, exists := payload.Hub["twenty_four_seven_open_status"]; exists {
+		t.Fatal("hub response still exposes the charger opening-status field")
+	}
+	for key, want := range map[string]bool{
+		"twenty_four_seven_open_status": false,
+		"hub_open_24_hours":             true,
+	} {
+		value, ok := payload.Charger[key]
+		if !ok {
+			t.Fatalf("charger response omitted %q", key)
+		}
+		var got bool
+		if err := json.Unmarshal(value, &got); err != nil || got != want {
+			t.Fatalf("charger %s=%s, want %t", key, value, want)
+		}
 	}
 }
 

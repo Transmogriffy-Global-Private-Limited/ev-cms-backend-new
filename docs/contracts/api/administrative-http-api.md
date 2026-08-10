@@ -740,6 +740,12 @@ OCPP identity, serial number, charger-host contact details, connection URLs,
 and audit data. CMS `status` is not live availability; `availability` remains
 `UNKNOWN` until HAL integration.
 
+`CustomerHub.open_24_hours` is the hub's opening-hours value.
+`CustomerCharger.twenty_four_seven_open_status` is the charger's own
+opening-hours value, and `CustomerCharger.hub_open_24_hours` is the attached
+hub's value. The values are independent; the `open_24_hours` query filter
+selects by hub opening hours.
+
 Optional filters are `q`, `connector_type`, `min_power_kw`, `max_power_kw`,
 and `open_24_hours`. `q` searches the public charger ID, vendor, model, hub
 name, and hub address. Supplying `lat` and `lng` enables near-me search within

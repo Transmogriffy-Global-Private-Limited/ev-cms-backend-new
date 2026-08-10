@@ -109,9 +109,11 @@ provides:
   evidence;
 - CPO ADMIN-controlled default-false hub publication through
   `customer_visible`, plus authenticated customer-safe published network
-  discovery for hubs, attached chargers, and connectors; connector total
-  capacity and static CMS administrative statuses are returned separately from
-  HAL-owned live availability, which remains `UNKNOWN`;
+  discovery for hubs, attached chargers, and connectors; the hub
+  `open_24_hours` and charger `twenty_four_seven_open_status` values are
+  separate, connector total capacity and static CMS administrative statuses are
+  returned separately from HAL-owned live availability, which remains
+  `UNKNOWN`;
 - customer-owned favorite list and idempotent add/remove APIs over published
   hubs and attached chargers, with unpublish-safe reads and CPO/customer
   composite ownership;

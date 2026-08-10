@@ -162,12 +162,13 @@ bounded, stable keyset pagination. Query/filter changes discard old cursors.
 
 ### Customer Projection
 
-- Hub: ID, name, address, latitude, longitude, 24-hour flag, customer-visible
-  metadata, and a customer-owned favorite flag.
+- Hub: ID, name, address, latitude, longitude, `open_24_hours`,
+  customer-visible metadata, and a customer-owned favorite flag.
 - Charger: ID, public charger ID, display-safe charger name/category/use and
   parking metadata, vendor/model only if approved for display, maximum power,
-  OCPP version, static CMS administrative status, attached connector summaries,
-  optional authenticated image route, and favorite flag.
+  OCPP version, its own `twenty_four_seven_open_status`, the attached hub's
+  optional `hub_open_24_hours`, static CMS administrative status, attached
+  connector summaries, optional authenticated image route, and favorite flag.
 - Connector: ID, number, connector type, connector total capacity, and static
   CMS administrative status.
 

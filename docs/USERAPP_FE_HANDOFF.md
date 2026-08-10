@@ -257,7 +257,7 @@ export type CustomerHubSummary = {
   address: string;
   latitude: number;
   longitude: number;
-  twenty_four_seven_open_status: boolean;
+  open_24_hours: boolean;
   customer_visible: true;
   charger_count: number;
   is_favorite: boolean;
@@ -299,7 +299,8 @@ export type CustomerCharger = {
   hub_address?: string;
   hub_latitude?: number;
   hub_longitude?: number;
-  twenty_four_seven_open_status?: boolean;
+  twenty_four_seven_open_status: boolean;
+  hub_open_24_hours?: boolean;
   distance_km?: number;
   availability: "UNKNOWN";
   is_favorite: boolean;
@@ -447,6 +448,12 @@ administrative lifecycle (`ACTIVE`, `INACTIVE`, `SUSPENDED`,
 `UNDERMAINTENANCE`, or `DECOMMISSIONED`). It is not a live OCPP/HAL state.
 `connector_total_capacity` is the connector capacity value; the obsolete
 `max_current` and `max_voltage` fields are not returned.
+
+`CustomerHubSummary.open_24_hours` is the hub's opening-hours flag.
+`CustomerCharger.twenty_four_seven_open_status` is the charger's own opening
+flag, while `CustomerCharger.hub_open_24_hours` is the attached hub's flag.
+They are distinct fields and may have different values. The `open_24_hours`
+charger-list query filter applies to the hub field.
 
 The backend deliberately does not contact HAL in this slice. `availability` is
 `UNKNOWN` for chargers and connectors. Do not render either `availability` or

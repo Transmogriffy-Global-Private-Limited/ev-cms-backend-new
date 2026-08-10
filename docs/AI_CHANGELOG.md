@@ -28,6 +28,26 @@ Verification:
 - The PowerShell documentation verifier was not run because `pwsh` is
   unavailable on this Ubuntu host.
 
+### Split User App hub and charger opening-hour semantics
+
+- Replaced the ambiguous User App hub field
+  `twenty_four_seven_open_status` with `open_24_hours`.
+- `CustomerCharger.twenty_four_seven_open_status` now maps directly to the
+  CPO-owned charger field, while `hub_open_24_hours` separately maps to the
+  attached hub field.
+- This is an intentional User App contract correction: consumers must switch
+  hub reads to `open_24_hours` and must not infer charger opening status from
+  the hub value.
+
+Verification:
+
+- `./scripts/verify-docs.ps1` passed.
+- `go test ./src/customerauth -count=1` passed, including opposing hub/charger
+  opening-hour values in the serialized projection.
+- OpenAPI/runtime route-contract verification passed.
+- `go test ./...`, `go vet ./...`, the opening-hour residue scan, and
+  `git diff --check` passed.
+
 ## 2026-08-07
 
 ### Rehosted CPO connector-capacity contract revision
