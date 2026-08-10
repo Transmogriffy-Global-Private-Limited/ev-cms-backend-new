@@ -2,6 +2,31 @@
 
 ## 2026-08-10
 
+### Rehosted CPO user-group member assignment
+
+- Added the tenant-scoped `POST /api/v1/cpo/user-groups/{user_group_id}/members`
+  operation, with CPO authorization, same-CPO customer validation, idempotent
+  same-group assignment, conflict handling for another group, audit evidence,
+  and matching OpenAPI coverage.
+- No database migration was introduced; the live database remains at migration
+  twenty-seven.
+- Built and rehosted source revision `f88084d`; the live contract now exposes
+  151 operations.
+
+Verification:
+
+- OpenAPI/runtime route-contract verification, `go test ./...`, and `go vet ./...`
+  passed.
+- The member-assignment route is present and protected; unauthenticated access
+  returns `401`.
+- Local/public liveness and readiness, Swagger UI, and the live OpenAPI passed.
+- A connected platform realtime SSE client caused the old process to hit its
+  bounded graceful-shutdown deadline during restart; systemd automatically
+  restarted the service, which is active and healthy. No persistent startup
+  fault was observed.
+- The PowerShell documentation verifier was not run because `pwsh` is
+  unavailable on this Ubuntu host.
+
 ### Reconciled scoped CPO tariff and user-group contracts
 
 - Added and reconciled tenant-scoped CPO tariff operations for hubs, chargers,
