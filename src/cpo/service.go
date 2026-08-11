@@ -2043,6 +2043,9 @@ func (service *Service) CreateHubTariff(
 			IsActive:      isActive,
 			StartDate:     request.StartDate,
 			EndDate:       request.EndDate,
+			TariffType:    request.TariffType,
+			PriceType:     request.PriceType,
+			Units:         request.Units,
 			CreatedAt:     now,
 			UpdatedAt:     now,
 		}
@@ -2217,6 +2220,21 @@ func (service *Service) UpdateHubTariff(
 			record.IsActive = *request.IsActive
 			changedFields["is_active"] = *request.IsActive
 		}
+		if request.TariffType != nil {
+			updates["tariff_type"] = *request.TariffType
+			record.TariffType = *request.TariffType
+			changedFields["tariff_type"] = *request.TariffType
+		}
+		if request.PriceType != nil {
+			updates["price_type"] = *request.PriceType
+			record.PriceType = *request.PriceType
+			changedFields["price_type"] = *request.PriceType
+		}
+		if request.Units != nil {
+			updates["units"] = *request.Units
+			record.Units = *request.Units
+			changedFields["units"] = *request.Units
+		}
 
 		if len(changedFields) == 0 {
 			return &auth.APIError{
@@ -2315,6 +2333,9 @@ func (service *Service) CreateChargerTariff(
 			IsActive:      isActive,
 			StartDate:     request.StartDate,
 			EndDate:       request.EndDate,
+			TariffType:    request.TariffType,
+			PriceType:     request.PriceType,
+			Units:         request.Units,
 			CreatedAt:     now,
 			UpdatedAt:     now,
 		}
@@ -2484,6 +2505,21 @@ func (service *Service) UpdateChargerTariff(
 			record.IsActive = *request.IsActive
 			changedFields["is_active"] = *request.IsActive
 		}
+		if request.TariffType != nil {
+			updates["tariff_type"] = *request.TariffType
+			record.TariffType = *request.TariffType
+			changedFields["tariff_type"] = *request.TariffType
+		}
+		if request.PriceType != nil {
+			updates["price_type"] = *request.PriceType
+			record.PriceType = *request.PriceType
+			changedFields["price_type"] = *request.PriceType
+		}
+		if request.Units != nil {
+			updates["units"] = *request.Units
+			record.Units = *request.Units
+			changedFields["units"] = *request.Units
+		}
 
 		if len(changedFields) == 0 {
 			return &auth.APIError{
@@ -2573,6 +2609,9 @@ func (service *Service) CreateUserGroupTariff(
 			IsActive:      isActive,
 			StartDate:     request.StartDate,
 			EndDate:       request.EndDate,
+			TariffType:    request.TariffType,
+			PriceType:     request.PriceType,
+			Units:         request.Units,
 			CreatedAt:     now,
 			UpdatedAt:     now,
 		}
@@ -2750,6 +2789,21 @@ func (service *Service) UpdateUserGroupTariff(
 			updates["is_active"] = *request.IsActive
 			record.IsActive = *request.IsActive
 			changedFields["is_active"] = *request.IsActive
+		}
+		if request.TariffType != nil {
+			updates["tariff_type"] = *request.TariffType
+			record.TariffType = *request.TariffType
+			changedFields["tariff_type"] = *request.TariffType
+		}
+		if request.PriceType != nil {
+			updates["price_type"] = *request.PriceType
+			record.PriceType = *request.PriceType
+			changedFields["price_type"] = *request.PriceType
+		}
+		if request.Units != nil {
+			updates["units"] = *request.Units
+			record.Units = *request.Units
+			changedFields["units"] = *request.Units
 		}
 
 		if len(changedFields) == 0 {
@@ -4529,6 +4583,9 @@ func (service *Service) tariffView(record *models.Tariff) TariffView {
 		IsActive:      record.IsActive,
 		StartDate:     record.StartDate,
 		EndDate:       record.EndDate,
+		TariffType:    record.TariffType,
+		PriceType:     record.PriceType,
+		Units:         record.Units,
 		CreatedAt:     record.CreatedAt,
 		UpdatedAt:     record.UpdatedAt,
 	}
