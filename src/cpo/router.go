@@ -535,6 +535,7 @@ func RegisterCPORoutes(
 	group.GET("/settings", handler.getSettings)
 	group.POST("/settings", handler.createOrUpdateSettings)
 	group.PUT("/settings", handler.createOrUpdateSettings)
+	group.GET("/settings/invoice-logo", handler.getInvoiceLogo)
 }
 
 func (handler *Handler) getSettings(ctx *gin.Context) {
@@ -920,6 +921,36 @@ func (handler *Handler) getChargerImage(ctx *gin.Context) {
 	chargerID := ctx.Param("charger_id")
 
 	download, err := handler.service.DownloadChargerImage(ctx.Request.Context(), principal, chargerID)
+	if err != nil {
+		writeError(ctx, err)
+		return
+	}
+	defer download.Content.(io.Closer).Close()
+
+	disposition := mime.FormatMediaType("inline", map[string]string{"filename": download.OriginalName})
+	if disposition == "" {
+		writeError(ctx, &auth.APIError{
+			Status:  http.StatusInternalServerError,
+			Code:    "internal_error",
+			Message: "The request could not be completed.",
+		})
+		return
+	}
+
+	ctx.Header("Content-Disposition", disposition)
+	ctx.Header("Content-Type", download.DetectedMIME)
+	ctx.Header("Accept-Ranges", "bytes")
+	ctx.Header("Cache-Control", "public, max-age=3600")
+	ctx.Header("X-Content-Type-Options", "nosniff")
+
+	http.ServeContent(ctx.Writer, ctx.Request, download.OriginalName, download.ModTime, download.Content)
+}
+
+// getInvoiceLogo serves the invoice logo image.
+func (handler *Handler) getInvoiceLogo(ctx *gin.Context) {
+	principal, _ := auth.CurrentPrincipal(ctx)
+
+	download, err := handler.service.DownloadInvoiceLogo(ctx.Request.Context(), principal)
 	if err != nil {
 		writeError(ctx, err)
 		return

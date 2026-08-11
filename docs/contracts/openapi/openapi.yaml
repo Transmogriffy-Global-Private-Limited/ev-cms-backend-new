@@ -3283,6 +3283,39 @@ paths:
           $ref: "#/components/responses/CPOBusinessForbidden"
         "500":
           $ref: "#/components/responses/InternalError"
+    /api/v1/cpo/settings/invoice-logo:
+    get:
+      tags: [CPO Operations - Account & Notifications]
+      operationId: getCPOInvoiceLogo
+      summary: Get the CPO's invoice logo image
+      description: Returns the invoice logo image previously uploaded for the CPO.
+      security:
+        - BearerAuth: []
+        - CPOAppID: []
+      parameters:
+        - $ref: "#/components/parameters/CPOAppIDHeader"
+      responses:
+        "200":
+          description: Invoice logo image.
+          content:
+            image/*:
+              schema:
+                type: string
+                format: binary
+        "400":
+          $ref: "#/components/responses/InvalidRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/CPOBusinessForbidden"
+        "404":
+          description: "`settings_not_found` or `invoice_logo_not_found`."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "500":
+          $ref: "#/components/responses/InternalError"
 
   /api/v1/cpo/chargers:
     post:

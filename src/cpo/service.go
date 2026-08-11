@@ -5700,3 +5700,80 @@ func (service *Service) CreateOrUpdateSettings(
 		InvoiceNote: settings.InvoiceNote,
 	}, nil
 }
+
+// DownloadInvoiceLogo retrieves the invoice logo file for the authenticated CPO.
+func (service *Service) DownloadInvoiceLogo(ctx context.Context, principal auth.Principal) (*ImageDownload, error) {
+	if err := requireCPOAdminAccess(principal); err != nil {
+		return nil, err
+	}
+
+	cpoID := *principal.CPOID
+	var settings models.Settings
+	if err := service.database.WithContext(ctx).
+		Where("cpo_id = ?", cpoID).
+		First(&settings).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, &auth.APIError{
+				Status:  http.StatusNotFound,
+				Code:    "settings_not_found",
+				Message: "Settings for this CPO not found.",
+			}
+		}
+		return nil, fmt.Errorf("failed to get settings: %w", err)
+	}
+
+	if settings.InvoiceLogo == nil || *settings.InvoiceLogo == "" {
+		return nil, &auth.APIError{
+			Status:  http.StatusNotFound,
+			Code:    "invoice_logo_not_found",
+			Message: "No invoice logo has been uploaded.",
+		}
+	}
+
+	imagePath := *settings.InvoiceLogo
+	if strings.Contains(imagePath, "..") {
+		return nil, &auth.APIError{
+			Status:  http.StatusBadRequest,
+			Code:    "invalid_image_path",
+			Message: "The image path is invalid.",
+		}
+	}
+
+	file, err := os.Open(imagePath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, &auth.APIError{
+				Status:  http.StatusNotFound,
+				Code:    "invoice_logo_not_found",
+				Message: "The invoice logo file was not found.",
+			}
+		}
+		return nil, fmt.Errorf("open invoice logo: %w", err)
+	}
+
+	info, err := file.Stat()
+	if err != nil {
+		file.Close()
+		return nil, fmt.Errorf("stat invoice logo: %w", err)
+	}
+
+	buffer := make([]byte, 512)
+	_, err = file.Read(buffer)
+	if err != nil && err != io.EOF {
+		file.Close()
+		return nil, fmt.Errorf("read invoice logo for mime detection: %w", err)
+	}
+	if _, err := file.Seek(0, 0); err != nil {
+		file.Close()
+		return nil, fmt.Errorf("seek invoice logo: %w", err)
+	}
+
+	mimeType := http.DetectContentType(buffer)
+
+	return &ImageDownload{
+		Content:      file,
+		OriginalName: filepath.Base(imagePath),
+		DetectedMIME: mimeType,
+		ModTime:      info.ModTime(),
+	}, nil
+}
