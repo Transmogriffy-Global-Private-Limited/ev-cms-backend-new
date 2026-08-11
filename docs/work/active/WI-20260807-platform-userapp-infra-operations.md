@@ -4,7 +4,7 @@ Status: In Progress
 Owner: Anubhab Dey
 Collaborators: None
 Started: 2026-08-07
-Last updated: 2026-08-10
+Last updated: 2026-08-11
 
 Development-plan reference:
 
@@ -36,6 +36,14 @@ their CMS surface.
 - HAL-to-CMS and CMS-to-HAL service communication contracts and delivery flows
 - Development hosting, service configuration, database setup/migrations, and
   DNS work required for those backend surfaces
+
+### Active coordination note (2026-08-11)
+
+Codex is repairing the SuperAdmin administrator-list GORM base-model defect in
+`src/superadmin/service.go` and adding focused SQL-shape plus disposable
+PostgreSQL regression coverage. This is an internal query correction only: it
+does not change the HTTP contract, authorization, schema, migrations, or any
+other claimed surface.
 
 ## Non-goals
 
@@ -92,6 +100,11 @@ connection URLs, sanctioned load, and HAL-owned state remain excluded. The
 development VPS now runs application revision `f7e7227`; the charging vertical
 deployment applied migration twenty-eight without a DNS or reverse-proxy change.
 
+The isolated SuperAdmin administrator-list repair now binds GORM explicitly to
+`models.PlatformAdmin` before joining `users`. Its SQL-shape regression test
+passes, and a guarded disposable-PostgreSQL test covers execution, authority
+filtering, projections, and keyset pagination when `TEST_DATABASE_URL` is set.
+
 ## Verification
 
 - The database-free User App projection test now proves serialized hub and
@@ -126,6 +139,11 @@ deployment applied migration twenty-eight without a DNS or reverse-proxy change.
   `connector_total_capacity` field.
 - The PowerShell documentation verifier was not run because `pwsh` is
   unavailable on this Ubuntu host.
+- `go test ./src/superadmin -count=1`, `go test -p 1 ./...`, `go vet -p 1
+  ./...`, and `git diff --check` passed for the administrator-list repair.
+- The PostgreSQL execution regression test is present but skipped locally
+  because `TEST_DATABASE_URL` is not configured; no database was selected or
+  modified for this repair.
 
 ## Handoff
 

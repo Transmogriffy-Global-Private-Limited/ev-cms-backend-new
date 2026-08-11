@@ -216,6 +216,7 @@ func (service *Service) ListAdministrators(
 	}
 	requested := page.Limit + 1
 	database := service.database.WithContext(ctx).
+		Model(&models.PlatformAdmin{}).
 		Joins("JOIN users ON users.id = platform_admins.user_id").
 		Order("platform_admins.created_at DESC, platform_admins.user_id DESC").
 		Limit(requested)
