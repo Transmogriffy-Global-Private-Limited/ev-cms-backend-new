@@ -908,6 +908,10 @@ Current implementation slice:
 
 Last completed slice:
 
+- Added tenant-scoped user-group member assignment with same-group idempotency,
+  cross-group conflict handling, audit evidence, OpenAPI parity, and protected
+  route verification. This source revision was rehosted without a new
+  migration.
 - Added tenant-scoped CPO hub, charger, and user-group tariff operations plus
   protected user-group CRUD, with service validation, OpenAPI parity, and
   integration coverage. This source revision was rehosted without a new
@@ -988,12 +992,13 @@ Last completed slice:
 
 Last deployment milestone:
 
-- Revision `1b298a7` was built from a clean worktree and rehosted on the
+- Revision `6930189` was built from a clean worktree and rehosted on the
   development VPS without a new migration. Running-binary SHA/VCS identity,
   active/enabled systemd state, loopback/public liveness and readiness, the
-  live 150-operation OpenAPI surface, protected CPO tariff/user-group routes,
-  and the post-start fatal-error scan were verified. The disposable PostgreSQL
-  lifecycle remains pending without `TEST_DATABASE_URL`.
+  live 152-operation OpenAPI surface, protected CPO user-group member
+  assignment/removal routes, the `UserGroup.members` detail projection, and
+  the `usergroup_assigned` customer projection were verified. The disposable
+  PostgreSQL lifecycle remains pending without `TEST_DATABASE_URL`.
 
 Next expected slice:
 

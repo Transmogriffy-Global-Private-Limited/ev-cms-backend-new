@@ -171,8 +171,8 @@ provides:
   handler;
 - the additive PostgreSQL database `devevcmsnewdb`, owned by `postgres`.
 
-The active development VPS runs source revision `1b298a7`, with migrations
-through twenty-seven recorded and the deployed 150-operation contract. The
+The active development VPS runs source revision `6930189`, with migrations
+through twenty-seven recorded and the deployed 152-operation contract. The
 User App can serve an authenticated published charger's allowed image through
 its relative `charger_image_url`, without exposing the stored upload path.
 The CPO charger response also exposes a read-only `assigned` projection that
@@ -187,6 +187,12 @@ expose the charger's `twenty_four_seven_open_status` and the attached hub's
 `hub_open_24_hours`.
 CPO hub, charger, and user-group tariff routes are tenant-scoped; CPO user-group
 CRUD is protected by the same administrative authorization boundary.
+The user-group member-assignment and member-removal operations are
+tenant-scoped and idempotent; membership changes record an audit action, and
+the user-group detail response exposes safe `members` customer projections;
+customer projections expose `usergroup_assigned`. A connected platform realtime SSE
+client can make graceful shutdown reach its bounded timeout during rehost;
+systemd restarts the service automatically and health checks then pass.
 Migration
 twenty-seven replaces legacy charger/connector protocol-style states with the
 static CMS administrative values `ACTIVE`, `INACTIVE`, `SUSPENDED`,
@@ -279,13 +285,14 @@ implemented yet.
 - `git diff --check` passed. Stateful PostgreSQL lifecycle verification is
   intentionally deferred by the current workstream decision; no stateful
   result is claimed.
-- Revision `1b298a7` was built from a clean worktree and rehosted without a
+- Revision `6930189` was built from a clean worktree and rehosted without a
   new migration. The running systemd process matches the installed binary
-  SHA-256 and embeds revision `1b298a7b50199859a7db9b9bbe6dfe588c5b45ea`
+  SHA-256 `82781f61691cd93061f5e0d866ee63ce109298d053e74060d4242c2c8a817efe`
+  and embeds revision `693018920d5600592a5b3a8409ce2e7790e25f80`
   with `vcs.modified=false`. The service is active and enabled; loopback and
-  public liveness/readiness passed; the live OpenAPI contains 150 operations;
-  the live CPO `Connector` response schema exposes
-  `connector_total_capacity`; and the post-start fatal-error scan passed.
+  public liveness/readiness passed; the live OpenAPI contains 152 operations;
+  the live CPO user-group member detail projection and `usergroup_assigned`
+  response fields are present; and the post-start warning scan passed.
   The PowerShell documentation verifier remains unavailable on this Ubuntu
   host.
 - Revision `79683f0` was built cleanly and rehosted without a new migration.
