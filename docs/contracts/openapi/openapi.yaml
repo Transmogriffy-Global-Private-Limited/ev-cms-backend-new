@@ -3233,8 +3233,6 @@ paths:
             schema:
               $ref: "#/components/schemas/CreateOrUpdateCpoSettingsMultipartRequest"
             encoding:
-              data:
-                contentType: application/json
               invoice_logo:
                 contentType: image/*
       responses:
@@ -3254,7 +3252,7 @@ paths:
           $ref: "#/components/responses/InternalError"
     put:
       tags: [CPO Operations - Account & Notifications]
-      operationId: createOrUpdateCpoSettings
+      operationId: updateCpoSettings
       summary: Update the CPO's settings
       description: |
         Updates the settings for the authenticated CPO.
@@ -3268,8 +3266,6 @@ paths:
             schema:
               $ref: "#/components/schemas/CreateOrUpdateCpoSettingsMultipartRequest"
             encoding:
-              data:
-                contentType: application/json
               invoice_logo:
                 contentType: image/*
       responses:
@@ -8441,25 +8437,13 @@ components:
     CpoSettings:
       type: object
       additionalProperties: false
-      required:
-        - cpo_id
       properties:
-        cpo_id:
-          type: string
-          format: uuid
         invoice_logo:
           type: string
-          format: uri
           nullable: true
         invoice_note:
           type: string
           nullable: true
-        created_at:
-          type: string
-          format: date-time
-        updated_at:
-          type: string
-          format: date-time
 
     GetCpoSettingsResponse:
       $ref: "#/components/schemas/CpoSettings"
@@ -8467,12 +8451,9 @@ components:
     CreateOrUpdateCpoSettingsMultipartRequest:
       type: object
       properties:
-        data:
-          description: JSON payload containing CPO settings details.
-          type: object
-          properties:
-            invoice_note:
-              type: string
+        invoice_note:
+          type: string
+          description: Optional note printed on invoices.
         invoice_logo:
           type: string
           format: binary

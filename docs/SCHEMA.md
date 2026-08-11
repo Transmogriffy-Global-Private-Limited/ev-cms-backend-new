@@ -41,6 +41,8 @@ Migration files:
 - `db/migrations/000028_cms_hal_charging_vertical.down.sql`
 - `db/migrations/000029_add_tariff_fields.up.sql`
 - `db/migrations/000029_add_tariff_fields.down.sql`
+- `db/migrations/000030_add_settings_table.up.sql`
+- `db/migrations/000030_add_settings_table.down.sql`
 
 ## Supplied Model Mapping
 
@@ -89,6 +91,9 @@ Migration files:
 - Migration twenty-nine adds nullable `tariff_type`, `price_type`, and `units`
   columns. Existing tariffs remain valid with null metadata, and omitted API
   fields do not write empty enum values.
+- Migration thirty adds the tenant-owned `settings` table with one unique row
+  per CPO, optional invoice logo path, and optional invoice note. It references
+  `cpos(id)` and uses the existing `gen_random_uuid()` database function.
 
 ## Migration Behavior
 
