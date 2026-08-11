@@ -29,7 +29,7 @@ that setting; it must not be used until the OCPP host is explicitly configured
 with TLS/WebSocket support.
 
 The active deployment was updated on August 11, 2026 to source revision
-`f7e7227`. It has migrations one through twenty-eight and the current 157-operation
+`2550cf7`. It has migrations one through twenty-nine and the current 157-operation
 API. Migration twenty-seven replaces the legacy charger/connector protocol-style
 status values with static CMS administrative states (`ACTIVE`, `INACTIVE`,
 `SUSPENDED`, `UNDERMAINTENANCE`, and `DECOMMISSIONED`). Migration thirteen keeps
@@ -54,6 +54,10 @@ HAL-command, fact-receipt, mapping, and runtime-projection tables. The current
 CMS environment leaves the optional HAL v1 base URL and credentials unset, so
 customer charging reports `hal_unavailable` until an approved independent HAL
 provider is configured.
+Migration twenty-nine adds nullable tariff metadata fields
+`tariff_type`, `price_type`, and `units`; omitted values remain null and do not
+overwrite existing tariff metadata. The SuperAdmin administrator list binds its
+platform-admin model explicitly.
 GSTIN and complete address identity
 are database-required for CPOs, the
 authenticated platform slug-availability route is live, and known uniqueness
@@ -89,7 +93,7 @@ The deployment copies `.env.example` to `.env`, then overrides:
 - five independently generated 32-byte base64 cryptographic keys.
 
 `DATABASE_URL` and `SMTP_PASSWORD` contain deployment secrets only in the
-ignored environment file. The service is enabled and active, all twenty-eight forward
+ignored environment file. The service is enabled and active, all twenty-nine forward
 migrations are recorded, and startup idempotently retained the configured
 platform superadmin.
 
@@ -150,7 +154,7 @@ content exclusions are defined in
 `docs/contracts/internal/http-request-logging.md`. Long-lived SSE requests are
 recorded when they disconnect. A recovered panic first emits a correlated safe
 JSON stack diagnostic without Gin's request dump or the panic value. The
-currently deployed `f7e7227` binary includes this logger.
+currently deployed `2550cf7` binary includes this logger.
 
 The platform realtime SSE route is long-lived. If a browser holds that stream
 during a rehost, the application may log `shut down HTTP server: context

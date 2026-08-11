@@ -993,11 +993,15 @@ Last completed slice:
 
 Last deployment milestone:
 
-- Revision `f7e7227` was built from a clean worktree and rehosted on the
-  development VPS after a rollback dump and migration twenty-eight. Running-
-  binary SHA/VCS identity, active/enabled systemd state, loopback/public
-  liveness and readiness, Swagger, the live 157-operation OpenAPI surface,
-  protected charging routes, and the migration-created tables were verified.
+- Revision `2550cf7` was built from a clean worktree and rehosted on the
+  development VPS after confirming migration twenty-nine. Nullable tariff
+  metadata, the SuperAdmin administrator-list binding, and the repaired
+  `UserGroup.members` OpenAPI schema are live. Running-binary SHA/VCS identity,
+  active/enabled systemd state, loopback/public liveness and readiness,
+  Swagger, the live 157-operation OpenAPI surface, protected routes, and the
+  migration-created tariff columns were verified. The bounded SSE shutdown
+  deadline occurred during stop and recovered through systemd; current state is
+  healthy with zero restarts.
   The disposable PostgreSQL lifecycle and full HAL/virtual-charger acceptance
   remain pending without the required test topology and `TEST_DATABASE_URL`.
 

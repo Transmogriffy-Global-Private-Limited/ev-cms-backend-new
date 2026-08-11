@@ -2316,6 +2316,9 @@ Create requests use this body:
   "price_per_kwh": "18.5000",
   "idle_fee_per_min": "1.0000",
   "currency": "INR",
+  "tariff_type": "fixed",
+  "price_type": "energy",
+  "units": "watt/hour",
   "is_active": true,
   "start_date": "2026-09-01T00:00:00Z",
   "end_date": "2026-10-01T00:00:00Z"
@@ -2331,6 +2334,11 @@ Rules:
 - idle fee is optional/default zero and cannot be negative;
 - currency is optional/default `INR`, normalized uppercase, and exactly three
   letters;
+- `tariff_type` is optional and currently accepts `fixed`;
+- `price_type` is optional and accepts `sessions`, `time`, or `energy`;
+- `units` is optional and accepts `minutes` or `watt/hour`;
+- omitted optional tariff metadata remains null and is not written as an empty
+  enum value;
 - `is_active` is optional/default true;
 - `start_date` and `end_date` are either both omitted for an open-ended tariff
   or both supplied with `start_date < end_date`. A dated tariff is effective on
@@ -2366,7 +2374,8 @@ cross-scope tariff; malformed UUIDs return the applicable `400 invalid_*_id`
 error.
 
 A scoped `PATCH` accepts any non-empty subset of the create fields. Omitted
-fields remain unchanged. Optional relations cannot currently be cleared to null
+fields remain unchanged, including the optional tariff metadata fields. Optional
+relations cannot currently be cleared to null
 through this route; they can only be omitted or replaced with another owned
 UUID. Supplying an effective-date bound validates the resulting full schedule;
 the schedule remains either open-ended or a complete half-open interval. `200

@@ -58,13 +58,14 @@ backend work.
 
 ## Data and migration impact
 
-This CPO slice introduced no migration. The shared development deployment now
-records migration 28 for the separate CMS/HAL charging vertical.
+This CPO slice introduced migration twenty-nine for nullable tariff metadata;
+the shared development deployment also records migration twenty-eight for the
+separate CMS/HAL charging vertical.
 
 ## Current state
 
-Revision `f7e7227` was built from a clean worktree and rehosted on
-August 11, 2026 after migration twenty-eight. The live service exposes the
+Revision `2550cf7` was built from a clean worktree and rehosted on
+August 11, 2026 after migration twenty-nine. The live service exposes the
 157-operation OpenAPI document, and the CPO user-group membership contract now
 includes tenant-scoped, idempotent assignment/removal, the `members` detail
 projection, plus the `usergroup_assigned` customer projection. The CPO
@@ -81,15 +82,16 @@ and user-group routes are protected by the same tenant authorization boundary.
 - `go test ./...` passed.
 - `go vet ./...` passed.
 - `git diff --check` passed.
-- Revision `f7e7227` is active under `evcmsnew-dev.service`; the running
+- Revision `2550cf7` is active under `evcmsnew-dev.service`; the running
   process matches the installed binary and the expected VCS revision.
 - Loopback/public liveness and readiness passed.
 - The live OpenAPI exposes 157 operations, and the live CPO user-group detail
   `members` projection plus `usergroup_assigned` response field are present.
 - The live CPO `Connector` response schema exposes `connector_total_capacity`.
-- The post-start warning scan passed.
-- Migration twenty-eight is applied; it adds the CMS/HAL charging vertical
-  state tables without altering the CPO network ownership boundary.
+- The current systemd state is active/enabled with zero restarts after the
+  bounded SSE shutdown deadline recovered during rehost.
+- Migration twenty-nine is applied; its nullable tariff metadata is null-safe
+  for existing rows and omitted request fields.
 - The PowerShell documentation verifier was not run because `pwsh` is
   unavailable on this Ubuntu host.
 

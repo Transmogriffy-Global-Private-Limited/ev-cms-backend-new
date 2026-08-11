@@ -2,6 +2,32 @@
 
 ## 2026-08-11
 
+### Rehosted nullable tariff metadata and SuperAdmin fixes
+
+- Added migration `000029_add_tariff_fields` for nullable tariff metadata
+  (`tariff_type`, `price_type`, and `units`), preserving nulls for existing
+  tariffs and omitted request fields.
+- Corrected the SuperAdmin administrator-list model binding and repaired the
+  OpenAPI `UserGroup.members` contract, including removal of a duplicate schema
+  key. The live contract remains at 157 operations.
+- Built clean source revision `2550cf7` and rehosted `evcmsnew-dev.service`;
+  migration 29 was already applied and the service is enabled and active.
+
+Verification:
+
+- OpenAPI/runtime route verification, `go test ./...`, `go vet ./...`,
+  migration-up execution, and `git diff --check` passed. The binary embeds
+  revision `2550cf79fa6a9b84f3e30b0dca4101b8f0659574` with `vcs.modified=false`.
+- Loopback/public liveness and readiness, Swagger, raw OpenAPI, the live
+  tariff/member fields, and protected-route `401` checks passed. The live
+  OpenAPI exposes 157 operations.
+- During the bounded stop phase, the known long-lived SSE connection reached
+  the graceful-shutdown deadline (`context deadline exceeded`); systemd
+  restarted the process successfully. The current service reports
+  `Result=success`, `NRestarts=0`, and is healthy.
+- The PowerShell documentation verifier was not run because `pwsh` is
+  unavailable on this Ubuntu host.
+
 ### Added the initial CMS HAL v1 charging consumer slice
 
 - Added migration `000028_cms_hal_charging_vertical` and CMS-side start intent,
