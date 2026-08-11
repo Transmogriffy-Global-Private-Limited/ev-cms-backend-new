@@ -993,14 +993,15 @@ Last completed slice:
 
 Last deployment milestone:
 
-- Revision `e5fd599` was built from a clean worktree and rehosted on the
-  development VPS after applying migration thirty. The tenant-scoped CPO
-  settings API and its aligned multipart OpenAPI contract are live alongside
-  the nullable tariff metadata, SuperAdmin administrator-list binding, and
-  repaired `UserGroup.members` schema. Running-binary SHA/VCS identity,
+- Revision `a76d6ae` was built from a clean worktree and rehosted on the
+  development VPS after applying migration thirty-one. Required GST state,
+  nullable legacy GST-rate persistence, and the aligned GST contract are live
+  alongside the tenant-scoped CPO settings API, nullable tariff metadata,
+  SuperAdmin administrator-list binding, and repaired `UserGroup.members`
+  schema. Running-binary SHA/VCS identity,
   active/enabled systemd state, loopback/public liveness and readiness,
   Swagger, the live 160-operation OpenAPI surface, protected routes, and the
-  migration-created settings table were verified. The bounded SSE shutdown
+  migration-created GST state column were verified. The bounded SSE shutdown
   deadline occurred during stop and recovered through systemd; current state is
   healthy with zero restarts.
   The disposable PostgreSQL lifecycle and full HAL/virtual-charger acceptance

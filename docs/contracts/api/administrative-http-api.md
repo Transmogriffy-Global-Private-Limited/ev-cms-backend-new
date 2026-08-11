@@ -2241,6 +2241,7 @@ Creates a named tenant GST profile.
 ```json
 {
   "name": "Standard GST",
+  "state": "West Bengal",
   "sgst_rate": "9.00",
   "cgst_rate": "9.00",
   "igst_rate": "18.00",
@@ -2248,10 +2249,13 @@ Creates a named tenant GST profile.
 }
 ```
 
-All four non-boolean fields are required. The name is trimmed and limited to
-100 characters. Each exact decimal rate is 0–100 inclusive. Decimal JSON
+All five non-boolean fields are required. The name and state are trimmed and
+limited to 100 characters. Each exact decimal rate is 0–100 inclusive. Decimal JSON
 strings are recommended; JSON numbers are also accepted. `is_active` defaults
 to true. The normalized name is unique per CPO.
+
+Migration thirty-one permits pre-existing GST rows to retain null rate values;
+those response fields are omitted when null. New profiles cannot omit rates.
 
 `201 Created` returns the generated UUID, trusted CPO ID, exact decimal rates
 as JSON strings, active state, and timestamps. The transaction writes
@@ -2279,8 +2283,9 @@ return `404 gst_not_found`; malformed UUIDs return `400 invalid_gst_id`.
 
 ### 9.18 `PATCH /api/v1/cpo/gsts/{gst_id}`
 
-Accepts any non-empty subset of `name`, `sgst_rate`, `cgst_rate`, `igst_rate`,
-and `is_active`, using the create validation. Omission preserves a field.
+Accepts any non-empty subset of `name`, `state`, `sgst_rate`, `cgst_rate`,
+`igst_rate`, and `is_active`, using the create validation for supplied fields.
+Omission preserves a field.
 `200 OK` returns the updated GST profile and writes `GST_UPDATED`.
 
 There is currently no GST delete route. An inactive profile remains durable for

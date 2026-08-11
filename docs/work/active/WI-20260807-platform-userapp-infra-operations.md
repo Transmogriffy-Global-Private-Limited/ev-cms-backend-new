@@ -97,8 +97,8 @@ alongside safe hub fields and `connector_total_capacity`. Hub
 `open_24_hours`, charger `twenty_four_seven_open_status`, and
 `hub_open_24_hours` are separately represented. Charger-host contact details,
 connection URLs, sanctioned load, and HAL-owned state remain excluded. The
-development VPS now runs application revision `e5fd599`; the charging vertical,
-nullable tariff metadata, and tenant settings API applied migrations through thirty
+development VPS now runs application revision `a76d6ae`; the charging vertical,
+nullable tariff metadata, tenant settings API, and GST state update applied migrations through thirty-one
 without a DNS or reverse-proxy change.
 
 The isolated SuperAdmin administrator-list repair now binds GORM explicitly to
@@ -124,7 +124,7 @@ filtering, projections, and keyset pagination when `TEST_DATABASE_URL` is set.
 - `go test ./...` passed.
 - `go vet ./...` passed.
 - `git diff --check` passed.
-- Revision `e5fd599` is active under `evcmsnew-dev.service`; the running
+- Revision `a76d6ae` is active under `evcmsnew-dev.service`; the running
   process matches the installed binary and the expected VCS revision.
 - Loopback/public liveness and readiness passed.
 - The live OpenAPI exposes 160 operations, and the live CPO user-group detail
@@ -132,7 +132,7 @@ filtering, projections, and keyset pagination when `TEST_DATABASE_URL` is set.
 - The live CPO connector response schema reflects `connector_total_capacity`.
 - The current systemd state is active/enabled with zero restarts after the
   bounded SSE shutdown deadline recovered during rehost.
-- Migration thirty is applied; the tenant settings routes and CMS/HAL charging routes are
+- Migration thirty-one is applied; the tenant settings, GST, and CMS/HAL charging routes are
   protected and the optional HAL provider remains unconfigured on this host.
 - The protected User App charger route returned `401` without credentials.
 - The current release is active on the loopback listener and public health and

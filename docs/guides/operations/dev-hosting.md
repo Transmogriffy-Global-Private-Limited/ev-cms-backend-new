@@ -29,7 +29,7 @@ that setting; it must not be used until the OCPP host is explicitly configured
 with TLS/WebSocket support.
 
 The active deployment was updated on August 11, 2026 to source revision
-`e5fd599`. It has migrations one through thirty and the current 160-operation
+`a76d6ae`. It has migrations one through thirty-one and the current 160-operation
 API. Migration twenty-seven replaces the legacy charger/connector protocol-style
 status values with static CMS administrative states (`ACTIVE`, `INACTIVE`,
 `SUSPENDED`, `UNDERMAINTENANCE`, and `DECOMMISSIONED`). Migration thirteen keeps
@@ -61,6 +61,9 @@ platform-admin model explicitly.
 Migration thirty adds one tenant-scoped `settings` row per CPO for invoice-note
 and invoice-logo metadata. Its UUID and CPO foreign key follow the existing
 `gen_random_uuid()` and `cpos` conventions.
+Migration thirty-one adds the nullable GST `state` column and allows legacy GST
+rates to remain null; newly created GST profiles still validate required state
+and all three rates at the API boundary.
 GSTIN and complete address identity
 are database-required for CPOs, the
 authenticated platform slug-availability route is live, and known uniqueness
@@ -96,7 +99,7 @@ The deployment copies `.env.example` to `.env`, then overrides:
 - five independently generated 32-byte base64 cryptographic keys.
 
 `DATABASE_URL` and `SMTP_PASSWORD` contain deployment secrets only in the
-ignored environment file. The service is enabled and active, all thirty forward
+ignored environment file. The service is enabled and active, all thirty-one forward
 migrations are recorded, and startup idempotently retained the configured
 platform superadmin.
 
@@ -157,7 +160,7 @@ content exclusions are defined in
 `docs/contracts/internal/http-request-logging.md`. Long-lived SSE requests are
 recorded when they disconnect. A recovered panic first emits a correlated safe
 JSON stack diagnostic without Gin's request dump or the panic value. The
-currently deployed `e5fd599` binary includes this logger.
+currently deployed `a76d6ae` binary includes this logger.
 
 The platform realtime SSE route is long-lived. If a browser holds that stream
 during a rehost, the application may log `shut down HTTP server: context
