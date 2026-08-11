@@ -98,7 +98,7 @@ implemented.
 
 | Variable | Requirement / default |
 |---|---|
-| `HAL_V1_BASE_URL` | Optional. Base URL for the independently deployed HAL; no trailing slash. Leave unset to keep customer charging unavailable rather than guessing a provider. Local acceptance uses a loopback URL. |
+| `HAL_V1_BASE_URL` | Optional. Base URL for the independently deployed HAL; no trailing slash. Leave unset to keep customer charging unavailable rather than guessing a provider. Configure a loopback URL only when the approved v1 provider is running locally. |
 | `HAL_V1_CMS_BEARER_TOKEN` | Secret. Required with `HAL_V1_BASE_URL`; CMS-to-HAL command and mapping bearer. |
 | `HAL_V1_CMS_FACT_BEARER_TOKEN` | Secret. Required with `HAL_V1_BASE_URL`; HAL-to-CMS fact bearer, distinct from the command bearer. |
 | `HAL_V1_REQUEST_TIMEOUT` | `5s`, positive HTTP client timeout. A timeout is reconciliation evidence, not permission to create another command. |

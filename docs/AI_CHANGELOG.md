@@ -11,14 +11,27 @@
   RFC 8785 JCS fact-digest verification, customer charging start/stop/polling
   routes, and matching OpenAPI/configuration/integration documentation.
 - Kept the HAL provider, legacy HAL, and legacy CMS untouched. No deployment,
-  commit, or push occurred.
+  provider credentials, or virtual-charger acceptance was assumed.
+- Applied migration `000028_cms_hal_charging_vertical`, built clean source
+  revision `f7e7227`, and rehosted the development CMS. The live contract now
+  exposes 157 operations.
 
 Verification:
 
 - Focused CMS package, migration/model, and OpenAPI/runtime route tests passed.
+- `go test ./...` and `go vet ./...` passed before activation. The enabled
+  systemd service is active on `127.0.0.1:18080`; local/public liveness and
+  readiness, Swagger, raw OpenAPI, migration 28, and the new protected charging
+  routes passed live checks. The deployed binary embeds `f7e7227` with
+  `vcs.modified=false` and the post-start warning journal was empty.
+- The current ignored environment intentionally leaves `HAL_V1_BASE_URL` and
+  both HAL credentials unset; the charging start route therefore remains
+  unavailable until the independent v1 provider is configured.
 - The full dual-PostgreSQL HAL plus virtual charger vertical, restart/outage
   cases, and reconciliation worker are not yet verified and must not be
   presented as complete acceptance.
+- The PowerShell documentation verifier was not run because `pwsh` is
+  unavailable on this Ubuntu host.
 
 ## 2026-08-10
 

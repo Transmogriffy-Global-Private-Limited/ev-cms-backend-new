@@ -58,14 +58,23 @@ Implement and verify the first real CMS consumer charging vertical against
 
 - The source contains the first CMS client, fact receiver, durable records,
   customer start/stop/polling routes, and OpenAPI/configuration documentation.
+- Migration `000028_cms_hal_charging_vertical` is applied in the development
+  database. Revision `f7e7227` is active under `evcmsnew-dev.service` with a
+  157-operation live contract.
+- The optional HAL v1 base URL and both service credentials remain unset on
+  this host, so customer charging is intentionally unavailable until the
+  independent provider is configured.
 - Full virtual-charger, restart, outage, and reconciliation-worker acceptance
   remains incomplete.
 
 ## Verification
 
-- Passed: focused customer-auth tests, OpenAPI/runtime route parity,
-  `go test ./...`, `go vet ./...`, `./scripts/verify-docs.ps1`, and
-  `git diff --check`.
+- Passed: focused customer-auth and OpenAPI/runtime route-parity tests,
+  `go test ./...`, `go vet ./...`, migration-up execution, live migration/table
+  checks, local/public health/readiness, Swagger/OpenAPI, protected charging
+  route checks, and `git diff --check`.
+- The PowerShell documentation verifier was not run because `pwsh` is
+  unavailable on this Ubuntu host.
 - Still required: disposable-PostgreSQL lifecycle tests, real loopback
   CMS-to-HAL-to-virtual-charge-point acceptance, and restart/outage/retry
   reconciliation coverage.

@@ -107,9 +107,10 @@ Active work:
 
 Current implementation state:
 
-- CMS source contains the first client, durable records, fact receiver,
-  customer polling/start/stop routes, and OpenAPI surface. It is not verified
-  as a complete Postgres-to-HAL-to-virtual-charger vertical yet.
+- CMS source and the development deployment contain the first client, durable
+  records, fact receiver, customer polling/start/stop routes, and 157-operation
+  OpenAPI surface. The HAL v1 provider is not configured on this host, and the
+  complete Postgres-to-HAL-to-virtual-charger vertical is not verified yet.
 
 Next required slice:
 
@@ -992,13 +993,13 @@ Last completed slice:
 
 Last deployment milestone:
 
-- Revision `6930189` was built from a clean worktree and rehosted on the
-  development VPS without a new migration. Running-binary SHA/VCS identity,
-  active/enabled systemd state, loopback/public liveness and readiness, the
-  live 152-operation OpenAPI surface, protected CPO user-group member
-  assignment/removal routes, the `UserGroup.members` detail projection, and
-  the `usergroup_assigned` customer projection were verified. The disposable
-  PostgreSQL lifecycle remains pending without `TEST_DATABASE_URL`.
+- Revision `f7e7227` was built from a clean worktree and rehosted on the
+  development VPS after a rollback dump and migration twenty-eight. Running-
+  binary SHA/VCS identity, active/enabled systemd state, loopback/public
+  liveness and readiness, Swagger, the live 157-operation OpenAPI surface,
+  protected charging routes, and the migration-created tables were verified.
+  The disposable PostgreSQL lifecycle and full HAL/virtual-charger acceptance
+  remain pending without the required test topology and `TEST_DATABASE_URL`.
 
 Next expected slice:
 
