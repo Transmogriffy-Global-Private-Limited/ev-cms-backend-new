@@ -3804,6 +3804,7 @@ func (service *Service) CreateHub(
 			Name:            request.Name,
 			Address:         request.Address,
 			Latitude:        *request.Latitude,
+			State:           request.State,
 			Longitude:       *request.Longitude,
 			Open24Hours:     open24Hours,
 			SanctionLoad:    sanctionLoad,
@@ -3966,6 +3967,7 @@ func (service *Service) GetHub(
 		CPOID:           hub.CPOID,
 		Name:            hub.Name,
 		Address:         hub.Address,
+		State:           hub.State,
 		Latitude:        hub.Latitude,
 		Longitude:       hub.Longitude,
 		Open24Hours:     hub.Open24Hours,
@@ -4033,6 +4035,10 @@ func (service *Service) UpdateHub(
 			updates["customer_visible"] = *request.CustomerVisible
 			changedFields["customer_visible"] = *request.CustomerVisible
 		}
+		if request.State != nil && record.State != *request.State {
+			updates["state"] = *request.State
+			changedFields["state"] = *request.State
+		}
 
 		if len(changedFields) == 0 {
 			return nil
@@ -4055,6 +4061,8 @@ func (service *Service) UpdateHub(
 				record.SanctionLoad = value.(float64)
 			case "customer_visible":
 				record.CustomerVisible = value.(bool)
+			case "state":
+				record.State = value.(string)
 			}
 		}
 
@@ -4369,12 +4377,14 @@ func (service *Service) AssignChargerToHub(
 func normalizeCreateHubRequest(request CreateHubRequest) CreateHubRequest {
 	request.Name = strings.TrimSpace(request.Name)
 	request.Address = strings.TrimSpace(request.Address)
+	request.State = strings.TrimSpace(request.State)
 	return request
 }
 
 func normalizeUpdateHubRequest(request UpdateHubRequest) UpdateHubRequest {
 	request.Name = trimOptionalString(request.Name)
 	request.Address = trimOptionalString(request.Address)
+	request.State = trimOptionalString(request.State)
 	return request
 }
 
@@ -4384,6 +4394,9 @@ func validateCreateHubRequest(request CreateHubRequest) error {
 	}
 	if request.Address == "" || len(request.Address) > 5000 {
 		return invalid("address", "Hub address is required and must not exceed 5000 characters.")
+	}
+	if request.State == "" || len(request.State) > 100 {
+		return invalid("state", "Hub state is required and must not exceed 100 characters.")
 	}
 	if request.Latitude == nil {
 		return invalid("latitude", "Latitude is required.")
@@ -4407,6 +4420,7 @@ func validateUpdateHubRequest(request UpdateHubRequest) error {
 	if request.Name == nil &&
 		request.Address == nil &&
 		request.Latitude == nil &&
+		request.State == nil &&
 		request.Longitude == nil &&
 		request.Open24Hours == nil &&
 		request.SanctionLoad == nil &&
@@ -4419,6 +4433,9 @@ func validateUpdateHubRequest(request UpdateHubRequest) error {
 	}
 	if request.Address != nil && (*request.Address == "" || len(*request.Address) > 5000) {
 		return invalid("address", "Hub address must not exceed 5000 characters.")
+	}
+	if request.State != nil && (*request.State == "" || len(*request.State) > 100) {
+		return invalid("state", "Hub state must not exceed 100 characters.")
 	}
 	if request.Latitude != nil && (*request.Latitude < -90 || *request.Latitude > 90) {
 		return invalid("latitude", "Latitude must be between -90 and 90.")
@@ -4463,6 +4480,7 @@ func hubView(record models.Hub) HubView {
 		CPOID:           record.CPOID,
 		Name:            record.Name,
 		Address:         record.Address,
+		State:           record.State,
 		Latitude:        record.Latitude,
 		Longitude:       record.Longitude,
 		Open24Hours:     record.Open24Hours,

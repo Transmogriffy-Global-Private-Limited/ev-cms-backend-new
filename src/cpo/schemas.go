@@ -308,6 +308,7 @@ type ConnectorView struct {
 type CreateHubRequest struct {
 	Name            string      `json:"name"`
 	Address         string      `json:"address"`
+	State           string      `json:"state"`
 	Latitude        *float64    `json:"latitude"`
 	Longitude       *float64    `json:"longitude"`
 	Open24Hours     *bool       `json:"open_24_hours,omitempty"`
@@ -319,6 +320,7 @@ type CreateHubRequest struct {
 type UpdateHubRequest struct {
 	Name            *string  `json:"name,omitempty"`
 	Address         *string  `json:"address,omitempty"`
+	State           *string  `json:"state,omitempty"`
 	Latitude        *float64 `json:"latitude,omitempty"`
 	Longitude       *float64 `json:"longitude,omitempty"`
 	Open24Hours     *bool    `json:"open_24_hours,omitempty"`

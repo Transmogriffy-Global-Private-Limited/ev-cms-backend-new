@@ -175,6 +175,7 @@ type Hub struct {
 	CPO             CPO       `gorm:"foreignKey:CPOID;constraint:OnUpdate:CASCADE,OnDelete:RESTRICT" json:"cpo,omitempty"`
 	Name            string    `gorm:"type:varchar(255);not null" json:"name"`
 	Address         string    `gorm:"type:text;not null" json:"address"`
+	State           string    `gorm:"not null;size:100"`
 	Latitude        float64   `gorm:"type:numeric(10,8);not null" json:"latitude"`
 	Longitude       float64   `gorm:"type:numeric(11,8);not null" json:"longitude"`
 	Open24Hours     bool      `gorm:"column:open_24_hours;not null;default:true" json:"open_24_hours"`
