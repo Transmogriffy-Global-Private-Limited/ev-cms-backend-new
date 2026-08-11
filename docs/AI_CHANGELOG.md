@@ -2,6 +2,26 @@
 
 ## 2026-08-11
 
+### Added compact User App charger-location discovery
+
+- Added authenticated `GET /api/v1/app/chargers/locations`, reusing the full
+  published-charger filter, pagination, and near-me semantics while returning
+  each map marker as only `charger_name`, attached-hub `latitude`, and
+  attached-hub `longitude`.
+- Kept CPO isolation and the customer-visible hub boundary intact. No database
+  migration, deployment, live availability claim, or HAL interaction was
+  added.
+
+Verification:
+
+- Focused customer-auth tests pass, including an exact-three-fields compact
+  projection serialization test. PowerShell documentation-contract verification
+  passes with the expected 158 OpenAPI operations.
+- The route/OpenAPI Go test remains unverified on this workstation: one normal
+  run exhausted the Go runtime's available memory, and two single-process,
+  capped-memory retries exceeded the two-minute bound while compiling. No
+  route test failure was reported.
+
 ### Rehosted nullable tariff metadata and SuperAdmin fixes
 
 - Added migration `000029_add_tariff_fields` for nullable tariff metadata

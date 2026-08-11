@@ -865,6 +865,72 @@ paths:
               schema: {$ref: "#/components/schemas/ErrorEnvelope"}
         "500": {$ref: "#/components/responses/InternalError"}
 
+  /api/v1/app/chargers/locations:
+    get:
+      tags: [App User Network]
+      operationId: listCustomerChargerLocations
+      summary: List compact map locations for published chargers
+      description: |
+        Applies the same published-hub, current-CPO, text, connector-type,
+        power, opening-hours, cursor, and optional near-me filters as the full
+        charger list. Each returned charger contains only its display name and
+        the coordinates of its attached hub; chargers have no independent
+        coordinate fields. Location searches are bounded and omit a
+        continuation cursor.
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/CPOAppIDHeader"
+        - $ref: "#/components/parameters/ListBefore"
+        - $ref: "#/components/parameters/ListBeforeID"
+        - $ref: "#/components/parameters/ListLimit"
+        - name: q
+          in: query
+          schema: {type: string, maxLength: 255}
+          description: Case-insensitive charger, vendor, model, hub, or address search.
+        - name: connector_type
+          in: query
+          schema: {type: string, maxLength: 50}
+        - name: min_power_kw
+          in: query
+          schema: {type: number, minimum: 0}
+        - name: max_power_kw
+          in: query
+          schema: {type: number, minimum: 0}
+        - name: open_24_hours
+          in: query
+          schema: {type: boolean}
+        - name: lat
+          in: query
+          schema: {type: number, minimum: -90, maximum: 90}
+          description: Current customer latitude; required together with lng for near-me search.
+        - name: lng
+          in: query
+          schema: {type: number, minimum: -180, maximum: 180}
+        - name: radius_km
+          in: query
+          schema: {type: number, minimum: 0, exclusiveMinimum: true, maximum: 100}
+          description: Must be greater than zero; defaults to 10 km.
+      responses:
+        "200":
+          description: Published charger map locations matching the filters.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CustomerChargerLocationListResponse"
+        "400":
+          description: Invalid filter, location, power range, limit, or cursor.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/ErrorEnvelope"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403":
+          description: "`cpo_app_id_mismatch` or wrong session plane."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/ErrorEnvelope"}
+        "500": {$ref: "#/components/responses/InternalError"}
+
   /api/v1/app/chargers/{charger_id}/price:
     get:
       tags: [App User Network]
@@ -6197,6 +6263,36 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/CustomerCharger"
+        next_before: {type: string, format: date-time}
+        next_before_id: {type: string, format: uuid}
+        has_more: {type: boolean}
+
+    CustomerChargerLocation:
+      type: object
+      additionalProperties: false
+      required: [charger_name, latitude, longitude]
+      properties:
+        charger_name: {type: string, maxLength: 255}
+        latitude:
+          type: number
+          minimum: -90
+          maximum: 90
+          description: Latitude of the charger's attached published hub.
+        longitude:
+          type: number
+          minimum: -180
+          maximum: 180
+          description: Longitude of the charger's attached published hub.
+
+    CustomerChargerLocationListResponse:
+      type: object
+      additionalProperties: false
+      required: [chargers, has_more]
+      properties:
+        chargers:
+          type: array
+          items:
+            $ref: "#/components/schemas/CustomerChargerLocation"
         next_before: {type: string, format: date-time}
         next_before_id: {type: string, format: uuid}
         has_more: {type: boolean}

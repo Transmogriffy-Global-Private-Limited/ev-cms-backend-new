@@ -126,6 +126,10 @@ provides:
   connector projections; DB-backed status and connector total capacity; an
   authenticated charger-image route keyed by public charger ID; and explicit
   UNKNOWN live availability;
+- an authenticated compact User App charger-location list over the same
+  published-hub scope and optional charger filters, returning each map marker
+  as only `charger_name`, attached-hub `latitude`, and attached-hub
+  `longitude`;
 - authenticated CPO/customer-scoped wallet balance and keyset-paginated wallet
   history reads using exact decimal projections;
 - User App Razorpay recharge order creation and captured-payment verification

@@ -59,6 +59,22 @@ type CustomerChargerListResponse struct {
 	HasMore      bool                  `json:"has_more"`
 }
 
+// CustomerChargerLocationView is the compact map-marker projection for a
+// charger attached to a published hub. Coordinates belong to that hub because
+// chargers do not have independent location fields.
+type CustomerChargerLocationView struct {
+	ChargerName string  `json:"charger_name"`
+	Latitude    float64 `json:"latitude"`
+	Longitude   float64 `json:"longitude"`
+}
+
+type CustomerChargerLocationListResponse struct {
+	Chargers     []CustomerChargerLocationView `json:"chargers"`
+	NextBefore   *time.Time                    `json:"next_before,omitempty"`
+	NextBeforeID *uuid.UUID                    `json:"next_before_id,omitempty"`
+	HasMore      bool                          `json:"has_more"`
+}
+
 type CustomerHubSummary struct {
 	ID              uuid.UUID `json:"id"`
 	Name            string    `json:"name"`
@@ -107,8 +123,58 @@ type CustomerChargerView struct {
 const customerChargerSearchRadiusKM = 10.0
 
 func (service *Service) ListCustomerChargers(ctx context.Context, principal Principal, query CustomerChargerListQuery) (CustomerChargerListResponse, error) {
-	if err := validateCustomerChargerListQuery(&query); err != nil {
+	page, err := service.listCustomerChargerPage(ctx, principal, query, true)
+	if err != nil {
 		return CustomerChargerListResponse{}, err
+	}
+	favorites, err := service.customerFavoriteChargerIDs(ctx, principal, page.records)
+	if err != nil {
+		return CustomerChargerListResponse{}, err
+	}
+	chargers := make([]CustomerChargerView, 0, len(page.records))
+	for _, record := range page.records {
+		view := customerChargerView(record, favorites[record.ID])
+		if query.Latitude != nil && record.Hub != nil {
+			distance := haversineDistanceKM(*query.Latitude, *query.Longitude, record.Hub.Latitude, record.Hub.Longitude)
+			view.DistanceKM = &distance
+		}
+		chargers = append(chargers, view)
+	}
+	return CustomerChargerListResponse{
+		Chargers:     chargers,
+		NextBefore:   page.nextBefore,
+		NextBeforeID: page.nextBeforeID,
+		HasMore:      page.hasMore,
+	}, nil
+}
+
+func (service *Service) ListCustomerChargerLocations(ctx context.Context, principal Principal, query CustomerChargerListQuery) (CustomerChargerLocationListResponse, error) {
+	page, err := service.listCustomerChargerPage(ctx, principal, query, false)
+	if err != nil {
+		return CustomerChargerLocationListResponse{}, err
+	}
+	chargers := make([]CustomerChargerLocationView, 0, len(page.records))
+	for _, record := range page.records {
+		chargers = append(chargers, customerChargerLocationView(record))
+	}
+	return CustomerChargerLocationListResponse{
+		Chargers:     chargers,
+		NextBefore:   page.nextBefore,
+		NextBeforeID: page.nextBeforeID,
+		HasMore:      page.hasMore,
+	}, nil
+}
+
+type customerChargerPage struct {
+	records      []models.Charger
+	nextBefore   *time.Time
+	nextBeforeID *uuid.UUID
+	hasMore      bool
+}
+
+func (service *Service) listCustomerChargerPage(ctx context.Context, principal Principal, query CustomerChargerListQuery, includeConnectors bool) (customerChargerPage, error) {
+	if err := validateCustomerChargerListQuery(&query); err != nil {
+		return customerChargerPage{}, err
 	}
 	databaseQuery := service.database.WithContext(ctx).Model(&models.Charger{}).
 		Joins("JOIN hubs ON hubs.id = chargers.hub_id AND hubs.cpo_id = chargers.cpo_id").
@@ -153,40 +219,27 @@ func (service *Service) ListCustomerChargers(ctx context.Context, principal Prin
 	if query.Latitude == nil {
 		limit++
 	}
-	if err := databaseQuery.
-		Preload("Hub").
-		Preload("Connectors", func(tx *gorm.DB) *gorm.DB {
+	databaseQuery = databaseQuery.Preload("Hub")
+	if includeConnectors {
+		databaseQuery = databaseQuery.Preload("Connectors", func(tx *gorm.DB) *gorm.DB {
 			return tx.Where("cpo_id = ?", principal.CPOID).Order("connector_number ASC")
-		}).
-		Limit(limit).
-		Find(&records).Error; err != nil {
-		return CustomerChargerListResponse{}, fmt.Errorf("list customer chargers: %w", err)
+		})
+	}
+	if err := databaseQuery.Limit(limit).Find(&records).Error; err != nil {
+		return customerChargerPage{}, fmt.Errorf("list customer chargers: %w", err)
 	}
 	hasMore := false
 	if query.Latitude == nil && len(records) > query.Limit {
 		hasMore = true
 		records = records[:query.Limit]
 	}
-	favorites, err := service.customerFavoriteChargerIDs(ctx, principal, records)
-	if err != nil {
-		return CustomerChargerListResponse{}, err
-	}
-	chargers := make([]CustomerChargerView, 0, len(records))
-	for _, record := range records {
-		view := customerChargerView(record, favorites[record.ID])
-		if query.Latitude != nil && record.Hub != nil {
-			distance := haversineDistanceKM(*query.Latitude, *query.Longitude, record.Hub.Latitude, record.Hub.Longitude)
-			view.DistanceKM = &distance
-		}
-		chargers = append(chargers, view)
-	}
-	response := CustomerChargerListResponse{Chargers: chargers, HasMore: hasMore}
+	page := customerChargerPage{records: records, hasMore: hasMore}
 	if hasMore && len(records) > 0 {
 		last := records[len(records)-1]
-		response.NextBefore = &last.CreatedAt
-		response.NextBeforeID = &last.ID
+		page.nextBefore = &last.CreatedAt
+		page.nextBeforeID = &last.ID
 	}
-	return response, nil
+	return page, nil
 }
 
 type CustomerConnectorView struct {
@@ -426,6 +479,15 @@ func customerChargerView(record models.Charger, favorite bool) CustomerChargerVi
 		view.HubLatitude = &record.Hub.Latitude
 		view.HubLongitude = &record.Hub.Longitude
 		view.HubOpen24Hours = &open24Hours
+	}
+	return view
+}
+
+func customerChargerLocationView(record models.Charger) CustomerChargerLocationView {
+	view := CustomerChargerLocationView{ChargerName: record.ChargerName}
+	if record.Hub != nil {
+		view.Latitude = record.Hub.Latitude
+		view.Longitude = record.Hub.Longitude
 	}
 	return view
 }

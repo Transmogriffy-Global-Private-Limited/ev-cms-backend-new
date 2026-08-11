@@ -314,6 +314,19 @@ export type CustomerChargerList = {
   has_more: boolean;
 };
 
+export type CustomerChargerLocation = {
+  charger_name: string;
+  latitude: number;
+  longitude: number;
+};
+
+export type CustomerChargerLocationList = {
+  chargers: CustomerChargerLocation[];
+  next_before?: string;
+  next_before_id?: string;
+  has_more: boolean;
+};
+
 export type CustomerWalletDetails = {
   id: string;
   balance: string;
@@ -409,6 +422,7 @@ export type CustomerPriceResponse = {
 | `GET /hubs` | Yes | `200 CustomerHubList` | List published hubs in this CPO. |
 | `GET /hubs/{hub_id}` | Yes | `200 CustomerHub` | Read one published hub and attached chargers. |
 | `GET /chargers` | Yes | `200 CustomerChargerList` | Search/filter published chargers, including optional near-me results. |
+| `GET /chargers/locations` | Yes | `200 CustomerChargerLocationList` | Same filters, but only charger name and map coordinates. |
 | `GET /chargers/{charger_id}` | Yes | `200 CustomerCharger` | Read one attached charger by public ID. |
 | `GET /chargers/{charger_id}/image` | Yes | `200 image/*` | Download one uploaded charger image by public ID. |
 | `GET /favorites` | Yes | `200 CustomerFavorites` | List current published favorites. |
@@ -454,6 +468,16 @@ administrative lifecycle (`ACTIVE`, `INACTIVE`, `SUSPENDED`,
 flag, while `CustomerCharger.hub_open_24_hours` is the attached hub's flag.
 They are distinct fields and may have different values. The `open_24_hours`
 charger-list query filter applies to the hub field.
+
+`GET /chargers/locations` accepts exactly the same optional query filters as
+`GET /chargers`: `q`, `connector_type`, `min_power_kw`, `max_power_kw`,
+`open_24_hours`, `limit`, paired `before`/`before_id`, and optional near-me
+`lat`/`lng`/`radius_km`. It applies the same published-hub and current-CPO
+scope, pagination, ordering, and validation. Each `chargers` item has exactly
+`charger_name`, `latitude`, and `longitude`; the coordinates are from the
+attached hub because chargers do not have independent coordinate fields. Do
+not infer live availability, a charger ID, a hub ID, or any other inventory
+detail from this compact map response.
 
 The backend deliberately does not contact HAL in this slice. `availability` is
 `UNKNOWN` for chargers and connectors. Do not render either `availability` or

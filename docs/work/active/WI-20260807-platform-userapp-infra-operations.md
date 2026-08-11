@@ -45,6 +45,12 @@ PostgreSQL regression coverage. This is an internal query correction only: it
 does not change the HTTP contract, authorization, schema, migrations, or any
 other claimed surface.
 
+Codex is adding a compact authenticated User App charger-location list under
+`src/customerauth/`, its route, OpenAPI, and frontend contract. It must reuse
+the full charger-list filters and published-hub/current-CPO boundary while
+returning only charger name and attached-hub coordinates. No migration or
+deployment is included.
+
 ## Non-goals
 
 - This record does not authorize a production deployment, DNS change, database
@@ -106,8 +112,20 @@ The isolated SuperAdmin administrator-list repair now binds GORM explicitly to
 passes, and a guarded disposable-PostgreSQL test covers execution, authority
 filtering, projections, and keyset pagination when `TEST_DATABASE_URL` is set.
 
+The local User App source now includes a compact map-marker projection for
+published chargers: `charger_name`, attached-hub `latitude`, and attached-hub
+`longitude` only. It shares the full charger list's optional filters, cursor
+rules, near-me behavior, current-CPO scope, and customer-visible-hub boundary.
+
 ## Verification
 
+- `go test ./src/customerauth -count=1` passed for the compact map-marker
+  projection, including serialized exact-field coverage.
+- `./scripts/verify-docs.ps1` passed with the OpenAPI count updated to 158.
+- The focused route/OpenAPI Go test is currently unverified on this workstation:
+  an unrestricted run exhausted available Go runtime memory, and bounded
+  single-process retries exceeded two minutes while compiling. No migration,
+  deployment, or database action was attempted.
 - The database-free User App projection test now proves serialized hub and
   charger opening-hour values remain separate when they differ.
 - `go test ./src/customerauth -count=1` and OpenAPI/runtime route-contract

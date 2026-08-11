@@ -759,6 +759,22 @@ and tenant errors use the standard app envelope.
 Availability remains `UNKNOWN` for chargers and connectors until a separate
 CMS/HAL contract is implemented. This route does not contact HAL.
 
+### 4.28A `GET /api/v1/app/chargers/locations`
+
+Requires the same authenticated customer bearer token and matching
+`X-CPO-App-ID` as the full charger list. It accepts exactly the same optional
+filters and cursor/near-me rules: `q`, `connector_type`, `min_power_kw`,
+`max_power_kw`, `open_24_hours`, `limit`, paired `before`/`before_id`, and
+`lat`/`lng`/`radius_km`. It returns the same current-CPO chargers attached to
+published hubs, with the same ordering, pagination, and filter validation.
+
+Each returned `chargers` item contains exactly `charger_name`, `latitude`, and
+`longitude`. The coordinates are the attached hub's stored coordinates because
+the charger record has no independent coordinate fields. The compact response
+does not expose IDs, status, availability, connectors, favourites, pricing, or
+other inventory detail. Invalid filters return the same `400` envelope as
+4.28; authentication and tenant errors use the standard app envelope.
+
 ### 4.29 `GET /api/v1/app/wallet`
 
 Requires the authenticated customer bearer token and matching

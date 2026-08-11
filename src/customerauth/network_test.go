@@ -150,6 +150,34 @@ func TestCustomerNetworkProjectionDoesNotClaimLiveAvailability(t *testing.T) {
 	}
 }
 
+func TestCustomerChargerLocationProjectionContainsOnlyMapFields(t *testing.T) {
+	t.Parallel()
+
+	charger := models.Charger{
+		ChargerName: "Lakefront Fast Charger",
+		Hub:         &models.Hub{Latitude: 22.5726, Longitude: 88.3639},
+	}
+	encoded, err := json.Marshal(customerChargerLocationView(charger))
+	if err != nil {
+		t.Fatalf("marshal charger location: %v", err)
+	}
+	var payload map[string]json.RawMessage
+	if err := json.Unmarshal(encoded, &payload); err != nil {
+		t.Fatalf("unmarshal charger location: %v", err)
+	}
+	if len(payload) != 3 {
+		t.Fatalf("location field count=%d, want 3: %s", len(payload), encoded)
+	}
+	for _, key := range []string{"charger_name", "latitude", "longitude"} {
+		if _, ok := payload[key]; !ok {
+			t.Fatalf("location response omitted %q: %s", key, encoded)
+		}
+	}
+	if got := customerChargerLocationView(charger); got.ChargerName != charger.ChargerName || got.Latitude != charger.Hub.Latitude || got.Longitude != charger.Hub.Longitude {
+		t.Fatalf("location projection=%#v, want charger name and hub coordinates", got)
+	}
+}
+
 func TestCustomerFavoritesQueryValidation(t *testing.T) {
 	t.Parallel()
 

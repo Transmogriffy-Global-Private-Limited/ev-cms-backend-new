@@ -939,6 +939,9 @@ Last completed slice:
   implemented wallet balance and keyset-paginated wallet-history reads.
   Recharge, refund, charging-session history, RFID, and HAL remain separate
   slices.
+- Added a compact User App charger-location list that reuses those published
+  charger filters and pagination rules while returning only `charger_name` and
+  attached-hub latitude/longitude for map markers.
 - Implemented the effective customer tariff resolver and informational hub and
   charger price APIs with exact decimal projections, explicit unavailable state,
   active GST resolution, and User Tariff > charger tariff > hub tariff

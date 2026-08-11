@@ -44,6 +44,7 @@ func RegisterRoutes(group *gin.RouterGroup, service *Service) {
 	protected.GET("/hubs/:hub_id", handler.getHub)
 	protected.GET("/hubs/:hub_id/price", handler.getHubPrice)
 	protected.GET("/chargers", handler.listChargers)
+	protected.GET("/chargers/locations", handler.listChargerLocations)
 	protected.GET("/chargers/:charger_id/image", handler.chargerImage)
 	protected.GET("/chargers/:charger_id", handler.getCharger)
 	protected.GET("/chargers/:charger_id/price", handler.getChargerPrice)
@@ -432,6 +433,25 @@ func (handler *Handler) listChargers(ctx *gin.Context) {
 		return
 	}
 	response, err := handler.service.ListCustomerChargers(ctx.Request.Context(), principal, query)
+	if err != nil {
+		writeError(ctx, err)
+		return
+	}
+	ctx.JSON(http.StatusOK, response)
+}
+
+func (handler *Handler) listChargerLocations(ctx *gin.Context) {
+	principal, ok := CurrentPrincipal(ctx)
+	if !ok {
+		writeError(ctx, errUnauthorized)
+		return
+	}
+	query, err := customerChargerListQuery(ctx)
+	if err != nil {
+		writeError(ctx, err)
+		return
+	}
+	response, err := handler.service.ListCustomerChargerLocations(ctx.Request.Context(), principal, query)
 	if err != nil {
 		writeError(ctx, err)
 		return
