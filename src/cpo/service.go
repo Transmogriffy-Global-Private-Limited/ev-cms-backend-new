@@ -4856,17 +4856,22 @@ func (service *Service) UpdateGST(
 
 func normalizeCreateGSTRequest(request CreateGSTRequest) CreateGSTRequest {
 	request.Name = strings.TrimSpace(request.Name)
+	request.State = strings.TrimSpace(request.State)
 	return request
 }
 
 func normalizeUpdateGSTRequest(request UpdateGSTRequest) UpdateGSTRequest {
 	request.Name = trimOptionalString(request.Name)
+	request.State = trimOptionalString(request.State)
 	return request
 }
 
 func validateCreateGSTRequest(request CreateGSTRequest) error {
 	if request.Name == "" || len(request.Name) > 100 {
 		return invalid("name", "GST name is required and must not exceed 100 characters.")
+	}
+	if request.State == "" || len(request.State) > 100 {
+		return invalid("state", "GST state is required and must not exceed 100 characters.")
 	}
 	if request.SGSTRate == nil {
 		return invalid("sgst_rate", "SGST rate is required.")
@@ -4900,6 +4905,7 @@ func validateCreateGSTRequest(request CreateGSTRequest) error {
 
 func validateUpdateGSTRequest(request UpdateGSTRequest) error {
 	if request.Name == nil &&
+		request.State == nil &&
 		request.SGSTRate == nil &&
 		request.CGSTRate == nil &&
 		request.IGSTRate == nil &&
@@ -4909,6 +4915,9 @@ func validateUpdateGSTRequest(request UpdateGSTRequest) error {
 
 	if request.Name != nil && (*request.Name == "" || len(*request.Name) > 100) {
 		return invalid("name", "GST name must not exceed 100 characters.")
+	}
+	if request.State != nil && (*request.State == "" || len(*request.State) > 100) {
+		return invalid("state", "GST state must not exceed 100 characters.")
 	}
 	if request.SGSTRate != nil {
 		if request.SGSTRate.Sign() < 0 || request.SGSTRate.Cmp(decimal.NewFromInt(100)) > 0 {
