@@ -104,6 +104,7 @@ func run() error {
 	if err != nil {
 		return err
 	}
+	customerAuthService.WithHAL(cfg.HAL)
 	integrationService := integrations.NewService(gormDB, credentialSecretBox)
 	customerAuthService.WithRazorpayCredentialResolver(func(
 		ctx context.Context,

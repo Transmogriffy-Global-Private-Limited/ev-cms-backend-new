@@ -31,8 +31,8 @@ defined in `internal/http-request-logging.md`.
 | Variable | Requirement / default |
 |---|---|
 | `DATABASE_URL` | Required |
-| `HTTP_ADDR` | Code default `127.0.0.1:8080`; current development example uses `0.0.0.0:8080` for access from other machines |
-| `CORS_ALLOW_ALL` | Default `false`; current development example sets `true` to allow every browser origin and requested header |
+| `HTTP_ADDR` | Code and development example default `127.0.0.1:8080`; do not bind local development to a public interface. |
+| `CORS_ALLOW_ALL` | Default and development example `false`; use an explicit approved origin when cross-origin development is required. |
 | `API_DOCS_ENABLED` | Boolean, default `true`; controls registration of `/docs`, `/docs/`, and `/openapi.yaml` |
 | `LOG_LEVEL` | Optional; `INFO` default. `DEBUG` enables additional safe developer diagnostics; no other value is accepted. |
 | `SUPERADMIN_EMAIL` | Required valid email |
@@ -93,6 +93,20 @@ startup and requires a restart to change.
 Use independent random keys. A key ID is not a key. Existing encrypted rows
 must be re-encrypted before an old key is removed; automatic rotation is not
 implemented.
+
+## OCPP HAL V1
+
+| Variable | Requirement / default |
+|---|---|
+| `HAL_V1_BASE_URL` | Optional. Base URL for the independently deployed HAL; no trailing slash. Leave unset to keep customer charging unavailable rather than guessing a provider. Configure a loopback URL only when the approved v1 provider is running locally. |
+| `HAL_V1_CMS_BEARER_TOKEN` | Secret. Required with `HAL_V1_BASE_URL`; CMS-to-HAL command and mapping bearer. |
+| `HAL_V1_CMS_FACT_BEARER_TOKEN` | Secret. Required with `HAL_V1_BASE_URL`; HAL-to-CMS fact bearer, distinct from the command bearer. |
+| `HAL_V1_REQUEST_TIMEOUT` | `5s`, positive HTTP client timeout. A timeout is reconciliation evidence, not permission to create another command. |
+| `HAL_V1_METER_STALE_AFTER` | `30s`, positive CMS display freshness threshold; it never creates an inferred meter value. |
+
+Changing any HAL setting requires restart. Never substitute a legacy HAL token,
+customer bearer, staff bearer, or a shared database connection. See
+`integrations/ocpp-hal-boundary.md` for ownership and recovery rules.
 
 ## Mail and Hostinger
 
@@ -157,23 +171,8 @@ selection may be checked in.
 | SMTP credential-pair error | Username/password only partly configured |
 | email validation error | Bootstrap or sender address is not a normalized valid address |
 
-## Temporary Unrestricted Development Access
+## Local Development Network Safety
 
-The current `.env.example` intentionally opts into:
-
-```dotenv
-HTTP_ADDR=0.0.0.0:8080
-CORS_ALLOW_ALL=true
-API_DOCS_ENABLED=true
-```
-
-`HTTP_ADDR=0.0.0.0:8080` listens on every IPv4 interface.
-`CORS_ALLOW_ALL=true` returns `Access-Control-Allow-Origin: *`, accepts browser
-preflight requests for the API methods, and reflects requested preflight
-headers. It does not disable authentication, app-ID validation, tenant scope,
-or authorization.
-
-Clients on another machine use `http://<server-ip>:8080`. This temporary mode
-must be replaced with an explicit origin allowlist and an HTTPS reverse proxy
-before production exposure. Set `HTTP_ADDR=127.0.0.1:8080` and
-`CORS_ALLOW_ALL=false` to restore loopback-only, same-origin behavior.
+The checked-in development example binds `127.0.0.1:8080` and keeps CORS
+restricted. Local dual-service acceptance also uses loopback addresses. Do not
+change a local checkout to `0.0.0.0` or wildcard CORS merely for convenience.

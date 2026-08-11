@@ -51,6 +51,10 @@ func RegisterRoutes(group *gin.RouterGroup, service *Service) {
 	protected.GET("/wallet/transactions", handler.listWalletTransactions)
 	protected.POST("/wallet/recharge/orders", handler.createRechargeOrder)
 	protected.POST("/wallet/recharge/verify", handler.verifyRecharge)
+	protected.POST("/charging-sessions", handler.startCharging)
+	protected.GET("/charging-start-intents/:start_intent_id", handler.getChargingStartIntent)
+	protected.GET("/charging-sessions/:session_id", handler.getChargingSession)
+	protected.POST("/charging-sessions/:session_id/stop", handler.stopCharging)
 	protected.GET("/favorites", handler.listFavorites)
 	protected.PUT("/favorite-hubs/:hub_id", handler.addFavoriteHub)
 	protected.DELETE("/favorite-hubs/:hub_id", handler.removeFavoriteHub)
@@ -64,6 +68,86 @@ func RegisterRoutes(group *gin.RouterGroup, service *Service) {
 	protectedAuth.POST("/logout", handler.logout)
 	protectedAuth.POST("/logout-all", handler.logoutAll)
 	protectedAuth.POST("/password/change", handler.changePassword)
+}
+
+func (handler *Handler) startCharging(ctx *gin.Context) {
+	principal, ok := CurrentPrincipal(ctx)
+	if !ok {
+		writeError(ctx, errUnauthorized)
+		return
+	}
+	var request ChargingStartRequest
+	if err := decodeJSON(ctx, &request); err != nil {
+		writeError(ctx, invalidRequest(err))
+		return
+	}
+	response, err := handler.service.StartCharging(ctx.Request.Context(), principal, request, ctx.GetHeader("X-Request-ID"))
+	if err != nil {
+		writeError(ctx, err)
+		return
+	}
+	ctx.JSON(http.StatusAccepted, response)
+}
+
+func (handler *Handler) getChargingStartIntent(ctx *gin.Context) {
+	principal, ok := CurrentPrincipal(ctx)
+	if !ok {
+		writeError(ctx, errUnauthorized)
+		return
+	}
+	id, err := uuid.Parse(ctx.Param("start_intent_id"))
+	if err != nil {
+		writeError(ctx, &APIError{http.StatusBadRequest, "invalid_start_intent_id", "The charging start intent ID is invalid."})
+		return
+	}
+	response, err := handler.service.GetChargingStartIntent(ctx.Request.Context(), principal, id)
+	if err != nil {
+		writeError(ctx, err)
+		return
+	}
+	ctx.JSON(http.StatusOK, response)
+}
+
+func (handler *Handler) getChargingSession(ctx *gin.Context) {
+	principal, ok := CurrentPrincipal(ctx)
+	if !ok {
+		writeError(ctx, errUnauthorized)
+		return
+	}
+	id, err := uuid.Parse(ctx.Param("session_id"))
+	if err != nil {
+		writeError(ctx, &APIError{http.StatusBadRequest, "invalid_session_id", "The charging session ID is invalid."})
+		return
+	}
+	response, err := handler.service.GetChargingSession(ctx.Request.Context(), principal, id)
+	if err != nil {
+		writeError(ctx, err)
+		return
+	}
+	ctx.JSON(http.StatusOK, response)
+}
+
+func (handler *Handler) stopCharging(ctx *gin.Context) {
+	principal, ok := CurrentPrincipal(ctx)
+	if !ok {
+		writeError(ctx, errUnauthorized)
+		return
+	}
+	id, err := uuid.Parse(ctx.Param("session_id"))
+	if err != nil {
+		writeError(ctx, &APIError{http.StatusBadRequest, "invalid_session_id", "The charging session ID is invalid."})
+		return
+	}
+	var request ChargingStopRequest
+	if err := decodeJSON(ctx, &request); err != nil {
+		writeError(ctx, invalidRequest(err))
+		return
+	}
+	if err := handler.service.StopCharging(ctx.Request.Context(), principal, id, request, ctx.GetHeader("X-Request-ID")); err != nil {
+		writeError(ctx, err)
+		return
+	}
+	ctx.Status(http.StatusAccepted)
 }
 
 func (handler *Handler) chargerImage(ctx *gin.Context) {

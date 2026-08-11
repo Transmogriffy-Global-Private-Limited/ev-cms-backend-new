@@ -171,8 +171,8 @@ provides:
   handler;
 - the additive PostgreSQL database `devevcmsnewdb`, owned by `postgres`.
 
-The active development VPS runs source revision `6930189`, with migrations
-through twenty-seven recorded and the deployed 152-operation contract. The
+The active development VPS runs source revision `f7e7227`, with migrations
+through twenty-eight recorded and the deployed 157-operation contract. The
 User App can serve an authenticated published charger's allowed image through
 its relative `charger_image_url`, without exposing the stored upload path.
 The CPO charger response also exposes a read-only `assigned` projection that
@@ -204,6 +204,13 @@ two CPO records. Migration nine continues to preserve the
 `retired_commercial` schema. Safe structured HTTP request logging is active;
 the current development environment uses `LOG_LEVEL=DEBUG` for correlated
 request-start and completion diagnostics.
+
+Migration twenty-eight adds the CMS-owned charging start-intent, wallet-hold,
+HAL-command, fact-receipt, charger-mapping, and charger/connector runtime
+projection state. The current deployment exposes the first customer charging
+start/stop/status and HAL fact-receiver routes, but its optional HAL v1 base URL
+and credentials are unset, so customer charging remains unavailable until the
+approved independent provider is configured.
 
 Migration thirteen removes feature-key runtime behavior and is deployed.
 Migration fourteen completes the deployed Superadmin control-plane surface.
@@ -249,10 +256,13 @@ display are implemented in source; HAL-dependent charging/billing work remains
 planned.
 CPO ADMIN routes remain owned by the CPO workstream.
 
-No CMS/HAL transport or handshake, live charger state ingestion, charging
-workflow, Razorpay refund/webhook/settlement workflow, tenant commercial-
-management workflow, staff-management workflow, or reporting behavior is
-implemented yet.
+The CMS/HAL transport, authenticated fact receiver, durable charging intent and
+hold state, and customer charging start/stop/status routes are implemented and
+deployed. Full HAL handshake, live charger state ingestion, virtual-charger
+acceptance, restart/outage recovery, reconciliation worker, Razorpay
+refund/webhook/settlement workflow, tenant commercial-management workflow,
+staff-management workflow, and reporting behavior remain incomplete or
+intentionally unsupported.
 
 ## Verification
 
@@ -295,6 +305,16 @@ implemented yet.
   response fields are present; and the post-start warning scan passed.
   The PowerShell documentation verifier remains unavailable on this Ubuntu
   host.
+- Revision `f7e7227` was built from a clean worktree and rehosted after a
+  mode-0600 PostgreSQL rollback dump and migration twenty-eight. The running
+  systemd process matches the installed binary SHA-256
+  `ab221e733317a832ea6b5bac60f5dcdc99c5a41d1f71d8edc2153b1c3161e957` and
+  embeds revision `f7e722765809d0126b1ad8e84ba4ebb88e65f1d2` with
+  `vcs.modified=false`. The service is active and enabled; loopback/public
+  liveness/readiness, Swagger, raw OpenAPI, the 157-operation live contract,
+  migration 28, protected charging routes, and the post-start warning scan
+  passed. HAL provider credentials remain intentionally unset, so end-to-end
+  virtual-charger acceptance is not claimed.
 - Revision `79683f0` was built cleanly and rehosted without a new migration.
   The installed binary, loopback-only listener, local/public liveness and
   readiness, live 137-operation Swagger/OpenAPI with grouped CPO operations,
@@ -466,7 +486,15 @@ same principal; the app ID never grants authority or changes scope.
 ## HAL Boundary
 
 The HAL remains a separate service and database. It is not embedded in this
-repository. The integration contract has not been implemented yet.
+repository. Source now contains the first CMS v1 consumer: an authenticated HAL
+client, separate fact bearer receiver, durable start-intent/hold/command/fact
+receipt/mapping/runtime records, and customer start/stop/polling routes.
+
+This is not yet a verified complete operational integration. Disposable CMS and
+HAL PostgreSQL lifecycle tests, bounded reconciliation, and the required
+loopback HAL plus virtual OCPP charger acceptance remain outstanding. Customer
+discovery must continue to treat CMS administrative status separately from
+HAL-owned live runtime state.
 
 ## Known Limitations
 

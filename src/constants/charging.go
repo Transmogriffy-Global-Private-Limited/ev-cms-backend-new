@@ -45,3 +45,26 @@ func (status SessionStatus) Valid() bool {
 		return false
 	}
 }
+
+// StartIntentStatus records CMS business progress separately from OCPP truth.
+// ACTUALLY_STARTED is set only from a validated charger-originated HAL fact.
+type StartIntentStatus string
+
+const (
+	StartIntentStatusRequested            StartIntentStatus = "REQUESTED"
+	StartIntentStatusAcceptedForDelivery  StartIntentStatus = "ACCEPTED_FOR_DELIVERY"
+	StartIntentStatusProtocolAcknowledged StartIntentStatus = "PROTOCOL_ACKNOWLEDGED"
+	StartIntentStatusActuallyStarted      StartIntentStatus = "ACTUALLY_STARTED"
+	StartIntentStatusRejected             StartIntentStatus = "REJECTED"
+	StartIntentStatusExpired              StartIntentStatus = "EXPIRED"
+	StartIntentStatusReconciliation       StartIntentStatus = "RECONCILIATION_REQUIRED"
+)
+
+type WalletHoldStatus string
+
+const (
+	WalletHoldStatusHeld        WalletHoldStatus = "HELD"
+	WalletHoldStatusCaptured    WalletHoldStatus = "CAPTURED"
+	WalletHoldStatusReleased    WalletHoldStatus = "RELEASED"
+	WalletHoldStatusReconciling WalletHoldStatus = "RECONCILIATION_REQUIRED"
+)

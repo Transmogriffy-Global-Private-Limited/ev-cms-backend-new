@@ -95,6 +95,30 @@ Depends on Phase 5.
 Objective: calculate immutable session charges and settle them through an
 atomic, idempotent wallet ledger.
 
+## Current Execution
+
+Current phase:
+
+- Phases 5 and 6: first CMS HAL charging vertical.
+
+Active work:
+
+- `docs/work/active/WI-20260811-cms-hal-first-charging-vertical.md`.
+
+Current implementation state:
+
+- CMS source and the development deployment contain the first client, durable
+  records, fact receiver, customer polling/start/stop routes, and 157-operation
+  OpenAPI surface. The HAL v1 provider is not configured on this host, and the
+  complete Postgres-to-HAL-to-virtual-charger vertical is not verified yet.
+
+Next required slice:
+
+1. Add disposable PostgreSQL lifecycle tests and a bounded reconciliation
+   worker for pending/ambiguous CMS commands.
+2. Run the real loopback HAL and virtual OCPP charger acceptance topology,
+   including duplicate, restart, and outage cases.
+
 ## Feature Registry
 
 ### Feature: Lean tenancy and access foundation
@@ -969,13 +993,13 @@ Last completed slice:
 
 Last deployment milestone:
 
-- Revision `6930189` was built from a clean worktree and rehosted on the
-  development VPS without a new migration. Running-binary SHA/VCS identity,
-  active/enabled systemd state, loopback/public liveness and readiness, the
-  live 152-operation OpenAPI surface, protected CPO user-group member
-  assignment/removal routes, the `UserGroup.members` detail projection, and
-  the `usergroup_assigned` customer projection were verified. The disposable
-  PostgreSQL lifecycle remains pending without `TEST_DATABASE_URL`.
+- Revision `f7e7227` was built from a clean worktree and rehosted on the
+  development VPS after a rollback dump and migration twenty-eight. Running-
+  binary SHA/VCS identity, active/enabled systemd state, loopback/public
+  liveness and readiness, Swagger, the live 157-operation OpenAPI surface,
+  protected charging routes, and the migration-created tables were verified.
+  The disposable PostgreSQL lifecycle and full HAL/virtual-charger acceptance
+  remain pending without the required test topology and `TEST_DATABASE_URL`.
 
 Next expected slice:
 
@@ -1022,8 +1046,8 @@ Deferred verification decision:
   password recovery.
 - CPO access is an explicit platform-superadmin activation/suspension decision;
   manual subscription records never control tenant authorization.
-- The exact CMS/HAL API contract will be defined with the charging-network and
-  charging-lifecycle phases.
+- HAL v1 is consumed through `integrations/ocpp-hal-boundary.md`; do not extend
+  the provider contract without a separate approved contract change.
 - `OWNER`, `OPERATOR`, and `VIEWER` are dormant schema capacity only. Their
   authorization semantics require a future approved staff-management plan.
 

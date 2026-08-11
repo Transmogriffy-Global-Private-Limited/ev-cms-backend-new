@@ -58,13 +58,14 @@ backend work.
 
 ## Data and migration impact
 
-No new migration. The production ledger remains at migration 27.
+This CPO slice introduced no migration. The shared development deployment now
+records migration 28 for the separate CMS/HAL charging vertical.
 
 ## Current state
 
-Revision `6930189` was built from a clean worktree and rehosted on
-August 10, 2026 without a new migration. The live service exposes the
-152-operation OpenAPI document, and the CPO user-group membership contract now
+Revision `f7e7227` was built from a clean worktree and rehosted on
+August 11, 2026 after migration twenty-eight. The live service exposes the
+157-operation OpenAPI document, and the CPO user-group membership contract now
 includes tenant-scoped, idempotent assignment/removal, the `members` detail
 projection, plus the `usergroup_assigned` customer projection. The CPO
 `Connector` response schema now
@@ -80,14 +81,15 @@ and user-group routes are protected by the same tenant authorization boundary.
 - `go test ./...` passed.
 - `go vet ./...` passed.
 - `git diff --check` passed.
-- Revision `6930189` is active under `evcmsnew-dev.service`; the running
+- Revision `f7e7227` is active under `evcmsnew-dev.service`; the running
   process matches the installed binary and the expected VCS revision.
 - Loopback/public liveness and readiness passed.
-- The live OpenAPI exposes 152 operations, and the live CPO user-group detail
+- The live OpenAPI exposes 157 operations, and the live CPO user-group detail
   `members` projection plus `usergroup_assigned` response field are present.
 - The live CPO `Connector` response schema exposes `connector_total_capacity`.
-- The post-start fatal-error scan passed.
-- No migration file changed from the previously deployed revision.
+- The post-start warning scan passed.
+- Migration twenty-eight is applied; it adds the CMS/HAL charging vertical
+  state tables without altering the CPO network ownership boundary.
 - The PowerShell documentation verifier was not run because `pwsh` is
   unavailable on this Ubuntu host.
 
