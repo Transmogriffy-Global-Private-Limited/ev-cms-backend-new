@@ -8055,24 +8055,29 @@ components:
     CreateGSTRequest:
       type: object
       additionalProperties: false
-      required: [name, sgst_rate, cgst_rate, igst_rate]
+      required: [name, state, sgst_rate, cgst_rate, igst_rate]
       properties:
         name: {type: string, minLength: 1, maxLength: 100}
+        state: {type: string, minLength: 1, maxLength: 100}
         sgst_rate:
           allOf:
             - $ref: "#/components/schemas/DecimalInput"
           description: Exact percentage from 0 through 100.
+          nullable: true
         cgst_rate:
           allOf:
             - $ref: "#/components/schemas/DecimalInput"
           description: Exact percentage from 0 through 100.
+          nullable: true
         igst_rate:
           allOf:
             - $ref: "#/components/schemas/DecimalInput"
           description: Exact percentage from 0 through 100.
+          nullable: true
         is_active: {type: boolean, default: true}
       example:
         name: Standard GST
+        state: "West Bengal"
         sgst_rate: "9.00"
         cgst_rate: "9.00"
         igst_rate: "18.00"
@@ -8084,23 +8089,25 @@ components:
       minProperties: 1
       properties:
         name: {type: string, minLength: 1, maxLength: 100}
-        sgst_rate: {$ref: "#/components/schemas/DecimalInput"}
-        cgst_rate: {$ref: "#/components/schemas/DecimalInput"}
-        igst_rate: {$ref: "#/components/schemas/DecimalInput"}
+        state: {type: string, minLength: 1, maxLength: 100}
+        sgst_rate: {$ref: "#/components/schemas/DecimalInput", nullable: true}
+        cgst_rate: {$ref: "#/components/schemas/DecimalInput", nullable: true}
+        igst_rate: {$ref: "#/components/schemas/DecimalInput", nullable: true}
         is_active: {type: boolean}
 
     GST:
       type: object
       additionalProperties: false
       required:
-        [id, cpo_id, name, sgst_rate, cgst_rate, igst_rate, is_active, created_at, updated_at]
+        [id, cpo_id, name, state, is_active, created_at, updated_at]
       properties:
         id: {type: string, format: uuid}
         cpo_id: {type: string, format: uuid}
         name: {type: string}
-        sgst_rate: {$ref: "#/components/schemas/ExactDecimal"}
-        cgst_rate: {$ref: "#/components/schemas/ExactDecimal"}
-        igst_rate: {$ref: "#/components/schemas/ExactDecimal"}
+        state: {type: string}
+        sgst_rate: {$ref: "#/components/schemas/ExactDecimal", nullable: true}
+        cgst_rate: {$ref: "#/components/schemas/ExactDecimal", nullable: true}
+        igst_rate: {$ref: "#/components/schemas/ExactDecimal", nullable: true}
         is_active: {type: boolean}
         created_at: {type: string, format: date-time}
         updated_at: {type: string, format: date-time}

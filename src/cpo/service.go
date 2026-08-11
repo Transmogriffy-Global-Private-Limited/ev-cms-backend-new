@@ -4659,9 +4659,10 @@ func (service *Service) CreateGST(
 			ID:        uuid.New(),
 			CPOID:     cpoID,
 			Name:      request.Name,
-			SGSTRate:  *request.SGSTRate,
-			CGSTRate:  *request.CGSTRate,
-			IGSTRate:  *request.IGSTRate,
+			State:     request.State,
+			SGSTRate:  request.SGSTRate,
+			CGSTRate:  request.CGSTRate,
+			IGSTRate:  request.IGSTRate,
 			IsActive:  isActive,
 			CreatedAt: now,
 			UpdatedAt: now,
@@ -4679,6 +4680,7 @@ func (service *Service) CreateGST(
 			models.JSONB{
 				"gst_id":    record.ID,
 				"name":      record.Name,
+				"state":     record.State,
 				"sgst_rate": record.SGSTRate,
 				"cgst_rate": record.CGSTRate,
 				"igst_rate": record.IGSTRate,
@@ -4789,19 +4791,24 @@ func (service *Service) UpdateGST(
 			record.Name = *request.Name
 			changedFields["name"] = *request.Name
 		}
+		if request.State != nil {
+			updates["state"] = *request.State
+			record.State = *request.State
+			changedFields["state"] = *request.State
+		}
 		if request.SGSTRate != nil {
 			updates["sgst_rate"] = *request.SGSTRate
-			record.SGSTRate = *request.SGSTRate
+			record.SGSTRate = request.SGSTRate
 			changedFields["sgst_rate"] = *request.SGSTRate
 		}
 		if request.CGSTRate != nil {
 			updates["cgst_rate"] = *request.CGSTRate
-			record.CGSTRate = *request.CGSTRate
+			record.CGSTRate = request.CGSTRate
 			changedFields["cgst_rate"] = *request.CGSTRate
 		}
 		if request.IGSTRate != nil {
 			updates["igst_rate"] = *request.IGSTRate
-			record.IGSTRate = *request.IGSTRate
+			record.IGSTRate = request.IGSTRate
 			changedFields["igst_rate"] = *request.IGSTRate
 		}
 		if request.IsActive != nil {
@@ -4947,6 +4954,7 @@ func gstView(record models.GST) GSTView {
 		ID:        record.ID,
 		CPOID:     record.CPOID,
 		Name:      record.Name,
+		State:     record.State,
 		SGSTRate:  record.SGSTRate,
 		CGSTRate:  record.CGSTRate,
 		IGSTRate:  record.IGSTRate,

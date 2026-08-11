@@ -460,6 +460,7 @@ type TariffListResponse struct {
 
 type CreateGSTRequest struct {
 	Name     string           `json:"name"`
+	State    string           `json:"state"`
 	SGSTRate *decimal.Decimal `json:"sgst_rate"`
 	CGSTRate *decimal.Decimal `json:"cgst_rate"`
 	IGSTRate *decimal.Decimal `json:"igst_rate"`
@@ -468,6 +469,7 @@ type CreateGSTRequest struct {
 
 type UpdateGSTRequest struct {
 	Name     *string          `json:"name,omitempty"`
+	State    *string          `json:"state,omitempty"`
 	SGSTRate *decimal.Decimal `json:"sgst_rate,omitempty"`
 	CGSTRate *decimal.Decimal `json:"cgst_rate,omitempty"`
 	IGSTRate *decimal.Decimal `json:"igst_rate,omitempty"`
@@ -475,15 +477,16 @@ type UpdateGSTRequest struct {
 }
 
 type GSTView struct {
-	ID        uuid.UUID       `json:"id"`
-	CPOID     uuid.UUID       `json:"cpo_id"`
-	Name      string          `json:"name"`
-	SGSTRate  decimal.Decimal `json:"sgst_rate"`
-	CGSTRate  decimal.Decimal `json:"cgst_rate"`
-	IGSTRate  decimal.Decimal `json:"igst_rate"`
-	IsActive  bool            `json:"is_active"`
-	CreatedAt time.Time       `json:"created_at"`
-	UpdatedAt time.Time       `json:"updated_at"`
+	ID        uuid.UUID        `json:"id"`
+	CPOID     uuid.UUID        `json:"cpo_id"`
+	Name      string           `json:"name"`
+	State     string           `json:"state"`
+	SGSTRate  *decimal.Decimal `json:"sgst_rate,omitempty"`
+	CGSTRate  *decimal.Decimal `json:"cgst_rate,omitempty"`
+	IGSTRate  *decimal.Decimal `json:"igst_rate,omitempty"`
+	IsActive  bool             `json:"is_active"`
+	CreatedAt time.Time        `json:"created_at"`
+	UpdatedAt time.Time        `json:"updated_at"`
 }
 
 type GSTListResponse struct {

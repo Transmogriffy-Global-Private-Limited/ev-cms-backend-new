@@ -260,16 +260,17 @@ type CustomerFavoriteCharger struct {
 }
 
 type GST struct {
-	ID        uuid.UUID       `gorm:"type:uuid;primaryKey;default:gen_random_uuid()" json:"id"`
-	CPOID     uuid.UUID       `gorm:"type:uuid;not null;index" json:"cpo_id"`
-	Name      string          `gorm:"type:varchar(100);not null" json:"name"`
-	SGSTRate  decimal.Decimal `gorm:"type:numeric(5,2);not null;default:9.00" json:"sgst_rate"`
-	CGSTRate  decimal.Decimal `gorm:"type:numeric(5,2);not null;default:9.00" json:"cgst_rate"`
-	IGSTRate  decimal.Decimal `gorm:"type:numeric(5,2);not null;default:18.00" json:"igst_rate"`
-	IsActive  bool            `gorm:"not null;default:true" json:"is_active"`
-	Tariffs   []Tariff        `gorm:"foreignKey:GSTID" json:"tariffs,omitempty"`
-	CreatedAt time.Time       `gorm:"not null" json:"created_at"`
-	UpdatedAt time.Time       `gorm:"not null" json:"updated_at"`
+	ID        uuid.UUID        `gorm:"type:uuid;primaryKey;default:gen_random_uuid()" json:"id"`
+	CPOID     uuid.UUID        `gorm:"type:uuid;not null;index" json:"cpo_id"`
+	Name      string           `gorm:"type:varchar(100);not null" json:"name"`
+	State     string           `gorm:"type:varchar(255)" json:"state"`
+	SGSTRate  *decimal.Decimal `gorm:"type:numeric(5,2)" json:"sgst_rate"`
+	CGSTRate  *decimal.Decimal `gorm:"type:numeric(5,2)" json:"cgst_rate"`
+	IGSTRate  *decimal.Decimal `gorm:"type:numeric(5,2)" json:"igst_rate"`
+	IsActive  bool             `gorm:"not null;default:true" json:"is_active"`
+	Tariffs   []Tariff         `gorm:"foreignKey:GSTID" json:"tariffs,omitempty"`
+	CreatedAt time.Time        `gorm:"not null" json:"created_at"`
+	UpdatedAt time.Time        `gorm:"not null" json:"updated_at"`
 }
 
 func (GST) TableName() string {
