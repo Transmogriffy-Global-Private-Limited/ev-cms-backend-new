@@ -400,55 +400,55 @@ type CPOAdminCustomerListResponse struct {
 }
 
 type CreateTariffRequest struct {
-	HubID         uuid.UUID           `json:"hub_id"`
-	ChargerID     *uuid.UUID          `json:"charger_id,omitempty"`
-	GSTID         *uuid.UUID          `json:"gst_id,omitempty"`
-	UserGroupID   *uuid.UUID          `json:"user_group_id,omitempty"`
-	PricePerKWh   decimal.Decimal     `json:"price_per_kwh"`
-	IdleFeePerMin decimal.Decimal     `json:"idle_fee_per_min"`
-	Currency      string              `json:"currency"`
-	IsActive      *bool               `json:"is_active,omitempty"`
-	StartDate     *time.Time          `json:"start_date,omitempty"`
-	EndDate       *time.Time          `json:"end_date,omitempty"`
-	TariffType    constants.TariffType `json:"tariff_type,omitempty"`
-	PriceType     constants.PriceType `json:"price_type,omitempty"`
-	Units         constants.Unit      `json:"units,omitempty"`
+	HubID         uuid.UUID             `json:"hub_id"`
+	ChargerID     *uuid.UUID            `json:"charger_id,omitempty"`
+	GSTID         *uuid.UUID            `json:"gst_id,omitempty"`
+	UserGroupID   *uuid.UUID            `json:"user_group_id,omitempty"`
+	PricePerKWh   decimal.Decimal       `json:"price_per_kwh"`
+	IdleFeePerMin decimal.Decimal       `json:"idle_fee_per_min"`
+	Currency      string                `json:"currency"`
+	IsActive      *bool                 `json:"is_active,omitempty"`
+	StartDate     *time.Time            `json:"start_date,omitempty"`
+	EndDate       *time.Time            `json:"end_date,omitempty"`
+	TariffType    *constants.TariffType `json:"tariff_type,omitempty"`
+	PriceType     *constants.PriceType  `json:"price_type,omitempty"`
+	Units         *constants.Unit       `json:"units,omitempty"`
 }
 
 type UpdateTariffRequest struct {
-	HubID         *uuid.UUID           `json:"hub_id,omitempty"`
-	ChargerID     *uuid.UUID           `json:"charger_id,omitempty"`
-	GSTID         *uuid.UUID           `json:"gst_id,omitempty"`
-	UserGroupID   *uuid.UUID           `json:"user_group_id,omitempty"`
-	PricePerKWh   *decimal.Decimal     `json:"price_per_kwh,omitempty"`
-	IdleFeePerMin *decimal.Decimal     `json:"idle_fee_per_min,omitempty"`
-	Currency      *string              `json:"currency,omitempty"`
-	IsActive      *bool                `json:"is_active,omitempty"`
-	StartDate     *time.Time           `json:"start_date,omitempty"`
-	EndDate       *time.Time           `json:"end_date,omitempty"`
+	HubID         *uuid.UUID            `json:"hub_id,omitempty"`
+	ChargerID     *uuid.UUID            `json:"charger_id,omitempty"`
+	GSTID         *uuid.UUID            `json:"gst_id,omitempty"`
+	UserGroupID   *uuid.UUID            `json:"user_group_id,omitempty"`
+	PricePerKWh   *decimal.Decimal      `json:"price_per_kwh,omitempty"`
+	IdleFeePerMin *decimal.Decimal      `json:"idle_fee_per_min,omitempty"`
+	Currency      *string               `json:"currency,omitempty"`
+	IsActive      *bool                 `json:"is_active,omitempty"`
+	StartDate     *time.Time            `json:"start_date,omitempty"`
+	EndDate       *time.Time            `json:"end_date,omitempty"`
 	TariffType    *constants.TariffType `json:"tariff_type,omitempty"`
-	PriceType     *constants.PriceType `json:"price_type,omitempty"`
-	Units         *constants.Unit      `json:"units,omitempty"`
+	PriceType     *constants.PriceType  `json:"price_type,omitempty"`
+	Units         *constants.Unit       `json:"units,omitempty"`
 }
 
 type TariffView struct {
-	ID            uuid.UUID            `json:"id"`
-	CPOID         uuid.UUID            `json:"cpo_id"`
-	HubID         uuid.UUID            `json:"hub_id"`
-	ChargerID     *uuid.UUID           `json:"charger_id,omitempty"`
-	GSTID         *uuid.UUID           `json:"gst_id,omitempty"`
-	UserGroupID   *uuid.UUID           `json:"user_group_id,omitempty"`
-	PricePerKWh   decimal.Decimal      `json:"price_per_kwh"`
-	IdleFeePerMin decimal.Decimal      `json:"idle_fee_per_min"`
-	Currency      string               `json:"currency"`
-	IsActive      bool                 `json:"is_active"`
-	StartDate     *time.Time           `json:"start_date,omitempty"`
-	EndDate       *time.Time           `json:"end_date,omitempty"`
-	TariffType    constants.TariffType `json:"tariff_type,omitempty"`
-	PriceType     constants.PriceType `json:"price_type,omitempty"`
-	Units         constants.Unit      `json:"units,omitempty"`
-	CreatedAt     time.Time            `json:"created_at"`
-	UpdatedAt     time.Time            `json:"updated_at"`
+	ID            uuid.UUID             `json:"id"`
+	CPOID         uuid.UUID             `json:"cpo_id"`
+	HubID         uuid.UUID             `json:"hub_id"`
+	ChargerID     *uuid.UUID            `json:"charger_id,omitempty"`
+	GSTID         *uuid.UUID            `json:"gst_id,omitempty"`
+	UserGroupID   *uuid.UUID            `json:"user_group_id,omitempty"`
+	PricePerKWh   decimal.Decimal       `json:"price_per_kwh"`
+	IdleFeePerMin decimal.Decimal       `json:"idle_fee_per_min"`
+	Currency      string                `json:"currency"`
+	IsActive      bool                  `json:"is_active"`
+	StartDate     *time.Time            `json:"start_date,omitempty"`
+	EndDate       *time.Time            `json:"end_date,omitempty"`
+	TariffType    *constants.TariffType `json:"tariff_type,omitempty"`
+	PriceType     *constants.PriceType  `json:"price_type,omitempty"`
+	Units         *constants.Unit       `json:"units,omitempty"`
+	CreatedAt     time.Time             `json:"created_at"`
+	UpdatedAt     time.Time             `json:"updated_at"`
 }
 
 type TariffListResponse struct {

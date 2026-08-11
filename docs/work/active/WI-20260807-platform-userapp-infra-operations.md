@@ -4,7 +4,7 @@ Status: In Progress
 Owner: Anubhab Dey
 Collaborators: None
 Started: 2026-08-07
-Last updated: 2026-08-10
+Last updated: 2026-08-11
 
 Development-plan reference:
 
@@ -36,6 +36,14 @@ their CMS surface.
 - HAL-to-CMS and CMS-to-HAL service communication contracts and delivery flows
 - Development hosting, service configuration, database setup/migrations, and
   DNS work required for those backend surfaces
+
+### Active coordination note (2026-08-11)
+
+Codex is repairing the SuperAdmin administrator-list GORM base-model defect in
+`src/superadmin/service.go` and adding focused SQL-shape plus disposable
+PostgreSQL regression coverage. This is an internal query correction only: it
+does not change the HTTP contract, authorization, schema, migrations, or any
+other claimed surface.
 
 ## Non-goals
 
@@ -89,8 +97,14 @@ alongside safe hub fields and `connector_total_capacity`. Hub
 `open_24_hours`, charger `twenty_four_seven_open_status`, and
 `hub_open_24_hours` are separately represented. Charger-host contact details,
 connection URLs, sanctioned load, and HAL-owned state remain excluded. The
-development VPS now runs application revision `f7e7227`; the charging vertical
-deployment applied migration twenty-eight without a DNS or reverse-proxy change.
+development VPS now runs application revision `2550cf7`; the charging vertical
+deployment and nullable tariff metadata applied migrations through twenty-nine
+without a DNS or reverse-proxy change.
+
+The isolated SuperAdmin administrator-list repair now binds GORM explicitly to
+`models.PlatformAdmin` before joining `users`. Its SQL-shape regression test
+passes, and a guarded disposable-PostgreSQL test covers execution, authority
+filtering, projections, and keyset pagination when `TEST_DATABASE_URL` is set.
 
 ## Verification
 
@@ -110,14 +124,15 @@ deployment applied migration twenty-eight without a DNS or reverse-proxy change.
 - `go test ./...` passed.
 - `go vet ./...` passed.
 - `git diff --check` passed.
-- Revision `f7e7227` is active under `evcmsnew-dev.service`; the running
+- Revision `2550cf7` is active under `evcmsnew-dev.service`; the running
   process matches the installed binary and the expected VCS revision.
 - Loopback/public liveness and readiness passed.
 - The live OpenAPI exposes 157 operations, and the live CPO user-group detail
   `members` projection and `usergroup_assigned` response field are present.
 - The live CPO connector response schema reflects `connector_total_capacity`.
-- The post-start warning scan passed.
-- Migration twenty-eight is applied; the new CMS/HAL charging routes are
+- The current systemd state is active/enabled with zero restarts after the
+  bounded SSE shutdown deadline recovered during rehost.
+- Migration twenty-nine is applied; the new CMS/HAL charging routes are
   protected and the optional HAL provider remains unconfigured on this host.
 - The protected User App charger route returned `401` without credentials.
 - The current release is active on the loopback listener and public health and
@@ -126,6 +141,11 @@ deployment applied migration twenty-eight without a DNS or reverse-proxy change.
   `connector_total_capacity` field.
 - The PowerShell documentation verifier was not run because `pwsh` is
   unavailable on this Ubuntu host.
+- `go test ./src/superadmin -count=1`, `go test -p 1 ./...`, `go vet -p 1
+  ./...`, and `git diff --check` passed for the administrator-list repair.
+- The PostgreSQL execution regression test is present but skipped locally
+  because `TEST_DATABASE_URL` is not configured; no database was selected or
+  modified for this repair.
 
 ## Handoff
 

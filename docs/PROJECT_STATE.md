@@ -171,9 +171,12 @@ provides:
   handler;
 - the additive PostgreSQL database `devevcmsnewdb`, owned by `postgres`.
 
-The active development VPS runs source revision `f7e7227`, with migrations
-through twenty-eight recorded and the deployed 157-operation contract. The
-User App can serve an authenticated published charger's allowed image through
+The active development VPS runs source revision `2550cf7`, with migrations
+through twenty-nine recorded and the deployed 157-operation contract. Migration
+twenty-nine adds nullable `tariff_type`, `price_type`, and `units` metadata to
+tenant tariffs; omitted values remain null-safe for existing and newly created
+tariffs. The SuperAdmin administrator-list query explicitly binds the platform
+administrator model. The User App can serve an authenticated published charger's allowed image through
 its relative `charger_image_url`, without exposing the stored upload path.
 The CPO charger response also exposes a read-only `assigned` projection that
 matches hub attachment, and Swagger groups CPO operations by account/network,
@@ -305,6 +308,15 @@ intentionally unsupported.
   response fields are present; and the post-start warning scan passed.
   The PowerShell documentation verifier remains unavailable on this Ubuntu
   host.
+- Revision `2550cf7` was built from a clean worktree and rehosted after
+  migration twenty-nine was confirmed current. The installed binary SHA-256
+  is `5ebd7181ecae90a27787791c7c6f9786a3150fa968b3eb1d57bafa910c2418fa` and
+  embeds revision `2550cf79fa6a9b84f3e30b0dca4101b8f0659574` with
+  `vcs.modified=false`. The enabled service is active; local/public health,
+  Swagger, raw OpenAPI, the 157-operation contract, and protected-route checks
+  passed. The stop phase encountered the documented bounded SSE shutdown
+  deadline and recovered; current systemd state is `Result=success` with
+  `NRestarts=0`.
 - Revision `f7e7227` was built from a clean worktree and rehosted after a
   mode-0600 PostgreSQL rollback dump and migration twenty-eight. The running
   systemd process matches the installed binary SHA-256

@@ -39,6 +39,8 @@ Migration files:
 - `db/migrations/000015_tariff_effective_dates.down.sql`
 - `db/migrations/000028_cms_hal_charging_vertical.up.sql`
 - `db/migrations/000028_cms_hal_charging_vertical.down.sql`
+- `db/migrations/000029_add_tariff_fields.up.sql`
+- `db/migrations/000029_add_tariff_fields.down.sql`
 
 ## Supplied Model Mapping
 
@@ -84,6 +86,9 @@ Migration files:
 - Migration twenty-eight extends the legacy session projection with exact HAL
   transaction correlation and live meter fields. It adds durable CMS business
   intent/hold/receipt/projection tables; the HAL database remains separate.
+- Migration twenty-nine adds nullable `tariff_type`, `price_type`, and `units`
+  columns. Existing tariffs remain valid with null metadata, and omitted API
+  fields do not write empty enum values.
 
 ## Migration Behavior
 

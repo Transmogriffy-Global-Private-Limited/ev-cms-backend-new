@@ -2222,17 +2222,17 @@ func (service *Service) UpdateHubTariff(
 		}
 		if request.TariffType != nil {
 			updates["tariff_type"] = *request.TariffType
-			record.TariffType = *request.TariffType
+			record.TariffType = request.TariffType
 			changedFields["tariff_type"] = *request.TariffType
 		}
 		if request.PriceType != nil {
 			updates["price_type"] = *request.PriceType
-			record.PriceType = *request.PriceType
+			record.PriceType = request.PriceType
 			changedFields["price_type"] = *request.PriceType
 		}
 		if request.Units != nil {
 			updates["units"] = *request.Units
-			record.Units = *request.Units
+			record.Units = request.Units
 			changedFields["units"] = *request.Units
 		}
 
@@ -2507,17 +2507,17 @@ func (service *Service) UpdateChargerTariff(
 		}
 		if request.TariffType != nil {
 			updates["tariff_type"] = *request.TariffType
-			record.TariffType = *request.TariffType
+			record.TariffType = request.TariffType
 			changedFields["tariff_type"] = *request.TariffType
 		}
 		if request.PriceType != nil {
 			updates["price_type"] = *request.PriceType
-			record.PriceType = *request.PriceType
+			record.PriceType = request.PriceType
 			changedFields["price_type"] = *request.PriceType
 		}
 		if request.Units != nil {
 			updates["units"] = *request.Units
-			record.Units = *request.Units
+			record.Units = request.Units
 			changedFields["units"] = *request.Units
 		}
 
@@ -2792,17 +2792,17 @@ func (service *Service) UpdateUserGroupTariff(
 		}
 		if request.TariffType != nil {
 			updates["tariff_type"] = *request.TariffType
-			record.TariffType = *request.TariffType
+			record.TariffType = request.TariffType
 			changedFields["tariff_type"] = *request.TariffType
 		}
 		if request.PriceType != nil {
 			updates["price_type"] = *request.PriceType
-			record.PriceType = *request.PriceType
+			record.PriceType = request.PriceType
 			changedFields["price_type"] = *request.PriceType
 		}
 		if request.Units != nil {
 			updates["units"] = *request.Units
-			record.Units = *request.Units
+			record.Units = request.Units
 			changedFields["units"] = *request.Units
 		}
 
