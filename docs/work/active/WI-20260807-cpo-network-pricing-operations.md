@@ -64,9 +64,9 @@ separate CMS/HAL charging vertical.
 
 ## Current state
 
-Revision `2550cf7` was built from a clean worktree and rehosted on
-August 11, 2026 after migration twenty-nine. The live service exposes the
-157-operation OpenAPI document, and the CPO user-group membership contract now
+Revision `e5fd599` was built from a clean worktree and rehosted on
+August 11, 2026 after migration thirty. The live service exposes the
+160-operation OpenAPI document, and the CPO user-group membership contract now
 includes tenant-scoped, idempotent assignment/removal, the `members` detail
 projection, plus the `usergroup_assigned` customer projection. The CPO
 `Connector` response schema now
@@ -82,16 +82,17 @@ and user-group routes are protected by the same tenant authorization boundary.
 - `go test ./...` passed.
 - `go vet ./...` passed.
 - `git diff --check` passed.
-- Revision `2550cf7` is active under `evcmsnew-dev.service`; the running
+- Revision `e5fd599` is active under `evcmsnew-dev.service`; the running
   process matches the installed binary and the expected VCS revision.
 - Loopback/public liveness and readiness passed.
-- The live OpenAPI exposes 157 operations, and the live CPO user-group detail
+- The live OpenAPI exposes 160 operations, and the live CPO user-group detail
   `members` projection plus `usergroup_assigned` response field are present.
 - The live CPO `Connector` response schema exposes `connector_total_capacity`.
 - The current systemd state is active/enabled with zero restarts after the
   bounded SSE shutdown deadline recovered during rehost.
-- Migration twenty-nine is applied; its nullable tariff metadata is null-safe
-  for existing rows and omitted request fields.
+- Migration thirty is applied; its unique tenant settings row stores optional
+  invoice metadata. Migration twenty-nine tariff metadata remains null-safe for
+  existing rows and omitted request fields.
 - The PowerShell documentation verifier was not run because `pwsh` is
   unavailable on this Ubuntu host.
 
