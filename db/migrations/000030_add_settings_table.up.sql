@@ -1,5 +1,5 @@
 CREATE TABLE settings (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     cpo_id UUID NOT NULL,
     invoice_logo VARCHAR(255),
     invoice_note TEXT,
@@ -7,7 +7,7 @@ CREATE TABLE settings (
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     CONSTRAINT fk_cpo
         FOREIGN KEY(cpo_id)
-        REFERENCES cpo(id)
+        REFERENCES cpos(id)
         ON DELETE CASCADE
 );
 

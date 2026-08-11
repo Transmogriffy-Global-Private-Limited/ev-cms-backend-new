@@ -3254,7 +3254,7 @@ paths:
           $ref: "#/components/responses/InternalError"
     put:
       tags: [CPO Operations - Account & Notifications]
-      operationId: createOrUpdateCpoSettings
+      operationId: updateCpoSettings
       summary: Update the CPO's settings
       description: |
         Updates the settings for the authenticated CPO.
