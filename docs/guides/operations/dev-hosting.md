@@ -29,7 +29,7 @@ that setting; it must not be used until the OCPP host is explicitly configured
 with TLS/WebSocket support.
 
 The active deployment was updated on August 11, 2026 to source revision
-`a76d6ae`. It has migrations one through thirty-one and the current 160-operation
+`d368903`. It has migrations one through thirty-one and the current 161-operation
 API. Migration twenty-seven replaces the legacy charger/connector protocol-style
 status values with static CMS administrative states (`ACTIVE`, `INACTIVE`,
 `SUSPENDED`, `UNDERMAINTENANCE`, and `DECOMMISSIONED`). Migration thirteen keeps
@@ -160,7 +160,7 @@ content exclusions are defined in
 `docs/contracts/internal/http-request-logging.md`. Long-lived SSE requests are
 recorded when they disconnect. A recovered panic first emits a correlated safe
 JSON stack diagnostic without Gin's request dump or the panic value. The
-currently deployed `a76d6ae` binary includes this logger.
+currently deployed `d368903` binary includes this logger.
 
 The platform realtime SSE route is long-lived. If a browser holds that stream
 during a rehost, the application may log `shut down HTTP server: context

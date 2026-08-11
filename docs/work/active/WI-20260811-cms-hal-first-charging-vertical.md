@@ -60,8 +60,8 @@ Implement and verify the first real CMS consumer charging vertical against
   customer start/stop/polling routes, and OpenAPI/configuration documentation.
 - Migration `000028_cms_hal_charging_vertical` and migration
   `000029_add_tariff_fields` are applied in the development database. Revision
-  `a76d6ae` is active under `evcmsnew-dev.service` with a
-  160-operation live contract; migrations thirty and thirty-one for tenant
+  `d368903` is active under `evcmsnew-dev.service` with a
+  161-operation live contract; migrations thirty and thirty-one for tenant
   settings and GST state are also applied.
 - The optional HAL v1 base URL and both service credentials remain unset on
   this host, so customer charging is intentionally unavailable until the

@@ -3283,7 +3283,7 @@ paths:
           $ref: "#/components/responses/CPOBusinessForbidden"
         "500":
           $ref: "#/components/responses/InternalError"
-    /api/v1/cpo/settings/invoice-logo:
+  /api/v1/cpo/settings/invoice-logo:
     get:
       tags: [CPO Operations - Account & Notifications]
       operationId: getCPOInvoiceLogo
