@@ -3184,6 +3184,110 @@ paths:
         "500":
           $ref: "#/components/responses/InternalError"
 
+  /api/v1/cpo/settings:
+    get:
+      tags: [CPO Operations - Account & Notifications]
+      operationId: getCpoSettings
+      summary: Get the CPO's settings
+      description: |
+        Returns the settings for the authenticated CPO. The CPO ID is
+        derived from the verified ADMIN session; callers cannot select another
+        tenant.
+      security:
+        - BearerAuth: []
+        - CPOAppID: []
+      responses:
+        "200":
+          description: Current CPO settings.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GetCpoSettingsResponse"
+        "400":
+          $ref: "#/components/responses/MissingCPOAppID"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/CPOBusinessForbidden"
+        "404":
+          description: "`settings_not_found` — no settings for this CPO."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    post:
+      tags: [CPO Operations - Account & Notifications]
+      operationId: createOrUpdateCpoSettings
+      summary: Create or update the CPO's settings
+      description: |
+        Creates or updates the settings for the authenticated CPO.
+      security:
+        - BearerAuth: []
+        - CPOAppID: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              $ref: "#/components/schemas/CreateOrUpdateCpoSettingsMultipartRequest"
+            encoding:
+              data:
+                contentType: application/json
+              invoice_logo:
+                contentType: image/*
+      responses:
+        "200":
+          description: Settings created or updated successfully.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GetCpoSettingsResponse"
+        "400":
+          $ref: "#/components/responses/InvalidRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/CPOBusinessForbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    put:
+      tags: [CPO Operations - Account & Notifications]
+      operationId: createOrUpdateCpoSettings
+      summary: Update the CPO's settings
+      description: |
+        Updates the settings for the authenticated CPO.
+      security:
+        - BearerAuth: []
+        - CPOAppID: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              $ref: "#/components/schemas/CreateOrUpdateCpoSettingsMultipartRequest"
+            encoding:
+              data:
+                contentType: application/json
+              invoice_logo:
+                contentType: image/*
+      responses:
+        "200":
+          description: Settings updated successfully.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GetCpoSettingsResponse"
+        "400":
+          $ref: "#/components/responses/InvalidRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/CPOBusinessForbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
   /api/v1/cpo/chargers:
     post:
       tags: [CPO Operations - Network]
@@ -8293,6 +8397,46 @@ components:
         producer: {type: string, enum: [ocpp-hal-go-new]}
         immutable_content_sha256: {type: string, pattern: "^[a-f0-9]{64}$"}
         payload: {type: object, additionalProperties: true}
+
+    CpoSettings:
+      type: object
+      additionalProperties: false
+      required:
+        - cpo_id
+      properties:
+        cpo_id:
+          type: string
+          format: uuid
+        invoice_logo:
+          type: string
+          format: uri
+          nullable: true
+        invoice_note:
+          type: string
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    GetCpoSettingsResponse:
+      $ref: "#/components/schemas/CpoSettings"
+
+    CreateOrUpdateCpoSettingsMultipartRequest:
+      type: object
+      properties:
+        data:
+          description: JSON payload containing CPO settings details.
+          type: object
+          properties:
+            invoice_note:
+              type: string
+        invoice_logo:
+          type: string
+          format: binary
+          description: Invoice logo file (e.g., JPEG, PNG).
 
     ErrorEnvelope:
       type: object

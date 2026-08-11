@@ -531,6 +531,30 @@ func RegisterCPORoutes(
 	group.DELETE("/user-groups/:user_group_id", handler.deleteUserGroup)
 	group.POST("/user-groups/:user_group_id/members", handler.addMemberToUserGroup)
 	group.DELETE("/user-groups/:user_group_id/members/:customer_id", handler.removeMemberFromUserGroup)
+
+	group.GET("/settings", handler.getSettings)
+	group.POST("/settings", handler.createOrUpdateSettings)
+	group.PUT("/settings", handler.createOrUpdateSettings)
+}
+
+func (handler *Handler) getSettings(ctx *gin.Context) {
+	principal, _ := auth.CurrentPrincipal(ctx)
+	settings, err := handler.service.GetSettings(ctx.Request.Context(), principal)
+	if err != nil {
+		writeError(ctx, err)
+		return
+	}
+	ctx.JSON(http.StatusOK, settings)
+}
+
+func (handler *Handler) createOrUpdateSettings(ctx *gin.Context) {
+	principal, _ := auth.CurrentPrincipal(ctx)
+	settings, err := handler.service.CreateOrUpdateSettings(ctx, principal)
+	if err != nil {
+		writeError(ctx, err)
+		return
+	}
+	ctx.JSON(http.StatusOK, settings)
 }
 
 // @Summary Remove a member from a user group

@@ -5574,3 +5574,112 @@ func mapUserGroupWriteError(err error, operation string) error {
 	}
 	return fmt.Errorf("%s: %w", operation, err)
 }
+
+func (service *Service) GetSettings(
+	ctx context.Context,
+	principal auth.Principal,
+) (SettingsView, error) {
+	if err := requireCPOAdminAccess(principal); err != nil {
+		return SettingsView{}, err
+	}
+
+	cpoID := *principal.CPOID
+	var settings models.Settings
+	if err := service.database.WithContext(ctx).Where("cpo_id = ?", cpoID).First(&settings).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return SettingsView{}, &auth.APIError{
+				Status:  http.StatusNotFound,
+				Code:    "settings_not_found",
+				Message: "Settings for this CPO not found.",
+			}
+		}
+		return SettingsView{}, fmt.Errorf("failed to get settings: %w", err)
+	}
+
+	return SettingsView{
+		InvoiceLogo: settings.InvoiceLogo,
+		InvoiceNote: settings.InvoiceNote,
+	}, nil
+}
+
+func (service *Service) CreateOrUpdateSettings(
+	ctx *gin.Context,
+	principal auth.Principal,
+) (SettingsView, error) {
+	if err := requireCPOAdminAccess(principal); err != nil {
+		return SettingsView{}, err
+	}
+
+	cpoID := *principal.CPOID
+	err := ctx.Request.ParseMultipartForm(10 << 20) // 10 MB
+	if err != nil {
+		return SettingsView{}, &auth.APIError{
+			Status:  http.StatusBadRequest,
+			Code:    "invalid_request",
+			Message: "Invalid multipart form.",
+		}
+	}
+
+	invoiceNote := ctx.Request.FormValue("invoice_note")
+
+	var settings models.Settings
+	err = service.database.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Where("cpo_id = ?", cpoID).First(&settings).Error; err != nil {
+			if !errors.Is(err, gorm.ErrRecordNotFound) {
+				return fmt.Errorf("failed to get settings: %w", err)
+			}
+			// Settings not found, create new
+			settings = models.Settings{
+				CPOID: cpoID,
+			}
+		}
+
+		file, header, err := ctx.Request.FormFile("invoice_logo")
+		if err == nil {
+			defer file.Close()
+			//- TODO: delete old file if it exists
+			filename := uuid.New().String() + filepath.Ext(header.Filename)
+			uploadsDir := "uploads"
+			if _, err := os.Stat(uploadsDir); os.IsNotExist(err) {
+				if err := os.Mkdir(uploadsDir, 0755); err != nil {
+					return fmt.Errorf("failed to create uploads directory: %w", err)
+				}
+			}
+			filePath := filepath.Join(uploadsDir, filename)
+			out, err := os.Create(filePath)
+			if err != nil {
+				return fmt.Errorf("failed to create file: %w", err)
+			}
+			defer out.Close()
+			_, err = io.Copy(out, file)
+			if err != nil {
+				return fmt.Errorf("failed to save file: %w", err)
+			}
+			settings.InvoiceLogo = &filePath
+		} else if !errors.Is(err, http.ErrMissingFile) {
+			return fmt.Errorf("failed to get invoice logo: %w", err)
+		}
+
+		if invoiceNote != "" {
+			settings.InvoiceNote = &invoiceNote
+		}
+
+		if err := tx.Clauses(clause.OnConflict{
+			Columns:   []clause.Column{{Name: "cpo_id"}},
+			DoUpdates: clause.AssignmentColumns([]string{"invoice_logo", "invoice_note", "updated_at"}),
+		}).Create(&settings).Error; err != nil {
+			return fmt.Errorf("failed to save settings: %w", err)
+		}
+
+		return nil
+	})
+
+	if err != nil {
+		return SettingsView{}, err
+	}
+
+	return SettingsView{
+		InvoiceLogo: settings.InvoiceLogo,
+		InvoiceNote: settings.InvoiceNote,
+	}, nil
+}

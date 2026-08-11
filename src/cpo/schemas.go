@@ -564,3 +564,8 @@ type ChargerStatusResponse struct {
 	OCPPIdentity string                  `json:"ocpp_identity"`
 	Status       constants.ChargerStatus `json:"status"`
 }
+
+type SettingsView struct {
+	InvoiceLogo *string `json:"invoice_logo,omitempty"`
+	InvoiceNote *string `json:"invoice_note,omitempty"`
+}
