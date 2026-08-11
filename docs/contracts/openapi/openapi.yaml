@@ -6980,8 +6980,6 @@ components:
           type: string
           format: date-time
           nullable: true
-        usergroup_assigned:
-          type: boolean
         created_at:
           type: string
           format: date-time
@@ -8042,6 +8040,18 @@ components:
           type: string
           format: date-time
           description: Must be later than start_date; exclusive.
+        tariff_type:
+          type: string
+          enum: [fixed]
+          description: Tariff charging model.
+        price_type:
+          type: string
+          enum: [sessions, time, energy]
+          description: Unit used to calculate the tariff price.
+        units:
+          type: string
+          enum: [minutes, watt/hour]
+          description: Measurement unit for the selected price type.
       example:
         hub_id: 8b80ef78-7799-4a09-a0d5-73ac944aa6e0
         charger_id: 7cc2d481-3ccb-4336-b03c-c8851a59ff9a
@@ -8074,6 +8084,15 @@ components:
           type: string
           format: date-time
           description: Validated with the resulting start_date.
+        tariff_type:
+          type: string
+          enum: [fixed]
+        price_type:
+          type: string
+          enum: [sessions, time, energy]
+        units:
+          type: string
+          enum: [minutes, watt/hour]
 
     Tariff:
       type: object
@@ -8103,6 +8122,15 @@ components:
         is_active: {type: boolean}
         start_date: {type: string, format: date-time}
         end_date: {type: string, format: date-time}
+        tariff_type:
+          type: string
+          enum: [fixed]
+        price_type:
+          type: string
+          enum: [sessions, time, energy]
+        units:
+          type: string
+          enum: [minutes, watt/hour]
         created_at: {type: string, format: date-time}
         updated_at: {type: string, format: date-time}
 
@@ -8165,6 +8193,11 @@ components:
         name: {type: string}
         description: {type: string}
         is_active: {type: boolean}
+        members:
+          type: array
+          description: Customers currently assigned to this user group when returned by the detail endpoint.
+          items:
+            $ref: "#/components/schemas/CPOCustomer"
         created_at: {type: string, format: date-time}
         updated_at: {type: string, format: date-time}
 
