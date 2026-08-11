@@ -3250,6 +3250,139 @@ paths:
         "500":
           $ref: "#/components/responses/InternalError"
 
+  /api/v1/cpo/settings:
+    get:
+      tags: [CPO Operations - Account & Notifications]
+      operationId: getCpoSettings
+      summary: Get the CPO's settings
+      description: |
+        Returns the settings for the authenticated CPO. The CPO ID is
+        derived from the verified ADMIN session; callers cannot select another
+        tenant.
+      security:
+        - BearerAuth: []
+        - CPOAppID: []
+      responses:
+        "200":
+          description: Current CPO settings.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GetCpoSettingsResponse"
+        "400":
+          $ref: "#/components/responses/MissingCPOAppID"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/CPOBusinessForbidden"
+        "404":
+          description: "`settings_not_found` — no settings for this CPO."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    post:
+      tags: [CPO Operations - Account & Notifications]
+      operationId: createOrUpdateCpoSettings
+      summary: Create or update the CPO's settings
+      description: |
+        Creates or updates the settings for the authenticated CPO.
+      security:
+        - BearerAuth: []
+        - CPOAppID: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              $ref: "#/components/schemas/CreateOrUpdateCpoSettingsMultipartRequest"
+            encoding:
+              invoice_logo:
+                contentType: image/*
+      responses:
+        "200":
+          description: Settings created or updated successfully.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GetCpoSettingsResponse"
+        "400":
+          $ref: "#/components/responses/InvalidRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/CPOBusinessForbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    put:
+      tags: [CPO Operations - Account & Notifications]
+      operationId: updateCpoSettings
+      summary: Update the CPO's settings
+      description: |
+        Updates the settings for the authenticated CPO.
+      security:
+        - BearerAuth: []
+        - CPOAppID: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              $ref: "#/components/schemas/CreateOrUpdateCpoSettingsMultipartRequest"
+            encoding:
+              invoice_logo:
+                contentType: image/*
+      responses:
+        "200":
+          description: Settings updated successfully.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GetCpoSettingsResponse"
+        "400":
+          $ref: "#/components/responses/InvalidRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/CPOBusinessForbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/cpo/settings/invoice-logo:
+    get:
+      tags: [CPO Operations - Account & Notifications]
+      operationId: getCPOInvoiceLogo
+      summary: Get the CPO's invoice logo image
+      description: Returns the invoice logo image previously uploaded for the CPO.
+      security:
+        - BearerAuth: []
+        - CPOAppID: []
+      parameters:
+        - $ref: "#/components/parameters/CPOAppIDHeader"
+      responses:
+        "200":
+          description: Invoice logo image.
+          content:
+            image/*:
+              schema:
+                type: string
+                format: binary
+        "400":
+          $ref: "#/components/responses/InvalidRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/CPOBusinessForbidden"
+        "404":
+          description: "`settings_not_found` or `invoice_logo_not_found`."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
   /api/v1/cpo/chargers:
     post:
       tags: [CPO Operations - Network]
@@ -7934,10 +8067,11 @@ components:
     CreateHubRequest:
       type: object
       additionalProperties: false
-      required: [name, address, latitude, longitude]
+      required: [name, address, state, latitude, longitude]
       properties:
         name: {type: string, minLength: 1, maxLength: 255}
         address: {type: string, minLength: 1, maxLength: 5000}
+        state: {type: string, minLength: 1, maxLength: 100}
         latitude: {type: number, minimum: -90, maximum: 90}
         longitude: {type: number, minimum: -180, maximum: 180}
         open_24_hours: {type: boolean, default: true}
@@ -7958,6 +8092,7 @@ components:
       example:
         name: Park Street Hub
         address: 12 Park Street, Kolkata
+        state: West Bengal
         latitude: 22.5524
         longitude: 88.3521
         open_24_hours: true
@@ -7972,6 +8107,7 @@ components:
       properties:
         name: {type: string, minLength: 1, maxLength: 255}
         address: {type: string, minLength: 1, maxLength: 5000}
+        state: {type: string, minLength: 1, maxLength: 100}
         latitude: {type: number, minimum: -90, maximum: 90}
         longitude: {type: number, minimum: -180, maximum: 180}
         open_24_hours: {type: boolean}
@@ -7987,12 +8123,13 @@ components:
       type: object
       additionalProperties: false
       required:
-        [id, cpo_id, name, address, latitude, longitude, open_24_hours, sanction_load, customer_visible, created_at, updated_at]
+        [id, cpo_id, name, address, state, latitude, longitude, open_24_hours, sanction_load, customer_visible, created_at, updated_at]
       properties:
         id: {type: string, format: uuid}
         cpo_id: {type: string, format: uuid}
         name: {type: string}
         address: {type: string}
+        state: {type: string}
         latitude: {type: number}
         longitude: {type: number}
         open_24_hours: {type: boolean}
@@ -8010,12 +8147,13 @@ components:
       type: object
       additionalProperties: false
       required:
-        [id, cpo_id, name, address, latitude, longitude, open_24_hours, sanction_load, customer_visible, chargers, created_at, updated_at]
+        [id, cpo_id, name, address, state, latitude, longitude, open_24_hours, sanction_load, customer_visible, chargers, created_at, updated_at]
       properties:
         id: {type: string, format: uuid}
         cpo_id: {type: string, format: uuid}
         name: {type: string}
         address: {type: string}
+        state: {type: string}
         latitude: {type: number}
         longitude: {type: number}
         open_24_hours: {type: boolean}
@@ -8047,9 +8185,10 @@ components:
     CreateGSTRequest:
       type: object
       additionalProperties: false
-      required: [name, sgst_rate, cgst_rate, igst_rate]
+      required: [name, state, sgst_rate, cgst_rate, igst_rate]
       properties:
         name: {type: string, minLength: 1, maxLength: 100}
+        state: {type: string, minLength: 1, maxLength: 100}
         sgst_rate:
           allOf:
             - $ref: "#/components/schemas/DecimalInput"
@@ -8065,6 +8204,7 @@ components:
         is_active: {type: boolean, default: true}
       example:
         name: Standard GST
+        state: "West Bengal"
         sgst_rate: "9.00"
         cgst_rate: "9.00"
         igst_rate: "18.00"
@@ -8076,23 +8216,25 @@ components:
       minProperties: 1
       properties:
         name: {type: string, minLength: 1, maxLength: 100}
-        sgst_rate: {$ref: "#/components/schemas/DecimalInput"}
-        cgst_rate: {$ref: "#/components/schemas/DecimalInput"}
-        igst_rate: {$ref: "#/components/schemas/DecimalInput"}
+        state: {type: string, minLength: 1, maxLength: 100}
+        sgst_rate: {$ref: "#/components/schemas/DecimalInput", nullable: true}
+        cgst_rate: {$ref: "#/components/schemas/DecimalInput", nullable: true}
+        igst_rate: {$ref: "#/components/schemas/DecimalInput", nullable: true}
         is_active: {type: boolean}
 
     GST:
       type: object
       additionalProperties: false
       required:
-        [id, cpo_id, name, sgst_rate, cgst_rate, igst_rate, is_active, created_at, updated_at]
+        [id, cpo_id, name, state, is_active, created_at, updated_at]
       properties:
         id: {type: string, format: uuid}
         cpo_id: {type: string, format: uuid}
         name: {type: string}
-        sgst_rate: {$ref: "#/components/schemas/ExactDecimal"}
-        cgst_rate: {$ref: "#/components/schemas/ExactDecimal"}
-        igst_rate: {$ref: "#/components/schemas/ExactDecimal"}
+        state: {type: string}
+        sgst_rate: {$ref: "#/components/schemas/ExactDecimal", nullable: true}
+        cgst_rate: {$ref: "#/components/schemas/ExactDecimal", nullable: true}
+        igst_rate: {$ref: "#/components/schemas/ExactDecimal", nullable: true}
         is_active: {type: boolean}
         created_at: {type: string, format: date-time}
         updated_at: {type: string, format: date-time}
@@ -8422,6 +8564,31 @@ components:
         producer: {type: string, enum: [ocpp-hal-go-new]}
         immutable_content_sha256: {type: string, pattern: "^[a-f0-9]{64}$"}
         payload: {type: object, additionalProperties: true}
+
+    CpoSettings:
+      type: object
+      additionalProperties: false
+      properties:
+        invoice_logo:
+          type: string
+          nullable: true
+        invoice_note:
+          type: string
+          nullable: true
+
+    GetCpoSettingsResponse:
+      $ref: "#/components/schemas/CpoSettings"
+
+    CreateOrUpdateCpoSettingsMultipartRequest:
+      type: object
+      properties:
+        invoice_note:
+          type: string
+          description: Optional note printed on invoices.
+        invoice_logo:
+          type: string
+          format: binary
+          description: Invoice logo file (e.g., JPEG, PNG).
 
     ErrorEnvelope:
       type: object

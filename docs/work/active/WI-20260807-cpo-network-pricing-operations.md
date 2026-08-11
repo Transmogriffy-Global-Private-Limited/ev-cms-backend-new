@@ -4,7 +4,7 @@ Status: In Progress
 Owner: Abhranil Pal
 Collaborators: Codex (guarded development-host deployment and verification)
 Started: 2026-08-07
-Last updated: 2026-08-10
+Last updated: 2026-08-11
 
 Development-plan reference:
 
@@ -64,17 +64,23 @@ separate CMS/HAL charging vertical.
 
 ## Current state
 
-Revision `2550cf7` was built from a clean worktree and rehosted on
-August 11, 2026 after migration twenty-nine. The live service exposes the
-157-operation OpenAPI document, and the CPO user-group membership contract now
+Revision `d368903` was built from a clean worktree and rehosted on
+August 11, 2026 without a new migration. The live service exposes the
+161-operation OpenAPI document, and the CPO user-group membership contract now
 includes tenant-scoped, idempotent assignment/removal, the `members` detail
 projection, plus the `usergroup_assigned` customer projection. The CPO
 `Connector` response schema now
 documents the runtime `connector_total_capacity` projection. Scoped tariff
 and user-group routes are protected by the same tenant authorization boundary.
+The local merge reconciliation also completes the CPO hub `state` contract:
+create requires it, update accepts it, and hub list/detail responses return it.
+No migration or deployment has been performed for that reconciliation.
 
 ## Verification
 
+- `go test -p 1 ./src/cpo ./src/customerauth -count=1` and
+  `./scripts/verify-docs.ps1` passed for the merged hub-state source and
+  contract repair. No deployment verification is implied.
 - The current OpenAPI request example, route-contract check, `go test ./...`,
   `go vet ./...`, and `git diff --check` passed after the capacity-name
   reconciliation.
@@ -82,10 +88,10 @@ and user-group routes are protected by the same tenant authorization boundary.
 - `go test ./...` passed.
 - `go vet ./...` passed.
 - `git diff --check` passed.
-- Revision `2550cf7` is active under `evcmsnew-dev.service`; the running
+- Revision `d368903` is active under `evcmsnew-dev.service`; the running
   process matches the installed binary and the expected VCS revision.
 - Loopback/public liveness and readiness passed.
-- The live OpenAPI exposes 157 operations, and the live CPO user-group detail
+- The live OpenAPI exposes 161 operations, and the live CPO user-group detail
   `members` projection plus `usergroup_assigned` response field are present.
 - The live CPO `Connector` response schema exposes `connector_total_capacity`.
 - The current systemd state is active/enabled with zero restarts after the

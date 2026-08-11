@@ -192,6 +192,8 @@ organization response omits privileged lifecycle reason and platform actor ID.
 - `GET/PATCH /gsts/{gst_id}`
 - `POST/GET /tariffs`
 - `GET/PATCH /tariffs/{tariff_id}`
+- `GET/POST/PUT /settings` for CPO invoice note and logo metadata
+- `GET /settings/invoice-logo` streams only the authenticated CPO's logo
 
 ### Customer Directory
 
@@ -204,6 +206,8 @@ Current behavior:
 
 - collections use bounded keyset pagination;
 - IDs are server-generated;
+- hub create requires a 1–100 character state, hub update may replace it, and
+  CPO hub list/detail projections return the stored state;
 - a hub records non-negative `sanction_load` in kW; `0` means the capacity is
   not recorded;
 - `customer_visible` is CPO ADMIN-controlled, defaults to `false`, and is the
@@ -226,6 +230,10 @@ Current behavior:
   internal UUID; this does not contact HAL, and connector status remains
   read-only through the CPO API;
 - exact tax and tariff decimals serialize as strings;
+- GST creation requires a non-empty state plus all three 0–100 rate values;
+  update accepts a non-empty subset including state. Legacy GST rows may have
+  null rate values after migration thirty-one and must be handled as nullable
+  response fields;
 - blank tariff currency becomes `INR`;
 - related hub, charger, GST, and group records must belong to the same CPO;
 - referenced chargers return `409 charger_in_use` rather than cascading data

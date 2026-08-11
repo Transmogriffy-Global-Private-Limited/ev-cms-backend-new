@@ -308,6 +308,7 @@ type ConnectorView struct {
 type CreateHubRequest struct {
 	Name            string      `json:"name"`
 	Address         string      `json:"address"`
+	State           string      `json:"state"`
 	Latitude        *float64    `json:"latitude"`
 	Longitude       *float64    `json:"longitude"`
 	Open24Hours     *bool       `json:"open_24_hours,omitempty"`
@@ -319,6 +320,7 @@ type CreateHubRequest struct {
 type UpdateHubRequest struct {
 	Name            *string  `json:"name,omitempty"`
 	Address         *string  `json:"address,omitempty"`
+	State           *string  `json:"state,omitempty"`
 	Latitude        *float64 `json:"latitude,omitempty"`
 	Longitude       *float64 `json:"longitude,omitempty"`
 	Open24Hours     *bool    `json:"open_24_hours,omitempty"`
@@ -335,6 +337,7 @@ type HubView struct {
 	CPOID           uuid.UUID `json:"cpo_id"`
 	Name            string    `json:"name"`
 	Address         string    `json:"address"`
+	State           string    `json:"state"`
 	Latitude        float64   `json:"latitude"`
 	Longitude       float64   `json:"longitude"`
 	Open24Hours     bool      `json:"open_24_hours"`
@@ -357,6 +360,7 @@ type HubResponse struct {
 	CPOID           uuid.UUID            `json:"cpo_id"`
 	Name            string               `json:"name"`
 	Address         string               `json:"address"`
+	State           string               `json:"state"`
 	Latitude        float64              `json:"latitude"`
 	Longitude       float64              `json:"longitude"`
 	Open24Hours     bool                 `json:"open_24_hours"`
@@ -460,6 +464,7 @@ type TariffListResponse struct {
 
 type CreateGSTRequest struct {
 	Name     string           `json:"name"`
+	State    string           `json:"state"`
 	SGSTRate *decimal.Decimal `json:"sgst_rate"`
 	CGSTRate *decimal.Decimal `json:"cgst_rate"`
 	IGSTRate *decimal.Decimal `json:"igst_rate"`
@@ -468,6 +473,7 @@ type CreateGSTRequest struct {
 
 type UpdateGSTRequest struct {
 	Name     *string          `json:"name,omitempty"`
+	State    *string          `json:"state,omitempty"`
 	SGSTRate *decimal.Decimal `json:"sgst_rate,omitempty"`
 	CGSTRate *decimal.Decimal `json:"cgst_rate,omitempty"`
 	IGSTRate *decimal.Decimal `json:"igst_rate,omitempty"`
@@ -475,15 +481,16 @@ type UpdateGSTRequest struct {
 }
 
 type GSTView struct {
-	ID        uuid.UUID       `json:"id"`
-	CPOID     uuid.UUID       `json:"cpo_id"`
-	Name      string          `json:"name"`
-	SGSTRate  decimal.Decimal `json:"sgst_rate"`
-	CGSTRate  decimal.Decimal `json:"cgst_rate"`
-	IGSTRate  decimal.Decimal `json:"igst_rate"`
-	IsActive  bool            `json:"is_active"`
-	CreatedAt time.Time       `json:"created_at"`
-	UpdatedAt time.Time       `json:"updated_at"`
+	ID        uuid.UUID        `json:"id"`
+	CPOID     uuid.UUID        `json:"cpo_id"`
+	Name      string           `json:"name"`
+	State     string           `json:"state"`
+	SGSTRate  *decimal.Decimal `json:"sgst_rate,omitempty"`
+	CGSTRate  *decimal.Decimal `json:"cgst_rate,omitempty"`
+	IGSTRate  *decimal.Decimal `json:"igst_rate,omitempty"`
+	IsActive  bool             `json:"is_active"`
+	CreatedAt time.Time        `json:"created_at"`
+	UpdatedAt time.Time        `json:"updated_at"`
 }
 
 type GSTListResponse struct {
@@ -563,4 +570,9 @@ type ChargerStatusResponse struct {
 	ChargerID    uuid.UUID               `json:"charger_id"`
 	OCPPIdentity string                  `json:"ocpp_identity"`
 	Status       constants.ChargerStatus `json:"status"`
+}
+
+type SettingsView struct {
+	InvoiceLogo *string `json:"invoice_logo,omitempty"`
+	InvoiceNote *string `json:"invoice_note,omitempty"`
 }

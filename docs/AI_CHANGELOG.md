@@ -2,6 +2,21 @@
 
 ## 2026-08-11
 
+### Reconciled CPO hub state response contract
+
+- Completed the merged hub-state slice by adding `state` to CPO hub list/detail
+  response DTOs and the matching OpenAPI, human API, and CPO handoff contracts.
+  Create requires a non-empty state; update accepts a non-empty replacement.
+- This is a source and contract repair only. No migration or deployment was
+  performed during branch reconciliation.
+
+Verification:
+
+- `go test -p 1 ./src/cpo ./src/customerauth -count=1`,
+  `./scripts/verify-docs.ps1`, and `git diff --check` passed after the merged
+  source repair. Broader route/full-suite verification remains constrained by
+  the workstation's Go runtime memory limit.
+
 ### Added compact User App charger-location discovery
 
 - Added authenticated `GET /api/v1/app/chargers/locations`, reusing the full
@@ -21,6 +36,80 @@ Verification:
   run exhausted the Go runtime's available memory, and two single-process,
   capped-memory retries exceeded the two-minute bound while compiling. No
   route test failure was reported.
+### Rehosted authenticated CPO invoice-logo retrieval
+
+- Added `GET /api/v1/cpo/settings/invoice-logo`, which streams the current
+  tenant's uploaded invoice logo with inline, byte-range, and no-sniff headers.
+  The route derives CPO scope from the authenticated ADMIN session and never
+  accepts a filesystem path from the caller.
+- Corrected the OpenAPI path nesting so Swagger and the raw schema expose the
+  route as a standalone operation. No migration was required.
+- Built clean source revision `d368903` and rehosted the development CMS. The
+  live OpenAPI now exposes 161 operations.
+
+Verification:
+
+- Idempotent migration-up execution, OpenAPI/runtime route verification,
+  `go test ./...`, `go vet ./...`, and `git diff --check` passed. The deployed
+  binary SHA-256 is `bf9c5bdd7ac9205b45086a513b014bce1c371991a4a61ab23ff9541ee5f9eb07`
+  and embeds `d368903a960c519293b8ea26a9415902eb381056` with
+  `vcs.modified=false`.
+- The enabled service is active with zero restarts. Local/public liveness and
+  readiness, Swagger, raw OpenAPI, and unauthenticated settings, invoice-logo,
+  GST, and SuperAdmin route checks passed.
+- The bounded SSE shutdown deadline appeared during rehost as expected;
+  systemd recovered the process and the current result is `success`.
+- The PowerShell documentation verifier was not run because `pwsh` is
+  unavailable on this Ubuntu host.
+
+### Rehosted GST state support and migration 31
+
+- Added and applied `000031_add_state_to_gsts`, adding an optional stored state
+  column and allowing legacy GST-rate columns to remain nullable.
+- Added required GST-state validation on create and supplied-state validation on
+  update, matching the OpenAPI contract. Create requests still require all
+  three GST rates; nullable rates are only possible for legacy/database rows.
+- Built clean source revision `a76d6ae` and rehosted the development CMS. The
+  live OpenAPI remains at 160 operations.
+
+Verification:
+
+- Migration-up execution, OpenAPI/runtime route verification, `go test ./...`,
+  `go vet ./...`, and `git diff --check` passed. The deployed binary SHA-256 is
+  `0a3d397464dae13ef15b090225b4ca38fb1b4dfff946bf0de7d77cb9a5d3ebc0` and
+  embeds `a76d6ae09dde7727661238f55e1b2ff5007394d0` with `vcs.modified=false`.
+- The enabled service is active with zero restarts. Local/public liveness and
+  readiness, Swagger, raw OpenAPI, and unauthenticated GST, settings, and
+  SuperAdmin route checks passed.
+- The bounded SSE shutdown deadline appeared during rehost as expected;
+  systemd recovered the process and the current result is `success`.
+- The PowerShell documentation verifier was not run because `pwsh` is
+  unavailable on this Ubuntu host.
+
+### Rehosted CPO settings API and migration 30
+
+- Added and applied `000030_add_settings_table` for one tenant-scoped settings
+  row per CPO, including invoice note and logo metadata.
+- Corrected the migration to use the repository's `gen_random_uuid()` and
+  `cpos` conventions, and made the settings OpenAPI request/response schemas
+  match the actual multipart handler. POST and PUT now have distinct operation
+  IDs.
+- Built clean source revision `e5fd599` and rehosted the development CMS. The
+  live OpenAPI now exposes 160 operations.
+
+Verification:
+
+- Migration-up execution, OpenAPI/runtime route verification, `go test ./...`,
+  `go vet ./...`, and `git diff --check` passed. The deployed binary SHA-256 is
+  `b6c251b9a65343db5eedbff3fee293678f4ac51cf401975b1d77380b1e47ef84` and
+  embeds `e5fd599790b4fd9983ba055fc03b10637c2ad674` with `vcs.modified=false`.
+- The enabled service is active with zero restarts. Local/public liveness and
+  readiness, Swagger, raw OpenAPI, and unauthenticated settings and SuperAdmin
+  route checks passed.
+- The bounded SSE shutdown deadline appeared during rehost as expected;
+  systemd recovered the process and the current result is `success`.
+- The PowerShell documentation verifier was not run because `pwsh` is
+  unavailable on this Ubuntu host.
 
 ### Rehosted nullable tariff metadata and SuperAdmin fixes
 

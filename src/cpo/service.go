@@ -3804,6 +3804,7 @@ func (service *Service) CreateHub(
 			Name:            request.Name,
 			Address:         request.Address,
 			Latitude:        *request.Latitude,
+			State:           request.State,
 			Longitude:       *request.Longitude,
 			Open24Hours:     open24Hours,
 			SanctionLoad:    sanctionLoad,
@@ -3966,6 +3967,7 @@ func (service *Service) GetHub(
 		CPOID:           hub.CPOID,
 		Name:            hub.Name,
 		Address:         hub.Address,
+		State:           hub.State,
 		Latitude:        hub.Latitude,
 		Longitude:       hub.Longitude,
 		Open24Hours:     hub.Open24Hours,
@@ -4033,6 +4035,10 @@ func (service *Service) UpdateHub(
 			updates["customer_visible"] = *request.CustomerVisible
 			changedFields["customer_visible"] = *request.CustomerVisible
 		}
+		if request.State != nil && record.State != *request.State {
+			updates["state"] = *request.State
+			changedFields["state"] = *request.State
+		}
 
 		if len(changedFields) == 0 {
 			return nil
@@ -4055,6 +4061,8 @@ func (service *Service) UpdateHub(
 				record.SanctionLoad = value.(float64)
 			case "customer_visible":
 				record.CustomerVisible = value.(bool)
+			case "state":
+				record.State = value.(string)
 			}
 		}
 
@@ -4369,12 +4377,14 @@ func (service *Service) AssignChargerToHub(
 func normalizeCreateHubRequest(request CreateHubRequest) CreateHubRequest {
 	request.Name = strings.TrimSpace(request.Name)
 	request.Address = strings.TrimSpace(request.Address)
+	request.State = strings.TrimSpace(request.State)
 	return request
 }
 
 func normalizeUpdateHubRequest(request UpdateHubRequest) UpdateHubRequest {
 	request.Name = trimOptionalString(request.Name)
 	request.Address = trimOptionalString(request.Address)
+	request.State = trimOptionalString(request.State)
 	return request
 }
 
@@ -4384,6 +4394,9 @@ func validateCreateHubRequest(request CreateHubRequest) error {
 	}
 	if request.Address == "" || len(request.Address) > 5000 {
 		return invalid("address", "Hub address is required and must not exceed 5000 characters.")
+	}
+	if request.State == "" || len(request.State) > 100 {
+		return invalid("state", "Hub state is required and must not exceed 100 characters.")
 	}
 	if request.Latitude == nil {
 		return invalid("latitude", "Latitude is required.")
@@ -4407,6 +4420,7 @@ func validateUpdateHubRequest(request UpdateHubRequest) error {
 	if request.Name == nil &&
 		request.Address == nil &&
 		request.Latitude == nil &&
+		request.State == nil &&
 		request.Longitude == nil &&
 		request.Open24Hours == nil &&
 		request.SanctionLoad == nil &&
@@ -4419,6 +4433,9 @@ func validateUpdateHubRequest(request UpdateHubRequest) error {
 	}
 	if request.Address != nil && (*request.Address == "" || len(*request.Address) > 5000) {
 		return invalid("address", "Hub address must not exceed 5000 characters.")
+	}
+	if request.State != nil && (*request.State == "" || len(*request.State) > 100) {
+		return invalid("state", "Hub state must not exceed 100 characters.")
 	}
 	if request.Latitude != nil && (*request.Latitude < -90 || *request.Latitude > 90) {
 		return invalid("latitude", "Latitude must be between -90 and 90.")
@@ -4463,6 +4480,7 @@ func hubView(record models.Hub) HubView {
 		CPOID:           record.CPOID,
 		Name:            record.Name,
 		Address:         record.Address,
+		State:           record.State,
 		Latitude:        record.Latitude,
 		Longitude:       record.Longitude,
 		Open24Hours:     record.Open24Hours,
@@ -4659,9 +4677,10 @@ func (service *Service) CreateGST(
 			ID:        uuid.New(),
 			CPOID:     cpoID,
 			Name:      request.Name,
-			SGSTRate:  *request.SGSTRate,
-			CGSTRate:  *request.CGSTRate,
-			IGSTRate:  *request.IGSTRate,
+			State:     request.State,
+			SGSTRate:  request.SGSTRate,
+			CGSTRate:  request.CGSTRate,
+			IGSTRate:  request.IGSTRate,
 			IsActive:  isActive,
 			CreatedAt: now,
 			UpdatedAt: now,
@@ -4679,6 +4698,7 @@ func (service *Service) CreateGST(
 			models.JSONB{
 				"gst_id":    record.ID,
 				"name":      record.Name,
+				"state":     record.State,
 				"sgst_rate": record.SGSTRate,
 				"cgst_rate": record.CGSTRate,
 				"igst_rate": record.IGSTRate,
@@ -4789,19 +4809,24 @@ func (service *Service) UpdateGST(
 			record.Name = *request.Name
 			changedFields["name"] = *request.Name
 		}
+		if request.State != nil {
+			updates["state"] = *request.State
+			record.State = *request.State
+			changedFields["state"] = *request.State
+		}
 		if request.SGSTRate != nil {
 			updates["sgst_rate"] = *request.SGSTRate
-			record.SGSTRate = *request.SGSTRate
+			record.SGSTRate = request.SGSTRate
 			changedFields["sgst_rate"] = *request.SGSTRate
 		}
 		if request.CGSTRate != nil {
 			updates["cgst_rate"] = *request.CGSTRate
-			record.CGSTRate = *request.CGSTRate
+			record.CGSTRate = request.CGSTRate
 			changedFields["cgst_rate"] = *request.CGSTRate
 		}
 		if request.IGSTRate != nil {
 			updates["igst_rate"] = *request.IGSTRate
-			record.IGSTRate = *request.IGSTRate
+			record.IGSTRate = request.IGSTRate
 			changedFields["igst_rate"] = *request.IGSTRate
 		}
 		if request.IsActive != nil {
@@ -4849,17 +4874,22 @@ func (service *Service) UpdateGST(
 
 func normalizeCreateGSTRequest(request CreateGSTRequest) CreateGSTRequest {
 	request.Name = strings.TrimSpace(request.Name)
+	request.State = strings.TrimSpace(request.State)
 	return request
 }
 
 func normalizeUpdateGSTRequest(request UpdateGSTRequest) UpdateGSTRequest {
 	request.Name = trimOptionalString(request.Name)
+	request.State = trimOptionalString(request.State)
 	return request
 }
 
 func validateCreateGSTRequest(request CreateGSTRequest) error {
 	if request.Name == "" || len(request.Name) > 100 {
 		return invalid("name", "GST name is required and must not exceed 100 characters.")
+	}
+	if request.State == "" || len(request.State) > 100 {
+		return invalid("state", "GST state is required and must not exceed 100 characters.")
 	}
 	if request.SGSTRate == nil {
 		return invalid("sgst_rate", "SGST rate is required.")
@@ -4893,6 +4923,7 @@ func validateCreateGSTRequest(request CreateGSTRequest) error {
 
 func validateUpdateGSTRequest(request UpdateGSTRequest) error {
 	if request.Name == nil &&
+		request.State == nil &&
 		request.SGSTRate == nil &&
 		request.CGSTRate == nil &&
 		request.IGSTRate == nil &&
@@ -4902,6 +4933,9 @@ func validateUpdateGSTRequest(request UpdateGSTRequest) error {
 
 	if request.Name != nil && (*request.Name == "" || len(*request.Name) > 100) {
 		return invalid("name", "GST name must not exceed 100 characters.")
+	}
+	if request.State != nil && (*request.State == "" || len(*request.State) > 100) {
+		return invalid("state", "GST state must not exceed 100 characters.")
 	}
 	if request.SGSTRate != nil {
 		if request.SGSTRate.Sign() < 0 || request.SGSTRate.Cmp(decimal.NewFromInt(100)) > 0 {
@@ -4947,6 +4981,7 @@ func gstView(record models.GST) GSTView {
 		ID:        record.ID,
 		CPOID:     record.CPOID,
 		Name:      record.Name,
+		State:     record.State,
 		SGSTRate:  record.SGSTRate,
 		CGSTRate:  record.CGSTRate,
 		IGSTRate:  record.IGSTRate,
@@ -5573,4 +5608,190 @@ func mapUserGroupWriteError(err error, operation string) error {
 		}
 	}
 	return fmt.Errorf("%s: %w", operation, err)
+}
+
+func (service *Service) GetSettings(
+	ctx context.Context,
+	principal auth.Principal,
+) (SettingsView, error) {
+	if err := requireCPOAdminAccess(principal); err != nil {
+		return SettingsView{}, err
+	}
+
+	cpoID := *principal.CPOID
+	var settings models.Settings
+	if err := service.database.WithContext(ctx).Where("cpo_id = ?", cpoID).First(&settings).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return SettingsView{}, &auth.APIError{
+				Status:  http.StatusNotFound,
+				Code:    "settings_not_found",
+				Message: "Settings for this CPO not found.",
+			}
+		}
+		return SettingsView{}, fmt.Errorf("failed to get settings: %w", err)
+	}
+
+	return SettingsView{
+		InvoiceLogo: settings.InvoiceLogo,
+		InvoiceNote: settings.InvoiceNote,
+	}, nil
+}
+
+func (service *Service) CreateOrUpdateSettings(
+	ctx *gin.Context,
+	principal auth.Principal,
+) (SettingsView, error) {
+	if err := requireCPOAdminAccess(principal); err != nil {
+		return SettingsView{}, err
+	}
+
+	cpoID := *principal.CPOID
+	err := ctx.Request.ParseMultipartForm(10 << 20) // 10 MB
+	if err != nil {
+		return SettingsView{}, &auth.APIError{
+			Status:  http.StatusBadRequest,
+			Code:    "invalid_request",
+			Message: "Invalid multipart form.",
+		}
+	}
+
+	invoiceNote := ctx.Request.FormValue("invoice_note")
+
+	var settings models.Settings
+	err = service.database.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Where("cpo_id = ?", cpoID).First(&settings).Error; err != nil {
+			if !errors.Is(err, gorm.ErrRecordNotFound) {
+				return fmt.Errorf("failed to get settings: %w", err)
+			}
+			// Settings not found, create new
+			settings = models.Settings{
+				CPOID: cpoID,
+			}
+		}
+
+		file, header, err := ctx.Request.FormFile("invoice_logo")
+		if err == nil {
+			defer file.Close()
+			//- TODO: delete old file if it exists
+			filename := uuid.New().String() + filepath.Ext(header.Filename)
+			uploadsDir := "uploads"
+			if _, err := os.Stat(uploadsDir); os.IsNotExist(err) {
+				if err := os.Mkdir(uploadsDir, 0755); err != nil {
+					return fmt.Errorf("failed to create uploads directory: %w", err)
+				}
+			}
+			filePath := filepath.Join(uploadsDir, filename)
+			out, err := os.Create(filePath)
+			if err != nil {
+				return fmt.Errorf("failed to create file: %w", err)
+			}
+			defer out.Close()
+			_, err = io.Copy(out, file)
+			if err != nil {
+				return fmt.Errorf("failed to save file: %w", err)
+			}
+			settings.InvoiceLogo = &filePath
+		} else if !errors.Is(err, http.ErrMissingFile) {
+			return fmt.Errorf("failed to get invoice logo: %w", err)
+		}
+
+		if invoiceNote != "" {
+			settings.InvoiceNote = &invoiceNote
+		}
+
+		if err := tx.Clauses(clause.OnConflict{
+			Columns:   []clause.Column{{Name: "cpo_id"}},
+			DoUpdates: clause.AssignmentColumns([]string{"invoice_logo", "invoice_note", "updated_at"}),
+		}).Create(&settings).Error; err != nil {
+			return fmt.Errorf("failed to save settings: %w", err)
+		}
+
+		return nil
+	})
+
+	if err != nil {
+		return SettingsView{}, err
+	}
+
+	return SettingsView{
+		InvoiceLogo: settings.InvoiceLogo,
+		InvoiceNote: settings.InvoiceNote,
+	}, nil
+}
+
+// DownloadInvoiceLogo retrieves the invoice logo file for the authenticated CPO.
+func (service *Service) DownloadInvoiceLogo(ctx context.Context, principal auth.Principal) (*ImageDownload, error) {
+	if err := requireCPOAdminAccess(principal); err != nil {
+		return nil, err
+	}
+
+	cpoID := *principal.CPOID
+	var settings models.Settings
+	if err := service.database.WithContext(ctx).
+		Where("cpo_id = ?", cpoID).
+		First(&settings).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, &auth.APIError{
+				Status:  http.StatusNotFound,
+				Code:    "settings_not_found",
+				Message: "Settings for this CPO not found.",
+			}
+		}
+		return nil, fmt.Errorf("failed to get settings: %w", err)
+	}
+
+	if settings.InvoiceLogo == nil || *settings.InvoiceLogo == "" {
+		return nil, &auth.APIError{
+			Status:  http.StatusNotFound,
+			Code:    "invoice_logo_not_found",
+			Message: "No invoice logo has been uploaded.",
+		}
+	}
+
+	imagePath := *settings.InvoiceLogo
+	if strings.Contains(imagePath, "..") {
+		return nil, &auth.APIError{
+			Status:  http.StatusBadRequest,
+			Code:    "invalid_image_path",
+			Message: "The image path is invalid.",
+		}
+	}
+
+	file, err := os.Open(imagePath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, &auth.APIError{
+				Status:  http.StatusNotFound,
+				Code:    "invoice_logo_not_found",
+				Message: "The invoice logo file was not found.",
+			}
+		}
+		return nil, fmt.Errorf("open invoice logo: %w", err)
+	}
+
+	info, err := file.Stat()
+	if err != nil {
+		file.Close()
+		return nil, fmt.Errorf("stat invoice logo: %w", err)
+	}
+
+	buffer := make([]byte, 512)
+	_, err = file.Read(buffer)
+	if err != nil && err != io.EOF {
+		file.Close()
+		return nil, fmt.Errorf("read invoice logo for mime detection: %w", err)
+	}
+	if _, err := file.Seek(0, 0); err != nil {
+		file.Close()
+		return nil, fmt.Errorf("seek invoice logo: %w", err)
+	}
+
+	mimeType := http.DetectContentType(buffer)
+
+	return &ImageDownload{
+		Content:      file,
+		OriginalName: filepath.Base(imagePath),
+		DetectedMIME: mimeType,
+		ModTime:      info.ModTime(),
+	}, nil
 }
