@@ -2,6 +2,31 @@
 
 ## 2026-08-11
 
+### Rehosted CPO settings API and migration 30
+
+- Added and applied `000030_add_settings_table` for one tenant-scoped settings
+  row per CPO, including invoice note and logo metadata.
+- Corrected the migration to use the repository's `gen_random_uuid()` and
+  `cpos` conventions, and made the settings OpenAPI request/response schemas
+  match the actual multipart handler. POST and PUT now have distinct operation
+  IDs.
+- Built clean source revision `e5fd599` and rehosted the development CMS. The
+  live OpenAPI now exposes 160 operations.
+
+Verification:
+
+- Migration-up execution, OpenAPI/runtime route verification, `go test ./...`,
+  `go vet ./...`, and `git diff --check` passed. The deployed binary SHA-256 is
+  `b6c251b9a65343db5eedbff3fee293678f4ac51cf401975b1d77380b1e47ef84` and
+  embeds `e5fd599790b4fd9983ba055fc03b10637c2ad674` with `vcs.modified=false`.
+- The enabled service is active with zero restarts. Local/public liveness and
+  readiness, Swagger, raw OpenAPI, and unauthenticated settings and SuperAdmin
+  route checks passed.
+- The bounded SSE shutdown deadline appeared during rehost as expected;
+  systemd recovered the process and the current result is `success`.
+- The PowerShell documentation verifier was not run because `pwsh` is
+  unavailable on this Ubuntu host.
+
 ### Rehosted nullable tariff metadata and SuperAdmin fixes
 
 - Added migration `000029_add_tariff_fields` for nullable tariff metadata

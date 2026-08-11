@@ -2385,6 +2385,26 @@ audit event. Errors match creation plus `404 tariff_not_found`.
 There is currently no tariff delete route. Deactivation through
 `{"is_active":false}` is the supported retention-safe state change.
 
+### CPO Settings
+
+`GET /api/v1/cpo/settings` returns the settings for the authenticated CPO ADMIN.
+The CPO is derived from the verified session and `X-CPO-App-ID`; callers cannot
+select another tenant. If no row exists, the route returns `404
+settings_not_found`.
+
+`POST` and `PUT /api/v1/cpo/settings` accept `multipart/form-data` with the
+following optional fields:
+
+- `invoice_note`: text retained with the CPO settings;
+- `invoice_logo`: an uploaded logo file, stored under the service `uploads`
+  directory and returned as the stored relative path.
+
+The update is tenant-scoped and upserts the single settings row for the CPO.
+Omitting either field preserves its existing value. Successful requests return
+the JSON settings projection containing the non-null `invoice_logo` and/or
+`invoice_note` fields. Errors include the shared authentication and forbidden
+responses, `400 invalid_request`, or `500 internal_error`.
+
 ### 9.20 User groups
 
 `POST`/`GET /api/v1/cpo/user-groups` creates or lists the authenticated CPO's
