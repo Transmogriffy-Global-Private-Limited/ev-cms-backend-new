@@ -97,8 +97,9 @@ alongside safe hub fields and `connector_total_capacity`. Hub
 `open_24_hours`, charger `twenty_four_seven_open_status`, and
 `hub_open_24_hours` are separately represented. Charger-host contact details,
 connection URLs, sanctioned load, and HAL-owned state remain excluded. The
-development VPS now runs application revision `a76d6ae`; the charging vertical,
-nullable tariff metadata, tenant settings API, and GST state update applied migrations through thirty-one
+development VPS now runs application revision `d368903`; the charging vertical,
+nullable tariff metadata, tenant settings API, GST state update, and protected
+invoice-logo retrieval are active through migration thirty-one
 without a DNS or reverse-proxy change.
 
 The isolated SuperAdmin administrator-list repair now binds GORM explicitly to
@@ -124,10 +125,10 @@ filtering, projections, and keyset pagination when `TEST_DATABASE_URL` is set.
 - `go test ./...` passed.
 - `go vet ./...` passed.
 - `git diff --check` passed.
-- Revision `a76d6ae` is active under `evcmsnew-dev.service`; the running
+- Revision `d368903` is active under `evcmsnew-dev.service`; the running
   process matches the installed binary and the expected VCS revision.
 - Loopback/public liveness and readiness passed.
-- The live OpenAPI exposes 160 operations, and the live CPO user-group detail
+- The live OpenAPI exposes 161 operations, and the live CPO user-group detail
   `members` projection and `usergroup_assigned` response field are present.
 - The live CPO connector response schema reflects `connector_total_capacity`.
 - The current systemd state is active/enabled with zero restarts after the
@@ -136,7 +137,7 @@ filtering, projections, and keyset pagination when `TEST_DATABASE_URL` is set.
   protected and the optional HAL provider remains unconfigured on this host.
 - The protected User App charger route returned `401` without credentials.
 - The current release is active on the loopback listener and public health and
-  Swagger routes passed; the live OpenAPI contains 157 operations.
+  Swagger routes passed; the live OpenAPI contains 161 operations.
 - The User App documentation remains aligned with its FE handoff and OpenAPI
   `connector_total_capacity` field.
 - The PowerShell documentation verifier was not run because `pwsh` is

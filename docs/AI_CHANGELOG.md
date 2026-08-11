@@ -2,6 +2,32 @@
 
 ## 2026-08-11
 
+### Rehosted authenticated CPO invoice-logo retrieval
+
+- Added `GET /api/v1/cpo/settings/invoice-logo`, which streams the current
+  tenant's uploaded invoice logo with inline, byte-range, and no-sniff headers.
+  The route derives CPO scope from the authenticated ADMIN session and never
+  accepts a filesystem path from the caller.
+- Corrected the OpenAPI path nesting so Swagger and the raw schema expose the
+  route as a standalone operation. No migration was required.
+- Built clean source revision `d368903` and rehosted the development CMS. The
+  live OpenAPI now exposes 161 operations.
+
+Verification:
+
+- Idempotent migration-up execution, OpenAPI/runtime route verification,
+  `go test ./...`, `go vet ./...`, and `git diff --check` passed. The deployed
+  binary SHA-256 is `bf9c5bdd7ac9205b45086a513b014bce1c371991a4a61ab23ff9541ee5f9eb07`
+  and embeds `d368903a960c519293b8ea26a9415902eb381056` with
+  `vcs.modified=false`.
+- The enabled service is active with zero restarts. Local/public liveness and
+  readiness, Swagger, raw OpenAPI, and unauthenticated settings, invoice-logo,
+  GST, and SuperAdmin route checks passed.
+- The bounded SSE shutdown deadline appeared during rehost as expected;
+  systemd recovered the process and the current result is `success`.
+- The PowerShell documentation verifier was not run because `pwsh` is
+  unavailable on this Ubuntu host.
+
 ### Rehosted GST state support and migration 31
 
 - Added and applied `000031_add_state_to_gsts`, adding an optional stored state

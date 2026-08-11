@@ -64,9 +64,9 @@ separate CMS/HAL charging vertical.
 
 ## Current state
 
-Revision `2550cf7` was built from a clean worktree and rehosted on
-August 11, 2026 after migration twenty-nine. The live service exposes the
-157-operation OpenAPI document, and the CPO user-group membership contract now
+Revision `d368903` was built from a clean worktree and rehosted on
+August 11, 2026 without a new migration. The live service exposes the
+161-operation OpenAPI document, and the CPO user-group membership contract now
 includes tenant-scoped, idempotent assignment/removal, the `members` detail
 projection, plus the `usergroup_assigned` customer projection. The CPO
 `Connector` response schema now
@@ -82,10 +82,10 @@ and user-group routes are protected by the same tenant authorization boundary.
 - `go test ./...` passed.
 - `go vet ./...` passed.
 - `git diff --check` passed.
-- Revision `2550cf7` is active under `evcmsnew-dev.service`; the running
+- Revision `d368903` is active under `evcmsnew-dev.service`; the running
   process matches the installed binary and the expected VCS revision.
 - Loopback/public liveness and readiness passed.
-- The live OpenAPI exposes 160 operations, and the live CPO user-group detail
+- The live OpenAPI exposes 161 operations, and the live CPO user-group detail
   `members` projection plus `usergroup_assigned` response field are present.
 - The live CPO `Connector` response schema exposes `connector_total_capacity`.
 - The current systemd state is active/enabled with zero restarts after the

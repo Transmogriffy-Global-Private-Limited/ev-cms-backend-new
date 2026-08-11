@@ -2410,6 +2410,13 @@ the JSON settings projection containing the non-null `invoice_logo` and/or
 `invoice_note` fields. Errors include the shared authentication and forbidden
 responses, `400 invalid_request`, or `500 internal_error`.
 
+`GET /api/v1/cpo/settings/invoice-logo` streams the authenticated CPO's stored
+logo inline. It accepts no path or CPO parameter and responds with byte-range
+support, a detected image content type, and `X-Content-Type-Options: nosniff`.
+It returns `404 settings_not_found` if the CPO has no settings row and
+`404 invoice_logo_not_found` if no logo is stored or the referenced file is
+absent.
+
 ### 9.20 User groups
 
 `POST`/`GET /api/v1/cpo/user-groups` creates or lists the authenticated CPO's

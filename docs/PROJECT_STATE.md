@@ -171,8 +171,8 @@ provides:
   handler;
 - the additive PostgreSQL database `devevcmsnewdb`, owned by `postgres`.
 
-The active development VPS runs source revision `a76d6ae`, with migrations
-through thirty-one recorded and the deployed 160-operation contract. Migration
+The active development VPS runs source revision `d368903`, with migrations
+through thirty-one recorded and the deployed 161-operation contract. Migration
 twenty-nine adds nullable `tariff_type`, `price_type`, and `units` metadata to
 tenant tariffs; omitted values remain null-safe for existing and newly created
 tariffs. The SuperAdmin administrator-list query explicitly binds the platform
@@ -196,6 +196,8 @@ the user-group detail response exposes safe `members` customer projections;
 customer projections expose `usergroup_assigned`. The tenant-scoped CPO settings
 API exposes invoice-note and invoice-logo metadata through authenticated GET,
 POST, and PUT routes; migration thirty stores one settings row per CPO. A
+separate authenticated CPO invoice-logo retrieval route streams only that
+tenant's stored logo and does not disclose a filesystem path. A
 GST profile now has a required API-level `state` value; migration thirty-one
 adds the nullable durable column and permits legacy GST-rate values to remain
 null. New GST creation continues to require all three validated rates. A
@@ -314,6 +316,15 @@ intentionally unsupported.
   response fields are present; and the post-start warning scan passed.
   The PowerShell documentation verifier remains unavailable on this Ubuntu
   host.
+- Revision `d368903` was built from a clean worktree and rehosted without a
+  new migration. The installed binary SHA-256 is
+  `bf9c5bdd7ac9205b45086a513b014bce1c371991a4a61ab23ff9541ee5f9eb07` and
+  embeds revision `d368903a960c519293b8ea26a9415902eb381056` with
+  `vcs.modified=false`. The enabled service is active with zero restarts;
+  local/public health, Swagger, raw OpenAPI, the 161-operation contract, and
+  protected settings/invoice-logo/GST/SuperAdmin route checks passed. The
+  bounded SSE shutdown deadline occurred during stop and recovered; current
+  systemd state is `Result=success`.
 - Revision `a76d6ae` was built from a clean worktree and rehosted after
   migration thirty-one was applied. The installed binary SHA-256 is
   `0a3d397464dae13ef15b090225b4ca38fb1b4dfff946bf0de7d77cb9a5d3ebc0` and
