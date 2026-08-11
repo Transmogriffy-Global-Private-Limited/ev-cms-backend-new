@@ -1,99 +1,69 @@
-# CMS and OCPP HAL Boundary
+# CMS and OCPP HAL V1 Boundary
 
-## Current State
+## Scope and Authority
 
-The CMS and `OCPPHAL_Go` are separate applications. This repository now lets a
-CPO ADMIN create CMS-side hub, charger, and connector inventory, including a
-server-generated `ocpp_identity` mapping value. It still does not implement a
-CMS-to-HAL API, event transport, shared client, registration handshake, live
-status ingestion, or reconciliation. The existing HAL is not modified.
+The CMS consumes the v1 contract from the read-only HAL provider reference
+`ocpp-hal-go-new` commit `21836e5d98967399d599d6afeca52fe1c375ec0d`.
+Neither service shares a database.
 
-## Ownership
+CMS owns customer/CPO scope, tariff selection, GST, wallet holds and settlement,
+and the customer REST projection. HAL owns OCPP connection/reconnection state,
+charger commands, exact OCPP transaction IDs, meter facts, and the charger
+protocol lifecycle. A RemoteStart or RemoteStop acknowledgement is command
+evidence only; charger-originated StartTransaction and StopTransaction facts
+establish start and completion truth.
 
-The HAL owns:
+## Implemented CMS Boundary
 
-- charger connections and OCPP protocol state;
-- protocol commands, responses, and correlation;
-- raw meter communication;
-- exact HAL/OCPP transaction identifiers;
-- protocol reconnect and device-level recovery.
+- `src/halclient` sends authenticated mapping, start, and stop requests to the
+  versioned HAL REST boundary with bearer, correlation, idempotency, timeout,
+  and typed HTTP errors.
+- `POST /v1/hal-facts` uses a distinct HAL-to-CMS bearer. It requires
+  `Idempotency-Key` to equal `fact_id`, verifies RFC 8785 JCS SHA-256 immutable
+  content, records a durable receipt, accepts exact duplicates once, and rejects
+  altered fact-ID reuse.
+- CMS persists start intents, wallet holds, command records, mappings, fact
+  receipts, and durable connection/connector runtime projections in migration
+  `000028_cms_hal_charging_vertical`.
+- User App routes poll only CMS data. They never synchronously call HAL for a
+  map, session, or meter read.
 
-The CMS owns:
-
-- platform and CPO administration;
-- users, memberships, customers, and tenant authorization;
-- commercial network projections;
-- tariffs, wallets, billing, payments, reporting, and audit policy;
-- CMS-side charging-session projections.
-
-Neither service writes the other service's database. Shared concepts require an
-explicit authenticated contract rather than direct table access.
-
-## Current Data Overlap
-
-The CMS schema already has commercial projections such as hubs, chargers,
-connectors, and charging sessions. Their presence does not transfer protocol
-ownership. In particular:
-
-- CMS `chargers.ocpp_identity` is a mapping value, not a live connection;
-- CMS connector state is a business projection, not the protocol source of
-  truth;
-- `charging_sessions.transaction_id` must preserve the exact HAL-issued value;
-- integer meter Wh and immutable tariff/tax snapshots belong in the eventual
-  CMS billing projection;
-- commands cannot be considered delivered merely because a CMS row changed.
-
-## Forbidden Shortcuts
-
-- Do not import or copy the HAL into the CMS process.
-- Do not share GORM models or write the HAL database.
-- Do not let the HAL use a user bearer token as service identity.
-- Do not invent OCPP transaction IDs in the CMS.
-- Do not make WebSocket presence the durable charging-session truth.
-- Do not implement remote start/stop without command idempotency and recovery.
-
-## Required Future Contract
-
-The charging-network and charging-lifecycle phases must define:
-
-- service identity and authorization;
-- CPO and charger identity mapping;
-- command idempotency and correlation IDs;
-- event ordering and deduplication;
-- exact session and meter-unit semantics;
-- retries, timeout, partial failure, and restart recovery;
-- reconciliation when either service was unavailable;
-- compatibility and versioning;
-- audit and observability without leaking credentials.
-
-Until that contract is approved and implemented, documentation and code must
-not imply that CMS inventory registration registers a device in the HAL, or
-that live status, remote start/stop, or charging recovery are available through
-this CMS.
-
-## Current CMS Inventory Flow
+## Customer Flow
 
 ```text
-CPO ADMIN request
-→ verified CPO session and current app ID
-→ tenant-owned hub lookup
-→ CMS generates charger UUID, six-character public ID, OCPP mapping identity,
-  and connector UUIDs
-→ charger, connectors, and audit evidence commit atomically
-→ REST response returns the CMS projection
-→ no HAL communication occurs
+customer bearer + CPO app ID
+-> CMS locks wallet and resolves User Group > charger > hub tariff
+-> CMS freezes tariff/GST, derives integer Wh affordability, creates hold,
+   start intent, one-use appv1_ credential hash, and command identity
+-> CMS synchronizes the exact charger/connector mapping then requests HAL start
+-> HAL fact transaction.started materializes one CMS ACTIVE session
+-> HAL meter/connection/status facts update CMS projections
+-> customer stop persists one CMS stop command and asks HAL
+-> HAL transaction.completed settles the wallet once from exact final Wh
 ```
 
-The frontend and future integrator must retain the returned identifiers. The
-future handshake must decide which mapping value is sent to the HAL, which
-service confirms acceptance, how duplicate registration is handled, and how
-CMS and HAL reconcile after partial failure. Those semantics are not hidden in
-the current create route.
+The raw credential is sent to HAL only for the start command; CMS retains only
+its SHA-256 value. Meter values remain integer Wh and are never interpolated.
+The v1 tariff currently contains energy and GST components only; no fixed or
+time component is invented by this implementation.
 
-## Acceptance Evidence for a Future Handshake
+## Configuration and Security
 
-A future integration is not verified by one successful request. Verification
-must cover duplicate commands/callbacks, out-of-order events, service restart,
-lost response after accepted command, reconnect, reconciliation, tenant
-isolation, transaction-ID preservation, and an already-active session during
-CPO suspension.
+`HAL_V1_BASE_URL`, `HAL_V1_CMS_BEARER_TOKEN`, and
+`HAL_V1_CMS_FACT_BEARER_TOKEN` configure the two directions. When a base URL is
+set both tokens are required; when no base URL is supplied customer charging
+returns `hal_unavailable`. Local topology uses loopback endpoints only.
+
+No token, raw credential, authorization header, or fact body is logged. The
+HAL client does not retry a mutating command with a new identity. A caller
+reconciles the same command identity after a transport ambiguity.
+
+## Current Limitations and Required Follow-up
+
+The durable data and route surfaces are in source, but full Postgres-to-HAL-to-
+virtual-charger acceptance has not yet been run in this repository because the
+required disposable CMS/HAL databases and virtual charger topology were not
+configured in this slice. In particular, a bounded CMS reconciliation worker
+and CPO inventory-triggered mapping synchronization remain unfinished. Do not
+claim physical charger acceptance, restart recovery, or full vertical-slice
+completion until the planned dual-service tests prove them.

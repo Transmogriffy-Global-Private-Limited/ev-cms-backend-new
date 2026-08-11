@@ -16,6 +16,7 @@ import (
 
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/config"
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/constants"
+	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/halclient"
 	cmsmail "github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/mail"
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/models"
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/security"
@@ -44,15 +45,28 @@ var (
 )
 
 type Service struct {
-	database         *gorm.DB
-	config           config.Auth
-	mailEnabled      bool
-	outbox           *cmsmail.Outbox
-	tokens           *security.TokenManager
-	dummyHash        string
-	now              func() time.Time
-	razorpayResolver RazorpayCredentialResolver
-	razorpayFactory  RazorpayClientFactory
+	database           *gorm.DB
+	config             config.Auth
+	mailEnabled        bool
+	outbox             *cmsmail.Outbox
+	tokens             *security.TokenManager
+	dummyHash          string
+	now                func() time.Time
+	razorpayResolver   RazorpayCredentialResolver
+	razorpayFactory    RazorpayClientFactory
+	hal                *halclient.Client
+	halFactBearer      string
+	halMeterStaleAfter time.Duration
+}
+
+// WithHAL connects customer charging only to the approved HAL v1 client. It
+// intentionally leaves the feature unavailable when production configuration
+// has not supplied both independent service credentials.
+func (service *Service) WithHAL(cfg config.HAL) *Service {
+	service.hal = halclient.New(cfg)
+	service.halFactBearer = cfg.FactBearerToken
+	service.halMeterStaleAfter = cfg.MeterStaleAfter
+	return service
 }
 
 // WithRazorpayCredentialResolver connects the User App payment flow to the

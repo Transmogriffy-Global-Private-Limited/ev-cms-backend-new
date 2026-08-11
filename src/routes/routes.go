@@ -74,6 +74,7 @@ func New(
 	}
 	if customerAuthService != nil {
 		customerauth.RegisterRoutes(router.Group("/api/v1/app"), customerAuthService)
+		customerauth.RegisterHALFactRoutes(router.Group("/v1"), customerAuthService)
 	}
 	if authService != nil && cpoService != nil {
 		cpo.RegisterPlatformRoutes(

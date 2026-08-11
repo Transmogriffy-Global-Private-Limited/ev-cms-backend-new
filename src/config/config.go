@@ -34,6 +34,7 @@ type Config struct {
 	Platform             Platform
 	Credentials          Encryption
 	ChargerConnectionURL string
+	HAL                  HAL
 }
 
 type Superadmin struct {
@@ -85,6 +86,16 @@ type Platform struct {
 	RealtimeBatchSize int
 	WorkerStaleAfter  time.Duration
 	MaintenanceEvery  time.Duration
+}
+
+// HAL contains the two independently authenticated directions of the v1
+// service boundary. Empty values intentionally leave charging unavailable.
+type HAL struct {
+	BaseURL         string
+	CMSBearerToken  string
+	FactBearerToken string
+	RequestTimeout  time.Duration
+	MeterStaleAfter time.Duration
 }
 
 func Load() (Config, error) {
@@ -157,6 +168,13 @@ func Load() (Config, error) {
 			MaintenanceEvery:  durationOrDefault("PLATFORM_MAINTENANCE_INTERVAL", time.Minute),
 		},
 		ChargerConnectionURL: envOrDefault("CHARGER_CONNECTION_URL", "localhost:8080"),
+		HAL: HAL{
+			BaseURL:         strings.TrimRight(strings.TrimSpace(os.Getenv("HAL_V1_BASE_URL")), "/"),
+			CMSBearerToken:  strings.TrimSpace(os.Getenv("HAL_V1_CMS_BEARER_TOKEN")),
+			FactBearerToken: strings.TrimSpace(os.Getenv("HAL_V1_CMS_FACT_BEARER_TOKEN")),
+			RequestTimeout:  durationOrDefault("HAL_V1_REQUEST_TIMEOUT", 5*time.Second),
+			MeterStaleAfter: durationOrDefault("HAL_V1_METER_STALE_AFTER", 30*time.Second),
+		},
 	}
 
 	if cfg.Auth.SigningKey, err = decodeKey("JWT_SIGNING_KEY_B64", 32, false); err != nil {
@@ -220,6 +238,12 @@ func (cfg Config) Validate() error {
 		return errors.New("PLATFORM_MAINTENANCE_INTERVAL must be positive")
 	case cfg.Platform.WorkerStaleAfter <= cfg.Platform.MaintenanceEvery:
 		return errors.New("PLATFORM_WORKER_STALE_AFTER must be longer than PLATFORM_MAINTENANCE_INTERVAL")
+	}
+	if cfg.HAL.BaseURL != "" && (cfg.HAL.CMSBearerToken == "" || cfg.HAL.FactBearerToken == "") {
+		return errors.New("HAL_V1_CMS_BEARER_TOKEN and HAL_V1_CMS_FACT_BEARER_TOKEN are required when HAL_V1_BASE_URL is set")
+	}
+	if cfg.HAL.BaseURL != "" && (cfg.HAL.RequestTimeout <= 0 || cfg.HAL.MeterStaleAfter <= 0) {
+		return errors.New("HAL v1 durations must be positive")
 	}
 
 	if cfg.Mail.Enabled {

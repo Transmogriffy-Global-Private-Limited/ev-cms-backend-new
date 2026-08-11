@@ -95,6 +95,29 @@ Depends on Phase 5.
 Objective: calculate immutable session charges and settle them through an
 atomic, idempotent wallet ledger.
 
+## Current Execution
+
+Current phase:
+
+- Phases 5 and 6: first CMS HAL charging vertical.
+
+Active work:
+
+- `docs/work/active/WI-20260811-cms-hal-first-charging-vertical.md`.
+
+Current implementation state:
+
+- CMS source contains the first client, durable records, fact receiver,
+  customer polling/start/stop routes, and OpenAPI surface. It is not verified
+  as a complete Postgres-to-HAL-to-virtual-charger vertical yet.
+
+Next required slice:
+
+1. Add disposable PostgreSQL lifecycle tests and a bounded reconciliation
+   worker for pending/ambiguous CMS commands.
+2. Run the real loopback HAL and virtual OCPP charger acceptance topology,
+   including duplicate, restart, and outage cases.
+
 ## Feature Registry
 
 ### Feature: Lean tenancy and access foundation
@@ -1017,8 +1040,8 @@ Deferred verification decision:
   password recovery.
 - CPO access is an explicit platform-superadmin activation/suspension decision;
   manual subscription records never control tenant authorization.
-- The exact CMS/HAL API contract will be defined with the charging-network and
-  charging-lifecycle phases.
+- HAL v1 is consumed through `integrations/ocpp-hal-boundary.md`; do not extend
+  the provider contract without a separate approved contract change.
 - `OWNER`, `OPERATOR`, and `VIEWER` are dormant schema capacity only. Their
   authorization semantics require a future approved staff-management plan.
 

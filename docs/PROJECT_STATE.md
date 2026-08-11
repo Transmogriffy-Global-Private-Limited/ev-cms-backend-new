@@ -459,7 +459,15 @@ same principal; the app ID never grants authority or changes scope.
 ## HAL Boundary
 
 The HAL remains a separate service and database. It is not embedded in this
-repository. The integration contract has not been implemented yet.
+repository. Source now contains the first CMS v1 consumer: an authenticated HAL
+client, separate fact bearer receiver, durable start-intent/hold/command/fact
+receipt/mapping/runtime records, and customer start/stop/polling routes.
+
+This is not yet a verified complete operational integration. Disposable CMS and
+HAL PostgreSQL lifecycle tests, bounded reconciliation, and the required
+loopback HAL plus virtual OCPP charger acceptance remain outstanding. Customer
+discovery must continue to treat CMS administrative status separately from
+HAL-owned live runtime state.
 
 ## Known Limitations
 

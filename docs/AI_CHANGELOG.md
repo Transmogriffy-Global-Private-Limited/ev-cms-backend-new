@@ -1,5 +1,25 @@
 # AI Changelog
 
+## 2026-08-11
+
+### Added the initial CMS HAL v1 charging consumer slice
+
+- Added migration `000028_cms_hal_charging_vertical` and CMS-side start intent,
+  wallet hold, command, immutable fact receipt, mapping, and operational
+  projection records.
+- Added the HAL v1 HTTP client, separate HAL fact receiver authentication,
+  RFC 8785 JCS fact-digest verification, customer charging start/stop/polling
+  routes, and matching OpenAPI/configuration/integration documentation.
+- Kept the HAL provider, legacy HAL, and legacy CMS untouched. No deployment,
+  commit, or push occurred.
+
+Verification:
+
+- Focused CMS package, migration/model, and OpenAPI/runtime route tests passed.
+- The full dual-PostgreSQL HAL plus virtual charger vertical, restart/outage
+  cases, and reconciliation worker are not yet verified and must not be
+  presented as complete acceptance.
+
 ## 2026-08-10
 
 ### Reconciled scoped CPO tariff and user-group contracts

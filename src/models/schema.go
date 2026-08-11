@@ -312,7 +312,9 @@ type Wallet struct {
 type ChargingSession struct {
 	ID                 uuid.UUID               `gorm:"type:uuid;primaryKey;default:gen_random_uuid()" json:"id"`
 	CPOID              uuid.UUID               `gorm:"type:uuid;not null;index" json:"cpo_id"`
-	TransactionID      int32                   `gorm:"type:integer;not null;index" json:"transaction_id"`
+	StartIntentID      *uuid.UUID              `gorm:"type:uuid;uniqueIndex" json:"start_intent_id,omitempty"`
+	HALTransactionID   *uuid.UUID              `gorm:"type:uuid;uniqueIndex" json:"hal_transaction_id,omitempty"`
+	TransactionID      int64                   `gorm:"type:bigint;not null;index" json:"transaction_id"`
 	CustomerID         uuid.UUID               `gorm:"type:uuid;not null;index" json:"customer_id"`
 	Customer           Customer                `gorm:"foreignKey:CustomerID;constraint:OnUpdate:CASCADE,OnDelete:RESTRICT" json:"customer,omitempty"`
 	ChargerID          uuid.UUID               `gorm:"type:uuid;not null;index" json:"charger_id"`
@@ -325,6 +327,9 @@ type ChargingSession struct {
 	EndTime            *time.Time              `json:"end_time,omitempty"`
 	MeterStartWh       int64                   `gorm:"not null" json:"meter_start_wh"`
 	MeterStopWh        *int64                  `json:"meter_stop_wh,omitempty"`
+	LatestMeterWh      *int64                  `gorm:"type:bigint" json:"latest_meter_wh,omitempty"`
+	MeterObservedAt    *time.Time              `gorm:"type:timestamptz" json:"meter_observed_at,omitempty"`
+	MeterSequence      int64                   `gorm:"type:bigint;not null;default:0" json:"meter_sequence"`
 	TotalKWh           decimal.Decimal         `gorm:"type:numeric(14,3);not null;default:0" json:"total_kwh"`
 	TotalAmount        decimal.Decimal         `gorm:"type:numeric(14,2);not null;default:0" json:"total_amount"`
 	Currency           string                  `gorm:"type:char(3);not null;default:'INR'" json:"currency"`
@@ -332,10 +337,105 @@ type ChargingSession struct {
 	TariffSnapshot     JSONB                   `gorm:"type:jsonb;not null;default:'{}'" json:"tariff_snapshot"`
 	TaxSnapshot        JSONB                   `gorm:"type:jsonb;not null;default:'{}'" json:"tax_snapshot"`
 	Status             constants.SessionStatus `gorm:"type:varchar(30);not null;default:'ACTIVE'" json:"status"`
+	SettlementStatus   string                  `gorm:"type:varchar(32);not null;default:'PENDING'" json:"settlement_status"`
 	WalletTransactions []WalletTransaction     `gorm:"foreignKey:SessionID" json:"wallet_transactions,omitempty"`
 	Payment            *Payment                `gorm:"foreignKey:SessionID" json:"payment,omitempty"`
 	CreatedAt          time.Time               `gorm:"not null" json:"created_at"`
 	UpdatedAt          time.Time               `gorm:"not null" json:"updated_at"`
+}
+
+// ChargingStartIntent is the durable CMS decision and commercial reservation
+// made before a command crosses the service boundary. It is not OCPP start
+// truth and cannot materialize a session by itself.
+type ChargingStartIntent struct {
+	ID                    uuid.UUID                   `gorm:"type:uuid;primaryKey" json:"id"`
+	CPOID                 uuid.UUID                   `gorm:"type:uuid;not null;index" json:"cpo_id"`
+	CustomerID            uuid.UUID                   `gorm:"type:uuid;not null;index" json:"customer_id"`
+	ChargerID             uuid.UUID                   `gorm:"type:uuid;not null;index" json:"charger_id"`
+	ConnectorID           uuid.UUID                   `gorm:"type:uuid;not null;index" json:"connector_id"`
+	WalletID              uuid.UUID                   `gorm:"type:uuid;not null;index" json:"wallet_id"`
+	TariffID              uuid.UUID                   `gorm:"type:uuid;not null;index" json:"tariff_id"`
+	Status                constants.StartIntentStatus `gorm:"type:varchar(32);not null;index" json:"status"`
+	CredentialHash        string                      `gorm:"type:char(64);not null;uniqueIndex" json:"-"`
+	CredentialExpiresAt   time.Time                   `gorm:"type:timestamptz;not null" json:"credential_expires_at"`
+	CommandExpiresAt      time.Time                   `gorm:"type:timestamptz;not null" json:"command_expires_at"`
+	EnergyLimitWh         int64                       `gorm:"type:bigint;not null" json:"energy_limit_wh"`
+	MaxDurationSeconds    int64                       `gorm:"type:bigint;not null" json:"max_duration_seconds"`
+	TariffSnapshot        JSONB                       `gorm:"type:jsonb;not null" json:"tariff_snapshot"`
+	TaxSnapshot           JSONB                       `gorm:"type:jsonb;not null" json:"tax_snapshot"`
+	MaterializedSessionID *uuid.UUID                  `gorm:"type:uuid;uniqueIndex" json:"materialized_session_id,omitempty"`
+	HALCommandID          *uuid.UUID                  `gorm:"type:uuid" json:"hal_command_id,omitempty"`
+	CreatedAt             time.Time                   `gorm:"not null" json:"created_at"`
+	UpdatedAt             time.Time                   `gorm:"not null" json:"updated_at"`
+}
+
+type WalletHold struct {
+	ID            uuid.UUID                  `gorm:"type:uuid;primaryKey" json:"id"`
+	CPOID         uuid.UUID                  `gorm:"type:uuid;not null;index" json:"cpo_id"`
+	WalletID      uuid.UUID                  `gorm:"type:uuid;not null;index" json:"wallet_id"`
+	StartIntentID uuid.UUID                  `gorm:"type:uuid;not null;uniqueIndex" json:"start_intent_id"`
+	Amount        decimal.Decimal            `gorm:"type:numeric(14,2);not null" json:"amount"`
+	Currency      string                     `gorm:"type:char(3);not null" json:"currency"`
+	Status        constants.WalletHoldStatus `gorm:"type:varchar(32);not null;index" json:"status"`
+	CapturedAt    *time.Time                 `gorm:"type:timestamptz" json:"captured_at,omitempty"`
+	ReleasedAt    *time.Time                 `gorm:"type:timestamptz" json:"released_at,omitempty"`
+	CreatedAt     time.Time                  `gorm:"not null" json:"created_at"`
+	UpdatedAt     time.Time                  `gorm:"not null" json:"updated_at"`
+}
+
+type HALCommandRecord struct {
+	CMSCommandID      uuid.UUID  `gorm:"type:uuid;primaryKey" json:"cms_command_id"`
+	CPOID             uuid.UUID  `gorm:"type:uuid;not null;index" json:"cpo_id"`
+	Kind              string     `gorm:"type:varchar(8);not null" json:"kind"`
+	StartIntentID     *uuid.UUID `gorm:"type:uuid;uniqueIndex" json:"start_intent_id,omitempty"`
+	ChargingSessionID *uuid.UUID `gorm:"type:uuid;index" json:"charging_session_id,omitempty"`
+	HALCommandID      *uuid.UUID `gorm:"type:uuid;uniqueIndex" json:"hal_command_id,omitempty"`
+	State             string     `gorm:"type:varchar(32);not null;index" json:"state"`
+	CommandExpiresAt  time.Time  `gorm:"type:timestamptz;not null" json:"command_expires_at"`
+	LastErrorCategory string     `gorm:"type:varchar(64);not null;default:''" json:"last_error_category"`
+	LastErrorDetail   string     `gorm:"type:varchar(500);not null;default:''" json:"last_error_detail"`
+	CreatedAt         time.Time  `gorm:"not null" json:"created_at"`
+	UpdatedAt         time.Time  `gorm:"not null" json:"updated_at"`
+}
+
+type HALFactReceipt struct {
+	FactID      uuid.UUID `gorm:"type:uuid;primaryKey" json:"fact_id"`
+	FactType    string    `gorm:"type:varchar(64);not null" json:"fact_type"`
+	Digest      string    `gorm:"type:char(64);not null" json:"digest"`
+	OccurredAt  time.Time `gorm:"type:timestamptz;not null" json:"occurred_at"`
+	Payload     JSONB     `gorm:"type:jsonb;not null" json:"payload"`
+	ProcessedAt time.Time `gorm:"type:timestamptz;not null" json:"processed_at"`
+}
+
+type HALChargerMapping struct {
+	CMSChargerID        uuid.UUID  `gorm:"type:uuid;primaryKey" json:"cms_charger_id"`
+	CPOID               uuid.UUID  `gorm:"type:uuid;not null;index" json:"cpo_id"`
+	ChargerOCPPIdentity string     `gorm:"type:varchar(255);not null;uniqueIndex" json:"charger_ocpp_identity"`
+	SyncState           string     `gorm:"type:varchar(32);not null;index" json:"sync_state"`
+	LastSyncError       string     `gorm:"type:varchar(500);not null;default:''" json:"last_sync_error"`
+	LastSynchronizedAt  *time.Time `gorm:"type:timestamptz" json:"last_synchronized_at,omitempty"`
+	CreatedAt           time.Time  `gorm:"not null" json:"created_at"`
+	UpdatedAt           time.Time  `gorm:"not null" json:"updated_at"`
+}
+
+type HALChargerRuntime struct {
+	CMSChargerID         uuid.UUID `gorm:"type:uuid;primaryKey" json:"cms_charger_id"`
+	CPOID                uuid.UUID `gorm:"type:uuid;not null;index" json:"cpo_id"`
+	ConnectionState      string    `gorm:"type:varchar(16);not null" json:"connection_state"`
+	ConnectionGeneration int64     `gorm:"type:bigint;not null" json:"connection_generation"`
+	ConnectionSequence   int64     `gorm:"type:bigint;not null" json:"connection_sequence"`
+	ObservedAt           time.Time `gorm:"type:timestamptz;not null" json:"observed_at"`
+	UpdatedAt            time.Time `gorm:"not null" json:"updated_at"`
+}
+
+type HALConnectorRuntime struct {
+	CMSConnectorID          uuid.UUID `gorm:"type:uuid;primaryKey" json:"cms_connector_id"`
+	CMSChargerID            uuid.UUID `gorm:"type:uuid;not null;index" json:"cms_charger_id"`
+	CPOID                   uuid.UUID `gorm:"type:uuid;not null;index" json:"cpo_id"`
+	OCPPConnectorStatus     string    `gorm:"type:varchar(32);not null" json:"ocpp_connector_status"`
+	ConnectorStatusSequence int64     `gorm:"type:bigint;not null" json:"connector_status_sequence"`
+	ObservedAt              time.Time `gorm:"type:timestamptz;not null" json:"observed_at"`
+	UpdatedAt               time.Time `gorm:"not null" json:"updated_at"`
 }
 
 type WalletTransaction struct {
