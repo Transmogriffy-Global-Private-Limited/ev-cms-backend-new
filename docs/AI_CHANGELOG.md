@@ -2,6 +2,30 @@
 
 ## 2026-08-11
 
+### Rehosted GST state support and migration 31
+
+- Added and applied `000031_add_state_to_gsts`, adding an optional stored state
+  column and allowing legacy GST-rate columns to remain nullable.
+- Added required GST-state validation on create and supplied-state validation on
+  update, matching the OpenAPI contract. Create requests still require all
+  three GST rates; nullable rates are only possible for legacy/database rows.
+- Built clean source revision `a76d6ae` and rehosted the development CMS. The
+  live OpenAPI remains at 160 operations.
+
+Verification:
+
+- Migration-up execution, OpenAPI/runtime route verification, `go test ./...`,
+  `go vet ./...`, and `git diff --check` passed. The deployed binary SHA-256 is
+  `0a3d397464dae13ef15b090225b4ca38fb1b4dfff946bf0de7d77cb9a5d3ebc0` and
+  embeds `a76d6ae09dde7727661238f55e1b2ff5007394d0` with `vcs.modified=false`.
+- The enabled service is active with zero restarts. Local/public liveness and
+  readiness, Swagger, raw OpenAPI, and unauthenticated GST, settings, and
+  SuperAdmin route checks passed.
+- The bounded SSE shutdown deadline appeared during rehost as expected;
+  systemd recovered the process and the current result is `success`.
+- The PowerShell documentation verifier was not run because `pwsh` is
+  unavailable on this Ubuntu host.
+
 ### Rehosted CPO settings API and migration 30
 
 - Added and applied `000030_add_settings_table` for one tenant-scoped settings

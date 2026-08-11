@@ -2254,6 +2254,9 @@ limited to 100 characters. Each exact decimal rate is 0–100 inclusive. Decimal
 strings are recommended; JSON numbers are also accepted. `is_active` defaults
 to true. The normalized name is unique per CPO.
 
+Migration thirty-one permits pre-existing GST rows to retain null rate values;
+those response fields are omitted when null. New profiles cannot omit rates.
+
 `201 Created` returns the generated UUID, trusted CPO ID, exact decimal rates
 as JSON strings, active state, and timestamps. The transaction writes
 `GST_CREATED`. Additional errors: field-specific `400 invalid_*` and
