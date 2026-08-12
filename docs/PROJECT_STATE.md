@@ -8,6 +8,11 @@
   ingress, `liveops` for committed projection reads/freshness, and durable
   scoped operational-event persistence. CPO and Platform operational REST
   snapshots do not synchronously call HAL.
+- Every full User App charger projection (list, hub detail, single detail, and
+  favorites) now applies the same bounded committed live-state overlay; compact
+  map locations intentionally remain charger name plus hub coordinates only.
+  CMS administrative lifecycle is kept separate from runtime evidence and is a
+  customer-safety gate for displayed availability.
 - This is in-progress source state only: migration 33 is unapplied, and the
   fact/mapping/reconciliation/SSE persistence path plus real
   PostgreSQL/HAL/virtual-charger acceptance remain unverified.

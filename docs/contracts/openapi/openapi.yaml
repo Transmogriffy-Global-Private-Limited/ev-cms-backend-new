@@ -6538,7 +6538,7 @@ components:
         availability:
           type: string
           enum: [AVAILABLE, CHARGING, FAULTED, UNAVAILABLE, UNKNOWN]
-          description: List/hub projections remain UNKNOWN; authenticated charger detail overlays the committed CMS HAL projection.
+          description: Committed CMS HAL projection overlaid on every full customer charger response. Static CMS inactive/suspended/maintenance/decommissioned inventory is unavailable; this field never causes a synchronous HAL call.
         availability_freshness:
           type: string
           enum: [FRESH, STALE, UNKNOWN]
@@ -6563,7 +6563,7 @@ components:
         availability:
           type: string
           enum: [AVAILABLE, CHARGING, FAULTED, UNAVAILABLE, UNKNOWN]
-          description: List/hub projections remain UNKNOWN; authenticated charger detail overlays the committed CMS HAL projection.
+          description: Committed CMS HAL connector projection overlaid on every full customer charger response. Static CMS inactive/suspended/maintenance/decommissioned inventory is unavailable; this field never causes a synchronous HAL call.
         freshness:
           type: string
           enum: [FRESH, STALE, UNKNOWN]

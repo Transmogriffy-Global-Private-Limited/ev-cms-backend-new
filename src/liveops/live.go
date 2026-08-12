@@ -148,33 +148,95 @@ func (service *Service) GetConnector(ctx context.Context, cpoID, connectorID uui
 // GetChargerDetail reads one committed charger projection and all connector
 // projections in a bounded query set. It never fans out to HAL or per-row SQL.
 func (service *Service) GetChargerDetail(ctx context.Context, cpoID, chargerID uuid.UUID) (ChargerDetail, error) {
-	var charger models.Charger
-	if err := service.database.WithContext(ctx).Preload("Connectors", func(tx *gorm.DB) *gorm.DB { return tx.Order("connector_number ASC") }).First(&charger, "id = ? AND cpo_id = ?", chargerID, cpoID).Error; err != nil {
-		return ChargerDetail{}, err
-	}
-	liveCharger, err := service.GetCharger(ctx, cpoID, chargerID)
+	details, err := service.GetChargerDetails(ctx, cpoID, []uuid.UUID{chargerID})
 	if err != nil {
 		return ChargerDetail{}, err
 	}
-	connectorIDs := make([]uuid.UUID, 0, len(charger.Connectors))
-	for _, connector := range charger.Connectors {
-		connectorIDs = append(connectorIDs, connector.ID)
+	detail, ok := details[chargerID]
+	if !ok {
+		return ChargerDetail{}, gorm.ErrRecordNotFound
+	}
+	return detail, nil
+}
+
+// GetChargerDetails reads the committed live projection for a caller-provided
+// charger set. It uses one bounded query set for static topology and the two
+// runtime projection tables, so list consumers do not create an N+1 query
+// pattern. The caller remains responsible for customer/CPO visibility before
+// asking for operational evidence.
+func (service *Service) GetChargerDetails(ctx context.Context, cpoID uuid.UUID, chargerIDs []uuid.UUID) (map[uuid.UUID]ChargerDetail, error) {
+	result := make(map[uuid.UUID]ChargerDetail, len(chargerIDs))
+	chargerIDs = uniqueIDs(chargerIDs)
+	if len(chargerIDs) == 0 {
+		return result, nil
+	}
+	var chargers []models.Charger
+	if err := service.database.WithContext(ctx).
+		Preload("Connectors", func(tx *gorm.DB) *gorm.DB { return tx.Where("cpo_id = ?", cpoID).Order("connector_number ASC") }).
+		Where("cpo_id = ? AND id IN ?", cpoID, chargerIDs).
+		Find(&chargers).Error; err != nil {
+		return nil, fmt.Errorf("load charger topology: %w", err)
+	}
+	var chargerRuntimes []models.HALChargerRuntime
+	if err := service.database.WithContext(ctx).Where("cpo_id = ? AND cms_charger_id IN ?", cpoID, chargerIDs).Find(&chargerRuntimes).Error; err != nil {
+		return nil, fmt.Errorf("load charger runtimes: %w", err)
+	}
+	chargerStateByID := make(map[uuid.UUID]ChargerState, len(chargers))
+	for _, charger := range chargers {
+		chargerStateByID[charger.ID] = ChargerState{ChargerID: charger.ID, CPOID: charger.CPOID, ConnectionState: "UNKNOWN", ConnectionFreshness: FreshnessUnknown}
+	}
+	for _, runtime := range chargerRuntimes {
+		state, ok := chargerStateByID[runtime.CMSChargerID]
+		if !ok {
+			continue
+		}
+		observed, sequence, generation := runtime.ObservedAt, runtime.ConnectionSequence, runtime.ConnectionGeneration
+		state.ConnectionState, state.ConnectionObservedAt = runtime.ConnectionState, &observed
+		state.ConnectionSequence, state.ConnectionGeneration = &sequence, &generation
+		state.ConnectionFreshness = service.freshness(observed)
+		chargerStateByID[runtime.CMSChargerID] = state
+	}
+	connectorIDs := make([]uuid.UUID, 0)
+	for _, charger := range chargers {
+		for _, connector := range charger.Connectors {
+			connectorIDs = append(connectorIDs, connector.ID)
+		}
 	}
 	var runtimes []models.HALConnectorRuntime
 	if len(connectorIDs) > 0 {
 		if err := service.database.WithContext(ctx).Where("cpo_id = ? AND cms_connector_id IN ?", cpoID, connectorIDs).Find(&runtimes).Error; err != nil {
-			return ChargerDetail{}, fmt.Errorf("load connector runtimes: %w", err)
+			return nil, fmt.Errorf("load connector runtimes: %w", err)
 		}
 	}
 	runtimeByID := make(map[uuid.UUID]models.HALConnectorRuntime, len(runtimes))
 	for _, runtime := range runtimes {
 		runtimeByID[runtime.CMSConnectorID] = runtime
 	}
-	result := ChargerDetail{Charger: liveCharger, Connectors: make([]ConnectorState, 0, len(charger.Connectors))}
-	for _, connector := range charger.Connectors {
-		result.Connectors = append(result.Connectors, service.connectorState(connector, runtimeByID[connector.ID], liveCharger))
+	for _, charger := range chargers {
+		liveCharger := chargerStateByID[charger.ID]
+		detail := ChargerDetail{Charger: liveCharger, Connectors: make([]ConnectorState, 0, len(charger.Connectors))}
+		for _, connector := range charger.Connectors {
+			detail.Connectors = append(detail.Connectors, service.connectorState(connector, runtimeByID[connector.ID], liveCharger))
+		}
+		result[charger.ID] = detail
 	}
 	return result, nil
+}
+
+func uniqueIDs(ids []uuid.UUID) []uuid.UUID {
+	seen := make(map[uuid.UUID]struct{}, len(ids))
+	result := make([]uuid.UUID, 0, len(ids))
+	for _, id := range ids {
+		if id == uuid.Nil {
+			continue
+		}
+		if _, ok := seen[id]; ok {
+			continue
+		}
+		seen[id] = struct{}{}
+		result = append(result, id)
+	}
+	return result
 }
 
 func (service *Service) GetSession(ctx context.Context, cpoID, sessionID uuid.UUID) (SessionState, error) {

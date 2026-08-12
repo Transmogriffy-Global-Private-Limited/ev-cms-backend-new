@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/constants"
+	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/liveops"
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/models"
 	"github.com/google/uuid"
 	"gorm.io/gorm"
@@ -140,6 +141,9 @@ func (service *Service) ListCustomerChargers(ctx context.Context, principal Prin
 			view.DistanceKM = &distance
 		}
 		chargers = append(chargers, view)
+	}
+	if err := service.overlayCustomerChargerLiveStates(ctx, principal.CPOID, chargers); err != nil {
+		return CustomerChargerListResponse{}, err
 	}
 	return CustomerChargerListResponse{
 		Chargers:     chargers,
@@ -318,6 +322,9 @@ func (service *Service) GetCustomerHub(ctx context.Context, principal Principal,
 	for _, charger := range record.Chargers {
 		chargers = append(chargers, customerChargerView(charger, favoriteChargers[charger.ID]))
 	}
+	if err := service.overlayCustomerChargerLiveStates(ctx, principal.CPOID, chargers); err != nil {
+		return CustomerHubView{}, err
+	}
 	return CustomerHubView{CustomerHubSummary: customerHubSummary(record, favoriteHubs[record.ID]), Chargers: chargers}, nil
 }
 
@@ -343,31 +350,11 @@ func (service *Service) GetCustomerCharger(ctx context.Context, principal Princi
 		return CustomerChargerView{}, err
 	}
 	view := customerChargerView(charger, favoriteChargers[charger.ID])
-	if service.live == nil {
-		return view, nil
+	views := []CustomerChargerView{view}
+	if err := service.overlayCustomerChargerLiveStates(ctx, principal.CPOID, views); err != nil {
+		return CustomerChargerView{}, err
 	}
-	live, err := service.live.GetChargerDetail(ctx, principal.CPOID, charger.ID)
-	if err != nil {
-		return CustomerChargerView{}, fmt.Errorf("load customer-safe charger live state: %w", err)
-	}
-	view.AvailabilityFreshness = live.Charger.ConnectionFreshness
-	availabilityByConnector := make(map[uuid.UUID]string, len(live.Connectors))
-	freshnessByConnector := make(map[uuid.UUID]string, len(live.Connectors))
-	for _, connector := range live.Connectors {
-		availabilityByConnector[connector.ConnectorID], freshnessByConnector[connector.ConnectorID] = connector.Availability, connector.Freshness
-	}
-	view.Availability = "UNAVAILABLE"
-	for index := range view.Connectors {
-		connector := &view.Connectors[index]
-		connector.Availability, connector.Freshness = availabilityByConnector[connector.ID], freshnessByConnector[connector.ID]
-		if connector.Availability == "AVAILABLE" {
-			view.Availability = "AVAILABLE"
-		}
-		if connector.Availability == "CHARGING" && view.Availability != "AVAILABLE" {
-			view.Availability = "CHARGING"
-		}
-	}
-	return view, nil
+	return views[0], nil
 }
 
 func validateCustomerHubListQuery(query *CustomerHubListQuery) error {
@@ -498,6 +485,9 @@ func customerChargerView(record models.Charger, favorite bool) CustomerChargerVi
 			Availability:           customerAvailabilityUnknown,
 			Freshness:              customerAvailabilityUnknown,
 		})
+		if connector.Status != constants.ChargerStatusActive {
+			connectors[len(connectors)-1].Availability = "UNAVAILABLE"
+		}
 	}
 	view := CustomerChargerView{ID: record.ID, HubID: hubID, ChargerID: record.ChargerID, ChargerName: record.ChargerName, Vendor: record.Vendor, Model: record.Model, MaxPowerKW: record.MaxPowerKW, OCPPVersion: record.OCPPVersion, Status: record.Status, ChargerImageURL: customerChargerImageURL(record), ChargerType: record.ChargerType, Segment: record.Segment, SubSegment: record.SubSegment, ChargerUseType: record.ChargerUseType, Parking: record.Parking, TwentyFourSevenOpen: record.TwentyFourSevenOpen, Availability: customerAvailabilityUnknown, AvailabilityFreshness: customerAvailabilityUnknown, IsFavorite: favorite, Connectors: connectors}
 	if record.Hub != nil {
@@ -508,7 +498,82 @@ func customerChargerView(record models.Charger, favorite bool) CustomerChargerVi
 		view.HubLongitude = &record.Hub.Longitude
 		view.HubOpen24Hours = &open24Hours
 	}
+	if record.Status != constants.ChargerStatusActive {
+		view.Availability = "UNAVAILABLE"
+	}
 	return view
+}
+
+// overlayCustomerChargerLiveStates combines an already-authorized customer
+// inventory projection with committed HAL-derived evidence. It intentionally
+// does not change the compact map response, which has no availability fields.
+func (service *Service) overlayCustomerChargerLiveStates(ctx context.Context, cpoID uuid.UUID, views []CustomerChargerView) error {
+	if service.live == nil || len(views) == 0 {
+		return nil
+	}
+	chargerIDs := make([]uuid.UUID, 0, len(views))
+	for _, view := range views {
+		chargerIDs = append(chargerIDs, view.ID)
+	}
+	details, err := service.live.GetChargerDetails(ctx, cpoID, chargerIDs)
+	if err != nil {
+		return fmt.Errorf("load customer-safe charger live state: %w", err)
+	}
+	for index := range views {
+		if detail, ok := details[views[index].ID]; ok {
+			applyCustomerChargerLiveDetail(&views[index], detail)
+		}
+	}
+	return nil
+}
+
+func applyCustomerChargerLiveDetail(view *CustomerChargerView, detail liveops.ChargerDetail) {
+	view.AvailabilityFreshness = detail.Charger.ConnectionFreshness
+	connectorByID := make(map[uuid.UUID]liveops.ConnectorState, len(detail.Connectors))
+	for _, connector := range detail.Connectors {
+		connectorByID[connector.ConnectorID] = connector
+	}
+
+	if view.Status != constants.ChargerStatusActive {
+		view.Availability = "UNAVAILABLE"
+		for index := range view.Connectors {
+			view.Connectors[index].Availability = "UNAVAILABLE"
+		}
+		return
+	}
+
+	availability := customerAvailabilityUnknown
+	for index := range view.Connectors {
+		connector := &view.Connectors[index]
+		live, ok := connectorByID[connector.ID]
+		if ok {
+			connector.Availability, connector.Freshness = live.Availability, live.Freshness
+		}
+		if connector.Status != constants.ChargerStatusActive {
+			connector.Availability = "UNAVAILABLE"
+		}
+		switch connector.Availability {
+		case "AVAILABLE":
+			availability = "AVAILABLE"
+		case "CHARGING":
+			if availability != "AVAILABLE" {
+				availability = "CHARGING"
+			}
+		case "FAULTED":
+			if availability != "AVAILABLE" && availability != "CHARGING" {
+				availability = "FAULTED"
+			}
+		case "UNAVAILABLE":
+			if availability == customerAvailabilityUnknown {
+				availability = "UNAVAILABLE"
+			}
+		}
+	}
+	if detail.Charger.ConnectionState != "ONLINE" || detail.Charger.ConnectionFreshness != liveops.FreshnessFresh {
+		view.Availability = "UNAVAILABLE"
+		return
+	}
+	view.Availability = availability
 }
 
 func customerChargerLocationView(record models.Charger) CustomerChargerLocationView {

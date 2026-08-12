@@ -2,6 +2,27 @@
 
 ## 2026-08-12
 
+### Completed User App live-state consumption and CPO HAL manual
+
+- Replaced the single-detail-only customer availability overlay with a shared
+  bounded `liveops.GetChargerDetails` projection read used by full charger
+  lists, hub detail, favorites, and single detail. Compact map locations remain
+  unchanged and expose only name/coordinates. Static CMS charger/connector
+  lifecycle is kept separate from HAL evidence and safely overrides displayed
+  availability when not active.
+- Added `integrations/cpo-hal-operational-capability-manual.md`, the canonical
+  CPO backend guide for ownership, package sockets, fact fields/identity,
+  mapping/command/fact lifecycles, reads/SSE/recovery, future command design,
+  configuration, disposable topology, and anti-patterns. Corrected stale User
+  App, CPO handoff, docs-map, and OpenAPI descriptions.
+
+Verification:
+
+- `gofmt` and `go test ./src/liveops ./src/customerauth -count=1` passed.
+- No migration, HAL checkout modification, deployment, commit, or push was
+  performed. Full repository and disposable dual-service lifecycle evidence is
+  still pending.
+
 ### CMS HAL operational capability layer started
 
 - Separated low-level HAL wire transport from CMS operation, shared fact-ingress,

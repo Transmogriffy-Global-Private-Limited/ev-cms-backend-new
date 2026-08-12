@@ -25,6 +25,8 @@ Establish reusable CMS capabilities over HAL-derived operational truth and expos
 ## Claimed surfaces
 
 - `src/halclient`, `src/halops`, `src/liveops`, `src/operationalrealtime`, `src/customerauth`, `src/cpo`, models/migrations, routes, OpenAPI, and HAL integration docs.
+- User App full charger list, hub detail, single detail, and favorites; compact
+  map locations remain explicitly out of scope.
 
 ## Dependencies and blockers
 
@@ -44,11 +46,22 @@ Establish reusable CMS capabilities over HAL-derived operational truth and expos
 - `halops` owns CMS mapping/command mechanics, exact-ID reconciliation, and fact ingress; `halclient` remains the wire adapter.
 - `liveops` reads committed CMS projections and centralizes freshness/offline connector semantics.
 - CPO/Platform snapshots and customer own-session/customer-safe charger detail use those capabilities.
+- Full CustomerCharger list, hub-detail, single-detail, and favorite responses
+  now use the same bounded `liveops.GetChargerDetails` overlay. Static CMS
+  lifecycle remains a customer-safety gate; compact map markers remain only
+  name and coordinates.
+- The canonical CPO backend HAL operational capability manual is
+  `docs/integrations/cpo-hal-operational-capability-manual.md`; it documents
+  current CPO reads/SSE and the future command pattern without adding a CPO
+  command endpoint.
 - Durable operational events are produced with accepted newer fact projections and consumed through scoped REST cursor replay/SSE. Streams revalidate bearer sessions at heartbeat.
 
 ## Verification
 
-- Focused package tests, operational SSE-frame/cursor tests, documentation verification, OpenAPI/runtime route parity, and `go vet -p 1 ./...` passed after refactoring. The combined broad-test/vet runner timed out before returning a full-suite result; the separate vet pass completed.
+- Focused User App and live-projection package tests pass after the batch
+  overlay refactor. Earlier focused capability/SSE/OpenAPI route and vet
+  evidence remains recorded above; current full-suite and disposable
+  lifecycle evidence must be rerun before this work item can close.
 - PostgreSQL migration execution, fact/mapping/SSE lifecycle behavior, reconciliation recovery, and dual-service E2E remain pending.
 
 ## Handoff

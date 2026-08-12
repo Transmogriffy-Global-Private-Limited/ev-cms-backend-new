@@ -898,11 +898,18 @@ Current implementation slice:
 
 - Shared CMS HAL mapping/command reconciliation, fact ingress, durable
   projections, stale/offline freshness, scoped operational events, and CPO/App/
-  Platform cursor/SSE consumption. PostgreSQL lifecycle and physical-topology
+  Platform cursor/SSE consumption. Full User App charger list, hub detail,
+  favorite, and single-detail projections now use one bounded live-state
+  overlay, and the CPO HAL operational manual records the current capability
+  and future command rules. PostgreSQL lifecycle and physical-topology
   acceptance remain pending.
 
 Last completed slice:
 
+- Completed User App consumption of committed HAL operational projections for
+  every full charger response without N+1 reads, preserving compact map-only
+  location payloads, and added the canonical CPO backend HAL operational
+  capability manual. Full dual-service acceptance remains pending.
 - Added tenant-scoped user-group member assignment with same-group idempotency,
   cross-group conflict handling, audit evidence, OpenAPI parity, and protected
   route verification. This source revision was rehosted without a new
