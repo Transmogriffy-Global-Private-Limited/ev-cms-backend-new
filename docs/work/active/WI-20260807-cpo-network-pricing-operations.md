@@ -97,6 +97,9 @@ The hub `state` field is persisted and included in the live CPO hub contracts.
 - Migration thirty-two is applied; loopback/public liveness and readiness,
   Swagger, raw OpenAPI, the live 162-operation contract, and protected-route
   checks passed. The post-rehost journal has no error, panic, or fatal records.
+- The later shared deployment is revision `3f3a952`: migration thirty-three is
+  applied and the current live OpenAPI surface has 172 operations. Service,
+  public/loopback health, Swagger, and raw OpenAPI remain healthy.
 - Earlier revision `d368903` deployment evidence established the prior
   161-operation contract, CPO user-group projections, connector capacity
   contract, and migration twenty-nine behavior before the current release.

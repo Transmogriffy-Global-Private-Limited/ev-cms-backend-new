@@ -2,7 +2,7 @@
 
 ## Current State
 
-### 2026-08-12 — CMS HAL operational capability work in progress
+### 2026-08-12 — CMS HAL operational capability release deployed
 
 - Source now contains `halops` for CMS command/mapping/reconciliation and fact
   ingress, `liveops` for committed projection reads/freshness, and durable
@@ -13,9 +13,16 @@
   map locations intentionally remain charger name plus hub coordinates only.
   CMS administrative lifecycle is kept separate from runtime evidence and is a
   customer-safety gate for displayed availability.
-- This is in-progress source state only: migration 33 is unapplied, and the
-  fact/mapping/reconciliation/SSE persistence path plus real
-  PostgreSQL/HAL/virtual-charger acceptance remain unverified.
+- Migration thirty-three is applied on the development VPS; its
+  `operational_events` table and all four indexes are present. Revision
+  `3f3a952` is active with the 172-operation contract and healthy local/public
+  liveness, readiness, Swagger, and raw OpenAPI routes.
+- Real PostgreSQL fact/mapping/SSE lifecycle, reconciliation recovery, and
+  CMS-to-HAL-to-virtual-charger topology acceptance remain unverified pending
+  the dedicated disposable database and provider test environment.
+- The User App overlay/manual source changes are local in this revision and
+  have not been deployed. Their focused and broad source verification does not
+  replace the pending disposable dual-service acceptance.
 
 The repository began as an empty file scaffold. The implemented foundation now
 provides:
@@ -191,8 +198,8 @@ provides:
   handler;
 - the additive PostgreSQL database `devevcmsnewdb`, owned by `postgres`.
 
-The active development VPS runs source revision `3ca2c35`, with migrations
-through thirty-two recorded and the deployed 162-operation contract. Migration
+The active development VPS runs source revision `3f3a952`, with migrations
+through thirty-three recorded and the deployed 172-operation contract. Migration
 twenty-nine adds nullable `tariff_type`, `price_type`, and `units` metadata to
 tenant tariffs; omitted values remain null-safe for existing and newly created
 tariffs. The SuperAdmin administrator-list query explicitly binds the platform
@@ -360,6 +367,16 @@ intentionally unsupported.
   schema change; it was eliminated by the rehost and is not present in the new
   process logs. The PowerShell documentation verifier remains unavailable on
   this Ubuntu host.
+- Revision `3f3a952` was built from the clean `main` worktree and rehosted
+  after migration thirty-three. The installed binary SHA-256 is
+  `c2d0198da5365c7afde37726d6b48e95504c48112bb5aa94e9601af09320ddbd`,
+  embeds `3f3a9522f94b333231d21dea2366eb1cd2e8418d` with
+  `vcs.modified=false`, and retains `builds/evcmsnew.pre-3f3a952` plus a
+  mode-0600 PostgreSQL rollback dump. The enabled service is active with zero
+  restarts; migration ledger/table/index checks, loopback/public health and
+  readiness, Swagger, raw OpenAPI, the 172-operation contract, and HAL
+  fact-ingress validation passed. No DNS, Caddy, or HAL provider configuration
+  changed.
 - Revision `a76d6ae` was built from a clean worktree and rehosted after
   migration thirty-one was applied. The installed binary SHA-256 is
   `0a3d397464dae13ef15b090225b4ca38fb1b4dfff946bf0de7d77cb9a5d3ebc0` and

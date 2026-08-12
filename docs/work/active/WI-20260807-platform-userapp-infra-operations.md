@@ -149,6 +149,9 @@ rules, near-me behavior, current-CPO scope, and customer-visible-hub boundary.
   liveness and readiness, Swagger, raw OpenAPI, and the protected
   `/api/v1/app/chargers/locations` 401 boundary passed. The post-rehost journal
   has no error, panic, or fatal records.
+- The later shared deployment is revision `3f3a952`: migration thirty-three is
+  applied and the current live OpenAPI surface has 172 operations. Service,
+  public/loopback health, Swagger, and raw OpenAPI remain healthy.
 - Earlier revision `d368903` deployment evidence established the prior
   161-operation contract, tenant settings/GST/CMS-HAL routes, and connector
   projection behavior before the current release.

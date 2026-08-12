@@ -997,20 +997,18 @@ Last completed slice:
 
 Last deployment milestone:
 
-- Revision `3ca2c35` was built from a clean worktree and rehosted on the
-  development VPS after migration thirty-two. The authenticated CPO invoice-logo
-  retrieval route, required GST and hub state, nullable legacy GST-rate
-  persistence, compact User App charger locations, and aligned contracts are live
-  alongside the tenant-scoped CPO settings API, nullable tariff metadata,
-  SuperAdmin administrator-list binding, and repaired `UserGroup.members`
-  schema. Running-binary SHA/VCS identity,
-  active/enabled systemd state, loopback/public liveness and readiness,
-  Swagger, the live 162-operation OpenAPI surface, protected routes, and the
-  tenant-scoped logo retrieval behavior were verified. The bounded SSE shutdown
-  deadline occurred during stop and recovered through systemd; current state is
-  healthy with zero restarts.
-  The disposable PostgreSQL lifecycle and full HAL/virtual-charger acceptance
-  remain pending without the required test topology and `TEST_DATABASE_URL`.
+- Revision `3f3a952` was built from a clean worktree and rehosted on the
+  development VPS after migration thirty-three. The CMS HAL operational
+  capability layer, including durable scoped operational events, is live with
+  the prior inventory, settings, GST, compact User App location, and
+  invoice-logo surfaces. Running-binary SHA/VCS identity, active/enabled
+  systemd state, migration ledger/table/index checks, loopback/public liveness
+  and readiness, Swagger, the live 172-operation OpenAPI surface, and the HAL
+  fact-ingress validation boundary were verified. No DNS, Caddy, or HAL
+  provider configuration changed; current service state is healthy with zero
+  restarts. The disposable PostgreSQL lifecycle and full HAL/virtual-charger
+  acceptance remain pending without the required test topology and
+  `TEST_DATABASE_URL`.
 
 Next expected slice:
 

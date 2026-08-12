@@ -37,6 +37,29 @@ Verification:
   commit, push, or provider change occurred; PostgreSQL lifecycle, SSE behavior,
   reconciliation recovery, and dual-service topology verification remain pending.
 
+### Rehosted the CMS HAL operational capability release
+
+- Built and rehosted clean `main` revision `3f3a952` on the development VPS.
+  Applied migration `000033_operational_realtime_events` after a validated
+  mode-0600 PostgreSQL rollback dump and retained the prior binary at
+  `builds/evcmsnew.pre-3f3a952`.
+- The live CMS now has the durable, CPO/customer-scoped `operational_events`
+  ledger (four indexes), the 172-operation OpenAPI surface, and the HAL fact
+  ingress validation boundary at `POST /v1/hal-facts`. No DNS, Caddy route, or
+  HAL provider configuration changed.
+
+Verification:
+
+- Caddy validation, route/OpenAPI parity, `go test ./...`, `go vet ./...`,
+  clean build, and `git diff --check` passed.
+- Migration ledger/table/index checks, active/enabled systemd state with zero
+  restarts, loopback/public liveness and readiness, Swagger, raw OpenAPI, and
+  HAL fact-ingress validation smoke checks passed.
+- `scripts/verify-docs.ps1` was not run because `pwsh` is unavailable on this
+  Ubuntu host. The disposable PostgreSQL lifecycle suite and full CMS-to-HAL
+  topology acceptance remain pending because their dedicated test environment
+  is not configured.
+
 ## 2026-08-11
 
 ### Rehosted latest main revision and reconciled deployment records
