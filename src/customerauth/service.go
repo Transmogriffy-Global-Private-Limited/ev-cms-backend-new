@@ -16,9 +16,11 @@ import (
 
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/config"
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/constants"
-	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/halclient"
+	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/halops"
+	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/liveops"
 	cmsmail "github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/mail"
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/models"
+	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/operationalrealtime"
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/security"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
@@ -54,19 +56,44 @@ type Service struct {
 	now                func() time.Time
 	razorpayResolver   RazorpayCredentialResolver
 	razorpayFactory    RazorpayClientFactory
-	hal                *halclient.Client
+	hal                *halops.Service
+	live               *liveops.Service
+	factIngestor       *halops.FactIngestor
+	operationalEvents  *operationalrealtime.Service
 	halFactBearer      string
 	halMeterStaleAfter time.Duration
 }
 
-// WithHAL connects customer charging only to the approved HAL v1 client. It
-// intentionally leaves the feature unavailable when production configuration
-// has not supplied both independent service credentials.
-func (service *Service) WithHAL(cfg config.HAL) *Service {
-	service.hal = halclient.New(cfg)
+// WithHALOperations connects User App charging to the shared CMS operational
+// capabilities. User App business code never constructs HAL wire requests.
+func (service *Service) WithHALOperations(operations *halops.Service, live *liveops.Service, cfg config.HAL) *Service {
+	service.hal = operations
+	service.live = live
 	service.halFactBearer = cfg.FactBearerToken
 	service.halMeterStaleAfter = cfg.MeterStaleAfter
+	service.factIngestor = halops.NewFactIngestor(service.database, cfg.FactBearerToken, service)
 	return service
+}
+
+func (service *Service) HALFactIngestor() *halops.FactIngestor { return service.factIngestor }
+
+func (service *Service) WithOperationalEvents(events *operationalrealtime.Service) *Service {
+	service.operationalEvents = events
+	return service
+}
+
+func (service *Service) ListOperationalEvents(ctx context.Context, principal Principal, after int64, limit int) (operationalrealtime.Page, error) {
+	if service.operationalEvents == nil {
+		return operationalrealtime.Page{}, fmt.Errorf("operational event capability is unavailable")
+	}
+	return service.operationalEvents.ListCustomer(ctx, principal.CPOID, principal.CustomerID, after, limit)
+}
+
+func (service *Service) OperationalStreamTiming() (time.Duration, time.Duration, int) {
+	if service.operationalEvents == nil {
+		return time.Second, 15 * time.Second, 100
+	}
+	return service.operationalEvents.StreamTiming()
 }
 
 // WithRazorpayCredentialResolver connects the User App payment flow to the
@@ -90,11 +117,17 @@ func NewService(
 	if err != nil {
 		return nil, fmt.Errorf("initialize customer password verifier: %w", err)
 	}
-	return &Service{
+	service := &Service{
 		database: database, config: cfg, mailEnabled: mailEnabled, outbox: outbox,
 		tokens: tokens, dummyHash: dummyHash, razorpayFactory: newRazorpayClient,
 		now: func() time.Time { return time.Now().UTC() },
-	}, nil
+	}
+	// Keep the persisted CMS projection readable in isolated service tests and
+	// non-HAL startup paths. main replaces this with the configured shared
+	// capability before routes are registered.
+	service.live = liveops.New(database, config.HAL{MeterStaleAfter: 30 * time.Second})
+	service.factIngestor = halops.NewFactIngestor(database, "", service)
+	return service, nil
 }
 
 func (service *Service) Start(

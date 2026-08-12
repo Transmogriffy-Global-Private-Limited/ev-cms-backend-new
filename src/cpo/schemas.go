@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/constants"
+	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/liveops"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 )
@@ -291,6 +292,17 @@ type ChargerListResponse struct {
 	NextBefore   *time.Time        `json:"next_before,omitempty"`
 	NextBeforeID *uuid.UUID        `json:"next_before_id,omitempty"`
 	HasMore      bool              `json:"has_more"`
+}
+
+// OperationalChargerResponse keeps administrative inventory and HAL-derived
+// runtime separate so an inactive CMS charger can still be observed OFFLINE.
+type OperationalChargerResponse struct {
+	Charger ChargerResponse       `json:"charger"`
+	Live    liveops.ChargerDetail `json:"live"`
+}
+
+type FleetOperationsResponse struct {
+	Fleet liveops.FleetState `json:"fleet"`
 }
 
 type ConnectorView struct {

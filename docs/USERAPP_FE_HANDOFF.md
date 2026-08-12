@@ -479,11 +479,13 @@ attached hub because chargers do not have independent coordinate fields. Do
 not infer live availability, a charger ID, a hub ID, or any other inventory
 detail from this compact map response.
 
-The backend deliberately does not contact HAL in this slice. `availability` is
-`UNKNOWN` for chargers and connectors. Do not render either `availability` or
-the CMS `status` as online, available, offline, or live state; a later
-HAL-backed contract must define those states, reconnect behavior, and REST
-recovery before the app depends on them.
+List and compact-map responses deliberately avoid per-row live projection
+lookups, so their `availability` remains `UNKNOWN`. The authenticated charger
+detail response now overlays the committed CMS HAL projection with an
+availability and freshness value. It still never contacts HAL synchronously.
+Treat `STALE`, `OFFLINE`, and unknown parent connection as unavailable; use
+the detail or charging-session REST response as recovery truth rather than
+inferring state from the CMS administrative `status`.
 
 The safe projection includes display-safe charger metadata (`charger_name`,
 `charger_type`, `segment`, `sub_segment`, `charger_use_type`, and `parking`).
@@ -548,9 +550,9 @@ Near-me results are ordered by calculated distance and are intentionally
 bounded without a continuation cursor (`has_more` is false and no `next_*`
 cursor is returned). A location query cannot include `before`/`before_id`.
 All results remain limited to attached chargers in published hubs belonging to
-the authenticated CPO. Stored CMS status is not live availability: charger and
-connector `availability` remains `UNKNOWN` until the separate HAL contract
-exists.
+the authenticated CPO. Stored CMS status is not live availability: list
+availability remains `UNKNOWN`; the charger detail endpoint is the available
+CMS-projection live-read surface.
 
 ### 5.2 Wallet Reads
 
@@ -619,6 +621,25 @@ decimal strings for currency, energy price, idle fee, and GST when referenced;
 `UNAVAILABLE` is a valid `200` response with `unavailable_reason` and never a
 zero-price fallback. The response is informational and is not a charging or
 payment commitment. HAL is not called.
+
+### 5.3 Operational Event Recovery and SSE
+
+The authenticated User App operational feed is deliberately a notification
+surface, not live truth:
+
+- `GET /operations/events?after_id=<event-id>&limit=100` returns retained
+  committed events in ascending numeric ID order.
+- `GET /operations/realtime/stream` is a `text/event-stream` companion. Send
+  the normal `Authorization` and `X-CPO-App-ID` headers; use `fetch()`
+  streaming rather than native `EventSource`, which cannot send those headers.
+
+Both routes include customer-specific charging events and safe tenant charger/
+connector availability events. Never rely on the event payload for meter,
+financial, charger, or session truth. Deduplicate `id`, persist the last ID,
+then refetch `GET /charging-sessions/{session_id}` or charger detail as needed.
+The server accepts `Last-Event-ID` when `after_id` is absent and closes a stream
+whose durable customer session, CPO app-ID scope, or token becomes invalid at a
+heartbeat. After disconnect, use cursor recovery before opening another stream.
 
 ## 6. Signup Flow
 

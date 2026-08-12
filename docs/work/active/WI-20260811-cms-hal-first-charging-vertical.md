@@ -4,7 +4,7 @@ Status: In Progress
 Owner: Codex
 Collaborators: Anubhab Dey (User App and CMS/HAL communication ownership)
 Started: 2026-08-11
-Last updated: 2026-08-11
+Last updated: 2026-08-12
 
 Development-plan reference: `docs/DEVELOPMENT_PLAN.md` - Charging lifecycle and HAL integration
 Detailed-plan reference: `docs/integrations/ocpp-hal-boundary.md`
@@ -68,6 +68,9 @@ Implement and verify the first real CMS consumer charging vertical against
   independent provider is configured.
 - Full virtual-charger, restart, outage, and reconciliation-worker acceptance
   remains incomplete.
+- Follow-on work item `WI-20260812-cms-hal-operational-capabilities` owns the
+  reusable operations/projection/consumer expansion; this work item retains
+  original charging and settlement acceptance ownership.
 
 ## Verification
 

@@ -384,8 +384,10 @@ must use this returned state rather than infer attachment from list placement;
 create and update requests change attachment through `hub_id`, never through
 `assigned`.
 
-This flow ends in CMS inventory. It does not register the charger in the HAL or
-prove the device is online.
+This flow first commits CMS inventory and a `PENDING` mapping record. The CMS
+then attempts the shared HAL mapping capability after commit; a failed attempt
+remains durable reconciliation work and does not make inventory creation fail.
+Neither outcome proves that a device is online.
 
 ### App-user account creation
 
@@ -699,7 +701,7 @@ Do not assume:
 - all persisted CPO roles are callable;
 - app ID is a secret or tenant selector;
 - platform Superadmin may inspect tenant business data;
-- charger creation contacts the HAL;
+- charger creation proves HAL mapping or online state;
 - CMS status is live protocol truth;
 - mutable tariff rows are safe for completed-session billing;
 - a callback is delivered exactly once;

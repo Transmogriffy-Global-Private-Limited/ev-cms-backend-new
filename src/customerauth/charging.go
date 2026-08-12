@@ -13,7 +13,7 @@ import (
 	"time"
 
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/constants"
-	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/halclient"
+	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/halops"
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/models"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
@@ -82,7 +82,7 @@ func (service *Service) StartCharging(ctx context.Context, principal Principal, 
 	}
 	intentID, commandID := uuid.New(), uuid.New()
 	var intent models.ChargingStartIntent
-	var mapping halclient.ChargerMapping
+	var mapping halops.ChargerMapping
 	err = service.database.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		var cpo models.CPO
 		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&cpo, "id = ?", principal.CPOID).Error; err != nil {
@@ -135,9 +135,9 @@ func (service *Service) StartCharging(ctx context.Context, principal Principal, 
 		if err := tx.Create(&command).Error; err != nil {
 			return err
 		}
-		mapping = halclient.ChargerMapping{CPOID: principal.CPOID, CMSChargerID: charger.ID, ChargerOCPPIdentity: charger.OCPPIdentity, Enabled: true, Connectors: make([]halclient.ConnectorMapping, 0, len(connectors))}
+		mapping = halops.ChargerMapping{CPOID: principal.CPOID, CMSChargerID: charger.ID, ChargerOCPPIdentity: charger.OCPPIdentity, Enabled: true, Connectors: make([]halops.ConnectorMapping, 0, len(connectors))}
 		for _, mappedConnector := range connectors {
-			mapping.Connectors = append(mapping.Connectors, halclient.ConnectorMapping{CMSConnectorID: mappedConnector.ID, OCPPConnectorNumber: mappedConnector.ConnectorNumber})
+			mapping.Connectors = append(mapping.Connectors, halops.ConnectorMapping{CMSConnectorID: mappedConnector.ID, OCPPConnectorNumber: mappedConnector.ConnectorNumber})
 		}
 		return tx.Clauses(clause.OnConflict{Columns: []clause.Column{{Name: "cms_charger_id"}}, DoUpdates: clause.AssignmentColumns([]string{"cpo_id", "charger_ocpp_identity", "sync_state", "updated_at"})}).Create(&models.HALChargerMapping{CMSChargerID: charger.ID, CPOID: principal.CPOID, ChargerOCPPIdentity: charger.OCPPIdentity, SyncState: "PENDING", CreatedAt: now, UpdatedAt: now}).Error
 	})
@@ -148,11 +148,11 @@ func (service *Service) StartCharging(ctx context.Context, principal Principal, 
 		}
 		return ChargingStartResponse{}, err
 	}
-	if err := service.hal.SyncMapping(ctx, mapping, correlationID); err != nil {
+	if err := service.hal.EnsureChargerMapping(ctx, mapping.CMSChargerID, correlationID); err != nil {
 		service.markHALCommandFailure(ctx, commandID, err)
 		return ChargingStartResponse{StartIntentID: intentID, Status: constants.StartIntentStatusReconciliation}, nil
 	}
-	command, err := service.hal.Start(ctx, halclient.StartCommand{CMSCommandID: commandID, CMSStartIntentID: intentID, CPOID: principal.CPOID, CustomerID: principal.CustomerID, CMSChargerID: charger.ID, CMSConnectorID: request.ConnectorID, ChargerOCPPIdentity: charger.OCPPIdentity, OCPPConnectorNumber: requestConnectorNumber(mapping, request.ConnectorID), IDTag: credential, CredentialExpiresAt: intent.CredentialExpiresAt, CommandExpiresAt: intent.CommandExpiresAt, EnergyLimitWh: intent.EnergyLimitWh, MaxDurationSeconds: intent.MaxDurationSeconds}, correlationID)
+	command, err := service.hal.RequestStart(ctx, halops.StartRequest{CMSCommandID: commandID, CMSStartIntentID: intentID, CPOID: principal.CPOID, CustomerID: principal.CustomerID, CMSChargerID: charger.ID, CMSConnectorID: request.ConnectorID, ChargerOCPPIdentity: charger.OCPPIdentity, OCPPConnectorNumber: requestConnectorNumber(mapping, request.ConnectorID), Credential: credential, CredentialExpiresAt: intent.CredentialExpiresAt, CommandExpiresAt: intent.CommandExpiresAt, EnergyLimitWh: intent.EnergyLimitWh, MaxDurationSeconds: intent.MaxDurationSeconds}, correlationID)
 	if err != nil {
 		service.markHALCommandFailure(ctx, commandID, err)
 		return ChargingStartResponse{StartIntentID: intentID, Status: constants.StartIntentStatusReconciliation}, nil
@@ -166,7 +166,7 @@ func (service *Service) StartCharging(ctx context.Context, principal Principal, 
 	return ChargingStartResponse{StartIntentID: intentID, Status: constants.StartIntentStatusAcceptedForDelivery}, nil
 }
 
-func requestConnectorNumber(mapping halclient.ChargerMapping, connectorID uuid.UUID) int {
+func requestConnectorNumber(mapping halops.ChargerMapping, connectorID uuid.UUID) int {
 	for _, connector := range mapping.Connectors {
 		if connector.CMSConnectorID == connectorID {
 			return connector.OCPPConnectorNumber
@@ -260,7 +260,7 @@ func (service *Service) StopCharging(ctx context.Context, principal Principal, s
 	if err := service.database.WithContext(ctx).Model(&models.ChargingSession{}).Where("id = ?", sessionID).Updates(map[string]any{"status": constants.SessionStatusStopPending, "updated_at": service.now()}).Error; err != nil {
 		return err
 	}
-	_, err := service.hal.Stop(ctx, halclient.StopCommand{CMSCommandID: commandID, CMSChargingSessionID: sessionID, CPOID: principal.CPOID, CustomerID: principal.CustomerID, CMSChargerID: charger.ID, CMSConnectorID: connector.ID, ChargerOCPPIdentity: charger.OCPPIdentity, OCPPConnectorNumber: connector.ConnectorNumber, HALTransactionID: *session.HALTransactionID, OCPPTransactionID: session.TransactionID, RequestedStopInitiator: "CUSTOMER", RequestedStopReason: strings.TrimSpace(request.Reason), CommandExpiresAt: expires}, correlation)
+	_, err := service.hal.RequestStop(ctx, halops.StopRequest{CMSCommandID: commandID, CMSChargingSessionID: sessionID, CPOID: principal.CPOID, CustomerID: principal.CustomerID, CMSChargerID: charger.ID, CMSConnectorID: connector.ID, ChargerOCPPIdentity: charger.OCPPIdentity, OCPPConnectorNumber: connector.ConnectorNumber, HALTransactionID: *session.HALTransactionID, OCPPTransactionID: session.TransactionID, RequestedStopInitiator: "CUSTOMER", RequestedStopReason: strings.TrimSpace(request.Reason), CommandExpiresAt: expires}, correlation)
 	if err != nil {
 		service.markHALCommandFailure(ctx, commandID, err)
 	}
@@ -276,6 +276,9 @@ func (service *Service) GetChargingStartIntent(ctx context.Context, principal Pr
 }
 
 func (service *Service) GetChargingSession(ctx context.Context, principal Principal, sessionID uuid.UUID) (ChargingSessionView, error) {
+	if service.live == nil {
+		return ChargingSessionView{}, fmt.Errorf("live operations capability is unavailable")
+	}
 	var session models.ChargingSession
 	if err := service.database.WithContext(ctx).First(&session, "id = ? AND cpo_id = ? AND customer_id = ?", sessionID, principal.CPOID, principal.CustomerID).Error; err != nil {
 		return ChargingSessionView{}, customerNetworkNotFound(err, "charging session")
@@ -284,36 +287,19 @@ func (service *Service) GetChargingSession(ctx context.Context, principal Princi
 	if session.StartIntentID == nil || service.database.WithContext(ctx).First(&intent, "id = ?", *session.StartIntentID).Error != nil {
 		return ChargingSessionView{}, fmt.Errorf("load charging start intent: %w", gorm.ErrRecordNotFound)
 	}
-	view := ChargingSessionView{ID: session.ID, StartIntentID: intent.ID, State: string(session.Status), StartProgress: intent.Status, LatestMeterWh: session.LatestMeterWh, MeterObservedAt: session.MeterObservedAt, ConnectionState: "UNKNOWN", MeterFreshness: "UNKNOWN", ConnectorFreshness: "UNKNOWN", CompletedAt: session.EndTime}
-	if session.LatestMeterWh != nil {
-		consumed := *session.LatestMeterWh - session.MeterStartWh
-		if consumed >= 0 {
-			view.ConsumedWh = &consumed
-		}
-		if session.MeterObservedAt != nil {
-			view.MeterFreshness = "FRESH"
-			if service.now().Sub(*session.MeterObservedAt) > service.halMeterStaleAfter {
-				view.MeterFreshness = "STALE"
-			}
-		}
+	live, err := service.live.GetSession(ctx, principal.CPOID, session.ID)
+	if err != nil {
+		return ChargingSessionView{}, fmt.Errorf("load session live state: %w", err)
 	}
-	var runtime models.HALChargerRuntime
-	if service.database.WithContext(ctx).First(&runtime, "cms_charger_id = ?", session.ChargerID).Error == nil {
-		view.ConnectionState = runtime.ConnectionState
-		view.ConnectionObservedAt = &runtime.ObservedAt
-		if runtime.ConnectionState != "ONLINE" {
-			view.MeterFreshness = "STALE"
-		}
+	charger, err := service.live.GetCharger(ctx, principal.CPOID, session.ChargerID)
+	if err != nil {
+		return ChargingSessionView{}, fmt.Errorf("load charger live state: %w", err)
 	}
-	var connector models.HALConnectorRuntime
-	if service.database.WithContext(ctx).First(&connector, "cms_connector_id = ?", session.ConnectorID).Error == nil {
-		view.ConnectorOCPPStatus = &connector.OCPPConnectorStatus
-		view.ConnectorObservedAt = &connector.ObservedAt
-		view.ConnectorFreshness = "FRESH"
-		if view.ConnectionState != "ONLINE" {
-			view.ConnectorFreshness = "STALE"
-		}
+	connector, err := service.live.GetConnector(ctx, principal.CPOID, session.ConnectorID)
+	if err != nil {
+		return ChargingSessionView{}, fmt.Errorf("load connector live state: %w", err)
 	}
+	view := ChargingSessionView{ID: session.ID, StartIntentID: intent.ID, State: live.State, StartProgress: intent.Status, LatestMeterWh: live.LatestMeterWh, ConsumedWh: live.ConsumedWh, MeterObservedAt: live.MeterObservedAt, MeterFreshness: live.MeterFreshness, ConnectionState: charger.ConnectionState, ConnectionObservedAt: charger.ConnectionObservedAt, ConnectorOCPPStatus: connector.LastOCPPStatus, ConnectorObservedAt: connector.ObservedAt, ConnectorFreshness: connector.Freshness, CompletedAt: live.CompletedAt}
 	if session.Status == constants.SessionStatusStopPending {
 		value := "REQUESTED"
 		view.StopProgress = &value

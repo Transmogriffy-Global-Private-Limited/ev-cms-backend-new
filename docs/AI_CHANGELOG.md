@@ -1,5 +1,21 @@
 # AI Changelog
 
+## 2026-08-12
+
+### CMS HAL operational capability layer started
+
+- Separated low-level HAL wire transport from CMS operation, shared fact-ingress,
+  and projection-read capabilities; added CPO/Platform live snapshots, User
+  App safe availability/session projections, durable operational events, and
+  scoped cursor/SSE recovery for CPO ADMIN, Platform-per-CPO observation, and
+  CPO-local customers.
+- Stale connection, connector, and meter sequences do not publish new event
+  records. Inventory mapping is marked pending before post-commit HAL delivery
+  and resynchronizes after charger edits/status changes.
+- Compile and OpenAPI route-parity checks passed. No migration, deployment,
+  commit, push, or provider change occurred; PostgreSQL lifecycle, SSE behavior,
+  reconciliation recovery, and dual-service topology verification remain pending.
+
 ## 2026-08-11
 
 ### Rehosted latest main revision and reconciled deployment records

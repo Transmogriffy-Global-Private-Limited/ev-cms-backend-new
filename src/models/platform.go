@@ -17,6 +17,20 @@ type PlatformEvent struct {
 	ExpiresAt    time.Time  `gorm:"not null;index" json:"-"`
 }
 
+// OperationalEvent is a durable, scope-filtered notification of already
+// committed HAL-derived CMS projection state. REST projections remain truth.
+type OperationalEvent struct {
+	ID           int64      `gorm:"primaryKey;autoIncrement" json:"id"`
+	CPOID        uuid.UUID  `gorm:"type:uuid;not null;index" json:"cpo_id"`
+	CustomerID   *uuid.UUID `gorm:"type:uuid;index" json:"customer_id,omitempty"`
+	EventType    string     `gorm:"type:varchar(150);not null;index" json:"type"`
+	ResourceType string     `gorm:"type:varchar(100);not null" json:"resource_type"`
+	ResourceID   string     `gorm:"type:varchar(255);not null" json:"resource_id"`
+	Data         JSONB      `gorm:"type:jsonb;not null;default:'{}'" json:"data"`
+	OccurredAt   time.Time  `gorm:"not null;index" json:"occurred_at"`
+	ExpiresAt    time.Time  `gorm:"not null;index" json:"-"`
+}
+
 type WorkerInstance struct {
 	ID                 uuid.UUID  `gorm:"type:uuid;primaryKey;default:gen_random_uuid()" json:"id"`
 	WorkerName         string     `gorm:"type:varchar(100);not null;uniqueIndex:uq_worker_identity,priority:1" json:"name"`

@@ -10,6 +10,7 @@ import (
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/auth"
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/cpo"
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/customerauth"
+	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/halops"
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/integrations"
 	cmsmiddleware "github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/middleware"
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/platformops"
@@ -74,7 +75,7 @@ func New(
 	}
 	if customerAuthService != nil {
 		customerauth.RegisterRoutes(router.Group("/api/v1/app"), customerAuthService)
-		customerauth.RegisterHALFactRoutes(router.Group("/v1"), customerAuthService)
+		halops.RegisterFactRoutes(router.Group("/v1"), customerAuthService.HALFactIngestor())
 	}
 	if authService != nil && cpoService != nil {
 		cpo.RegisterPlatformRoutes(

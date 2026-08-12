@@ -103,19 +103,21 @@ Current phase:
 
 Active work:
 
-- `docs/work/active/WI-20260811-cms-hal-first-charging-vertical.md`.
+- `docs/work/active/WI-20260812-cms-hal-operational-capabilities.md`.
 
 Current implementation state:
 
-- CMS source and the development deployment contain the first client, durable
-  records, fact receiver, customer polling/start/stop routes, and 157-operation
-  OpenAPI surface. The HAL v1 provider is not configured on this host, and the
-  complete Postgres-to-HAL-to-virtual-charger vertical is not verified yet.
+- CMS source contains the first client, durable records, shared fact receiver,
+  customer polling/start/stop routes, reusable operational projections,
+  scoped operational-event replay/SSE, and a 172-operation OpenAPI surface.
+  Source state is ahead of the development deployment. The HAL v1 provider is
+  not configured on this host, and the complete Postgres-to-HAL-to-virtual-
+  charger vertical is not verified yet.
 
 Next required slice:
 
-1. Add disposable PostgreSQL lifecycle tests and a bounded reconciliation
-   worker for pending/ambiguous CMS commands.
+1. Add disposable PostgreSQL lifecycle tests for mapping, fact, projection,
+   operational-event, and reconciliation persistence.
 2. Run the real loopback HAL and virtual OCPP charger acceptance topology,
    including duplicate, restart, and outage cases.
 
@@ -886,26 +888,18 @@ Non-goals:
 
 Current phase:
 
-- Phase 2: Authentication and CPO administration, with initial Phase 3/4 CPO
-  configuration implemented
+- Phases 5 and 6: CMS HAL charging lifecycle and operational projections
 
 Active feature:
 
-- Customer app experience — User App Razorpay wallet recharge
+- CMS HAL operational capability layer
 
 Current implementation slice:
 
-- Separated User App credential/session routes at `/api/v1/app/auth` from
-  authenticated app-resource routes at `/api/v1/app`; handlers, OpenAPI,
-  verification expectations, and frontend/integration guidance move together.
-- Added User App Razorpay order creation and checkout verification using the
-  existing encrypted CPO integration credentials. Durable recharge orders,
-  provider payment attempts, future-refund records, provider snapshots, and
-  the atomic wallet-credit ledger link are now in migration 22. No CPO or
-  Superadmin payment API, RFID flow, webhook, refund command, or HAL call is
-  added.
-  Disposable PostgreSQL lifecycle checks remain deferred by decision until
-  explicitly reactivated.
+- Shared CMS HAL mapping/command reconciliation, fact ingress, durable
+  projections, stale/offline freshness, scoped operational events, and CPO/App/
+  Platform cursor/SSE consumption. PostgreSQL lifecycle and physical-topology
+  acceptance remain pending.
 
 Last completed slice:
 

@@ -2,6 +2,16 @@
 
 ## Current State
 
+### 2026-08-12 — CMS HAL operational capability work in progress
+
+- Source now contains `halops` for CMS command/mapping/reconciliation and fact
+  ingress, `liveops` for committed projection reads/freshness, and durable
+  scoped operational-event persistence. CPO and Platform operational REST
+  snapshots do not synchronously call HAL.
+- This is in-progress source state only: migration 33 is unapplied, and the
+  fact/mapping/reconciliation/SSE persistence path plus real
+  PostgreSQL/HAL/virtual-charger acceptance remain unverified.
+
 The repository began as an empty file scaffold. The implemented foundation now
 provides:
 

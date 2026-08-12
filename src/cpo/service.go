@@ -16,8 +16,11 @@ import (
 
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/auth"
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/constants"
+	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/halops"
+	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/liveops"
 	cmsmail "github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/mail"
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/models"
+	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/operationalrealtime"
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/platformops"
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/security"
 	"github.com/gin-gonic/gin"
@@ -52,6 +55,9 @@ type Service struct {
 	events               *platformops.Service
 	now                  func() time.Time
 	chargerConnectionURL string
+	halOperations        *halops.Service
+	liveOperations       *liveops.Service
+	operationalEvents    *operationalrealtime.Service
 }
 
 type sessionRevocationCounts struct {
@@ -61,6 +67,19 @@ type sessionRevocationCounts struct {
 
 func (service *Service) WithPlatformEvents(events *platformops.Service) *Service {
 	service.events = events
+	return service
+}
+
+// WithOperationalCapabilities keeps CPO authorization in this service while
+// delegating provider mechanics and live reads to CMS-owned capabilities.
+func (service *Service) WithOperationalCapabilities(hal *halops.Service, live *liveops.Service) *Service {
+	service.halOperations = hal
+	service.liveOperations = live
+	return service
+}
+
+func (service *Service) WithOperationalEvents(events *operationalrealtime.Service) *Service {
+	service.operationalEvents = events
 	return service
 }
 
@@ -1967,6 +1986,9 @@ func (service *Service) CreateCharger(
 			}
 			record.Connectors = append(record.Connectors, connectorRecord)
 		}
+		if err := tx.Create(&models.HALChargerMapping{CMSChargerID: record.ID, CPOID: cpoID, ChargerOCPPIdentity: record.OCPPIdentity, SyncState: "PENDING", CreatedAt: now, UpdatedAt: now}).Error; err != nil {
+			return fmt.Errorf("create pending HAL charger mapping: %w", err)
+		}
 
 		return writeAudit(
 			tx,
@@ -1985,12 +2007,22 @@ func (service *Service) CreateCharger(
 	if err != nil {
 		return ChargerResponse{}, err
 	}
+	if service.halOperations != nil {
+		// The inventory transaction already committed. A transient provider
+		// failure is durable reconciliation work, not a failed CPO edit.
+		_ = service.halOperations.EnsureChargerMapping(ctx.Request.Context(), record.ID, "cpo-charger-update")
+	}
 
 	if record.HubID != nil {
 		var hub models.Hub
 		if err := service.database.WithContext(ctx).First(&hub, "id = ?", *record.HubID).Error; err == nil {
 			record.Hub = &hub
 		}
+	}
+	if service.halOperations != nil {
+		// Inventory is durable even when HAL is unavailable; the capability leaves
+		// the mapping pending for its bounded reconciler.
+		_ = service.halOperations.EnsureChargerMapping(ctx.Request.Context(), record.ID, "cpo-charger-created")
 	}
 
 	return service.chargerView(record, principal), nil
@@ -2937,6 +2969,111 @@ func (service *Service) GetCharger(
 		return ChargerResponse{}, mapChargerNotFound(err)
 	}
 	return service.chargerView(record, principal), nil
+}
+
+func (service *Service) GetOperationalCharger(ctx context.Context, principal auth.Principal, chargerID string) (OperationalChargerResponse, error) {
+	if err := requireCPOAdminAccess(principal); err != nil {
+		return OperationalChargerResponse{}, err
+	}
+	if service.liveOperations == nil {
+		return OperationalChargerResponse{}, errors.New("live operations capability is unavailable")
+	}
+	chargerID = normalizeChargerID(chargerID)
+	if !chargerIDPattern.MatchString(chargerID) {
+		return OperationalChargerResponse{}, invalid("charger_id", "The charger ID is invalid.")
+	}
+	var record models.Charger
+	if err := service.database.WithContext(ctx).Preload("Connectors", func(tx *gorm.DB) *gorm.DB { return tx.Order("connector_number ASC") }).Preload("Hub").First(&record, "cpo_id = ? AND charger_id = ?", *principal.CPOID, chargerID).Error; err != nil {
+		return OperationalChargerResponse{}, mapChargerNotFound(err)
+	}
+	live, err := service.liveOperations.GetChargerDetail(ctx, *principal.CPOID, record.ID)
+	if err != nil {
+		return OperationalChargerResponse{}, fmt.Errorf("load charger operational state: %w", err)
+	}
+	return OperationalChargerResponse{Charger: service.chargerView(record, principal), Live: live}, nil
+}
+
+func (service *Service) GetFleetOperations(ctx context.Context, principal auth.Principal) (FleetOperationsResponse, error) {
+	if err := requireCPOAdminAccess(principal); err != nil {
+		return FleetOperationsResponse{}, err
+	}
+	if service.liveOperations == nil {
+		return FleetOperationsResponse{}, errors.New("live operations capability is unavailable")
+	}
+	fleet, err := service.liveOperations.GetFleet(ctx, *principal.CPOID)
+	if err != nil {
+		return FleetOperationsResponse{}, fmt.Errorf("load CPO fleet operational state: %w", err)
+	}
+	return FleetOperationsResponse{Fleet: fleet}, nil
+}
+
+// Platform operational views are observation-only. They deliberately do not
+// expose a cross-tenant RemoteStop or any other charger-control command.
+func (service *Service) GetPlatformFleetOperations(ctx context.Context, principal auth.Principal, cpoID uuid.UUID) (FleetOperationsResponse, error) {
+	if err := requirePlatform(principal); err != nil {
+		return FleetOperationsResponse{}, err
+	}
+	if service.liveOperations == nil {
+		return FleetOperationsResponse{}, errors.New("live operations capability is unavailable")
+	}
+	fleet, err := service.liveOperations.GetFleet(ctx, cpoID)
+	if err != nil {
+		return FleetOperationsResponse{}, fmt.Errorf("load platform fleet operational state: %w", err)
+	}
+	return FleetOperationsResponse{Fleet: fleet}, nil
+}
+
+func (service *Service) GetPlatformOperationalCharger(ctx context.Context, principal auth.Principal, cpoID uuid.UUID, chargerID string) (OperationalChargerResponse, error) {
+	if err := requirePlatform(principal); err != nil {
+		return OperationalChargerResponse{}, err
+	}
+	if service.liveOperations == nil {
+		return OperationalChargerResponse{}, errors.New("live operations capability is unavailable")
+	}
+	chargerID = normalizeChargerID(chargerID)
+	if !chargerIDPattern.MatchString(chargerID) {
+		return OperationalChargerResponse{}, invalid("charger_id", "The charger ID is invalid.")
+	}
+	var record models.Charger
+	if err := service.database.WithContext(ctx).Preload("Connectors", func(tx *gorm.DB) *gorm.DB { return tx.Order("connector_number ASC") }).Preload("Hub").First(&record, "cpo_id = ? AND charger_id = ?", cpoID, chargerID).Error; err != nil {
+		return OperationalChargerResponse{}, mapChargerNotFound(err)
+	}
+	live, err := service.liveOperations.GetChargerDetail(ctx, cpoID, record.ID)
+	if err != nil {
+		return OperationalChargerResponse{}, fmt.Errorf("load platform charger operational state: %w", err)
+	}
+	return OperationalChargerResponse{Charger: service.chargerView(record, principal), Live: live}, nil
+}
+
+func (service *Service) ListOperationalEvents(ctx context.Context, principal auth.Principal, after int64, limit int) (operationalrealtime.Page, error) {
+	if err := requireCPOAdminAccess(principal); err != nil {
+		return operationalrealtime.Page{}, err
+	}
+	if service.operationalEvents == nil {
+		return operationalrealtime.Page{}, fmt.Errorf("operational event capability is unavailable")
+	}
+	return service.operationalEvents.ListCPO(ctx, *principal.CPOID, after, limit)
+}
+
+func (service *Service) ListPlatformOperationalEvents(ctx context.Context, principal auth.Principal, cpoID uuid.UUID, after int64, limit int) (operationalrealtime.Page, error) {
+	if err := requirePlatform(principal); err != nil {
+		return operationalrealtime.Page{}, err
+	}
+	if service.operationalEvents == nil {
+		return operationalrealtime.Page{}, fmt.Errorf("operational event capability is unavailable")
+	}
+	var cpo models.CPO
+	if err := service.database.WithContext(ctx).First(&cpo, "id = ?", cpoID).Error; err != nil {
+		return operationalrealtime.Page{}, mapNotFound(err)
+	}
+	return service.operationalEvents.ListCPO(ctx, cpoID, after, limit)
+}
+
+func (service *Service) OperationalStreamTiming() (time.Duration, time.Duration, int) {
+	if service.operationalEvents == nil {
+		return time.Second, 15 * time.Second, 100
+	}
+	return service.operationalEvents.StreamTiming()
 }
 
 func (service *Service) UpdateCharger(
@@ -5044,6 +5181,11 @@ func (service *Service) UpdateChargerStatus(
 
 	if err != nil {
 		return ChargerStatusResponse{}, err
+	}
+	if service.halOperations != nil {
+		// Keep HAL's enabled projection aligned after the CMS source of truth
+		// commits; failed delivery is recorded for the reconciler.
+		_ = service.halOperations.EnsureChargerMapping(ctx, charger.ID, "cpo-charger-status-update")
 	}
 
 	return ChargerStatusResponse{

@@ -93,31 +93,32 @@ type CustomerHubView struct {
 }
 
 type CustomerChargerView struct {
-	ID                  uuid.UUID               `json:"id"`
-	HubID               uuid.UUID               `json:"hub_id"`
-	ChargerID           string                  `json:"charger_id"`
-	ChargerName         string                  `json:"charger_name,omitempty"`
-	Vendor              *string                 `json:"vendor,omitempty"`
-	Model               *string                 `json:"model,omitempty"`
-	MaxPowerKW          float64                 `json:"max_power_kw"`
-	OCPPVersion         string                  `json:"ocpp_version"`
-	Status              constants.ChargerStatus `json:"status"`
-	ChargerImageURL     *string                 `json:"charger_image_url,omitempty"`
-	ChargerType         string                  `json:"charger_type,omitempty"`
-	Segment             string                  `json:"segment,omitempty"`
-	SubSegment          string                  `json:"sub_segment,omitempty"`
-	ChargerUseType      string                  `json:"charger_use_type,omitempty"`
-	Parking             string                  `json:"parking,omitempty"`
-	HubName             string                  `json:"hub_name,omitempty"`
-	HubAddress          string                  `json:"hub_address,omitempty"`
-	HubLatitude         *float64                `json:"hub_latitude,omitempty"`
-	HubLongitude        *float64                `json:"hub_longitude,omitempty"`
-	TwentyFourSevenOpen bool                    `json:"twenty_four_seven_open_status"`
-	HubOpen24Hours      *bool                   `json:"hub_open_24_hours,omitempty"`
-	DistanceKM          *float64                `json:"distance_km,omitempty"`
-	Availability        string                  `json:"availability"`
-	IsFavorite          bool                    `json:"is_favorite"`
-	Connectors          []CustomerConnectorView `json:"connectors"`
+	ID                    uuid.UUID               `json:"id"`
+	HubID                 uuid.UUID               `json:"hub_id"`
+	ChargerID             string                  `json:"charger_id"`
+	ChargerName           string                  `json:"charger_name,omitempty"`
+	Vendor                *string                 `json:"vendor,omitempty"`
+	Model                 *string                 `json:"model,omitempty"`
+	MaxPowerKW            float64                 `json:"max_power_kw"`
+	OCPPVersion           string                  `json:"ocpp_version"`
+	Status                constants.ChargerStatus `json:"status"`
+	ChargerImageURL       *string                 `json:"charger_image_url,omitempty"`
+	ChargerType           string                  `json:"charger_type,omitempty"`
+	Segment               string                  `json:"segment,omitempty"`
+	SubSegment            string                  `json:"sub_segment,omitempty"`
+	ChargerUseType        string                  `json:"charger_use_type,omitempty"`
+	Parking               string                  `json:"parking,omitempty"`
+	HubName               string                  `json:"hub_name,omitempty"`
+	HubAddress            string                  `json:"hub_address,omitempty"`
+	HubLatitude           *float64                `json:"hub_latitude,omitempty"`
+	HubLongitude          *float64                `json:"hub_longitude,omitempty"`
+	TwentyFourSevenOpen   bool                    `json:"twenty_four_seven_open_status"`
+	HubOpen24Hours        *bool                   `json:"hub_open_24_hours,omitempty"`
+	DistanceKM            *float64                `json:"distance_km,omitempty"`
+	Availability          string                  `json:"availability"`
+	AvailabilityFreshness string                  `json:"availability_freshness"`
+	IsFavorite            bool                    `json:"is_favorite"`
+	Connectors            []CustomerConnectorView `json:"connectors"`
 }
 
 const customerChargerSearchRadiusKM = 10.0
@@ -249,6 +250,7 @@ type CustomerConnectorView struct {
 	ConnectorTotalCapacity float64                 `json:"connector_total_capacity"`
 	Status                 constants.ChargerStatus `json:"status"`
 	Availability           string                  `json:"availability"`
+	Freshness              string                  `json:"freshness"`
 }
 
 func (service *Service) ListCustomerHubs(ctx context.Context, principal Principal, query CustomerHubListQuery) (CustomerHubListResponse, error) {
@@ -340,7 +342,32 @@ func (service *Service) GetCustomerCharger(ctx context.Context, principal Princi
 	if err != nil {
 		return CustomerChargerView{}, err
 	}
-	return customerChargerView(charger, favoriteChargers[charger.ID]), nil
+	view := customerChargerView(charger, favoriteChargers[charger.ID])
+	if service.live == nil {
+		return view, nil
+	}
+	live, err := service.live.GetChargerDetail(ctx, principal.CPOID, charger.ID)
+	if err != nil {
+		return CustomerChargerView{}, fmt.Errorf("load customer-safe charger live state: %w", err)
+	}
+	view.AvailabilityFreshness = live.Charger.ConnectionFreshness
+	availabilityByConnector := make(map[uuid.UUID]string, len(live.Connectors))
+	freshnessByConnector := make(map[uuid.UUID]string, len(live.Connectors))
+	for _, connector := range live.Connectors {
+		availabilityByConnector[connector.ConnectorID], freshnessByConnector[connector.ConnectorID] = connector.Availability, connector.Freshness
+	}
+	view.Availability = "UNAVAILABLE"
+	for index := range view.Connectors {
+		connector := &view.Connectors[index]
+		connector.Availability, connector.Freshness = availabilityByConnector[connector.ID], freshnessByConnector[connector.ID]
+		if connector.Availability == "AVAILABLE" {
+			view.Availability = "AVAILABLE"
+		}
+		if connector.Availability == "CHARGING" && view.Availability != "AVAILABLE" {
+			view.Availability = "CHARGING"
+		}
+	}
+	return view, nil
 }
 
 func validateCustomerHubListQuery(query *CustomerHubListQuery) error {
@@ -469,9 +496,10 @@ func customerChargerView(record models.Charger, favorite bool) CustomerChargerVi
 			ConnectorTotalCapacity: connector.ConnectorTotalCapacity,
 			Status:                 connector.Status,
 			Availability:           customerAvailabilityUnknown,
+			Freshness:              customerAvailabilityUnknown,
 		})
 	}
-	view := CustomerChargerView{ID: record.ID, HubID: hubID, ChargerID: record.ChargerID, ChargerName: record.ChargerName, Vendor: record.Vendor, Model: record.Model, MaxPowerKW: record.MaxPowerKW, OCPPVersion: record.OCPPVersion, Status: record.Status, ChargerImageURL: customerChargerImageURL(record), ChargerType: record.ChargerType, Segment: record.Segment, SubSegment: record.SubSegment, ChargerUseType: record.ChargerUseType, Parking: record.Parking, TwentyFourSevenOpen: record.TwentyFourSevenOpen, Availability: customerAvailabilityUnknown, IsFavorite: favorite, Connectors: connectors}
+	view := CustomerChargerView{ID: record.ID, HubID: hubID, ChargerID: record.ChargerID, ChargerName: record.ChargerName, Vendor: record.Vendor, Model: record.Model, MaxPowerKW: record.MaxPowerKW, OCPPVersion: record.OCPPVersion, Status: record.Status, ChargerImageURL: customerChargerImageURL(record), ChargerType: record.ChargerType, Segment: record.Segment, SubSegment: record.SubSegment, ChargerUseType: record.ChargerUseType, Parking: record.Parking, TwentyFourSevenOpen: record.TwentyFourSevenOpen, Availability: customerAvailabilityUnknown, AvailabilityFreshness: customerAvailabilityUnknown, IsFavorite: favorite, Connectors: connectors}
 	if record.Hub != nil {
 		open24Hours := record.Hub.Open24Hours
 		view.HubName = record.Hub.Name

@@ -70,6 +70,7 @@ func TestGORMModelsParse(t *testing.T) {
 		&CustomerSignupChallenge{},
 		&CPOIntegration{},
 		&PlatformEvent{},
+		&OperationalEvent{},
 		&WorkerInstance{},
 		&PlatformAnnouncement{},
 		&PlatformNotification{},
