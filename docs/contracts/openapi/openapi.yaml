@@ -4194,8 +4194,12 @@ paths:
         "403":
           $ref: "#/components/responses/Forbidden"
         "404":
-          $ref: "#/components/responses/NotFound"
-      get:
+          description: "Hub or GST not found."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+    get:
       tags:
         - "CPO Operations - Network"
       summary: "Get the assigned GST profile for a hub"
