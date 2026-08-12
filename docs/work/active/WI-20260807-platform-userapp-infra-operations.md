@@ -152,6 +152,8 @@ rules, near-me behavior, current-CPO scope, and customer-visible-hub boundary.
 - The later shared deployment is revision `3f3a952`: migration thirty-three is
   applied and the current live OpenAPI surface has 172 operations. Service,
   public/loopback health, Swagger, and raw OpenAPI remain healthy.
+- Revision `2e8fdb3` is now active after migration thirty-four; the live
+  service remains healthy with 172 OpenAPI operations.
 - Earlier revision `d368903` deployment evidence established the prior
   161-operation contract, tenant settings/GST/CMS-HAL routes, and connector
   projection behavior before the current release.

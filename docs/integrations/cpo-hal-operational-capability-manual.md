@@ -41,8 +41,8 @@ direct HAL DB use, or a parallel event stream.
 | --- | --- | --- |
 | `cpo_id` | CMS trusted tenant UUID | client-selected scope |
 | `cms_charger_id`, `cms_connector_id` | CMS inventory UUIDs | public `charger_id` |
-| `charger_id` | six-character public CMS charger ID | OCPP identity |
-| `charger_ocpp_identity` | HAL/OCPP mapping identity | CMS UUID |
+| `charger_id` | six-character public CMS charger ID; the value assigned to `ocpp_identity` for newly created rows | CMS UUID |
+| `charger_ocpp_identity` | HAL/OCPP mapping identity; equals `charger_id` for newly created rows while older rows retain their stored compatibility value | CMS UUID |
 | `ocpp_connector_number` | physical/device connector number | connector UUID |
 | `cms_command_id` | CMS command/idempotency identity | a retry-generated UUID |
 | `hal_command_id` | HAL durable command identity | CMS command ID |
@@ -311,10 +311,610 @@ CPO handler -> require active same-CPO ADMIN -> load exact session/charger/conne
 Focused source checks are `go test ./src/liveops ./src/customerauth -count=1`,
 route contract coverage is `go test ./src/routes -run
 TestOpenAPIContractMatchesRuntimeRoutesAndServesUI -count=1`, documentation is
-`./scripts/verify-docs.ps1`, and broad checks are `go test ./...`, `go vet
-./...`, and `git diff --check`. Add database tests only against an explicitly
+`./scripts/verify-docs.ps1`, and broad checks are `go test -p 1 ./...`, `go vet
+-p 1 ./...`, and `git diff --check`. Add database tests only against an explicitly
 disposable `TEST_DATABASE_URL`. New capability tests must cover tenant scope,
 customer ownership, duplicate/altered fact, stale/out-of-order sequence,
 offline parent, timeout/reconciliation, cursor/SSE recoverability, and virtual
 charge-point start/meter/stop races. No full dual-service evidence should be
 claimed merely because database-free package tests pass.
+
+## Junior operating guide and exact reference
+
+The earlier sections are the short reference. This section is the deliberate
+slow pass for a junior: it names the safe sockets, explains the distinctions
+that prevent expensive mistakes, and records current source behavior rather
+than a desired future architecture.
+
+### 1 — Start with the mental model
+
+```text
+physical charger -- OCPP --> HAL -- immutable facts --> CMS receipt/projector
+                                                     --> PostgreSQL projection
+                                                     --> liveops --> REST
+                                                     --> operational_events --> cursor/SSE
+
+CPO/User business decision --> durable CMS intent --> halops --> halclient --> HAL
+```
+
+HAL speaks OCPP and owns protocol evidence. CMS owns commercial decisions,
+tenant authority, inventory, money, and its own REST/SSE contract. PostgreSQL
+is the durable CMS truth. REST reads that truth; SSE only says it changed.
+Normal dashboards do not ask HAL synchronously because that would create N+1
+network work, turn provider failure into read failure, and remove the CMS
+recovery authority.
+
+### 2 — Ownership is a safety boundary
+
+| HAL owns | CMS owns |
+| --- | --- |
+| OCPP connection/reconnection, protocol status, RemoteStart/Stop delivery, exact OCPP transaction ID, StartTransaction, StopTransaction, meter evidence, physical energy/time cutoff | CPO/customer identity, authorization, CMS inventory/status, tariffs/GST, wallet/holds, StartIntent, CMS command/session, settlement, REST, and browser event scope |
+
+CMS does not write HAL storage; HAL does not read CMS wallets; CPO code does
+not speak OCPP. A mapping, an acknowledgement, and an event each cross this
+boundary with a narrower meaning than a business result.
+
+### 3 — Traffic-light map
+
+| Surface | Rule |
+| --- | --- |
+| `src/cpo` | **GREEN:** normal CPO route/service/DTO work. |
+| public `src/liveops` API | **GREEN:** live projection read socket. |
+| public `src/halops` API | **GREEN:** only after business authorization/persistence. |
+| `src/operationalrealtime` public API | **YELLOW:** shared committed notification capability. |
+| `liveops`/`halops` internals | **YELLOW:** change only for a real shared capability. |
+| `src/halclient`, fact ingress/projector, runtime tables, HAL DB/OCPP | **RED:** never bypass for an ordinary CPO feature. |
+
+If you need data, use `liveops`. If you need an approved operation, use
+`halops`. If you are about to import `halclient`, create raw provider JSON, or
+query a HAL runtime table from CPO code, stop.
+
+### 4 — Practical repository map
+
+| Job | Start at | Do not replace with |
+| --- | --- | --- |
+| CPO route/live screen | `src/cpo/router.go`, `service.go`, `schemas.go` | direct HAL HTTP |
+| User App full charger list/hub/detail/favorites | `src/customerauth/network.go` | a per-row live/HAL call |
+| customer start/stop/session | `src/customerauth/charging.go` | a CPO command shortcut |
+| provider transport | `src/halclient/client.go` | a second HTTP client |
+| mapping/commands/recovery | `src/halops/operations.go` | handlers writing integration records |
+| fact validation/projection | `src/halops/facts.go`, `src/customerauth/charging_facts.go` | a client-facing endpoint |
+| durable events/SSE | `src/operationalrealtime/service.go` and CPO/User routers | an in-memory broadcast |
+| durable structure | `src/models/schema.go`, migrations 28/33/34 | undocumented direct SQL |
+
+`main.go` is the composition point. It creates and injects one shared
+`halops`, `liveops`, and `operationalrealtime` capability, starts reconciliation
+every minute, and starts durable-event retention. Add a compatible capability
+through this composition root, never with a parallel client or event stream.
+
+### 5 — Plug/socket reference
+
+#### 5.1 `halclient`: private transport
+
+```go
+func (c *halclient.Client) SyncMapping(ctx context.Context, mapping ChargerMapping, correlationID string) error
+func (c *halclient.Client) Start(ctx context.Context, command StartCommand, correlationID string) (Command, error)
+func (c *halclient.Client) Stop(ctx context.Context, command StopCommand, correlationID string) (Command, error)
+func (c *halclient.Client) GetCommand(ctx context.Context, id uuid.UUID) (Command, error)
+```
+
+It sends JSON to the configured HAL base URL with the CMS bearer,
+`Idempotency-Key`, and optional `X-Correlation-ID`. Mapping uses the CMS charger
+UUID as idempotency key; start/stop use `cms_command_id`. Missing base URL or
+command bearer gives `halclient.ErrUnavailable`; non-2xx gives
+`*halclient.HTTPError`; timeout is unknown delivery, not a safe retry with a
+new identity. It is **PRIVATE TRANSPORT — DO NOT CALL FROM CPO CODE**.
+
+#### 5.2 `halops`: normal CMS operation socket after authorization
+
+```go
+func (s *halops.Service) SyncMapping(ctx context.Context, mapping ChargerMapping, correlationID string) error
+func (s *halops.Service) EnsureChargerMapping(ctx context.Context, chargerID uuid.UUID, correlationID string) error
+func (s *halops.Service) RequestStart(ctx context.Context, request StartRequest, correlationID string) (Command, error)
+func (s *halops.Service) RequestStop(ctx context.Context, request StopRequest, correlationID string) (Command, error)
+func (s *halops.Service) ReconcileCommand(ctx context.Context, commandID uuid.UUID) (Command, error)
+func (s *halops.Service) ReconcilePending(ctx context.Context, limit int) error
+func (s *halops.Service) RunReconciler(ctx context.Context, interval time.Duration)
+```
+
+| Method | Durable/remote action | Return does not prove |
+| --- | --- | --- |
+| `SyncMapping` | sends supplied committed mapping and records mapping outcome | charger online |
+| `EnsureChargerMapping` | loads committed charger/connectors and sends mapping | inventory transaction depended on HAL |
+| `RequestStart` | sends trusted CMS start request | actual charging/session |
+| `RequestStop` | sends exact session/transaction stop request | completion/settlement |
+| `ReconcileCommand` | reads HAL with exact stored `cms_command_id`, updates matching record | that a missing transaction may be guessed |
+| `ReconcilePending` | bounded pending-mapping and command recovery (default 50) | all external state is instantly resolved |
+
+`StartRequest` contains trusted CMS command/start-intent/CPO/customer/charger/
+connector IDs, mapped identity/number, one-use credential, expiry, integer Wh
+limit and duration. `StopRequest` contains exact CMS session, HAL transaction,
+and numeric OCPP transaction IDs. `Command` contains `HALCommandID`,
+`CMSCommandID`, kind/state, optional transaction IDs, and `UpdatedAt`.
+
+#### 5.3 Fact ingestor: shared infrastructure
+
+`POST /v1/hal-facts` is HAL-only. It requires the independent fact bearer,
+`Idempotency-Key == fact_id`, a 32 KiB maximum envelope, version 1 producer
+`ocpp-hal-go-new`, and an SHA-256 digest of RFC 8785 canonical immutable
+content. `FactIngestor.Accept` applies the projector and stores the receipt in
+one transaction. Exact same ID/digest is `204` no-op; changed same ID is `409
+fact_integrity_violation`; bad bearer is `401`; invalid shape is `400`.
+
+#### 5.4 `liveops`: exact read signatures and returns
+
+```go
+func (s *liveops.Service) GetCharger(ctx context.Context, cpoID, chargerID uuid.UUID) (ChargerState, error)
+func (s *liveops.Service) GetConnector(ctx context.Context, cpoID, connectorID uuid.UUID) (ConnectorState, error)
+func (s *liveops.Service) GetChargerDetail(ctx context.Context, cpoID, chargerID uuid.UUID) (ChargerDetail, error)
+func (s *liveops.Service) GetChargerDetails(ctx context.Context, cpoID uuid.UUID, chargerIDs []uuid.UUID) (map[uuid.UUID]ChargerDetail, error)
+func (s *liveops.Service) GetSession(ctx context.Context, cpoID, sessionID uuid.UUID) (SessionState, error)
+func (s *liveops.Service) GetFleet(ctx context.Context, cpoID uuid.UUID) (FleetState, error)
+```
+
+| Type | Important exported fields |
+| --- | --- |
+| `ChargerState` | charger/CPO IDs, `ConnectionState`, `ConnectionFreshness`, observed time, sequence, generation |
+| `ConnectorState` | connector/charger/CPO IDs, `LastOCPPStatus`, derived availability/freshness, observation/sequence, parent connection |
+| `ChargerDetail` | `Charger ChargerState`, `Connectors []ConnectorState` |
+| `SessionState` | session/CPO/customer IDs, state, start/completion, latest/consumed Wh, meter observation/freshness |
+| `FleetState` | totals; online/offline/unknown chargers; available/charging/faulted connectors; active sessions |
+
+Every `liveops` method reads CMS PostgreSQL only. `GetChargerDetails` is the
+list-safe method: it de-duplicates IDs and loads topology, charger runtime, and
+connector runtime in bounded query sets. Use it for 50 rows, not 50 calls.
+
+#### 5.5 `operationalrealtime`: shared realtime capability
+
+```go
+func (s *operationalrealtime.Service) Emit(tx *gorm.DB, input Input) (models.OperationalEvent, error)
+func (s *operationalrealtime.Service) ListCPO(ctx context.Context, cpoID uuid.UUID, after int64, limit int) (Page, error)
+func (s *operationalrealtime.Service) ListCustomer(ctx context.Context, cpoID, customerID uuid.UUID, after int64, limit int) (Page, error)
+func (s *operationalrealtime.Service) ListPlatform(ctx context.Context, cpoID *uuid.UUID, after int64, limit int) (Page, error)
+func (s *operationalrealtime.Service) StreamTiming() (time.Duration, time.Duration, int)
+func ParseCursor(afterText, limitText string) (int64, int, error)
+func WriteSSE(writer io.Writer, events []models.OperationalEvent) error
+```
+
+Emit only inside the successful projection transaction. It persists scope,
+event/resource identity, small data, occurrence, and expiry before any SSE
+frame exists. Cursors are nonnegative numeric IDs; limit is 1–500 (default
+100). Heartbeats revalidate the bearer/session scope. This is a **SHARED
+REALTIME CAPABILITY**, not a second authoritative data store.
+
+### 6 — Which method do I call?
+
+| Need | Call |
+| --- | --- |
+| one charger connection | `GetCharger` |
+| one charger plus connectors | `GetChargerDetail` |
+| fifty charger details | `GetChargerDetails` |
+| one connector | `GetConnector` |
+| CPO aggregates | `GetFleet` |
+| session/meter state | `GetSession` |
+| committed mapping push | `EnsureChargerMapping` |
+| approved operation | `RequestStart`/`RequestStop` after durable business work |
+| ambiguous command | `ReconcileCommand` with same CMS command ID |
+
+### 7 — Return-value school
+
+| Result | Means | Does not mean |
+| --- | --- | --- |
+| mapping success | provider accepted directory mapping | charger connected |
+| `RequestStart` command | HAL has durable command representation | actual start |
+| `RequestStop` command | HAL has durable stop command | actual stop/completion |
+| `transaction.started` accepted | CMS created one active session | final meter/settlement |
+| `transaction.completed` accepted | CMS finalization transaction succeeded | changed fact will be processed again |
+| timeout | caller lacks response knowledge | provider did not receive request |
+| SSE frame | committed state changed | payload is current full state |
+
+### 8 and 9 — Static/live data and availability derivation
+
+Static inventory supplies public ID, CMS UUID, name, hub, connector number/type,
+and administrative status. HAL-derived projections supply connection state,
+OCPP connector status, sequences, observations, freshness, session/meter state.
+
+| Evidence | Derived connector availability |
+| --- | --- |
+| no runtime observation | `UNKNOWN` / `UNKNOWN` freshness |
+| parent offline, unknown, or stale | `UNAVAILABLE` / `STALE` |
+| fresh online + `Available` | `AVAILABLE` |
+| fresh online + `Charging`/`Preparing`/`Finishing` | `CHARGING` |
+| fresh online + `Faulted` | `FAULTED` |
+| other fresh OCPP state | `UNAVAILABLE` |
+
+CMS `ACTIVE` is not HAL `ONLINE`. The User App overlay preserves that safety
+gate: inactive charger/connector inventory is unavailable regardless of older
+live evidence. `HAL_V1_METER_STALE_AFTER` defaults to 30 seconds and produces
+`FRESH`, `STALE`, or `UNKNOWN`; it never invents a reading.
+
+### 10 — Identifier school
+
+| ID | Meaning | Not interchangeable with |
+| --- | --- | --- |
+| `cms_charger_id` / CMS charger UUID | durable CMS inventory | public `charger_id` |
+| `charger_id` | six-character public identifier | internal UUID |
+| `charger_ocpp_identity` | stored CMS/HAL mapping identity | a fabricated `ocpp_` prefix |
+| `cms_connector_id` / `ocpp_connector_number` | CMS connector / physical protocol address | each other |
+| `cms_start_intent_id` | commercial request | CMS session |
+| `cms_command_id` / `hal_command_id` | CMS recovery/idempotency ID / HAL command ID | each other |
+| CMS session / `hal_transaction_id` / `ocpp_transaction_id` | business projection / HAL UUID / exact numeric OCPP ID | each other |
+| `fact_id` / event `id` | immutable delivery identity / replay cursor | command/resource IDs |
+
+New chargers assign the same generated six-character value to `charger_id` and
+`ocpp_identity`; older rows retain stored compatibility identities. The CMS
+charger UUID remains a different resource ID.
+
+### 11 — Creation and mapping flow
+
+```text
+CPO ADMIN validation -> CMS transaction: charger + connectors + PENDING mapping
+                    -> commit -> one EnsureChargerMapping("cpo-charger-created")
+                              -> SYNCHRONIZED or RECONCILIATION_REQUIRED
+                              -> bounded reconciler retries committed mapping
+```
+
+Creation has exactly one normal immediate mapping push. Update and status flows
+retain their own post-commit mapping sync. HAL failure never rolls back durable
+CMS inventory, and synchronized mapping never proves online.
+
+### 12 and 13 — Connection and connector facts
+
+`charger.connection.updated` validates CPO, CMS charger, stored OCPP identity,
+state (`ONLINE`, `OFFLINE`, `UNKNOWN`), generation, sequence, and observation;
+only a higher connection sequence changes `HALChargerRuntime`.
+
+`connector.status.updated` validates CPO, CMS charger/connector, stored OCPP
+identity, mapped connector number, status, sequence, and observation; only a
+higher sequence changes `HALConnectorRuntime`. Both commit a scoped operational
+event only when the projection advanced.
+
+### 14 through 19 — Start, meter, stop, and settlement
+
+```text
+customer POST charging-sessions
+  -> lock/check active CPO, published ACTIVE charger/connector, wallet/tariff
+  -> persist StartIntent + credential hash + WalletHold + CMS command + PENDING mapping
+  -> map then RequestStart -> ACCEPTED_FOR_DELIVERY (not ACTIVE)
+  -> charger StartTransaction -> transaction.started -> one ACTIVE CMS session
+  -> MeterValues -> newer transaction.meter updates integer Wh
+  -> user/time/energy/natural stop -> charger StopTransaction
+  -> transaction.completed -> final meter, wallet debit/hold capture, COMPLETED/SETTLED
+```
+
+The start endpoint returns `202` and an intent, not a session. The stop endpoint
+sets `STOP_PENDING` and returns `202`, not `COMPLETED`. Only exact validated
+`transaction.started` materializes a session; only exact validated
+`transaction.completed` finalizes/settles one. CMS calculates affordability and
+sends integer Wh/duration limits; HAL enforces them physically without receiving
+tariff, tax, balance, or settlement authority.
+
+### 20 and 21 — Fact delivery and complete catalog
+
+HAL sends immutable facts to `POST /v1/hal-facts`; after a lost 204 it retries
+the same ID/digest/body. Same ID/digest is no-op; altered content is an integrity
+conflict. Current accepted facts are:
+
+| Fact | CMS projection |
+| --- | --- |
+| `charger.connection.updated` | latest accepted charger runtime + `charger.live_state_changed` |
+| `connector.status.updated` | latest accepted connector runtime + `connector.live_state_changed` |
+| `command.updated` | matching `HALCommandRecord` state + `charging.command_changed` |
+| `transaction.started` | one session `ACTIVE`, intent `ACTUALLY_STARTED` + session event |
+| `transaction.meter` | newer session meter only + meter event |
+| `transaction.completed` | completion, wallet/hold/ledger/payment settlement + session event |
+
+Unknown type is `400 unsupported_hal_fact`. HAL facts are not tariff, GST,
+wallet, or frontend event conclusions.
+
+### 22 through 24 — CPO reads, commands, and SSE
+
+| CPO ADMIN route | Use |
+| --- | --- |
+| `GET /api/v1/cpo/operations/fleet` | durable `FleetOperationsResponse` |
+| `GET /api/v1/cpo/operations/chargers/{charger_id}` | static `ChargerResponse` plus `ChargerDetail` |
+| `GET /api/v1/cpo/operations/events` | ordered retained cursor recovery |
+| `GET /api/v1/cpo/operations/realtime/stream` | scoped SSE |
+
+Current source has no CPO start/stop/reset/unlock endpoint. Customer start and
+owner-only stop are implemented. A future CPO command needs a separate approved
+vertical slice: same-CPO ADMIN authorization, exact resource lookup, durable CMS
+command, `halops`, fact projection, REST/SSE recovery, OpenAPI, and dual-service
+verification.
+
+SSE frames are numeric `id`, event name, and JSON data. Client stores the ID,
+uses `after_id` or `Last-Event-ID` after reconnect, deduplicates, then refetches
+the authoritative fleet/charger/session REST projection. It must not interpret
+event data as durable current state.
+
+### 25 and 26 — Reconciliation and failure playbook
+
+| Situation | Inspect / action | Never do |
+| --- | --- | --- |
+| mapping pending | `HALChargerMapping`; retry committed mapping | undo/recreate inventory |
+| command timeout | `HALCommandRecord.CMSCommandID`; exact `ReconcileCommand` | create new command UUID |
+| mapping synchronized but offline | runtime sequence/observation | call it online |
+| stale Available | parent runtime plus connector freshness | show available |
+| start stuck | intent, command, start fact receipt | mark active from command return |
+| meter stale | HAL transaction, meter sequence/receipt/session, parent freshness | estimate meter values |
+| stop stuck | stop command and completion fact | settle from RemoteStop acknowledgement |
+| duplicate/altered fact | receipt ID/digest | replay altered content |
+
+### 27 — CPO suspension and scope
+
+Tenant scope comes from the trusted staff/customer principal, never a request
+`cpo_id`. Customer start locks/checks the CPO and returns `cpo_not_active` for
+an inactive CPO. Existing physical completion/fact processing remains necessary
+to preserve actual session/settlement truth; suspension must not erase it.
+
+### 28 — Persistence map
+
+| CMS record | Role |
+| --- | --- |
+| `HALChargerMapping` | mapping identity, sync state/error/time |
+| `HALCommandRecord` | exact CMS command recovery identity and HAL state |
+| `HALFactReceipt` | fact dedupe/integrity receipt |
+| `HALChargerRuntime`, `HALConnectorRuntime` | committed connection/status projections |
+| `ChargingStartIntent`, `WalletHold` | pre-command commercial decision/reservation |
+| `ChargingSession` | materialized business session, exact OCPP ID, meter/final state |
+| `OperationalEvent` | retained CPO/customer replay notification |
+
+Migration 28 is the charging/HAL foundation; 33 adds operational events; 34
+adds nullable `tariffs.assigned_to tariff_assignment_type` metadata. No current
+tariff API backfills or requires that classification.
+
+### 29 and 30 — Red zone and derivation rules
+
+Do not access HAL database, `halclient`, raw OCPP, raw fact envelopes, or
+runtime tables directly from CPO code. Do not turn an event into authority. Do
+not set active/completed session from command acknowledgement. Do not choose a
+tenant from client input.
+
+| Display/decision | Source |
+| --- | --- |
+| name/hub/public ID/admin status | CMS inventory |
+| live connection/connector availability | `liveops` projection + freshness |
+| user-visible availability | `liveops` plus active inventory safety overlay |
+| consumed Wh | persisted latest meter minus start meter |
+| settlement | final completion transaction only |
+| near-live refresh | operational event then REST refetch |
+
+### 31 and 32 — Cookbook and wrong/right examples
+
+```go
+// WRONG: provider call in CPO code.
+command, err := halclient.New(cfg.HAL).Start(ctx, raw, correlationID)
+
+// RIGHT: authorize/persist business state, then use the CMS operation socket.
+command, err := service.halOperations.RequestStart(ctx, request, correlationID)
+```
+
+```go
+// WRONG: one call per dashboard row.
+for _, id := range chargerIDs { details[id], _ = service.live.GetChargerDetail(ctx, cpoID, id) }
+
+// RIGHT: one bounded batch projection read.
+details, err := service.live.GetChargerDetails(ctx, cpoID, chargerIDs)
+```
+
+For a new field use: provider contract -> fact -> projector/persistence ->
+`liveops` -> CPO/User consumer -> event/recovery -> tests/docs. If `liveops`
+lacks it, do not query HAL directly; extend the shared capability deliberately.
+
+### 33 — End-to-end diagrams
+
+#### 33.1 Charger registration
+
+```text
+CPO ADMIN -> CMS validate/scope -> transaction(charger, connectors, mapping PENDING)
+          -> commit -> one EnsureChargerMapping("cpo-charger-created")
+```
+
+#### 33.2 Immediate mapping push success
+
+```text
+CMS committed inventory -> halops -> halclient PUT mapping -> HAL accepts
+                      -> CMS HALChargerMapping = SYNCHRONIZED
+```
+
+#### 33.3 Mapping push failure and reconciliation
+
+```text
+CMS committed inventory -> mapping delivery error -> RECONCILIATION_REQUIRED
+reconciler -> same committed charger/connectors/identity -> EnsureChargerMapping
+```
+
+#### 33.4 Charger connection
+
+```text
+charger OCPP connect -> HAL connection evidence -> immutable connection fact
+                    -> CMS receipt + newer HALChargerRuntime -> event -> REST/SSE
+```
+
+#### 33.5 Connector Available
+
+```text
+charger StatusNotification(Available) -> HAL connector fact -> CMS runtime
+liveops -> parent ONLINE+fresh AND connector fresh -> AVAILABLE
+```
+
+#### 33.6 Customer charging start request
+
+```text
+app -> CMS authorization/tariff/wallet lock -> StartIntent + hold + CMS command commit
+    -> mapping check -> HAL RemoteStart command -> 202/ACCEPTED_FOR_DELIVERY
+```
+
+#### 33.7 Actual StartTransaction
+
+```text
+charger StartTransaction -> HAL transaction.started -> CMS validates exact chain
+                         -> receipt + one ACTIVE session + session event
+```
+
+#### 33.8 Meter progression
+
+```text
+charger MeterValues -> HAL transaction.meter(sequence, integer Wh)
+                    -> CMS accepts newer sequence only -> meter event -> GET session
+```
+
+#### 33.9 Energy-limit stop
+
+```text
+CMS affordable Wh -> HAL physical energy_limit_wh -> charger StopTransaction
+                  -> transaction.completed -> CMS final meter/settlement
+```
+
+#### 33.10 Time-limit stop
+
+```text
+CMS max_duration_seconds -> HAL physical cutoff -> charger StopTransaction
+                         -> transaction.completed -> CMS final settlement
+```
+
+#### 33.11 Customer stop
+
+```text
+owner -> CMS persists STOP command and sets STOP_PENDING -> halops.RequestStop
+      -> HAL/OCPP delivery -> charger StopTransaction -> completion fact
+```
+
+#### 33.12 Natural charger stop
+
+```text
+charger stops independently -> HAL observes StopTransaction -> completion fact
+                           -> CMS validates final transaction and settles once
+```
+
+#### 33.13 Completion and settlement
+
+```text
+completion fact -> lock session/hold/wallet -> exact meter + tariff/tax snapshot
+                -> ledger/payment + hold capture + COMPLETED/SETTLED -> event
+```
+
+#### 33.14 HAL retry after lost CMS acknowledgement
+
+```text
+HAL fact -> CMS receipt/projection commit -> 204 lost in transit
+HAL retries same fact_id + digest + body -> receipt match -> 204/no second effect
+```
+
+#### 33.15 Duplicate fact
+
+```text
+same fact_id + same digest -> CMS exact duplicate no-op -> no state/event/charge repeat
+same fact_id + changed digest -> 409 integrity conflict -> investigate, do not automate
+```
+
+#### 33.16 Command timeout and reconcile
+
+```text
+CMS -> HAL request -> timeout -> CMS record RECONCILIATION_REQUIRED
+CMS -> HAL GET ?cms_command_id=SAME-ID -> known command or explicit missing evidence
+```
+
+#### 33.17 CPO dashboard REST
+
+```text
+CPO ADMIN GET fleet/charger -> authorized CMS service -> liveops -> PostgreSQL
+                         -> static inventory + committed runtime projection response
+```
+
+#### 33.18 CPO SSE update
+
+```text
+fact projection commits -> operational_events insert -> CPO SSE emits event ID/data
+client stores ID -> refetches REST snapshot; frame is not state authority
+```
+
+#### 33.19 SSE reconnect and REST recovery
+
+```text
+disconnect -> client uses stored ID as after_id or Last-Event-ID -> retained event page
+           -> dedupe/order -> authoritative REST refetch -> reopen stream
+```
+
+### 34 — Testing guide
+
+```powershell
+go test ./src/cpo -count=1
+go test ./src/liveops -count=1
+go test ./src/customerauth -count=1
+go test ./src/halops -count=1
+go test -p 1 ./...
+go vet -p 1 ./...
+go test ./src/routes -run TestOpenAPIContractMatchesRuntimeRoutesAndServesUI -count=1
+.\scripts\verify-docs.ps1
+git diff --check
+```
+
+The Windows checkout uses `-p 1` for broad Go work because parallel test-process
+startup exhausted the paging file; that is environmental, not semantic.
+`TEST_DATABASE_URL` must name an explicitly disposable database. Package tests
+cannot prove the full CMS Postgres -> CMS -> HAL -> HAL Postgres -> virtual OCPP
+charge-point topology, restart semantics, or physical OCPP acceptance.
+
+### 35 — Debugging checklist
+
+For mapping inspect inventory/connectors, `HALChargerMapping`, then reconciler.
+For offline/stale inspect runtime sequence and observed time. For wrong User App
+state inspect customer visibility/static status before the batch overlay. For
+start inspect intent, command, actual start fact; for meter inspect HAL
+transaction/sequence/receipt/session; for stop inspect command and completion
+fact. For SSE inspect durable cursor recovery before blaming a stream. Never log
+bearers, credentials, raw payloads, or customer-sensitive data while doing so.
+
+### 36 — Current implementation versus planned work
+
+Implemented: CMS inventory, pending/one-immediate mapping push and
+reconciliation, fact ingress/projections, `liveops`, CPO reads, User App full
+charger overlays, events/cursor/SSE, customer start/stop/session, limits, meter,
+completion/settlement, migrations 33 and 34.
+
+Not implemented/approved: a CPO remote-control API, arbitrary provider calls,
+physical-vendor acceptance not proven in disposable topology, or any capability
+not present in source/contract.
+
+### 37 — Planned serial-number admission
+
+> **PLANNED — DO NOT IMPLEMENT FROM THIS GUIDE YET**
+
+A separate future approval may explore `/<charger_id>/<serial_number>` WebSocket
+admission and serial-number mapping. It is not a current route, HAL contract,
+or CMS mapping field.
+
+### 38 — Quick reference and glossary
+
+```text
+one charger -> GetCharger / GetChargerDetail
+many chargers -> GetChargerDetails
+connector -> GetConnector
+session/meter -> GetSession
+fleet -> GetFleet
+approved operation -> halops
+raw transport -> halclient owns it; CPO code does not call it
+HAL fact ingress -> POST /v1/hal-facts
+browser near-live -> event + SSE; current truth -> CMS REST/PostgreSQL
+timeout -> reconcile same cms_command_id; tenant -> trusted principal CPO ID
+```
+
+A **fact** is immutable HAL evidence. A **projection** is CMS’s durable,
+validated consumer model. A **mapping** links CMS inventory to OCPP identity.
+**Reconciliation** recovers exact durable identities after ambiguity. A
+**StartIntent** is a commercial request, not a session. An SSE **cursor** is a
+durable event replay ID.
+
+### Junior safety-test completion
+
+This manual now independently answers all fifty required junior safety questions:
+the exact six `liveops` methods and return structures; static/live provenance;
+offline/stale derivation; normal CPO `liveops`/`halops` boundaries; forbidden
+transport/runtime/OCPP access; command versus physical truth; every command,
+session, transaction, fact, and event identifier; exact-ID reconciliation;
+fact delivery/dedupe/integrity; REST/SSE recovery; wallet versus physical
+enforcement; mapping failure; safe extension; diagnosis; current versus planned
+behavior; and verification. The five non-negotiable mistakes are direct HAL
+access, acknowledgement-as-truth, replacement command IDs, SSE/raw-status as
+authority, and bypassing tenant/fact/sequence safety boundaries.

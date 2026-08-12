@@ -1,11 +1,15 @@
 package constants
 
-type TariffAssignedType string
+type TariffAssignmentType string
+
+// TariffAssignedType remains a source-compatible alias for the short-lived
+// initial name introduced with migration 34.
+type TariffAssignedType = TariffAssignmentType
 
 const (
-	TariffAssignedUserGroup TariffAssignedType = "usergroup"
-	TariffAssignedHub       TariffAssignedType = "hub"
-	TariffAssignedCharger   TariffAssignedType = "charger"
+	TariffAssignedUserGroup TariffAssignmentType = "usergroup"
+	TariffAssignedHub       TariffAssignmentType = "hub"
+	TariffAssignedCharger   TariffAssignmentType = "charger"
 )
 
 type TariffType string

@@ -33,7 +33,7 @@ This directory is the durable project memory for the EV CMS backend.
 | Learning and operational workflows | `guides/` |
 | External-system boundaries | `integrations/` |
 | CMS consumer of the OCPP HAL v1 contract | `integrations/ocpp-hal-boundary.md` |
-| Canonical CPO-backend HAL operational capability manual | `integrations/cpo-hal-operational-capability-manual.md` |
+| Canonical CPO backend HAL/live-charger integration guide for safe junior and feature work | `integrations/cpo-hal-operational-capability-manual.md` |
 | Stable external and internal contracts | `contracts/` |
 | Machine-readable HTTP source of truth | `contracts/openapi/openapi.yaml` |
 | Development VPS hosting and activation | `guides/operations/dev-hosting.md` |

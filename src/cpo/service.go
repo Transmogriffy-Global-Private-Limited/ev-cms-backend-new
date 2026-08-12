@@ -2004,12 +2004,6 @@ func (service *Service) CreateCharger(
 	if err != nil {
 		return ChargerResponse{}, err
 	}
-	if service.halOperations != nil {
-		// The inventory transaction already committed. A transient provider
-		// failure is durable reconciliation work, not a failed CPO edit.
-		_ = service.halOperations.EnsureChargerMapping(ctx.Request.Context(), record.ID, "cpo-charger-update")
-	}
-
 	if record.HubID != nil {
 		var hub models.Hub
 		if err := service.database.WithContext(ctx).First(&hub, "id = ?", *record.HubID).Error; err == nil {
@@ -2968,17 +2962,6 @@ func (service *Service) GetCharger(
 	return service.chargerView(record, principal), nil
 }
 
-// OperationalChargerResponse keeps administrative inventory and HAL-derived
-// runtime separate so an inactive CMS charger can still be observed OFFLINE.
-type OperationalChargerResponse struct {
-	Charger ChargerResponse       `json:"charger"`
-	Live    liveops.ChargerDetail `json:"live"`
-}
-
-type FleetOperationsResponse struct {
-	Fleet liveops.FleetState `json:"fleet"`
-}
-
 func (service *Service) GetOperationalCharger(ctx context.Context, principal auth.Principal, chargerID string) (OperationalChargerResponse, error) {
 	if err := requireCPOAdminAccess(principal); err != nil {
 		return OperationalChargerResponse{}, err
@@ -3635,8 +3618,6 @@ func generateUniqueChargerIDTx(tx *gorm.DB) (string, error) {
 	}
 }
 
-
-
 func mapChargerNotFound(err error) error {
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return &auth.APIError{
@@ -3752,8 +3733,6 @@ func (service *Service) chargerView(record models.Charger, principal auth.Princi
 		hubName = &record.Hub.Name
 	}
 
-	ocppIdentityForURL := strings.TrimPrefix(record.OCPPIdentity, "ocpp_")
-
 	return ChargerResponse{
 		ChargerView: ChargerView{
 			ID:                      record.ID,
@@ -3782,8 +3761,8 @@ func (service *Service) chargerView(record models.Charger, principal auth.Princi
 			Protocol:                record.Protocol,
 			TwentyFourSevenOpen:     record.TwentyFourSevenOpen,
 			Connectors:              connectorsView,
-			ChargerConnectionURLWS:  fmt.Sprintf("ws://%s/%s", service.chargerConnectionURL, ocppIdentityForURL),
-			ChargerConnectionURLWSS: fmt.Sprintf("wss://%s/%s", service.chargerConnectionURL, ocppIdentityForURL),
+			ChargerConnectionURLWS:  fmt.Sprintf("ws://%s/%s", service.chargerConnectionURL, record.OCPPIdentity),
+			ChargerConnectionURLWSS: fmt.Sprintf("wss://%s/%s", service.chargerConnectionURL, record.OCPPIdentity),
 			Assigned:                record.HubID != nil,
 			CreatedAt:               record.CreatedAt,
 			UpdatedAt:               record.UpdatedAt,

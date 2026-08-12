@@ -1284,7 +1284,7 @@ func TestCPOAdminProfileAndNetworkConfigurationWithPostgreSQL(t *testing.T) {
 		t.Fatalf("create charger: %v", err)
 	}
 	if !chargerIDPattern.MatchString(charger.ChargerID) ||
-		charger.OCPPIdentity == "" ||
+		charger.OCPPIdentity != charger.ChargerID ||
 		len(charger.Connectors) != 1 {
 		t.Fatalf("server-generated charger identity is incomplete: %#v", charger)
 	}

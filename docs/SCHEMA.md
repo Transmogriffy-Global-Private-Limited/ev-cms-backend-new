@@ -49,6 +49,8 @@ Migration files:
 - `db/migrations/000032_add_state_to_hubs.down.sql`
 - `db/migrations/000033_operational_realtime_events.up.sql`
 - `db/migrations/000033_operational_realtime_events.down.sql`
+- `db/migrations/000034_add_assigned_to_to_tariffs.up.sql`
+- `db/migrations/000034_add_assigned_to_to_tariffs.down.sql`
 
 ## Supplied Model Mapping
 
@@ -61,7 +63,7 @@ Migration files:
 | `UserGroup` | tenant-owned `user_groups` |
 | App user | `customers`, a credential-owning account local to one CPO |
 | `Hub` | tenant-owned `hubs`, including non-negative sanctioned load in kW (`0` when not recorded) |
-| `Charger` | tenant-owned `chargers`, with optional same-CPO hub assignment plus separate public `charger_id` and `ocpp_identity` |
+| `Charger` | tenant-owned `chargers`, with optional same-CPO hub assignment; newly created rows assign the public `charger_id` to the compatibility `ocpp_identity` too |
 | `Connector` | tenant-owned `connectors` |
 | Group-to-hub access | `user_group_hubs` |
 | Group-to-charger access | `user_group_chargers` |
@@ -86,7 +88,9 @@ Migration files:
   floating point.
 - Sessions retain the HAL-issued integer `transaction_id`, integer meter Wh,
   billing totals, tariff/tax snapshots, timestamps, status, and stop reason.
-- The six-character public charger ID is separate from the OCPP identity.
+- The CMS charger UUID is separate from the six-character public charger ID.
+  New charger creation assigns that public value to `ocpp_identity` as the
+  compatibility mapping value; older rows retain their stored identity.
 - A charger can be created without a hub. When assigned, its nullable composite
   `(cpo_id, hub_id)` foreign key ensures the hub belongs to the same CPO.
 - Connector number is unique per charger.
@@ -111,6 +115,10 @@ Migration files:
   CPO/customer foreign keys preserve tenant ownership, and cursor/retention
   indexes support scoped REST replay and SSE recovery without making realtime
   delivery the source of truth.
+- Migration thirty-four adds nullable `tariffs.assigned_to` using the
+  PostgreSQL `tariff_assignment_type` enum. It has no backfill or `NOT NULL`
+  constraint because the current tariff APIs do not yet assign that
+  classification; the GORM model maps the exact nullable column and enum type.
 
 ## Migration Behavior
 

@@ -13,15 +13,21 @@
   map locations intentionally remain charger name plus hub coordinates only.
   CMS administrative lifecycle is kept separate from runtime evidence and is a
   customer-safety gate for displayed availability.
-- Migration thirty-three is applied on the development VPS; its
-  `operational_events` table and all four indexes are present. Revision
-  `27c01f3` is active with the 172-operation contract and healthy local/public
+- Migration thirty-four is applied on the development VPS; its nullable
+  `tariffs.assigned_to` column and `tariff_assignment_type` enum are present
+  alongside migration thirty-three's `operational_events` table and all four
+  indexes. Revision `2e8fdb3` is active with the 172-operation contract and healthy local/public
   liveness, readiness, Swagger, and raw OpenAPI routes.
 - Real PostgreSQL fact/mapping/SSE lifecycle, reconciliation recovery, and
   CMS-to-HAL-to-virtual-charger topology acceptance remain unverified pending
   the dedicated disposable database and provider test environment.
 - The User App overlay/manual release is deployed. Its focused and broad source
   verification does not replace the pending disposable dual-service acceptance.
+- Current source integration repair preserves those HAL/liveops capabilities,
+  removes duplicated CPO operational response declarations and duplicate
+  create-path mapping delivery, and aligns new charger `charger_id` and
+  `ocpp_identity` values. Migration 34's nullable tariff assignment metadata is
+  applied and remains unassigned by current tariff APIs.
 
 The repository began as an empty file scaffold. The implemented foundation now
 provides:
@@ -197,8 +203,8 @@ provides:
   handler;
 - the additive PostgreSQL database `devevcmsnewdb`, owned by `postgres`.
 
-The active development VPS runs source revision `27c01f3`, with migrations
-through thirty-three recorded and the deployed 172-operation contract. Migration
+The active development VPS runs source revision `2e8fdb3`, with migrations
+through thirty-four recorded and the deployed 172-operation contract. Migration
 twenty-nine adds nullable `tariff_type`, `price_type`, and `units` metadata to
 tenant tariffs; omitted values remain null-safe for existing and newly created
 tariffs. The SuperAdmin administrator-list query explicitly binds the platform
@@ -386,6 +392,16 @@ intentionally unsupported.
   User App full-response live-overlay descriptions passed. No DNS, Caddy, HAL
   provider configuration, or schema changed, and post-restart warnings were
   absent.
+- Revision `2e8fdb3` was built from the clean `main` worktree and rehosted after
+  migration thirty-four. The installed binary SHA-256 is
+  `95bbae5bf45576f452f4fd2eb42ce0542e29b4c943eae04ba7ee1ecf21618255`,
+  embeds `2e8fdb33abf105a58eabe894e43ab487ee7cc9be` with
+  `vcs.modified=false`, and retains `builds/evcmsnew.pre-2e8fdb3` plus a
+  mode-0600 PostgreSQL rollback dump. The enabled service is active with zero
+  restarts; migration ledger/type/column checks, loopback/public health and
+  readiness, Swagger, raw OpenAPI, the 172-operation contract, and the
+  post-rehost warning scan passed. No DNS, Caddy, or HAL provider configuration
+  changed.
 - Revision `a76d6ae` was built from a clean worktree and rehosted after
   migration thirty-one was applied. The installed binary SHA-256 is
   `0a3d397464dae13ef15b090225b4ca38fb1b4dfff946bf0de7d77cb9a5d3ebc0` and

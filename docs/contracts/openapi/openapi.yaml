@@ -3519,8 +3519,9 @@ paths:
       summary: Register a CMS charger and its initial connectors
       description: |
         Requires the currently supported CPO ADMIN authority. The server generates the six
-        character public `charger_id`, CMS UUIDs, and a globally unique
-        `ocpp_identity`; callers do not source these identifiers. The charger,
+        character public `charger_id`, CMS UUIDs, and assigns that same new
+        charger-facing value as `ocpp_identity`; callers do not source these
+        identifiers. Existing rows retain their stored compatibility values. The charger,
         connectors, and audit record commit atomically. This is commercial CMS
         inventory only and does not create an OCPP connection in the HAL.
       security:
@@ -6507,7 +6508,7 @@ components:
         charger_id:
           type: string
           pattern: "^[a-z0-9]{6}$"
-          description: Public six-character charger identifier.
+          description: Server-generated public six-character charger identity. New chargers use this same value as ocpp_identity.
         charger_name: {type: string, maxLength: 255}
         vendor: {type: string, maxLength: 100, nullable: true}
         model: {type: string, maxLength: 100, nullable: true}
@@ -8178,10 +8179,11 @@ components:
         charger_id:
           type: string
           pattern: "^[a-z0-9]{6}$"
+          description: Server-generated public six-character charger identity. New chargers use this same value as ocpp_identity.
         ocpp_identity:
           type: string
           maxLength: 255
-          description: CMS mapping value; not proof of a live HAL connection.
+          description: CMS mapping value; for newly created chargers it equals charger_id, is not proof of a live HAL connection, and older rows retain their stored compatibility value.
         vendor: {type: string, maxLength: 100, nullable: true}
         model: {type: string, maxLength: 100, nullable: true}
         serial_number: {type: string, maxLength: 100}
@@ -8224,11 +8226,11 @@ components:
         charger_connection_url_ws:
           type: string
           format: uri
-          description: OCPP WebSocket endpoint derived from the configured non-TLS charger host and the generated OCPP identity.
+          description: OCPP WebSocket endpoint derived from the configured non-TLS charger host and the stored OCPP identity without prefix rewriting.
         charger_connection_url_wss:
           type: string
           format: uri
-          description: OCPP secure-WebSocket endpoint derived from the configured charger host and the generated OCPP identity.
+          description: OCPP secure-WebSocket endpoint derived from the configured charger host and the stored OCPP identity without prefix rewriting.
         assigned:
           type: boolean
           description: Whether the charger is assigned to a hub.

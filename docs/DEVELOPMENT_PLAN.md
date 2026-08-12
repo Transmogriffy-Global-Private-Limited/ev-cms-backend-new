@@ -903,6 +903,11 @@ Current implementation slice:
   overlay, and the CPO HAL operational manual records the current capability
   and future command rules. PostgreSQL lifecycle and physical-topology
   acceptance remain pending.
+- Current integration repair: preserve the committed HAL/liveops architecture
+  while reconciling CPO changes, remove duplicate operational response types
+  and create-path mapping delivery, align newly generated charger identities,
+  and make migration 34/model tariff assignment metadata coherent. The later
+  serial-number HAL admission contract remains out of scope.
 
 Last completed slice:
 
@@ -1011,8 +1016,10 @@ Last deployment milestone:
   `TEST_DATABASE_URL`.
 - Revision `27c01f3` subsequently rehosted the shared bounded User App
   live-state overlay and its CPO HAL operational manual without a migration.
-  The service remains healthy with zero restarts; loopback/public health,
-  Swagger, raw OpenAPI, and the unchanged 172-operation contract were verified.
+  Revision `2e8fdb3` then applied migration thirty-four for nullable tariff
+  assignment metadata and rehosted the reconciled CPO/HAL integration. The
+  service remains healthy with zero restarts; loopback/public health, Swagger,
+  raw OpenAPI, and the unchanged 172-operation contract were verified.
 
 Next expected slice:
 

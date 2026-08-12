@@ -2,6 +2,69 @@
 
 ## 2026-08-12
 
+### Expanded the canonical CPO HAL/live-charger integration guide
+
+- Reworked the existing CPO HAL operational-capability manual into a
+  source-grounded junior reference covering ownership, public capability
+  signatures/returns, identifiers, static versus live derivation, facts,
+  mapping/reconciliation, charging lifecycle, REST/SSE recovery, testing, and
+  explicit red-zone boundaries.
+- Made the CPO handoff reading path and documentation map point directly to the
+  canonical guide. No runtime, migration, OpenAPI, or HAL provider behavior was
+  changed.
+
+Verification:
+
+- The PowerShell documentation verifier and `git diff --check` passed. The
+  manual's cited CMS symbols, current routes, migrations, configuration, and
+  read-only provider contract were cross-checked before editing.
+
+### Reconciled CPO charger and live-operations integration
+
+- Removed accidental duplicate CPO operational response declarations from the
+  service layer while retaining schema ownership and all liveops-backed CPO
+  reads. Charger creation now performs one post-commit normal mapping push
+  (`cpo-charger-created`) rather than an additional update-labelled push.
+- New charger creation uses its one generated six-character public
+  `charger_id` as `ocpp_identity`; connection URLs preserve the stored identity
+  without prefix rewriting. Existing rows are not rewritten.
+- Corrected the migration-34 model contract to nullable
+  `tariffs.assigned_to tariff_assignment_type`, matching its additive migration
+  and current unassigned tariff behavior.
+
+Verification:
+
+- `go test ./src/cpo -count=1`, `go test ./src/liveops -count=1`,
+  `go test ./src/customerauth -count=1`, `go test ./src/halops -count=1`,
+  route/OpenAPI parity, and the PowerShell documentation verifier passed.
+  `go test -p 1 ./...`, `go vet -p 1 ./...`, and `git diff --check` passed;
+  serial Go verification was required because the ordinary parallel full suite
+  exhausted the Windows paging file while starting test processes.
+- No migration, deployment, HAL checkout modification, or forced history
+  operation is part of this repair. `TEST_DATABASE_URL` is not configured, so
+  disposable migration/lifecycle verification was not run.
+
+### Rehosted the reconciled CPO and tariff-assignment release
+
+- Fast-forwarded `main` to revision `2e8fdb3`, applied migration
+  `000034_add_assigned_to_to_tariffs` after a validated mode-0600 PostgreSQL
+  rollback dump, and retained the prior binary at
+  `builds/evcmsnew.pre-2e8fdb3`.
+- The live service now includes the reconciled CPO/HAL mapping behavior,
+  charger identity compatibility, and nullable tariff assignment metadata.
+  No DNS, Caddy route, or HAL provider configuration changed.
+
+Verification:
+
+- Caddy validation, route/OpenAPI parity, focused CPO/model tests,
+  `go test ./...`, `go vet ./...`, clean build, and `git diff --check` passed.
+- Migration ledger/type/column checks, active service state with zero restarts,
+  loopback/public liveness and readiness, Swagger, raw OpenAPI, the live
+  172-operation contract, and post-rehost warning scan passed.
+- `scripts/verify-docs.ps1` was not run because `pwsh` is unavailable on this
+  Ubuntu host. Disposable PostgreSQL lifecycle and full CMS-to-HAL topology
+  acceptance remain pending their dedicated test environment.
+
 ### Deployed User App live-state consumption and CPO HAL manual
 
 - Replaced the single-detail-only customer availability overlay with a shared
