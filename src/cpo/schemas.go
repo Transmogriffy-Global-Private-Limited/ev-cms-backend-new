@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/constants"
+	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/liveops"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 )
@@ -293,6 +294,17 @@ type ChargerListResponse struct {
 	HasMore      bool              `json:"has_more"`
 }
 
+// OperationalChargerResponse keeps administrative inventory and HAL-derived
+// runtime separate so an inactive CMS charger can still be observed OFFLINE.
+type OperationalChargerResponse struct {
+	Charger ChargerResponse       `json:"charger"`
+	Live    liveops.ChargerDetail `json:"live"`
+}
+
+type FleetOperationsResponse struct {
+	Fleet liveops.FleetState `json:"fleet"`
+}
+
 type ConnectorView struct {
 	ID                     uuid.UUID               `json:"id"`
 	CPOID                  uuid.UUID               `json:"cpo_id"`
@@ -337,6 +349,7 @@ type HubView struct {
 	CPOID           uuid.UUID `json:"cpo_id"`
 	Name            string    `json:"name"`
 	Address         string    `json:"address"`
+	State           string    `json:"state"`
 	Latitude        float64   `json:"latitude"`
 	Longitude       float64   `json:"longitude"`
 	Open24Hours     bool      `json:"open_24_hours"`
@@ -359,6 +372,7 @@ type HubResponse struct {
 	CPOID           uuid.UUID            `json:"cpo_id"`
 	Name            string               `json:"name"`
 	Address         string               `json:"address"`
+	State           string               `json:"state"`
 	Latitude        float64              `json:"latitude"`
 	Longitude       float64              `json:"longitude"`
 	Open24Hours     bool                 `json:"open_24_hours"`

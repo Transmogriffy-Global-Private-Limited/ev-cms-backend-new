@@ -1,110 +1,139 @@
 package customerauth
 
 import (
-	"context"
-	"crypto/sha256"
-	"encoding/hex"
-	"encoding/json"
-	"fmt"
 	"net/http"
-	"strings"
 	"time"
 
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/constants"
+	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/halops"
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/models"
+	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/operationalrealtime"
 	"github.com/google/uuid"
-	"github.com/gowebpki/jcs"
 	"github.com/shopspring/decimal"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
 
-type HALFactEnvelope struct {
-	FactID                 uuid.UUID       `json:"fact_id"`
-	FactType               string          `json:"fact_type"`
-	SchemaVersion          int             `json:"schema_version"`
-	OccurredAt             time.Time       `json:"occurred_at"`
-	Producer               string          `json:"producer"`
-	ImmutableContentSHA256 string          `json:"immutable_content_sha256"`
-	Payload                json.RawMessage `json:"payload"`
-}
-
-func (service *Service) AcceptHALFact(ctx context.Context, bearer string, envelope HALFactEnvelope) error {
-	if service.halFactBearer == "" || bearer == "" || bearer != service.halFactBearer {
-		return &APIError{http.StatusUnauthorized, "hal_fact_authentication_required", "Service authentication is required."}
-	}
-	if envelope.FactID == uuid.Nil || envelope.SchemaVersion != 1 || envelope.Producer != "ocpp-hal-go-new" || strings.TrimSpace(envelope.FactType) == "" || len(envelope.Payload) == 0 || !validFactDigest(envelope.ImmutableContentSHA256) || envelope.OccurredAt.IsZero() {
-		return &APIError{http.StatusBadRequest, "invalid_hal_fact", "The HAL fact envelope is invalid."}
-	}
-	var payload models.JSONB
-	if err := json.Unmarshal(envelope.Payload, &payload); err != nil {
-		return &APIError{http.StatusBadRequest, "invalid_hal_fact", "The HAL fact payload is invalid."}
-	}
-	digest, err := canonicalFactDigest(envelope)
-	if err != nil {
-		return fmt.Errorf("canonicalize HAL fact: %w", err)
-	}
-	if digest != envelope.ImmutableContentSHA256 {
-		return &APIError{http.StatusConflict, "fact_integrity_violation", "The HAL fact digest does not match its immutable content."}
-	}
-	return service.database.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		var prior models.HALFactReceipt
-		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&prior, "fact_id = ?", envelope.FactID).Error; err == nil {
-			if prior.Digest == digest {
-				return nil
-			}
-			return &APIError{http.StatusConflict, "fact_integrity_violation", "The HAL fact ID was reused with altered content."}
-		} else if err != gorm.ErrRecordNotFound {
-			return err
-		}
-		if err := service.applyHALFact(tx, envelope, payload); err != nil {
-			return err
-		}
-		return tx.Create(&models.HALFactReceipt{FactID: envelope.FactID, FactType: envelope.FactType, Digest: digest, OccurredAt: envelope.OccurredAt, Payload: payload, ProcessedAt: service.now()}).Error
-	})
-}
+// HALFactEnvelope remains a source-compatible alias while ingress ownership
+// lives in halops.
+type HALFactEnvelope = halops.FactEnvelope
 
 func canonicalFactDigest(envelope HALFactEnvelope) (string, error) {
-	var payload any
-	if err := json.Unmarshal(envelope.Payload, &payload); err != nil {
-		return "", err
-	}
-	raw, err := json.Marshal(map[string]any{"fact_id": envelope.FactID.String(), "fact_type": envelope.FactType, "schema_version": envelope.SchemaVersion, "occurred_at": envelope.OccurredAt.UTC(), "producer": envelope.Producer, "payload": payload})
-	if err != nil {
-		return "", err
-	}
-	canonical, err := jcs.Transform(raw)
-	if err != nil {
-		return "", err
-	}
-	sum := sha256.Sum256(canonical)
-	return hex.EncodeToString(sum[:]), nil
-}
-func validFactDigest(value string) bool {
-	if len(value) != 64 {
-		return false
-	}
-	_, err := hex.DecodeString(value)
-	return err == nil && value == strings.ToLower(value)
+	return halops.CanonicalFactDigest(envelope)
 }
 
-func (service *Service) applyHALFact(tx *gorm.DB, envelope HALFactEnvelope, payload models.JSONB) error {
+// ApplyHALFactProjection is the business projection socket consumed by the
+// shared HAL fact ingestor. It retains customer/wallet settlement ownership
+// while ingress, integrity, receipt and idempotency are integration concerns.
+func (service *Service) ApplyHALFactProjection(tx *gorm.DB, envelope halops.FactEnvelope, payload models.JSONB) error {
+	var err error
 	switch envelope.FactType {
 	case "charger.connection.updated":
-		return service.applyConnectionFact(tx, payload)
+		err = service.applyConnectionFact(tx, payload)
 	case "connector.status.updated":
-		return service.applyConnectorFact(tx, payload)
+		err = service.applyConnectorFact(tx, payload)
 	case "command.updated":
-		return service.applyCommandFact(tx, payload)
+		err = service.applyCommandFact(tx, payload)
 	case "transaction.started":
-		return service.applyStartedFact(tx, payload)
+		err = service.applyStartedFact(tx, payload)
 	case "transaction.meter":
-		return service.applyMeterFact(tx, payload)
+		err = service.applyMeterFact(tx, payload)
 	case "transaction.completed":
-		return service.applyCompletedFact(tx, payload)
+		err = service.applyCompletedFact(tx, payload)
 	default:
 		return &APIError{http.StatusBadRequest, "unsupported_hal_fact", "The HAL fact type is unsupported."}
 	}
+	if err != nil || service.operationalEvents == nil {
+		return err
+	}
+	return service.emitOperationalFact(tx, envelope.FactType, payload)
+}
+
+func (service *Service) emitOperationalFact(tx *gorm.DB, factType string, payload models.JSONB) error {
+	cpoID, hasCPO := factID(payload, "cpo_id")
+	input := operationalrealtime.Input{Data: models.JSONB{}}
+	switch factType {
+	case "command.updated":
+		commandID, ok := factID(payload, "cms_command_id")
+		if !ok {
+			return nil
+		}
+		var command models.HALCommandRecord
+		if err := tx.Select("cpo_id").First(&command, "cms_command_id = ?", commandID).Error; err != nil {
+			return err
+		}
+		input.CPOID = command.CPOID
+		input.Type, input.ResourceType, input.ResourceID = "charging.command_changed", "HAL_COMMAND", commandID.String()
+	case "charger.connection.updated":
+		if !hasCPO {
+			return nil
+		}
+		sequence, ok := factInt(payload, "connection_sequence")
+		if !ok {
+			return nil
+		}
+		input.CPOID = cpoID
+		chargerID, ok := factID(payload, "cms_charger_id")
+		if !ok {
+			return nil
+		}
+		var runtime models.HALChargerRuntime
+		if err := tx.First(&runtime, "cms_charger_id = ?", chargerID).Error; err != nil || runtime.ConnectionSequence != sequence {
+			return err
+		}
+		input.Type, input.ResourceType, input.ResourceID = "charger.live_state_changed", "CHARGER", chargerID.String()
+	case "connector.status.updated":
+		if !hasCPO {
+			return nil
+		}
+		sequence, ok := factInt(payload, "connector_status_sequence")
+		if !ok {
+			return nil
+		}
+		input.CPOID = cpoID
+		connectorID, ok := factID(payload, "cms_connector_id")
+		if !ok {
+			return nil
+		}
+		var runtime models.HALConnectorRuntime
+		if err := tx.First(&runtime, "cms_connector_id = ?", connectorID).Error; err != nil || runtime.ConnectorStatusSequence != sequence {
+			return err
+		}
+		input.Type, input.ResourceType, input.ResourceID = "connector.live_state_changed", "CONNECTOR", connectorID.String()
+	case "transaction.started", "transaction.meter", "transaction.completed":
+		intentID, ok := factID(payload, "cms_start_intent_id")
+		if !ok {
+			return nil
+		}
+		input.ResourceType, input.ResourceID = "CHARGING_SESSION", intentID.String()
+		if factType == "transaction.started" {
+			input.Type = "charging.session_changed"
+		} else if factType == "transaction.meter" {
+			input.Type = "charging.meter_changed"
+		} else {
+			input.Type = "charging.session_changed"
+		}
+		var intent models.ChargingStartIntent
+		if err := tx.Select("customer_id", "cpo_id").First(&intent, "id = ?", intentID).Error; err != nil {
+			return err
+		}
+		if factType == "transaction.meter" {
+			sequence, ok := factInt(payload, "meter_sequence")
+			if !ok {
+				return nil
+			}
+			var session models.ChargingSession
+			if err := tx.Select("meter_sequence").First(&session, "start_intent_id = ?", intentID).Error; err != nil || session.MeterSequence != sequence {
+				return err
+			}
+		}
+		input.CPOID = intent.CPOID
+		input.CustomerID = &intent.CustomerID
+	default:
+		return nil
+	}
+	_, err := service.operationalEvents.Emit(tx, input)
+	return err
 }
 
 func (service *Service) applyConnectionFact(tx *gorm.DB, p models.JSONB) error {

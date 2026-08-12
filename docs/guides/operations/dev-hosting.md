@@ -28,9 +28,12 @@ development host it is set in the ignored service environment to
 that setting; it must not be used until the OCPP host is explicitly configured
 with TLS/WebSocket support.
 
-The active deployment was updated on August 11, 2026 to source revision
-`d368903`. It has migrations one through thirty-one and the current 161-operation
-API. Migration twenty-seven replaces the legacy charger/connector protocol-style
+The active deployment was updated on August 12, 2026 to source revision
+`27c01f3`. It has migrations one through thirty-three and the current 172-operation
+API. Migration thirty-three adds the CPO/customer-scoped `operational_events`
+ledger used for durable operational-notification recovery; its four indexes
+support CPO and customer cursor replay plus retention. Migration twenty-seven
+replaces the legacy charger/connector protocol-style
 status values with static CMS administrative states (`ACTIVE`, `INACTIVE`,
 `SUSPENDED`, `UNDERMAINTENANCE`, and `DECOMMISSIONED`). Migration thirteen keeps
 feature-key/entitlement tables retired pending a
@@ -64,6 +67,10 @@ and invoice-logo metadata. Its UUID and CPO foreign key follow the existing
 Migration thirty-one adds the nullable GST `state` column and allows legacy GST
 rates to remain null; newly created GST profiles still validate required state
 and all three rates at the API boundary.
+Migration thirty-two adds required hub `state` persistence with an empty-string
+default for existing rows; CPO hub create/update/list/detail contracts expose
+the field, and the User App charger-location projection is available at
+`GET /api/v1/app/chargers/locations` behind customer authentication.
 GSTIN and complete address identity
 are database-required for CPOs, the
 authenticated platform slug-availability route is live, and known uniqueness
@@ -99,7 +106,7 @@ The deployment copies `.env.example` to `.env`, then overrides:
 - five independently generated 32-byte base64 cryptographic keys.
 
 `DATABASE_URL` and `SMTP_PASSWORD` contain deployment secrets only in the
-ignored environment file. The service is enabled and active, all thirty-one forward
+ignored environment file. The service is enabled and active, all thirty-two forward
 migrations are recorded, and startup idempotently retained the configured
 platform superadmin.
 
@@ -160,7 +167,7 @@ content exclusions are defined in
 `docs/contracts/internal/http-request-logging.md`. Long-lived SSE requests are
 recorded when they disconnect. A recovered panic first emits a correlated safe
 JSON stack diagnostic without Gin's request dump or the panic value. The
-currently deployed `d368903` binary includes this logger.
+currently deployed `27c01f3` binary includes this logger.
 
 The platform realtime SSE route is long-lived. If a browser holds that stream
 during a rehost, the application may log `shut down HTTP server: context

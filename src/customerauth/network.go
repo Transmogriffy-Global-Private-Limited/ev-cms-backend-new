@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/constants"
+	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/liveops"
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/models"
 	"github.com/google/uuid"
 	"gorm.io/gorm"
@@ -59,6 +60,22 @@ type CustomerChargerListResponse struct {
 	HasMore      bool                  `json:"has_more"`
 }
 
+// CustomerChargerLocationView is the compact map-marker projection for a
+// charger attached to a published hub. Coordinates belong to that hub because
+// chargers do not have independent location fields.
+type CustomerChargerLocationView struct {
+	ChargerName string  `json:"charger_name"`
+	Latitude    float64 `json:"latitude"`
+	Longitude   float64 `json:"longitude"`
+}
+
+type CustomerChargerLocationListResponse struct {
+	Chargers     []CustomerChargerLocationView `json:"chargers"`
+	NextBefore   *time.Time                    `json:"next_before,omitempty"`
+	NextBeforeID *uuid.UUID                    `json:"next_before_id,omitempty"`
+	HasMore      bool                          `json:"has_more"`
+}
+
 type CustomerHubSummary struct {
 	ID              uuid.UUID `json:"id"`
 	Name            string    `json:"name"`
@@ -77,38 +94,92 @@ type CustomerHubView struct {
 }
 
 type CustomerChargerView struct {
-	ID                  uuid.UUID               `json:"id"`
-	HubID               uuid.UUID               `json:"hub_id"`
-	ChargerID           string                  `json:"charger_id"`
-	ChargerName         string                  `json:"charger_name,omitempty"`
-	Vendor              *string                 `json:"vendor,omitempty"`
-	Model               *string                 `json:"model,omitempty"`
-	MaxPowerKW          float64                 `json:"max_power_kw"`
-	OCPPVersion         string                  `json:"ocpp_version"`
-	Status              constants.ChargerStatus `json:"status"`
-	ChargerImageURL     *string                 `json:"charger_image_url,omitempty"`
-	ChargerType         string                  `json:"charger_type,omitempty"`
-	Segment             string                  `json:"segment,omitempty"`
-	SubSegment          string                  `json:"sub_segment,omitempty"`
-	ChargerUseType      string                  `json:"charger_use_type,omitempty"`
-	Parking             string                  `json:"parking,omitempty"`
-	HubName             string                  `json:"hub_name,omitempty"`
-	HubAddress          string                  `json:"hub_address,omitempty"`
-	HubLatitude         *float64                `json:"hub_latitude,omitempty"`
-	HubLongitude        *float64                `json:"hub_longitude,omitempty"`
-	TwentyFourSevenOpen bool                    `json:"twenty_four_seven_open_status"`
-	HubOpen24Hours      *bool                   `json:"hub_open_24_hours,omitempty"`
-	DistanceKM          *float64                `json:"distance_km,omitempty"`
-	Availability        string                  `json:"availability"`
-	IsFavorite          bool                    `json:"is_favorite"`
-	Connectors          []CustomerConnectorView `json:"connectors"`
+	ID                    uuid.UUID               `json:"id"`
+	HubID                 uuid.UUID               `json:"hub_id"`
+	ChargerID             string                  `json:"charger_id"`
+	ChargerName           string                  `json:"charger_name,omitempty"`
+	Vendor                *string                 `json:"vendor,omitempty"`
+	Model                 *string                 `json:"model,omitempty"`
+	MaxPowerKW            float64                 `json:"max_power_kw"`
+	OCPPVersion           string                  `json:"ocpp_version"`
+	Status                constants.ChargerStatus `json:"status"`
+	ChargerImageURL       *string                 `json:"charger_image_url,omitempty"`
+	ChargerType           string                  `json:"charger_type,omitempty"`
+	Segment               string                  `json:"segment,omitempty"`
+	SubSegment            string                  `json:"sub_segment,omitempty"`
+	ChargerUseType        string                  `json:"charger_use_type,omitempty"`
+	Parking               string                  `json:"parking,omitempty"`
+	HubName               string                  `json:"hub_name,omitempty"`
+	HubAddress            string                  `json:"hub_address,omitempty"`
+	HubLatitude           *float64                `json:"hub_latitude,omitempty"`
+	HubLongitude          *float64                `json:"hub_longitude,omitempty"`
+	TwentyFourSevenOpen   bool                    `json:"twenty_four_seven_open_status"`
+	HubOpen24Hours        *bool                   `json:"hub_open_24_hours,omitempty"`
+	DistanceKM            *float64                `json:"distance_km,omitempty"`
+	Availability          string                  `json:"availability"`
+	AvailabilityFreshness string                  `json:"availability_freshness"`
+	IsFavorite            bool                    `json:"is_favorite"`
+	Connectors            []CustomerConnectorView `json:"connectors"`
 }
 
 const customerChargerSearchRadiusKM = 10.0
 
 func (service *Service) ListCustomerChargers(ctx context.Context, principal Principal, query CustomerChargerListQuery) (CustomerChargerListResponse, error) {
-	if err := validateCustomerChargerListQuery(&query); err != nil {
+	page, err := service.listCustomerChargerPage(ctx, principal, query, true)
+	if err != nil {
 		return CustomerChargerListResponse{}, err
+	}
+	favorites, err := service.customerFavoriteChargerIDs(ctx, principal, page.records)
+	if err != nil {
+		return CustomerChargerListResponse{}, err
+	}
+	chargers := make([]CustomerChargerView, 0, len(page.records))
+	for _, record := range page.records {
+		view := customerChargerView(record, favorites[record.ID])
+		if query.Latitude != nil && record.Hub != nil {
+			distance := haversineDistanceKM(*query.Latitude, *query.Longitude, record.Hub.Latitude, record.Hub.Longitude)
+			view.DistanceKM = &distance
+		}
+		chargers = append(chargers, view)
+	}
+	if err := service.overlayCustomerChargerLiveStates(ctx, principal.CPOID, chargers); err != nil {
+		return CustomerChargerListResponse{}, err
+	}
+	return CustomerChargerListResponse{
+		Chargers:     chargers,
+		NextBefore:   page.nextBefore,
+		NextBeforeID: page.nextBeforeID,
+		HasMore:      page.hasMore,
+	}, nil
+}
+
+func (service *Service) ListCustomerChargerLocations(ctx context.Context, principal Principal, query CustomerChargerListQuery) (CustomerChargerLocationListResponse, error) {
+	page, err := service.listCustomerChargerPage(ctx, principal, query, false)
+	if err != nil {
+		return CustomerChargerLocationListResponse{}, err
+	}
+	chargers := make([]CustomerChargerLocationView, 0, len(page.records))
+	for _, record := range page.records {
+		chargers = append(chargers, customerChargerLocationView(record))
+	}
+	return CustomerChargerLocationListResponse{
+		Chargers:     chargers,
+		NextBefore:   page.nextBefore,
+		NextBeforeID: page.nextBeforeID,
+		HasMore:      page.hasMore,
+	}, nil
+}
+
+type customerChargerPage struct {
+	records      []models.Charger
+	nextBefore   *time.Time
+	nextBeforeID *uuid.UUID
+	hasMore      bool
+}
+
+func (service *Service) listCustomerChargerPage(ctx context.Context, principal Principal, query CustomerChargerListQuery, includeConnectors bool) (customerChargerPage, error) {
+	if err := validateCustomerChargerListQuery(&query); err != nil {
+		return customerChargerPage{}, err
 	}
 	databaseQuery := service.database.WithContext(ctx).Model(&models.Charger{}).
 		Joins("JOIN hubs ON hubs.id = chargers.hub_id AND hubs.cpo_id = chargers.cpo_id").
@@ -153,40 +224,27 @@ func (service *Service) ListCustomerChargers(ctx context.Context, principal Prin
 	if query.Latitude == nil {
 		limit++
 	}
-	if err := databaseQuery.
-		Preload("Hub").
-		Preload("Connectors", func(tx *gorm.DB) *gorm.DB {
+	databaseQuery = databaseQuery.Preload("Hub")
+	if includeConnectors {
+		databaseQuery = databaseQuery.Preload("Connectors", func(tx *gorm.DB) *gorm.DB {
 			return tx.Where("cpo_id = ?", principal.CPOID).Order("connector_number ASC")
-		}).
-		Limit(limit).
-		Find(&records).Error; err != nil {
-		return CustomerChargerListResponse{}, fmt.Errorf("list customer chargers: %w", err)
+		})
+	}
+	if err := databaseQuery.Limit(limit).Find(&records).Error; err != nil {
+		return customerChargerPage{}, fmt.Errorf("list customer chargers: %w", err)
 	}
 	hasMore := false
 	if query.Latitude == nil && len(records) > query.Limit {
 		hasMore = true
 		records = records[:query.Limit]
 	}
-	favorites, err := service.customerFavoriteChargerIDs(ctx, principal, records)
-	if err != nil {
-		return CustomerChargerListResponse{}, err
-	}
-	chargers := make([]CustomerChargerView, 0, len(records))
-	for _, record := range records {
-		view := customerChargerView(record, favorites[record.ID])
-		if query.Latitude != nil && record.Hub != nil {
-			distance := haversineDistanceKM(*query.Latitude, *query.Longitude, record.Hub.Latitude, record.Hub.Longitude)
-			view.DistanceKM = &distance
-		}
-		chargers = append(chargers, view)
-	}
-	response := CustomerChargerListResponse{Chargers: chargers, HasMore: hasMore}
+	page := customerChargerPage{records: records, hasMore: hasMore}
 	if hasMore && len(records) > 0 {
 		last := records[len(records)-1]
-		response.NextBefore = &last.CreatedAt
-		response.NextBeforeID = &last.ID
+		page.nextBefore = &last.CreatedAt
+		page.nextBeforeID = &last.ID
 	}
-	return response, nil
+	return page, nil
 }
 
 type CustomerConnectorView struct {
@@ -196,6 +254,7 @@ type CustomerConnectorView struct {
 	ConnectorTotalCapacity float64                 `json:"connector_total_capacity"`
 	Status                 constants.ChargerStatus `json:"status"`
 	Availability           string                  `json:"availability"`
+	Freshness              string                  `json:"freshness"`
 }
 
 func (service *Service) ListCustomerHubs(ctx context.Context, principal Principal, query CustomerHubListQuery) (CustomerHubListResponse, error) {
@@ -263,6 +322,9 @@ func (service *Service) GetCustomerHub(ctx context.Context, principal Principal,
 	for _, charger := range record.Chargers {
 		chargers = append(chargers, customerChargerView(charger, favoriteChargers[charger.ID]))
 	}
+	if err := service.overlayCustomerChargerLiveStates(ctx, principal.CPOID, chargers); err != nil {
+		return CustomerHubView{}, err
+	}
 	return CustomerHubView{CustomerHubSummary: customerHubSummary(record, favoriteHubs[record.ID]), Chargers: chargers}, nil
 }
 
@@ -287,7 +349,12 @@ func (service *Service) GetCustomerCharger(ctx context.Context, principal Princi
 	if err != nil {
 		return CustomerChargerView{}, err
 	}
-	return customerChargerView(charger, favoriteChargers[charger.ID]), nil
+	view := customerChargerView(charger, favoriteChargers[charger.ID])
+	views := []CustomerChargerView{view}
+	if err := service.overlayCustomerChargerLiveStates(ctx, principal.CPOID, views); err != nil {
+		return CustomerChargerView{}, err
+	}
+	return views[0], nil
 }
 
 func validateCustomerHubListQuery(query *CustomerHubListQuery) error {
@@ -416,9 +483,13 @@ func customerChargerView(record models.Charger, favorite bool) CustomerChargerVi
 			ConnectorTotalCapacity: connector.ConnectorTotalCapacity,
 			Status:                 connector.Status,
 			Availability:           customerAvailabilityUnknown,
+			Freshness:              customerAvailabilityUnknown,
 		})
+		if connector.Status != constants.ChargerStatusActive {
+			connectors[len(connectors)-1].Availability = "UNAVAILABLE"
+		}
 	}
-	view := CustomerChargerView{ID: record.ID, HubID: hubID, ChargerID: record.ChargerID, ChargerName: record.ChargerName, Vendor: record.Vendor, Model: record.Model, MaxPowerKW: record.MaxPowerKW, OCPPVersion: record.OCPPVersion, Status: record.Status, ChargerImageURL: customerChargerImageURL(record), ChargerType: record.ChargerType, Segment: record.Segment, SubSegment: record.SubSegment, ChargerUseType: record.ChargerUseType, Parking: record.Parking, TwentyFourSevenOpen: record.TwentyFourSevenOpen, Availability: customerAvailabilityUnknown, IsFavorite: favorite, Connectors: connectors}
+	view := CustomerChargerView{ID: record.ID, HubID: hubID, ChargerID: record.ChargerID, ChargerName: record.ChargerName, Vendor: record.Vendor, Model: record.Model, MaxPowerKW: record.MaxPowerKW, OCPPVersion: record.OCPPVersion, Status: record.Status, ChargerImageURL: customerChargerImageURL(record), ChargerType: record.ChargerType, Segment: record.Segment, SubSegment: record.SubSegment, ChargerUseType: record.ChargerUseType, Parking: record.Parking, TwentyFourSevenOpen: record.TwentyFourSevenOpen, Availability: customerAvailabilityUnknown, AvailabilityFreshness: customerAvailabilityUnknown, IsFavorite: favorite, Connectors: connectors}
 	if record.Hub != nil {
 		open24Hours := record.Hub.Open24Hours
 		view.HubName = record.Hub.Name
@@ -426,6 +497,90 @@ func customerChargerView(record models.Charger, favorite bool) CustomerChargerVi
 		view.HubLatitude = &record.Hub.Latitude
 		view.HubLongitude = &record.Hub.Longitude
 		view.HubOpen24Hours = &open24Hours
+	}
+	if record.Status != constants.ChargerStatusActive {
+		view.Availability = "UNAVAILABLE"
+	}
+	return view
+}
+
+// overlayCustomerChargerLiveStates combines an already-authorized customer
+// inventory projection with committed HAL-derived evidence. It intentionally
+// does not change the compact map response, which has no availability fields.
+func (service *Service) overlayCustomerChargerLiveStates(ctx context.Context, cpoID uuid.UUID, views []CustomerChargerView) error {
+	if service.live == nil || len(views) == 0 {
+		return nil
+	}
+	chargerIDs := make([]uuid.UUID, 0, len(views))
+	for _, view := range views {
+		chargerIDs = append(chargerIDs, view.ID)
+	}
+	details, err := service.live.GetChargerDetails(ctx, cpoID, chargerIDs)
+	if err != nil {
+		return fmt.Errorf("load customer-safe charger live state: %w", err)
+	}
+	for index := range views {
+		if detail, ok := details[views[index].ID]; ok {
+			applyCustomerChargerLiveDetail(&views[index], detail)
+		}
+	}
+	return nil
+}
+
+func applyCustomerChargerLiveDetail(view *CustomerChargerView, detail liveops.ChargerDetail) {
+	view.AvailabilityFreshness = detail.Charger.ConnectionFreshness
+	connectorByID := make(map[uuid.UUID]liveops.ConnectorState, len(detail.Connectors))
+	for _, connector := range detail.Connectors {
+		connectorByID[connector.ConnectorID] = connector
+	}
+
+	if view.Status != constants.ChargerStatusActive {
+		view.Availability = "UNAVAILABLE"
+		for index := range view.Connectors {
+			view.Connectors[index].Availability = "UNAVAILABLE"
+		}
+		return
+	}
+
+	availability := customerAvailabilityUnknown
+	for index := range view.Connectors {
+		connector := &view.Connectors[index]
+		live, ok := connectorByID[connector.ID]
+		if ok {
+			connector.Availability, connector.Freshness = live.Availability, live.Freshness
+		}
+		if connector.Status != constants.ChargerStatusActive {
+			connector.Availability = "UNAVAILABLE"
+		}
+		switch connector.Availability {
+		case "AVAILABLE":
+			availability = "AVAILABLE"
+		case "CHARGING":
+			if availability != "AVAILABLE" {
+				availability = "CHARGING"
+			}
+		case "FAULTED":
+			if availability != "AVAILABLE" && availability != "CHARGING" {
+				availability = "FAULTED"
+			}
+		case "UNAVAILABLE":
+			if availability == customerAvailabilityUnknown {
+				availability = "UNAVAILABLE"
+			}
+		}
+	}
+	if detail.Charger.ConnectionState != "ONLINE" || detail.Charger.ConnectionFreshness != liveops.FreshnessFresh {
+		view.Availability = "UNAVAILABLE"
+		return
+	}
+	view.Availability = availability
+}
+
+func customerChargerLocationView(record models.Charger) CustomerChargerLocationView {
+	view := CustomerChargerLocationView{ChargerName: record.ChargerName}
+	if record.Hub != nil {
+		view.Latitude = record.Hub.Latitude
+		view.Longitude = record.Hub.Longitude
 	}
 	return view
 }

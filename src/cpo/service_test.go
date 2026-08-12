@@ -430,3 +430,12 @@ func TestMapWriteErrorKeepsGenericFallbackForUnknownUniquenessConflict(t *testin
 		t.Fatalf("got error %v, want 409 cpo_conflict", err)
 	}
 }
+
+func TestHubViewIncludesState(t *testing.T) {
+	t.Parallel()
+
+	view := hubView(models.Hub{State: "West Bengal"})
+	if view.State != "West Bengal" {
+		t.Fatalf("hub state=%q, want West Bengal", view.State)
+	}
+}

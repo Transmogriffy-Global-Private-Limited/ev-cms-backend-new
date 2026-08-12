@@ -133,8 +133,10 @@ UUID or a row UUID.
 ## Current Implemented CPO Surface
 
 The authoritative machine contract is
-`docs/contracts/openapi/openapi.yaml`. The source currently has 137 total
-HTTP operations across all planes. Runtime/OpenAPI parity is tested.
+`docs/contracts/openapi/openapi.yaml`. The source currently has 172 total
+HTTP operations across all planes. Runtime/OpenAPI parity is tested. The
+canonical CMS-side CPO operational capability manual is
+`docs/integrations/cpo-hal-operational-capability-manual.md`.
 
 Swagger UI renders the CPO plane as four adjacent, consistently prefixed
 sections: CPO Operations - Account & Notifications, CPO Operations - Network,
@@ -206,6 +208,8 @@ Current behavior:
 
 - collections use bounded keyset pagination;
 - IDs are server-generated;
+- hub create requires a 1–100 character state, hub update may replace it, and
+  CPO hub list/detail projections return the stored state;
 - a hub records non-negative `sanction_load` in kW; `0` means the capacity is
   not recorded;
 - `customer_visible` is CPO ADMIN-controlled, defaults to `false`, and is the
@@ -223,7 +227,9 @@ Current behavior:
   removes User App hub/favorite links before recording `HUB_DELETED`;
 - the six-character public charger ID, CMS UUID, connector UUIDs, and
   `ocpp_identity` are different identifiers;
-- `ocpp_identity` is only a mapping value; no HAL call occurs;
+- `ocpp_identity` remains a mapping value and is never exposed to a customer;
+  inventory mutation commits first and a post-commit shared HAL mapping attempt
+  can leave durable reconciliation state rather than proving live availability;
 - CPO callers can read/write a charger's static CMS administrative status by
   internal UUID; this does not contact HAL, and connector status remains
   read-only through the CPO API;
@@ -266,13 +272,16 @@ Implemented:
 - refresh rotation;
 - authenticated `GET /me` bootstrap and `PATCH /profile` self-service name/phone
   updates; profile writes are CPO-local and audit changed field names only;
-- authenticated `GET /hubs`, `GET /hubs/{hub_id}`, and
-  `GET /chargers/{charger_id}` expose only published same-CPO network data;
+- authenticated `GET /hubs`, `GET /hubs/{hub_id}`, `GET /chargers`,
+  `GET /chargers/{charger_id}`, and favorite charger reads expose only
+  published same-CPO network data and overlay committed CMS HAL availability
+  in one bounded batch read; compact map locations deliberately remain name
+  plus coordinates only;
   authenticated `GET /chargers/{charger_id}/image` safely serves an existing
   uploaded image only for that same published charger. Independent/unpublished
   resources are hidden, connector total capacity and static CMS administrative
-  status are included, and charger/connector availability is explicitly
-  `UNKNOWN` until HAL integration;
+  status are included, and static status remains distinct from HAL-derived
+  availability/freshness (unavailable when no safe runtime evidence exists);
 - authenticated favorites list and idempotent add/remove routes use the
   existing composite customer-favorite tables; unpublishing hides saved
   resources from the list without leaking them;
@@ -382,8 +391,10 @@ must use this returned state rather than infer attachment from list placement;
 create and update requests change attachment through `hub_id`, never through
 `assigned`.
 
-This flow ends in CMS inventory. It does not register the charger in the HAL or
-prove the device is online.
+This flow first commits CMS inventory and a `PENDING` mapping record. The CMS
+then attempts the shared HAL mapping capability after commit; a failed attempt
+remains durable reconciliation work and does not make inventory creation fail.
+Neither outcome proves that a device is online.
 
 ### App-user account creation
 
@@ -697,7 +708,7 @@ Do not assume:
 - all persisted CPO roles are callable;
 - app ID is a secret or tenant selector;
 - platform Superadmin may inspect tenant business data;
-- charger creation contacts the HAL;
+- charger creation proves HAL mapping or online state;
 - CMS status is live protocol truth;
 - mutable tariff rows are safe for completed-session billing;
 - a callback is delivered exactly once;

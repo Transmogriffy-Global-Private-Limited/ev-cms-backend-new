@@ -314,6 +314,19 @@ export type CustomerChargerList = {
   has_more: boolean;
 };
 
+export type CustomerChargerLocation = {
+  charger_name: string;
+  latitude: number;
+  longitude: number;
+};
+
+export type CustomerChargerLocationList = {
+  chargers: CustomerChargerLocation[];
+  next_before?: string;
+  next_before_id?: string;
+  has_more: boolean;
+};
+
 export type CustomerWalletDetails = {
   id: string;
   balance: string;
@@ -409,6 +422,7 @@ export type CustomerPriceResponse = {
 | `GET /hubs` | Yes | `200 CustomerHubList` | List published hubs in this CPO. |
 | `GET /hubs/{hub_id}` | Yes | `200 CustomerHub` | Read one published hub and attached chargers. |
 | `GET /chargers` | Yes | `200 CustomerChargerList` | Search/filter published chargers, including optional near-me results. |
+| `GET /chargers/locations` | Yes | `200 CustomerChargerLocationList` | Same filters, but only charger name and map coordinates. |
 | `GET /chargers/{charger_id}` | Yes | `200 CustomerCharger` | Read one attached charger by public ID. |
 | `GET /chargers/{charger_id}/image` | Yes | `200 image/*` | Download one uploaded charger image by public ID. |
 | `GET /favorites` | Yes | `200 CustomerFavorites` | List current published favorites. |
@@ -422,6 +436,10 @@ export type CustomerPriceResponse = {
 | `GET /wallet/transactions` | Yes | `200 CustomerWalletTransactionList` | Read this customer’s bounded wallet ledger history. |
 | `POST /wallet/recharge/orders` | Yes | `201 CustomerRechargeOrder` | Create an idempotent Razorpay checkout order. |
 | `POST /wallet/recharge/verify` | Yes | `200 CustomerRechargeOrder` | Verify a captured Razorpay payment and credit the wallet once. |
+| `POST /charging-sessions` | Yes | `202 ChargingStartResponse` | Persist a customer-owned start intent, commercial hold, and HAL command request; it is not an active session. |
+| `GET /charging-start-intents/{start_intent_id}` | Yes | `200 ChargingStartResponse` | Poll owned start progress and its materialized `session_id` when actual charging begins. |
+| `GET /charging-sessions/{session_id}` | Yes | `200 ChargingSessionResponse` | Read owned durable active/completed session, exact projected meter, connection, connector, and freshness fields. |
+| `POST /charging-sessions/{session_id}/stop` | Yes | `202` | Persist/request an owned stop; actual charger completion remains asynchronous. |
 | `GET /auth/sessions` | Yes | `200 SessionList` | List this account's active sessions. |
 | `DELETE /auth/sessions/{session_id}` | Yes | `204` | Revoke one owned session. |
 | `POST /auth/logout` | Yes | `204` | Revoke current session. |
@@ -455,11 +473,25 @@ flag, while `CustomerCharger.hub_open_24_hours` is the attached hub's flag.
 They are distinct fields and may have different values. The `open_24_hours`
 charger-list query filter applies to the hub field.
 
-The backend deliberately does not contact HAL in this slice. `availability` is
-`UNKNOWN` for chargers and connectors. Do not render either `availability` or
-the CMS `status` as online, available, offline, or live state; a later
-HAL-backed contract must define those states, reconnect behavior, and REST
-recovery before the app depends on them.
+`GET /chargers/locations` accepts exactly the same optional query filters as
+`GET /chargers`: `q`, `connector_type`, `min_power_kw`, `max_power_kw`,
+`open_24_hours`, `limit`, paired `before`/`before_id`, and optional near-me
+`lat`/`lng`/`radius_km`. It applies the same published-hub and current-CPO
+scope, pagination, ordering, and validation. Each `chargers` item has exactly
+`charger_name`, `latitude`, and `longitude`; the coordinates are from the
+attached hub because chargers do not have independent coordinate fields. Do
+not infer live availability, a charger ID, a hub ID, or any other inventory
+detail from this compact map response.
+
+Every full charger response—charger list, hub detail, single charger detail,
+and favorite charger list—overlays the committed CMS HAL projection in one
+batch capability read. It never contacts HAL synchronously. The compact map
+response deliberately remains only name and coordinates. Treat `STALE`,
+`OFFLINE`, and unknown parent connection as unavailable; static CMS
+inactive/suspended/maintenance/decommissioned charger or connector status also
+means unavailable even if retained runtime evidence says otherwise. Use the
+detail or charging-session REST response as recovery truth rather than
+inferring state from the CMS administrative `status`.
 
 The safe projection includes display-safe charger metadata (`charger_name`,
 `charger_type`, `segment`, `sub_segment`, `charger_use_type`, and `parking`).
@@ -524,9 +556,9 @@ Near-me results are ordered by calculated distance and are intentionally
 bounded without a continuation cursor (`has_more` is false and no `next_*`
 cursor is returned). A location query cannot include `before`/`before_id`.
 All results remain limited to attached chargers in published hubs belonging to
-the authenticated CPO. Stored CMS status is not live availability: charger and
-connector `availability` remains `UNKNOWN` until the separate HAL contract
-exists.
+the authenticated CPO. Stored CMS status is not live availability, but it is a
+customer-safety gate: full response availability combines it with committed
+HAL evidence. Compact map markers intentionally expose no availability.
 
 ### 5.2 Wallet Reads
 
@@ -595,6 +627,56 @@ decimal strings for currency, energy price, idle fee, and GST when referenced;
 `UNAVAILABLE` is a valid `200` response with `unavailable_reason` and never a
 zero-price fallback. The response is informational and is not a charging or
 payment commitment. HAL is not called.
+
+### 5.3 Charging lifecycle
+
+`POST /charging-sessions` accepts `{"charger_id":"a1b2c3","connector_id":"uuid"}`
+and returns `202 ChargingStartResponse`. The CMS validates the authenticated
+customer, active CPO, published active charger/connector, tariff, wallet, and
+one pending intent per connector; it freezes tariff/tax, holds the affordable
+amount, derives `energy_limit_wh` and a current `max_duration_seconds`, then
+requests HAL delivery. The response status may be `REQUESTED`,
+`ACCEPTED_FOR_DELIVERY`, `PROTOCOL_ACKNOWLEDGED`, `ACTUALLY_STARTED`,
+`REJECTED`, `EXPIRED`, or `RECONCILIATION_REQUIRED`. Treat all but
+`ACTUALLY_STARTED` as start-progress, not a charging session.
+
+Poll `GET /charging-start-intents/{start_intent_id}` for the same progress and
+the nullable materialized `session_id`. Only charger-originated
+`transaction.started` evidence creates that session. Then use
+`GET /charging-sessions/{session_id}` as the authoritative snapshot: `state`
+(`START_PENDING`, `ACTIVE`, `STOP_PENDING`, `COMPLETED`, or `FAILED`), start
+progress, nullable exact latest/consumed Wh, meter observation/freshness,
+connection state/time, connector OCPP status/time/freshness, stop progress, and
+completion time. Values are committed actual evidence; never interpolate power,
+current, voltage, SOC, or meter data.
+
+`POST /charging-sessions/{session_id}/stop` accepts optional 200-character
+`reason` and returns `202` after durable stop request creation. It means
+STOPPING/requested, not completion. `transaction.completed` is the only
+completion/settlement evidence. The HAL enforces the CMS-derived energy and
+time limits using actual meter/start facts; it does not receive wallet logic.
+Handle `503 hal_unavailable`, `409` resource/session conflicts, and
+`cpo_not_active` as explicit workflow state, rather than retrying with a new
+start identity.
+
+### 5.4 Operational Event Recovery and SSE
+
+The authenticated User App operational feed is deliberately a notification
+surface, not live truth:
+
+- `GET /operations/events?after_id=<event-id>&limit=100` returns retained
+  committed events in ascending numeric ID order.
+- `GET /operations/realtime/stream` is a `text/event-stream` companion. Send
+  the normal `Authorization` and `X-CPO-App-ID` headers; use `fetch()`
+  streaming rather than native `EventSource`, which cannot send those headers.
+
+Both routes include customer-specific charging events and safe tenant charger/
+connector availability events. Never rely on the event payload for meter,
+financial, charger, or session truth. Deduplicate `id`, persist the last ID,
+then refetch `GET /charging-sessions/{session_id}` or charger detail as needed.
+The server accepts `Last-Event-ID` when `after_id` is absent and closes a stream
+whose durable customer session, CPO app-ID scope, or token becomes invalid at a
+heartbeat. After disconnect, use cursor recovery before opening another stream.
 
 ## 6. Signup Flow
 

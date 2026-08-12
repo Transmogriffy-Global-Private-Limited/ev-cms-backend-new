@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/constants"
+	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/liveops"
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/models"
 	"github.com/google/uuid"
 )
@@ -147,6 +148,85 @@ func TestCustomerNetworkProjectionDoesNotClaimLiveAvailability(t *testing.T) {
 		if err := json.Unmarshal(value, &got); err != nil || got != want {
 			t.Fatalf("charger %s=%s, want %t", key, value, want)
 		}
+	}
+}
+
+func TestCustomerChargerLocationProjectionContainsOnlyMapFields(t *testing.T) {
+	t.Parallel()
+
+	charger := models.Charger{
+		ChargerName: "Lakefront Fast Charger",
+		Hub:         &models.Hub{Latitude: 22.5726, Longitude: 88.3639},
+	}
+	encoded, err := json.Marshal(customerChargerLocationView(charger))
+	if err != nil {
+		t.Fatalf("marshal charger location: %v", err)
+	}
+	var payload map[string]json.RawMessage
+	if err := json.Unmarshal(encoded, &payload); err != nil {
+		t.Fatalf("unmarshal charger location: %v", err)
+	}
+	if len(payload) != 3 {
+		t.Fatalf("location field count=%d, want 3: %s", len(payload), encoded)
+	}
+	for _, key := range []string{"charger_name", "latitude", "longitude"} {
+		if _, ok := payload[key]; !ok {
+			t.Fatalf("location response omitted %q: %s", key, encoded)
+		}
+	}
+	if got := customerChargerLocationView(charger); got.ChargerName != charger.ChargerName || got.Latitude != charger.Hub.Latitude || got.Longitude != charger.Hub.Longitude {
+		t.Fatalf("location projection=%#v, want charger name and hub coordinates", got)
+	}
+}
+
+func TestApplyCustomerChargerLiveDetailPreservesStaticEligibility(t *testing.T) {
+	t.Parallel()
+
+	availableID, disabledID := uuid.New(), uuid.New()
+	view := CustomerChargerView{
+		Status: constants.ChargerStatusActive,
+		Connectors: []CustomerConnectorView{
+			{ID: availableID, Status: constants.ChargerStatusActive, Availability: customerAvailabilityUnknown, Freshness: customerAvailabilityUnknown},
+			{ID: disabledID, Status: constants.ChargerStatusInactive, Availability: "UNAVAILABLE", Freshness: customerAvailabilityUnknown},
+		},
+	}
+	applyCustomerChargerLiveDetail(&view, liveops.ChargerDetail{
+		Charger: liveops.ChargerState{ConnectionState: "ONLINE", ConnectionFreshness: liveops.FreshnessFresh},
+		Connectors: []liveops.ConnectorState{
+			{ConnectorID: availableID, Availability: "AVAILABLE", Freshness: liveops.FreshnessFresh},
+			{ConnectorID: disabledID, Availability: "AVAILABLE", Freshness: liveops.FreshnessFresh},
+		},
+	})
+	if view.Availability != "AVAILABLE" {
+		t.Fatalf("charger availability=%q, want AVAILABLE", view.Availability)
+	}
+	if view.Connectors[0].Availability != "AVAILABLE" || view.Connectors[0].Freshness != liveops.FreshnessFresh {
+		t.Fatalf("active connector=%#v, want available fresh", view.Connectors[0])
+	}
+	if view.Connectors[1].Availability != "UNAVAILABLE" {
+		t.Fatalf("inactive connector=%#v, want unavailable despite HAL status", view.Connectors[1])
+	}
+
+	view.Status = constants.ChargerStatusSuspended
+	applyCustomerChargerLiveDetail(&view, liveops.ChargerDetail{
+		Charger: liveops.ChargerState{ConnectionState: "ONLINE", ConnectionFreshness: liveops.FreshnessFresh},
+	})
+	if view.Availability != "UNAVAILABLE" {
+		t.Fatalf("suspended charger availability=%q, want UNAVAILABLE", view.Availability)
+	}
+}
+
+func TestApplyCustomerChargerLiveDetailTreatsOfflineEvidenceAsUnavailable(t *testing.T) {
+	t.Parallel()
+
+	connectorID := uuid.New()
+	view := CustomerChargerView{Status: constants.ChargerStatusActive, Connectors: []CustomerConnectorView{{ID: connectorID, Status: constants.ChargerStatusActive, Availability: customerAvailabilityUnknown, Freshness: customerAvailabilityUnknown}}}
+	applyCustomerChargerLiveDetail(&view, liveops.ChargerDetail{
+		Charger:    liveops.ChargerState{ConnectionState: "OFFLINE", ConnectionFreshness: liveops.FreshnessFresh},
+		Connectors: []liveops.ConnectorState{{ConnectorID: connectorID, Availability: "AVAILABLE", Freshness: liveops.FreshnessFresh}},
+	})
+	if view.Availability != "UNAVAILABLE" {
+		t.Fatalf("offline charger availability=%q, want UNAVAILABLE", view.Availability)
 	}
 }
 

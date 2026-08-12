@@ -20,6 +20,7 @@ This directory is the durable project memory for the EV CMS backend.
 | Complete User App frontend authentication handoff | `USERAPP_FE_HANDOFF.md` |
 | Complete superadmin architecture and boundaries | `guides/concepts/superadmin-control-plane.md` |
 | Platform realtime event contract | `contracts/realtime/platform-events.md` |
+| CMS HAL operational event contract | `contracts/realtime/operational-events.md` |
 | HTTP request-log schema and safety boundary | `contracts/internal/http-request-logging.md` |
 | Manual CPO access workflow | `guides/workflows/cpo-onboarding.md` |
 | Required CPO registration identity decision | `decisions/0010-required-cpo-registration-identity.md` |
@@ -32,6 +33,7 @@ This directory is the durable project memory for the EV CMS backend.
 | Learning and operational workflows | `guides/` |
 | External-system boundaries | `integrations/` |
 | CMS consumer of the OCPP HAL v1 contract | `integrations/ocpp-hal-boundary.md` |
+| Canonical CPO-backend HAL operational capability manual | `integrations/cpo-hal-operational-capability-manual.md` |
 | Stable external and internal contracts | `contracts/` |
 | Machine-readable HTTP source of truth | `contracts/openapi/openapi.yaml` |
 | Development VPS hosting and activation | `guides/operations/dev-hosting.md` |

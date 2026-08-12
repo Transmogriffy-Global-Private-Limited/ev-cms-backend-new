@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"mime"
 	"net/http"
@@ -14,12 +15,14 @@ import (
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/auth"
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/constants"
 	cmsmiddleware "github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/middleware"
+	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/operationalrealtime"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 )
 
 type Handler struct {
-	service *Service
+	service     *Service
+	authService *auth.Service
 }
 
 func RegisterPlatformRoutes(
@@ -27,12 +30,16 @@ func RegisterPlatformRoutes(
 	authService *auth.Service,
 	service *Service,
 ) {
-	handler := &Handler{service: service}
+	handler := &Handler{service: service, authService: authService}
 	group.Use(noStore, authService.Authenticate(), auth.RequirePlatform())
 	group.POST("", handler.create)
 	group.GET("", handler.list)
 	group.GET("/slug-availability", handler.slugAvailability)
 	group.GET("/:cpo_id", handler.get)
+	group.GET("/:cpo_id/operations/fleet", handler.getPlatformFleetOperations)
+	group.GET("/:cpo_id/operations/chargers/:charger_id", handler.getPlatformOperationalCharger)
+	group.GET("/:cpo_id/operations/events", handler.listPlatformOperationalEvents)
+	group.GET("/:cpo_id/operations/realtime/stream", handler.platformOperationalStream)
 	group.PUT("/:cpo_id/profile", handler.updateProfile)
 	group.POST("/:cpo_id/activate", handler.activate)
 	group.POST("/:cpo_id/suspend", handler.suspend)
@@ -467,9 +474,7 @@ func RegisterCPORoutes(
 	authService *auth.Service,
 	service *Service,
 ) {
-	handler := &Handler{
-		service: service,
-	}
+	handler := &Handler{service: service, authService: authService}
 
 	group.Use(
 		noStore,
@@ -482,6 +487,10 @@ func RegisterCPORoutes(
 	group.PATCH("/admin/profile", handler.updateAdminProfile)
 	group.GET("/organization", handler.getOrganization)
 	group.GET("/subscription", handler.getSubscription)
+	group.GET("/operations/fleet", handler.getFleetOperations)
+	group.GET("/operations/chargers/:charger_id", handler.getOperationalCharger)
+	group.GET("/operations/events", handler.listOperationalEvents)
+	group.GET("/operations/realtime/stream", handler.operationalStream)
 	group.GET("/users/:user_id", handler.getUser)
 	group.POST("/chargers", handler.createCharger)
 	group.GET("/chargers", handler.listChargers)
@@ -536,6 +545,183 @@ func RegisterCPORoutes(
 	group.POST("/settings", handler.createOrUpdateSettings)
 	group.PUT("/settings", handler.createOrUpdateSettings)
 	group.GET("/settings/invoice-logo", handler.getInvoiceLogo)
+}
+
+func (handler *Handler) getPlatformFleetOperations(ctx *gin.Context) {
+	principal, _ := auth.CurrentPrincipal(ctx)
+	cpoID, ok := parseCPOID(ctx)
+	if !ok {
+		return
+	}
+	response, err := handler.service.GetPlatformFleetOperations(ctx.Request.Context(), principal, cpoID)
+	if err != nil {
+		writeError(ctx, err)
+		return
+	}
+	ctx.JSON(http.StatusOK, response)
+}
+
+func (handler *Handler) getPlatformOperationalCharger(ctx *gin.Context) {
+	principal, _ := auth.CurrentPrincipal(ctx)
+	cpoID, ok := parseCPOID(ctx)
+	if !ok {
+		return
+	}
+	response, err := handler.service.GetPlatformOperationalCharger(ctx.Request.Context(), principal, cpoID, ctx.Param("charger_id"))
+	if err != nil {
+		writeError(ctx, err)
+		return
+	}
+	ctx.JSON(http.StatusOK, response)
+}
+
+func (handler *Handler) getFleetOperations(ctx *gin.Context) {
+	principal, _ := auth.CurrentPrincipal(ctx)
+	response, err := handler.service.GetFleetOperations(ctx.Request.Context(), principal)
+	if err != nil {
+		writeError(ctx, err)
+		return
+	}
+	ctx.JSON(http.StatusOK, response)
+}
+
+func (handler *Handler) getOperationalCharger(ctx *gin.Context) {
+	principal, _ := auth.CurrentPrincipal(ctx)
+	response, err := handler.service.GetOperationalCharger(ctx.Request.Context(), principal, ctx.Param("charger_id"))
+	if err != nil {
+		writeError(ctx, err)
+		return
+	}
+	ctx.JSON(http.StatusOK, response)
+}
+
+func (handler *Handler) listOperationalEvents(ctx *gin.Context) {
+	principal, _ := auth.CurrentPrincipal(ctx)
+	after, limit, ok := parseOperationalEventQuery(ctx)
+	if !ok {
+		return
+	}
+	page, err := handler.service.ListOperationalEvents(ctx.Request.Context(), principal, after, limit)
+	if err != nil {
+		writeError(ctx, err)
+		return
+	}
+	ctx.JSON(http.StatusOK, page)
+}
+
+func (handler *Handler) listPlatformOperationalEvents(ctx *gin.Context) {
+	principal, _ := auth.CurrentPrincipal(ctx)
+	cpoID, ok := parseCPOID(ctx)
+	if !ok {
+		return
+	}
+	after, limit, ok := parseOperationalEventQuery(ctx)
+	if !ok {
+		return
+	}
+	page, err := handler.service.ListPlatformOperationalEvents(ctx.Request.Context(), principal, cpoID, after, limit)
+	if err != nil {
+		writeError(ctx, err)
+		return
+	}
+	ctx.JSON(http.StatusOK, page)
+}
+
+func (handler *Handler) operationalStream(ctx *gin.Context) {
+	principal, _ := auth.CurrentPrincipal(ctx)
+	token, ok := auth.CurrentAccessToken(ctx)
+	if !ok || principal.CPOID == nil {
+		writeError(ctx, &auth.APIError{Status: http.StatusUnauthorized, Code: "authentication_required", Message: "Authentication is required."})
+		return
+	}
+	handler.streamOperationalEvents(ctx, func(after int64, limit int) (operationalrealtime.Page, error) {
+		return handler.service.ListOperationalEvents(ctx.Request.Context(), principal, after, limit)
+	}, func() bool {
+		refreshed, err := handler.authService.ValidateAccess(ctx.Request.Context(), token)
+		return err == nil && refreshed.Scope == "CPO" && refreshed.CPOID != nil && *refreshed.CPOID == *principal.CPOID
+	})
+}
+
+func (handler *Handler) platformOperationalStream(ctx *gin.Context) {
+	principal, _ := auth.CurrentPrincipal(ctx)
+	cpoID, ok := parseCPOID(ctx)
+	if !ok {
+		return
+	}
+	token, ok := auth.CurrentAccessToken(ctx)
+	if !ok {
+		writeError(ctx, &auth.APIError{Status: http.StatusUnauthorized, Code: "authentication_required", Message: "Authentication is required."})
+		return
+	}
+	handler.streamOperationalEvents(ctx, func(after int64, limit int) (operationalrealtime.Page, error) {
+		return handler.service.ListPlatformOperationalEvents(ctx.Request.Context(), principal, cpoID, after, limit)
+	}, func() bool {
+		refreshed, err := handler.authService.ValidateAccess(ctx.Request.Context(), token)
+		return err == nil && refreshed.Scope == "PLATFORM"
+	})
+}
+
+func (handler *Handler) streamOperationalEvents(ctx *gin.Context, list func(int64, int) (operationalrealtime.Page, error), revalidate func() bool) {
+	after, limit, ok := parseOperationalEventQuery(ctx)
+	if !ok {
+		return
+	}
+	page, err := list(after, limit)
+	if err != nil {
+		writeError(ctx, err)
+		return
+	}
+	ctx.Header("Content-Type", "text/event-stream")
+	ctx.Header("Cache-Control", "no-cache, no-store")
+	ctx.Header("Connection", "keep-alive")
+	ctx.Header("X-Accel-Buffering", "no")
+	_ = http.NewResponseController(ctx.Writer).SetWriteDeadline(time.Time{})
+	cursor := page.NextCursor
+	if err := operationalrealtime.WriteSSE(ctx.Writer, page.Events); err != nil {
+		return
+	}
+	ctx.Writer.Flush()
+	poll, heartbeat, batchSize := handler.service.OperationalStreamTiming()
+	pollTicker, heartbeatTicker := time.NewTicker(poll), time.NewTicker(heartbeat)
+	defer pollTicker.Stop()
+	defer heartbeatTicker.Stop()
+	for {
+		select {
+		case <-ctx.Request.Context().Done():
+			return
+		case <-pollTicker.C:
+			page, err := list(cursor, batchSize)
+			if err != nil || len(page.Events) == 0 {
+				continue
+			}
+			if err := operationalrealtime.WriteSSE(ctx.Writer, page.Events); err != nil {
+				return
+			}
+			cursor = page.NextCursor
+			ctx.Writer.Flush()
+		case <-heartbeatTicker.C:
+			if !revalidate() {
+				return
+			}
+			if _, err := fmt.Fprintf(ctx.Writer, ": heartbeat %s\n\n", time.Now().UTC().Format(time.RFC3339)); err != nil {
+				return
+			}
+			ctx.Writer.Flush()
+		}
+	}
+}
+
+func parseOperationalEventQuery(ctx *gin.Context) (int64, int, bool) {
+	after := ctx.Query("after_id")
+	if strings.TrimSpace(after) == "" {
+		after = ctx.GetHeader("Last-Event-ID")
+	}
+	parsedAfter, limit, err := operationalrealtime.ParseCursor(after, ctx.Query("limit"))
+	if err != nil {
+		writeError(ctx, &auth.APIError{Status: http.StatusBadRequest, Code: "invalid_event_query", Message: "The event cursor or limit is invalid."})
+		return 0, 0, false
+	}
+	return parsedAfter, limit, true
 }
 
 func (handler *Handler) getSettings(ctx *gin.Context) {

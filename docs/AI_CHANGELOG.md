@@ -1,7 +1,134 @@
 # AI Changelog
 
+## 2026-08-12
+
+### Deployed User App live-state consumption and CPO HAL manual
+
+- Replaced the single-detail-only customer availability overlay with a shared
+  bounded `liveops.GetChargerDetails` projection read used by full charger
+  lists, hub detail, favorites, and single detail. Compact map locations remain
+  unchanged and expose only name/coordinates. Static CMS charger/connector
+  lifecycle is kept separate from HAL evidence and safely overrides displayed
+  availability when not active.
+- Added `integrations/cpo-hal-operational-capability-manual.md`, the canonical
+  CPO backend guide for ownership, package sockets, fact fields/identity,
+  mapping/command/fact lifecycles, reads/SSE/recovery, future command design,
+  configuration, disposable topology, and anti-patterns. Corrected stale User
+  App, CPO handoff, docs-map, and OpenAPI descriptions.
+
+- Built and rehosted clean `main` revision `27c01f3` without a migration or
+  HAL checkout change, retaining the prior binary at
+  `builds/evcmsnew.pre-27c01f3`.
+
+Verification:
+
+- Caddy validation, focused live-projection and route/OpenAPI tests,
+  `go test ./...`, `go vet ./...`, clean build, and `git diff --check` passed.
+- Active/enabled systemd state with zero restarts, loopback/public liveness and
+  readiness, Swagger, raw OpenAPI, the unchanged 172-operation contract, and
+  the deployed User App availability descriptions passed. No post-restart
+  warnings were recorded.
+- `scripts/verify-docs.ps1` was not run on this Ubuntu host because `pwsh` is
+  unavailable. Disposable dual-service lifecycle evidence remains pending.
+
+### CMS HAL operational capability layer started
+
+- Separated low-level HAL wire transport from CMS operation, shared fact-ingress,
+  and projection-read capabilities; added CPO/Platform live snapshots, User
+  App safe availability/session projections, durable operational events, and
+  scoped cursor/SSE recovery for CPO ADMIN, Platform-per-CPO observation, and
+  CPO-local customers.
+- Stale connection, connector, and meter sequences do not publish new event
+  records. Inventory mapping is marked pending before post-commit HAL delivery
+  and resynchronizes after charger edits/status changes.
+- Compile and OpenAPI route-parity checks passed. No migration, deployment,
+  commit, push, or provider change occurred; PostgreSQL lifecycle, SSE behavior,
+  reconciliation recovery, and dual-service topology verification remain pending.
+
+### Rehosted the CMS HAL operational capability release
+
+- Built and rehosted clean `main` revision `3f3a952` on the development VPS.
+  Applied migration `000033_operational_realtime_events` after a validated
+  mode-0600 PostgreSQL rollback dump and retained the prior binary at
+  `builds/evcmsnew.pre-3f3a952`.
+- The live CMS now has the durable, CPO/customer-scoped `operational_events`
+  ledger (four indexes), the 172-operation OpenAPI surface, and the HAL fact
+  ingress validation boundary at `POST /v1/hal-facts`. No DNS, Caddy route, or
+  HAL provider configuration changed.
+
+Verification:
+
+- Caddy validation, route/OpenAPI parity, `go test ./...`, `go vet ./...`,
+  clean build, and `git diff --check` passed.
+- Migration ledger/table/index checks, active/enabled systemd state with zero
+  restarts, loopback/public liveness and readiness, Swagger, raw OpenAPI, and
+  HAL fact-ingress validation smoke checks passed.
+- `scripts/verify-docs.ps1` was not run because `pwsh` is unavailable on this
+  Ubuntu host. The disposable PostgreSQL lifecycle suite and full CMS-to-HAL
+  topology acceptance remain pending because their dedicated test environment
+  is not configured.
+
 ## 2026-08-11
 
+### Rehosted latest main revision and reconciled deployment records
+
+- Built and rehosted clean `main` revision `3ca2c35` on the development VPS.
+  Applied migration `000032_add_state_to_hubs`, preserving the prior binary at
+  `builds/evcmsnew.pre-3ca2c35` and a validated mode-0600 rollback dump at
+  `/tmp/devevcmsnewdb-pre-3ca2c35.dump`.
+- The live service now exposes the hub `state` contract and authenticated User
+  App charger locations, with 162 OpenAPI operations. No DNS, Caddy route, or
+  HAL provider configuration changed.
+
+Verification:
+
+- Focused route/OpenAPI, CPO, and User App tests, `go test -p 1 ./...`,
+  `go vet -p 1 ./...`, clean build, and `git diff --check` passed.
+- Migration ledger/table checks, active/enabled service state with zero
+  restarts, loopback/public liveness and readiness, Swagger, raw OpenAPI,
+  protected-route `401`, and post-rehost journal checks passed. The old process
+  emitted a cached-plan result-type warning immediately after the schema change;
+  the rehost replaced it and the new process has no error, panic, or fatal
+  records.
+- `scripts/verify-docs.ps1` was not run because `pwsh` is unavailable on this
+  Ubuntu host. The disposable PostgreSQL lifecycle suite remains skipped because
+  `TEST_DATABASE_URL` is not configured; the live migration check above used the
+  explicitly authorized development database.
+
+### Reconciled CPO hub state response contract
+
+- Completed the merged hub-state slice by adding `state` to CPO hub list/detail
+  response DTOs and the matching OpenAPI, human API, and CPO handoff contracts.
+  Create requires a non-empty state; update accepts a non-empty replacement.
+- This is a source and contract repair only. No migration or deployment was
+  performed during branch reconciliation.
+
+Verification:
+
+- `go test -p 1 ./src/cpo ./src/customerauth -count=1`,
+  `./scripts/verify-docs.ps1`, and `git diff --check` passed after the merged
+  source repair. Broader route/full-suite verification remains constrained by
+  the workstation's Go runtime memory limit.
+
+### Added compact User App charger-location discovery
+
+- Added authenticated `GET /api/v1/app/chargers/locations`, reusing the full
+  published-charger filter, pagination, and near-me semantics while returning
+  each map marker as only `charger_name`, attached-hub `latitude`, and
+  attached-hub `longitude`.
+- Kept CPO isolation and the customer-visible hub boundary intact. No database
+  migration, deployment, live availability claim, or HAL interaction was
+  added.
+
+Verification:
+
+- Focused customer-auth tests pass, including an exact-three-fields compact
+  projection serialization test. PowerShell documentation-contract verification
+  passes with the expected 158 OpenAPI operations.
+- The route/OpenAPI Go test remains unverified on this workstation: one normal
+  run exhausted the Go runtime's available memory, and two single-process,
+  capped-memory retries exceeded the two-minute bound while compiling. No
+  route test failure was reported.
 ### Rehosted authenticated CPO invoice-logo retrieval
 
 - Added `GET /api/v1/cpo/settings/invoice-logo`, which streams the current

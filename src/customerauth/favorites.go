@@ -195,6 +195,9 @@ func (service *Service) ListCustomerFavorites(ctx context.Context, principal Pri
 				response.Chargers = append(response.Chargers, customerChargerView(charger, true))
 			}
 		}
+		if err := service.overlayCustomerChargerLiveStates(ctx, principal.CPOID, response.Chargers); err != nil {
+			return CustomerFavoritesResponse{}, err
+		}
 	}
 	if response.HasMoreChargers && len(chargerFavorites) > 0 {
 		last := chargerFavorites[len(chargerFavorites)-1]

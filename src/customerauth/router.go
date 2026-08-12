@@ -3,6 +3,7 @@ package customerauth
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"strconv"
@@ -10,6 +11,7 @@ import (
 	"time"
 
 	cmsmiddleware "github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/middleware"
+	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/operationalrealtime"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 )
@@ -44,6 +46,7 @@ func RegisterRoutes(group *gin.RouterGroup, service *Service) {
 	protected.GET("/hubs/:hub_id", handler.getHub)
 	protected.GET("/hubs/:hub_id/price", handler.getHubPrice)
 	protected.GET("/chargers", handler.listChargers)
+	protected.GET("/chargers/locations", handler.listChargerLocations)
 	protected.GET("/chargers/:charger_id/image", handler.chargerImage)
 	protected.GET("/chargers/:charger_id", handler.getCharger)
 	protected.GET("/chargers/:charger_id/price", handler.getChargerPrice)
@@ -55,6 +58,8 @@ func RegisterRoutes(group *gin.RouterGroup, service *Service) {
 	protected.GET("/charging-start-intents/:start_intent_id", handler.getChargingStartIntent)
 	protected.GET("/charging-sessions/:session_id", handler.getChargingSession)
 	protected.POST("/charging-sessions/:session_id/stop", handler.stopCharging)
+	protected.GET("/operations/events", handler.operationalEvents)
+	protected.GET("/operations/realtime/stream", handler.operationalStream)
 	protected.GET("/favorites", handler.listFavorites)
 	protected.PUT("/favorite-hubs/:hub_id", handler.addFavoriteHub)
 	protected.DELETE("/favorite-hubs/:hub_id", handler.removeFavoriteHub)
@@ -125,6 +130,98 @@ func (handler *Handler) getChargingSession(ctx *gin.Context) {
 		return
 	}
 	ctx.JSON(http.StatusOK, response)
+}
+
+func (handler *Handler) operationalEvents(ctx *gin.Context) {
+	principal, ok := CurrentPrincipal(ctx)
+	if !ok {
+		writeError(ctx, errUnauthorized)
+		return
+	}
+	after, limit, ok := parseOperationalEventQuery(ctx)
+	if !ok {
+		return
+	}
+	page, err := handler.service.ListOperationalEvents(ctx.Request.Context(), principal, after, limit)
+	if err != nil {
+		writeError(ctx, err)
+		return
+	}
+	ctx.JSON(http.StatusOK, page)
+}
+
+func (handler *Handler) operationalStream(ctx *gin.Context) {
+	principal, ok := CurrentPrincipal(ctx)
+	if !ok {
+		writeError(ctx, errUnauthorized)
+		return
+	}
+	parts := strings.Fields(strings.TrimSpace(ctx.GetHeader("Authorization")))
+	if len(parts) != 2 || !strings.EqualFold(parts[0], "Bearer") {
+		writeError(ctx, errUnauthorized)
+		return
+	}
+	after, limit, ok := parseOperationalEventQuery(ctx)
+	if !ok {
+		return
+	}
+	page, err := handler.service.ListOperationalEvents(ctx.Request.Context(), principal, after, limit)
+	if err != nil {
+		writeError(ctx, err)
+		return
+	}
+	ctx.Header("Content-Type", "text/event-stream")
+	ctx.Header("Cache-Control", "no-cache, no-store")
+	ctx.Header("Connection", "keep-alive")
+	ctx.Header("X-Accel-Buffering", "no")
+	_ = http.NewResponseController(ctx.Writer).SetWriteDeadline(time.Time{})
+	cursor := page.NextCursor
+	if err := operationalrealtime.WriteSSE(ctx.Writer, page.Events); err != nil {
+		return
+	}
+	ctx.Writer.Flush()
+	poll, heartbeat, batchSize := handler.service.OperationalStreamTiming()
+	pollTicker, heartbeatTicker := time.NewTicker(poll), time.NewTicker(heartbeat)
+	defer pollTicker.Stop()
+	defer heartbeatTicker.Stop()
+	for {
+		select {
+		case <-ctx.Request.Context().Done():
+			return
+		case <-pollTicker.C:
+			page, err := handler.service.ListOperationalEvents(ctx.Request.Context(), principal, cursor, batchSize)
+			if err != nil || len(page.Events) == 0 {
+				continue
+			}
+			if err := operationalrealtime.WriteSSE(ctx.Writer, page.Events); err != nil {
+				return
+			}
+			cursor = page.NextCursor
+			ctx.Writer.Flush()
+		case <-heartbeatTicker.C:
+			refreshed, err := handler.service.ValidateAccess(ctx.Request.Context(), parts[1])
+			if err != nil || refreshed.CPOID != principal.CPOID || refreshed.CustomerID != principal.CustomerID {
+				return
+			}
+			if _, err := fmt.Fprintf(ctx.Writer, ": heartbeat %s\n\n", time.Now().UTC().Format(time.RFC3339)); err != nil {
+				return
+			}
+			ctx.Writer.Flush()
+		}
+	}
+}
+
+func parseOperationalEventQuery(ctx *gin.Context) (int64, int, bool) {
+	after := ctx.Query("after_id")
+	if strings.TrimSpace(after) == "" {
+		after = ctx.GetHeader("Last-Event-ID")
+	}
+	parsedAfter, limit, err := operationalrealtime.ParseCursor(after, ctx.Query("limit"))
+	if err != nil {
+		writeError(ctx, &APIError{http.StatusBadRequest, "invalid_event_query", "The event cursor or limit is invalid."})
+		return 0, 0, false
+	}
+	return parsedAfter, limit, true
 }
 
 func (handler *Handler) stopCharging(ctx *gin.Context) {
@@ -432,6 +529,25 @@ func (handler *Handler) listChargers(ctx *gin.Context) {
 		return
 	}
 	response, err := handler.service.ListCustomerChargers(ctx.Request.Context(), principal, query)
+	if err != nil {
+		writeError(ctx, err)
+		return
+	}
+	ctx.JSON(http.StatusOK, response)
+}
+
+func (handler *Handler) listChargerLocations(ctx *gin.Context) {
+	principal, ok := CurrentPrincipal(ctx)
+	if !ok {
+		writeError(ctx, errUnauthorized)
+		return
+	}
+	query, err := customerChargerListQuery(ctx)
+	if err != nil {
+		writeError(ctx, err)
+		return
+	}
+	response, err := handler.service.ListCustomerChargerLocations(ctx.Request.Context(), principal, query)
 	if err != nil {
 		writeError(ctx, err)
 		return

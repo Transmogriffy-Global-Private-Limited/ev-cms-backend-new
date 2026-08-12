@@ -1,5 +1,40 @@
 # Administrative HTTP API: Complete Developer Contract
 
+## CMS HAL Operational Projections
+
+Live operational REST snapshots are derived solely from committed CMS HAL
+projections; these reads never block on a HAL HTTP request. `ONLINE`,
+`OFFLINE`, and CMS administrative charger status are independent dimensions.
+Connector `last_ocpp_status` is retained as protocol evidence, but a stale,
+offline, or unknown parent connection makes customer/CPO live availability
+`UNAVAILABLE` rather than `AVAILABLE`.
+
+- `GET /api/v1/cpo/operations/fleet` requires a CPO `ADMIN` bearer plus the
+  matching `X-CPO-App-ID`. It returns CPO-scoped projection aggregates only:
+  charger connection counts, connector availability counts, and active-session
+  count.
+- `GET /api/v1/cpo/operations/chargers/{charger_id}` has the same authority
+  and returns the existing administrative charger projection plus the current
+  CMS live charger/connector projection. It does not grant command authority.
+- `GET /api/v1/platform/cpos/{cpo_id}/operations/fleet` and
+  `GET /api/v1/platform/cpos/{cpo_id}/operations/chargers/{charger_id}` require
+  a `PLATFORM` bearer and are observation-only. They do not expose RemoteStop
+  or other charger control.
+- Every scope has cursor recovery and an SSE companion: CPO ADMIN uses
+  `/api/v1/cpo/operations/events` and `/operations/realtime/stream`; Platform
+  uses the corresponding route under the selected CPO; the User App uses
+  `/api/v1/app/operations/events` and `/operations/realtime/stream` with its
+  matching app-ID. All use `after_id` or `Last-Event-ID`, deliver IDs in order,
+  may redeliver after reconnect, and revalidate the bearer session at each
+  heartbeat. They contain only safe committed-change hints; callers must fetch
+  the CPO fleet/charger or customer session projection after an event.
+
+The User App charging-session snapshot uses the same internal live capability,
+but remains owner-only and never returns HAL bearer material, raw HAL IDs,
+provider diagnostics, another customer session, or fabricated electrical
+measurements. REST is the recovery authority; no frontend correctness depends
+on a live connection.
+
 This is the human-readable contract for every currently implemented HTTP
 endpoint, including public customer signup and administrative APIs. It is
 intended to be sufficient for frontend, QA, mobile, and backend integration
@@ -758,6 +793,22 @@ and tenant errors use the standard app envelope.
 
 Availability remains `UNKNOWN` for chargers and connectors until a separate
 CMS/HAL contract is implemented. This route does not contact HAL.
+
+### 4.28A `GET /api/v1/app/chargers/locations`
+
+Requires the same authenticated customer bearer token and matching
+`X-CPO-App-ID` as the full charger list. It accepts exactly the same optional
+filters and cursor/near-me rules: `q`, `connector_type`, `min_power_kw`,
+`max_power_kw`, `open_24_hours`, `limit`, paired `before`/`before_id`, and
+`lat`/`lng`/`radius_km`. It returns the same current-CPO chargers attached to
+published hubs, with the same ordering, pagination, and filter validation.
+
+Each returned `chargers` item contains exactly `charger_name`, `latitude`, and
+`longitude`. The coordinates are the attached hub's stored coordinates because
+the charger record has no independent coordinate fields. The compact response
+does not expose IDs, status, availability, connectors, favourites, pricing, or
+other inventory detail. Invalid filters return the same `400` envelope as
+4.28; authentication and tenant errors use the standard app envelope.
 
 ### 4.29 `GET /api/v1/app/wallet`
 
@@ -1779,6 +1830,7 @@ timestamps.
 {
   "name": "Park Street Hub",
   "address": "12 Park Street, Kolkata",
+  "state": "West Bengal",
   "latitude": 22.5524,
   "longitude": 88.3521,
   "open_24_hours": true,
@@ -1792,6 +1844,7 @@ Rules:
 
 - `name`: required after trimming, 1–255 characters;
 - `address`: required after trimming, 1–5000 characters;
+- `state`: required after trimming, 1–100 characters;
 - `latitude`: required, -90 through 90;
 - `longitude`: required, -180 through 180;
 - `open_24_hours`: optional, defaults to `true`;
@@ -1810,6 +1863,7 @@ Rules:
   "cpo_id": "c821a013-5041-42f7-80c8-aa153cf9d455",
   "name": "Park Street Hub",
   "address": "12 Park Street, Kolkata",
+  "state": "West Bengal",
   "latitude": 22.5524,
   "longitude": 88.3521,
   "open_24_hours": true,
@@ -1856,6 +1910,7 @@ values are omitted when there is no next page.
   "cpo_id": "c821a013-5041-42f7-80c8-aa153cf9d455",
   "name": "Park Street Hub",
   "address": "12 Park Street, Kolkata",
+  "state": "West Bengal",
   "latitude": 22.5524,
   "longitude": 88.3521,
   "open_24_hours": true,

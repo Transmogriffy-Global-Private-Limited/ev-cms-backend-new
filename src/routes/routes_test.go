@@ -152,6 +152,7 @@ func TestCredentialRoutesAreRegisteredAndProtected(t *testing.T) {
 		{http.MethodGet, "/api/v1/app/hubs/00000000-0000-0000-0000-000000000001"},
 		{http.MethodGet, "/api/v1/app/hubs/00000000-0000-0000-0000-000000000001/price"},
 		{http.MethodGet, "/api/v1/app/chargers"},
+		{http.MethodGet, "/api/v1/app/chargers/locations"},
 		{http.MethodGet, "/api/v1/app/chargers/abc123"},
 		{http.MethodGet, "/api/v1/app/chargers/abc123/image"},
 		{http.MethodGet, "/api/v1/app/chargers/abc123/price"},

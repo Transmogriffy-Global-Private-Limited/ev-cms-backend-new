@@ -2,6 +2,27 @@
 
 ## Current State
 
+### 2026-08-12 — CMS HAL operational capability release deployed
+
+- Source now contains `halops` for CMS command/mapping/reconciliation and fact
+  ingress, `liveops` for committed projection reads/freshness, and durable
+  scoped operational-event persistence. CPO and Platform operational REST
+  snapshots do not synchronously call HAL.
+- Every full User App charger projection (list, hub detail, single detail, and
+  favorites) now applies the same bounded committed live-state overlay; compact
+  map locations intentionally remain charger name plus hub coordinates only.
+  CMS administrative lifecycle is kept separate from runtime evidence and is a
+  customer-safety gate for displayed availability.
+- Migration thirty-three is applied on the development VPS; its
+  `operational_events` table and all four indexes are present. Revision
+  `27c01f3` is active with the 172-operation contract and healthy local/public
+  liveness, readiness, Swagger, and raw OpenAPI routes.
+- Real PostgreSQL fact/mapping/SSE lifecycle, reconciliation recovery, and
+  CMS-to-HAL-to-virtual-charger topology acceptance remain unverified pending
+  the dedicated disposable database and provider test environment.
+- The User App overlay/manual release is deployed. Its focused and broad source
+  verification does not replace the pending disposable dual-service acceptance.
+
 The repository began as an empty file scaffold. The implemented foundation now
 provides:
 
@@ -62,7 +83,8 @@ provides:
 - CPO ADMIN identity-profile read/update for global full-name and phone fields;
 - session-bound, read-only CPO registration/organization details without
   exposing internal Superadmin actor metadata or permitting tenant mutation;
-- tenant-scoped bounded hub create/list/get/update;
+- tenant-scoped bounded hub create/list/get/update, including required stored
+  state in CPO hub requests and response projections;
 - atomic CMS charger/connector registration with server-generated charger UUID,
   public charger ID, OCPP mapping identity, and connector UUIDs;
 - bounded charger listing, detail/update, connector update, and dependency-safe
@@ -126,6 +148,10 @@ provides:
   connector projections; DB-backed status and connector total capacity; an
   authenticated charger-image route keyed by public charger ID; and explicit
   UNKNOWN live availability;
+- an authenticated compact User App charger-location list over the same
+  published-hub scope and optional charger filters, returning each map marker
+  as only `charger_name`, attached-hub `latitude`, and attached-hub
+  `longitude`;
 - authenticated CPO/customer-scoped wallet balance and keyset-paginated wallet
   history reads using exact decimal projections;
 - User App Razorpay recharge order creation and captured-payment verification
@@ -171,8 +197,8 @@ provides:
   handler;
 - the additive PostgreSQL database `devevcmsnewdb`, owned by `postgres`.
 
-The active development VPS runs source revision `d368903`, with migrations
-through thirty-one recorded and the deployed 161-operation contract. Migration
+The active development VPS runs source revision `27c01f3`, with migrations
+through thirty-three recorded and the deployed 172-operation contract. Migration
 twenty-nine adds nullable `tariff_type`, `price_type`, and `units` metadata to
 tenant tariffs; omitted values remain null-safe for existing and newly created
 tariffs. The SuperAdmin administrator-list query explicitly binds the platform
@@ -201,6 +227,9 @@ tenant's stored logo and does not disclose a filesystem path. A
 GST profile now has a required API-level `state` value; migration thirty-one
 adds the nullable durable column and permits legacy GST-rate values to remain
 null. New GST creation continues to require all three validated rates. A
+required hub `state` value is now stored by migration thirty-two and returned by
+the CPO hub contracts. The authenticated User App charger-location route is
+also live and returns only the documented compact map-marker projection. A
 connected platform realtime SSE
 client can make graceful shutdown reach its bounded timeout during rehost;
 systemd restarts the service automatically and health checks then pass.
@@ -325,6 +354,38 @@ intentionally unsupported.
   protected settings/invoice-logo/GST/SuperAdmin route checks passed. The
   bounded SSE shutdown deadline occurred during stop and recovered; current
   systemd state is `Result=success`.
+- Revision `3ca2c35` was built from the clean `main` worktree and rehosted after
+  applying migration thirty-two. The installed candidate SHA-256 is
+  `1771f4bee02ed7f5d270f9feacdad69ecb4c3de435103ea5d7c97e176ab9da12`, with
+  rollback binary `builds/evcmsnew.pre-3ca2c35` and database dump
+  `/tmp/devevcmsnewdb-pre-3ca2c35.dump`. The enabled service is active with
+  zero restarts; loopback/public liveness and readiness, Swagger, raw OpenAPI,
+  the 162-operation contract, and the unauthenticated protected charger-location
+  check passed. The post-rehost journal had no error, panic, or fatal records.
+  The pre-rehost process emitted a cached-plan result-type warning after the
+  schema change; it was eliminated by the rehost and is not present in the new
+  process logs. The PowerShell documentation verifier remains unavailable on
+  this Ubuntu host.
+- Revision `3f3a952` was built from the clean `main` worktree and rehosted
+  after migration thirty-three. The installed binary SHA-256 is
+  `c2d0198da5365c7afde37726d6b48e95504c48112bb5aa94e9601af09320ddbd`,
+  embeds `3f3a9522f94b333231d21dea2366eb1cd2e8418d` with
+  `vcs.modified=false`, and retains `builds/evcmsnew.pre-3f3a952` plus a
+  mode-0600 PostgreSQL rollback dump. The enabled service is active with zero
+  restarts; migration ledger/table/index checks, loopback/public health and
+  readiness, Swagger, raw OpenAPI, the 172-operation contract, and HAL
+  fact-ingress validation passed. No DNS, Caddy, or HAL provider configuration
+  changed.
+- Revision `27c01f3` was built from the clean `main` worktree and rehosted
+  without a database migration. The installed binary SHA-256 is
+  `8e530d531f53691edc1cfde8970a83bf105160aa4ab3dfdb64bf3ae0d82191cb`,
+  embeds `27c01f3d82bc39498ad78f46ad369d90f5d7e7e0` with
+  `vcs.modified=false`, and retains `builds/evcmsnew.pre-27c01f3`. The enabled
+  service is active with zero restarts; loopback/public health and readiness,
+  Swagger, raw OpenAPI, the unchanged 172-operation contract, and the deployed
+  User App full-response live-overlay descriptions passed. No DNS, Caddy, HAL
+  provider configuration, or schema changed, and post-restart warnings were
+  absent.
 - Revision `a76d6ae` was built from a clean worktree and rehosted after
   migration thirty-one was applied. The installed binary SHA-256 is
   `0a3d397464dae13ef15b090225b4ca38fb1b4dfff946bf0de7d77cb9a5d3ebc0` and

@@ -45,6 +45,12 @@ PostgreSQL regression coverage. This is an internal query correction only: it
 does not change the HTTP contract, authorization, schema, migrations, or any
 other claimed surface.
 
+Codex is adding a compact authenticated User App charger-location list under
+`src/customerauth/`, its route, OpenAPI, and frontend contract. It must reuse
+the full charger-list filters and published-hub/current-CPO boundary while
+returning only charger name and attached-hub coordinates. No migration or
+deployment is included.
+
 ## Non-goals
 
 - This record does not authorize a production deployment, DNS change, database
@@ -97,9 +103,10 @@ alongside safe hub fields and `connector_total_capacity`. Hub
 `open_24_hours`, charger `twenty_four_seven_open_status`, and
 `hub_open_24_hours` are separately represented. Charger-host contact details,
 connection URLs, sanctioned load, and HAL-owned state remain excluded. The
-development VPS now runs application revision `d368903`; the charging vertical,
-nullable tariff metadata, tenant settings API, GST state update, and protected
-invoice-logo retrieval are active through migration thirty-one
+development VPS now runs application revision `3ca2c35`; the charging vertical,
+nullable tariff metadata, tenant settings API, GST and hub state updates, compact
+charger locations, and protected invoice-logo retrieval are active through
+migration thirty-two
 without a DNS or reverse-proxy change.
 
 The isolated SuperAdmin administrator-list repair now binds GORM explicitly to
@@ -107,8 +114,20 @@ The isolated SuperAdmin administrator-list repair now binds GORM explicitly to
 passes, and a guarded disposable-PostgreSQL test covers execution, authority
 filtering, projections, and keyset pagination when `TEST_DATABASE_URL` is set.
 
+The local User App source now includes a compact map-marker projection for
+published chargers: `charger_name`, attached-hub `latitude`, and attached-hub
+`longitude` only. It shares the full charger list's optional filters, cursor
+rules, near-me behavior, current-CPO scope, and customer-visible-hub boundary.
+
 ## Verification
 
+- `go test ./src/customerauth -count=1` passed for the compact map-marker
+  projection, including serialized exact-field coverage.
+- `./scripts/verify-docs.ps1` passed with the OpenAPI count updated to 158.
+- The focused route/OpenAPI Go test is currently unverified on this workstation:
+  an unrestricted run exhausted available Go runtime memory, and bounded
+  single-process retries exceeded two minutes while compiling. No migration,
+  deployment, or database action was attempted.
 - The database-free User App projection test now proves serialized hub and
   charger opening-hour values remain separate when they differ.
 - `go test ./src/customerauth -count=1` and OpenAPI/runtime route-contract
@@ -125,16 +144,17 @@ filtering, projections, and keyset pagination when `TEST_DATABASE_URL` is set.
 - `go test ./...` passed.
 - `go vet ./...` passed.
 - `git diff --check` passed.
-- Revision `d368903` is active under `evcmsnew-dev.service`; the running
-  process matches the installed binary and the expected VCS revision.
-- Loopback/public liveness and readiness passed.
-- The live OpenAPI exposes 161 operations, and the live CPO user-group detail
-  `members` projection and `usergroup_assigned` response field are present.
-- The live CPO connector response schema reflects `connector_total_capacity`.
-- The current systemd state is active/enabled with zero restarts after the
-  bounded SSE shutdown deadline recovered during rehost.
-- Migration thirty-one is applied; the tenant settings, GST, and CMS/HAL charging routes are
-  protected and the optional HAL provider remains unconfigured on this host.
+- Revision `3ca2c35` is active under `evcmsnew-dev.service`; the live OpenAPI
+  exposes 162 operations and migration thirty-two is applied. Loopback/public
+  liveness and readiness, Swagger, raw OpenAPI, and the protected
+  `/api/v1/app/chargers/locations` 401 boundary passed. The post-rehost journal
+  has no error, panic, or fatal records.
+- The later shared deployment is revision `3f3a952`: migration thirty-three is
+  applied and the current live OpenAPI surface has 172 operations. Service,
+  public/loopback health, Swagger, and raw OpenAPI remain healthy.
+- Earlier revision `d368903` deployment evidence established the prior
+  161-operation contract, tenant settings/GST/CMS-HAL routes, and connector
+  projection behavior before the current release.
 - The protected User App charger route returned `401` without credentials.
 - The current release is active on the loopback listener and public health and
   Swagger routes passed; the live OpenAPI contains 161 operations.

@@ -103,19 +103,21 @@ Current phase:
 
 Active work:
 
-- `docs/work/active/WI-20260811-cms-hal-first-charging-vertical.md`.
+- `docs/work/active/WI-20260812-cms-hal-operational-capabilities.md`.
 
 Current implementation state:
 
-- CMS source and the development deployment contain the first client, durable
-  records, fact receiver, customer polling/start/stop routes, and 157-operation
-  OpenAPI surface. The HAL v1 provider is not configured on this host, and the
-  complete Postgres-to-HAL-to-virtual-charger vertical is not verified yet.
+- CMS source and the development deployment contain the first client, durable records, shared fact receiver,
+  customer polling/start/stop routes, reusable operational projections,
+  scoped operational-event replay/SSE, and a 172-operation OpenAPI surface.
+  The HAL v1 provider is
+  not configured on this host, and the complete Postgres-to-HAL-to-virtual-
+  charger vertical is not verified yet.
 
 Next required slice:
 
-1. Add disposable PostgreSQL lifecycle tests and a bounded reconciliation
-   worker for pending/ambiguous CMS commands.
+1. Add disposable PostgreSQL lifecycle tests for mapping, fact, projection,
+   operational-event, and reconciliation persistence.
 2. Run the real loopback HAL and virtual OCPP charger acceptance topology,
    including duplicate, restart, and outage cases.
 
@@ -886,29 +888,28 @@ Non-goals:
 
 Current phase:
 
-- Phase 2: Authentication and CPO administration, with initial Phase 3/4 CPO
-  configuration implemented
+- Phases 5 and 6: CMS HAL charging lifecycle and operational projections
 
 Active feature:
 
-- Customer app experience — User App Razorpay wallet recharge
+- CMS HAL operational capability layer
 
 Current implementation slice:
 
-- Separated User App credential/session routes at `/api/v1/app/auth` from
-  authenticated app-resource routes at `/api/v1/app`; handlers, OpenAPI,
-  verification expectations, and frontend/integration guidance move together.
-- Added User App Razorpay order creation and checkout verification using the
-  existing encrypted CPO integration credentials. Durable recharge orders,
-  provider payment attempts, future-refund records, provider snapshots, and
-  the atomic wallet-credit ledger link are now in migration 22. No CPO or
-  Superadmin payment API, RFID flow, webhook, refund command, or HAL call is
-  added.
-  Disposable PostgreSQL lifecycle checks remain deferred by decision until
-  explicitly reactivated.
+- Shared CMS HAL mapping/command reconciliation, fact ingress, durable
+  projections, stale/offline freshness, scoped operational events, and CPO/App/
+  Platform cursor/SSE consumption. Full User App charger list, hub detail,
+  favorite, and single-detail projections now use one bounded live-state
+  overlay, and the CPO HAL operational manual records the current capability
+  and future command rules. PostgreSQL lifecycle and physical-topology
+  acceptance remain pending.
 
 Last completed slice:
 
+- Completed User App consumption of committed HAL operational projections for
+  every full charger response without N+1 reads, preserving compact map-only
+  location payloads, and added the canonical CPO backend HAL operational
+  capability manual. Full dual-service acceptance remains pending.
 - Added tenant-scoped user-group member assignment with same-group idempotency,
   cross-group conflict handling, audit evidence, OpenAPI parity, and protected
   route verification. This source revision was rehosted without a new
@@ -939,6 +940,9 @@ Last completed slice:
   implemented wallet balance and keyset-paginated wallet-history reads.
   Recharge, refund, charging-session history, RFID, and HAL remain separate
   slices.
+- Added a compact User App charger-location list that reuses those published
+  charger filters and pagination rules while returning only `charger_name` and
+  attached-hub latitude/longitude for map markers.
 - Implemented the effective customer tariff resolver and informational hub and
   charger price APIs with exact decimal projections, explicit unavailable state,
   active GST resolution, and User Tariff > charger tariff > hub tariff
@@ -993,20 +997,22 @@ Last completed slice:
 
 Last deployment milestone:
 
-- Revision `d368903` was built from a clean worktree and rehosted on the
-  development VPS without a new migration. The authenticated CPO invoice-logo
-  retrieval route, required GST state, nullable legacy GST-rate persistence,
-  and aligned contracts are live
-  alongside the tenant-scoped CPO settings API, nullable tariff metadata,
-  SuperAdmin administrator-list binding, and repaired `UserGroup.members`
-  schema. Running-binary SHA/VCS identity,
-  active/enabled systemd state, loopback/public liveness and readiness,
-  Swagger, the live 161-operation OpenAPI surface, protected routes, and the
-  tenant-scoped logo retrieval behavior were verified. The bounded SSE shutdown
-  deadline occurred during stop and recovered through systemd; current state is
-  healthy with zero restarts.
-  The disposable PostgreSQL lifecycle and full HAL/virtual-charger acceptance
-  remain pending without the required test topology and `TEST_DATABASE_URL`.
+- Revision `3f3a952` was built from a clean worktree and rehosted on the
+  development VPS after migration thirty-three. The CMS HAL operational
+  capability layer, including durable scoped operational events, is live with
+  the prior inventory, settings, GST, compact User App location, and
+  invoice-logo surfaces. Running-binary SHA/VCS identity, active/enabled
+  systemd state, migration ledger/table/index checks, loopback/public liveness
+  and readiness, Swagger, the live 172-operation OpenAPI surface, and the HAL
+  fact-ingress validation boundary were verified. No DNS, Caddy, or HAL
+  provider configuration changed; current service state is healthy with zero
+  restarts. The disposable PostgreSQL lifecycle and full HAL/virtual-charger
+  acceptance remain pending without the required test topology and
+  `TEST_DATABASE_URL`.
+- Revision `27c01f3` subsequently rehosted the shared bounded User App
+  live-state overlay and its CPO HAL operational manual without a migration.
+  The service remains healthy with zero restarts; loopback/public health,
+  Swagger, raw OpenAPI, and the unchanged 172-operation contract were verified.
 
 Next expected slice:
 

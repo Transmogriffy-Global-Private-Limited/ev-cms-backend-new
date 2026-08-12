@@ -16,8 +16,11 @@ import (
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/config"
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/cpo"
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/customerauth"
+	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/halops"
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/integrations"
+	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/liveops"
 	cmsmail "github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/mail"
+	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/operationalrealtime"
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/platformops"
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/routes"
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/security"
@@ -96,15 +99,20 @@ func run() error {
 	platformService := platformops.NewService(gormDB, cfg.Platform)
 	superadminService := superadmin.NewService(gormDB, platformService, outbox, cfg.Mail.Enabled)
 	subscriptionService := subscriptions.NewService(gormDB, platformService)
+	halOperations := halops.New(gormDB, cfg.HAL)
+	liveOperations := liveops.New(gormDB, cfg.HAL)
+	operationalEvents := operationalrealtime.New(gormDB, cfg.Platform)
 	cpoService := cpo.NewService(gormDB, outbox, cfg.Mail.Enabled, cfg.ChargerConnectionURL).
-		WithPlatformEvents(platformService)
+		WithPlatformEvents(platformService).
+		WithOperationalCapabilities(halOperations, liveOperations).
+		WithOperationalEvents(operationalEvents)
 	customerAuthService, err := customerauth.NewService(
 		gormDB, cfg.Auth, cfg.Mail.Enabled, outbox, tokenManager,
 	)
 	if err != nil {
 		return err
 	}
-	customerAuthService.WithHAL(cfg.HAL)
+	customerAuthService.WithHALOperations(halOperations, liveOperations, cfg.HAL).WithOperationalEvents(operationalEvents)
 	integrationService := integrations.NewService(gormDB, credentialSecretBox)
 	customerAuthService.WithRazorpayCredentialResolver(func(
 		ctx context.Context,
@@ -120,6 +128,8 @@ func run() error {
 		}, nil
 	})
 	go platformService.RunMaintenance(ctx, uuid.NewString())
+	go halOperations.RunReconciler(ctx, time.Minute)
+	go operationalEvents.RunRetention(ctx, cfg.Platform.MaintenanceEvery)
 
 	if cfg.Mail.Enabled {
 		sender, err := cmsmail.NewSMTPSender(cfg.Mail)

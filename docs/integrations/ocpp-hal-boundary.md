@@ -27,6 +27,16 @@ establish start and completion truth.
   `000028_cms_hal_charging_vertical`.
 - User App routes poll only CMS data. They never synchronously call HAL for a
   map, session, or meter read.
+- `src/halops` is the CMS integration capability above `halclient`: it owns
+  mapping synchronization, exact CMS command identity reconciliation, and the
+  independent fact ingress socket. Business services authorize first and never
+  build raw HAL requests.
+- `src/liveops` owns current CMS-projection reads for charger, connector,
+  session, and fleet state. It centralizes freshness: connector availability is
+  never fresh when parent connection evidence is stale, offline, or unknown.
+- Durable `operational_events` are written in the same transaction as an
+  accepted fact projection. They are notification-sized; REST snapshots remain
+  the authority after missed delivery or reconnect.
 
 ## Customer Flow
 
@@ -60,10 +70,15 @@ reconciles the same command identity after a transport ambiguity.
 
 ## Current Limitations and Required Follow-up
 
-The durable data and route surfaces are in source, but full Postgres-to-HAL-to-
-virtual-charger acceptance has not yet been run in this repository because the
-required disposable CMS/HAL databases and virtual charger topology were not
-configured in this slice. In particular, a bounded CMS reconciliation worker
-and CPO inventory-triggered mapping synchronization remain unfinished. Do not
-claim physical charger acceptance, restart recovery, or full vertical-slice
-completion until the planned dual-service tests prove them.
+The durable data and route surfaces are in source, including bounded
+reconciliation for pending/reconciliation-required mappings and exact command
+identity lookup. CPO charger creation, edits, and status changes leave a
+durable mapping record and attempt provider synchronization only after their
+CMS transaction commits. Provider failure remains a visible pending state; it
+never fabricates command/session outcome.
+
+Full Postgres-to-HAL-to-virtual-charger acceptance has not yet been run because
+the required disposable CMS/HAL databases and virtual charger topology were not
+configured in this slice. Do not claim physical charger acceptance, restart
+recovery, or full vertical-slice completion until the planned dual-service tests
+prove them.
