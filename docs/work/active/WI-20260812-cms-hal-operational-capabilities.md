@@ -56,6 +56,9 @@ Establish reusable CMS capabilities over HAL-derived operational truth and expos
   `docs/integrations/cpo-hal-operational-capability-manual.md`; it documents
   current CPO reads/SSE and the future command pattern without adding a CPO
   command endpoint.
+- The same canonical manual now provides the junior-oriented safe-extension,
+  return-value, identifier, lifecycle, debugging, and verification reference;
+  the CPO handoff is intentionally only its orientation and reading path.
 - The current CPO integration repair keeps those capabilities intact while
   removing duplicate response declarations and create-path mapping delivery;
   new charger identity compatibility and migration-34 tariff metadata are

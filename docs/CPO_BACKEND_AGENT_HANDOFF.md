@@ -14,6 +14,13 @@ The governing rule is:
 > slice, preserve tenant and HAL boundaries, verify real behavior, and update
 > every affected contract in the same change.
 
+> Before modifying HAL-backed charger, connector, live-state, charging-session,
+> operational-event, or SSE behavior, read
+> `docs/integrations/cpo-hal-operational-capability-manual.md`. It is the
+> canonical CPO backend HAL/live-charger integration guide. This handoff tells
+> you where to begin; the manual explains how the subsystem works and how to
+> program against it safely.
+
 ## Read This First
 
 Before planning or editing, read these files in order:
@@ -28,8 +35,10 @@ Before planning or editing, read these files in order:
 8. `docs/guides/workflows/app-user-authentication.md`
 9. `docs/contracts/api/administrative-http-api.md`
 10. `docs/contracts/openapi/openapi.yaml`
-11. `docs/integrations/ocpp-hal-boundary.md`
-12. The relevant ADR and detailed plan under `docs/decisions/` and
+11. `docs/integrations/cpo-hal-operational-capability-manual.md` for every
+    HAL-backed charger/live/charging change
+12. `docs/integrations/ocpp-hal-boundary.md`
+13. The relevant ADR and detailed plan under `docs/decisions/` and
     `docs/plans/`
 
 Then inspect:

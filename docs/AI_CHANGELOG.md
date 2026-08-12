@@ -2,6 +2,23 @@
 
 ## 2026-08-12
 
+### Expanded the canonical CPO HAL/live-charger integration guide
+
+- Reworked the existing CPO HAL operational-capability manual into a
+  source-grounded junior reference covering ownership, public capability
+  signatures/returns, identifiers, static versus live derivation, facts,
+  mapping/reconciliation, charging lifecycle, REST/SSE recovery, testing, and
+  explicit red-zone boundaries.
+- Made the CPO handoff reading path and documentation map point directly to the
+  canonical guide. No runtime, migration, OpenAPI, or HAL provider behavior was
+  changed.
+
+Verification:
+
+- The PowerShell documentation verifier and `git diff --check` passed. The
+  manual's cited CMS symbols, current routes, migrations, configuration, and
+  read-only provider contract were cross-checked before editing.
+
 ### Reconciled CPO charger and live-operations integration
 
 - Removed accidental duplicate CPO operational response declarations from the
