@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/constants"
+	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/liveops"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 )
@@ -575,4 +576,13 @@ type ChargerStatusResponse struct {
 type SettingsView struct {
 	InvoiceLogo *string `json:"invoice_logo,omitempty"`
 	InvoiceNote *string `json:"invoice_note,omitempty"`
+}
+
+type OperationalChargerResponse struct {
+	Charger ChargerResponse      `json:"charger"`
+	Live    liveops.ChargerDetail `json:"live"`
+}
+
+type FleetOperationsResponse struct {
+	Fleet liveops.FleetState `json:"fleet"`
 }
