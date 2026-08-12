@@ -93,7 +93,7 @@ type CPO struct {
 	GSTIN                 string                   `gorm:"type:varchar(15);not null" json:"gstin"`
 	Address               string                   `gorm:"type:text;not null" json:"address"`
 	City                  string                   `gorm:"type:varchar(100);not null" json:"city"`
-	State                 string                   `gorm:"type:varchar(100);not null" json:"state"`
+	State                 constants.IndianState    `gorm:"type:varchar(100);not null" json:"state"`
 	Pincode               string                   `gorm:"type:varchar(10);not null" json:"pincode"`
 	Status                constants.CPOStatus      `gorm:"type:varchar(20);not null;default:'PENDING'" json:"status"`
 	StatusReason          string                   `gorm:"type:varchar(500);not null" json:"status_reason"`
@@ -175,7 +175,7 @@ type Hub struct {
 	CPO             CPO       `gorm:"foreignKey:CPOID;constraint:OnUpdate:CASCADE,OnDelete:RESTRICT" json:"cpo,omitempty"`
 	Name            string    `gorm:"type:varchar(255);not null" json:"name"`
 	Address         string    `gorm:"type:text;not null" json:"address"`
-	State           string    `gorm:"not null;size:100"`
+	State           constants.IndianState `gorm:"not null;size:100"`
 	Latitude        float64   `gorm:"type:numeric(10,8);not null" json:"latitude"`
 	Longitude       float64   `gorm:"type:numeric(11,8);not null" json:"longitude"`
 	Open24Hours     bool      `gorm:"column:open_24_hours;not null;default:true" json:"open_24_hours"`
@@ -264,7 +264,7 @@ type GST struct {
 	ID        uuid.UUID        `gorm:"type:uuid;primaryKey;default:gen_random_uuid()" json:"id"`
 	CPOID     uuid.UUID        `gorm:"type:uuid;not null;index" json:"cpo_id"`
 	Name      string           `gorm:"type:varchar(100);not null" json:"name"`
-	State     string           `gorm:"type:varchar(255)" json:"state"`
+	State     constants.IndianState `gorm:"type:varchar(255)" json:"state"`
 	SGSTRate  *decimal.Decimal `gorm:"type:numeric(5,2)" json:"sgst_rate"`
 	CGSTRate  *decimal.Decimal `gorm:"type:numeric(5,2)" json:"cgst_rate"`
 	IGSTRate  *decimal.Decimal `gorm:"type:numeric(5,2)" json:"igst_rate"`

@@ -4,7 +4,6 @@ import (
 	"time"
 
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/constants"
-	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/liveops"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 )
@@ -16,7 +15,7 @@ type CreateRequest struct {
 	GSTIN        string                   `json:"gstin"`
 	Address      string                   `json:"address"`
 	City         string                   `json:"city"`
-	State        string                   `json:"state"`
+	State        constants.IndianState    `json:"state"`
 	Pincode      string                   `json:"pincode"`
 	Admin        InitialAdminRequest      `json:"admin"`
 }
@@ -36,7 +35,7 @@ type UpdateProfileRequest struct {
 	GSTIN        string                   `json:"gstin"`
 	Address      string                   `json:"address"`
 	City         string                   `json:"city"`
-	State        string                   `json:"state"`
+	State        constants.IndianState    `json:"state"`
 	Pincode      string                   `json:"pincode"`
 }
 
@@ -76,7 +75,7 @@ type View struct {
 	GSTIN                 string                   `json:"gstin"`
 	Address               string                   `json:"address"`
 	City                  string                   `json:"city"`
-	State                 string                   `json:"state"`
+	State        constants.IndianState    `json:"state"`
 	Pincode               string                   `json:"pincode"`
 	Status                constants.CPOStatus      `json:"status"`
 	StatusReason          string                   `json:"status_reason"`
@@ -178,7 +177,7 @@ type OrganizationView struct {
 	GSTIN           string                   `json:"gstin"`
 	Address         string                   `json:"address"`
 	City            string                   `json:"city"`
-	State           string                   `json:"state"`
+	State        constants.IndianState    `json:"state"`
 	Pincode         string                   `json:"pincode"`
 	Status          constants.CPOStatus      `json:"status"`
 	StatusChangedAt time.Time                `json:"status_changed_at"`
@@ -294,17 +293,6 @@ type ChargerListResponse struct {
 	HasMore      bool              `json:"has_more"`
 }
 
-// OperationalChargerResponse keeps administrative inventory and HAL-derived
-// runtime separate so an inactive CMS charger can still be observed OFFLINE.
-type OperationalChargerResponse struct {
-	Charger ChargerResponse       `json:"charger"`
-	Live    liveops.ChargerDetail `json:"live"`
-}
-
-type FleetOperationsResponse struct {
-	Fleet liveops.FleetState `json:"fleet"`
-}
-
 type ConnectorView struct {
 	ID                     uuid.UUID               `json:"id"`
 	CPOID                  uuid.UUID               `json:"cpo_id"`
@@ -320,7 +308,7 @@ type ConnectorView struct {
 type CreateHubRequest struct {
 	Name            string      `json:"name"`
 	Address         string      `json:"address"`
-	State           string      `json:"state"`
+	State        constants.IndianState    `json:"state"`
 	Latitude        *float64    `json:"latitude"`
 	Longitude       *float64    `json:"longitude"`
 	Open24Hours     *bool       `json:"open_24_hours,omitempty"`
@@ -332,7 +320,7 @@ type CreateHubRequest struct {
 type UpdateHubRequest struct {
 	Name            *string  `json:"name,omitempty"`
 	Address         *string  `json:"address,omitempty"`
-	State           *string  `json:"state,omitempty"`
+	State           *constants.IndianState  `json:"state,omitempty"`
 	Latitude        *float64 `json:"latitude,omitempty"`
 	Longitude       *float64 `json:"longitude,omitempty"`
 	Open24Hours     *bool    `json:"open_24_hours,omitempty"`
@@ -349,7 +337,7 @@ type HubView struct {
 	CPOID           uuid.UUID `json:"cpo_id"`
 	Name            string    `json:"name"`
 	Address         string    `json:"address"`
-	State           string    `json:"state"`
+	State        constants.IndianState    `json:"state"`
 	Latitude        float64   `json:"latitude"`
 	Longitude       float64   `json:"longitude"`
 	Open24Hours     bool      `json:"open_24_hours"`
@@ -372,7 +360,7 @@ type HubResponse struct {
 	CPOID           uuid.UUID            `json:"cpo_id"`
 	Name            string               `json:"name"`
 	Address         string               `json:"address"`
-	State           string               `json:"state"`
+	State        constants.IndianState    `json:"state"`
 	Latitude        float64              `json:"latitude"`
 	Longitude       float64              `json:"longitude"`
 	Open24Hours     bool                 `json:"open_24_hours"`
@@ -476,7 +464,7 @@ type TariffListResponse struct {
 
 type CreateGSTRequest struct {
 	Name     string           `json:"name"`
-	State    string           `json:"state"`
+	State        constants.IndianState    `json:"state"`
 	SGSTRate *decimal.Decimal `json:"sgst_rate"`
 	CGSTRate *decimal.Decimal `json:"cgst_rate"`
 	IGSTRate *decimal.Decimal `json:"igst_rate"`
@@ -484,19 +472,19 @@ type CreateGSTRequest struct {
 }
 
 type UpdateGSTRequest struct {
-	Name     *string          `json:"name,omitempty"`
-	State    *string          `json:"state,omitempty"`
-	SGSTRate *decimal.Decimal `json:"sgst_rate,omitempty"`
-	CGSTRate *decimal.Decimal `json:"cgst_rate,omitempty"`
-	IGSTRate *decimal.Decimal `json:"igst_rate,omitempty"`
-	IsActive *bool            `json:"is_active,omitempty"`
+	Name     *string                 `json:"name,omitempty"`
+	State    *constants.IndianState  `json:"state,omitempty"` // ✅ correct type
+	SGSTRate *decimal.Decimal        `json:"sgst_rate,omitempty"`
+	CGSTRate *decimal.Decimal        `json:"cgst_rate,omitempty"`
+	IGSTRate *decimal.Decimal        `json:"igst_rate,omitempty"`
+	IsActive *bool                   `json:"is_active,omitempty"`
 }
 
 type GSTView struct {
 	ID        uuid.UUID        `json:"id"`
 	CPOID     uuid.UUID        `json:"cpo_id"`
 	Name      string           `json:"name"`
-	State     string           `json:"state"`
+	State        constants.IndianState    `json:"state"`
 	SGSTRate  *decimal.Decimal `json:"sgst_rate,omitempty"`
 	CGSTRate  *decimal.Decimal `json:"cgst_rate,omitempty"`
 	IGSTRate  *decimal.Decimal `json:"igst_rate,omitempty"`

@@ -1311,7 +1311,7 @@ func normalizeCreateRequest(request CreateRequest) CreateRequest {
 	request.GSTIN = strings.ToUpper(strings.TrimSpace(request.GSTIN))
 	request.Address = strings.TrimSpace(request.Address)
 	request.City = strings.TrimSpace(request.City)
-	request.State = strings.TrimSpace(request.State)
+	request.State = constants.IndianState(strings.TrimSpace(string(request.State)))
 	request.Pincode = strings.TrimSpace(request.Pincode)
 	request.Admin.Email = strings.ToLower(strings.TrimSpace(request.Admin.Email))
 	request.Admin.FullName = strings.TrimSpace(request.Admin.FullName)
@@ -1323,7 +1323,7 @@ func normalizeProfileRequest(request UpdateProfileRequest) UpdateProfileRequest 
 	request.GSTIN = strings.ToUpper(strings.TrimSpace(request.GSTIN))
 	request.Address = strings.TrimSpace(request.Address)
 	request.City = strings.TrimSpace(request.City)
-	request.State = strings.TrimSpace(request.State)
+	request.State = constants.IndianState(strings.TrimSpace(string(request.State)))
 	request.Pincode = strings.TrimSpace(request.Pincode)
 	return request
 }
@@ -1353,8 +1353,8 @@ func validateProfileRequest(request UpdateProfileRequest) error {
 	if request.City == "" || len(request.City) > 100 {
 		return invalid("city", "City is required and must not exceed 100 characters.")
 	}
-	if request.State == "" || len(request.State) > 100 {
-		return invalid("state", "State is required and must not exceed 100 characters.")
+	if !request.State.Valid() {
+		return invalid("state", "Invalid state.")
 	}
 	if request.Pincode == "" || len(request.Pincode) > 10 {
 		return invalid("pincode", "Pincode is required and must not exceed 10 characters.")
@@ -1392,8 +1392,8 @@ func validateCreateRequest(request CreateRequest) error {
 	if request.City == "" || len(request.City) > 100 {
 		return invalid("city", "City is required and must not exceed 100 characters.")
 	}
-	if request.State == "" || len(request.State) > 100 {
-		return invalid("state", "State is required and must not exceed 100 characters.")
+	if !request.State.Valid() {
+		return invalid("state", "Invalid state.")
 	}
 	if request.Pincode == "" || len(request.Pincode) > 10 {
 		return invalid("pincode", "Pincode is required and must not exceed 10 characters.")
@@ -4181,7 +4181,7 @@ func (service *Service) UpdateHub(
 			case "customer_visible":
 				record.CustomerVisible = value.(bool)
 			case "state":
-				record.State = value.(string)
+				record.State = value.(constants.IndianState)
 			}
 		}
 
@@ -4496,14 +4496,17 @@ func (service *Service) AssignChargerToHub(
 func normalizeCreateHubRequest(request CreateHubRequest) CreateHubRequest {
 	request.Name = strings.TrimSpace(request.Name)
 	request.Address = strings.TrimSpace(request.Address)
-	request.State = strings.TrimSpace(request.State)
+	request.State = constants.IndianState(strings.TrimSpace(string(request.State)))
 	return request
 }
 
 func normalizeUpdateHubRequest(request UpdateHubRequest) UpdateHubRequest {
 	request.Name = trimOptionalString(request.Name)
 	request.Address = trimOptionalString(request.Address)
-	request.State = trimOptionalString(request.State)
+	if request.State != nil {
+		trimmedState := constants.IndianState(strings.TrimSpace(string(*request.State)))
+		request.State = &trimmedState
+	}
 	return request
 }
 
@@ -4514,8 +4517,8 @@ func validateCreateHubRequest(request CreateHubRequest) error {
 	if request.Address == "" || len(request.Address) > 5000 {
 		return invalid("address", "Hub address is required and must not exceed 5000 characters.")
 	}
-	if request.State == "" || len(request.State) > 100 {
-		return invalid("state", "Hub state is required and must not exceed 100 characters.")
+	if !request.State.Valid() {
+		return invalid("state", "Invalid state.")
 	}
 	if request.Latitude == nil {
 		return invalid("latitude", "Latitude is required.")
@@ -4553,8 +4556,8 @@ func validateUpdateHubRequest(request UpdateHubRequest) error {
 	if request.Address != nil && (*request.Address == "" || len(*request.Address) > 5000) {
 		return invalid("address", "Hub address must not exceed 5000 characters.")
 	}
-	if request.State != nil && (*request.State == "" || len(*request.State) > 100) {
-		return invalid("state", "Hub state must not exceed 100 characters.")
+	if request.State != nil && !(*request.State).Valid() {
+		return invalid("state", "Invalid state.")
 	}
 	if request.Latitude != nil && (*request.Latitude < -90 || *request.Latitude > 90) {
 		return invalid("latitude", "Latitude must be between -90 and 90.")
@@ -4993,13 +4996,16 @@ func (service *Service) UpdateGST(
 
 func normalizeCreateGSTRequest(request CreateGSTRequest) CreateGSTRequest {
 	request.Name = strings.TrimSpace(request.Name)
-	request.State = strings.TrimSpace(request.State)
+	request.State = constants.IndianState(strings.TrimSpace(string(request.State)))
 	return request
 }
 
 func normalizeUpdateGSTRequest(request UpdateGSTRequest) UpdateGSTRequest {
 	request.Name = trimOptionalString(request.Name)
-	request.State = trimOptionalString(request.State)
+	if request.State != nil {
+		trimmedState := constants.IndianState(strings.TrimSpace(string(*request.State)))
+		request.State = &trimmedState
+	}
 	return request
 }
 
@@ -5007,8 +5013,8 @@ func validateCreateGSTRequest(request CreateGSTRequest) error {
 	if request.Name == "" || len(request.Name) > 100 {
 		return invalid("name", "GST name is required and must not exceed 100 characters.")
 	}
-	if request.State == "" || len(request.State) > 100 {
-		return invalid("state", "GST state is required and must not exceed 100 characters.")
+	if !request.State.Valid() {
+		return invalid("state", "Invalid state.")
 	}
 	if request.SGSTRate == nil {
 		return invalid("sgst_rate", "SGST rate is required.")
@@ -5053,8 +5059,8 @@ func validateUpdateGSTRequest(request UpdateGSTRequest) error {
 	if request.Name != nil && (*request.Name == "" || len(*request.Name) > 100) {
 		return invalid("name", "GST name must not exceed 100 characters.")
 	}
-	if request.State != nil && (*request.State == "" || len(*request.State) > 100) {
-		return invalid("state", "GST state must not exceed 100 characters.")
+	if request.State != nil && !(*request.State).Valid() {
+		return invalid("state", "Invalid state.")
 	}
 	if request.SGSTRate != nil {
 		if request.SGSTRate.Sign() < 0 || request.SGSTRate.Cmp(decimal.NewFromInt(100)) > 0 {
