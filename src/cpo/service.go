@@ -2968,6 +2968,17 @@ func (service *Service) GetCharger(
 	return service.chargerView(record, principal), nil
 }
 
+// OperationalChargerResponse keeps administrative inventory and HAL-derived
+// runtime separate so an inactive CMS charger can still be observed OFFLINE.
+type OperationalChargerResponse struct {
+	Charger ChargerResponse       `json:"charger"`
+	Live    liveops.ChargerDetail `json:"live"`
+}
+
+type FleetOperationsResponse struct {
+	Fleet liveops.FleetState `json:"fleet"`
+}
+
 func (service *Service) GetOperationalCharger(ctx context.Context, principal auth.Principal, chargerID string) (OperationalChargerResponse, error) {
 	if err := requireCPOAdminAccess(principal); err != nil {
 		return OperationalChargerResponse{}, err
