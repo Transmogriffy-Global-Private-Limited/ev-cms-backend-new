@@ -1893,10 +1893,7 @@ func (service *Service) CreateCharger(
 			return err
 		}
 
-		ocppIdentity, err := generateUniqueOCPPIdentityTx(tx)
-		if err != nil {
-			return err
-		}
+		ocppIdentity := chargerID
 
 		file, err := ctx.FormFile("charger_image")
 		var chargerImagePath string
@@ -3490,33 +3487,7 @@ func generateUniqueChargerIDTx(tx *gorm.DB) (string, error) {
 	}
 }
 
-func generateUniqueOCPPIdentityTx(tx *gorm.DB) (string, error) {
-	for i := 0; i < 32; i++ {
-		randomHex, err := security.RandomHex(3)
-		if err != nil {
-			return "", err
-		}
-		candidate := "ocpp_" + strings.ToLower(randomHex)
 
-		var existing models.Charger
-		err = tx.Select("id").
-			Where("ocpp_identity = ?", candidate).
-			Take(&existing).Error
-
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return candidate, nil
-		}
-		if err != nil {
-			return "", fmt.Errorf("check ocpp identity uniqueness: %w", err)
-		}
-	}
-
-	return "", &auth.APIError{
-		Status:  http.StatusConflict,
-		Code:    "charger_conflict",
-		Message: "Unable to generate a unique OCPP identity.",
-	}
-}
 
 func mapChargerNotFound(err error) error {
 	if errors.Is(err, gorm.ErrRecordNotFound) {

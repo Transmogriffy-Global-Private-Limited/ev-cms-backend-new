@@ -279,27 +279,28 @@ func (GST) TableName() string {
 }
 
 type Tariff struct {
-	ID            uuid.UUID             `gorm:"type:uuid;primaryKey;default:gen_random_uuid()" json:"id"`
-	CPOID         uuid.UUID             `gorm:"type:uuid;not null;index" json:"cpo_id"`
-	HubID         uuid.UUID             `gorm:"type:uuid;not null;index" json:"hub_id"`
-	Hub           Hub                   `gorm:"foreignKey:HubID;constraint:OnUpdate:CASCADE,OnDelete:RESTRICT" json:"hub,omitempty"`
-	ChargerID     *uuid.UUID            `gorm:"type:uuid;index" json:"charger_id,omitempty"`
-	Charger       *Charger              `gorm:"foreignKey:ChargerID;constraint:OnUpdate:CASCADE,OnDelete:RESTRICT" json:"charger,omitempty"`
-	GSTID         *uuid.UUID            `gorm:"type:uuid;index" json:"gst_id,omitempty"`
-	GST           *GST                  `gorm:"foreignKey:GSTID;constraint:OnUpdate:CASCADE,OnDelete:RESTRICT" json:"gst,omitempty"`
-	UserGroupID   *uuid.UUID            `gorm:"type:uuid;index" json:"user_group_id,omitempty"`
-	UserGroup     *UserGroup            `gorm:"foreignKey:UserGroupID;constraint:OnUpdate:CASCADE,OnDelete:RESTRICT" json:"user_group,omitempty"`
-	PricePerKWh   decimal.Decimal       `gorm:"column:price_per_kwh;type:numeric(12,4);not null" json:"price_per_kwh"`
-	IdleFeePerMin decimal.Decimal       `gorm:"type:numeric(12,4);not null;default:0" json:"idle_fee_per_min"`
-	Currency      string                `gorm:"type:char(3);not null;default:'INR'" json:"currency"`
-	IsActive      bool                  `gorm:"not null;default:true" json:"is_active"`
-	StartDate     *time.Time            `gorm:"type:timestamptz;index" json:"start_date,omitempty"`
-	EndDate       *time.Time            `gorm:"type:timestamptz;index" json:"end_date,omitempty"`
-	TariffType    *constants.TariffType `gorm:"type:tariff_type" json:"tariff_type,omitempty"`
-	PriceType     *constants.PriceType  `gorm:"type:price_type" json:"price_type,omitempty"`
-	Units         *constants.Unit       `gorm:"type:units" json:"units,omitempty"`
-	CreatedAt     time.Time             `gorm:"not null" json:"created_at"`
-	UpdatedAt     time.Time             `gorm:"not null" json:"updated_at"`
+	ID            uuid.UUID                    `gorm:"type:uuid;primaryKey;default:gen_random_uuid()" json:"id"`
+	CPOID         uuid.UUID                    `gorm:"type:uuid;not null;index" json:"cpo_id"`
+	HubID         uuid.UUID                    `gorm:"type:uuid;not null;index" json:"hub_id"`
+	Hub           Hub                          `gorm:"foreignKey:HubID;constraint:OnUpdate:CASCADE,OnDelete:RESTRICT" json:"hub,omitempty"`
+	Assigned      constants.TariffAssignedType `gorm:"column:assigned;type:enum('usergroup','hub','charger');not null"`
+	ChargerID     *uuid.UUID                   `gorm:"type:uuid;index" json:"charger_id,omitempty"`
+	Charger       *Charger                     `gorm:"foreignKey:ChargerID;constraint:OnUpdate:CASCADE,OnDelete:RESTRICT" json:"charger,omitempty"`
+	GSTID         *uuid.UUID                   `gorm:"type:uuid;index" json:"gst_id,omitempty"`
+	GST           *GST                         `gorm:"foreignKey:GSTID;constraint:OnUpdate:CASCADE,OnDelete:RESTRICT" json:"gst,omitempty"`
+	UserGroupID   *uuid.UUID                   `gorm:"type:uuid;index" json:"user_group_id,omitempty"`
+	UserGroup     *UserGroup                   `gorm:"foreignKey:UserGroupID;constraint:OnUpdate:CASCADE,OnDelete:RESTRICT" json:"user_group,omitempty"`
+	PricePerKWh   decimal.Decimal              `gorm:"column:price_per_kwh;type:numeric(12,4);not null" json:"price_per_kwh"`
+	IdleFeePerMin decimal.Decimal              `gorm:"type:numeric(12,4);not null;default:0" json:"idle_fee_per_min"`
+	Currency      string                       `gorm:"type:char(3);not null;default:'INR'" json:"currency"`
+	IsActive      bool                         `gorm:"not null;default:true" json:"is_active"`
+	StartDate     *time.Time                   `gorm:"type:timestamptz;index" json:"start_date,omitempty"`
+	EndDate       *time.Time                   `gorm:"type:timestamptz;index" json:"end_date,omitempty"`
+	TariffType    *constants.TariffType        `gorm:"type:tariff_type" json:"tariff_type,omitempty"`
+	PriceType     *constants.PriceType         `gorm:"type:price_type" json:"price_type,omitempty"`
+	Units         *constants.Unit              `gorm:"type:units" json:"units,omitempty"`
+	CreatedAt     time.Time                    `gorm:"not null" json:"created_at"`
+	UpdatedAt     time.Time                    `gorm:"not null" json:"updated_at"`
 }
 
 type Wallet struct {

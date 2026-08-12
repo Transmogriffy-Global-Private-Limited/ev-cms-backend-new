@@ -1,5 +1,13 @@
 package constants
 
+type TariffAssignedType string
+
+const (
+	TariffAssignedUserGroup TariffAssignedType = "usergroup"
+	TariffAssignedHub       TariffAssignedType = "hub"
+	TariffAssignedCharger   TariffAssignedType = "charger"
+)
+
 type TariffType string
 
 const (
