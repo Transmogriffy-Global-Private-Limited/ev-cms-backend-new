@@ -86,6 +86,8 @@ Implement and verify the first real CMS consumer charging vertical against
 - The later shared deployment is revision `3f3a952`: migration thirty-three is
   applied and the current live OpenAPI surface has 172 operations. Service,
   public/loopback health, Swagger, and raw OpenAPI remain healthy.
+- Revision `2e8fdb3` is now active after migration thirty-four; the live
+  service remains healthy with 172 OpenAPI operations.
 - The PowerShell documentation verifier was not run because `pwsh` is
   unavailable on this Ubuntu host.
 - Still required: disposable-PostgreSQL lifecycle tests, real loopback

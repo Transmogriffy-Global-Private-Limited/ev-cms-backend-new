@@ -49,6 +49,8 @@ Migration files:
 - `db/migrations/000032_add_state_to_hubs.down.sql`
 - `db/migrations/000033_operational_realtime_events.up.sql`
 - `db/migrations/000033_operational_realtime_events.down.sql`
+- `db/migrations/000034_add_assigned_to_to_tariffs.up.sql`
+- `db/migrations/000034_add_assigned_to_to_tariffs.down.sql`
 
 ## Supplied Model Mapping
 

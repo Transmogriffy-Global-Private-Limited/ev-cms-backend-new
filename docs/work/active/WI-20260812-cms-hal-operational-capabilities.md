@@ -39,8 +39,9 @@ Establish reusable CMS capabilities over HAL-derived operational truth and expos
 
 ## Data and migration impact
 
-- Adds migration 33 for durable scoped operational notifications. It is applied
-  on the development VPS after a validated rollback dump.
+- Adds migration 33 for durable scoped operational notifications and migration
+  34 for nullable tariff assignment metadata. Both are applied on the
+  development VPS after validated rollback dumps.
 
 ## Current state
 
@@ -61,7 +62,8 @@ Establish reusable CMS capabilities over HAL-derived operational truth and expos
   source-aligned. The later serial-number HAL admission contract remains out
   of scope.
 - Durable operational events are produced with accepted newer fact projections and consumed through scoped REST cursor replay/SSE. Streams revalidate bearer sessions at heartbeat.
-- Revision `27c01f3` is active under `evcmsnew-dev.service`; migration thirty-three,
+- Revision `2e8fdb3` is active under `evcmsnew-dev.service`; migrations thirty-three
+  and thirty-four,
   loopback/public health and readiness, Swagger, raw OpenAPI, the live
   172-operation contract, and HAL fact-ingress validation have been verified.
 

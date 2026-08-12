@@ -1016,8 +1016,10 @@ Last deployment milestone:
   `TEST_DATABASE_URL`.
 - Revision `27c01f3` subsequently rehosted the shared bounded User App
   live-state overlay and its CPO HAL operational manual without a migration.
-  The service remains healthy with zero restarts; loopback/public health,
-  Swagger, raw OpenAPI, and the unchanged 172-operation contract were verified.
+  Revision `2e8fdb3` then applied migration thirty-four for nullable tariff
+  assignment metadata and rehosted the reconciled CPO/HAL integration. The
+  service remains healthy with zero restarts; loopback/public health, Swagger,
+  raw OpenAPI, and the unchanged 172-operation contract were verified.
 
 Next expected slice:
 

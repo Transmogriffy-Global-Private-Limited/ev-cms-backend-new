@@ -27,6 +27,27 @@ Verification:
   operation is part of this repair. `TEST_DATABASE_URL` is not configured, so
   disposable migration/lifecycle verification was not run.
 
+### Rehosted the reconciled CPO and tariff-assignment release
+
+- Fast-forwarded `main` to revision `2e8fdb3`, applied migration
+  `000034_add_assigned_to_to_tariffs` after a validated mode-0600 PostgreSQL
+  rollback dump, and retained the prior binary at
+  `builds/evcmsnew.pre-2e8fdb3`.
+- The live service now includes the reconciled CPO/HAL mapping behavior,
+  charger identity compatibility, and nullable tariff assignment metadata.
+  No DNS, Caddy route, or HAL provider configuration changed.
+
+Verification:
+
+- Caddy validation, route/OpenAPI parity, focused CPO/model tests,
+  `go test ./...`, `go vet ./...`, clean build, and `git diff --check` passed.
+- Migration ledger/type/column checks, active service state with zero restarts,
+  loopback/public liveness and readiness, Swagger, raw OpenAPI, the live
+  172-operation contract, and post-rehost warning scan passed.
+- `scripts/verify-docs.ps1` was not run because `pwsh` is unavailable on this
+  Ubuntu host. Disposable PostgreSQL lifecycle and full CMS-to-HAL topology
+  acceptance remain pending their dedicated test environment.
+
 ### Deployed User App live-state consumption and CPO HAL manual
 
 - Replaced the single-detail-only customer availability overlay with a shared

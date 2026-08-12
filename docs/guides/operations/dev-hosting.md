@@ -29,7 +29,7 @@ that setting; it must not be used until the OCPP host is explicitly configured
 with TLS/WebSocket support.
 
 The active deployment was updated on August 12, 2026 to source revision
-`27c01f3`. It has migrations one through thirty-three and the current 172-operation
+`2e8fdb3`. It has migrations one through thirty-four and the current 172-operation
 API. Migration thirty-three adds the CPO/customer-scoped `operational_events`
 ledger used for durable operational-notification recovery; its four indexes
 support CPO and customer cursor replay plus retention. Migration twenty-seven
@@ -71,6 +71,8 @@ Migration thirty-two adds required hub `state` persistence with an empty-string
 default for existing rows; CPO hub create/update/list/detail contracts expose
 the field, and the User App charger-location projection is available at
 `GET /api/v1/app/chargers/locations` behind customer authentication.
+Migration thirty-four adds nullable `tariffs.assigned_to` using the
+`tariff_assignment_type` enum; current tariff APIs leave it null.
 GSTIN and complete address identity
 are database-required for CPOs, the
 authenticated platform slug-availability route is live, and known uniqueness
@@ -167,7 +169,7 @@ content exclusions are defined in
 `docs/contracts/internal/http-request-logging.md`. Long-lived SSE requests are
 recorded when they disconnect. A recovered panic first emits a correlated safe
 JSON stack diagnostic without Gin's request dump or the panic value. The
-currently deployed `27c01f3` binary includes this logger.
+currently deployed `2e8fdb3` binary includes this logger.
 
 The platform realtime SSE route is long-lived. If a browser holds that stream
 during a rehost, the application may log `shut down HTTP server: context
