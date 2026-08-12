@@ -60,9 +60,9 @@ Implement and verify the first real CMS consumer charging vertical against
   customer start/stop/polling routes, and OpenAPI/configuration documentation.
 - Migration `000028_cms_hal_charging_vertical` and migration
   `000029_add_tariff_fields` are applied in the development database. Revision
-  `d368903` is active under `evcmsnew-dev.service` with a
-  161-operation live contract; migrations thirty and thirty-one for tenant
-  settings and GST state are also applied.
+  `3ca2c35` is active under `evcmsnew-dev.service` with a
+  162-operation live contract; migrations thirty through thirty-two for tenant
+  settings, GST state, and hub state are also applied.
 - The optional HAL v1 base URL and both service credentials remain unset on
   this host, so customer charging is intentionally unavailable until the
   independent provider is configured.
@@ -77,6 +77,9 @@ Implement and verify the first real CMS consumer charging vertical against
   route checks, and `git diff --check`. The bounded SSE shutdown deadline during
   rehost recovered through systemd; the current service is active with zero
   restarts.
+- Passed for the latest shared deployment: revision `3ca2c35`, migration
+  thirty-two ledger/table checks, loopback/public health and readiness, live
+  Swagger/OpenAPI, protected-route boundary, and post-rehost journal scan.
 - The PowerShell documentation verifier was not run because `pwsh` is
   unavailable on this Ubuntu host.
 - Still required: disposable-PostgreSQL lifecycle tests, real loopback

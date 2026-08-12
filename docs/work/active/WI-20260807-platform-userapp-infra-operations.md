@@ -103,9 +103,10 @@ alongside safe hub fields and `connector_total_capacity`. Hub
 `open_24_hours`, charger `twenty_four_seven_open_status`, and
 `hub_open_24_hours` are separately represented. Charger-host contact details,
 connection URLs, sanctioned load, and HAL-owned state remain excluded. The
-development VPS now runs application revision `d368903`; the charging vertical,
-nullable tariff metadata, tenant settings API, GST state update, and protected
-invoice-logo retrieval are active through migration thirty-one
+development VPS now runs application revision `3ca2c35`; the charging vertical,
+nullable tariff metadata, tenant settings API, GST and hub state updates, compact
+charger locations, and protected invoice-logo retrieval are active through
+migration thirty-two
 without a DNS or reverse-proxy change.
 
 The isolated SuperAdmin administrator-list repair now binds GORM explicitly to
@@ -143,16 +144,14 @@ rules, near-me behavior, current-CPO scope, and customer-visible-hub boundary.
 - `go test ./...` passed.
 - `go vet ./...` passed.
 - `git diff --check` passed.
-- Revision `d368903` is active under `evcmsnew-dev.service`; the running
-  process matches the installed binary and the expected VCS revision.
-- Loopback/public liveness and readiness passed.
-- The live OpenAPI exposes 161 operations, and the live CPO user-group detail
-  `members` projection and `usergroup_assigned` response field are present.
-- The live CPO connector response schema reflects `connector_total_capacity`.
-- The current systemd state is active/enabled with zero restarts after the
-  bounded SSE shutdown deadline recovered during rehost.
-- Migration thirty-one is applied; the tenant settings, GST, and CMS/HAL charging routes are
-  protected and the optional HAL provider remains unconfigured on this host.
+- Revision `3ca2c35` is active under `evcmsnew-dev.service`; the live OpenAPI
+  exposes 162 operations and migration thirty-two is applied. Loopback/public
+  liveness and readiness, Swagger, raw OpenAPI, and the protected
+  `/api/v1/app/chargers/locations` 401 boundary passed. The post-rehost journal
+  has no error, panic, or fatal records.
+- Earlier revision `d368903` deployment evidence established the prior
+  161-operation contract, tenant settings/GST/CMS-HAL routes, and connector
+  projection behavior before the current release.
 - The protected User App charger route returned `401` without credentials.
 - The current release is active on the loopback listener and public health and
   Swagger routes passed; the live OpenAPI contains 161 operations.

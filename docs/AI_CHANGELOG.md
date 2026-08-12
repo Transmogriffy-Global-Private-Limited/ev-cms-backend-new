@@ -2,6 +2,31 @@
 
 ## 2026-08-11
 
+### Rehosted latest main revision and reconciled deployment records
+
+- Built and rehosted clean `main` revision `3ca2c35` on the development VPS.
+  Applied migration `000032_add_state_to_hubs`, preserving the prior binary at
+  `builds/evcmsnew.pre-3ca2c35` and a validated mode-0600 rollback dump at
+  `/tmp/devevcmsnewdb-pre-3ca2c35.dump`.
+- The live service now exposes the hub `state` contract and authenticated User
+  App charger locations, with 162 OpenAPI operations. No DNS, Caddy route, or
+  HAL provider configuration changed.
+
+Verification:
+
+- Focused route/OpenAPI, CPO, and User App tests, `go test -p 1 ./...`,
+  `go vet -p 1 ./...`, clean build, and `git diff --check` passed.
+- Migration ledger/table checks, active/enabled service state with zero
+  restarts, loopback/public liveness and readiness, Swagger, raw OpenAPI,
+  protected-route `401`, and post-rehost journal checks passed. The old process
+  emitted a cached-plan result-type warning immediately after the schema change;
+  the rehost replaced it and the new process has no error, panic, or fatal
+  records.
+- `scripts/verify-docs.ps1` was not run because `pwsh` is unavailable on this
+  Ubuntu host. The disposable PostgreSQL lifecycle suite remains skipped because
+  `TEST_DATABASE_URL` is not configured; the live migration check above used the
+  explicitly authorized development database.
+
 ### Reconciled CPO hub state response contract
 
 - Completed the merged hub-state slice by adding `state` to CPO hub list/detail

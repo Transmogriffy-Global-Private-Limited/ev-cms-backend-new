@@ -58,15 +58,16 @@ backend work.
 
 ## Data and migration impact
 
-This CPO slice introduced migration twenty-nine for nullable tariff metadata;
-the shared development deployment also records migration twenty-eight for the
-separate CMS/HAL charging vertical.
+This CPO slice introduced migration twenty-nine for nullable tariff metadata
+and migration thirty-two for required hub state; the shared development
+deployment also records migration twenty-eight for the separate CMS/HAL
+charging vertical.
 
 ## Current state
 
-Revision `d368903` was built from a clean worktree and rehosted on
-August 11, 2026 without a new migration. The live service exposes the
-161-operation OpenAPI document, and the CPO user-group membership contract now
+Revision `3ca2c35` was built from a clean worktree and rehosted on
+August 11, 2026 after migration thirty-two. The live service exposes the
+162-operation OpenAPI document, and the CPO user-group membership contract now
 includes tenant-scoped, idempotent assignment/removal, the `members` detail
 projection, plus the `usergroup_assigned` customer projection. The CPO
 `Connector` response schema now
@@ -74,7 +75,7 @@ documents the runtime `connector_total_capacity` projection. Scoped tariff
 and user-group routes are protected by the same tenant authorization boundary.
 The local merge reconciliation also completes the CPO hub `state` contract:
 create requires it, update accepts it, and hub list/detail responses return it.
-No migration or deployment has been performed for that reconciliation.
+The hub `state` field is persisted and included in the live CPO hub contracts.
 
 ## Verification
 
@@ -88,23 +89,24 @@ No migration or deployment has been performed for that reconciliation.
 - `go test ./...` passed.
 - `go vet ./...` passed.
 - `git diff --check` passed.
-- Revision `d368903` is active under `evcmsnew-dev.service`; the running
-  process matches the installed binary and the expected VCS revision.
-- Loopback/public liveness and readiness passed.
-- The live OpenAPI exposes 161 operations, and the live CPO user-group detail
-  `members` projection plus `usergroup_assigned` response field are present.
-- The live CPO `Connector` response schema exposes `connector_total_capacity`.
-- The current systemd state is active/enabled with zero restarts after the
-  bounded SSE shutdown deadline recovered during rehost.
-- Migration twenty-nine is applied; its nullable tariff metadata is null-safe
-  for existing rows and omitted request fields.
+- Revision `3ca2c35` is active under `evcmsnew-dev.service`; the installed
+  binary SHA-256 is
+  `1771f4bee02ed7f5d270f9feacdad69ecb4c3de435103ea5d7c97e176ab9da12`, and
+  rollback artifacts are `builds/evcmsnew.pre-3ca2c35` and
+  `/tmp/devevcmsnewdb-pre-3ca2c35.dump`.
+- Migration thirty-two is applied; loopback/public liveness and readiness,
+  Swagger, raw OpenAPI, the live 162-operation contract, and protected-route
+  checks passed. The post-rehost journal has no error, panic, or fatal records.
+- Earlier revision `d368903` deployment evidence established the prior
+  161-operation contract, CPO user-group projections, connector capacity
+  contract, and migration twenty-nine behavior before the current release.
 - The PowerShell documentation verifier was not run because `pwsh` is
   unavailable on this Ubuntu host.
 
 ## Handoff
 
 The CPO implementation remains owned by Abhranil Pal. The current deployment
-contains no schema change. Connector create/update request payloads and
+contains migration thirty-two for hub state. Connector create/update request payloads and
 response objects use `connector_total_capacity`. Update the canonical OpenAPI,
 human contract, consumer guidance, and verification together.
 

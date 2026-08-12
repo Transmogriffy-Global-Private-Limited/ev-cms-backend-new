@@ -176,8 +176,8 @@ provides:
   handler;
 - the additive PostgreSQL database `devevcmsnewdb`, owned by `postgres`.
 
-The active development VPS runs source revision `d368903`, with migrations
-through thirty-one recorded and the deployed 161-operation contract. Migration
+The active development VPS runs source revision `3ca2c35`, with migrations
+through thirty-two recorded and the deployed 162-operation contract. Migration
 twenty-nine adds nullable `tariff_type`, `price_type`, and `units` metadata to
 tenant tariffs; omitted values remain null-safe for existing and newly created
 tariffs. The SuperAdmin administrator-list query explicitly binds the platform
@@ -206,6 +206,9 @@ tenant's stored logo and does not disclose a filesystem path. A
 GST profile now has a required API-level `state` value; migration thirty-one
 adds the nullable durable column and permits legacy GST-rate values to remain
 null. New GST creation continues to require all three validated rates. A
+required hub `state` value is now stored by migration thirty-two and returned by
+the CPO hub contracts. The authenticated User App charger-location route is
+also live and returns only the documented compact map-marker projection. A
 connected platform realtime SSE
 client can make graceful shutdown reach its bounded timeout during rehost;
 systemd restarts the service automatically and health checks then pass.
@@ -330,6 +333,18 @@ intentionally unsupported.
   protected settings/invoice-logo/GST/SuperAdmin route checks passed. The
   bounded SSE shutdown deadline occurred during stop and recovered; current
   systemd state is `Result=success`.
+- Revision `3ca2c35` was built from the clean `main` worktree and rehosted after
+  applying migration thirty-two. The installed candidate SHA-256 is
+  `1771f4bee02ed7f5d270f9feacdad69ecb4c3de435103ea5d7c97e176ab9da12`, with
+  rollback binary `builds/evcmsnew.pre-3ca2c35` and database dump
+  `/tmp/devevcmsnewdb-pre-3ca2c35.dump`. The enabled service is active with
+  zero restarts; loopback/public liveness and readiness, Swagger, raw OpenAPI,
+  the 162-operation contract, and the unauthenticated protected charger-location
+  check passed. The post-rehost journal had no error, panic, or fatal records.
+  The pre-rehost process emitted a cached-plan result-type warning after the
+  schema change; it was eliminated by the rehost and is not present in the new
+  process logs. The PowerShell documentation verifier remains unavailable on
+  this Ubuntu host.
 - Revision `a76d6ae` was built from a clean worktree and rehosted after
   migration thirty-one was applied. The installed binary SHA-256 is
   `0a3d397464dae13ef15b090225b4ca38fb1b4dfff946bf0de7d77cb9a5d3ebc0` and
