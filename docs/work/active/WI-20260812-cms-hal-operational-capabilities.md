@@ -56,7 +56,7 @@ Establish reusable CMS capabilities over HAL-derived operational truth and expos
   current CPO reads/SSE and the future command pattern without adding a CPO
   command endpoint.
 - Durable operational events are produced with accepted newer fact projections and consumed through scoped REST cursor replay/SSE. Streams revalidate bearer sessions at heartbeat.
-- Revision `3f3a952` is active under `evcmsnew-dev.service`; migration thirty-three,
+- Revision `27c01f3` is active under `evcmsnew-dev.service`; migration thirty-three,
   loopback/public health and readiness, Swagger, raw OpenAPI, the live
   172-operation contract, and HAL fact-ingress validation have been verified.
 
@@ -70,6 +70,10 @@ Establish reusable CMS capabilities over HAL-derived operational truth and expos
   validation, clean build, and `git diff --check` passed. Migration ledger,
   table/index, service, health, Swagger, raw OpenAPI, and HAL fact-ingress
   validation checks passed after rehost.
+- The shared full-response User App overlay was rehosted without a migration;
+  current service state has zero restarts, public/loopback health and docs are
+  healthy, and no post-restart warning was recorded. The PowerShell verifier
+  remains unavailable on this Ubuntu host because `pwsh` is not installed.
 - Fact/mapping/SSE lifecycle behavior, reconciliation recovery, and dual-service
   E2E remain pending. The earlier development host lacked `pwsh`; the current
   Windows source checkout passed the PowerShell documentation verifier.

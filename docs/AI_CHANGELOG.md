@@ -2,7 +2,7 @@
 
 ## 2026-08-12
 
-### Completed User App live-state consumption and CPO HAL manual
+### Deployed User App live-state consumption and CPO HAL manual
 
 - Replaced the single-detail-only customer availability overlay with a shared
   bounded `liveops.GetChargerDetails` projection read used by full charger
@@ -16,12 +16,20 @@
   configuration, disposable topology, and anti-patterns. Corrected stale User
   App, CPO handoff, docs-map, and OpenAPI descriptions.
 
+- Built and rehosted clean `main` revision `27c01f3` without a migration or
+  HAL checkout change, retaining the prior binary at
+  `builds/evcmsnew.pre-27c01f3`.
+
 Verification:
 
-- `gofmt` and `go test ./src/liveops ./src/customerauth -count=1` passed.
-- No migration, HAL checkout modification, deployment, commit, or push was
-  performed. Full repository and disposable dual-service lifecycle evidence is
-  still pending.
+- Caddy validation, focused live-projection and route/OpenAPI tests,
+  `go test ./...`, `go vet ./...`, clean build, and `git diff --check` passed.
+- Active/enabled systemd state with zero restarts, loopback/public liveness and
+  readiness, Swagger, raw OpenAPI, the unchanged 172-operation contract, and
+  the deployed User App availability descriptions passed. No post-restart
+  warnings were recorded.
+- `scripts/verify-docs.ps1` was not run on this Ubuntu host because `pwsh` is
+  unavailable. Disposable dual-service lifecycle evidence remains pending.
 
 ### CMS HAL operational capability layer started
 

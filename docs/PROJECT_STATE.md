@@ -15,14 +15,13 @@
   customer-safety gate for displayed availability.
 - Migration thirty-three is applied on the development VPS; its
   `operational_events` table and all four indexes are present. Revision
-  `3f3a952` is active with the 172-operation contract and healthy local/public
+  `27c01f3` is active with the 172-operation contract and healthy local/public
   liveness, readiness, Swagger, and raw OpenAPI routes.
 - Real PostgreSQL fact/mapping/SSE lifecycle, reconciliation recovery, and
   CMS-to-HAL-to-virtual-charger topology acceptance remain unverified pending
   the dedicated disposable database and provider test environment.
-- The User App overlay/manual source changes are local in this revision and
-  have not been deployed. Their focused and broad source verification does not
-  replace the pending disposable dual-service acceptance.
+- The User App overlay/manual release is deployed. Its focused and broad source
+  verification does not replace the pending disposable dual-service acceptance.
 
 The repository began as an empty file scaffold. The implemented foundation now
 provides:
@@ -198,7 +197,7 @@ provides:
   handler;
 - the additive PostgreSQL database `devevcmsnewdb`, owned by `postgres`.
 
-The active development VPS runs source revision `3f3a952`, with migrations
+The active development VPS runs source revision `27c01f3`, with migrations
 through thirty-three recorded and the deployed 172-operation contract. Migration
 twenty-nine adds nullable `tariff_type`, `price_type`, and `units` metadata to
 tenant tariffs; omitted values remain null-safe for existing and newly created
@@ -377,6 +376,16 @@ intentionally unsupported.
   readiness, Swagger, raw OpenAPI, the 172-operation contract, and HAL
   fact-ingress validation passed. No DNS, Caddy, or HAL provider configuration
   changed.
+- Revision `27c01f3` was built from the clean `main` worktree and rehosted
+  without a database migration. The installed binary SHA-256 is
+  `8e530d531f53691edc1cfde8970a83bf105160aa4ab3dfdb64bf3ae0d82191cb`,
+  embeds `27c01f3d82bc39498ad78f46ad369d90f5d7e7e0` with
+  `vcs.modified=false`, and retains `builds/evcmsnew.pre-27c01f3`. The enabled
+  service is active with zero restarts; loopback/public health and readiness,
+  Swagger, raw OpenAPI, the unchanged 172-operation contract, and the deployed
+  User App full-response live-overlay descriptions passed. No DNS, Caddy, HAL
+  provider configuration, or schema changed, and post-restart warnings were
+  absent.
 - Revision `a76d6ae` was built from a clean worktree and rehosted after
   migration thirty-one was applied. The installed binary SHA-256 is
   `0a3d397464dae13ef15b090225b4ca38fb1b4dfff946bf0de7d77cb9a5d3ebc0` and

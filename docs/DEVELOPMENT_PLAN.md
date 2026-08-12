@@ -107,10 +107,10 @@ Active work:
 
 Current implementation state:
 
-- CMS source contains the first client, durable records, shared fact receiver,
+- CMS source and the development deployment contain the first client, durable records, shared fact receiver,
   customer polling/start/stop routes, reusable operational projections,
   scoped operational-event replay/SSE, and a 172-operation OpenAPI surface.
-  Source state is ahead of the development deployment. The HAL v1 provider is
+  The HAL v1 provider is
   not configured on this host, and the complete Postgres-to-HAL-to-virtual-
   charger vertical is not verified yet.
 
@@ -1009,6 +1009,10 @@ Last deployment milestone:
   restarts. The disposable PostgreSQL lifecycle and full HAL/virtual-charger
   acceptance remain pending without the required test topology and
   `TEST_DATABASE_URL`.
+- Revision `27c01f3` subsequently rehosted the shared bounded User App
+  live-state overlay and its CPO HAL operational manual without a migration.
+  The service remains healthy with zero restarts; loopback/public health,
+  Swagger, raw OpenAPI, and the unchanged 172-operation contract were verified.
 
 Next expected slice:
 
