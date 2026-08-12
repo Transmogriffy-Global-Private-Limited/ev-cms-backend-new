@@ -1854,6 +1854,280 @@ func (service *Service) GetSubscription(
 
 	return view, nil
 }
+
+func (service *Service) AssignGSTToHub(
+	ctx context.Context,
+	principal auth.Principal,
+	hubID uuid.UUID,
+	request AssignGSTToHubRequest,
+) (HubView, error) {
+	if err := requireCPOAdminAccess(principal); err != nil {
+		return HubView{}, err
+	}
+
+	cpoID := *principal.CPOID
+	var hub models.Hub
+	err := service.database.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.First(&hub, "id = ? AND cpo_id = ?", hubID, cpoID).Error; err != nil {
+			return mapHubNotFound(err)
+		}
+
+		var gst models.GST
+		if err := tx.First(&gst, "id = ? AND cpo_id = ?", request.GSTID, cpoID).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return &auth.APIError{
+					Status:  http.StatusNotFound,
+					Code:    "gst_not_found",
+					Message: "The GST was not found.",
+				}
+			}
+			return fmt.Errorf("load GST: %w", err)
+		}
+
+		// Check if GST is already assigned to another hub
+		var count int64
+		if err := tx.Model(&models.Hub{}).Where("gst_id = ? AND cpo_id = ? AND id != ?", request.GSTID, cpoID, hubID).Count(&count).Error; err != nil {
+			return fmt.Errorf("check for existing GST assignment: %w", err)
+		}
+		if count > 0 {
+			return &auth.APIError{
+				Status:  http.StatusConflict,
+				Code:    "gst_already_assigned",
+				Message: "The GST is already assigned to another hub.",
+			}
+		}
+
+		now := service.now()
+		if err := tx.Model(&models.Hub{}).
+			Where("id = ?", hubID).
+			Updates(map[string]interface{}{
+				"gst_id":     &request.GSTID,
+				"updated_at": now,
+			}).Error; err != nil {
+			return fmt.Errorf("assign GST to hub: %w", err)
+		}
+		hub.GSTID = &request.GSTID
+		hub.UpdatedAt = now
+
+		return writeAudit(
+			tx,
+			principal.UserID,
+			cpoID,
+			"HUB_GST_ASSIGNED",
+			models.JSONB{
+				"hub_id": hubID,
+				"gst_id": request.GSTID,
+			},
+			now,
+		)
+	})
+
+	if err != nil {
+		return HubView{}, err
+	}
+
+	return toHubView(hub), nil
+}
+
+func (service *Service) GetGSTForHub(
+	ctx context.Context,
+	principal auth.Principal,
+	hubID uuid.UUID,
+) (GSTView, error) {
+	if err := requireCPOAdminAccess(principal); err != nil {
+		return GSTView{}, err
+	}
+
+	cpoID := *principal.CPOID
+	var hub models.Hub
+	if err := service.database.WithContext(ctx).First(&hub, "id = ? AND cpo_id = ?", hubID, cpoID).Error; err != nil {
+		return GSTView{}, mapHubNotFound(err)
+	}
+
+	if hub.GSTID == nil {
+		return GSTView{}, &auth.APIError{
+			Status:  http.StatusNotFound,
+			Code:    "gst_not_found",
+			Message: "No GST is assigned to this hub.",
+		}
+	}
+
+	var gst models.GST
+	if err := service.database.WithContext(ctx).First(&gst, "id = ? AND cpo_id = ?", *hub.GSTID, cpoID).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return GSTView{}, &auth.APIError{
+				Status:  http.StatusNotFound,
+				Code:    "gst_not_found",
+				Message: "The assigned GST was not found.",
+			}
+		}
+		return GSTView{}, fmt.Errorf("load GST: %w", err)
+	}
+
+	return toGSTView(gst), nil
+}
+
+func (service *Service) UpdateGSTForHub(
+	ctx context.Context,
+	principal auth.Principal,
+	hubID uuid.UUID,
+	request AssignGSTToHubRequest,
+) (HubView, error) {
+	if err := requireCPOAdminAccess(principal); err != nil {
+		return HubView{}, err
+	}
+
+	cpoID := *principal.CPOID
+	var hub models.Hub
+	err := service.database.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.First(&hub, "id = ? AND cpo_id = ?", hubID, cpoID).Error; err != nil {
+			return mapHubNotFound(err)
+		}
+
+		var gst models.GST
+		if err := tx.First(&gst, "id = ? AND cpo_id = ?", request.GSTID, cpoID).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return &auth.APIError{
+					Status:  http.StatusNotFound,
+					Code:    "gst_not_found",
+					Message: "The GST was not found.",
+				}
+			}
+			return fmt.Errorf("load GST: %w", err)
+		}
+
+		// Check if GST is already assigned to another hub
+		var count int64
+		if err := tx.Model(&models.Hub{}).Where("gst_id = ? AND cpo_id = ? AND id != ?", request.GSTID, cpoID, hubID).Count(&count).Error; err != nil {
+			return fmt.Errorf("check for existing GST assignment: %w", err)
+		}
+		if count > 0 {
+			return &auth.APIError{
+				Status:  http.StatusConflict,
+				Code:    "gst_already_assigned",
+				Message: "The GST is already assigned to another hub.",
+			}
+		}
+
+		now := service.now()
+		if err := tx.Model(&models.Hub{}).
+			Where("id = ?", hubID).
+			Updates(map[string]interface{}{
+				"gst_id":     &request.GSTID,
+				"updated_at": now,
+			}).Error; err != nil {
+			return fmt.Errorf("update GST for hub: %w", err)
+		}
+		hub.GSTID = &request.GSTID
+		hub.UpdatedAt = now
+
+		return writeAudit(
+			tx,
+			principal.UserID,
+			cpoID,
+			"HUB_GST_UPDATED",
+			models.JSONB{
+				"hub_id": hubID,
+				"gst_id": request.GSTID,
+			},
+			now,
+		)
+	})
+
+	if err != nil {
+		return HubView{}, err
+	}
+
+	return toHubView(hub), nil
+}
+
+func (service *Service) UnassignGSTFromHub(
+	ctx context.Context,
+	principal auth.Principal,
+	hubID uuid.UUID,
+) (HubView, error) {
+	if err := requireCPOAdminAccess(principal); err != nil {
+		return HubView{}, err
+	}
+
+	cpoID := *principal.CPOID
+	var hub models.Hub
+	err := service.database.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.First(&hub, "id = ? AND cpo_id = ?", hubID, cpoID).Error; err != nil {
+			return mapHubNotFound(err)
+		}
+
+		if hub.GSTID == nil {
+			return nil // Nothing to do
+		}
+
+		previousGstID := hub.GSTID
+
+		now := service.now()
+		if err := tx.Model(&models.Hub{}).
+			Where("id = ?", hubID).
+			Updates(map[string]interface{}{
+				"gst_id":     nil,
+				"updated_at": now,
+			}).Error; err != nil {
+			return fmt.Errorf("unassign GST from hub: %w", err)
+		}
+		hub.GSTID = nil
+		hub.UpdatedAt = now
+
+		return writeAudit(
+			tx,
+			principal.UserID,
+			cpoID,
+			"HUB_GST_UNASSIGNED",
+			models.JSONB{
+				"hub_id":          hubID,
+				"previous_gst_id": previousGstID,
+			},
+			now,
+		)
+	})
+
+	if err != nil {
+		return HubView{}, err
+	}
+
+	return toHubView(hub), nil
+}
+
+func toHubView(hub models.Hub) HubView {
+	return HubView{
+		ID:              hub.ID,
+		CPOID:           hub.CPOID,
+		Name:            hub.Name,
+		Address:         hub.Address,
+		State:           hub.State,
+		Latitude:        hub.Latitude,
+		Longitude:       hub.Longitude,
+		Open24Hours:     hub.Open24Hours,
+		SanctionLoad:    hub.SanctionLoad,
+		CustomerVisible: hub.CustomerVisible,
+		GSTID:           hub.GSTID,
+		CreatedAt:       hub.CreatedAt,
+		UpdatedAt:       hub.UpdatedAt,
+	}
+}
+
+func toGSTView(gst models.GST) GSTView {
+	return GSTView{
+		ID:        gst.ID,
+		CPOID:     gst.CPOID,
+		Name:      gst.Name,
+		State:     gst.State,
+		SGSTRate:  gst.SGSTRate,
+		CGSTRate:  gst.CGSTRate,
+		IGSTRate:  gst.IGSTRate,
+		IsActive:  gst.IsActive,
+		CreatedAt: gst.CreatedAt,
+		UpdatedAt: gst.UpdatedAt,
+	}
+}
+
 func (service *Service) CreateCharger(
 	ctx *gin.Context,
 	principal auth.Principal,

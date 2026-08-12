@@ -181,6 +181,8 @@ type Hub struct {
 	Open24Hours     bool      `gorm:"column:open_24_hours;not null;default:true" json:"open_24_hours"`
 	SanctionLoad    float64   `gorm:"type:numeric(10,2);not null;default:0" json:"sanction_load"`
 	CustomerVisible bool      `gorm:"column:customer_visible;not null;default:false" json:"customer_visible"`
+	GSTID           *uuid.UUID `gorm:"type:uuid;index" json:"gst_id,omitempty"`
+    GST             *GST       `gorm:"foreignKey:GSTID;constraint:OnUpdate:CASCADE,OnDelete:RESTRICT" json:"gst,omitempty"`
 	Chargers        []Charger `gorm:"foreignKey:HubID" json:"chargers,omitempty"`
 	Tariffs         []Tariff  `gorm:"foreignKey:HubID" json:"tariffs,omitempty"`
 	CreatedAt       time.Time `gorm:"not null" json:"created_at"`

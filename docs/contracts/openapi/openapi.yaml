@@ -4159,6 +4159,43 @@ paths:
                 $ref: "#/components/schemas/ErrorEnvelope"
         "500":
           $ref: "#/components/responses/InternalError"
+  /api/v1/cpo/hubs/{hub_id}/gst:
+    post:
+      tags:
+        - "CPO Operations - Network"
+      summary: "Assign a GST profile to a hub"
+      description: "Assigns an existing GST profile to a charging hub."
+      operationId: "assign-gst-to-hub"
+      parameters:
+        - name: "hub_id"
+          in: "path"
+          required: true
+          description: "The ID of the hub."
+          schema:
+            type: "string"
+            format: "uuid"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AssignGSTToHubRequest"
+      responses:
+        "200":
+          description: "Successfully assigned GST profile to hub."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Hub"
+        "400":
+          $ref: "#/components/responses/InvalidRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
 
   /api/v1/cpo/hubs/{hub_id}/tariffs:
     parameters:
@@ -8869,3 +8906,12 @@ components:
             message:
               type: string
               description: Safe human-readable explanation.
+    AssignGSTToHubRequest:
+      type: object
+      required:
+        - gst_id
+      properties:
+        gst_id:
+          type: string
+          format: uuid
+          description: "The ID of the GST profile to assign."

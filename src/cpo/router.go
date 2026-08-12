@@ -505,6 +505,10 @@ func RegisterCPORoutes(
 	group.DELETE("/hubs/:hub_id", handler.deleteHub)
 	group.PUT("/hubs/:hub_id/customer-visibility", handler.updateHubCustomerVisibility)
 	group.POST("/hubs/:hub_id/chargers", handler.assignChargerToHub)
+	group.POST("/hubs/:hub_id/gst", handler.assignGSTToHub)
+	group.GET("/hubs/:hub_id/gst", handler.getGSTForHub)
+	group.PATCH("/hubs/:hub_id/gst", handler.updateGSTForHub)
+	group.DELETE("/hubs/:hub_id/gst", handler.unassignGSTFromHub)
 
 	// Hub tariffs
 	group.POST("/hubs/:hub_id/tariffs", handler.createHubTariff)
@@ -1358,6 +1362,119 @@ func (handler *Handler) assignChargerToHub(ctx *gin.Context) {
 		return
 	}
 
+	ctx.JSON(http.StatusOK, record)
+}
+
+func (handler *Handler) assignGSTToHub(ctx *gin.Context) {
+	principal, _ := auth.CurrentPrincipal(ctx)
+	hubID, ok := parseHubID(ctx)
+	if !ok {
+		return
+	}
+	var request AssignGSTToHubRequest
+	if err := decodeJSON(ctx, &request); err != nil {
+		writeError(ctx, &auth.APIError{
+			Status:  http.StatusBadRequest,
+			Code:    "invalid_request",
+			Message: "The request body is invalid.",
+		})
+		return
+	}
+	record, err := handler.service.AssignGSTToHub(ctx.Request.Context(), principal, hubID, request)
+	if err != nil {
+		writeError(ctx, err)
+		return
+	}
+	ctx.JSON(http.StatusOK, record)
+}
+
+// @Summary Get the assigned GST for a hub
+// @Description Retrieves the assigned GST for a specific hub.
+// @Tags CPO Network
+// @Produce json
+// @Param hub_id path string true "Hub ID"
+// @Success 200 {object} GSTView "Successfully retrieved GST"
+// @Failure 400 {object} auth.APIError "Invalid hub ID format"
+// @Failure 401 {object} auth.APIError "Unauthorized"
+// @Failure 403 {object} auth.APIError "Forbidden"
+// @Failure 404 {object} auth.APIError "Hub or GST not found"
+// @Failure 500 {object} auth.APIError "Internal server error"
+// @Router /cpo/hubs/{hub_id}/gst [get]
+func (handler *Handler) getGSTForHub(ctx *gin.Context) {
+	principal, _ := auth.CurrentPrincipal(ctx)
+	hubID, ok := parseHubID(ctx)
+	if !ok {
+		return
+	}
+	record, err := handler.service.GetGSTForHub(ctx.Request.Context(), principal, hubID)
+	if err != nil {
+		writeError(ctx, err)
+		return
+	}
+	ctx.JSON(http.StatusOK, record)
+}
+
+// @Summary Update the assigned GST for a hub
+// @Description Updates the assigned GST for a specific hub.
+// @Tags CPO Network
+// @Accept json
+// @Produce json
+// @Param hub_id path string true "Hub ID"
+// @Param gst body AssignGSTToHubRequest true "GST assignment data"
+// @Success 200 {object} HubView "Successfully updated GST assignment"
+// @Failure 400 {object} auth.APIError "Invalid request body or parameters"
+// @Failure 401 {object} auth.APIError "Unauthorized"
+// @Failure 403 {object} auth.APIError "Forbidden"
+// @Failure 404 {object} auth.APIError "Hub or GST not found"
+// @Failure 409 {object} auth.APIError "GST already assigned to another hub"
+// @Failure 500 {object} auth.APIError "Internal server error"
+// @Router /cpo/hubs/{hub_id}/gst [patch]
+func (handler *Handler) updateGSTForHub(ctx *gin.Context) {
+	principal, _ := auth.CurrentPrincipal(ctx)
+	hubID, ok := parseHubID(ctx)
+	if !ok {
+		return
+	}
+	var request AssignGSTToHubRequest
+	if err := decodeJSON(ctx, &request); err != nil {
+		writeError(ctx, &auth.APIError{
+			Status:  http.StatusBadRequest,
+			Code:    "invalid_request",
+			Message: "The request body is invalid.",
+		})
+		return
+	}
+	record, err := handler.service.UpdateGSTForHub(ctx.Request.Context(), principal, hubID, request)
+	if err != nil {
+		writeError(ctx, err)
+		return
+	}
+	ctx.JSON(http.StatusOK, record)
+}
+
+// @Summary Unassign GST from a hub
+// @Description Unassigns the GST from a specific hub.
+// @Tags CPO Network
+// @Produce json
+// @Param hub_id path string true "Hub ID"
+// @Success 200 {object} HubView "Successfully unassigned GST"
+// @Failure 400 {object} auth.APIError "Invalid hub ID format"
+// @Failure 401 {object} auth.APIError "Unauthorized"
+// @Failure 403 {object} auth.APIError "Forbidden"
+// @Failure 404 {object} auth.APIError "Hub not found"
+// @Failure 500 {object} auth.APIError "Internal server error"
+// @Router /cpo/hubs/{hub_id}/gst [delete]
+func (handler *Handler) unassignGSTFromHub(ctx *gin.Context) {
+	principal, _ := auth.CurrentPrincipal(ctx)
+	hubID, ok := parseHubID(ctx)
+	if !ok {
+		return
+	}
+	record, err := handler.service.UnassignGSTFromHub(ctx.Request.Context(), principal, hubID)
+	if err != nil {
+		writeError(ctx, err)
+		return
+	}
 	ctx.JSON(http.StatusOK, record)
 }
 

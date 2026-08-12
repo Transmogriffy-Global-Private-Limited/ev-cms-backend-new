@@ -333,6 +333,10 @@ type AssignChargerRequest struct {
 	ChargerID uuid.UUID `json:"charger_id"`
 }
 
+type AssignGSTToHubRequest struct {
+	GSTID uuid.UUID `json:"gst_id"`
+}
+
 type HubView struct {
 	ID              uuid.UUID `json:"id"`
 	CPOID           uuid.UUID `json:"cpo_id"`
@@ -344,6 +348,7 @@ type HubView struct {
 	Open24Hours     bool      `json:"open_24_hours"`
 	SanctionLoad    float64   `json:"sanction_load"`
 	CustomerVisible bool      `json:"customer_visible"`
+	GSTID           *uuid.UUID `json:"gst_id,omitempty"`
 	CreatedAt       time.Time `json:"created_at"`
 	UpdatedAt       time.Time `json:"updated_at"`
 }
@@ -367,6 +372,7 @@ type HubResponse struct {
 	Open24Hours     bool                 `json:"open_24_hours"`
 	SanctionLoad    float64              `json:"sanction_load"`
 	CustomerVisible bool                 `json:"customer_visible"`
+	GSTID           *uuid.UUID           `json:"gst_id,omitempty"`
 	Chargers        *ChargerListResponse `json:"chargers,omitempty"`
 	CreatedAt       time.Time            `json:"created_at"`
 	UpdatedAt       time.Time            `json:"updated_at"`
