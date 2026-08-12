@@ -1017,9 +1017,11 @@ Last deployment milestone:
 - Revision `27c01f3` subsequently rehosted the shared bounded User App
   live-state overlay and its CPO HAL operational manual without a migration.
   Revision `2e8fdb3` then applied migration thirty-four for nullable tariff
-  assignment metadata and rehosted the reconciled CPO/HAL integration. The
-  service remains healthy with zero restarts; loopback/public health, Swagger,
-  raw OpenAPI, and the unchanged 172-operation contract were verified.
+  assignment metadata and rehosted the reconciled CPO/HAL integration.
+  Revision `e831b32` subsequently applied migration thirty-five for same-CPO
+  GST-to-hub assignment and rehosted the four-route CPO contract. The service
+  remains healthy with zero restarts; loopback/public health, Swagger, raw
+  OpenAPI, and the 176-operation contract were verified.
 
 Next expected slice:
 

@@ -103,6 +103,9 @@ The hub `state` field is persisted and included in the live CPO hub contracts.
 - Revision `2e8fdb3` is now active after migration thirty-four added nullable
   tariff assignment metadata; the live service remains healthy with 172
   OpenAPI operations.
+- Revision `e831b32` is active after migration thirty-five added same-CPO
+  GST-to-hub assignment; the live service exposes 176 OpenAPI operations and
+  all four GST-hub route auth boundaries pass.
 - Earlier revision `d368903` deployment evidence established the prior
   161-operation contract, CPO user-group projections, connector capacity
   contract, and migration twenty-nine behavior before the current release.

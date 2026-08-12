@@ -51,6 +51,8 @@ Migration files:
 - `db/migrations/000033_operational_realtime_events.down.sql`
 - `db/migrations/000034_add_assigned_to_to_tariffs.up.sql`
 - `db/migrations/000034_add_assigned_to_to_tariffs.down.sql`
+- `db/migrations/000035_add_gst_id_to_hubs.up.sql`
+- `db/migrations/000035_add_gst_id_to_hubs.down.sql`
 
 ## Supplied Model Mapping
 
@@ -119,6 +121,9 @@ Migration files:
   PostgreSQL `tariff_assignment_type` enum. It has no backfill or `NOT NULL`
   constraint because the current tariff APIs do not yet assign that
   classification; the GORM model maps the exact nullable column and enum type.
+- Migration thirty-five adds nullable `hubs.gst_id` with a same-CPO foreign key
+  to `gsts`. The CPO hub GST assignment APIs own assign, read, replace, and
+  unassign behavior; no cross-CPO GST can be attached.
 
 ## Migration Behavior
 

@@ -2,6 +2,28 @@
 
 ## 2026-08-12
 
+### Rehosted GST-to-hub assignment release
+
+- Fast-forwarded `main` through the GST hub-assignment release, applied
+  migration `000035_add_gst_id_to_hubs` after a validated mode-0600 PostgreSQL
+  rollback dump, and deployed corrected revision `e831b32` after repairing the
+  GST hub OpenAPI indentation/reference drift found by route-contract tests.
+- The live service now exposes four GST-hub operations, including assign,
+  retrieve, replace, and unassign, with the `hubs.gst_id` same-CPO foreign-key
+  boundary. No DNS, Caddy route, or HAL provider configuration changed.
+
+Verification:
+
+- Caddy validation, OpenAPI/runtime parity, serial full Go tests, vet, clean
+  build, and `git diff --check` passed.
+- Migration ledger/column/constraint checks, active service state with zero
+  restarts, local/public liveness and readiness, Swagger, raw OpenAPI, the
+  176-operation contract, and unauthenticated 401 checks for all four GST-hub
+  routes passed.
+- `scripts/verify-docs.ps1` was not run because `pwsh` is unavailable on this
+  Ubuntu host. Disposable PostgreSQL lifecycle and full CMS-to-HAL topology
+  acceptance remain pending their dedicated test environment.
+
 ### Expanded the canonical CPO HAL/live-charger integration guide
 
 - Reworked the existing CPO HAL operational-capability manual into a

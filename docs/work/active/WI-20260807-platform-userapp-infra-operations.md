@@ -154,6 +154,8 @@ rules, near-me behavior, current-CPO scope, and customer-visible-hub boundary.
   public/loopback health, Swagger, and raw OpenAPI remain healthy.
 - Revision `2e8fdb3` is now active after migration thirty-four; the live
   service remains healthy with 172 OpenAPI operations.
+- Revision `e831b32` is active after migration thirty-five; the live service
+  remains healthy with 176 OpenAPI operations.
 - Earlier revision `d368903` deployment evidence established the prior
   161-operation contract, tenant settings/GST/CMS-HAL routes, and connector
   projection behavior before the current release.

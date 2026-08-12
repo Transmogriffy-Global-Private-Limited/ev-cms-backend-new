@@ -13,10 +13,10 @@
   map locations intentionally remain charger name plus hub coordinates only.
   CMS administrative lifecycle is kept separate from runtime evidence and is a
   customer-safety gate for displayed availability.
-- Migration thirty-four is applied on the development VPS; its nullable
-  `tariffs.assigned_to` column and `tariff_assignment_type` enum are present
-  alongside migration thirty-three's `operational_events` table and all four
-  indexes. Revision `2e8fdb3` is active with the 172-operation contract and healthy local/public
+- Migration thirty-five is applied on the development VPS; `hubs.gst_id` and
+  its same-CPO foreign-key constraint are present alongside migrations
+  thirty-three and thirty-four. Revision `e831b32` is active with the
+  176-operation contract and healthy local/public
   liveness, readiness, Swagger, and raw OpenAPI routes.
 - Real PostgreSQL fact/mapping/SSE lifecycle, reconciliation recovery, and
   CMS-to-HAL-to-virtual-charger topology acceptance remain unverified pending
@@ -203,8 +203,8 @@ provides:
   handler;
 - the additive PostgreSQL database `devevcmsnewdb`, owned by `postgres`.
 
-The active development VPS runs source revision `2e8fdb3`, with migrations
-through thirty-four recorded and the deployed 172-operation contract. Migration
+The active development VPS runs source revision `e831b32`, with migrations
+through thirty-five recorded and the deployed 176-operation contract. Migration
 twenty-nine adds nullable `tariff_type`, `price_type`, and `units` metadata to
 tenant tariffs; omitted values remain null-safe for existing and newly created
 tariffs. The SuperAdmin administrator-list query explicitly binds the platform
@@ -402,6 +402,17 @@ intentionally unsupported.
   readiness, Swagger, raw OpenAPI, the 172-operation contract, and the
   post-rehost warning scan passed. No DNS, Caddy, or HAL provider configuration
   changed.
+- Revision `e831b32` was built from the clean `main` worktree and rehosted after
+  migration thirty-five. The installed binary SHA-256 is
+  `10e111c90f4082badeb13155e654770eec6810a39627eb075d7e8c5aa72b91d9`,
+  embeds `e831b32be0edd0eaa76337ddc75cf86c1c7dbc01` with
+  `vcs.modified=false`, and retains `builds/evcmsnew.pre-e831b32be0ed` plus a
+  mode-0600 PostgreSQL rollback dump. The enabled service is active with zero
+  restarts; migration ledger/column/constraint checks, local/public health and
+  readiness, Swagger, raw OpenAPI, the 176-operation contract, and all four
+  GST-hub unauthenticated route boundaries passed. The old process emitted the
+  expected stop-time exit warning during rehost; the current process has no
+  error or fatal records. No DNS, Caddy, or HAL provider configuration changed.
 - Revision `a76d6ae` was built from a clean worktree and rehosted after
   migration thirty-one was applied. The installed binary SHA-256 is
   `0a3d397464dae13ef15b090225b4ca38fb1b4dfff946bf0de7d77cb9a5d3ebc0` and
