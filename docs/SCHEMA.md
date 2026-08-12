@@ -45,6 +45,10 @@ Migration files:
 - `db/migrations/000030_add_settings_table.down.sql`
 - `db/migrations/000031_add_state_to_gsts.up.sql`
 - `db/migrations/000031_add_state_to_gsts.down.sql`
+- `db/migrations/000032_add_state_to_hubs.up.sql`
+- `db/migrations/000032_add_state_to_hubs.down.sql`
+- `db/migrations/000033_operational_realtime_events.up.sql`
+- `db/migrations/000033_operational_realtime_events.down.sql`
 
 ## Supplied Model Mapping
 
@@ -71,6 +75,7 @@ Migration files:
 | `Payment` | `payments` |
 | `AuditLog` | `audit_logs`; `cpo_id` is nullable for platform events |
 | CMS HAL charging consumer | `charging_start_intents`, `wallet_holds`, `hal_command_records`, `hal_fact_receipts`, `hal_charger_mappings`, `hal_charger_runtime`, and `hal_connector_runtime` |
+| Durable operational notification | `operational_events`, scoped to a CPO and optionally a customer |
 
 ## Important Data Corrections
 
@@ -99,6 +104,13 @@ Migration files:
 - Migration thirty-one adds nullable GST state and makes legacy GST-rate
   columns nullable. API creation still requires a non-empty state and all
   three rate values; the nullable columns preserve historical database rows.
+- Migration thirty-two adds the required hub `state` persistence column with a
+  compatibility default for existing records; the API enforces non-empty state
+  values for new and updated hubs.
+- Migration thirty-three adds the durable `operational_events` ledger. Its
+  CPO/customer foreign keys preserve tenant ownership, and cursor/retention
+  indexes support scoped REST replay and SSE recovery without making realtime
+  delivery the source of truth.
 
 ## Migration Behavior
 

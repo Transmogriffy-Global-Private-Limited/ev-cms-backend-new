@@ -16,11 +16,11 @@ Establish reusable CMS capabilities over HAL-derived operational truth and expos
 
 ## Scope
 
-- HAL operations/reconciliation, shared fact ingress, CMS-projection live reads, inventory-owned pending mappings, CPO/App/Platform operational REST and SSE, durable operational-event publication, migration, OpenAPI, and integration docs.
+- HAL operations/reconciliation, shared fact ingress, CMS-projection live reads, inventory-owned pending mappings, CPO/App/Platform operational REST and SSE, durable operational-event publication, migration, OpenAPI, integration docs, and guarded development deployment.
 
 ## Non-goals
 
-- HAL, legacy CMS, OCPP protocol, tariff/GST redesign, Superadmin charger control, physical-charger acceptance, or deployment.
+- HAL, legacy CMS, OCPP protocol, tariff/GST redesign, Superadmin charger control, and physical-charger acceptance.
 
 ## Claimed surfaces
 
@@ -37,7 +37,8 @@ Establish reusable CMS capabilities over HAL-derived operational truth and expos
 
 ## Data and migration impact
 
-- Adds migration 33 for durable scoped operational notifications. It is not applied by this work item.
+- Adds migration 33 for durable scoped operational notifications. It is applied
+  on the development VPS after a validated rollback dump.
 
 ## Current state
 
@@ -45,11 +46,19 @@ Establish reusable CMS capabilities over HAL-derived operational truth and expos
 - `liveops` reads committed CMS projections and centralizes freshness/offline connector semantics.
 - CPO/Platform snapshots and customer own-session/customer-safe charger detail use those capabilities.
 - Durable operational events are produced with accepted newer fact projections and consumed through scoped REST cursor replay/SSE. Streams revalidate bearer sessions at heartbeat.
+- Revision `3f3a952` is active under `evcmsnew-dev.service`; migration thirty-three,
+  loopback/public health and readiness, Swagger, raw OpenAPI, the live
+  172-operation contract, and HAL fact-ingress validation have been verified.
 
 ## Verification
 
-- Focused package tests, operational SSE-frame/cursor tests, documentation verification, OpenAPI/runtime route parity, and `go vet -p 1 ./...` passed after refactoring. The combined broad-test/vet runner timed out before returning a full-suite result; the separate vet pass completed.
-- PostgreSQL migration execution, fact/mapping/SSE lifecycle behavior, reconciliation recovery, and dual-service E2E remain pending.
+- Focused route/OpenAPI verification, `go test ./...`, `go vet ./...`, Caddy
+  validation, clean build, and `git diff --check` passed. Migration ledger,
+  table/index, service, health, Swagger, raw OpenAPI, and HAL fact-ingress
+  validation checks passed after rehost.
+- Fact/mapping/SSE lifecycle behavior, reconciliation recovery, and dual-service
+  E2E remain pending. The PowerShell documentation verifier is unavailable on
+  this Ubuntu host because `pwsh` is not installed.
 
 ## Handoff
 
