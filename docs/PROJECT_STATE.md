@@ -22,6 +22,11 @@
   the dedicated disposable database and provider test environment.
 - The User App overlay/manual release is deployed. Its focused and broad source
   verification does not replace the pending disposable dual-service acceptance.
+- Current source integration repair preserves those HAL/liveops capabilities,
+  removes duplicated CPO operational response declarations and duplicate
+  create-path mapping delivery, and aligns new charger `charger_id` and
+  `ocpp_identity` values. Migration 34's nullable tariff assignment metadata is
+  source-aligned but not applied by this repair.
 
 The repository began as an empty file scaffold. The implemented foundation now
 provides:

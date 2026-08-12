@@ -2058,8 +2058,8 @@ Rules:
 The server generates:
 
 - the charger row UUID;
-- a globally unique six-character lowercase `charger_id`;
-- a globally unique `ocpp_identity`;
+- a globally unique six-character lowercase `charger_id`, also assigned as
+  `ocpp_identity` for a newly created charger;
 - each connector UUID;
 - initial charger status `INACTIVE`;
 - initial connector status `ACTIVE`;
@@ -2073,7 +2073,7 @@ The server generates:
   "id": "7cc2d481-3ccb-4336-b03c-c8851a59ff9a",
   "cpo_id": "c821a013-5041-42f7-80c8-aa153cf9d455",
   "charger_id": "a1b2c3",
-  "ocpp_identity": "CMS-4a58ce2df470b2b1",
+  "ocpp_identity": "a1b2c3",
   "vendor": "Delta",
   "model": "DC Wallbox",
   "serial_number": "SN-001",
@@ -2092,8 +2092,8 @@ The server generates:
   "parking": "Covered",
   "protocol": "OCPP 1.6J",
   "twenty_four_seven_open_status": true,
-  "charger_connection_url_ws": "ws://localhost:8080/CMS-4a58ce2df470b2b1",
-  "charger_connection_url_wss": "wss://localhost:8080/CMS-4a58ce2df470b2b1",
+  "charger_connection_url_ws": "ws://localhost:8080/a1b2c3",
+  "charger_connection_url_wss": "wss://localhost:8080/a1b2c3",
   "assigned": false,
   "connectors": [
     {
@@ -2124,12 +2124,14 @@ server-generated response projection and is not accepted by create or update
 requests. An independent charger cannot be used by a tariff until it is
 assigned to the tariff's hub.
 
-`ocpp_identity` is only a future CMS/HAL mapping value. Its creation does not
-register a charger in the HAL or prove the charger is online.
+`ocpp_identity` is a CMS/HAL mapping value. Newly created chargers assign it
+to the same generated value as `charger_id`; this does not register a charger
+in the HAL or prove the charger is online. Older rows retain their existing
+stored compatibility value and are not rewritten by this rule.
 
 `charger_connection_url_ws` and `charger_connection_url_wss` are derived from
-`CHARGER_CONNECTION_URL` and the generated OCPP identity; they are connection
-addresses, not CMS API URLs. The deployment must provide the corresponding
+`CHARGER_CONNECTION_URL` and the stored OCPP identity without prefix rewriting;
+they are connection addresses, not CMS API URLs. The deployment must provide the corresponding
 WebSocket/TLS listener before a charger uses either address.
 
 ### 9.11 `GET /api/v1/cpo/chargers`
@@ -2151,7 +2153,7 @@ Both cursor fields must be supplied together. `200 OK`:
       "id": "7cc2d481-3ccb-4336-b03c-c8851a59ff9a",
       "cpo_id": "c821a013-5041-42f7-80c8-aa153cf9d455",
       "charger_id": "a1b2c3",
-      "ocpp_identity": "CMS-4a58ce2df470b2b1",
+      "ocpp_identity": "a1b2c3",
       "vendor": "Delta",
       "model": "DC Wallbox",
       "serial_number": "SN-001",

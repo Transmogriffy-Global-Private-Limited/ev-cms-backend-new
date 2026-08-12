@@ -55,6 +55,11 @@ Establish reusable CMS capabilities over HAL-derived operational truth and expos
   `docs/integrations/cpo-hal-operational-capability-manual.md`; it documents
   current CPO reads/SSE and the future command pattern without adding a CPO
   command endpoint.
+- The current CPO integration repair keeps those capabilities intact while
+  removing duplicate response declarations and create-path mapping delivery;
+  new charger identity compatibility and migration-34 tariff metadata are
+  source-aligned. The later serial-number HAL admission contract remains out
+  of scope.
 - Durable operational events are produced with accepted newer fact projections and consumed through scoped REST cursor replay/SSE. Streams revalidate bearer sessions at heartbeat.
 - Revision `27c01f3` is active under `evcmsnew-dev.service`; migration thirty-three,
   loopback/public health and readiness, Swagger, raw OpenAPI, the live
@@ -66,6 +71,12 @@ Establish reusable CMS capabilities over HAL-derived operational truth and expos
   overlay refactor. `go test ./...`, `go vet ./...`, the PowerShell
   documentation verifier, OpenAPI/runtime parity, and `git diff --check` pass
   for this merged source state.
+- The integration repair's focused CPO, liveops, customerauth, halops, route/
+  OpenAPI, and PowerShell documentation checks pass. `go test -p 1 ./...`,
+  `go vet -p 1 ./...`, and `git diff --check` pass; serial Go verification
+  avoids an environment paging-file limit observed with parallel test process
+  startup. `TEST_DATABASE_URL` is unset, so disposable migration and lifecycle
+  verification remains pending.
 - Focused route/OpenAPI verification, `go test ./...`, `go vet ./...`, Caddy
   validation, clean build, and `git diff --check` passed. Migration ledger,
   table/index, service, health, Swagger, raw OpenAPI, and HAL fact-ingress

@@ -903,6 +903,11 @@ Current implementation slice:
   overlay, and the CPO HAL operational manual records the current capability
   and future command rules. PostgreSQL lifecycle and physical-topology
   acceptance remain pending.
+- Current integration repair: preserve the committed HAL/liveops architecture
+  while reconciling CPO changes, remove duplicate operational response types
+  and create-path mapping delivery, align newly generated charger identities,
+  and make migration 34/model tariff assignment metadata coherent. The later
+  serial-number HAL admission contract remains out of scope.
 
 Last completed slice:
 

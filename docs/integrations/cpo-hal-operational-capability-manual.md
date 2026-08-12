@@ -41,8 +41,8 @@ direct HAL DB use, or a parallel event stream.
 | --- | --- | --- |
 | `cpo_id` | CMS trusted tenant UUID | client-selected scope |
 | `cms_charger_id`, `cms_connector_id` | CMS inventory UUIDs | public `charger_id` |
-| `charger_id` | six-character public CMS charger ID | OCPP identity |
-| `charger_ocpp_identity` | HAL/OCPP mapping identity | CMS UUID |
+| `charger_id` | six-character public CMS charger ID; the value assigned to `ocpp_identity` for newly created rows | CMS UUID |
+| `charger_ocpp_identity` | HAL/OCPP mapping identity; equals `charger_id` for newly created rows while older rows retain their stored compatibility value | CMS UUID |
 | `ocpp_connector_number` | physical/device connector number | connector UUID |
 | `cms_command_id` | CMS command/idempotency identity | a retry-generated UUID |
 | `hal_command_id` | HAL durable command identity | CMS command ID |

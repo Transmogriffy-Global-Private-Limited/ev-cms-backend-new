@@ -2,6 +2,31 @@
 
 ## 2026-08-12
 
+### Reconciled CPO charger and live-operations integration
+
+- Removed accidental duplicate CPO operational response declarations from the
+  service layer while retaining schema ownership and all liveops-backed CPO
+  reads. Charger creation now performs one post-commit normal mapping push
+  (`cpo-charger-created`) rather than an additional update-labelled push.
+- New charger creation uses its one generated six-character public
+  `charger_id` as `ocpp_identity`; connection URLs preserve the stored identity
+  without prefix rewriting. Existing rows are not rewritten.
+- Corrected the migration-34 model contract to nullable
+  `tariffs.assigned_to tariff_assignment_type`, matching its additive migration
+  and current unassigned tariff behavior.
+
+Verification:
+
+- `go test ./src/cpo -count=1`, `go test ./src/liveops -count=1`,
+  `go test ./src/customerauth -count=1`, `go test ./src/halops -count=1`,
+  route/OpenAPI parity, and the PowerShell documentation verifier passed.
+  `go test -p 1 ./...`, `go vet -p 1 ./...`, and `git diff --check` passed;
+  serial Go verification was required because the ordinary parallel full suite
+  exhausted the Windows paging file while starting test processes.
+- No migration, deployment, HAL checkout modification, or forced history
+  operation is part of this repair. `TEST_DATABASE_URL` is not configured, so
+  disposable migration/lifecycle verification was not run.
+
 ### Deployed User App live-state consumption and CPO HAL manual
 
 - Replaced the single-detail-only customer availability overlay with a shared
