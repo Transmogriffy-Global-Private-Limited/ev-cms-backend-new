@@ -4856,6 +4856,7 @@ func hubView(record models.Hub) HubView {
 		Name:            record.Name,
 		Address:         record.Address,
 		State:           record.State,
+		GSTID:           record.GSTID,
 		Latitude:        record.Latitude,
 		Longitude:       record.Longitude,
 		Open24Hours:     record.Open24Hours,

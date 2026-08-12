@@ -4195,6 +4195,125 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "404":
           $ref: "#/components/responses/NotFound"
+      get:
+      tags:
+        - "CPO Operations - Network"
+      summary: "Get the assigned GST profile for a hub"
+      description: "Returns the GST profile currently assigned to the specified hub, if any."
+      operationId: "getHubGST"
+      parameters:
+        - name: "hub_id"
+          in: "path"
+          required: true
+          description: "The ID of the hub."
+          schema:
+            type: "string"
+            format: "uuid"
+      responses:
+        "200":
+          description: "Successfully retrieved GST profile."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GST"
+        "400":
+          $ref: "#/components/responses/InvalidRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/CPOBusinessForbidden"
+        "404":
+          description: "Hub not found or no GST assigned."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+    patch:
+      tags:
+        - "CPO Operations - Network"
+      summary: "Update the assigned GST profile for a hub"
+      description: "Replaces the currently assigned GST with a new one. The new GST must belong to the same CPO and not be assigned to another hub."
+      operationId: "updateHubGST"
+      parameters:
+        - name: "hub_id"
+          in: "path"
+          required: true
+          description: "The ID of the hub."
+          schema:
+            type: "string"
+            format: "uuid"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AssignGSTToHubRequest"
+      responses:
+        "200":
+          description: "Successfully updated GST assignment."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Hub"
+        "400":
+          $ref: "#/components/responses/InvalidRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/CPOBusinessForbidden"
+        "404":
+          description: "Hub or GST not found."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "409":
+          description: "GST already assigned to another hub."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+    delete:
+      tags:
+        - "CPO Operations - Network"
+      summary: "Unassign the GST profile from a hub"
+      description: "Removes the currently assigned GST profile from the hub. The hub will then have no GST assigned."
+      operationId: "unassignHubGST"
+      parameters:
+        - name: "hub_id"
+          in: "path"
+          required: true
+          description: "The ID of the hub."
+          schema:
+            type: "string"
+            format: "uuid"
+      responses:
+        "200":
+          description: "Successfully unassigned GST."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Hub"
+        "400":
+          $ref: "#/components/responses/InvalidRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/CPOBusinessForbidden"
+        "404":
+          description: "Hub not found."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "500":
+          $ref: "#/components/responses/InternalError"
 
 
   /api/v1/cpo/hubs/{hub_id}/tariffs:
