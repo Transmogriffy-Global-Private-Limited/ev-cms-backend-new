@@ -215,6 +215,7 @@ type Charger struct {
 	Parking             string                  `gorm:"type:varchar(100);not null;default:''" json:"parking"`
 	Protocol            string                  `gorm:"type:varchar(50);not null;default:'OCPP 1.6J'" json:"protocol"`
 	TwentyFourSevenOpen bool                    `gorm:"column:twenty_four_seven_open_status;not null;default:false" json:"twenty_four_seven_open_status"`
+	CustomerVisibility  bool                  `gorm:"column:customer_visibility;not null;default:true" json:"customer_visibility"`
 	Connectors          []Connector             `gorm:"foreignKey:ChargerID" json:"connectors,omitempty"`
 	Tariffs             []Tariff                `gorm:"foreignKey:ChargerID" json:"tariffs,omitempty"`
 	CreatedAt           time.Time               `gorm:"not null" json:"created_at"`

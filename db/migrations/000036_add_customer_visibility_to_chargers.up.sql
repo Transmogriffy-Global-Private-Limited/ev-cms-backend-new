@@ -1,0 +1,1 @@
+ALTER TABLE chargers ADD COLUMN customer_visibility BOOLEAN NOT NULL DEFAULT TRUE;
