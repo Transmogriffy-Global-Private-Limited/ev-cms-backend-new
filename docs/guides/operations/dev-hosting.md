@@ -28,8 +28,8 @@ development host it is set in the ignored service environment to
 that setting; it must not be used until the OCPP host is explicitly configured
 with TLS/WebSocket support.
 
-The active deployment was updated on August 13, 2026 to source revision
-`172bcd4`. It has migrations one through thirty-five and the current 177-operation
+The active deployment was updated on August 13, 2026 to runtime source revision
+`a9528c4`. It has migrations one through thirty-six and the current 178-operation
 API. Migration thirty-three adds the CPO/customer-scoped `operational_events`
 ledger used for durable operational-notification recovery; its four indexes
 support CPO and customer cursor replay plus retention. Migration twenty-seven
@@ -75,6 +75,9 @@ Migration thirty-four adds nullable `tariffs.assigned_to` using the
 `tariff_assignment_type` enum; current tariff APIs leave it null.
 Migration thirty-five adds nullable `hubs.gst_id` with a same-CPO foreign key;
 the CPO API exposes assign, retrieve, replace, and unassign routes.
+Migration thirty-six adds the charger-level `customer_visibility` publication
+gate. User App charger discovery, detail, pricing, and favorite paths require
+both this gate and the attached hub's `customer_visible` gate.
 The HAL runtime GORM models explicitly map to the singular migration tables
 `hal_charger_runtime` and `hal_connector_runtime`; this release required no
 database migration. The User App charging-history route and session-detail
@@ -176,7 +179,7 @@ content exclusions are defined in
 `docs/contracts/internal/http-request-logging.md`. Long-lived SSE requests are
 recorded when they disconnect. A recovered panic first emits a correlated safe
 JSON stack diagnostic without Gin's request dump or the panic value. The
-currently deployed `172bcd4` binary includes this logger.
+currently deployed `a9528c4` binary includes this logger.
 
 The platform realtime SSE route is long-lived. If a browser holds that stream
 during a rehost, the application may log `shut down HTTP server: context

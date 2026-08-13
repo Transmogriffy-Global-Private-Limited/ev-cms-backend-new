@@ -109,7 +109,7 @@ Current implementation state:
 
 - CMS source and the development deployment contain the first client, durable records, shared fact receiver,
   customer polling/start/stop routes, reusable operational projections,
-  scoped operational-event replay/SSE, and a 177-operation OpenAPI surface.
+  scoped operational-event replay/SSE, and a 178-operation OpenAPI surface.
   The HAL runtime GORM models explicitly map to the singular migration tables
   `hal_charger_runtime` and `hal_connector_runtime`.
   The HAL v1 provider is
@@ -126,6 +126,10 @@ Current implementation state:
   start-admission hardening in revision `172bcd4`: same-state hubs require
   SGST/CGST, different-state hubs require IGST, and new charging starts require
   fresh `AVAILABLE` connector state.
+- The current deployed release includes additive migration thirty-six and the
+  CPO charger customer-visibility gate. Customer discovery, direct lookup,
+  pricing, and favorite paths require both the charger and published-hub
+  gates; the live contract contains 178 operations.
 - The deployed CMS source hardens User App start admission without a
   migration, route, or HAL contract change: a new intent requires committed
   `AVAILABLE` and `FRESH` connector projection state, while same-customer
@@ -1020,6 +1024,15 @@ Last completed slice:
 
 Last deployment milestone:
 
+- Runtime source revision `a9528c4` was built and rehosted after migration
+  thirty-six added the charger customer-visibility publication gate. The
+  installed binary has SHA-256
+  `09b80b12865866b84e8a690bbaa2829257a036af8b2fee5c69fb3a7808a4b60c`, the
+  live contract has 178 operations, and the service is healthy with zero
+  restarts. Migration/column checks, Caddy validation, loopback/public health
+  and readiness, Swagger, raw OpenAPI, the unauthenticated charger-visibility
+  boundary, and the post-rehost journal scan passed. Disposable PostgreSQL
+  lifecycle and full HAL/virtual-charger acceptance remain pending.
 - Clean source revision `172bcd4` was built and rehosted without a migration for
   User App charging-start admission hardening. The installed binary has SHA-256
   `ab53143ae0bb55d14e9256d77eb5bf3350ce1aed2c280236b41dc4ad80ea2238`, the

@@ -65,9 +65,11 @@ charging vertical.
 
 ## Current state
 
-The current shared development deployment is clean source revision `172bcd4`
-with migrations thirty-three through thirty-five applied and 177 OpenAPI
-operations. The HAL runtime model mapping now explicitly targets the singular
+The current shared development deployment is runtime source revision `a9528c4`
+with migrations thirty-three through thirty-six applied and 178 OpenAPI
+operations. Charger customer visibility is enforced across CPO publication
+and User App discovery, detail, pricing, and favorites. The HAL runtime model
+mapping now explicitly targets the singular
 `hal_charger_runtime` and `hal_connector_runtime` tables; no migration was
 needed for this correction. State-aware GST-to-hub assignment validation is
 also active.
@@ -126,7 +128,8 @@ The hub `state` field is persisted and included in the live CPO hub contracts.
 ## Handoff
 
 The CPO implementation remains owned by Abhranil Pal. The current deployment
-contains migrations through thirty-five and the HAL runtime table mapping
+contains migrations through thirty-six and the charger customer-visibility gate
+plus the HAL runtime table mapping
 correction. Connector create/update request payloads and
 response objects use `connector_total_capacity`. Update the canonical OpenAPI,
 human contract, consumer guidance, and verification together.

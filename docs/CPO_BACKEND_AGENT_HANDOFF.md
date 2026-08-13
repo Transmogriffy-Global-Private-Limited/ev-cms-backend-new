@@ -197,6 +197,7 @@ organization response omits privileged lifecycle reason and platform actor ID.
 - `POST /hubs/{hub_id}/chargers`
 - `POST/GET /chargers`
 - `GET/PATCH/DELETE /chargers/{charger_id}`
+- `PUT /chargers/{charger_id}/customer-visibility`
 - `GET /chargers/{charger_id}/image`
 - `GET/PUT /chargers/{charger_id}/status` (internal charger UUID)
 - `POST/GET /gsts`

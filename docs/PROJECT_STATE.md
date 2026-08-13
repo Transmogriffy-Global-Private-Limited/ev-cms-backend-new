@@ -2,6 +2,28 @@
 
 ## Current State
 
+### 2026-08-13 — Charger customer-visibility release deployed
+
+- Migration `000036_add_customer_visibility_to_chargers` is applied. The
+  `chargers.customer_visibility` column is `BOOLEAN NOT NULL DEFAULT TRUE`.
+- CPO ADMIN can publish or unpublish a charger through
+  `PUT /api/v1/cpo/chargers/{charger_id}/customer-visibility`. User App
+  discovery, direct lookup, charger pricing, and favorite reads/mutations now
+  require both the charger gate and its hub's `customer_visible` gate.
+  Existing customer sessions and active charging are unaffected.
+- Clean runtime source revision `a9528c4` is active with 178 OpenAPI
+  operations. The installed binary SHA-256 is
+  `09b80b12865866b84e8a690bbaa2829257a036af8b2fee5c69fb3a7808a4b60c` and
+  embeds `a9528c4843e706acaab7aff499f8234c3210d764` with
+  `vcs.modified=false`.
+- The enabled service is active with zero restarts on `127.0.0.1:18080`.
+  Caddy validation, migration/column checks, loopback and public HTTPS health
+  and readiness, Swagger, raw OpenAPI, 178-operation parity, the unauthenticated
+  charger-visibility boundary, and the post-rehost journal scan passed.
+- The pre-release database dump is retained at
+  `/tmp/devevcmsnewdb-pre-18f261e.dump` with mode `0600` and SHA-256
+  `234a98f1ba69e8aeb5fd35353c1ed97486a0e4c89b8a84e9509a7393fe97abbb`.
+
 ### 2026-08-13 — User App start-admission hardening release deployed
 
 - The deployed release admits a new `POST /api/v1/app/charging-sessions`
@@ -278,8 +300,8 @@ provides:
   handler;
 - the additive PostgreSQL database `devevcmsnewdb`, owned by `postgres`.
 
-The active development VPS runs source revision `172bcd4`, with migrations
-through thirty-five recorded and the deployed 177-operation contract. Migration
+The active development VPS runs source revision `a9528c4`, with migrations
+through thirty-six recorded and the deployed 178-operation contract. Migration
 twenty-nine adds nullable `tariff_type`, `price_type`, and `units` metadata to
 tenant tariffs; omitted values remain null-safe for existing and newly created
 tariffs. The SuperAdmin administrator-list query explicitly binds the platform
@@ -519,6 +541,15 @@ intentionally unsupported.
   local/public health and readiness, Caddy validation, Swagger, raw OpenAPI,
   the 177-operation contract, GST route boundaries, and the post-rehost journal
   scan passed. No DNS, Caddy, HAL provider, or database migration changed.
+- Runtime revision `a9528c4` was built from the clean `main` worktree after
+  migration thirty-six was applied. The installed binary SHA-256 is
+  `09b80b12865866b84e8a690bbaa2829257a036af8b2fee5c69fb3a7808a4b60c`, embeds
+  `a9528c4843e706acaab7aff499f8234c3210d764` with `vcs.modified=false`, and
+  retains `builds/evcmsnew.pre-a9528c4` as the prior-binary rollback artifact.
+  The enabled service is active with zero restarts; migration/column checks,
+  Caddy validation, loopback/public health and readiness, Swagger, raw
+  OpenAPI, the 178-operation contract, the unauthenticated charger-visibility
+  boundary, and the post-rehost journal scan passed.
 - Revision `172bcd4` was built from the clean `main` worktree and rehosted
   without a migration for User App charging-start admission hardening. The
   installed binary SHA-256 is

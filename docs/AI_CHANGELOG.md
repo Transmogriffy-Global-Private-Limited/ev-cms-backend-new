@@ -2,6 +2,31 @@
 
 ## 2026-08-13
 
+### Hosted charger customer-visibility release
+
+- Applied additive migration `000036_add_customer_visibility_to_chargers` with
+  `customer_visibility BOOLEAN NOT NULL DEFAULT TRUE`.
+- Completed the charger visibility contract: CPO ADMIN publication updates,
+  OpenAPI/human API documentation, schema mapping, and User App discovery,
+  direct lookup, pricing, and favorite enforcement. Existing sessions and
+  active charging are not revoked by unpublishing.
+- Backed up `devevcmsnewdb` before migration to the mode-0600 dump
+  `/tmp/devevcmsnewdb-pre-18f261e.dump` (SHA-256
+  `234a98f1ba69e8aeb5fd35353c1ed97486a0e4c89b8a84e9509a7393fe97abbb`) and
+  retained the prior binary at `builds/evcmsnew.pre-a9528c4`.
+
+Verification:
+
+- Full serial Go tests, serial vet, formatting, focused route/OpenAPI parity,
+  and diff checks passed. `pwsh` documentation verification was skipped because
+  PowerShell is unavailable; disposable PostgreSQL lifecycle tests remain
+  skipped because `TEST_DATABASE_URL` is unavailable.
+- Clean runtime revision `a9528c4` was rehosted with binary SHA-256
+  `09b80b12865866b84e8a690bbaa2829257a036af8b2fee5c69fb3a7808a4b60c` and
+  `vcs.modified=false`; service, Caddy, database, loopback/public health and
+  readiness, Swagger, raw OpenAPI, 178-operation parity, unauthenticated route
+  boundary, and post-rehost journal checks passed.
+
 ### Rehosted User App charging-start admission hardening
 
 - New customer charging starts now require committed connector availability to

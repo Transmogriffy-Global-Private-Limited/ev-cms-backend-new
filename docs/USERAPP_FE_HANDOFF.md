@@ -461,8 +461,10 @@ ID to select ownership.
 
 `GET /hubs` uses bounded keyset pagination. Preserve both `next_before` and
 `next_before_id` together; discard them when `q` changes. A `customer_visible`
-hub is explicitly published by a CPO ADMIN. Unpublished hubs, independent
-chargers, and cross-CPO resources are not returned.
+hub is explicitly published by a CPO ADMIN. Chargers also have a separate
+`customer_visibility` publication gate controlled by CPO ADMIN. Unpublished
+hubs, unpublished chargers, independent chargers, and cross-CPO resources are
+not returned.
 
 The DB-backed `status` on chargers and connectors is the CPO's static CMS
 administrative lifecycle (`ACTIVE`, `INACTIVE`, `SUSPENDED`,
@@ -558,8 +560,8 @@ queries default to `limit=25` and reject a limit above 100.
 Near-me results are ordered by calculated distance and are intentionally
 bounded without a continuation cursor (`has_more` is false and no `next_*`
 cursor is returned). A location query cannot include `before`/`before_id`.
-All results remain limited to attached chargers in published hubs belonging to
-the authenticated CPO. Stored CMS status is not live availability, but it is a
+All results remain limited to attached chargers whose own publication gate and
+hub publication gate are both true in the authenticated CPO. Stored CMS status is not live availability, but it is a
 customer-safety gate: full response availability combines it with committed
 HAL evidence. Compact map markers intentionally expose no availability.
 
