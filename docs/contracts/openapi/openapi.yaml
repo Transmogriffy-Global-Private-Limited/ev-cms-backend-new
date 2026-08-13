@@ -9322,6 +9322,11 @@ components:
           type: string
           format: date-time
 
+    SessionStatus:
+      type: string
+      enum: [START_PENDING, ACTIVE, STOP_PENDING, COMPLETED, FAILED]
+      description: Durable charging-session lifecycle status.
+
     ChargingSessionListResponse:
       type: object
       properties:

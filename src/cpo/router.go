@@ -629,6 +629,10 @@ func parseChargingSessionListQuery(ctx *gin.Context) (ChargingSessionListQuery, 
 	}
 	if statusText := strings.TrimSpace(ctx.Query("status")); statusText != "" {
 		status := constants.SessionStatus(strings.ToUpper(statusText))
+		if !status.Valid() {
+			writeError(ctx, invalid("status", "Status is invalid."))
+			return ChargingSessionListQuery{}, false
+		}
 		query.Status = &status
 	}
 	if chargerIDText := strings.TrimSpace(ctx.Query("charger_id")); chargerIDText != "" {
@@ -655,7 +659,6 @@ func parseChargingSessionListQuery(ctx *gin.Context) (ChargingSessionListQuery, 
 	}
 	return query, true
 }
-
 
 func (handler *Handler) getPlatformFleetOperations(ctx *gin.Context) {
 	principal, _ := auth.CurrentPrincipal(ctx)

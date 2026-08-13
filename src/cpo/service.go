@@ -59,37 +59,37 @@ type Service struct {
 	liveOperations       *liveops.Service
 	operationalEvents    *operationalrealtime.Service
 	repository           Repository
-	}
+}
 
-	type sessionRevocationCounts struct {
+type sessionRevocationCounts struct {
 	sessions      int64
 	refreshTokens int64
-	}
+}
 
-	func (service *Service) WithPlatformEvents(events *platformops.Service) *Service {
+func (service *Service) WithPlatformEvents(events *platformops.Service) *Service {
 	service.events = events
 	return service
-	}
+}
 
-	// WithOperationalCapabilities keeps CPO authorization in this service while
-	// delegating provider mechanics and live reads to CMS-owned capabilities.
-	func (service *Service) WithOperationalCapabilities(hal *halops.Service, live *liveops.Service) *Service {
+// WithOperationalCapabilities keeps CPO authorization in this service while
+// delegating provider mechanics and live reads to CMS-owned capabilities.
+func (service *Service) WithOperationalCapabilities(hal *halops.Service, live *liveops.Service) *Service {
 	service.halOperations = hal
 	service.liveOperations = live
 	return service
-	}
+}
 
-	func (service *Service) WithOperationalEvents(events *operationalrealtime.Service) *Service {
+func (service *Service) WithOperationalEvents(events *operationalrealtime.Service) *Service {
 	service.operationalEvents = events
 	return service
-	}
+}
 
-	func NewService(
+func NewService(
 	database *gorm.DB,
 	outbox *cmsmail.Outbox,
 	mailEnabled bool,
 	chargerConnectionURL string,
-	) *Service {
+) *Service {
 	return &Service{
 		database:             database,
 		repository:           NewRepository(database),
@@ -98,13 +98,13 @@ type Service struct {
 		now:                  func() time.Time { return time.Now().UTC() },
 		chargerConnectionURL: chargerConnectionURL,
 	}
-	}
+}
 
-	func (service *Service) GetChargingSession(
+func (service *Service) GetChargingSession(
 	ctx context.Context,
 	principal auth.Principal,
 	sessionID uuid.UUID,
-	) (ChargingSessionView, error) {
+) (ChargingSessionView, error) {
 	if err := requireCPOAdminAccess(principal); err != nil {
 		return ChargingSessionView{}, err
 	}
@@ -122,13 +122,13 @@ type Service struct {
 	}
 
 	return toChargingSessionView(*session), nil
-	}
+}
 
-	func (service *Service) ListChargingSessions(
+func (service *Service) ListChargingSessions(
 	ctx context.Context,
 	principal auth.Principal,
 	query ChargingSessionListQuery,
-	) (ChargingSessionListResponse, error) {
+) (ChargingSessionListResponse, error) {
 	if err := requireCPOAdminAccess(principal); err != nil {
 		return ChargingSessionListResponse{}, err
 	}
@@ -171,31 +171,31 @@ type Service struct {
 	}
 
 	return response, nil
-	}
+}
 
-	func toChargingSessionView(session models.ChargingSession) ChargingSessionView {
-		return ChargingSessionView{
-			ID:            session.ID,
-			TransactionID: session.TransactionID,
-			CustomerID:    session.CustomerID,
-			ChargerID:     session.ChargerID,
-			ConnectorID:   session.ConnectorID,
-			StartTime:     session.StartTime,
-			EndTime:       session.EndTime,
-			TotalKWh:      session.TotalKWh,
-			TotalAmount:   session.TotalAmount,
-			Currency:      session.Currency,
-			Status:        session.Status,
-			StopReason:    session.StopReason,
-			CreatedAt:     session.CreatedAt,
-		}
+func toChargingSessionView(session models.ChargingSession) ChargingSessionView {
+	return ChargingSessionView{
+		ID:            session.ID,
+		TransactionID: session.TransactionID,
+		CustomerID:    session.CustomerID,
+		ChargerID:     session.ChargerID,
+		ConnectorID:   session.ConnectorID,
+		StartTime:     session.StartTime,
+		EndTime:       session.EndTime,
+		TotalKWh:      session.TotalKWh,
+		TotalAmount:   session.TotalAmount,
+		Currency:      session.Currency,
+		Status:        session.Status,
+		StopReason:    session.StopReason,
+		CreatedAt:     session.CreatedAt,
 	}
+}
 
-	func (service *Service) Create(
-		ctx context.Context,
-		principal auth.Principal,
-		request CreateRequest,
-	) (CreateResponse, error) {
+func (service *Service) Create(
+	ctx context.Context,
+	principal auth.Principal,
+	request CreateRequest,
+) (CreateResponse, error) {
 	if err := requirePlatform(principal); err != nil {
 		return CreateResponse{}, err
 	}
