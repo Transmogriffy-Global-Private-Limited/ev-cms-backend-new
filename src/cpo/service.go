@@ -1884,6 +1884,38 @@ func (service *Service) AssignGSTToHub(
 			return fmt.Errorf("load GST: %w", err)
 		}
 
+		if hub.State == gst.State {
+			if gst.IGSTRate != nil && !gst.IGSTRate.IsZero() {
+				return &auth.APIError{
+					Status:  http.StatusBadRequest,
+					Code:    "invalid_gst_for_hub",
+					Message: "IGST is not applicable for same state GST assignment.",
+				}
+			}
+			if gst.SGSTRate == nil || gst.CGSTRate == nil {
+				return &auth.APIError{
+					Status:  http.StatusBadRequest,
+					Code:    "invalid_gst_for_hub",
+					Message: "SGST and CGST are mandatory for same state GST assignment.",
+				}
+			}
+		} else {
+			if (gst.SGSTRate != nil && !gst.SGSTRate.IsZero()) || (gst.CGSTRate != nil && !gst.CGSTRate.IsZero()) {
+				return &auth.APIError{
+					Status:  http.StatusBadRequest,
+					Code:    "invalid_gst_for_hub",
+					Message: "SGST and CGST are not applicable for different state GST assignment.",
+				}
+			}
+			if gst.IGSTRate == nil {
+				return &auth.APIError{
+					Status:  http.StatusBadRequest,
+					Code:    "invalid_gst_for_hub",
+					Message: "IGST is mandatory for different state GST assignment.",
+				}
+			}
+		}
+
 		// Check if GST is already assigned to another hub
 		var count int64
 		if err := tx.Model(&models.Hub{}).Where("gst_id = ? AND cpo_id = ? AND id != ?", request.GSTID, cpoID, hubID).Count(&count).Error; err != nil {
@@ -1994,6 +2026,38 @@ func (service *Service) UpdateGSTForHub(
 				}
 			}
 			return fmt.Errorf("load GST: %w", err)
+		}
+
+		if hub.State == gst.State {
+			if gst.IGSTRate != nil && !gst.IGSTRate.IsZero() {
+				return &auth.APIError{
+					Status:  http.StatusBadRequest,
+					Code:    "invalid_gst_for_hub",
+					Message: "IGST is not applicable for same state GST assignment.",
+				}
+			}
+			if gst.SGSTRate == nil || gst.CGSTRate == nil {
+				return &auth.APIError{
+					Status:  http.StatusBadRequest,
+					Code:    "invalid_gst_for_hub",
+					Message: "SGST and CGST are mandatory for same state GST assignment.",
+				}
+			}
+		} else {
+			if (gst.SGSTRate != nil && !gst.SGSTRate.IsZero()) || (gst.CGSTRate != nil && !gst.CGSTRate.IsZero()) {
+				return &auth.APIError{
+					Status:  http.StatusBadRequest,
+					Code:    "invalid_gst_for_hub",
+					Message: "SGST and CGST are not applicable for different state GST assignment.",
+				}
+			}
+			if gst.IGSTRate == nil {
+				return &auth.APIError{
+					Status:  http.StatusBadRequest,
+					Code:    "invalid_gst_for_hub",
+					Message: "IGST is mandatory for different state GST assignment.",
+				}
+			}
 		}
 
 		// Check if GST is already assigned to another hub
