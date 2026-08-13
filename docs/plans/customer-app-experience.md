@@ -234,7 +234,8 @@ or group assignment API. A matching UserGroup tariff always wins over charger
 and hub tariffs. Every tariff has exactly one target, so no composite group /
 charger or group / hub tie-breaker exists.
 
-The resolver loads the active GST profile referenced by the tariff and returns
+The resolver loads the active GST profile assigned to the charger's hub, never
+from the tariff, and returns
 exact decimal strings. A missing eligible tariff returns an explicit
 `UNAVAILABLE` state with a reason, never a zero price. The result is informational and
 not a charge commitment; a charging session later snapshots the selected tariff

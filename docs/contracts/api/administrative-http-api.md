@@ -750,8 +750,10 @@ customer's existing group assignment.
 `200 OK` returns `CustomerPriceResponse`. `AVAILABLE` contains exact decimal
 strings for currency, energy price, idle fee, and referenced active GST rates.
 `UNAVAILABLE` with `unavailable_reason: no_eligible_tariff` is returned when no
-eligible tariff exists or a referenced GST profile is inactive/missing; the API
-never substitutes a zero price. The response is informational and is not a
+eligible tariff exists. `hub_gst_unavailable` is returned when the active hub
+GST is missing or inactive; neither condition is substituted with a zero price
+or zero tax. A zero-valued configured tariff and zero GST rates remain
+`AVAILABLE`. The response is informational and is not a
 charging or payment commitment. It does not contact HAL.
 
 ### 4.27 `GET /api/v1/app/chargers/{charger_id}/price`
@@ -2398,7 +2400,6 @@ Create requests use this body:
 
 ```json
 {
-  "gst_id": "3e38d953-fe0a-4bfa-a11c-356c92bba7e9",
   "price_per_kwh": "18.5000",
   "idle_fee_per_min": "1.0000",
   "currency": "INR",
@@ -2415,10 +2416,11 @@ Rules:
 
 - the nested hub, charger, or user-group URL determines the target; target IDs
   in a JSON body are rejected as unknown fields;
-- `gst_id` is optional and, when present, tenant-owned;
+- tariffs are commercial-only. GST is assigned to a hub through the hub GST
+  routes and is not accepted in tariff create or update requests;
 - `PATCH` updates commercial fields only and cannot move a tariff between
   target types or target records;
-- `price_per_kwh` is required and greater than zero;
+- `price_per_kwh` is required and may be zero for free charging;
 - idle fee is optional/default zero and cannot be negative;
 - currency is optional/default `INR`, normalized uppercase, and exactly three
   letters;

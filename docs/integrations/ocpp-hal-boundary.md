@@ -43,7 +43,7 @@ establish start and completion truth.
 ```text
 customer bearer + CPO app ID
 -> CMS locks wallet and resolves User Group > charger > hub tariff
--> CMS freezes tariff/GST, derives integer Wh affordability, creates hold,
+> CMS freezes the commercial tariff and independent hub GST, derives integer Wh affordability, creates hold,
    start intent, one-use appv1_ credential hash, and command identity
 -> CMS synchronizes the exact charger/connector mapping then requests HAL start
 -> HAL fact transaction.started materializes one CMS ACTIVE session
@@ -54,7 +54,8 @@ customer bearer + CPO app ID
 
 The raw credential is sent to HAL only for the start command; CMS retains only
 its SHA-256 value. Meter values remain integer Wh and are never interpolated.
-The v1 tariff currently contains energy and GST components only; no fixed or
+The v1 tariff contains energy and idle-fee commercial components; GST belongs
+to the hub tax snapshot. No fixed or
 time component is invented by this implementation.
 
 ## Configuration and Security

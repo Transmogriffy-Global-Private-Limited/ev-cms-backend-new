@@ -8695,9 +8695,8 @@ components:
       type: object
       additionalProperties: false
       required: [price_per_kwh]
-      description: The nested route determines the one immutable tariff target. Target IDs are not accepted in this body.
+      description: Commercial fields only. The nested route determines the one immutable tariff target; GST is configured on the hub, never on a tariff.
       properties:
-        gst_id: {type: string, format: uuid}
         price_per_kwh:
           $ref: "#/components/schemas/DecimalInput"
         idle_fee_per_min:
@@ -8728,7 +8727,6 @@ components:
           enum: [minutes, watt/hour]
           description: Measurement unit for the selected price type.
       example:
-        gst_id: 3e38d953-fe0a-4bfa-a11c-356c92bba7e9
         price_per_kwh: "18.5000"
         idle_fee_per_min: "1.0000"
         currency: INR
@@ -8740,7 +8738,6 @@ components:
       minProperties: 1
       description: Updates commercial fields only. A tariff's target remains the nested route target for its lifetime.
       properties:
-        gst_id: {type: string, format: uuid}
         price_per_kwh: {$ref: "#/components/schemas/DecimalInput"}
         idle_fee_per_min: {$ref: "#/components/schemas/DecimalInput"}
         currency:
@@ -8793,7 +8790,6 @@ components:
           type: string
           format: uuid
           nullable: true
-        gst_id: {type: string, format: uuid}
         user_group_id:
           type: string
           format: uuid

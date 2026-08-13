@@ -417,7 +417,6 @@ type CreateTariffRequest struct {
 	// they are intentionally not accepted from JSON clients.
 	HubID         *uuid.UUID            `json:"-"`
 	ChargerID     *uuid.UUID            `json:"-"`
-	GSTID         *uuid.UUID            `json:"gst_id,omitempty"`
 	UserGroupID   *uuid.UUID            `json:"-"`
 	PricePerKWh   decimal.Decimal       `json:"price_per_kwh"`
 	IdleFeePerMin decimal.Decimal       `json:"idle_fee_per_min"`
@@ -431,7 +430,6 @@ type CreateTariffRequest struct {
 }
 
 type UpdateTariffRequest struct {
-	GSTID         *uuid.UUID            `json:"gst_id,omitempty"`
 	PricePerKWh   *decimal.Decimal      `json:"price_per_kwh,omitempty"`
 	IdleFeePerMin *decimal.Decimal      `json:"idle_fee_per_min,omitempty"`
 	Currency      *string               `json:"currency,omitempty"`
@@ -449,7 +447,6 @@ type TariffView struct {
 	AssignedTo    constants.TariffAssignmentType `json:"assigned_to"`
 	HubID         *uuid.UUID                     `json:"hub_id,omitempty"`
 	ChargerID     *uuid.UUID                     `json:"charger_id,omitempty"`
-	GSTID         *uuid.UUID                     `json:"gst_id,omitempty"`
 	UserGroupID   *uuid.UUID                     `json:"user_group_id,omitempty"`
 	PricePerKWh   decimal.Decimal                `json:"price_per_kwh"`
 	IdleFeePerMin decimal.Decimal                `json:"idle_fee_per_min"`

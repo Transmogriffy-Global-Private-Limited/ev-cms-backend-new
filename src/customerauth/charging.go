@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -270,15 +271,28 @@ func (service *Service) StartCharging(ctx context.Context, principal Principal, 
 		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&wallet, "id = ? AND cpo_id = ? AND customer_id = ?", principal.Wallet.ID, principal.CPOID, principal.CustomerID).Error; err != nil {
 			return err
 		}
-		tariff, ok := service.effectiveChargingTariff(tx, principal, *charger.HubID, charger.ID, now)
-		if !ok {
+		tariff, tariffOK, err := resolveEffectiveTariff(tx, principal.CPOID, principal.Customer.UserGroupID, &charger.ID, charger.HubID, now)
+		if err != nil {
+			return err
+		}
+		if !tariffOK {
 			return &APIError{http.StatusConflict, "no_eligible_tariff", "No tariff is available for this charger."}
 		}
-		reserved, energyLimit, err := affordableChargingLimit(wallet.Balance, tariff)
+		gst, gstOK, err := resolveActiveHubGST(tx, principal.CPOID, *charger.HubID)
+		if err != nil {
+			return err
+		}
+		if !gstOK {
+			return &APIError{http.StatusConflict, "hub_gst_unavailable", "An active GST profile is required on this charger's hub."}
+		}
+		if wallet.Balance.LessThanOrEqual(decimal.Zero) {
+			return &APIError{http.StatusConflict, "insufficient_wallet_balance", "A positive wallet balance is required to start charging."}
+		}
+		reserved, energyLimit, err := affordableChargingLimit(wallet.Balance, tariff, gst, connector)
 		if err != nil {
 			return &APIError{http.StatusConflict, "insufficient_wallet_balance", "The wallet balance is insufficient for charging."}
 		}
-		intent = models.ChargingStartIntent{ID: intentID, CPOID: principal.CPOID, CustomerID: principal.CustomerID, ChargerID: charger.ID, ConnectorID: connector.ID, WalletID: wallet.ID, TariffID: tariff.ID, Status: constants.StartIntentStatusRequested, CredentialHash: hash, CredentialExpiresAt: now.Add(chargingCredentialLifetime), CommandExpiresAt: now.Add(chargingCommandLifetime), EnergyLimitWh: energyLimit, MaxDurationSeconds: chargingMaxDuration, TariffSnapshot: tariffSnapshot(tariff), TaxSnapshot: taxSnapshot(tariff), CreatedAt: now, UpdatedAt: now}
+		intent = models.ChargingStartIntent{ID: intentID, CPOID: principal.CPOID, CustomerID: principal.CustomerID, ChargerID: charger.ID, ConnectorID: connector.ID, WalletID: wallet.ID, TariffID: tariff.ID, Status: constants.StartIntentStatusRequested, CredentialHash: hash, CredentialExpiresAt: now.Add(chargingCredentialLifetime), CommandExpiresAt: now.Add(chargingCommandLifetime), EnergyLimitWh: energyLimit, MaxDurationSeconds: chargingMaxDuration, TariffSnapshot: tariffSnapshot(tariff), TaxSnapshot: taxSnapshot(*charger.HubID, gst), CreatedAt: now, UpdatedAt: now}
 		if err := tx.Create(&intent).Error; err != nil {
 			return err
 		}
@@ -330,19 +344,29 @@ func requestConnectorNumber(mapping halops.ChargerMapping, connectorID uuid.UUID
 	return 0
 }
 
-func (service *Service) effectiveChargingTariff(tx *gorm.DB, principal Principal, hubID, chargerID uuid.UUID, at time.Time) (models.Tariff, bool) {
+func (service *Service) effectiveChargingCommercial(tx *gorm.DB, principal Principal, hubID, chargerID uuid.UUID, at time.Time) (models.Tariff, models.GST, bool) {
 	tariff, ok, err := resolveEffectiveTariff(tx, principal.CPOID, principal.Customer.UserGroupID, &chargerID, &hubID, at)
-	return tariff, err == nil && ok
+	if err != nil || !ok {
+		return models.Tariff{}, models.GST{}, false
+	}
+	gst, ok, err := resolveActiveHubGST(tx, principal.CPOID, hubID)
+	return tariff, gst, err == nil && ok
 }
 
-func affordableChargingLimit(balance decimal.Decimal, tariff models.Tariff) (decimal.Decimal, int64, error) {
-	if balance.LessThanOrEqual(decimal.Zero) || tariff.PricePerKWh.LessThanOrEqual(decimal.Zero) {
+func (service *Service) effectiveChargingTariff(tx *gorm.DB, principal Principal, hubID, chargerID uuid.UUID, at time.Time) (models.Tariff, bool) {
+	tariff, _, ok := service.effectiveChargingCommercial(tx, principal, hubID, chargerID, at)
+	return tariff, ok
+}
+
+func affordableChargingLimit(balance decimal.Decimal, tariff models.Tariff, gst models.GST, connector models.Connector) (decimal.Decimal, int64, error) {
+	if balance.LessThanOrEqual(decimal.Zero) {
 		return decimal.Zero, 0, errors.New("no positive affordable energy")
 	}
-	rate := decimal.Zero
-	if tariff.GST != nil {
-		rate = tariff.GST.IGSTRate.Div(decimal.NewFromInt(100))
+	if tariff.PricePerKWh.IsZero() {
+		limit, err := freeChargingEnergyLimit(connector)
+		return decimal.Zero, limit, err
 	}
+	rate := gst.SGSTRate.Add(*gst.CGSTRate).Add(*gst.IGSTRate).Div(decimal.NewFromInt(100))
 	perWh := tariff.PricePerKWh.Div(decimal.NewFromInt(1000)).Mul(decimal.NewFromInt(1).Add(rate))
 	limit := balance.Div(perWh).Floor().IntPart()
 	if limit < 1 {
@@ -359,14 +383,29 @@ func affordableChargingLimit(balance decimal.Decimal, tariff models.Tariff) (dec
 	return reserved, limit, nil
 }
 
+// freeChargingEnergyLimit preserves HAL's positive energy bound without
+// inventing a commercial charge. ConnectorTotalCapacity is the registered kW
+// capacity; over the fixed maximum duration it yields a bounded Wh limit.
+func freeChargingEnergyLimit(connector models.Connector) (int64, error) {
+	if connector.ConnectorTotalCapacity <= 0 {
+		return 0, errors.New("free charging requires positive connector capacity")
+	}
+	capacity, err := decimal.NewFromString(strconv.FormatFloat(connector.ConnectorTotalCapacity, 'f', -1, 64))
+	if err != nil || capacity.LessThanOrEqual(decimal.Zero) {
+		return 0, errors.New("invalid connector capacity")
+	}
+	limit := capacity.Mul(decimal.NewFromInt(1000)).Mul(decimal.NewFromInt(chargingMaxDuration)).Div(decimal.NewFromInt(3600)).Floor().IntPart()
+	if limit < 1 {
+		return 0, errors.New("no positive physical energy limit")
+	}
+	return limit, nil
+}
+
 func tariffSnapshot(t models.Tariff) models.JSONB {
 	return models.JSONB{"tariff_id": t.ID.String(), "currency": t.Currency, "price_per_kwh": t.PricePerKWh.String(), "idle_fee_per_min": t.IdleFeePerMin.String()}
 }
-func taxSnapshot(t models.Tariff) models.JSONB {
-	if t.GST == nil {
-		return models.JSONB{}
-	}
-	return models.JSONB{"gst_id": t.GST.ID.String(), "igst_rate": t.GST.IGSTRate.String(), "cgst_rate": t.GST.CGSTRate.String(), "sgst_rate": t.GST.SGSTRate.String()}
+func taxSnapshot(hubID uuid.UUID, gst models.GST) models.JSONB {
+	return models.JSONB{"gst_id": gst.ID.String(), "hub_id": hubID.String(), "igst_rate": gst.IGSTRate.String(), "cgst_rate": gst.CGSTRate.String(), "sgst_rate": gst.SGSTRate.String()}
 }
 func newChargingCredential() (string, string, error) {
 	b := make([]byte, 10)

@@ -2292,6 +2292,7 @@ func (service *Service) CreateCharger(
 			Parking:             request.Parking,
 			Protocol:            request.Protocol,
 			TwentyFourSevenOpen: request.TwentyFourSevenOpen,
+			CustomerVisibility:  false,
 			Status:              constants.ChargerStatusInactive,
 			OCPPVersion:         "1.6J",
 			CreatedAt:           now,
@@ -2381,12 +2382,6 @@ func (service *Service) CreateHubTariff(
 		if err := service.validateTariffScope(tx, cpoID, request.HubID, request.ChargerID, request.UserGroupID); err != nil {
 			return err
 		}
-		if request.GSTID != nil {
-			var gst models.GST
-			if err := tx.First(&gst, "id = ? AND cpo_id = ?", *request.GSTID, cpoID).Error; err != nil {
-				return mapGSTNotFound(err)
-			}
-		}
 
 		now := service.now()
 		isActive := true
@@ -2400,7 +2395,6 @@ func (service *Service) CreateHubTariff(
 			HubID:         request.HubID,
 			AssignedTo:    constants.TariffAssignedHub,
 			ChargerID:     request.ChargerID,
-			GSTID:         request.GSTID,
 			UserGroupID:   request.UserGroupID,
 			PricePerKWh:   request.PricePerKWh,
 			IdleFeePerMin: request.IdleFeePerMin,
@@ -2540,11 +2534,6 @@ func (service *Service) UpdateHubTariff(
 			return err
 		}
 
-		if request.GSTID != nil {
-			updates["gst_id"] = request.GSTID
-			record.GSTID = request.GSTID
-			changedFields["gst_id"] = request.GSTID
-		}
 		if request.PricePerKWh != nil {
 			updates["price_per_kwh"] = *request.PricePerKWh
 			record.PricePerKWh = *request.PricePerKWh
@@ -2653,12 +2642,6 @@ func (service *Service) CreateChargerTariff(
 		if err := service.validateTariffScope(tx, cpoID, request.HubID, request.ChargerID, request.UserGroupID); err != nil {
 			return err
 		}
-		if request.GSTID != nil {
-			var gst models.GST
-			if err := tx.First(&gst, "id = ? AND cpo_id = ?", *request.GSTID, cpoID).Error; err != nil {
-				return mapGSTNotFound(err)
-			}
-		}
 
 		now := service.now()
 		isActive := true
@@ -2672,7 +2655,6 @@ func (service *Service) CreateChargerTariff(
 			HubID:         request.HubID,
 			AssignedTo:    constants.TariffAssignedCharger,
 			ChargerID:     request.ChargerID,
-			GSTID:         request.GSTID,
 			UserGroupID:   request.UserGroupID,
 			PricePerKWh:   request.PricePerKWh,
 			IdleFeePerMin: request.IdleFeePerMin,
@@ -2812,11 +2794,6 @@ func (service *Service) UpdateChargerTariff(
 			return err
 		}
 
-		if request.GSTID != nil {
-			updates["gst_id"] = request.GSTID
-			record.GSTID = request.GSTID
-			changedFields["gst_id"] = request.GSTID
-		}
 		if request.PricePerKWh != nil {
 			updates["price_per_kwh"] = *request.PricePerKWh
 			record.PricePerKWh = *request.PricePerKWh
@@ -2924,12 +2901,6 @@ func (service *Service) CreateUserGroupTariff(
 		if err := service.validateTariffScope(tx, cpoID, request.HubID, request.ChargerID, request.UserGroupID); err != nil {
 			return err
 		}
-		if request.GSTID != nil {
-			var gst models.GST
-			if err := tx.First(&gst, "id = ? AND cpo_id = ?", *request.GSTID, cpoID).Error; err != nil {
-				return mapGSTNotFound(err)
-			}
-		}
 
 		now := service.now()
 		isActive := true
@@ -2943,7 +2914,6 @@ func (service *Service) CreateUserGroupTariff(
 			HubID:         request.HubID,
 			AssignedTo:    constants.TariffAssignedUserGroup,
 			ChargerID:     request.ChargerID,
-			GSTID:         request.GSTID,
 			UserGroupID:   request.UserGroupID,
 			PricePerKWh:   request.PricePerKWh,
 			IdleFeePerMin: request.IdleFeePerMin,
@@ -3083,11 +3053,6 @@ func (service *Service) UpdateUserGroupTariff(
 			return err
 		}
 
-		if request.GSTID != nil {
-			updates["gst_id"] = request.GSTID
-			record.GSTID = request.GSTID
-			changedFields["gst_id"] = request.GSTID
-		}
 		if request.PricePerKWh != nil {
 			updates["price_per_kwh"] = *request.PricePerKWh
 			record.PricePerKWh = *request.PricePerKWh
@@ -4539,7 +4504,7 @@ func (service *Service) DeleteHub(
 
 		if err := tx.Model(&models.Charger{}).
 			Where("hub_id = ? AND cpo_id = ?", hubID, *principal.CPOID).
-			Update("hub_id", nil).Error; err != nil {
+			Updates(map[string]any{"hub_id": nil, "customer_visibility": false, "status": constants.ChargerStatusInactive, "updated_at": service.now()}).Error; err != nil {
 			return fmt.Errorf("disassociating chargers from hub: %w", err)
 		}
 
@@ -4925,8 +4890,8 @@ func normalizeUpdateTariffRequest(request UpdateTariffRequest) UpdateTariffReque
 }
 
 func validateCreateTariffRequest(request CreateTariffRequest) error {
-	if request.PricePerKWh.Sign() <= 0 {
-		return invalid("price_per_kwh", "Price per kWh must be greater than zero.")
+	if request.PricePerKWh.Sign() < 0 {
+		return invalid("price_per_kwh", "Price per kWh must not be negative.")
 	}
 	if request.IdleFeePerMin.Sign() < 0 {
 		return invalid("idle_fee_per_min", "Idle fee per minute must not be negative.")
@@ -4941,8 +4906,7 @@ func validateCreateTariffRequest(request CreateTariffRequest) error {
 }
 
 func validateUpdateTariffRequest(request UpdateTariffRequest) error {
-	if request.GSTID == nil &&
-		request.PricePerKWh == nil &&
+	if request.PricePerKWh == nil &&
 		request.IdleFeePerMin == nil &&
 		request.Currency == nil &&
 		request.IsActive == nil &&
@@ -4951,8 +4915,8 @@ func validateUpdateTariffRequest(request UpdateTariffRequest) error {
 		return invalid("tariff", "At least one tariff field must be supplied.")
 	}
 
-	if request.PricePerKWh != nil && request.PricePerKWh.Sign() <= 0 {
-		return invalid("price_per_kwh", "Price per kWh must be greater than zero.")
+	if request.PricePerKWh != nil && request.PricePerKWh.Sign() < 0 {
+		return invalid("price_per_kwh", "Price per kWh must not be negative.")
 	}
 	if request.IdleFeePerMin != nil && request.IdleFeePerMin.Sign() < 0 {
 		return invalid("idle_fee_per_min", "Idle fee per minute must not be negative.")
@@ -5005,7 +4969,6 @@ func (service *Service) tariffView(record *models.Tariff) TariffView {
 		AssignedTo:    record.AssignedTo,
 		HubID:         record.HubID,
 		ChargerID:     record.ChargerID,
-		GSTID:         record.GSTID,
 		UserGroupID:   record.UserGroupID,
 		PricePerKWh:   record.PricePerKWh,
 		IdleFeePerMin: record.IdleFeePerMin,
@@ -5062,12 +5025,6 @@ func (service *Service) handleTariffError(operation string, err error) error {
 					Status:  http.StatusConflict,
 					Code:    "user_group_not_found",
 					Message: "The user group for this tariff does not exist.",
-				}
-			case "tariffs_gst_id_fkey":
-				return &auth.APIError{
-					Status:  http.StatusConflict,
-					Code:    "gst_not_found",
-					Message: "The GST record for this tariff does not exist.",
 				}
 			}
 		}
@@ -5448,6 +5405,9 @@ func (service *Service) UpdateChargerStatus(
 				Message: "OCPP identity does not match the charger.",
 			}
 		}
+		if request.Status == constants.ChargerStatusActive && charger.HubID == nil {
+			return &auth.APIError{Status: http.StatusConflict, Code: "charger_hub_required", Message: "A charger must belong to a hub before it can be active."}
+		}
 
 		now := service.now()
 		if err := tx.Model(&charger).
@@ -5457,6 +5417,7 @@ func (service *Service) UpdateChargerStatus(
 			}).Error; err != nil {
 			return mapChargerWriteError(err, "update charger status")
 		}
+		charger.Status = request.Status
 
 		return writeAudit(
 			tx,
@@ -6252,6 +6213,9 @@ func (service *Service) UpdateChargerCustomerVisibility(
 			Preload("Hub").
 			First(&charger, "id = ? AND cpo_id = ?", chargerID, cpoID).Error; err != nil {
 			return mapChargerNotFound(err)
+		}
+		if request.CustomerVisible && charger.HubID == nil {
+			return &auth.APIError{Status: http.StatusConflict, Code: "charger_hub_required", Message: "A charger must belong to a hub before it can be customer-visible."}
 		}
 
 		now := service.now()

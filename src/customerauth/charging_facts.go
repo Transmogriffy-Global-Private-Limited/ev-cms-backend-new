@@ -379,6 +379,15 @@ func (service *Service) applyCompletedFact(tx *gorm.DB, p models.JSONB) error {
 	if amount.GreaterThan(hold.Amount) {
 		return tx.Model(&hold).Updates(map[string]any{"status": constants.WalletHoldStatusReconciling, "updated_at": service.now()}).Error
 	}
+	if amount.IsZero() {
+		// Wallet ledger rows deliberately require a positive amount. A free
+		// session therefore captures its zero hold and completes without a
+		// synthetic debit/payment, leaving the wallet unchanged.
+		if err := tx.Model(&hold).Updates(map[string]any{"status": constants.WalletHoldStatusCaptured, "captured_at": service.now(), "updated_at": service.now()}).Error; err != nil {
+			return err
+		}
+		return tx.Model(&session).Updates(map[string]any{"meter_stop_wh": meterStop, "latest_meter_wh": meterStop, "meter_observed_at": stopped, "end_time": stopped, "total_kwh": decimal.NewFromInt(meterStop - session.MeterStartWh).Div(decimal.NewFromInt(1000)), "total_amount": decimal.Zero, "status": constants.SessionStatusCompleted, "settlement_status": "SETTLED", "updated_at": service.now()}).Error
+	}
 	var wallet models.Wallet
 	if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&wallet, "id = ?", hold.WalletID).Error; err != nil {
 		return err
@@ -402,10 +411,13 @@ func (service *Service) applyCompletedFact(tx *gorm.DB, p models.JSONB) error {
 	return tx.Model(&session).Updates(map[string]any{"meter_stop_wh": meterStop, "latest_meter_wh": meterStop, "meter_observed_at": stopped, "end_time": stopped, "total_kwh": decimal.NewFromInt(meterStop - session.MeterStartWh).Div(decimal.NewFromInt(1000)), "total_amount": amount, "status": constants.SessionStatusCompleted, "settlement_status": "SETTLED", "updated_at": service.now()}).Error
 }
 
-func chargingAmount(tax, gst models.JSONB, consumed int64) decimal.Decimal {
-	price, _ := decimal.NewFromString(stringValue(tax, "price_per_kwh", "0"))
-	rate, _ := decimal.NewFromString(stringValue(gst, "igst_rate", "0"))
-	return price.Mul(decimal.NewFromInt(consumed)).Div(decimal.NewFromInt(1000)).Mul(decimal.NewFromInt(1).Add(rate.Div(decimal.NewFromInt(100)))).Round(2)
+func chargingAmount(tariff, tax models.JSONB, consumed int64) decimal.Decimal {
+	price, _ := decimal.NewFromString(stringValue(tariff, "price_per_kwh", "0"))
+	sgst, _ := decimal.NewFromString(stringValue(tax, "sgst_rate", "0"))
+	cgst, _ := decimal.NewFromString(stringValue(tax, "cgst_rate", "0"))
+	igst, _ := decimal.NewFromString(stringValue(tax, "igst_rate", "0"))
+	base := price.Mul(decimal.NewFromInt(consumed)).Div(decimal.NewFromInt(1000))
+	return base.Add(base.Mul(sgst.Add(cgst).Add(igst)).Div(decimal.NewFromInt(100))).Round(2)
 }
 func factID(p models.JSONB, key string) (uuid.UUID, bool) {
 	v, ok := p[key].(string)

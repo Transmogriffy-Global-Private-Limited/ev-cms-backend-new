@@ -130,6 +130,10 @@ Migration files:
 - Migration thirty-five adds nullable `hubs.gst_id` with a same-CPO foreign key
   to `gsts`. The CPO hub GST assignment APIs own assign, read, replace, and
   unassign behavior; no cross-CPO GST can be attached.
+- Migration thirty-eight makes tariffs commercial-only by dropping the legacy
+  `tariffs.gst_id` only when every legacy association is null. It also makes a
+  hub mandatory for active or customer-visible chargers, normalizing existing
+  hubless rows to hidden and inactive before adding database checks.
 - `HALChargerRuntime` and `HALConnectorRuntime` explicitly map through GORM
   `TableName` methods to the singular `hal_charger_runtime` and
   `hal_connector_runtime` tables created by migration twenty-eight.

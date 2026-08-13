@@ -215,7 +215,7 @@ type Charger struct {
 	Parking             string                  `gorm:"type:varchar(100);not null;default:''" json:"parking"`
 	Protocol            string                  `gorm:"type:varchar(50);not null;default:'OCPP 1.6J'" json:"protocol"`
 	TwentyFourSevenOpen bool                    `gorm:"column:twenty_four_seven_open_status;not null;default:false" json:"twenty_four_seven_open_status"`
-	CustomerVisibility  bool                    `gorm:"column:customer_visibility;not null;default:true" json:"customer_visibility"`
+	CustomerVisibility  bool                    `gorm:"column:customer_visibility;not null;default:false" json:"customer_visibility"`
 	Connectors          []Connector             `gorm:"foreignKey:ChargerID" json:"connectors,omitempty"`
 	Tariffs             []Tariff                `gorm:"foreignKey:ChargerID" json:"tariffs,omitempty"`
 	CreatedAt           time.Time               `gorm:"not null" json:"created_at"`
@@ -272,7 +272,6 @@ type GST struct {
 	CGSTRate  *decimal.Decimal      `gorm:"type:numeric(5,2)" json:"cgst_rate"`
 	IGSTRate  *decimal.Decimal      `gorm:"type:numeric(5,2)" json:"igst_rate"`
 	IsActive  bool                  `gorm:"not null;default:true" json:"is_active"`
-	Tariffs   []Tariff              `gorm:"foreignKey:GSTID" json:"tariffs,omitempty"`
 	CreatedAt time.Time             `gorm:"not null" json:"created_at"`
 	UpdatedAt time.Time             `gorm:"not null" json:"updated_at"`
 }
@@ -289,8 +288,6 @@ type Tariff struct {
 	AssignedTo    constants.TariffAssignmentType `gorm:"column:assigned_to;type:tariff_assignment_type;not null" json:"assigned_to"`
 	ChargerID     *uuid.UUID                     `gorm:"type:uuid;index" json:"charger_id,omitempty"`
 	Charger       *Charger                       `gorm:"foreignKey:ChargerID;constraint:OnUpdate:CASCADE,OnDelete:RESTRICT" json:"charger,omitempty"`
-	GSTID         *uuid.UUID                     `gorm:"type:uuid;index" json:"gst_id,omitempty"`
-	GST           *GST                           `gorm:"foreignKey:GSTID;constraint:OnUpdate:CASCADE,OnDelete:RESTRICT" json:"gst,omitempty"`
 	UserGroupID   *uuid.UUID                     `gorm:"type:uuid;index" json:"user_group_id,omitempty"`
 	UserGroup     *UserGroup                     `gorm:"foreignKey:UserGroupID;constraint:OnUpdate:CASCADE,OnDelete:RESTRICT" json:"user_group,omitempty"`
 	PricePerKWh   decimal.Decimal                `gorm:"column:price_per_kwh;type:numeric(12,4);not null" json:"price_per_kwh"`

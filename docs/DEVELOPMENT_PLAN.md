@@ -39,6 +39,11 @@ and financial operations without accessing another CPO's data.
 - Money will use an exact representation and energy used for billing will use
   integer Wh.
 - The CMS never invents or replaces a HAL-issued OCPP transaction identifier.
+- Tariffs own commercial pricing only; active tax is resolved from the charger
+  hub's same-CPO GST assignment. A zero price or tax rate is configured data,
+  never evidence that a required tariff or GST is missing.
+- A hubless charger is provisioning-only: it cannot be active or
+  customer-visible, in application writes or PostgreSQL constraints.
 
 ## Development Phases
 

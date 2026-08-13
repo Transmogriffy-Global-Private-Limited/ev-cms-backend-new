@@ -2,6 +2,22 @@
 
 ## Current State
 
+### 2026-08-13 — Commercial tax and hub-prerequisite correction (local, unhosted)
+
+- Migration `000038_separate_tariff_gst_and_require_charger_hub` refuses to
+  discard any non-null legacy `tariffs.gst_id`, then removes tariff GST
+  ownership. It normalizes hubless chargers to hidden/inactive and adds checks
+  preventing active or customer-visible hubless rows.
+- Customer price and charging-start admission select tariff by
+  `USERGROUP > CHARGER > HUB`, then independently load the active same-CPO GST
+  assigned to the hub. Start snapshots retain `hub_id`, `gst_id`, and all GST
+  rates; completion calculates base plus SGST+CGST+IGST from that snapshot.
+- Zero tariffs and zero GST rates are valid. New starts still require a
+  positive wallet balance; a free tariff creates a zero hold and derives a
+  positive HAL energy limit from connector capacity and the existing maximum
+  duration.
+- This source state is not committed, deployed, or migration-applied.
+
 ### 2026-08-13 — Tariff-targeting correction deployed
 
 - Deployed source contains migration

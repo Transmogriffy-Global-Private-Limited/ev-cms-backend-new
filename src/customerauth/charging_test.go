@@ -16,12 +16,25 @@ import (
 func TestAffordableChargingLimitUsesExactIntegerWh(t *testing.T) {
 	t.Parallel()
 	tariff := models.Tariff{PricePerKWh: decimal.RequireFromString("10.0000")}
-	hold, limit, err := affordableChargingLimit(decimal.RequireFromString("12.34"), tariff)
+	zero := decimal.Zero
+	hold, limit, err := affordableChargingLimit(decimal.RequireFromString("12.34"), tariff, models.GST{SGSTRate: &zero, CGSTRate: &zero, IGSTRate: &zero}, models.Connector{})
 	if err != nil {
 		t.Fatal(err)
 	}
 	if limit != 1234 || !hold.Equal(decimal.RequireFromString("12.34")) {
 		t.Fatalf("hold=%s limit=%d, want 12.34/1234", hold, limit)
+	}
+}
+
+func TestFreeChargingStillRequiresPhysicalEnergyBound(t *testing.T) {
+	t.Parallel()
+	zero := decimal.Zero
+	_, limit, err := affordableChargingLimit(decimal.NewFromInt(1), models.Tariff{PricePerKWh: zero}, models.GST{SGSTRate: &zero, CGSTRate: &zero, IGSTRate: &zero}, models.Connector{ConnectorTotalCapacity: 7.4})
+	if err != nil || limit != 7400 {
+		t.Fatalf("free limit=%d err=%v, want 7400 Wh", limit, err)
+	}
+	if _, _, err := affordableChargingLimit(decimal.NewFromInt(1), models.Tariff{PricePerKWh: zero}, models.GST{SGSTRate: &zero, CGSTRate: &zero, IGSTRate: &zero}, models.Connector{}); err == nil {
+		t.Fatal("free charging without a physical capacity must fail")
 	}
 }
 

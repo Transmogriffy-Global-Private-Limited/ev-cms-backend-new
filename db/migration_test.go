@@ -51,6 +51,34 @@ func TestMatchingDownMigrationRejectsInvalidVersion(t *testing.T) {
 	}
 }
 
+func TestCommercialTaxAndChargerHubPrerequisiteMigrationIsGuarded(t *testing.T) {
+	t.Parallel()
+
+	upBody, err := migrationFiles.ReadFile("migrations/000038_separate_tariff_gst_and_require_charger_hub.up.sql")
+	if err != nil {
+		t.Fatalf("read commercial-tax migration: %v", err)
+	}
+	downBody, err := migrationFiles.ReadFile("migrations/000038_separate_tariff_gst_and_require_charger_hub.down.sql")
+	if err != nil {
+		t.Fatalf("read commercial-tax rollback migration: %v", err)
+	}
+	upSQL, downSQL := string(upBody), string(downBody)
+	for _, required := range []string{
+		"WHERE gst_id IS NOT NULL",
+		"DROP COLUMN gst_id",
+		"chargers_customer_visibility_requires_hub",
+		"chargers_active_requires_hub",
+		"ALTER COLUMN customer_visibility SET DEFAULT FALSE",
+	} {
+		if !strings.Contains(upSQL, required) {
+			t.Errorf("migration is missing %q", required)
+		}
+	}
+	if !strings.Contains(downSQL, "ADD COLUMN gst_id uuid") || !strings.Contains(downSQL, "fk_tariffs_gst") {
+		t.Error("rollback does not restore the nullable legacy tariff GST shape")
+	}
+}
+
 func TestHubSanctionLoadMigrationPreservesNonNegativeInvariant(t *testing.T) {
 	t.Parallel()
 

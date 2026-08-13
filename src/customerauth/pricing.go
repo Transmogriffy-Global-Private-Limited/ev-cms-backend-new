@@ -84,14 +84,17 @@ func (service *Service) resolveCustomerPrice(ctx context.Context, principal Prin
 	if err != nil || !ok {
 		return response
 	}
+	gst, ok, err := resolveActiveHubGST(service.database.WithContext(ctx), principal.CPOID, hubID)
+	if err != nil || !ok {
+		response.UnavailableReason = "hub_gst_unavailable"
+		return response
+	}
 	response.Status = customerPriceAvailable
 	response.Currency = selected.Currency
 	response.PricePerKWh = selected.PricePerKWh.StringFixed(4)
 	response.IdleFeePerMinute = selected.IdleFeePerMin.StringFixed(4)
 	response.UnavailableReason = ""
-	if selected.GST != nil {
-		response.GST = &CustomerGSTView{SGSTRate: selected.GST.SGSTRate.StringFixed(2), CGSTRate: selected.GST.CGSTRate.StringFixed(2), IGSTRate: selected.GST.IGSTRate.StringFixed(2)}
-	}
+	response.GST = &CustomerGSTView{SGSTRate: gst.SGSTRate.StringFixed(2), CGSTRate: gst.CGSTRate.StringFixed(2), IGSTRate: gst.IGSTRate.StringFixed(2)}
 	return response
 }
 
@@ -115,14 +118,12 @@ func effectiveTariffTargets(userGroupID, chargerID, hubID *uuid.UUID) []effectiv
 	return targets
 }
 
-// resolveEffectiveTariff is the single CMS pricing authority for both User App
-// display and charging-start snapshots. The migration guarantees one target
-// and one eligible row per target/time window, so precedence is explicit and
-// never depends on SQL row ordering.
+// resolveEffectiveTariff selects the independent commercial tariff. Tax is
+// intentionally resolved from the charger's hub by resolveActiveHubGST.
 func resolveEffectiveTariff(database *gorm.DB, cpoID uuid.UUID, userGroupID, chargerID, hubID *uuid.UUID, effectiveAt time.Time) (models.Tariff, bool, error) {
 	for _, target := range effectiveTariffTargets(userGroupID, chargerID, hubID) {
 		var tariff models.Tariff
-		err := database.Preload("GST").Where(
+		err := database.Where(
 			"cpo_id = ? AND assigned_to = ? AND "+target.column+" = ? AND is_active = ? AND (start_date IS NULL OR start_date <= ?) AND (end_date IS NULL OR end_date > ?)",
 			cpoID, target.assignment, target.id, true, effectiveAt, effectiveAt,
 		).First(&tariff).Error
@@ -134,4 +135,31 @@ func resolveEffectiveTariff(database *gorm.DB, cpoID uuid.UUID, userGroupID, cha
 		}
 	}
 	return models.Tariff{}, false, nil
+}
+
+// resolveActiveHubGST is the only customer-commercial tax lookup. A missing,
+// cross-tenant, inactive, or structurally incomplete hub GST is unavailable;
+// it is never interpreted as a zero-rate tax configuration.
+func resolveActiveHubGST(database *gorm.DB, cpoID, hubID uuid.UUID) (models.GST, bool, error) {
+	var hub models.Hub
+	if err := database.First(&hub, "id = ? AND cpo_id = ?", hubID, cpoID).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return models.GST{}, false, nil
+		}
+		return models.GST{}, false, err
+	}
+	if hub.GSTID == nil {
+		return models.GST{}, false, nil
+	}
+	var gst models.GST
+	if err := database.First(&gst, "id = ? AND cpo_id = ? AND is_active = ?", *hub.GSTID, cpoID, true).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return models.GST{}, false, nil
+		}
+		return models.GST{}, false, err
+	}
+	if gst.SGSTRate == nil || gst.CGSTRate == nil || gst.IGSTRate == nil {
+		return models.GST{}, false, nil
+	}
+	return gst, true, nil
 }

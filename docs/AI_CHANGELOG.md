@@ -2,6 +2,21 @@
 
 ## 2026-08-13
 
+### Commercial tax and charger hub-prerequisite correction (local, unhosted)
+
+- Separated tariff commercial fields from GST ownership. Migration 38 aborts
+  before dropping any non-null legacy tariff GST association; it never infers
+  or copies a tax assignment. Hub GST remains the same-CPO tax authority.
+- Customer price and new-start snapshots now combine the effective tariff with
+  active hub GST. A zero price or zero rate is available configuration, while
+  a missing tariff and missing/inactive hub GST remain distinct unavailable
+  conditions. Completion uses frozen SGST+CGST+IGST snapshots.
+- Added durable and service-layer safeguards that keep hubless chargers hidden
+  and inactive. The frozen HAL/OCPP contracts were not changed.
+- Focused CPO, customer-auth, model, route/OpenAPI, and documentation checks
+  passed locally; no disposable `TEST_DATABASE_URL` was selected and no
+  migration, commit, push, or deployment occurred.
+
 ### Hosted tariff-targeting correction and User App publication sweep
 
 - Added migration `000037_correct_tariff_targeting`: legacy composite rows are
