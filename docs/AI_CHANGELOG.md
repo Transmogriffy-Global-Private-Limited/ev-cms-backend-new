@@ -2,6 +2,75 @@
 
 ## 2026-08-13
 
+### Rehosted User App charging-start admission hardening
+
+- New customer charging starts now require committed connector availability to
+  be `AVAILABLE` and `FRESH`; unavailable, stale, offline, or faulted states
+  return `409 connector_not_available` before charging side effects. Same-
+  customer active-intent replay remains idempotent, and connector row locking
+  serializes competing starts.
+- No migration or HAL/OCPP contract changed.
+
+Verification:
+
+- Focused admission tests, route/OpenAPI parity, serial full Go tests, serial
+  vet, formatting, and diff checks passed. The disposable PostgreSQL lifecycle
+  remains skipped because `TEST_DATABASE_URL` is unavailable.
+- Clean revision `172bcd4` was rehosted with binary SHA-256
+  `ab53143ae0bb55d14e9256d77eb5bf3350ce1aed2c280236b41dc4ad80ea2238` and
+  `vcs.modified=false`; service state, Caddy, migration/table, health,
+  readiness, Swagger, raw OpenAPI, unauthenticated charging-start, and
+  post-rehost journal checks passed. The prior binary is retained at
+  `builds/evcmsnew.pre-172bcd4`.
+
+### Hardened User App charging-start admission against stale or unavailable live state
+
+- New User App charging starts now require the CMS-owned `liveops` connector
+  projection to report `AVAILABLE` and `FRESH` before the wallet hold, durable
+  start intent, durable HAL command record, or HAL delivery path can begin.
+  The change does not add a route, schema, migration, HAL/OCPP contract, or
+  synchronous CMS-to-HAL availability call.
+- Same-customer active-intent replay remains available before the live-state
+  gate. Another customer receives only the existing generic
+  `409 connector_not_available` response. The final transaction locks the
+  connector row and rechecks active intent ownership to serialize competing
+  starts.
+- Updated the canonical OpenAPI and User App frontend handoff: enable start
+  only for `AVAILABLE` plus `FRESH`, treat the backend as authoritative, and
+  on `409` refetch charger detail rather than auto-retrying. Existing SSE and
+  REST recovery semantics are unchanged.
+
+Verification:
+
+- Focused `customerauth` admission tests, route/OpenAPI runtime parity, the
+  PowerShell documentation verifier, `go test -p 1 ./...`, `go vet -p 1 ./...`,
+  and `git diff --check` passed.
+- The added PostgreSQL lifecycle regression is guarded by
+  `TEST_DATABASE_URL`; it is skipped locally because no disposable database is
+  selected. Physical charger and real CMS-to-HAL-to-charger acceptance were
+  not run and remain outside this CMS-only source slice.
+
+### Rehosted state-aware GST-to-hub assignment validation
+
+- Added same-state versus different-state GST rate validation to hub assignment
+  and replacement. Same-state hubs require SGST and CGST and reject non-zero
+  IGST; different-state hubs require IGST and reject non-zero SGST or CGST.
+  Invalid combinations return `400 invalid_gst_for_hub`.
+- Updated the OpenAPI and administrative CPO contracts. No migration or HAL
+  change was required.
+
+Verification:
+
+- Focused CPO tests, route/OpenAPI parity, serial full Go tests, serial vet,
+  formatting, and diff checks passed. The disposable PostgreSQL lifecycle
+  remains skipped because `TEST_DATABASE_URL` is unavailable.
+- Clean merge revision `4377383` was rehosted with binary SHA-256
+  `769b71782f47bb93c37e063dbab4ba8af34902b80ac8fb3150c21ac61c2fc5e0` and
+  `vcs.modified=false`; service state, Caddy, migration/table, health,
+  readiness, Swagger, raw OpenAPI, GST route boundaries, and post-rehost
+  journal checks passed. The prior binary is retained at
+  `builds/evcmsnew.pre-4377383`.
+
 ### Completed and rehosted the CMS-side User App charging history release
 
 - Added customer/CPO-scoped materialized charging-session history with bounded

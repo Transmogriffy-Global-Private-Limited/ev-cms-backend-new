@@ -149,6 +149,39 @@ type existingStartIntentError struct{ intent models.ChargingStartIntent }
 
 func (err *existingStartIntentError) Error() string { return "existing charging start intent" }
 
+var chargingStartActiveStatuses = []constants.StartIntentStatus{
+	constants.StartIntentStatusRequested,
+	constants.StartIntentStatusAcceptedForDelivery,
+	constants.StartIntentStatusProtocolAcknowledged,
+	constants.StartIntentStatusActuallyStarted,
+	constants.StartIntentStatusReconciliation,
+}
+
+func connectorNotAvailableForCharging() *APIError {
+	return &APIError{http.StatusConflict, "connector_not_available", "The connector is not currently available for charging."}
+}
+
+func chargingConnectorAllowsNewStart(state liveops.ConnectorState) bool {
+	return state.Availability == "AVAILABLE" && state.Freshness == liveops.FreshnessFresh
+}
+
+func activeChargingStartIntent(query *gorm.DB, connectorID uuid.UUID) (models.ChargingStartIntent, bool, error) {
+	var intent models.ChargingStartIntent
+	err := query.Where("connector_id = ? AND status IN ?", connectorID, chargingStartActiveStatuses).
+		Order("created_at DESC").First(&intent).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return models.ChargingStartIntent{}, false, nil
+	}
+	if err != nil {
+		return models.ChargingStartIntent{}, false, err
+	}
+	return intent, true, nil
+}
+
+func existingChargingStartResponse(intent models.ChargingStartIntent) ChargingStartResponse {
+	return ChargingStartResponse{StartIntentID: intent.ID, Status: intent.Status, SessionID: intent.MaterializedSessionID}
+}
+
 func (service *Service) StartCharging(ctx context.Context, principal Principal, request ChargingStartRequest, correlationID string) (ChargingStartResponse, error) {
 	if service.hal == nil || !service.hal.Available() {
 		return ChargingStartResponse{}, &APIError{http.StatusServiceUnavailable, "hal_unavailable", "Charging is temporarily unavailable."}
@@ -162,6 +195,39 @@ func (service *Service) StartCharging(ctx context.Context, principal Principal, 
 	}
 	if charger.Status != constants.ChargerStatusActive {
 		return ChargingStartResponse{}, &APIError{http.StatusConflict, "charger_not_available", "The charger is not available for a new session."}
+	}
+	if request.ConnectorID == uuid.Nil {
+		return ChargingStartResponse{}, &APIError{http.StatusNotFound, "connector_not_found", "The requested connector was not found."}
+	}
+	var requestedConnector models.Connector
+	if err := service.database.WithContext(ctx).First(&requestedConnector, "id = ? AND cpo_id = ? AND charger_id = ?", request.ConnectorID, principal.CPOID, charger.ID).Error; err != nil {
+		return ChargingStartResponse{}, &APIError{http.StatusNotFound, "connector_not_found", "The requested connector was not found."}
+	}
+	existing, found, err := activeChargingStartIntent(service.database.WithContext(ctx), requestedConnector.ID)
+	if err != nil {
+		return ChargingStartResponse{}, fmt.Errorf("load active charging start intent: %w", err)
+	}
+	if found {
+		if existing.CustomerID == principal.CustomerID {
+			return existingChargingStartResponse(existing), nil
+		}
+		return ChargingStartResponse{}, connectorNotAvailableForCharging()
+	}
+	liveConnector, err := service.live.GetConnector(ctx, principal.CPOID, requestedConnector.ID)
+	if err != nil {
+		return ChargingStartResponse{}, fmt.Errorf("load connector live state: %w", err)
+	}
+	if !chargingConnectorAllowsNewStart(liveConnector) {
+		// A same-customer retry may have committed after the preflight read but
+		// before the live snapshot. Preserve replay semantics in that narrow race.
+		existing, found, err = activeChargingStartIntent(service.database.WithContext(ctx), requestedConnector.ID)
+		if err != nil {
+			return ChargingStartResponse{}, fmt.Errorf("recheck active charging start intent: %w", err)
+		}
+		if found && existing.CustomerID == principal.CustomerID {
+			return existingChargingStartResponse(existing), nil
+		}
+		return ChargingStartResponse{}, connectorNotAvailableForCharging()
 	}
 	now := service.now()
 	credential, hash, err := newChargingCredential()
@@ -180,20 +246,21 @@ func (service *Service) StartCharging(ctx context.Context, principal Principal, 
 			return &APIError{http.StatusForbidden, "cpo_not_active", "Charging is not available for this provider."}
 		}
 		var connector models.Connector
-		if request.ConnectorID == uuid.Nil || tx.First(&connector, "id = ? AND cpo_id = ? AND charger_id = ?", request.ConnectorID, principal.CPOID, charger.ID).Error != nil {
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&connector, "id = ? AND cpo_id = ? AND charger_id = ?", request.ConnectorID, principal.CPOID, charger.ID).Error; err != nil {
 			return &APIError{http.StatusNotFound, "connector_not_found", "The requested connector was not found."}
 		}
 		if connector.Status != constants.ChargerStatusActive {
-			return &APIError{http.StatusConflict, "connector_not_available", "The connector is not available for a new session."}
+			return connectorNotAvailableForCharging()
 		}
-		var existing models.ChargingStartIntent
-		if err := tx.Where("connector_id = ? AND status IN ?", connector.ID, []constants.StartIntentStatus{constants.StartIntentStatusRequested, constants.StartIntentStatusAcceptedForDelivery, constants.StartIntentStatusProtocolAcknowledged, constants.StartIntentStatusActuallyStarted, constants.StartIntentStatusReconciliation}).Order("created_at DESC").First(&existing).Error; err == nil {
+		existing, found, err := activeChargingStartIntent(tx, connector.ID)
+		if err != nil {
+			return err
+		}
+		if found {
 			if existing.CustomerID == principal.CustomerID {
 				return &existingStartIntentError{intent: existing}
 			}
-			return &APIError{http.StatusConflict, "connector_not_available", "The connector is not available for a new session."}
-		} else if err != gorm.ErrRecordNotFound {
-			return err
+			return connectorNotAvailableForCharging()
 		}
 		var connectors []models.Connector
 		if err := tx.Where("cpo_id = ? AND charger_id = ?", principal.CPOID, charger.ID).Order("connector_number ASC").Find(&connectors).Error; err != nil {

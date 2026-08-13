@@ -2348,6 +2348,15 @@ Omission preserves a field.
 There is currently no GST delete route. An inactive profile remains durable for
 historical references.
 
+Hub GST assignment uses `POST` and `PATCH
+/api/v1/cpo/hubs/{hub_id}/gst` with `{"gst_id":"<uuid>"}`. The referenced GST
+must belong to the same CPO and cannot already be assigned to another hub. The
+hub and GST states determine the applicable rates: same-state assignment
+requires SGST and CGST and rejects non-zero IGST; different-state assignment
+requires IGST and rejects non-zero SGST or CGST. Invalid combinations return
+`400 invalid_gst_for_hub`. `GET` reads the assigned profile and `DELETE`
+unassigns it.
+
 ### 9.19 Scoped tariff routes
 
 All tariff routes require the authenticated CPO ADMIN and its current

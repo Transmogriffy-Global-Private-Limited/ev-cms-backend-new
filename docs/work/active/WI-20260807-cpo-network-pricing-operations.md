@@ -65,11 +65,12 @@ charging vertical.
 
 ## Current state
 
-The current shared development deployment is clean source revision `87b8727`
+The current shared development deployment is clean source revision `172bcd4`
 with migrations thirty-three through thirty-five applied and 177 OpenAPI
 operations. The HAL runtime model mapping now explicitly targets the singular
 `hal_charger_runtime` and `hal_connector_runtime` tables; no migration was
-needed for this correction.
+needed for this correction. State-aware GST-to-hub assignment validation is
+also active.
 
 Earlier revision `3ca2c35` was built from a clean worktree and rehosted on
 August 11, 2026 after migration thirty-two. The live service exposes the

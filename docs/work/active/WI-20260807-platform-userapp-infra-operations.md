@@ -56,6 +56,13 @@ Codex is completing the CMS-only User App charging-history slice under
 event correlation, OpenAPI, and canonical User App handoff. It must not touch
 HAL, add a migration, deploy, or claim physical charging acceptance.
 
+Codex is also hardening the existing User App charging-start admission path in
+`src/customerauth/`, OpenAPI, and the canonical User App handoff. A new start
+must require the CMS live projection to be `AVAILABLE` and `FRESH`, preserve
+same-customer active-intent replay, and serialize the final decision with a
+connector-row lock. It must not add a route, migration, HAL/OCPP change,
+deployment, or physical-charger claim.
+
 ## Non-goals
 
 - This record does not authorize a production deployment, DNS change, database
@@ -102,7 +109,7 @@ verification before execution.
 
 ## Current state
 
-The current shared development deployment is clean source revision `87b8727`
+The current shared development deployment is clean source revision `172bcd4`
 with migrations through thirty-five and 177 OpenAPI operations. The HAL runtime
 GORM table mapping correction and User App charging-history release are active
 without a database migration.
@@ -135,6 +142,10 @@ charging-session history, frozen commercial/session detail, safe payment/debit
 cross-links, and session-correlated charging SSE invalidations. The deployed
 OpenAPI has 177 operations.
 
+The deployed source additionally contains the User App charging-start admission
+hardening described above. It does not change the deployed revision's
+177-operation OpenAPI count.
+
 ## Verification
 
 - Focused User App charging history/projection tests and route/OpenAPI parity
@@ -142,6 +153,12 @@ OpenAPI has 177 operations.
   tests, serial vet, and `git diff --check`. Disposable PostgreSQL coverage
   stays skipped until `TEST_DATABASE_URL` is explicitly selected; physical
   charger acceptance remains deferred.
+
+- Focused User App charging-start admission tests, route/OpenAPI parity, the
+  PowerShell documentation verifier, serial full Go tests, serial vet, and
+  `git diff --check` passed. The guarded PostgreSQL lifecycle regression is
+  skipped because `TEST_DATABASE_URL` is not selected; physical charger and
+  real CMS-to-HAL-to-charger acceptance remain unverified by design.
 
 - `go test ./src/customerauth -count=1` passed for the compact map-marker
   projection, including serialized exact-field coverage.
@@ -181,10 +198,18 @@ OpenAPI has 177 operations.
 - Earlier revision `0d50c09` was active; the service was enabled with zero
   restarts, loopback/public health and readiness, Swagger, raw OpenAPI, and the
   post-rehost journal scan passed.
-- Revision `87b8727` is now active with the 177-operation contract; the service
+- Earlier revision `87b8727` was active with the 177-operation contract; the service
   is enabled with zero restarts, loopback/public health and readiness, Swagger,
   raw OpenAPI, the unauthenticated history-route boundary, and the post-rehost
   journal scan passed.
+- Merge revision `4377383` is now active with the 177-operation contract; the
+  service is enabled with zero restarts, loopback/public health and readiness,
+  Swagger, raw OpenAPI, GST route boundaries, and the post-rehost journal scan
+  passed.
+- Revision `172bcd4` is now active with the 177-operation contract; the service
+  is enabled with zero restarts, loopback/public health and readiness, Swagger,
+  raw OpenAPI, the unauthenticated charging-start boundary, and the post-
+  rehost journal scan passed.
 - Earlier revision `d368903` deployment evidence established the prior
   161-operation contract, tenant settings/GST/CMS-HAL routes, and connector
   projection behavior before the current release.
