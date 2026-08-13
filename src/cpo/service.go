@@ -58,51 +58,144 @@ type Service struct {
 	halOperations        *halops.Service
 	liveOperations       *liveops.Service
 	operationalEvents    *operationalrealtime.Service
-}
+	repository           Repository
+	}
 
-type sessionRevocationCounts struct {
+	type sessionRevocationCounts struct {
 	sessions      int64
 	refreshTokens int64
-}
+	}
 
-func (service *Service) WithPlatformEvents(events *platformops.Service) *Service {
+	func (service *Service) WithPlatformEvents(events *platformops.Service) *Service {
 	service.events = events
 	return service
-}
+	}
 
-// WithOperationalCapabilities keeps CPO authorization in this service while
-// delegating provider mechanics and live reads to CMS-owned capabilities.
-func (service *Service) WithOperationalCapabilities(hal *halops.Service, live *liveops.Service) *Service {
+	// WithOperationalCapabilities keeps CPO authorization in this service while
+	// delegating provider mechanics and live reads to CMS-owned capabilities.
+	func (service *Service) WithOperationalCapabilities(hal *halops.Service, live *liveops.Service) *Service {
 	service.halOperations = hal
 	service.liveOperations = live
 	return service
-}
+	}
 
-func (service *Service) WithOperationalEvents(events *operationalrealtime.Service) *Service {
+	func (service *Service) WithOperationalEvents(events *operationalrealtime.Service) *Service {
 	service.operationalEvents = events
 	return service
-}
+	}
 
-func NewService(
+	func NewService(
 	database *gorm.DB,
 	outbox *cmsmail.Outbox,
 	mailEnabled bool,
 	chargerConnectionURL string,
-) *Service {
+	) *Service {
 	return &Service{
 		database:             database,
+		repository:           NewRepository(database),
 		outbox:               outbox,
 		mailEnabled:          mailEnabled,
 		now:                  func() time.Time { return time.Now().UTC() },
 		chargerConnectionURL: chargerConnectionURL,
 	}
-}
+	}
 
-func (service *Service) Create(
+	func (service *Service) GetChargingSession(
 	ctx context.Context,
 	principal auth.Principal,
-	request CreateRequest,
-) (CreateResponse, error) {
+	sessionID uuid.UUID,
+	) (ChargingSessionView, error) {
+	if err := requireCPOAdminAccess(principal); err != nil {
+		return ChargingSessionView{}, err
+	}
+
+	session, err := service.repository.GetChargingSession(ctx, *principal.CPOID, sessionID)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ChargingSessionView{}, &auth.APIError{
+				Status:  http.StatusNotFound,
+				Code:    "charging_session_not_found",
+				Message: "The charging session was not found.",
+			}
+		}
+		return ChargingSessionView{}, fmt.Errorf("load charging session: %w", err)
+	}
+
+	return toChargingSessionView(*session), nil
+	}
+
+	func (service *Service) ListChargingSessions(
+	ctx context.Context,
+	principal auth.Principal,
+	query ChargingSessionListQuery,
+	) (ChargingSessionListResponse, error) {
+	if err := requireCPOAdminAccess(principal); err != nil {
+		return ChargingSessionListResponse{}, err
+	}
+
+	if query.Limit == 0 {
+		query.Limit = defaultListLimit
+	}
+	if query.Limit < 1 || query.Limit > maxListLimit {
+		return ChargingSessionListResponse{}, invalid(
+			"limit",
+			"Limit must be between 1 and 200.",
+		)
+	}
+
+	sessions, err := service.repository.ListChargingSessions(ctx, *principal.CPOID, query)
+	if err != nil {
+		return ChargingSessionListResponse{}, fmt.Errorf("list charging sessions: %w", err)
+	}
+
+	hasMore := len(sessions) > query.Limit
+	if hasMore {
+		sessions = sessions[:query.Limit]
+	}
+
+	result := make([]ChargingSessionView, 0, len(sessions))
+	for _, session := range sessions {
+		result = append(result, toChargingSessionView(session))
+	}
+
+	response := ChargingSessionListResponse{
+		Sessions: result,
+		HasMore:  hasMore,
+	}
+
+	if hasMore && len(sessions) > 0 {
+		nextBefore := sessions[len(sessions)-1].CreatedAt
+		nextBeforeID := sessions[len(sessions)-1].ID
+		response.NextBefore = &nextBefore
+		response.NextBeforeID = &nextBeforeID
+	}
+
+	return response, nil
+	}
+
+	func toChargingSessionView(session models.ChargingSession) ChargingSessionView {
+		return ChargingSessionView{
+			ID:            session.ID,
+			TransactionID: session.TransactionID,
+			CustomerID:    session.CustomerID,
+			ChargerID:     session.ChargerID,
+			ConnectorID:   session.ConnectorID,
+			StartTime:     session.StartTime,
+			EndTime:       session.EndTime,
+			TotalKWh:      session.TotalKWh,
+			TotalAmount:   session.TotalAmount,
+			Currency:      session.Currency,
+			Status:        session.Status,
+			StopReason:    session.StopReason,
+			CreatedAt:     session.CreatedAt,
+		}
+	}
+
+	func (service *Service) Create(
+		ctx context.Context,
+		principal auth.Principal,
+		request CreateRequest,
+	) (CreateResponse, error) {
 	if err := requirePlatform(principal); err != nil {
 		return CreateResponse{}, err
 	}

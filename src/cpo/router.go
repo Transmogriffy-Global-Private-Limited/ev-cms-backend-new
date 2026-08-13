@@ -550,7 +550,112 @@ func RegisterCPORoutes(
 	group.POST("/settings", handler.createOrUpdateSettings)
 	group.PUT("/settings", handler.createOrUpdateSettings)
 	group.GET("/settings/invoice-logo", handler.getInvoiceLogo)
+	group.GET("/charging-sessions", handler.listChargingSessions)
+	group.GET("/charging-sessions/:session_id", handler.getChargingSession)
 }
+
+func (handler *Handler) listChargingSessions(ctx *gin.Context) {
+	principal, _ := auth.CurrentPrincipal(ctx)
+	query, ok := parseChargingSessionListQuery(ctx)
+	if !ok {
+		return
+	}
+	records, err := handler.service.ListChargingSessions(ctx.Request.Context(), principal, query)
+	if err != nil {
+		writeError(ctx, err)
+		return
+	}
+	ctx.JSON(http.StatusOK, records)
+}
+
+func (handler *Handler) getChargingSession(ctx *gin.Context) {
+	principal, _ := auth.CurrentPrincipal(ctx)
+	sessionID, ok := parseSessionID(ctx)
+	if !ok {
+		return
+	}
+	record, err := handler.service.GetChargingSession(ctx.Request.Context(), principal, sessionID)
+	if err != nil {
+		writeError(ctx, err)
+		return
+	}
+	ctx.JSON(http.StatusOK, record)
+}
+
+func parseSessionID(ctx *gin.Context) (uuid.UUID, bool) {
+	sessionID, err := uuid.Parse(ctx.Param("session_id"))
+	if err != nil || sessionID == uuid.Nil {
+		writeError(ctx, &auth.APIError{
+			Status:  http.StatusBadRequest,
+			Code:    "invalid_session_id",
+			Message: "The session ID is invalid.",
+		})
+		return uuid.Nil, false
+	}
+	return sessionID, true
+}
+
+func parseChargingSessionListQuery(ctx *gin.Context) (ChargingSessionListQuery, bool) {
+	query := ChargingSessionListQuery{}
+	if limitText := strings.TrimSpace(ctx.Query("limit")); limitText != "" {
+		limit, err := strconv.Atoi(limitText)
+		if err != nil {
+			writeError(ctx, invalid("limit", "Limit must be an integer."))
+			return ChargingSessionListQuery{}, false
+		}
+		query.Limit = limit
+	}
+	if beforeText := strings.TrimSpace(ctx.Query("before")); beforeText != "" {
+		before, err := time.Parse(time.RFC3339, beforeText)
+		if err != nil {
+			writeError(
+				ctx,
+				invalid("before", "Before must be an RFC3339 timestamp."),
+			)
+			return ChargingSessionListQuery{}, false
+		}
+		query.Before = &before
+	}
+	if beforeIDText := strings.TrimSpace(ctx.Query("before_id")); beforeIDText != "" {
+		beforeID, err := uuid.Parse(beforeIDText)
+		if err != nil || beforeID == uuid.Nil {
+			writeError(
+				ctx,
+				invalid("before_id", "Before ID must be a non-zero UUID."),
+			)
+			return ChargingSessionListQuery{}, false
+		}
+		query.BeforeID = &beforeID
+	}
+	if statusText := strings.TrimSpace(ctx.Query("status")); statusText != "" {
+		status := constants.SessionStatus(strings.ToUpper(statusText))
+		query.Status = &status
+	}
+	if chargerIDText := strings.TrimSpace(ctx.Query("charger_id")); chargerIDText != "" {
+		chargerID, err := uuid.Parse(chargerIDText)
+		if err != nil || chargerID == uuid.Nil {
+			writeError(
+				ctx,
+				invalid("charger_id", "Charger ID must be a non-zero UUID."),
+			)
+			return ChargingSessionListQuery{}, false
+		}
+		query.ChargerID = &chargerID
+	}
+	if customerIDText := strings.TrimSpace(ctx.Query("customer_id")); customerIDText != "" {
+		customerID, err := uuid.Parse(customerIDText)
+		if err != nil || customerID == uuid.Nil {
+			writeError(
+				ctx,
+				invalid("customer_id", "Customer ID must be a non-zero UUID."),
+			)
+			return ChargingSessionListQuery{}, false
+		}
+		query.CustomerID = &customerID
+	}
+	return query, true
+}
+
 
 func (handler *Handler) getPlatformFleetOperations(ctx *gin.Context) {
 	principal, _ := auth.CurrentPrincipal(ctx)

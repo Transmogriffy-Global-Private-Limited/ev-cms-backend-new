@@ -54,10 +54,91 @@ tags:
     description: CPO ADMIN write-only integration credential management.
   - name: App Charging
     description: Customer-owned charging progress, active-session projection, and stop commands. HAL protocol facts are received through a separate service boundary.
+  - name: CPO Operations - Charging Sessions
+    description: Tenant-scoped charging session operations.
   - name: HAL Service Integration
     description: Authenticated OCPP HAL fact receiver. Not callable with a customer or staff bearer.
 
 paths:
+  /api/v1/cpo/charging-sessions:
+    get:
+      tags: [CPO Operations - Charging Sessions]
+      operationId: listCPOChargingSessions
+      summary: List charging sessions for the CPO
+      description: Returns a paginated list of charging sessions for the authenticated CPO, ordered by newest first.
+      security:
+        - BearerAuth: []
+        - CPOAppID: []
+      parameters:
+        - $ref: "#/components/parameters/ListLimit"
+        - $ref: "#/components/parameters/ListBefore"
+        - $ref: "#/components/parameters/ListBeforeID"
+        - name: status
+          in: query
+          schema:
+            $ref: "#/components/schemas/SessionStatus"
+        - name: charger_id
+          in: query
+          schema:
+            type: string
+            format: uuid
+        - name: customer_id
+          in: query
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: A list of charging sessions.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChargingSessionListResponse"
+        "400":
+          $ref: "#/components/responses/InvalidRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/CPOBusinessForbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/cpo/charging-sessions/{session_id}:
+    get:
+      tags: [CPO Operations - Charging Sessions]
+      operationId: getCPOChargingSession
+      summary: Get a single charging session
+      description: Returns a single charging session by ID.
+      security:
+        - BearerAuth: []
+        - CPOAppID: []
+      parameters:
+        - name: session_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: The requested charging session.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChargingSessionView"
+        "400":
+          $ref: "#/components/responses/InvalidRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/CPOBusinessForbidden"
+        "404":
+          description: "`charging_session_not_found`"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "500":
+          $ref: "#/components/responses/InternalError"
   /health/live:
     get:
       tags: [Health]
@@ -9201,6 +9282,63 @@ components:
             message:
               type: string
               description: Safe human-readable explanation.
+    ChargingSessionView:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        transaction_id:
+          type: integer
+          format: int64
+        customer_id:
+          type: string
+          format: uuid
+        charger_id:
+          type: string
+          format: uuid
+        connector_id:
+          type: string
+          format: uuid
+        start_time:
+          type: string
+          format: date-time
+        end_time:
+          type: string
+          format: date-time
+          nullable: true
+        total_kwh:
+          type: string
+        total_amount:
+          type: string
+        currency:
+          type: string
+        status:
+          $ref: "#/components/schemas/SessionStatus"
+        stop_reason:
+          type: string
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+
+    ChargingSessionListResponse:
+      type: object
+      properties:
+        sessions:
+          type: array
+          items:
+            $ref: "#/components/schemas/ChargingSessionView"
+        next_before:
+          type: string
+          format: date-time
+          nullable: true
+        next_before_id:
+          type: string
+          format: uuid
+          nullable: true
+        has_more:
+          type: boolean
     AssignGSTToHubRequest:
       type: object
       required:

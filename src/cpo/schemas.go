@@ -597,3 +597,35 @@ type FleetOperationsResponse struct {
 type UpdateChargerCustomerVisibilityRequest struct {
 	CustomerVisible bool `json:"customer_visible"`
 }
+
+type ChargingSessionView struct {
+	ID            uuid.UUID               `json:"id"`
+	TransactionID int64                   `json:"transaction_id"`
+	CustomerID    uuid.UUID               `json:"customer_id"`
+	ChargerID     uuid.UUID               `json:"charger_id"`
+	ConnectorID   uuid.UUID               `json:"connector_id"`
+	StartTime     time.Time               `json:"start_time"`
+	EndTime       *time.Time              `json:"end_time,omitempty"`
+	TotalKWh      decimal.Decimal         `json:"total_kwh"`
+	TotalAmount   decimal.Decimal         `json:"total_amount"`
+	Currency      string                  `json:"currency"`
+	Status        constants.SessionStatus `json:"status"`
+	StopReason    *string                 `json:"stop_reason,omitempty"`
+	CreatedAt     time.Time               `json:"created_at"`
+}
+
+type ChargingSessionListResponse struct {
+	Sessions     []ChargingSessionView `json:"sessions"`
+	NextBefore   *time.Time            `json:"next_before,omitempty"`
+	NextBeforeID *uuid.UUID            `json:"next_before_id,omitempty"`
+	HasMore      bool                  `json:"has_more"`
+}
+
+type ChargingSessionListQuery struct {
+	Before     *time.Time
+	BeforeID   *uuid.UUID
+	Limit      int
+	Status     *constants.SessionStatus
+	ChargerID  *uuid.UUID
+	CustomerID *uuid.UUID
+}
