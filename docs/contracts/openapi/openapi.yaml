@@ -5537,7 +5537,7 @@ paths:
       tags: [App Charging]
       operationId: startCustomerCharging
       summary: Create a durable charging start intent
-      description: Creates the CMS tariff/tax snapshot, affordability reservation, one-use credential, and durable HAL command identity. `202` is not proof that charging started; only a later HAL `transaction.started` fact materializes a session.
+      description: Creates the CMS tariff/tax snapshot, affordability reservation, one-use credential, and durable HAL command identity. A new start is admitted only when the committed CMS live-operations projection reports the requested connector as `AVAILABLE` and `FRESH`; `409 connector_not_available` is expected when that projection or a competing active intent prevents admission. A same-customer retry of an existing active intent returns that intent before the live admission check. `202` is not proof that charging started; only a later HAL `transaction.started` fact materializes a session.
       security: [{BearerAuth: []}]
       parameters: [{$ref: "#/components/parameters/CPOAppIDHeader"}]
       requestBody:
@@ -5551,7 +5551,7 @@ paths:
         "401": {$ref: "#/components/responses/Unauthorized"}
         "403": {$ref: "#/components/responses/Forbidden"}
         "404": {description: Customer charger or connector was not found.}
-        "409": {$ref: "#/components/responses/Conflict"}
+        "409": {description: "Connector is not currently available for a new start, or an active intent already owns it.", content: {application/json: {schema: {$ref: "#/components/schemas/ErrorEnvelope"}}}}
         "503": {description: HAL charging service is unavailable.}
 
   /api/v1/app/charging-start-intents/{start_intent_id}:

@@ -2,6 +2,24 @@
 
 ## Current State
 
+### 2026-08-13 — User App start-admission hardening in local source (not deployed)
+
+- The local uncommitted source now admits a new `POST /api/v1/app/charging-sessions`
+  request only when the committed CMS `liveops` connector projection is
+  `AVAILABLE` and `FRESH`. `CHARGING`, `FAULTED`, `UNAVAILABLE`, unknown,
+  offline-parent, and stale projection states return the generic
+  `409 connector_not_available` response before wallet holds, start intents,
+  HAL command records, or HAL calls are created.
+- An existing active intent owned by the same customer is replayed before the
+  live admission gate; another customer receives the same generic conflict
+  without identity details. The transaction takes a PostgreSQL `FOR UPDATE`
+  lock on the connector and rechecks the active intent, so concurrent starts
+  cannot both create a durable start path.
+- No migration, route, HAL/OCPP contract, deployment, or physical charger
+  acceptance changed. Focused service/route/OpenAPI checks, serial Go tests,
+  serial vet, and the documentation verifier passed. The disposable PostgreSQL
+  lifecycle test remains skipped because `TEST_DATABASE_URL` is not selected.
+
 ### 2026-08-13 — State-aware GST-to-hub assignment release deployed
 
 - GST assignment and replacement now enforce the hub/GST state relationship:

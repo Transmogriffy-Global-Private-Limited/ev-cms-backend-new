@@ -167,4 +167,30 @@ func TestChargingSessionOperationalEventUsesMaterializedSessionID(t *testing.T) 
 	}
 }
 
+func TestChargingConnectorAllowsNewStartOnlyWhenAvailableAndFresh(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name  string
+		state liveops.ConnectorState
+		want  bool
+	}{
+		{name: "available fresh", state: liveops.ConnectorState{Availability: "AVAILABLE", Freshness: liveops.FreshnessFresh}, want: true},
+		{name: "charging", state: liveops.ConnectorState{Availability: "CHARGING", Freshness: liveops.FreshnessFresh}},
+		{name: "faulted", state: liveops.ConnectorState{Availability: "FAULTED", Freshness: liveops.FreshnessFresh}},
+		{name: "unavailable", state: liveops.ConnectorState{Availability: "UNAVAILABLE", Freshness: liveops.FreshnessFresh}},
+		{name: "unknown", state: liveops.ConnectorState{Availability: "UNKNOWN", Freshness: liveops.FreshnessUnknown}},
+		{name: "stale", state: liveops.ConnectorState{Availability: "AVAILABLE", Freshness: liveops.FreshnessStale}},
+	}
+	for _, test := range tests {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			if got := chargingConnectorAllowsNewStart(test.state); got != test.want {
+				t.Fatalf("chargingConnectorAllowsNewStart(%+v)=%v, want %v", test.state, got, test.want)
+			}
+		})
+	}
+}
+
 func int64Pointer(value int64) *int64 { return &value }

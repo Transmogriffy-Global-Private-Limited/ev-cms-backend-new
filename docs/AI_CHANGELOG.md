@@ -2,6 +2,33 @@
 
 ## 2026-08-13
 
+### Hardened User App charging-start admission against stale or unavailable live state
+
+- New User App charging starts now require the CMS-owned `liveops` connector
+  projection to report `AVAILABLE` and `FRESH` before the wallet hold, durable
+  start intent, durable HAL command record, or HAL delivery path can begin.
+  The change does not add a route, schema, migration, HAL/OCPP contract, or
+  synchronous CMS-to-HAL availability call.
+- Same-customer active-intent replay remains available before the live-state
+  gate. Another customer receives only the existing generic
+  `409 connector_not_available` response. The final transaction locks the
+  connector row and rechecks active intent ownership to serialize competing
+  starts.
+- Updated the canonical OpenAPI and User App frontend handoff: enable start
+  only for `AVAILABLE` plus `FRESH`, treat the backend as authoritative, and
+  on `409` refetch charger detail rather than auto-retrying. Existing SSE and
+  REST recovery semantics are unchanged.
+
+Verification:
+
+- Focused `customerauth` admission tests, route/OpenAPI runtime parity, the
+  PowerShell documentation verifier, `go test -p 1 ./...`, `go vet -p 1 ./...`,
+  and `git diff --check` passed.
+- The added PostgreSQL lifecycle regression is guarded by
+  `TEST_DATABASE_URL`; it is skipped locally because no disposable database is
+  selected. Physical charger and real CMS-to-HAL-to-charger acceptance were
+  not run and remain outside this CMS-only source slice.
+
 ### Rehosted state-aware GST-to-hub assignment validation
 
 - Added same-state versus different-state GST rate validation to hub assignment

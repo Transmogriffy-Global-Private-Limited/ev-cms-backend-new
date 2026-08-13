@@ -1,0 +1,239 @@
+package customerauth
+
+import (
+	"context"
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
+	"os"
+	"strings"
+	"sync"
+	"sync/atomic"
+	"testing"
+	"time"
+
+	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/db"
+	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/config"
+	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/constants"
+	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/halops"
+	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/liveops"
+	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/models"
+	"github.com/google/uuid"
+	"github.com/shopspring/decimal"
+	"gorm.io/gorm"
+)
+
+func TestChargingStartAdmissionWithPostgreSQL(t *testing.T) {
+	databaseURL := os.Getenv("TEST_DATABASE_URL")
+	if databaseURL == "" {
+		t.Skip("TEST_DATABASE_URL is not set")
+	}
+	ctx := context.Background()
+	gormDB, sqlDB, err := db.Open(ctx, databaseURL)
+	if err != nil {
+		t.Fatalf("open test database: %v", err)
+	}
+	defer sqlDB.Close()
+	if err := db.ApplyMigrations(ctx, sqlDB); err != nil {
+		t.Fatalf("apply migrations: %v", err)
+	}
+
+	var halRequests atomic.Int32
+	halServer := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		switch {
+		case request.Method == http.MethodPut && strings.HasPrefix(request.URL.Path, "/v1/mappings/chargers/"):
+			writer.WriteHeader(http.StatusNoContent)
+		case request.Method == http.MethodPost && request.URL.Path == "/v1/remote-commands/start":
+			halRequests.Add(1)
+			_ = json.NewEncoder(writer).Encode(map[string]any{
+				"hal_command_id": uuid.New(), "cms_command_id": uuid.New(), "kind": "START", "state": "ACCEPTED", "updated_at": time.Now().UTC(),
+			})
+		default:
+			http.NotFound(writer, request)
+		}
+	}))
+	defer halServer.Close()
+
+	fixture := newChargingAdmissionFixture(t, gormDB)
+	service, err := NewService(gormDB, config.Auth{}, false, nil, nil)
+	if err != nil {
+		t.Fatalf("create customer service: %v", err)
+	}
+	service.WithHALOperations(
+		halops.New(gormDB, config.HAL{BaseURL: halServer.URL, CMSBearerToken: "test", MeterStaleAfter: time.Minute}),
+		liveops.New(gormDB, config.HAL{MeterStaleAfter: time.Minute}),
+		config.HAL{MeterStaleAfter: time.Minute},
+	)
+
+	setChargingAdmissionProjection(t, gormDB, fixture, fixture.connector.ID, "ONLINE", "Available", time.Now().UTC())
+	first, err := service.StartCharging(ctx, fixture.firstPrincipal, ChargingStartRequest{ChargerID: fixture.charger.ChargerID, ConnectorID: fixture.connector.ID}, "admission-first")
+	if err != nil || first.Status != constants.StartIntentStatusAcceptedForDelivery {
+		t.Fatalf("available/fresh start response=%+v err=%v", first, err)
+	}
+	if halRequests.Load() != 1 {
+		t.Fatalf("HAL start calls=%d, want 1", halRequests.Load())
+	}
+	setChargingAdmissionProjection(t, gormDB, fixture, fixture.connector.ID, "ONLINE", "Preparing", time.Now().UTC())
+	replay, err := service.StartCharging(ctx, fixture.firstPrincipal, ChargingStartRequest{ChargerID: fixture.charger.ChargerID, ConnectorID: fixture.connector.ID}, "admission-replay")
+	if err != nil || replay.StartIntentID != first.StartIntentID {
+		t.Fatalf("same-customer replay response=%+v err=%v, want intent %s", replay, err, first.StartIntentID)
+	}
+	otherCustomerResponse, otherCustomerErr := service.StartCharging(ctx, fixture.secondPrincipal, ChargingStartRequest{ChargerID: fixture.charger.ChargerID, ConnectorID: fixture.connector.ID}, "admission-other-customer")
+	assertAdmissionUnavailable(t, otherCustomerResponse, otherCustomerErr)
+
+	for _, test := range []struct {
+		name            string
+		chargerState    string
+		connectorStatus string
+		observedAt      time.Time
+	}{
+		{name: "charging", chargerState: "ONLINE", connectorStatus: "Charging", observedAt: time.Now().UTC()},
+		{name: "faulted", chargerState: "ONLINE", connectorStatus: "Faulted", observedAt: time.Now().UTC()},
+		{name: "unavailable", chargerState: "ONLINE", connectorStatus: "Unavailable", observedAt: time.Now().UTC()},
+		{name: "unknown", chargerState: "UNKNOWN", connectorStatus: "Available", observedAt: time.Now().UTC()},
+		{name: "offline", chargerState: "OFFLINE", connectorStatus: "Available", observedAt: time.Now().UTC()},
+		{name: "stale", chargerState: "ONLINE", connectorStatus: "Available", observedAt: time.Now().UTC().Add(-2 * time.Minute)},
+	} {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			connector := fixture.newConnector(t)
+			setChargingAdmissionProjection(t, gormDB, fixture, connector.ID, test.chargerState, test.connectorStatus, test.observedAt)
+			before := chargingAdmissionSideEffects(t, gormDB, fixture.cpo.ID)
+			response, err := service.StartCharging(ctx, fixture.firstPrincipal, ChargingStartRequest{ChargerID: fixture.charger.ChargerID, ConnectorID: connector.ID}, "admission-"+test.name)
+			assertAdmissionUnavailable(t, response, err)
+			if after := chargingAdmissionSideEffects(t, gormDB, fixture.cpo.ID); after != before {
+				t.Fatalf("live admission failure created durable side effects: before=%v after=%v", before, after)
+			}
+			if halRequests.Load() != 1 {
+				t.Fatalf("live admission failure called HAL: calls=%d", halRequests.Load())
+			}
+		})
+	}
+
+	racingConnector := fixture.newConnector(t)
+	setChargingAdmissionProjection(t, gormDB, fixture, racingConnector.ID, "ONLINE", "Available", time.Now().UTC())
+	var start sync.WaitGroup
+	start.Add(2)
+	results := make(chan error, 2)
+	for _, principal := range []Principal{fixture.firstPrincipal, fixture.secondPrincipal} {
+		principal := principal
+		go func() {
+			defer start.Done()
+			_, err := service.StartCharging(ctx, principal, ChargingStartRequest{ChargerID: fixture.charger.ChargerID, ConnectorID: racingConnector.ID}, "admission-race")
+			results <- err
+		}()
+	}
+	start.Wait()
+	close(results)
+	var successful, rejected int
+	for result := range results {
+		if result == nil {
+			successful++
+			continue
+		}
+		assertAdmissionUnavailable(t, ChargingStartResponse{}, result)
+		rejected++
+	}
+	if successful != 1 || rejected != 1 {
+		t.Fatalf("concurrent admission successful=%d rejected=%d, want 1/1", successful, rejected)
+	}
+	var intents int64
+	if err := gormDB.Model(&models.ChargingStartIntent{}).Where("connector_id = ?", racingConnector.ID).Count(&intents).Error; err != nil || intents != 1 {
+		t.Fatalf("concurrent admission intent count=%d err=%v, want 1", intents, err)
+	}
+}
+
+type chargingAdmissionFixture struct {
+	cpo             models.CPO
+	charger         models.Charger
+	connector       models.Connector
+	firstPrincipal  Principal
+	secondPrincipal Principal
+	database        *gorm.DB
+}
+
+func newChargingAdmissionFixture(t *testing.T, database *gorm.DB) chargingAdmissionFixture {
+	t.Helper()
+	now := time.Now().UTC()
+	cpo := createActiveTestCPO(t, database)
+	hub := models.Hub{ID: uuid.New(), CPOID: cpo.ID, Name: "Admission hub", Address: "1 Test Road", State: constants.WestBengal, Latitude: 22.5726, Longitude: 88.3639, CustomerVisible: true, CreatedAt: now, UpdatedAt: now}
+	if err := database.Create(&hub).Error; err != nil {
+		t.Fatalf("create hub: %v", err)
+	}
+	charger := models.Charger{ID: uuid.New(), CPOID: cpo.ID, HubID: &hub.ID, ChargerID: "a1b2c3", OCPPIdentity: "admission-" + uuid.NewString(), Status: constants.ChargerStatusActive, ChargerName: "Admission charger", NumberOfConnectors: 8, CreatedAt: now, UpdatedAt: now}
+	if err := database.Create(&charger).Error; err != nil {
+		t.Fatalf("create charger: %v", err)
+	}
+	tariff := models.Tariff{ID: uuid.New(), CPOID: cpo.ID, HubID: hub.ID, PricePerKWh: decimal.RequireFromString("10.0000"), IdleFeePerMin: decimal.Zero, Currency: "INR", IsActive: true, CreatedAt: now, UpdatedAt: now}
+	if err := database.Create(&tariff).Error; err != nil {
+		t.Fatalf("create tariff: %v", err)
+	}
+	firstPrincipal := createChargingAdmissionCustomer(t, database, cpo.ID, now)
+	secondPrincipal := createChargingAdmissionCustomer(t, database, cpo.ID, now)
+	fixture := chargingAdmissionFixture{cpo: cpo, charger: charger, firstPrincipal: firstPrincipal, secondPrincipal: secondPrincipal, database: database}
+	fixture.connector = fixture.newConnector(t)
+	return fixture
+}
+
+func (fixture chargingAdmissionFixture) newConnector(t *testing.T) models.Connector {
+	t.Helper()
+	var count int64
+	if err := fixture.database.Model(&models.Connector{}).Where("charger_id = ?", fixture.charger.ID).Count(&count).Error; err != nil {
+		t.Fatalf("count connectors: %v", err)
+	}
+	now := time.Now().UTC()
+	connector := models.Connector{ID: uuid.New(), CPOID: fixture.cpo.ID, ChargerID: fixture.charger.ID, ConnectorNumber: int(count) + 1, ConnectorType: "CCS2", Status: constants.ChargerStatusActive, CreatedAt: now, UpdatedAt: now}
+	if err := fixture.database.Create(&connector).Error; err != nil {
+		t.Fatalf("create connector: %v", err)
+	}
+	return connector
+}
+
+func createChargingAdmissionCustomer(t *testing.T, database *gorm.DB, cpoID uuid.UUID, now time.Time) Principal {
+	t.Helper()
+	customer := models.Customer{ID: uuid.New(), CPOID: cpoID, Email: "admission-" + uuid.NewString() + "@example.com", PasswordHash: "test-password-hash", FullName: "Charging admission customer", IsVerified: true, PasswordChangedAt: now, Status: constants.CustomerStatusActive, CreatedAt: now, UpdatedAt: now}
+	if err := database.Create(&customer).Error; err != nil {
+		t.Fatalf("create customer: %v", err)
+	}
+	wallet := models.Wallet{ID: uuid.New(), CPOID: cpoID, CustomerID: customer.ID, Balance: decimal.RequireFromString("1000.00"), Currency: "INR", CreatedAt: now, UpdatedAt: now}
+	if err := database.Create(&wallet).Error; err != nil {
+		t.Fatalf("create wallet: %v", err)
+	}
+	return Principal{UserID: customer.ID, CustomerID: customer.ID, CPOID: cpoID, Customer: CustomerView{ID: customer.ID, Status: string(customer.Status)}, Wallet: WalletView{ID: wallet.ID, Balance: wallet.Balance.StringFixed(2), Currency: wallet.Currency}}
+}
+
+func setChargingAdmissionProjection(t *testing.T, database *gorm.DB, fixture chargingAdmissionFixture, connectorID uuid.UUID, chargerState, connectorStatus string, observedAt time.Time) {
+	t.Helper()
+	charger := models.HALChargerRuntime{CMSChargerID: fixture.charger.ID, CPOID: fixture.cpo.ID, ConnectionState: chargerState, ConnectionGeneration: 1, ConnectionSequence: time.Now().UnixNano(), ObservedAt: observedAt, UpdatedAt: time.Now().UTC()}
+	if err := database.Save(&charger).Error; err != nil {
+		t.Fatalf("store charger projection: %v", err)
+	}
+	connector := models.HALConnectorRuntime{CMSConnectorID: connectorID, CMSChargerID: fixture.charger.ID, CPOID: fixture.cpo.ID, OCPPConnectorStatus: connectorStatus, ConnectorStatusSequence: time.Now().UnixNano(), ObservedAt: observedAt, UpdatedAt: time.Now().UTC()}
+	if err := database.Save(&connector).Error; err != nil {
+		t.Fatalf("store connector projection: %v", err)
+	}
+}
+
+type chargingAdmissionEffects struct{ intents, holds, commands int64 }
+
+func chargingAdmissionSideEffects(t *testing.T, database *gorm.DB, cpoID uuid.UUID) chargingAdmissionEffects {
+	t.Helper()
+	var result chargingAdmissionEffects
+	for _, target := range []struct {
+		model any
+		into  *int64
+	}{{&models.ChargingStartIntent{}, &result.intents}, {&models.WalletHold{}, &result.holds}, {&models.HALCommandRecord{}, &result.commands}} {
+		if err := database.Model(target.model).Where("cpo_id = ?", cpoID).Count(target.into).Error; err != nil {
+			t.Fatalf("count charging side effects: %v", err)
+		}
+	}
+	return result
+}
+
+func assertAdmissionUnavailable(t *testing.T, _ ChargingStartResponse, err error) {
+	t.Helper()
+	apiError, ok := err.(*APIError)
+	if !ok || apiError.Status != http.StatusConflict || apiError.Code != "connector_not_available" {
+		t.Fatalf("error=%v, want 409 connector_not_available", err)
+	}
+}

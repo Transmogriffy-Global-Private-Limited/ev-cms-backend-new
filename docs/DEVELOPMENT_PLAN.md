@@ -123,6 +123,12 @@ Current implementation state:
 - The current deployed CPO release also enforces state-aware GST-to-hub
   assignment and replacement validation in clean merge revision `4377383`:
   same-state hubs require SGST/CGST and different-state hubs require IGST.
+- The local, uncommitted CMS source hardens User App start admission without a
+  migration, route, or HAL contract change: a new intent requires committed
+  `AVAILABLE` and `FRESH` connector projection state, while same-customer
+  active-intent replay remains available before that live-state gate. Connector
+  row locking serializes the final active-intent recheck. This source slice is
+  locally verified, remains uncommitted, and is not a deployment claim.
 
 Next required slice:
 

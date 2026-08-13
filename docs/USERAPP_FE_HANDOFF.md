@@ -436,7 +436,7 @@ export type CustomerPriceResponse = {
 | `GET /wallet/transactions` | Yes | `200 CustomerWalletTransactionList` | Read this customer’s bounded wallet ledger history. |
 | `POST /wallet/recharge/orders` | Yes | `201 CustomerRechargeOrder` | Create an idempotent Razorpay checkout order. |
 | `POST /wallet/recharge/verify` | Yes | `200 CustomerRechargeOrder` | Verify a captured Razorpay payment and credit the wallet once. |
-| `POST /charging-sessions` | Yes | `202 ChargingStartResponse` | Persist a customer-owned start intent, commercial hold, and HAL command request; it is not an active session. |
+| `POST /charging-sessions` | Yes | `202 ChargingStartResponse` | Admit only a fresh `AVAILABLE` connector, then persist a customer-owned start intent, commercial hold, and HAL command request; it is not an active session. |
 | `GET /charging-start-intents/{start_intent_id}` | Yes | `200 ChargingStartResponse` | Poll owned start progress and its materialized `session_id` when actual charging begins. |
 | `GET /charging-sessions` | Yes | `200 ChargingSessionHistoryResponse` | List this customer's actual materialized sessions with bounded history-card data. |
 | `GET /charging-sessions/{session_id}` | Yes | `200 ChargingSessionResponse` | Read owned durable active/completed session, exact projected meter, connection, connector, and freshness fields. |
@@ -583,9 +583,10 @@ payment, debit, CPO, and session IDs all agree.
 
 Wallet recharge is implemented through the two Razorpay routes below. A
 successful verified recharge appears as a completed `CREDIT` ledger entry.
-Refund execution, charging-session billing, charging bills, payment-provider
-history, webhook ingestion, settlement reconciliation, and general transaction
-history beyond this wallet ledger are not implemented.
+Charging completion can settle an implemented session through the linked wallet
+ledger and session detail. Refund execution, charging bills/invoices,
+payment-provider history, webhook ingestion, settlement reconciliation, and
+general transaction history beyond this wallet ledger are not implemented.
 
 `POST /wallet/recharge/orders` requires an `Idempotency-Key` header (1–120
 characters; CR, LF, and NUL are rejected) and a body such as `{"amount":"500.00"}`.
@@ -641,14 +642,27 @@ payment commitment. HAL is not called.
 ### 5.4 Charging lifecycle, history, and receipt detail
 
 `POST /charging-sessions` accepts `{"charger_id":"a1b2c3","connector_id":"uuid"}`
-and returns `202 ChargingStartResponse`. The CMS validates the authenticated
-customer, active CPO, published active charger/connector, tariff, wallet, and
-one pending intent per connector; it freezes tariff/tax, holds the affordable
-amount, derives `energy_limit_wh` and a current `max_duration_seconds`, then
-requests HAL delivery. The response status may be `REQUESTED`,
+and returns `202 ChargingStartResponse`. For a **new** start, the CMS first
+requires its committed connector live projection to be `availability=AVAILABLE`
+and `freshness=FRESH`, then validates the authenticated customer, active CPO,
+published active charger/connector, tariff, wallet, and one pending intent per
+connector. It freezes tariff/tax, holds the affordable amount, derives
+`energy_limit_wh` and a current `max_duration_seconds`, then requests HAL
+delivery. The response status may be `REQUESTED`,
 `ACCEPTED_FOR_DELIVERY`, `PROTOCOL_ACKNOWLEDGED`, `ACTUALLY_STARTED`,
 `REJECTED`, `EXPIRED`, or `RECONCILIATION_REQUIRED`. Treat all but
 `ACTUALLY_STARTED` as start-progress, not a charging session.
+
+Only enable the normal Start button when the charger detail reports the chosen
+connector as `AVAILABLE` and `FRESH`; the backend remains authoritative because
+the state can change between the detail read and the request. On
+`409 connector_not_available`, do not auto-retry or create a new request
+identity: refetch `GET /chargers/{charger_id}` and render the returned live
+state. Reusing the same start request for an active intent owned by the same
+customer returns that existing intent even when the live projection has since
+changed; another customer receives the same generic `409` without owner
+details. Existing SSE/replay behavior is unchanged and remains only an
+invalidation hint.
 
 Poll `GET /charging-start-intents/{start_intent_id}` for the same progress and
 the nullable materialized `session_id`. Only charger-originated
