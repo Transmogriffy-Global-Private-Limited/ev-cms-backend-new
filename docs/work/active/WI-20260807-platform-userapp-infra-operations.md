@@ -102,7 +102,7 @@ verification before execution.
 
 ## Current state
 
-The current shared development deployment is clean source revision `87b8727`
+The current shared development deployment is clean source revision `4377383`
 with migrations through thirty-five and 177 OpenAPI operations. The HAL runtime
 GORM table mapping correction and User App charging-history release are active
 without a database migration.
@@ -181,10 +181,14 @@ OpenAPI has 177 operations.
 - Earlier revision `0d50c09` was active; the service was enabled with zero
   restarts, loopback/public health and readiness, Swagger, raw OpenAPI, and the
   post-rehost journal scan passed.
-- Revision `87b8727` is now active with the 177-operation contract; the service
+- Earlier revision `87b8727` was active with the 177-operation contract; the service
   is enabled with zero restarts, loopback/public health and readiness, Swagger,
   raw OpenAPI, the unauthenticated history-route boundary, and the post-rehost
   journal scan passed.
+- Merge revision `4377383` is now active with the 177-operation contract; the
+  service is enabled with zero restarts, loopback/public health and readiness,
+  Swagger, raw OpenAPI, GST route boundaries, and the post-rehost journal scan
+  passed.
 - Earlier revision `d368903` deployment evidence established the prior
   161-operation contract, tenant settings/GST/CMS-HAL routes, and connector
   projection behavior before the current release.

@@ -120,6 +120,9 @@ Current implementation state:
   session history, frozen commercial detail, linked settlement projection, and
   session-correlated operational invalidations. It is deployed in clean source
   revision `87b8727` without a database migration.
+- The current deployed CPO release also enforces state-aware GST-to-hub
+  assignment and replacement validation in clean merge revision `4377383`:
+  same-state hubs require SGST/CGST and different-state hubs require IGST.
 
 Next required slice:
 
@@ -1009,6 +1012,14 @@ Last completed slice:
 
 Last deployment milestone:
 
+- Clean merge revision `4377383` was built and rehosted without a migration for
+  state-aware GST-to-hub validation. The installed binary has SHA-256
+  `769b71782f47bb93c37e063dbab4ba8af34902b80ac8fb3150c21ac61c2fc5e0`, the
+  live contract remains at 177 operations, and the service is healthy with zero
+  restarts. Migration/table checks, Caddy validation, loopback/public health
+  and readiness, Swagger, raw OpenAPI, GST route boundaries, and the post-
+  rehost journal scan passed. Disposable PostgreSQL lifecycle and full
+  HAL/virtual-charger acceptance remain pending.
 - Clean source revision `87b8727` was built and rehosted without a migration
   for the User App charging-history release. The installed binary has SHA-256
   `007d40cbd9eeda79392f7b1d546cc4d6e2bf336913212c6ce9f17dde4f9a6434`, the live

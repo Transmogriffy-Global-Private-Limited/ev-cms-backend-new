@@ -67,7 +67,7 @@ Implement and verify the first real CMS consumer charging vertical against
   `000029_add_tariff_fields` are applied in the development database. Earlier
   revision `3ca2c35` established the 162-operation live contract; migrations
   thirty through thirty-two for tenant settings, GST state, and hub state are
-  also applied. The current deployment is revision `87b8727` as recorded above.
+  also applied. The current deployment is revision `4377383` as recorded above.
 - The optional HAL v1 base URL and both service credentials remain unset on
   this host, so customer charging is intentionally unavailable until the
   independent provider is configured.

@@ -244,6 +244,9 @@ Current behavior:
   internal UUID; this does not contact HAL, and connector status remains
   read-only through the CPO API;
 - exact tax and tariff decimals serialize as strings;
+- assigning or replacing a GST profile on a hub enforces state-aware rates:
+  same-state requires SGST/CGST and rejects non-zero IGST, while different-state
+  requires IGST and rejects non-zero SGST/CGST with `invalid_gst_for_hub`;
 - GST creation requires a non-empty state plus all three 0–100 rate values;
   update accepts a non-empty subset including state. Legacy GST rows may have
   null rate values after migration thirty-one and must be handled as nullable

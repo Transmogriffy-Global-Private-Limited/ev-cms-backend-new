@@ -2,6 +2,27 @@
 
 ## 2026-08-13
 
+### Rehosted state-aware GST-to-hub assignment validation
+
+- Added same-state versus different-state GST rate validation to hub assignment
+  and replacement. Same-state hubs require SGST and CGST and reject non-zero
+  IGST; different-state hubs require IGST and reject non-zero SGST or CGST.
+  Invalid combinations return `400 invalid_gst_for_hub`.
+- Updated the OpenAPI and administrative CPO contracts. No migration or HAL
+  change was required.
+
+Verification:
+
+- Focused CPO tests, route/OpenAPI parity, serial full Go tests, serial vet,
+  formatting, and diff checks passed. The disposable PostgreSQL lifecycle
+  remains skipped because `TEST_DATABASE_URL` is unavailable.
+- Clean merge revision `4377383` was rehosted with binary SHA-256
+  `769b71782f47bb93c37e063dbab4ba8af34902b80ac8fb3150c21ac61c2fc5e0` and
+  `vcs.modified=false`; service state, Caddy, migration/table, health,
+  readiness, Swagger, raw OpenAPI, GST route boundaries, and post-rehost
+  journal checks passed. The prior binary is retained at
+  `builds/evcmsnew.pre-4377383`.
+
 ### Completed and rehosted the CMS-side User App charging history release
 
 - Added customer/CPO-scoped materialized charging-session history with bounded

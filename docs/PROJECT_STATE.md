@@ -2,6 +2,20 @@
 
 ## Current State
 
+### 2026-08-13 — State-aware GST-to-hub assignment release deployed
+
+- GST assignment and replacement now enforce the hub/GST state relationship:
+  same-state assignments require SGST and CGST and reject non-zero IGST;
+  different-state assignments require IGST and reject non-zero SGST or CGST.
+  Invalid combinations return `400 invalid_gst_for_hub`.
+- Clean merge revision `4377383` is active on the development VPS without a
+  database migration. The installed binary SHA-256 is
+  `769b71782f47bb93c37e063dbab4ba8af34902b80ac8fb3150c21ac61c2fc5e0`.
+- The service is enabled and active with zero restarts; Caddy validation,
+  migration/table checks, loopback/public health and readiness, Swagger, raw
+  OpenAPI, 177-operation parity, GST route boundaries, and the post-rehost
+  journal scan passed.
+
 ### 2026-08-13 — User App charging history release deployed
 
 - The deployed release adds `GET /api/v1/app/charging-sessions`, a bounded
@@ -243,7 +257,7 @@ provides:
   handler;
 - the additive PostgreSQL database `devevcmsnewdb`, owned by `postgres`.
 
-The active development VPS runs source revision `87b8727`, with migrations
+The active development VPS runs source revision `4377383`, with migrations
 through thirty-five recorded and the deployed 177-operation contract. Migration
 twenty-nine adds nullable `tariff_type`, `price_type`, and `units` metadata to
 tenant tariffs; omitted values remain null-safe for existing and newly created
@@ -474,6 +488,16 @@ intentionally unsupported.
   the 177-operation contract, the unauthenticated history-route boundary, and
   the post-rehost journal scan passed. No DNS, Caddy, HAL provider, or database
   migration changed.
+- Merge revision `4377383` was built from the clean `main` worktree and rehosted
+  without a migration for state-aware GST-to-hub validation. The installed
+  binary SHA-256 is
+  `769b71782f47bb93c37e063dbab4ba8af34902b80ac8fb3150c21ac61c2fc5e0`, embeds
+  `437738308d9d27fef2261518161a09075407caeb` with `vcs.modified=false`, and
+  retains `builds/evcmsnew.pre-4377383` as the prior-binary rollback artifact.
+  The enabled service is active with zero restarts; migration/table checks,
+  local/public health and readiness, Caddy validation, Swagger, raw OpenAPI,
+  the 177-operation contract, GST route boundaries, and the post-rehost journal
+  scan passed. No DNS, Caddy, HAL provider, or database migration changed.
 - Revision `a76d6ae` was built from a clean worktree and rehosted after
   migration thirty-one was applied. The installed binary SHA-256 is
   `0a3d397464dae13ef15b090225b4ca38fb1b4dfff946bf0de7d77cb9a5d3ebc0` and

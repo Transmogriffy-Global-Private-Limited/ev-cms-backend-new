@@ -4164,7 +4164,7 @@ paths:
       tags:
         - "CPO Operations - Network"
       summary: "Assign a GST profile to a hub"
-      description: "Assigns an existing GST profile to a charging hub."
+      description: "Assigns an existing GST profile to a charging hub. For a same-state hub and GST, SGST and CGST are mandatory and non-zero IGST is rejected. For different states, IGST is mandatory and non-zero SGST or CGST is rejected. Invalid combinations return invalid_gst_for_hub."
       operationId: "assign-gst-to-hub"
       parameters:
         - name: "hub_id"
@@ -4239,7 +4239,7 @@ paths:
       tags:
         - "CPO Operations - Network"
       summary: "Update the assigned GST profile for a hub"
-      description: "Replaces the currently assigned GST with a new one. The new GST must belong to the same CPO and not be assigned to another hub."
+      description: "Replaces the currently assigned GST with a new one. The new GST must belong to the same CPO and not be assigned to another hub. State-aware rate validation applies: same-state assignments require SGST and CGST and reject non-zero IGST; different-state assignments require IGST and reject non-zero SGST or CGST. Invalid combinations return invalid_gst_for_hub."
       operationId: "updateHubGST"
       parameters:
         - name: "hub_id"
