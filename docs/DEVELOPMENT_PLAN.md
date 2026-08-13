@@ -114,12 +114,16 @@ Current implementation state:
 
 - CMS source and the development deployment contain the first client, durable records, shared fact receiver,
   customer polling/start/stop routes, reusable operational projections,
-  scoped operational-event replay/SSE, and a 178-operation OpenAPI surface.
+  scoped operational-event replay/SSE, and a 180-operation OpenAPI surface.
   The HAL runtime GORM models explicitly map to the singular migration tables
   `hal_charger_runtime` and `hal_connector_runtime`.
   The HAL v1 provider is
   not configured on this host, and the complete Postgres-to-HAL-to-virtual-
   charger vertical is not verified yet.
+- The current deployed release also exposes tenant-scoped CPO charging-session
+  list/detail reads with bounded keyset pagination and validated lifecycle
+  filters. Revision `4cb1edd` is active without a new migration; the live
+  OpenAPI contract contains 180 operations.
 - The current deployed CMS release additionally contains the User App
   charging-history/detail completion slice: customer/CPO-scoped materialized
   session history, frozen commercial detail, linked settlement projection, and

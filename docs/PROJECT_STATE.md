@@ -2,6 +2,26 @@
 
 ## Current State
 
+### 2026-08-13 — CPO charging-session read release deployed
+
+- CPO `ADMIN` now has tenant-scoped `GET /api/v1/cpo/charging-sessions` list
+  and `GET /api/v1/cpo/charging-sessions/{session_id}` detail routes. The
+  list uses bounded descending `(created_at, id)` pagination and validates
+  lifecycle status and UUID filters; detail and list never query HAL or expose
+  another CPO's rows.
+- The OpenAPI contract includes both operations and the `SessionStatus` enum;
+  the human administrative API contract and CPO frontend handoff are updated.
+- Revision `4cb1edd` is active on the development VPS. No migration was
+  required; migration 38 remains the latest applied migration. The installed
+  binary SHA-256 is `bba0cdc3305c16e339dc4e6e8b7e55624e5fcb835c2c8ea16755d98921f5e91b`.
+- The enabled service is active with zero restarts on `127.0.0.1:18080`.
+  Caddy validation, serial Go tests and vet, route/OpenAPI parity, local/public
+  health/readiness, Swagger, raw OpenAPI, and the unauthenticated new-route
+  boundary passed. The live contract contains 180 operations.
+- `pwsh` documentation verification and disposable PostgreSQL lifecycle tests
+  remain unavailable on this host; full HAL/virtual-charger acceptance remains
+  deferred pending its dedicated environment.
+
 ### 2026-08-13 — Commercial tax and hub-prerequisite correction deployed
 
 - Migration `000038_separate_tariff_gst_and_require_charger_hub` refuses to
@@ -360,8 +380,8 @@ provides:
   handler;
 - the additive PostgreSQL database `devevcmsnewdb`, owned by `postgres`.
 
-The active development VPS runs source revision `ebb57fb`, with migrations
-through thirty-eight recorded and the deployed 178-operation contract. Migration
+The active development VPS runs source revision `4cb1edd`, with migrations
+through thirty-eight recorded and the deployed 180-operation contract. Migration
 twenty-nine adds nullable `tariff_type`, `price_type`, and `units` metadata to
 tenant tariffs; omitted values remain null-safe for existing and newly created
 tariffs. The SuperAdmin administrator-list query explicitly binds the platform

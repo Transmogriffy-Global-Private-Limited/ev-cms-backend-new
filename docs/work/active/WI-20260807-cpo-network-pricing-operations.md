@@ -62,6 +62,8 @@ of the broader CPO network/pricing capability.
 - CPO connector create/update requests and response objects use
   `connector_total_capacity`, matching the persisted connector-capacity field.
 - Charger projections may include `hub_name` when a same-CPO hub is assigned.
+- CPO `ADMIN` charging-session list/detail reads are tenant-scoped, bounded by
+  `(created_at, id)`, and documented in the administrative API contract.
 
 ## Data and migration impact
 
@@ -72,8 +74,8 @@ charging vertical.
 
 ## Current state
 
-The current shared development deployment is runtime source revision `ebb57fb`
-with migrations thirty-three through thirty-seven applied and 178 OpenAPI
+The current shared development deployment is runtime source revision `4cb1edd`
+with migrations through thirty-eight applied and 180 OpenAPI
 operations. The single-target tariff correction and charger customer visibility
 are enforced across CPO publication and User App discovery, detail, pricing,
 and favorites. The HAL runtime model

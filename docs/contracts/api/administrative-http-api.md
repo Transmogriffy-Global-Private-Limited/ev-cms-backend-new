@@ -3072,6 +3072,33 @@ service/version, database connectivity, and worker state. The current source
 reports version `development` unless a release build supplies a linker value.
 Neither endpoint performs unbounded tenant-business aggregation.
 
+### 12.4 CPO charging-session reads
+
+The authenticated CPO `ADMIN` can read materialized charging-session records
+for the current tenant:
+
+```text
+GET /api/v1/cpo/charging-sessions
+GET /api/v1/cpo/charging-sessions/{session_id}
+```
+
+Both routes require the CPO bearer session and the matching
+`X-CPO-App-ID`. The tenant scope is derived from the authenticated session;
+there is no client-selectable CPO ID. The list route accepts `limit` (1-200,
+default 50), `before` (RFC3339), `before_id` (UUID), `status` (`START_PENDING`,
+`ACTIVE`, `STOP_PENDING`, `COMPLETED`, or `FAILED`), `charger_id` (UUID), and
+`customer_id` (UUID). Pagination is descending by `(created_at, id)` and the
+returned `next_before` plus `next_before_id` form the next exclusive cursor.
+
+Each result contains the CMS session UUID, OCPP transaction ID, tenant-owned
+customer/charger/connector UUIDs, start/end timestamps, exact decimal energy
+and amount strings, currency, lifecycle status, optional stop reason, and
+creation time. These are read-only CMS projections; they do not query the HAL
+or issue charger commands. A missing session returns `404
+charging_session_not_found`; malformed UUIDs or invalid filters return `400`,
+and unauthenticated or non-ADMIN callers receive the standard `401`/`403`
+errors.
+
 ## 13. Client State Machine
 
 Recommended frontend sequence:
@@ -3104,7 +3131,7 @@ The contract does not provide:
 - CPO staff invitation after the first administrator;
 - custom roles or permission APIs;
 - standalone connector creation/deletion; GST or tariff deletion;
-  wallet, charging, payment, or reporting APIs;
+  CPO-side wallet mutation, payment, or reporting APIs;
 - any tenant-side CPO profile route;
 - payment execution or Razorpay webhook verification;
 - CMS/HAL commands or callbacks;

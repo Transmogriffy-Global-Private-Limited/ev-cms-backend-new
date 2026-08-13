@@ -2,6 +2,28 @@
 
 ## 2026-08-13
 
+### Rehosted CPO charging-session read release
+
+- Added tenant-scoped CPO `ADMIN` list/detail reads for materialized charging
+  sessions with bounded `(created_at, id)` pagination, validated lifecycle and
+  UUID filters, and no HAL call or cross-CPO access.
+- Completed the OpenAPI contract with both operations and the `SessionStatus`
+  enum, and updated the administrative API contract plus CPO frontend handoff.
+- No database migration was required; migration 38 remains the latest applied
+  migration. Clean runtime revision `4cb1edd` was rehosted with binary SHA-256
+  `bba0cdc3305c16e339dc4e6e8b7e55624e5fcb835c2c8ea16755d98921f5e91b`.
+
+Verification:
+
+- Caddy validation, focused route/OpenAPI parity, serial `go test ./...`,
+  serial `go vet ./...`, and `git diff --check` passed. The enabled service is
+  active with zero restarts; local/public health, readiness, Swagger, raw
+  OpenAPI, and the unauthenticated new-route boundary passed. The live contract
+  contains 180 operations.
+- `scripts/verify-docs.ps1` was not run because `pwsh` is unavailable on this
+  Ubuntu host. Disposable PostgreSQL lifecycle and full CMS-to-HAL topology
+  acceptance remain pending their dedicated environments.
+
 ### Rehosted commercial-tax and charger-hub prerequisite release
 
 - Applied migration `000038_separate_tariff_gst_and_require_charger_hub` after

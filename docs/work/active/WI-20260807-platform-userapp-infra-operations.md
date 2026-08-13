@@ -116,7 +116,7 @@ verification before execution.
 ## Current state
 
 The current shared development deployment is runtime source revision `ebb57fb`
-with migrations through thirty-eight and 178 OpenAPI operations. The HAL runtime
+with migrations through thirty-eight and 180 OpenAPI operations. The HAL runtime
 GORM table mapping correction and User App charging-history release are active
 without a database migration.
 
@@ -146,11 +146,12 @@ rules, near-me behavior, current-CPO scope, and customer-visible-hub boundary.
 The current deployed source also adds CPO/customer-scoped materialized
 charging-session history, frozen commercial/session detail, safe payment/debit
 cross-links, and session-correlated charging SSE invalidations. The deployed
-OpenAPI has 178 operations.
+OpenAPI has 180 operations and also includes tenant-scoped CPO
+charging-session list/detail reads.
 
 The deployed source additionally contains the User App charging-start admission
 hardening described above. It does not change the deployed revision's
-178-operation OpenAPI count.
+180-operation OpenAPI count.
 
 ## Verification
 
