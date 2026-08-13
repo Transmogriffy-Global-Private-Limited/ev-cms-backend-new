@@ -115,6 +115,11 @@ Current implementation state:
   The HAL v1 provider is
   not configured on this host, and the complete Postgres-to-HAL-to-virtual-
   charger vertical is not verified yet.
+- The current uncommitted CMS source additionally contains the User App
+  charging-history/detail completion slice: customer/CPO-scoped materialized
+  session history, frozen commercial detail, linked settlement projection, and
+  session-correlated operational invalidations. It adds the 177th source-tree
+  OpenAPI operation but is not deployed.
 
 Next required slice:
 
@@ -1026,8 +1031,8 @@ Last deployment milestone:
 
 Next expected slice:
 
-- Add supported customer charging-session history projections from durable CMS
-  session records, without inventing HAL control or live availability.
+- Design the CMS/HAL QR-scan charging lifecycle before adding another customer
+  start/stop entry point.
 
 Blocked by:
 
@@ -1035,9 +1040,8 @@ Blocked by:
 
 ## Next Approved Work
 
-1. Add supported customer charging-session history projections from durable CMS
-  session records, without inventing HAL control or live availability.
-2. Design the CMS/HAL QR-scan charging lifecycle before adding start/stop APIs.
+1. Design the CMS/HAL QR-scan charging lifecycle before adding another
+   customer start/stop entry point.
 
 Deferred verification decision:
 

@@ -105,35 +105,46 @@ func (service *Service) emitOperationalFact(tx *gorm.DB, factType string, payloa
 		if !ok {
 			return nil
 		}
-		input.ResourceType, input.ResourceID = "CHARGING_SESSION", intentID.String()
-		if factType == "transaction.started" {
-			input.Type = "charging.session_changed"
-		} else if factType == "transaction.meter" {
-			input.Type = "charging.meter_changed"
-		} else {
-			input.Type = "charging.session_changed"
-		}
-		var intent models.ChargingStartIntent
-		if err := tx.Select("customer_id", "cpo_id").First(&intent, "id = ?", intentID).Error; err != nil {
+		var session models.ChargingSession
+		if err := tx.Select("id", "cpo_id", "customer_id", "meter_sequence").First(&session, "start_intent_id = ?", intentID).Error; err != nil {
 			return err
 		}
-		if factType == "transaction.meter" {
-			sequence, ok := factInt(payload, "meter_sequence")
-			if !ok {
-				return nil
-			}
-			var session models.ChargingSession
-			if err := tx.Select("meter_sequence").First(&session, "start_intent_id = ?", intentID).Error; err != nil || session.MeterSequence != sequence {
-				return err
-			}
+		var emit bool
+		input, emit = chargingSessionOperationalEvent(factType, session, payload)
+		if !emit {
+			return nil
 		}
-		input.CPOID = intent.CPOID
-		input.CustomerID = &intent.CustomerID
 	default:
 		return nil
 	}
 	_, err := service.operationalEvents.Emit(tx, input)
 	return err
+}
+
+// chargingSessionOperationalEvent keeps transaction invalidation correlation
+// testable: CHARGING_SESSION always names the materialized CMS session, never
+// the start intent that caused it to exist.
+func chargingSessionOperationalEvent(factType string, session models.ChargingSession, payload models.JSONB) (operationalrealtime.Input, bool) {
+	input := operationalrealtime.Input{
+		CPOID:        session.CPOID,
+		CustomerID:   &session.CustomerID,
+		ResourceType: "CHARGING_SESSION",
+		ResourceID:   session.ID.String(),
+		Data:         models.JSONB{},
+	}
+	switch factType {
+	case "transaction.started", "transaction.completed":
+		input.Type = "charging.session_changed"
+	case "transaction.meter":
+		sequence, ok := factInt(payload, "meter_sequence")
+		if !ok || session.MeterSequence != sequence {
+			return operationalrealtime.Input{}, false
+		}
+		input.Type = "charging.meter_changed"
+	default:
+		return operationalrealtime.Input{}, false
+	}
+	return input, true
 }
 
 func (service *Service) applyConnectionFact(tx *gorm.DB, p models.JSONB) error {

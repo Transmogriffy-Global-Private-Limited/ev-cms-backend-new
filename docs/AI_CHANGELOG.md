@@ -2,6 +2,29 @@
 
 ## 2026-08-13
 
+### Completed the CMS-side User App charging history contract (not deployed)
+
+- Added customer/CPO-scoped materialized charging-session history with bounded
+  keyset pagination, safe card projections, and additive historical detail
+  fields backed by persisted session, frozen tariff/tax, payment, and wallet
+  relations. Unfinished sessions do not present provisional zero totals as a
+  final bill.
+- Corrected the operational-event correlation bug: transaction events now use
+  the materialized CMS charging-session UUID for `CHARGING_SESSION.resource_id`,
+  never the start-intent UUID. Stale meter sequences remain suppressed.
+- Updated OpenAPI (177 source operations), the User App handoff, operational
+  event contract, project state, plan, and documentation verifier. No migration,
+  deployment, HAL change, or hardware acceptance is part of this source slice.
+
+Verification:
+
+- Focused customerauth/liveops/operationalrealtime/models checks, route/OpenAPI
+  runtime parity, the PowerShell documentation verifier, `go test -p 1 ./...`,
+  `go vet -p 1 ./...`, and `git diff --check` passed.
+- `TEST_DATABASE_URL` is not configured, so disposable PostgreSQL lifecycle
+  verification is skipped rather than passed. Physical charger and real
+  CMS-to-HAL-to-charger acceptance remain deliberately deferred.
+
 ### Rehosted clean HAL runtime model mapping release
 
 - Corrected GORM table ownership for `HALChargerRuntime` and

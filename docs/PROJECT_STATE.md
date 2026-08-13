@@ -2,6 +2,26 @@
 
 ## Current State
 
+### 2026-08-13 — User App charging history source slice (not deployed)
+
+- The current working tree adds `GET /api/v1/app/charging-sessions`, a bounded
+  descending `(start_time, id)` history of only materialized sessions owned by
+  the authenticated CPO-local customer. Each row has safe charger/hub/connector
+  card data and only exposes final energy/amount after completion.
+- Session detail now adds durable historical/financial fields, frozen tariff
+  and tax snapshot projections, and the payment-to-wallet-debit relation only
+  when it is consistently linked to the owned session. Runtime availability
+  remains a CMS `liveops` projection and does not synchronously call HAL.
+- `CHARGING_SESSION` operational events now use the actual materialized
+  session UUID, so the User App can refetch the route named by `resource_id`.
+  The canonical User App handoff documents one authenticated SSE stream,
+  REST recovery, cursor replay, and why SSE remains pending in DevTools.
+- No migration was required: the existing customer/session/start-time index
+  supports the bounded history query. The source contract has 177 operations;
+  the deployed `0d50c09` service remains unchanged at 176 operations.
+- Physical charger and CMS-to-HAL-to-charger acceptance were not run and
+  remain deferred by design.
+
 ### 2026-08-13 — HAL runtime model mapping release deployed
 
 - The CMS GORM models now explicitly map `HALChargerRuntime` and

@@ -51,6 +51,11 @@ the full charger-list filters and published-hub/current-CPO boundary while
 returning only charger name and attached-hub coordinates. No migration or
 deployment is included.
 
+Codex is completing the CMS-only User App charging-history slice under
+`src/customerauth/`, its scoped list/detail projections, durable operational
+event correlation, OpenAPI, and canonical User App handoff. It must not touch
+HAL, add a migration, deploy, or claim physical charging acceptance.
+
 ## Non-goals
 
 - This record does not authorize a production deployment, DNS change, database
@@ -124,7 +129,18 @@ published chargers: `charger_name`, attached-hub `latitude`, and attached-hub
 `longitude` only. It shares the full charger list's optional filters, cursor
 rules, near-me behavior, current-CPO scope, and customer-visible-hub boundary.
 
+The current uncommitted source also adds CPO/customer-scoped materialized
+charging-session history, frozen commercial/session detail, safe payment/debit
+cross-links, and session-correlated charging SSE invalidations. The source
+OpenAPI has 177 operations; the deployed 176-operation release is unchanged.
+
 ## Verification
+
+- Focused User App charging history/projection tests and route/OpenAPI parity
+  passed, alongside the PowerShell documentation verifier, serial full Go
+  tests, serial vet, and `git diff --check`. Disposable PostgreSQL coverage
+  stays skipped until `TEST_DATABASE_URL` is explicitly selected; physical
+  charger acceptance remains deferred.
 
 - `go test ./src/customerauth -count=1` passed for the compact map-marker
   projection, including serialized exact-field coverage.

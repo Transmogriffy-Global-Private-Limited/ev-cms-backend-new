@@ -55,6 +55,7 @@ func RegisterRoutes(group *gin.RouterGroup, service *Service) {
 	protected.POST("/wallet/recharge/orders", handler.createRechargeOrder)
 	protected.POST("/wallet/recharge/verify", handler.verifyRecharge)
 	protected.POST("/charging-sessions", handler.startCharging)
+	protected.GET("/charging-sessions", handler.listChargingSessions)
 	protected.GET("/charging-start-intents/:start_intent_id", handler.getChargingStartIntent)
 	protected.GET("/charging-sessions/:session_id", handler.getChargingSession)
 	protected.POST("/charging-sessions/:session_id/stop", handler.stopCharging)
@@ -106,6 +107,25 @@ func (handler *Handler) getChargingStartIntent(ctx *gin.Context) {
 		return
 	}
 	response, err := handler.service.GetChargingStartIntent(ctx.Request.Context(), principal, id)
+	if err != nil {
+		writeError(ctx, err)
+		return
+	}
+	ctx.JSON(http.StatusOK, response)
+}
+
+func (handler *Handler) listChargingSessions(ctx *gin.Context) {
+	principal, ok := CurrentPrincipal(ctx)
+	if !ok {
+		writeError(ctx, errUnauthorized)
+		return
+	}
+	query, err := chargingSessionHistoryQuery(ctx)
+	if err != nil {
+		writeError(ctx, err)
+		return
+	}
+	response, err := handler.service.ListCustomerChargingSessions(ctx.Request.Context(), principal, query)
 	if err != nil {
 		writeError(ctx, err)
 		return
@@ -772,6 +792,27 @@ func customerWalletTransactionQuery(ctx *gin.Context) (CustomerWalletTransaction
 		return CustomerWalletTransactionQuery{}, err
 	}
 	return query, validateCustomerWalletTransactionQuery(&query)
+}
+
+func chargingSessionHistoryQuery(ctx *gin.Context) (ChargingSessionHistoryQuery, error) {
+	query := ChargingSessionHistoryQuery{}
+	if raw := strings.TrimSpace(ctx.Query("limit")); raw != "" {
+		limit, err := strconv.Atoi(raw)
+		if err != nil {
+			return ChargingSessionHistoryQuery{}, &APIError{http.StatusBadRequest, "invalid_limit", "Limit must be a number between 1 and 100."}
+		}
+		query.Limit = limit
+	}
+	var err error
+	query.Before, err = parseCustomerCursorTime(ctx.Query("before"))
+	if err != nil {
+		return ChargingSessionHistoryQuery{}, err
+	}
+	query.BeforeID, err = parseCustomerCursorID(ctx.Query("before_id"))
+	if err != nil {
+		return ChargingSessionHistoryQuery{}, err
+	}
+	return query, validateChargingSessionHistoryQuery(&query)
 }
 
 func parseCustomerCursorTime(raw string) (*time.Time, error) {

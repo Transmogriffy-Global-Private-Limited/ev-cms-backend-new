@@ -438,8 +438,11 @@ export type CustomerPriceResponse = {
 | `POST /wallet/recharge/verify` | Yes | `200 CustomerRechargeOrder` | Verify a captured Razorpay payment and credit the wallet once. |
 | `POST /charging-sessions` | Yes | `202 ChargingStartResponse` | Persist a customer-owned start intent, commercial hold, and HAL command request; it is not an active session. |
 | `GET /charging-start-intents/{start_intent_id}` | Yes | `200 ChargingStartResponse` | Poll owned start progress and its materialized `session_id` when actual charging begins. |
+| `GET /charging-sessions` | Yes | `200 ChargingSessionHistoryResponse` | List this customer's actual materialized sessions with bounded history-card data. |
 | `GET /charging-sessions/{session_id}` | Yes | `200 ChargingSessionResponse` | Read owned durable active/completed session, exact projected meter, connection, connector, and freshness fields. |
 | `POST /charging-sessions/{session_id}/stop` | Yes | `202` | Persist/request an owned stop; actual charger completion remains asynchronous. |
+| `GET /operations/events` | Yes | `200 OperationalEventPage` | Recover retained, scoped charging/availability invalidations. |
+| `GET /operations/realtime/stream` | Yes | `200 text/event-stream` | One long-lived authenticated SSE invalidation stream for the app shell. |
 | `GET /auth/sessions` | Yes | `200 SessionList` | List this account's active sessions. |
 | `DELETE /auth/sessions/{session_id}` | Yes | `204` | Revoke one owned session. |
 | `POST /auth/logout` | Yes | `204` | Revoke current session. |
@@ -571,6 +574,13 @@ maximum 100) plus the paired `before` and `before_id` cursor. Preserve
 response does not expose internal idempotency keys, recharge-order IDs, or
 provider credentials.
 
+`CustomerWalletTransaction.session_id` is nullable. A completed wallet `DEBIT`
+with a non-null `session_id` may be a charging settlement debit and can offer
+“View charging session” via `GET /charging-sessions/{session_id}`. Use that
+persisted relation, never the English `description`, to form the link. The
+session-detail `financial` object is the reverse relation only when its
+payment, debit, CPO, and session IDs all agree.
+
 Wallet recharge is implemented through the two Razorpay routes below. A
 successful verified recharge appears as a completed `CREDIT` ledger entry.
 Refund execution, charging-session billing, charging bills, payment-provider
@@ -628,7 +638,7 @@ decimal strings for currency, energy price, idle fee, and GST when referenced;
 zero-price fallback. The response is informational and is not a charging or
 payment commitment. HAL is not called.
 
-### 5.3 Charging lifecycle
+### 5.4 Charging lifecycle, history, and receipt detail
 
 `POST /charging-sessions` accepts `{"charger_id":"a1b2c3","connector_id":"uuid"}`
 and returns `202 ChargingStartResponse`. The CMS validates the authenticated
@@ -659,24 +669,85 @@ Handle `503 hal_unavailable`, `409` resource/session conflicts, and
 `cpo_not_active` as explicit workflow state, rather than retrying with a new
 start identity.
 
-### 5.4 Operational Event Recovery and SSE
+`GET /charging-sessions` is the history resource, not a start-intent list. It
+returns only sessions materialized from charger-originated start evidence for
+the current CPO-local customer; failed, rejected, expired, or merely delivered
+start intents never appear. It is ordered `started_at DESC, id DESC` and uses
+the same paired `before`/`before_id` cursor convention as wallet history:
+default `limit=25`, maximum `100`, and both cursor fields are required together.
+On `has_more=true`, send both `next_before` and `next_before_id` unchanged.
 
-The authenticated User App operational feed is deliberately a notification
-surface, not live truth:
+Each history card already contains the CMS session UUID, state, start/end
+times when known, committed consumed Wh, final `total_kwh` and `total_amount`
+only after `COMPLETED`, currency, settlement status, public charger ID/name,
+optional hub identity/name/address, and connector ID/number/type. Active and
+stop-pending rows deliberately omit final totals rather than presenting stored
+zeroes as a final bill. This is a bounded database read with charger, hub, and
+connector data preloaded; the frontend should not make per-card inventory calls.
 
-- `GET /operations/events?after_id=<event-id>&limit=100` returns retained
-  committed events in ascending numeric ID order.
-- `GET /operations/realtime/stream` is a `text/event-stream` companion. Send
-  the normal `Authorization` and `X-CPO-App-ID` headers; use `fetch()`
-  streaming rather than native `EventSource`, which cannot send those headers.
+`GET /charging-sessions/{session_id}` remains the canonical active and
+historical detail route. In addition to its existing live projection fields, it
+returns `started_at`, meter start/final meter values, final totals when
+completed, currency, settlement status, optional stop reason, safe charger/
+hub/connector presentation data, and frozen `pricing`/`tax` snapshots. The
+price fields describe the tariff captured for this session; never replace them
+with the current hub or charger price. A completed historical detail still
+works when the charger has no current runtime row: current connection and
+connector fields can be `UNKNOWN`, while durable session/receipt data remains
+available. When settlement is consistently linked, `financial` contains only
+the payment ID, wallet debit ID, amount, currency, method, and status.
 
-Both routes include customer-specific charging events and safe tenant charger/
-connector availability events. Never rely on the event payload for meter,
-financial, charger, or session truth. Deduplicate `id`, persist the last ID,
-then refetch `GET /charging-sessions/{session_id}` or charger detail as needed.
-The server accepts `Last-Event-ID` when `after_id` is absent and closes a stream
-whose durable customer session, CPO app-ID scope, or token becomes invalid at a
-heartbeat. After disconnect, use cursor recovery before opening another stream.
+### 5.5 Operational Event Recovery and SSE
+
+SSE is one ordinary HTTP `GET` whose response stays open. The server writes
+`text/event-stream` frames over time instead of completing a JSON response, so
+browser DevTools correctly shows the request as **Pending** while it is healthy.
+It is not a WebSocket, not a polling loop, and not a second source of charger
+or billing truth.
+
+Use one stream owned by the authenticated app shell—not one per screen, card,
+charger, or component:
+
+1. Bootstrap durable REST state (`/me`, discovery, active/detail/history as
+   needed) and restore the last processed event ID from durable client storage.
+2. Call `GET /operations/events?after_id=<last-id>&limit=100` until caught up;
+   events are increasing numeric IDs and may be redelivered.
+3. Open exactly one `GET /operations/realtime/stream` with `Authorization` and
+   `X-CPO-App-ID`. Use `fetch()` plus `ReadableStream`; native `EventSource`
+   cannot attach those required headers.
+4. For each complete SSE frame, deduplicate its numeric `id`, persist it only
+   after handling, and use the event as an invalidation hint. Do not increment
+   meters locally, calculate a bill, or infer availability from its data.
+5. Refetch the authoritative REST resource: for
+   `resource_type=CHARGING_SESSION`, `resource_id` is the actual materialized
+   CMS session UUID and is valid in `GET /charging-sessions/{resource_id}`.
+   `charging.meter_changed` and `charging.session_changed` use this relation.
+   Refresh the appropriate charger detail/list after safe charger/connector
+   availability events.
+6. On network close, token refresh, tab resume, or cursor-expiry recovery,
+   reconnect with the last handled ID. The query `after_id` wins when supplied;
+   otherwise the server accepts `Last-Event-ID`. On `409 realtime_cursor_expired`,
+   discard the old cursor, refresh REST snapshots, then start from the current
+   retained range.
+
+The stream uses `Cache-Control: no-cache, no-store`, `Connection: keep-alive`,
+and `X-Accel-Buffering: no`; it sends comment heartbeats and revalidates the
+customer bearer session at each heartbeat. A revoked, expired, CPO-mismatched,
+or app-ID-mismatched session is closed. Both REST replay and SSE include only
+customer-specific charging events plus safe CPO-wide charger/connector
+availability events. Do not open ten per-charger streams or poll ten chargers;
+one stream plus targeted REST refetch is the supported recovery design.
+
+### 5.6 Deferred physical acceptance
+
+**DEFERRED — physical charger unavailable.** This CMS-side contract does not
+prove BootNotification, live RemoteStart/RemoteStop delivery, actual
+StartTransaction/MeterValues/StopTransaction, device fault behavior, or a full
+CMS-to-HAL-to-charger acceptance path. When hardware is available, verify:
+create/publish/mapping; physical connection and connector status; start;
+materialized session; committed meter and `charging.meter_changed`; stop;
+exactly-once settlement/payment/debit linkage; history and receipt agreement;
+and reconnect/restart/outage reconciliation.
 
 ## 6. Signup Flow
 
