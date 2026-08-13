@@ -118,9 +118,9 @@ HAL, establish an OCPP connection, or prove live charger status.
 
 Call `POST /api/v1/cpo/hubs/{hub_id}/chargers` with the charger's CMS UUID.
 Both resources must belong to the signed-in CPO. Repeating the same target hub
-is side-effect free; a real move records `CHARGER_HUB_REASSIGNED`. If the move
-would create overlapping active tariff periods after tariff scope follows the
-charger's new hub, it rolls back with `409 tariff_schedule_conflict`.
+is side-effect free; a real move records `CHARGER_HUB_REASSIGNED`. A move does
+not rewrite tariff targets: charger tariffs remain on the charger and hub
+tariffs remain on the hub.
 
 ### 4. Create a GST profile
 
@@ -132,13 +132,12 @@ as JSON strings to avoid client floating-point rounding.
 Create the tariff through its owning scope: `POST
 /api/v1/cpo/hubs/{hub_id}/tariffs`, `POST
 /api/v1/cpo/chargers/{charger_id}/tariffs`, or `POST
-/api/v1/cpo/user-groups/{user_group_id}/tariffs`. The route fixes that scope;
-the group route requires `hub_id` in the body and may additionally select a
-charger. Every referenced record must belong to the same CPO, and a selected
-charger must belong to the selected hub. Currency defaults to INR. An active
+/api/v1/cpo/user-groups/{user_group_id}/tariffs`. The route fixes exactly one
+target; target IDs in the body are rejected. Every referenced GST record must
+belong to the same CPO. Currency defaults to INR. An active
 tariff is either open-ended (omit both effective dates) or has a complete
 `[start_date, end_date)` effective period. PostgreSQL rejects overlapping
-active periods for the same hub/optional charger/optional user-group scope
+active periods for the same exact one-target tariff scope
 with `409 tariff_schedule_conflict`; an open-ended active tariff overlaps every
 dated tariff of that same scope.
 

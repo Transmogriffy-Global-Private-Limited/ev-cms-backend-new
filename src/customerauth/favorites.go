@@ -76,12 +76,9 @@ func (service *Service) AddFavoriteCharger(ctx context.Context, principal Princi
 		return &APIError{http.StatusBadRequest, "invalid_charger_id", "The charger ID is invalid."}
 	}
 	return service.database.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		var charger models.Charger
-		if err := tx.Preload("Hub").First(&charger, "cpo_id = ? AND charger_id = ?", principal.CPOID, publicChargerID).Error; err != nil {
-			return customerNetworkNotFound(err, "charger")
-		}
-		if charger.Hub == nil || charger.Hub.CPOID != principal.CPOID || !charger.CustomerVisibility || !charger.Hub.CustomerVisible {
-			return customerNetworkNotFound(gorm.ErrRecordNotFound, "charger")
+		charger, err := loadPublishedCustomerCharger(tx, principal.CPOID, publicChargerID)
+		if err != nil {
+			return err
 		}
 		favorite := models.CustomerFavoriteCharger{CPOID: principal.CPOID, CustomerID: principal.CustomerID, ChargerID: charger.ID, CreatedAt: service.now()}
 		result := tx.Clauses(clause.OnConflict{DoNothing: true}).Create(&favorite)

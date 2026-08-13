@@ -930,6 +930,12 @@ Current implementation slice:
   and create-path mapping delivery, align newly generated charger identities,
   and make migration 34/model tariff assignment metadata coherent. The later
   serial-number HAL admission contract remains out of scope.
+- Local tariff-domain correction completed and awaiting only user-directed
+  publication: migration thirty-seven normalizes legacy composite tariff rows
+  to one target, CPO nested tariff CRUD fixes target scope, and User App hub
+  price, charger price, and start-admission snapshots use one
+  `USERGROUP > CHARGER > HUB` selector. The correction does not alter HAL/OCPP,
+  wallet settlement, or session ownership.
 
 Last completed slice:
 
@@ -974,6 +980,14 @@ Last completed slice:
   charger price APIs with exact decimal projections, explicit unavailable state,
   active GST resolution, and User Tariff > charger tariff > hub tariff
   precedence.
+- Corrected the tariff model from mandatory hub context plus optional composite
+  fields to exactly one durable target. Migration thirty-seven backfills legacy
+  rows with `usergroup > charger > hub` precedence, adds matching
+  `assigned_to`/target constraints, and makes the target foreign keys CPO-safe.
+  The CPO nested routes now supply that fixed target; the User App selector and
+  charging snapshot reuse the same fixed precedence. This local source slice
+  has passed Go tests/vet; disposable PostgreSQL lifecycle verification remains
+  guarded by `TEST_DATABASE_URL`.
 - Implemented customer favorites over the published discovery projection,
   including bounded independent cursors, idempotent mutations, audit actions,
   unpublish-safe reads, route/OpenAPI parity, and User App documentation.
@@ -984,8 +998,8 @@ Last completed slice:
   account with strict fields, omitted-versus-null phone semantics, transactional
   audit evidence, and the canonical `UserView` response.
 - Reconciled and deployed the tenant-scoped CPO user point lookup plus tariff
-  effective dates, with mandatory hub scope and migration-fifteen exclusion
-  enforcement
+  effective dates and migration-fifteen exclusion enforcement; migration
+  thirty-seven later supersedes its former mandatory-hub target representation
 - The previous recovery-payload release and its hosted verification are
   complete; manual subscriptions now supersede the retired-subscription
   non-goal under ADR 0012.

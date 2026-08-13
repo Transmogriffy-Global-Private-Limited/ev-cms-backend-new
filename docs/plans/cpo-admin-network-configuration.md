@@ -32,7 +32,7 @@ tenant-scoped hubs, chargers/connectors, GST profiles, and tariffs.
 - GST create/list/get/update
 - Tariff create/list/get/update
 - Optional paired tariff effective dates with database-enforced non-overlap for
-  active tariffs in the same CPO/hub/charger/user-group scope
+  active tariffs in the same CPO and exact one-target scope
 - Exact decimal tax/pricing values
 - Server-generated charger, connector, OCPP-mapping, hub, GST, and tariff IDs
 - Tenant scope on every query and related-record validation
@@ -67,9 +67,9 @@ tenant-scoped hubs, chargers/connectors, GST profiles, and tariffs.
 - Unknown and cross-CPO user UUIDs share the same `user_not_found` response.
 - PostgreSQL is authoritative for concurrent active-tariff schedule overlap.
 - A charger may have no hub at creation. Any non-null hub association is
-  same-CPO, and a reassignment is transactional, audited, idempotent at the
-  target, and rejected when tariff-scope cascading would overlap an active
-  schedule.
+  same-CPO, and a reassignment is transactional, audited, and idempotent at the
+  target. Tariff targets are independent: moving a charger changes neither
+  charger-targeted nor hub-targeted tariff scope.
 - Dependent durable records prevent charger deletion.
 
 ## Implementation Slices

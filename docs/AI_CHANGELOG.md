@@ -2,6 +2,35 @@
 
 ## 2026-08-13
 
+### Corrected tariff targets and User App publication sweep (local source)
+
+- Added migration `000037_correct_tariff_targeting`: legacy composite rows are
+  normalized with `usergroup > charger > hub` precedence; every tariff now has
+  exactly one nullable target ID and matching non-null `assigned_to`; the
+  charger foreign key is CPO-local without requiring a hub. The down migration
+  is deliberately guarded against non-representable charger/user-group data.
+- Made nested CPO tariff paths the sole target authority. Create/PATCH JSON
+  bodies accept commercial fields only, response rows expose `assigned_to`, and
+  scoped CRUD cannot read or move a tariff under another target type.
+- Replaced competing User App pricing queries with one selector shared by hub
+  price, charger price, and charging-start tariff snapshots:
+  `USERGROUP > CHARGER > HUB`. It does not depend on SQL row order.
+- Completed the charger publication sweep by sharing the existing visible
+  charger + visible hub predicate with favorite creation and charger-image
+  access. Existing customer-owned sessions remain accessible after unpublish.
+- No HAL/OCPP, legacy CMS, QR, wallet settlement, session ownership, deploy,
+  migration execution, commit, or push occurred.
+
+Verification:
+
+- `go test ./...`, `go vet ./...`, focused `db`, `cpo`, `customerauth`, models,
+  and route/OpenAPI parity tests passed. The migration static test covers
+  normalization, constraints, same-CPO charger ownership, and guarded rollback.
+- CPO lifecycle regressions and User App precedence regressions are guarded by
+  `TEST_DATABASE_URL`; they are skipped locally because no disposable database
+  is selected. Documentation verification, including the corrected
+  178-operation assertion, and final diff checks passed.
+
 ### Hosted charger customer-visibility release
 
 - Applied additive migration `000036_add_customer_visibility_to_chargers` with

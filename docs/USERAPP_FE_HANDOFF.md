@@ -627,14 +627,13 @@ tariff rows. For a charger read, the precedence is:
 2. generic charger tariff;
 3. generic hub tariff.
 
-In the current backend schema, “User Tariff” is the tariff whose
-`user_group_id` matches the authenticated customer’s existing group assignment.
-No new group-management or per-customer tariff API is introduced here. A
-matching UserGroup tariff always wins over generic charger and hub tariffs. If
-both a matching group/charger and group/hub row exist, the charger row is the
-more-specific tie-breaker within the UserGroup tier. A customer without a group
-uses only generic tariffs. A hub-price read cannot use a charger-scoped tariff:
-it resolves a matching UserGroup hub tariff first, then the generic hub tariff.
+In the current backend schema, “UserGroup tariff” is the tariff whose sole
+`user_group_id` target matches the authenticated customer's existing group
+assignment. Every tariff has exactly one target, so no composite row combines a
+group target with a charger or hub target. A customer without a group uses only charger
+then hub tariffs. A hub-price read has no charger context: it resolves a
+matching UserGroup tariff, then the hub tariff. Start admission uses this exact
+same selector before it freezes its tariff/tax snapshot.
 `AVAILABLE` includes exact
 decimal strings for currency, energy price, idle fee, and GST when referenced;
 `UNAVAILABLE` is a valid `200` response with `unavailable_reason` and never a

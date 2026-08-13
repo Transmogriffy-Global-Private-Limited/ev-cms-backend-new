@@ -63,6 +63,11 @@ same-customer active-intent replay, and serialize the final decision with a
 connector-row lock. It must not add a route, migration, HAL/OCPP change,
 deployment, or physical-charger claim.
 
+Codex is implementing the user-authorized tariff-targeting correction under
+`WI-20260813-tariff-targeting-visibility-sweep.md`. It shares the User App
+price/start and publication boundaries, preserves session ownership, and does
+not alter HAL/OCPP or deployment behavior.
+
 ## Non-goals
 
 - This record does not authorize a production deployment, DNS change, database

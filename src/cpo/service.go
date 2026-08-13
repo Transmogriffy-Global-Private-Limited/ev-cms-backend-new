@@ -2368,6 +2368,9 @@ func (service *Service) CreateHubTariff(
 	}
 
 	cpoID := *principal.CPOID
+	request.HubID = &hubID
+	request.ChargerID = nil
+	request.UserGroupID = nil
 	request = normalizeCreateTariffRequest(request)
 	if err := validateCreateTariffRequest(request); err != nil {
 		return TariffView{}, err
@@ -2375,7 +2378,7 @@ func (service *Service) CreateHubTariff(
 
 	var record models.Tariff
 	err := service.database.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		if err := service.validateTariffScope(tx, cpoID, &hubID, request.ChargerID, request.UserGroupID); err != nil {
+		if err := service.validateTariffScope(tx, cpoID, request.HubID, request.ChargerID, request.UserGroupID); err != nil {
 			return err
 		}
 		if request.GSTID != nil {
@@ -2394,7 +2397,8 @@ func (service *Service) CreateHubTariff(
 		record = models.Tariff{
 			ID:            uuid.New(),
 			CPOID:         cpoID,
-			HubID:         hubID,
+			HubID:         request.HubID,
+			AssignedTo:    constants.TariffAssignedHub,
 			ChargerID:     request.ChargerID,
 			GSTID:         request.GSTID,
 			UserGroupID:   request.UserGroupID,
@@ -2448,7 +2452,7 @@ func (service *Service) ListHubTariffs(
 		return nil, err
 	}
 	databaseQuery := service.database.WithContext(ctx).
-		Where("cpo_id = ? AND hub_id = ?", *principal.CPOID, hubID)
+		Where("cpo_id = ? AND assigned_to = ? AND hub_id = ?", *principal.CPOID, constants.TariffAssignedHub, hubID)
 	if query.Before != nil {
 		databaseQuery = databaseQuery.Where(
 			"(created_at, id) < (?, ?)",
@@ -2497,7 +2501,7 @@ func (service *Service) GetHubTariff(
 
 	var record models.Tariff
 	if err := service.database.WithContext(ctx).
-		First(&record, "cpo_id = ? AND hub_id = ? AND id = ?", *principal.CPOID, hubID, tariffID).Error; err != nil {
+		First(&record, "cpo_id = ? AND assigned_to = ? AND hub_id = ? AND id = ?", *principal.CPOID, constants.TariffAssignedHub, hubID, tariffID).Error; err != nil {
 		return TariffView{}, service.handleTariffError("load tariff", err)
 	}
 
@@ -2525,14 +2529,14 @@ func (service *Service) UpdateHubTariff(
 
 	err := service.database.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
-			First(&record, "cpo_id = ? AND hub_id = ? AND id = ?", cpoID, hubID, tariffID).Error; err != nil {
+			First(&record, "cpo_id = ? AND assigned_to = ? AND hub_id = ? AND id = ?", cpoID, constants.TariffAssignedHub, hubID, tariffID).Error; err != nil {
 			return service.handleTariffError("load tariff", err)
 		}
 
 		updates := map[string]any{}
 		changedFields := models.JSONB{}
 
-		if err := service.validateTariffScope(tx, cpoID, &hubID, request.ChargerID, request.UserGroupID); err != nil {
+		if err := service.validateTariffScope(tx, cpoID, &hubID, nil, nil); err != nil {
 			return err
 		}
 
@@ -2540,16 +2544,6 @@ func (service *Service) UpdateHubTariff(
 			updates["gst_id"] = request.GSTID
 			record.GSTID = request.GSTID
 			changedFields["gst_id"] = request.GSTID
-		}
-		if request.UserGroupID != nil {
-			updates["user_group_id"] = request.UserGroupID
-			record.UserGroupID = request.UserGroupID
-			changedFields["user_group_id"] = request.UserGroupID
-		}
-		if request.ChargerID != nil {
-			updates["charger_id"] = request.ChargerID
-			record.ChargerID = request.ChargerID
-			changedFields["charger_id"] = request.ChargerID
 		}
 		if request.PricePerKWh != nil {
 			updates["price_per_kwh"] = *request.PricePerKWh
@@ -2646,26 +2640,17 @@ func (service *Service) CreateChargerTariff(
 	}
 
 	cpoID := *principal.CPOID
+	request.HubID = nil
+	request.ChargerID = &chargerID
+	request.UserGroupID = nil
 	request = normalizeCreateTariffRequest(request)
 	if err := validateCreateTariffRequest(request); err != nil {
 		return TariffView{}, err
 	}
 
-	var charger models.Charger
-	if err := service.database.WithContext(ctx).First(&charger, "id = ? AND cpo_id = ?", chargerID, cpoID).Error; err != nil {
-		return TariffView{}, mapChargerNotFound(err)
-	}
-	if charger.HubID == nil {
-		return TariffView{}, &auth.APIError{
-			Status:  http.StatusBadRequest,
-			Code:    "charger_not_in_hub",
-			Message: "A tariff can only be created for a charger that belongs to a hub.",
-		}
-	}
-
 	var record models.Tariff
 	err := service.database.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		if err := service.validateTariffScope(tx, cpoID, charger.HubID, &chargerID, request.UserGroupID); err != nil {
+		if err := service.validateTariffScope(tx, cpoID, request.HubID, request.ChargerID, request.UserGroupID); err != nil {
 			return err
 		}
 		if request.GSTID != nil {
@@ -2684,8 +2669,9 @@ func (service *Service) CreateChargerTariff(
 		record = models.Tariff{
 			ID:            uuid.New(),
 			CPOID:         cpoID,
-			HubID:         *charger.HubID,
-			ChargerID:     &chargerID,
+			HubID:         request.HubID,
+			AssignedTo:    constants.TariffAssignedCharger,
+			ChargerID:     request.ChargerID,
 			GSTID:         request.GSTID,
 			UserGroupID:   request.UserGroupID,
 			PricePerKWh:   request.PricePerKWh,
@@ -2738,7 +2724,7 @@ func (service *Service) ListChargerTariffs(
 		return nil, err
 	}
 	databaseQuery := service.database.WithContext(ctx).
-		Where("cpo_id = ? AND charger_id = ?", *principal.CPOID, chargerID)
+		Where("cpo_id = ? AND assigned_to = ? AND charger_id = ?", *principal.CPOID, constants.TariffAssignedCharger, chargerID)
 	if query.Before != nil {
 		databaseQuery = databaseQuery.Where(
 			"(created_at, id) < (?, ?)",
@@ -2787,7 +2773,7 @@ func (service *Service) GetChargerTariff(
 
 	var record models.Tariff
 	if err := service.database.WithContext(ctx).
-		First(&record, "cpo_id = ? AND charger_id = ? AND id = ?", *principal.CPOID, chargerID, tariffID).Error; err != nil {
+		First(&record, "cpo_id = ? AND assigned_to = ? AND charger_id = ? AND id = ?", *principal.CPOID, constants.TariffAssignedCharger, chargerID, tariffID).Error; err != nil {
 		return TariffView{}, service.handleTariffError("load tariff", err)
 	}
 
@@ -2815,14 +2801,14 @@ func (service *Service) UpdateChargerTariff(
 
 	err := service.database.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
-			First(&record, "cpo_id = ? AND charger_id = ? AND id = ?", cpoID, chargerID, tariffID).Error; err != nil {
+			First(&record, "cpo_id = ? AND assigned_to = ? AND charger_id = ? AND id = ?", cpoID, constants.TariffAssignedCharger, chargerID, tariffID).Error; err != nil {
 			return service.handleTariffError("load tariff", err)
 		}
 
 		updates := map[string]any{}
 		changedFields := models.JSONB{}
 
-		if err := service.validateTariffScope(tx, cpoID, &record.HubID, &chargerID, request.UserGroupID); err != nil {
+		if err := service.validateTariffScope(tx, cpoID, nil, &chargerID, nil); err != nil {
 			return err
 		}
 
@@ -2830,11 +2816,6 @@ func (service *Service) UpdateChargerTariff(
 			updates["gst_id"] = request.GSTID
 			record.GSTID = request.GSTID
 			changedFields["gst_id"] = request.GSTID
-		}
-		if request.UserGroupID != nil {
-			updates["user_group_id"] = request.UserGroupID
-			record.UserGroupID = request.UserGroupID
-			changedFields["user_group_id"] = request.UserGroupID
 		}
 		if request.PricePerKWh != nil {
 			updates["price_per_kwh"] = *request.PricePerKWh
@@ -2931,17 +2912,16 @@ func (service *Service) CreateUserGroupTariff(
 	}
 
 	cpoID := *principal.CPOID
+	request.HubID = nil
+	request.ChargerID = nil
+	request.UserGroupID = &userGroupID
 	request = normalizeCreateTariffRequest(request)
 	if err := validateCreateTariffRequest(request); err != nil {
 		return TariffView{}, err
 	}
-	if request.HubID == uuid.Nil {
-		return TariffView{}, invalid("hub_id", "Hub ID is required for a user group tariff.")
-	}
-
 	var record models.Tariff
 	err := service.database.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		if err := service.validateTariffScope(tx, cpoID, &request.HubID, request.ChargerID, &userGroupID); err != nil {
+		if err := service.validateTariffScope(tx, cpoID, request.HubID, request.ChargerID, request.UserGroupID); err != nil {
 			return err
 		}
 		if request.GSTID != nil {
@@ -2961,9 +2941,10 @@ func (service *Service) CreateUserGroupTariff(
 			ID:            uuid.New(),
 			CPOID:         cpoID,
 			HubID:         request.HubID,
+			AssignedTo:    constants.TariffAssignedUserGroup,
 			ChargerID:     request.ChargerID,
 			GSTID:         request.GSTID,
-			UserGroupID:   &userGroupID,
+			UserGroupID:   request.UserGroupID,
 			PricePerKWh:   request.PricePerKWh,
 			IdleFeePerMin: request.IdleFeePerMin,
 			Currency:      request.Currency,
@@ -3014,7 +2995,7 @@ func (service *Service) ListUserGroupTariffs(
 		return nil, err
 	}
 	databaseQuery := service.database.WithContext(ctx).
-		Where("cpo_id = ? AND user_group_id = ?", *principal.CPOID, userGroupID)
+		Where("cpo_id = ? AND assigned_to = ? AND user_group_id = ?", *principal.CPOID, constants.TariffAssignedUserGroup, userGroupID)
 	if query.Before != nil {
 		databaseQuery = databaseQuery.Where(
 			"(created_at, id) < (?, ?)",
@@ -3063,7 +3044,7 @@ func (service *Service) GetUserGroupTariff(
 
 	var record models.Tariff
 	if err := service.database.WithContext(ctx).
-		First(&record, "cpo_id = ? AND user_group_id = ? AND id = ?", *principal.CPOID, userGroupID, tariffID).Error; err != nil {
+		First(&record, "cpo_id = ? AND assigned_to = ? AND user_group_id = ? AND id = ?", *principal.CPOID, constants.TariffAssignedUserGroup, userGroupID, tariffID).Error; err != nil {
 		return TariffView{}, service.handleTariffError("load tariff", err)
 	}
 
@@ -3091,31 +3072,17 @@ func (service *Service) UpdateUserGroupTariff(
 
 	err := service.database.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
-			First(&record, "cpo_id = ? AND user_group_id = ? AND id = ?", cpoID, userGroupID, tariffID).Error; err != nil {
+			First(&record, "cpo_id = ? AND assigned_to = ? AND user_group_id = ? AND id = ?", cpoID, constants.TariffAssignedUserGroup, userGroupID, tariffID).Error; err != nil {
 			return service.handleTariffError("load tariff", err)
 		}
 
 		updates := map[string]any{}
 		changedFields := models.JSONB{}
 
-		hubID := record.HubID
-		if request.HubID != nil {
-			hubID = *request.HubID
-		}
-		if err := service.validateTariffScope(tx, cpoID, &hubID, request.ChargerID, &userGroupID); err != nil {
+		if err := service.validateTariffScope(tx, cpoID, nil, nil, &userGroupID); err != nil {
 			return err
 		}
 
-		if request.HubID != nil {
-			updates["hub_id"] = request.HubID
-			record.HubID = *request.HubID
-			changedFields["hub_id"] = request.HubID
-		}
-		if request.ChargerID != nil {
-			updates["charger_id"] = request.ChargerID
-			record.ChargerID = request.ChargerID
-			changedFields["charger_id"] = request.ChargerID
-		}
 		if request.GSTID != nil {
 			updates["gst_id"] = request.GSTID
 			record.GSTID = request.GSTID
@@ -3212,6 +3179,16 @@ func (service *Service) validateTariffScope(
 	chargerID *uuid.UUID,
 	userGroupID *uuid.UUID,
 ) error {
+	targetCount := 0
+	for _, targetID := range []*uuid.UUID{hubID, chargerID, userGroupID} {
+		if targetID != nil {
+			targetCount++
+		}
+	}
+	if targetCount != 1 {
+		return invalid("tariff_target", "A tariff must target exactly one hub, charger, or user group.")
+	}
+
 	if hubID != nil {
 		var hub models.Hub
 		if err := tx.
@@ -3237,7 +3214,7 @@ func (service *Service) validateTariffScope(
 				return &auth.APIError{
 					Status:  http.StatusNotFound,
 					Code:    "charger_not_found",
-					Message: "The charger was not found in the specified hub.",
+					Message: "The charger was not found.",
 				}
 			}
 			return fmt.Errorf("validate tariff scope (charger): %w", err)
@@ -4948,9 +4925,6 @@ func normalizeUpdateTariffRequest(request UpdateTariffRequest) UpdateTariffReque
 }
 
 func validateCreateTariffRequest(request CreateTariffRequest) error {
-	if request.HubID == uuid.Nil {
-		return invalid("hub_id", "Hub ID is required.")
-	}
 	if request.PricePerKWh.Sign() <= 0 {
 		return invalid("price_per_kwh", "Price per kWh must be greater than zero.")
 	}
@@ -4967,10 +4941,7 @@ func validateCreateTariffRequest(request CreateTariffRequest) error {
 }
 
 func validateUpdateTariffRequest(request UpdateTariffRequest) error {
-	if request.HubID == nil &&
-		request.ChargerID == nil &&
-		request.GSTID == nil &&
-		request.UserGroupID == nil &&
+	if request.GSTID == nil &&
 		request.PricePerKWh == nil &&
 		request.IdleFeePerMin == nil &&
 		request.Currency == nil &&
@@ -5031,6 +5002,7 @@ func (service *Service) tariffView(record *models.Tariff) TariffView {
 	return TariffView{
 		ID:            record.ID,
 		CPOID:         record.CPOID,
+		AssignedTo:    record.AssignedTo,
 		HubID:         record.HubID,
 		ChargerID:     record.ChargerID,
 		GSTID:         record.GSTID,
@@ -5058,31 +5030,45 @@ func (service *Service) handleTariffError(operation string, err error) error {
 		}
 	}
 	var postgresError *pgconn.PgError
-	if errors.As(err, &postgresError) && postgresError.Code == "23503" {
-		switch postgresError.ConstraintName {
-		case "tariffs_hub_id_fkey":
+	if errors.As(err, &postgresError) {
+		switch postgresError.Code {
+		case "23P01":
 			return &auth.APIError{
 				Status:  http.StatusConflict,
-				Code:    "hub_not_found",
-				Message: "The hub for this tariff does not exist.",
+				Code:    "tariff_schedule_conflict",
+				Message: "An active tariff already covers this target and effective period.",
 			}
-		case "tariffs_charger_id_fkey":
-			return &auth.APIError{
-				Status:  http.StatusConflict,
-				Code:    "charger_not_found",
-				Message: "The charger for this tariff does not exist.",
+		case "23514":
+			switch postgresError.ConstraintName {
+			case "tariffs_exactly_one_target", "tariffs_target_matches_assigned_to":
+				return invalid("tariff_target", "A tariff must target exactly one hub, charger, or user group.")
 			}
-		case "tariffs_user_group_id_fkey":
-			return &auth.APIError{
-				Status:  http.StatusConflict,
-				Code:    "user_group_not_found",
-				Message: "The user group for this tariff does not exist.",
-			}
-		case "tariffs_gst_id_fkey":
-			return &auth.APIError{
-				Status:  http.StatusConflict,
-				Code:    "gst_not_found",
-				Message: "The GST record for this tariff does not exist.",
+		case "23503":
+			switch postgresError.ConstraintName {
+			case "tariffs_hub_id_fkey":
+				return &auth.APIError{
+					Status:  http.StatusConflict,
+					Code:    "hub_not_found",
+					Message: "The hub for this tariff does not exist.",
+				}
+			case "tariffs_charger_id_fkey":
+				return &auth.APIError{
+					Status:  http.StatusConflict,
+					Code:    "charger_not_found",
+					Message: "The charger for this tariff does not exist.",
+				}
+			case "tariffs_user_group_id_fkey":
+				return &auth.APIError{
+					Status:  http.StatusConflict,
+					Code:    "user_group_not_found",
+					Message: "The user group for this tariff does not exist.",
+				}
+			case "tariffs_gst_id_fkey":
+				return &auth.APIError{
+					Status:  http.StatusConflict,
+					Code:    "gst_not_found",
+					Message: "The GST record for this tariff does not exist.",
+				}
 			}
 		}
 	}

@@ -679,8 +679,7 @@ paths:
         A missing eligible tariff returns HTTP 200 with status `UNAVAILABLE`,
         never a zero price. When the authenticated customer has an existing
         user-group assignment, its matching UserGroup tariff takes precedence
-        over generic charger and hub tariffs. The effective order is matching
-        UserGroup tariff, generic charger tariff, then generic hub tariff.
+        over the hub tariff. This hub-only route has no charger context.
       security:
         - BearerAuth: []
       parameters:
@@ -4158,9 +4157,9 @@ paths:
         Requires CPO ADMIN. Assigns an existing charger of the same CPO to the
         specified hub. A charger may be created without a hub and assigned later.
         Repeating a request for the charger's current hub has no side effect.
-        Moving an already assigned charger is atomic and audited. It can return
-        `tariff_schedule_conflict` when the relational tariff-scope cascade would
-        create an overlapping active tariff schedule.
+        Moving an already assigned charger is atomic and audited. No tariff
+        scope is changed: charger-targeted tariffs remain attached to
+        the charger and hub-targeted tariffs remain attached to their hub.
       security:
         - BearerAuth: []
           CPOAppID: []
@@ -8695,12 +8694,10 @@ components:
     CreateTariffRequest:
       type: object
       additionalProperties: false
-      required: [hub_id, price_per_kwh]
+      required: [price_per_kwh]
+      description: The nested route determines the one immutable tariff target. Target IDs are not accepted in this body.
       properties:
-        hub_id: {type: string, format: uuid}
-        charger_id: {type: string, format: uuid}
         gst_id: {type: string, format: uuid}
-        user_group_id: {type: string, format: uuid}
         price_per_kwh:
           $ref: "#/components/schemas/DecimalInput"
         idle_fee_per_min:
@@ -8731,8 +8728,6 @@ components:
           enum: [minutes, watt/hour]
           description: Measurement unit for the selected price type.
       example:
-        hub_id: 8b80ef78-7799-4a09-a0d5-73ac944aa6e0
-        charger_id: 7cc2d481-3ccb-4336-b03c-c8851a59ff9a
         gst_id: 3e38d953-fe0a-4bfa-a11c-356c92bba7e9
         price_per_kwh: "18.5000"
         idle_fee_per_min: "1.0000"
@@ -8743,11 +8738,9 @@ components:
       type: object
       additionalProperties: false
       minProperties: 1
+      description: Updates commercial fields only. A tariff's target remains the nested route target for its lifetime.
       properties:
-        hub_id: {type: string, format: uuid}
-        charger_id: {type: string, format: uuid}
         gst_id: {type: string, format: uuid}
-        user_group_id: {type: string, format: uuid}
         price_per_kwh: {$ref: "#/components/schemas/DecimalInput"}
         idle_fee_per_min: {$ref: "#/components/schemas/DecimalInput"}
         currency:
@@ -8778,7 +8771,7 @@ components:
       required:
         - id
         - cpo_id
-        - hub_id
+        - assigned_to
         - price_per_kwh
         - idle_fee_per_min
         - currency
@@ -8788,10 +8781,23 @@ components:
       properties:
         id: {type: string, format: uuid}
         cpo_id: {type: string, format: uuid}
-        hub_id: {type: string, format: uuid}
-        charger_id: {type: string, format: uuid}
+        assigned_to:
+          type: string
+          enum: [hub, charger, usergroup]
+          description: Identifies the one non-null target relationship.
+        hub_id:
+          type: string
+          format: uuid
+          nullable: true
+        charger_id:
+          type: string
+          format: uuid
+          nullable: true
         gst_id: {type: string, format: uuid}
-        user_group_id: {type: string, format: uuid}
+        user_group_id:
+          type: string
+          format: uuid
+          nullable: true
         price_per_kwh: {$ref: "#/components/schemas/ExactDecimal"}
         idle_fee_per_min: {$ref: "#/components/schemas/ExactDecimal"}
         currency:

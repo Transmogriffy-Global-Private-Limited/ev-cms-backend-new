@@ -290,6 +290,47 @@ func TestTariffEffectiveDatesMigrationUsesTenantScopedTimestamptzExclusion(t *te
 	}
 }
 
+func TestTariffTargetingCorrectionMigrationMakesOneExplicitTarget(t *testing.T) {
+	t.Parallel()
+
+	upBody, err := migrationFiles.ReadFile("migrations/000037_correct_tariff_targeting.up.sql")
+	if err != nil {
+		t.Fatalf("read tariff-targeting migration: %v", err)
+	}
+	downBody, err := migrationFiles.ReadFile("migrations/000037_correct_tariff_targeting.down.sql")
+	if err != nil {
+		t.Fatalf("read tariff-targeting rollback migration: %v", err)
+	}
+	upSQL := string(upBody)
+	downSQL := string(downBody)
+	for _, required := range []string{
+		"ALTER COLUMN hub_id DROP NOT NULL",
+		"assigned_to = 'usergroup'::tariff_assignment_type",
+		"assigned_to = 'charger'::tariff_assignment_type",
+		"assigned_to = 'hub'::tariff_assignment_type",
+		"tariffs_exactly_one_target",
+		"tariffs_target_matches_assigned_to",
+		"FOREIGN KEY (cpo_id, charger_id)",
+		"REFERENCES chargers(cpo_id, id)",
+		"tariffs_active_effective_period_exclusion",
+	} {
+		if !strings.Contains(upSQL, required) {
+			t.Errorf("up migration is missing %q", required)
+		}
+	}
+	for _, required := range []string{
+		"cannot roll back tariff targeting",
+		"ALTER COLUMN hub_id SET NOT NULL",
+		"FOREIGN KEY (cpo_id, hub_id, charger_id)",
+		"tariffs_exactly_one_target",
+		"tariffs_target_matches_assigned_to",
+	} {
+		if !strings.Contains(downSQL, required) {
+			t.Errorf("down migration is missing %q", required)
+		}
+	}
+}
+
 func TestCPOProvisioningMigrationContainsAppIdentityAndOnboarding(t *testing.T) {
 	t.Parallel()
 

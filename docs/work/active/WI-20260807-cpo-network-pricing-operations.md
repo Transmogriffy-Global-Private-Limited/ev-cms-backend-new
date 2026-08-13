@@ -28,6 +28,13 @@ backend work.
 - CPO-owned static charger status and publication control
 - Related CPO agent handoff, API contracts, and documentation
 
+### Coordination note (2026-08-13)
+
+The user-authorized tariff-targeting correction is being implemented under
+`WI-20260813-tariff-targeting-visibility-sweep.md`. It overlaps the CPO tariff
+schema, scoped routes, and contracts while preserving Abhranil Pal's ownership
+of the broader CPO network/pricing capability.
+
 ## Non-goals
 
 - This record does not authorize a production deployment, DNS change, database

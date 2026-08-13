@@ -412,10 +412,13 @@ type CPOAdminCustomerListResponse struct {
 }
 
 type CreateTariffRequest struct {
-	HubID         uuid.UUID             `json:"hub_id"`
-	ChargerID     *uuid.UUID            `json:"charger_id,omitempty"`
+	// Scope is derived only from the nested resource route. These internal
+	// fields let the service carry that trusted target through its transaction;
+	// they are intentionally not accepted from JSON clients.
+	HubID         *uuid.UUID            `json:"-"`
+	ChargerID     *uuid.UUID            `json:"-"`
 	GSTID         *uuid.UUID            `json:"gst_id,omitempty"`
-	UserGroupID   *uuid.UUID            `json:"user_group_id,omitempty"`
+	UserGroupID   *uuid.UUID            `json:"-"`
 	PricePerKWh   decimal.Decimal       `json:"price_per_kwh"`
 	IdleFeePerMin decimal.Decimal       `json:"idle_fee_per_min"`
 	Currency      string                `json:"currency"`
@@ -428,10 +431,7 @@ type CreateTariffRequest struct {
 }
 
 type UpdateTariffRequest struct {
-	HubID         *uuid.UUID            `json:"hub_id,omitempty"`
-	ChargerID     *uuid.UUID            `json:"charger_id,omitempty"`
 	GSTID         *uuid.UUID            `json:"gst_id,omitempty"`
-	UserGroupID   *uuid.UUID            `json:"user_group_id,omitempty"`
 	PricePerKWh   *decimal.Decimal      `json:"price_per_kwh,omitempty"`
 	IdleFeePerMin *decimal.Decimal      `json:"idle_fee_per_min,omitempty"`
 	Currency      *string               `json:"currency,omitempty"`
@@ -444,23 +444,24 @@ type UpdateTariffRequest struct {
 }
 
 type TariffView struct {
-	ID            uuid.UUID             `json:"id"`
-	CPOID         uuid.UUID             `json:"cpo_id"`
-	HubID         uuid.UUID             `json:"hub_id"`
-	ChargerID     *uuid.UUID            `json:"charger_id,omitempty"`
-	GSTID         *uuid.UUID            `json:"gst_id,omitempty"`
-	UserGroupID   *uuid.UUID            `json:"user_group_id,omitempty"`
-	PricePerKWh   decimal.Decimal       `json:"price_per_kwh"`
-	IdleFeePerMin decimal.Decimal       `json:"idle_fee_per_min"`
-	Currency      string                `json:"currency"`
-	IsActive      bool                  `json:"is_active"`
-	StartDate     *time.Time            `json:"start_date,omitempty"`
-	EndDate       *time.Time            `json:"end_date,omitempty"`
-	TariffType    *constants.TariffType `json:"tariff_type,omitempty"`
-	PriceType     *constants.PriceType  `json:"price_type,omitempty"`
-	Units         *constants.Unit       `json:"units,omitempty"`
-	CreatedAt     time.Time             `json:"created_at"`
-	UpdatedAt     time.Time             `json:"updated_at"`
+	ID            uuid.UUID                      `json:"id"`
+	CPOID         uuid.UUID                      `json:"cpo_id"`
+	AssignedTo    constants.TariffAssignmentType `json:"assigned_to"`
+	HubID         *uuid.UUID                     `json:"hub_id,omitempty"`
+	ChargerID     *uuid.UUID                     `json:"charger_id,omitempty"`
+	GSTID         *uuid.UUID                     `json:"gst_id,omitempty"`
+	UserGroupID   *uuid.UUID                     `json:"user_group_id,omitempty"`
+	PricePerKWh   decimal.Decimal                `json:"price_per_kwh"`
+	IdleFeePerMin decimal.Decimal                `json:"idle_fee_per_min"`
+	Currency      string                         `json:"currency"`
+	IsActive      bool                           `json:"is_active"`
+	StartDate     *time.Time                     `json:"start_date,omitempty"`
+	EndDate       *time.Time                     `json:"end_date,omitempty"`
+	TariffType    *constants.TariffType          `json:"tariff_type,omitempty"`
+	PriceType     *constants.PriceType           `json:"price_type,omitempty"`
+	Units         *constants.Unit                `json:"units,omitempty"`
+	CreatedAt     time.Time                      `json:"created_at"`
+	UpdatedAt     time.Time                      `json:"updated_at"`
 }
 
 type TariffListResponse struct {

@@ -24,6 +24,7 @@ import (
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/security"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/shopspring/decimal"
 	"gorm.io/gorm"
 )
@@ -1789,7 +1790,7 @@ func TestHubTariffLifecycleWithPostgreSQL(t *testing.T) {
 	if tariff.Currency != "INR" {
 		t.Fatalf("tariff currency is %q, want INR", tariff.Currency)
 	}
-	if tariff.HubID != hubID {
+	if tariff.HubID == nil || *tariff.HubID != hubID {
 		t.Fatalf("tariff hub id is %q, want %q", tariff.HubID, hubID)
 	}
 
@@ -1821,5 +1822,107 @@ func TestHubTariffLifecycleWithPostgreSQL(t *testing.T) {
 	}
 	if !updatedTariff.PricePerKWh.Equal(updatedPrice) {
 		t.Fatalf("updated tariff price is %q, want %q", updatedTariff.PricePerKWh, updatedPrice)
+	}
+	if updatedTariff.AssignedTo != constants.TariffAssignedHub || updatedTariff.ChargerID != nil || updatedTariff.UserGroupID != nil {
+		t.Fatalf("hub tariff has invalid target %#v", updatedTariff)
+	}
+
+	body := new(bytes.Buffer)
+	writer := multipart.NewWriter(body)
+	createChargerRequest := CreateChargerRequest{
+		Vendor:       "Tariff Test Vendor",
+		Model:        "Tariff Test Model",
+		SerialNumber: "SN-" + strings.ToUpper(uuid.NewString()[:8]),
+		MaxPowerKW:   7.4,
+		Connectors: []CreateConnectorRequest{{
+			ConnectorNumber: 1,
+			ConnectorType:   "TYPE2",
+		}},
+	}
+	requestBytes, err := json.Marshal(createChargerRequest)
+	if err != nil {
+		t.Fatalf("marshal charger request: %v", err)
+	}
+	if err := writer.WriteField("data", string(requestBytes)); err != nil {
+		t.Fatalf("write charger request: %v", err)
+	}
+	if err := writer.Close(); err != nil {
+		t.Fatalf("close charger request: %v", err)
+	}
+	request := httptest.NewRequest(http.MethodPost, "/cpo/chargers", body)
+	request.Header.Set("Content-Type", writer.FormDataContentType())
+	recorder := httptest.NewRecorder()
+	ginContext, _ := gin.CreateTestContext(recorder)
+	ginContext.Request = request
+	charger, err := service.CreateCharger(ginContext, adminPrincipal)
+	if err != nil {
+		t.Fatalf("create independent charger: %v", err)
+	}
+	if charger.HubID != nil {
+		t.Fatalf("independent charger unexpectedly has hub %s", *charger.HubID)
+	}
+
+	chargerTariff, err := service.CreateChargerTariff(ctx, adminPrincipal, charger.ID, CreateTariffRequest{PricePerKWh: price})
+	if err != nil {
+		t.Fatalf("create independent charger tariff: %v", err)
+	}
+	if chargerTariff.AssignedTo != constants.TariffAssignedCharger || chargerTariff.HubID != nil || chargerTariff.ChargerID == nil || *chargerTariff.ChargerID != charger.ID || chargerTariff.UserGroupID != nil {
+		t.Fatalf("charger tariff has invalid target %#v", chargerTariff)
+	}
+	if _, err := service.GetChargerTariff(ctx, adminPrincipal, charger.ID, chargerTariff.ID); err != nil {
+		t.Fatalf("get charger tariff: %v", err)
+	}
+	chargerTariffPage, err := service.ListChargerTariffs(ctx, adminPrincipal, charger.ID, TenantListQuery{Limit: 10})
+	if err != nil || len(chargerTariffPage.Tariffs) != 1 || chargerTariffPage.Tariffs[0].ID != chargerTariff.ID {
+		t.Fatalf("list charger tariffs got %#v, %v", chargerTariffPage, err)
+	}
+	if _, err := service.UpdateChargerTariff(ctx, adminPrincipal, charger.ID, chargerTariff.ID, UpdateTariffRequest{PricePerKWh: &updatedPrice}); err != nil {
+		t.Fatalf("update charger tariff: %v", err)
+	}
+
+	group, err := service.CreateUserGroup(ctx, adminPrincipal, CreateUserGroupRequest{Name: "Tariff Group " + uuid.NewString()[:8]})
+	if err != nil {
+		t.Fatalf("create user group: %v", err)
+	}
+	groupTariff, err := service.CreateUserGroupTariff(ctx, adminPrincipal, group.ID, CreateTariffRequest{PricePerKWh: price})
+	if err != nil {
+		t.Fatalf("create user-group tariff: %v", err)
+	}
+	if groupTariff.AssignedTo != constants.TariffAssignedUserGroup || groupTariff.HubID != nil || groupTariff.ChargerID != nil || groupTariff.UserGroupID == nil || *groupTariff.UserGroupID != group.ID {
+		t.Fatalf("user-group tariff has invalid target %#v", groupTariff)
+	}
+	if _, err := service.GetUserGroupTariff(ctx, adminPrincipal, group.ID, groupTariff.ID); err != nil {
+		t.Fatalf("get user-group tariff: %v", err)
+	}
+	groupTariffPage, err := service.ListUserGroupTariffs(ctx, adminPrincipal, group.ID, TenantListQuery{Limit: 10})
+	if err != nil || len(groupTariffPage.Tariffs) != 1 || groupTariffPage.Tariffs[0].ID != groupTariff.ID {
+		t.Fatalf("list user-group tariffs got %#v, %v", groupTariffPage, err)
+	}
+	if _, err := service.UpdateUserGroupTariff(ctx, adminPrincipal, group.ID, groupTariff.ID, UpdateTariffRequest{PricePerKWh: &updatedPrice}); err != nil {
+		t.Fatalf("update user-group tariff: %v", err)
+	}
+
+	err = gormDB.Create(&models.Tariff{
+		ID:            uuid.New(),
+		CPOID:         created.CPO.ID,
+		AssignedTo:    constants.TariffAssignedCharger,
+		HubID:         &hubID,
+		ChargerID:     &charger.ID,
+		PricePerKWh:   price,
+		IdleFeePerMin: decimal.Zero,
+		Currency:      "INR",
+		IsActive:      false,
+		CreatedAt:     time.Now().UTC(),
+		UpdatedAt:     time.Now().UTC(),
+	}).Error
+	var postgresError *pgconn.PgError
+	if !errors.As(err, &postgresError) || postgresError.ConstraintName != "tariffs_exactly_one_target" {
+		t.Fatalf("multiple-target tariff error is %v, want tariffs_exactly_one_target", err)
+	}
+
+	_, err = service.CreateChargerTariff(ctx, adminPrincipal, charger.ID, CreateTariffRequest{PricePerKWh: price})
+	var apiError *auth.APIError
+	if !errors.As(err, &apiError) || apiError.Code != "tariff_schedule_conflict" {
+		t.Fatalf("overlapping charger tariff error is %v, want tariff_schedule_conflict", err)
 	}
 }

@@ -3,51 +3,41 @@ package customerauth
 import (
 	"testing"
 
-	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/models"
+	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/constants"
 	"github.com/google/uuid"
 )
 
-func TestSelectCustomerTariffPrefersUserGroupThenChargerThenHub(t *testing.T) {
+func TestEffectiveTariffTargetsUseFixedPrecedence(t *testing.T) {
 	t.Parallel()
 
 	hubID := uuid.New()
 	chargerID := uuid.New()
 	groupID := uuid.New()
-
-	userCharger := models.Tariff{ID: uuid.New(), HubID: hubID, ChargerID: &chargerID, UserGroupID: &groupID}
-	userHub := models.Tariff{ID: uuid.New(), HubID: hubID, UserGroupID: &groupID}
-	genericCharger := models.Tariff{ID: uuid.New(), HubID: hubID, ChargerID: &chargerID}
-	genericHub := models.Tariff{ID: uuid.New(), HubID: hubID}
-
-	selected, ok := selectCustomerTariff(
-		[]models.Tariff{genericHub, genericCharger, userHub},
-		&chargerID,
-		&groupID,
-	)
-	if !ok || selected.ID != userHub.ID {
-		t.Fatalf("selected tariff=%s, want UserGroup tariff %s over generic charger", selected.ID, userHub.ID)
+	targets := effectiveTariffTargets(&groupID, &chargerID, &hubID)
+	if len(targets) != 3 {
+		t.Fatalf("target count=%d, want 3", len(targets))
 	}
-
-	selected, ok = selectCustomerTariff(
-		[]models.Tariff{genericHub, userHub, userCharger},
-		&chargerID,
-		&groupID,
-	)
-	if !ok || selected.ID != userCharger.ID {
-		t.Fatalf("selected tariff=%s, want more-specific UserGroup charger tariff %s", selected.ID, userCharger.ID)
+	for index, want := range []struct {
+		assignment constants.TariffAssignmentType
+		id         uuid.UUID
+	}{
+		{constants.TariffAssignedUserGroup, groupID},
+		{constants.TariffAssignedCharger, chargerID},
+		{constants.TariffAssignedHub, hubID},
+	} {
+		if targets[index].assignment != want.assignment || targets[index].id != want.id {
+			t.Fatalf("target[%d]=%+v, want assignment=%q id=%s", index, targets[index], want.assignment, want.id)
+		}
 	}
+}
 
-	selected, ok = selectCustomerTariff(
-		[]models.Tariff{genericHub, genericCharger},
-		&chargerID,
-		nil,
-	)
-	if !ok || selected.ID != genericCharger.ID {
-		t.Fatalf("selected tariff=%s, want generic charger tariff %s", selected.ID, genericCharger.ID)
-	}
+func TestEffectiveTariffTargetsNeverUseChargerWithoutChargerContext(t *testing.T) {
+	t.Parallel()
 
-	selected, ok = selectCustomerTariff([]models.Tariff{genericHub}, &chargerID, nil)
-	if !ok || selected.ID != genericHub.ID {
-		t.Fatalf("selected tariff=%s, want generic hub tariff %s", selected.ID, genericHub.ID)
+	hubID := uuid.New()
+	groupID := uuid.New()
+	targets := effectiveTariffTargets(&groupID, nil, &hubID)
+	if len(targets) != 2 || targets[0].assignment != constants.TariffAssignedUserGroup || targets[1].assignment != constants.TariffAssignedHub {
+		t.Fatalf("hub-only targets=%+v, want usergroup then hub", targets)
 	}
 }

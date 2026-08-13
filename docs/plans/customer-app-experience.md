@@ -228,11 +228,11 @@ customer’s CPO and hub. Use this deterministic precedence:
 2. generic charger tariff;
 3. generic hub tariff.
 
-In the current schema, “User Tariff” means a tariff matching the customer’s
-existing `UserGroupID`; this slice does not add a new per-customer or group
-assignment API. A matching UserGroup tariff always wins over generic charger
-and hub tariffs. If both a matching group/charger and group/hub row exist, the
-charger row is only the more-specific tie-breaker within the UserGroup tier.
+In the current schema, “UserGroup tariff” means the sole target matching the
+customer's existing `UserGroupID`; this slice does not add a new per-customer
+or group assignment API. A matching UserGroup tariff always wins over charger
+and hub tariffs. Every tariff has exactly one target, so no composite group /
+charger or group / hub tie-breaker exists.
 
 The resolver loads the active GST profile referenced by the tariff and returns
 exact decimal strings. A missing eligible tariff returns an explicit

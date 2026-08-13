@@ -119,10 +119,14 @@ Migration files:
   CPO/customer foreign keys preserve tenant ownership, and cursor/retention
   indexes support scoped REST replay and SSE recovery without making realtime
   delivery the source of truth.
-- Migration thirty-four adds nullable `tariffs.assigned_to` using the
-  PostgreSQL `tariff_assignment_type` enum. It has no backfill or `NOT NULL`
-  constraint because the current tariff APIs do not yet assign that
-  classification; the GORM model maps the exact nullable column and enum type.
+- Migration thirty-four added `tariffs.assigned_to` using the PostgreSQL
+  `tariff_assignment_type` enum. Migration thirty-seven normalizes legacy
+  composite scope rows with `usergroup > charger > hub` precedence, makes
+  `assigned_to` non-null, makes all three target IDs nullable, and enforces one
+  target plus a matching assignment. The charger target foreign key is
+  `(cpo_id, charger_id)` to allow independent same-CPO chargers without
+  inventing hub context. Its guarded rollback refuses non-hub targets rather
+  than deleting data or fabricating a hub relationship.
 - Migration thirty-five adds nullable `hubs.gst_id` with a same-CPO foreign key
   to `gsts`. The CPO hub GST assignment APIs own assign, read, replace, and
   unassign behavior; no cross-CPO GST can be attached.
@@ -305,19 +309,20 @@ Migration fifteen is additive and must run before a binary that reads or writes
 `tariffs.start_date` or `tariffs.end_date`. A tariff is either open-ended (both
 columns null) or uses a complete half-open effective interval. The migration
 fails before adding its exclusion constraint if existing active tariffs already
-overlap under the same `(cpo_id, hub_id, charger_id, user_group_id)` scope;
+overlap under the same `(cpo_id, hub_id, charger_id, user_group_id)` tuple;
 operators must reconcile those records deliberately rather than receiving an
 ambiguous partial migration. The `btree_gist`-backed constraint treats null
 effective bounds as infinity and uses `IS NOT DISTINCT FROM` semantics for the
-optional UUID scope columns, so it remains safe under concurrent writes.
+optional UUID target columns, so it remains safe under concurrent writes.
 
 ## Hub Sanctioned Load and Independent Chargers
 
 Before initial deployment, the base CMS migration was reconciled so
 `chargers.hub_id` is nullable. This permits independent charger inventory while
 the composite foreign key still prevents any non-null assignment from crossing
-CPO boundaries. A charger-specific tariff remains impossible until its hub
-matches the tariff hub.
+CPO boundaries. Migration thirty-seven permits a charger-specific tariff for an
+independent same-CPO charger because a tariff now has one charger target rather
+than mandatory hub context.
 
 Migration sixteen adds `hubs.sanction_load numeric(10,2) NOT NULL DEFAULT 0`,
 `chk_hubs_sanction_load`, and drops the legacy `chargers.hub_id NOT NULL`

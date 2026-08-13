@@ -10,9 +10,6 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
-
-	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/models"
-	"gorm.io/gorm"
 )
 
 const customerChargerImageDirectory = "uploads"
@@ -37,14 +34,9 @@ func (service *Service) OpenCustomerChargerImage(
 		return CustomerChargerImage{}, &APIError{http.StatusBadRequest, "invalid_charger_id", "The charger ID is invalid."}
 	}
 
-	var charger models.Charger
-	if err := service.database.WithContext(ctx).Preload("Hub").First(
-		&charger, "cpo_id = ? AND charger_id = ?", principal.CPOID, publicChargerID,
-	).Error; err != nil {
-		return CustomerChargerImage{}, customerNetworkNotFound(err, "charger")
-	}
-	if charger.Hub == nil || charger.Hub.CPOID != principal.CPOID || !charger.Hub.CustomerVisible {
-		return CustomerChargerImage{}, customerNetworkNotFound(gorm.ErrRecordNotFound, "charger")
+	charger, err := service.loadPublishedCustomerCharger(ctx, principal, publicChargerID)
+	if err != nil {
+		return CustomerChargerImage{}, err
 	}
 
 	storedPath := strings.TrimSpace(charger.ChargerImage)

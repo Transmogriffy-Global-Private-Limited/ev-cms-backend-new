@@ -743,9 +743,9 @@ Requires the authenticated customer bearer token and matching
 `X-CPO-App-ID`. The hub must be published in the customer’s CPO. The server
 selects the active tariff effective at the response’s `effective_at` timestamp.
 For this hub-only route, charger-scoped candidates are not applicable, so the
-order is matching UserGroup tariff, then generic hub tariff. In the current schema,
-“User Tariff” means a tariff whose `user_group_id` matches the customer’s
-existing group assignment.
+order is matching UserGroup tariff, then hub tariff. In the current schema,
+“UserGroup tariff” means the sole `user_group_id` target matching the
+customer's existing group assignment.
 
 `200 OK` returns `CustomerPriceResponse`. `AVAILABLE` contains exact decimal
 strings for currency, energy price, idle fee, and referenced active GST rates.
@@ -759,9 +759,8 @@ charging or payment commitment. It does not contact HAL.
 Uses the six-character public charger ID and the same authentication, CPO,
 publication, and response rules as the hub price route. The charger must be
 attached to a published hub. The effective order is matching UserGroup tariff,
-then generic charger tariff, then generic hub tariff. If both group/charger and
-group/hub rows apply, charger scope is only a tie-breaker inside the UserGroup
-tier.
+then charger tariff, then hub tariff. Every tariff has one target, so this
+contains no composite-scope tie-breaker.
 
 ### 4.28 `GET /api/v1/app/chargers`
 
@@ -1987,10 +1986,9 @@ later. Calling it with the charger's current hub is idempotent and creates no
 new audit record. A change writes `CHARGER_HUB_REASSIGNED` with previous and
 new hub metadata.
 
-The relationship update is atomic. If moving a charger would cause the
-database's active-tariff scope cascade to create an overlapping effective
-schedule, the whole operation rolls back with `409 tariff_schedule_conflict`.
-Errors also include `400 invalid_hub_id` or `invalid_charger_id`, and
+The relationship update is atomic. It does not move or rewrite tariffs:
+charger-targeted tariffs remain on their charger and hub-targeted tariffs remain
+on their hub. Errors include `400 invalid_hub_id` or `invalid_charger_id`, and
 tenant-safe `404 hub_not_found` or `charger_not_found`.
 
 ### 9.10 `POST /api/v1/cpo/chargers`
@@ -2272,8 +2270,7 @@ administrative status; that status remains separate from future HAL live
 availability.
 If `hub_id` is supplied it assigns or reassigns the charger to that tenant hub;
 the dedicated hub-assignment route provides the same operation with an
-idempotent same-hub retry. A move can return `409 tariff_schedule_conflict`
-when tariff-scope cascading would overlap an active schedule.
+idempotent same-hub retry. A move does not alter tariff targets.
 
 `200 OK` returns the updated Charger. The transaction writes `CHARGER_UPDATED`.
 Additional errors include `404 charger_not_found`,
@@ -2390,20 +2387,18 @@ scope:
 - user group: `POST`/`GET /api/v1/cpo/user-groups/{user_group_id}/tariffs`
   and `GET`/`PATCH /api/v1/cpo/user-groups/{user_group_id}/tariffs/{tariff_id}`.
 
-The path scope is part of the tenant ownership lookup. A charger tariff also
-requires that the charger is assigned to a hub. The current create schema
-retains required `hub_id`; hub and charger routes derive the persisted scope
-from their path resource, while the user-group route uses `hub_id` and may
-optionally select a charger.
+The path scope is part of the tenant ownership lookup and is the only source of
+the tariff target. Every tariff has **exactly one** durable target:
+`assigned_to=hub` with only `hub_id`, `assigned_to=charger` with only
+`charger_id`, or `assigned_to=usergroup` with only `user_group_id`. A charger
+tariff may target an independent charger; it does not require hub context.
+All target records must belong to the authenticated CPO.
 
 Create requests use this body:
 
 ```json
 {
-  "hub_id": "8b80ef78-7799-4a09-a0d5-73ac944aa6e0",
-  "charger_id": "7cc2d481-3ccb-4336-b03c-c8851a59ff9a",
   "gst_id": "3e38d953-fe0a-4bfa-a11c-356c92bba7e9",
-  "user_group_id": "2f4fd182-ef98-4cce-a3e7-6480cc1f4b19",
   "price_per_kwh": "18.5000",
   "idle_fee_per_min": "1.0000",
   "currency": "INR",
@@ -2418,9 +2413,11 @@ Create requests use this body:
 
 Rules:
 
-- `hub_id` is required and tenant-owned;
-- `charger_id`, `gst_id`, and `user_group_id` are optional tenant-owned UUIDs;
-- a supplied charger must belong to the supplied hub;
+- the nested hub, charger, or user-group URL determines the target; target IDs
+  in a JSON body are rejected as unknown fields;
+- `gst_id` is optional and, when present, tenant-owned;
+- `PATCH` updates commercial fields only and cannot move a tariff between
+  target types or target records;
 - `price_per_kwh` is required and greater than zero;
 - idle fee is optional/default zero and cannot be negative;
 - currency is optional/default `INR`, normalized uppercase, and exactly three
@@ -2434,8 +2431,8 @@ Rules:
 - `start_date` and `end_date` are either both omitted for an open-ended tariff
   or both supplied with `start_date < end_date`. A dated tariff is effective on
   the half-open interval `[start_date, end_date)`;
-- PostgreSQL rejects overlapping active effective periods for the same CPO,
-  hub, optional charger, and optional user-group scope with
+- PostgreSQL rejects overlapping active effective periods for the same CPO and
+  exact one-target scope with
   `409 tariff_schedule_conflict`. Open-ended active tariffs use infinite bounds
   and therefore overlap every dated tariff of the same scope.
 
@@ -2444,8 +2441,8 @@ tariff UUID, relations, exact decimal strings, currency, active state, and
 timestamps. Scope-specific creation writes `HUB_TARIFF_CREATED`,
 `CHARGER_TARIFF_CREATED`, or `USER_GROUP_TARIFF_CREATED`.
 
-Errors include `400 charger_hub_mismatch`, field-specific `400 invalid_*`,
-relation-specific `404` responses, `409 tariff_conflict`, and
+Errors include field-specific `400 invalid_*`, relation-specific `404`
+responses, `409 tariff_conflict`, and
 `409 tariff_schedule_conflict`.
 
 Each scoped `GET` collection returns bounded keyset pages:
@@ -2464,11 +2461,11 @@ A scoped detail `GET` returns `404 tariff_not_found` for an unknown or
 cross-scope tariff; malformed UUIDs return the applicable `400 invalid_*_id`
 error.
 
-A scoped `PATCH` accepts any non-empty subset of the create fields. Omitted
-fields remain unchanged, including the optional tariff metadata fields. Optional
-relations cannot currently be cleared to null
-through this route; they can only be omitted or replaced with another owned
-UUID. Supplying an effective-date bound validates the resulting full schedule;
+A scoped `PATCH` accepts any non-empty subset of the commercial create fields.
+Omitted fields remain unchanged, including the optional tariff metadata fields.
+The optional GST relation cannot currently be cleared to null through this
+route; it can only be omitted or replaced with another owned UUID. Supplying an
+effective-date bound validates the resulting full schedule;
 the schedule remains either open-ended or a complete half-open interval. `200
 OK` returns the updated tariff and writes the matching scope-specific update
 audit event. Errors match creation plus `404 tariff_not_found`.

@@ -331,11 +331,8 @@ func requestConnectorNumber(mapping halops.ChargerMapping, connectorID uuid.UUID
 }
 
 func (service *Service) effectiveChargingTariff(tx *gorm.DB, principal Principal, hubID, chargerID uuid.UUID, at time.Time) (models.Tariff, bool) {
-	var tariffs []models.Tariff
-	if tx.Preload("GST").Where("cpo_id = ? AND hub_id = ? AND is_active = ? AND (start_date IS NULL OR start_date <= ?) AND (end_date IS NULL OR end_date > ?) AND (charger_id IS NULL OR charger_id = ?)", principal.CPOID, hubID, true, at, at, chargerID).Find(&tariffs).Error != nil {
-		return models.Tariff{}, false
-	}
-	return selectCustomerTariff(tariffs, &chargerID, principal.Customer.UserGroupID)
+	tariff, ok, err := resolveEffectiveTariff(tx, principal.CPOID, principal.Customer.UserGroupID, &chargerID, &hubID, at)
+	return tariff, err == nil && ok
 }
 
 func affordableChargingLimit(balance decimal.Decimal, tariff models.Tariff) (decimal.Decimal, int64, error) {

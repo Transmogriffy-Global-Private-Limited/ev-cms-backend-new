@@ -1,8 +1,11 @@
 package cpo
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 	"time"
@@ -10,9 +13,23 @@ import (
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/auth"
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/constants"
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/models"
+	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgconn"
 )
+
+func TestTariffRequestBodiesRejectTargetIDs(t *testing.T) {
+	t.Parallel()
+
+	for _, destination := range []any{&CreateTariffRequest{}, &UpdateTariffRequest{}} {
+		writer := httptest.NewRecorder()
+		ctx, _ := gin.CreateTestContext(writer)
+		ctx.Request = httptest.NewRequest(http.MethodPost, "/", bytes.NewBufferString(`{"hub_id":"a4cb9e30-cb12-4a92-a6d8-1d4adba84a62"}`))
+		if err := decodeJSON(ctx, destination); err == nil {
+			t.Fatalf("%T accepted a route-derived target ID", destination)
+		}
+	}
+}
 
 func TestValidateCreateRequest(t *testing.T) {
 	t.Parallel()

@@ -2,6 +2,35 @@
 
 ## Current State
 
+### 2026-08-13 — Local tariff-targeting correction (not deployed)
+
+- Local source now contains migration
+  `000037_correct_tariff_targeting`. It normalizes each legacy tariff to one
+  target using `usergroup > charger > hub` precedence, makes target columns
+  individually nullable, makes `assigned_to` non-null, and enforces both
+  exactly one target and target/assignment agreement. Charger targets use a
+  same-CPO `(cpo_id, charger_id)` foreign key and can therefore be independent
+  of a hub. The guarded down migration refuses non-hub targets rather than
+  deleting data or inventing a hub relationship.
+- CPO tariff create/list/get/update routes derive the immutable target solely
+  from their nested hub, charger, or user-group URL. JSON target IDs are
+  rejected, PATCH cannot move scope, and each scoped query filters its matching
+  `assigned_to` value.
+- Hub price, charger price, and new charging-start snapshots use the same
+  server-side effective-tariff selector. Charger context resolves
+  `USERGROUP > CHARGER > HUB`; hub-only context has no charger candidate.
+- User App charger visibility remains the conjunction of charger
+  `customer_visibility` and attached hub `customer_visible`. The image route
+  now reuses that same published-charger check; discovery, locations, hub
+  projections, direct detail, price, favorite reads/mutations, and new start
+  admission retain it. Existing owned session history/detail/stop access is
+  intentionally unaffected.
+- This is source-only: no migration was applied, no service was restarted, and
+  no HAL/OCPP, legacy CMS, QR, wallet-settlement, or session-ownership contract
+  changed. `go test ./...`, `go vet ./...`, documentation verification, and
+  route/OpenAPI parity pass; database lifecycle tests are guarded and skipped
+  without `TEST_DATABASE_URL`.
+
 ### 2026-08-13 — Charger customer-visibility release deployed
 
 - Migration `000036_add_customer_visibility_to_chargers` is applied. The

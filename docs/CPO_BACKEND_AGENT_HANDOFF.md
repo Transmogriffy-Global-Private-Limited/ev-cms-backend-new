@@ -222,16 +222,17 @@ Current behavior:
   CPO hub list/detail projections return the stored state;
 - a hub records non-negative `sanction_load` in kW; `0` means the capacity is
   not recorded;
-- `customer_visible` is CPO ADMIN-controlled, defaults to `false`, and is the
-  only publication gate for User App discovery;
+- `customer_visible` is CPO ADMIN-controlled, defaults to `false`, and combines
+  with each charger's independent `customer_visibility` gate for every User
+  App published-network surface;
 - charger creation atomically creates its initial connectors and audit record;
 - a charger may be created independently with no hub and later attached using
   `POST /hubs/{hub_id}/chargers`;
 - hub attachment/reassignment is same-CPO, atomic, audited as
   `CHARGER_HUB_REASSIGNED`, and idempotent when the charger is already at the
   target hub;
-- a reassignment that would create an overlapping active tariff after the
-  relational hub-scope cascade rolls back with `409 tariff_schedule_conflict`;
+- charger reassignment does not move tariff targets: charger tariffs remain on
+  the charger and hub tariffs remain on the hub;
 - hub deletion first rejects a hub with tenant tariffs using
   `409 hub_has_tariffs`, then transactionally unassigns its chargers and
   removes User App hub/favorite links before recording `HUB_DELETED`;
@@ -299,10 +300,10 @@ Implemented:
 - authenticated favorites list and idempotent add/remove routes use the
   existing composite customer-favorite tables; unpublishing hides saved
   resources from the list without leaking them;
-- authenticated hub and charger price reads resolve active effective tariffs
-  with matching UserGroup tariff, generic charger tariff, then generic hub
-  tariff precedence; missing/inactive GST returns `UNAVAILABLE` and no HAL call
-  occurs;
+- authenticated hub and charger price reads and start admission share one active
+  effective-tariff selector: UserGroup > charger > hub for charger context, and
+  UserGroup > hub for hub-only context. The User App never receives a
+  composite-scope tariff; no HAL call occurs;
 - current customer (`me`);
 - customer-scoped session listing/revocation/logout/logout-all;
 - password recovery/reset and authenticated change. Forgot-password stays
