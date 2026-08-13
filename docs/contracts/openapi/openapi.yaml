@@ -797,7 +797,7 @@ paths:
             application/json:
               schema: {$ref: "#/components/schemas/ErrorEnvelope"}
         "500": {$ref: "#/components/responses/InternalError"}
-    /api/v1/cpo/chargers/{charger_id}/customer-visibility:
+  /api/v1/cpo/chargers/{charger_id}/customer-visibility:
     parameters:
       - $ref: "#/components/parameters/ChargerPublicID"
     put:
@@ -8330,6 +8330,15 @@ components:
         customer_visible:
           type: boolean
           description: Publish or unpublish this hub from customer network discovery.
+
+    UpdateChargerCustomerVisibilityRequest:
+      type: object
+      additionalProperties: false
+      required: [customer_visible]
+      properties:
+        customer_visible:
+          type: boolean
+          description: Publish or unpublish this charger from customer network discovery.
 
 
     Connector:

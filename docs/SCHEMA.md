@@ -53,6 +53,8 @@ Migration files:
 - `db/migrations/000034_add_assigned_to_to_tariffs.down.sql`
 - `db/migrations/000035_add_gst_id_to_hubs.up.sql`
 - `db/migrations/000035_add_gst_id_to_hubs.down.sql`
+- `db/migrations/000036_add_customer_visibility_to_chargers.up.sql`
+- `db/migrations/000036_add_customer_visibility_to_chargers.down.sql`
 
 ## Supplied Model Mapping
 
@@ -65,7 +67,7 @@ Migration files:
 | `UserGroup` | tenant-owned `user_groups` |
 | App user | `customers`, a credential-owning account local to one CPO |
 | `Hub` | tenant-owned `hubs`, including non-negative sanctioned load in kW (`0` when not recorded) |
-| `Charger` | tenant-owned `chargers`, with optional same-CPO hub assignment; newly created rows assign the public `charger_id` to the compatibility `ocpp_identity` too |
+| `Charger` | tenant-owned `chargers`, with optional same-CPO hub assignment and a `customer_visibility` publication gate; newly created rows assign the public `charger_id` to the compatibility `ocpp_identity` too |
 | `Connector` | tenant-owned `connectors` |
 | Group-to-hub access | `user_group_hubs` |
 | Group-to-charger access | `user_group_chargers` |

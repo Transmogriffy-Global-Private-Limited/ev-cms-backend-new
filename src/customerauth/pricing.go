@@ -66,7 +66,7 @@ func (service *Service) loadPublishedCustomerCharger(ctx context.Context, princi
 	if err := service.database.WithContext(ctx).Preload("Hub").First(&charger, "cpo_id = ? AND charger_id = ?", principal.CPOID, publicChargerID).Error; err != nil {
 		return models.Charger{}, customerNetworkNotFound(err, "charger")
 	}
-	if charger.Hub == nil || charger.Hub.CPOID != principal.CPOID || !charger.Hub.CustomerVisible {
+	if charger.Hub == nil || charger.Hub.CPOID != principal.CPOID || !charger.CustomerVisibility || !charger.Hub.CustomerVisible {
 		return models.Charger{}, customerNetworkNotFound(gorm.ErrRecordNotFound, "charger")
 	}
 	return charger, nil

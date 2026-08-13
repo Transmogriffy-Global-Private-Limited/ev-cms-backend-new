@@ -80,7 +80,7 @@ func (service *Service) AddFavoriteCharger(ctx context.Context, principal Princi
 		if err := tx.Preload("Hub").First(&charger, "cpo_id = ? AND charger_id = ?", principal.CPOID, publicChargerID).Error; err != nil {
 			return customerNetworkNotFound(err, "charger")
 		}
-		if charger.Hub == nil || charger.Hub.CPOID != principal.CPOID || !charger.Hub.CustomerVisible {
+		if charger.Hub == nil || charger.Hub.CPOID != principal.CPOID || !charger.CustomerVisibility || !charger.Hub.CustomerVisible {
 			return customerNetworkNotFound(gorm.ErrRecordNotFound, "charger")
 		}
 		favorite := models.CustomerFavoriteCharger{CPOID: principal.CPOID, CustomerID: principal.CustomerID, ChargerID: charger.ID, CreatedAt: service.now()}
@@ -142,7 +142,7 @@ func (service *Service) ListCustomerFavorites(ctx context.Context, principal Pri
 			ids = append(ids, favorite.HubID)
 		}
 		var hubs []models.Hub
-		if err := service.database.WithContext(ctx).Preload("Chargers", "cpo_id = ?", principal.CPOID).Where("cpo_id = ? AND customer_visible = ? AND id IN ?", principal.CPOID, true, ids).Find(&hubs).Error; err != nil {
+		if err := service.database.WithContext(ctx).Preload("Chargers", "cpo_id = ? AND customer_visibility = ?", principal.CPOID, true).Where("cpo_id = ? AND customer_visible = ? AND id IN ?", principal.CPOID, true, ids).Find(&hubs).Error; err != nil {
 			return CustomerFavoritesResponse{}, fmt.Errorf("load favorite customer hubs: %w", err)
 		}
 		byID := make(map[uuid.UUID]models.Hub, len(hubs))
@@ -181,12 +181,12 @@ func (service *Service) ListCustomerFavorites(ctx context.Context, principal Pri
 		var chargers []models.Charger
 		if err := service.database.WithContext(ctx).Preload("Hub").Preload("Connectors", func(tx *gorm.DB) *gorm.DB {
 			return tx.Where("cpo_id = ?", principal.CPOID).Order("connector_number ASC")
-		}).Where("cpo_id = ? AND id IN ?", principal.CPOID, ids).Find(&chargers).Error; err != nil {
+		}).Where("cpo_id = ? AND customer_visibility = ? AND id IN ?", principal.CPOID, true, ids).Find(&chargers).Error; err != nil {
 			return CustomerFavoritesResponse{}, fmt.Errorf("load favorite customer chargers: %w", err)
 		}
 		byID := make(map[uuid.UUID]models.Charger, len(chargers))
 		for _, charger := range chargers {
-			if charger.Hub != nil && charger.Hub.CPOID == principal.CPOID && charger.Hub.CustomerVisible {
+			if charger.Hub != nil && charger.Hub.CPOID == principal.CPOID && charger.CustomerVisibility && charger.Hub.CustomerVisible {
 				byID[charger.ID] = charger
 			}
 		}

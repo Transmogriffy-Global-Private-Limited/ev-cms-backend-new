@@ -183,7 +183,7 @@ func (service *Service) listCustomerChargerPage(ctx context.Context, principal P
 	}
 	databaseQuery := service.database.WithContext(ctx).Model(&models.Charger{}).
 		Joins("JOIN hubs ON hubs.id = chargers.hub_id AND hubs.cpo_id = chargers.cpo_id").
-		Where("chargers.cpo_id = ? AND hubs.customer_visible = ?", principal.CPOID, true)
+		Where("chargers.cpo_id = ? AND chargers.customer_visibility = ? AND hubs.customer_visible = ?", principal.CPOID, true, true)
 	if query.Search != "" {
 		pattern := "%" + query.Search + "%"
 		databaseQuery = databaseQuery.Where(
@@ -273,7 +273,7 @@ func (service *Service) ListCustomerHubs(ctx context.Context, principal Principa
 	}
 	var records []models.Hub
 	if err := databaseQuery.
-		Preload("Chargers", "cpo_id = ?", principal.CPOID).
+		Preload("Chargers", "cpo_id = ? AND customer_visibility = ?", principal.CPOID, true).
 		Order("created_at DESC, id DESC").
 		Limit(query.Limit + 1).
 		Find(&records).Error; err != nil {
@@ -303,7 +303,7 @@ func (service *Service) ListCustomerHubs(ctx context.Context, principal Principa
 func (service *Service) GetCustomerHub(ctx context.Context, principal Principal, hubID uuid.UUID) (CustomerHubView, error) {
 	var record models.Hub
 	if err := service.database.WithContext(ctx).
-		Preload("Chargers", "cpo_id = ?", principal.CPOID).
+		Preload("Chargers", "cpo_id = ? AND customer_visibility = ?", principal.CPOID, true).
 		Preload("Chargers.Connectors", func(tx *gorm.DB) *gorm.DB {
 			return tx.Where("cpo_id = ?", principal.CPOID).Order("connector_number ASC")
 		}).
@@ -339,10 +339,10 @@ func (service *Service) GetCustomerCharger(ctx context.Context, principal Princi
 		Preload("Connectors", func(tx *gorm.DB) *gorm.DB {
 			return tx.Where("cpo_id = ?", principal.CPOID).Order("connector_number ASC")
 		}).
-		First(&charger, "cpo_id = ? AND charger_id = ?", principal.CPOID, publicChargerID).Error; err != nil {
+		First(&charger, "cpo_id = ? AND charger_id = ? AND customer_visibility = ?", principal.CPOID, publicChargerID, true).Error; err != nil {
 		return CustomerChargerView{}, customerNetworkNotFound(err, "charger")
 	}
-	if charger.Hub == nil || charger.Hub.CPOID != principal.CPOID || !charger.Hub.CustomerVisible {
+	if charger.Hub == nil || charger.Hub.CPOID != principal.CPOID || !charger.CustomerVisibility || !charger.Hub.CustomerVisible {
 		return CustomerChargerView{}, customerNetworkNotFound(gorm.ErrRecordNotFound, "charger")
 	}
 	favoriteChargers, err := service.customerFavoriteChargerIDs(ctx, principal, []models.Charger{charger})

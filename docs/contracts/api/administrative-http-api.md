@@ -2134,6 +2134,26 @@ stored compatibility value and are not rewritten by this rule.
 they are connection addresses, not CMS API URLs. The deployment must provide the corresponding
 WebSocket/TLS listener before a charger uses either address.
 
+### 9.10A `PUT /api/v1/cpo/chargers/{charger_id}/customer-visibility`
+
+Updates only the CPO ADMIN-controlled charger publication gate:
+
+```json
+{"customer_visible":true}
+```
+
+`200 OK` returns the updated charger and writes
+`CHARGER_CUSTOMER_VISIBILITY_UPDATED`. A charger is included in User App
+discovery, direct lookup, charger pricing, and favorite reads only when this
+gate and its attached hub's `customer_visible` gate are both true. Existing
+customer sessions and active charging are unaffected by unpublishing. The
+route requires the same current CPO bearer session and `X-CPO-App-ID` as every
+CPO business route.
+
+The request body is required and contains the boolean `customer_visible`.
+Unknown or cross-tenant chargers return `404 charger_not_found`; malformed
+IDs or bodies return the shared `400` validation errors.
+
 ### 9.11 `GET /api/v1/cpo/chargers`
 
 Returns tenant chargers and connectors in descending `(created_at, id)` order.
