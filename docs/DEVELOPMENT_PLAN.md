@@ -941,12 +941,16 @@ Current implementation slice:
   and create-path mapping delivery, align newly generated charger identities,
   and make migration 34/model tariff assignment metadata coherent. The later
   serial-number HAL admission contract remains out of scope.
-- Tariff-domain correction is deployed in runtime revision `a9fc32b` after
+- Tariff-domain correction is deployed in runtime revision `ebb57fb` after
   migration thirty-seven normalized legacy composite tariff rows to one target.
   CPO nested tariff CRUD fixes target scope, and User App hub price, charger
   price, and start-admission snapshots use one `USERGROUP > CHARGER > HUB`
   selector. The correction does not alter HAL/OCPP, wallet settlement, or
   session ownership.
+- The commercial-tax follow-up is deployed through migration thirty-eight:
+  tariff GST ownership is removed, hub GST is authoritative, and active or
+  customer-visible chargers require a hub. The live contract remains at 178
+  operations.
 
 Last completed slice:
 
@@ -1049,9 +1053,9 @@ Last completed slice:
 
 Last deployment milestone:
 
-- Runtime source revision `a9fc32b` was built and rehosted after migration
-  thirty-seven. The installed binary has SHA-256
-  `0b8c57d7991511e55d9d9200f57961b692ff5acd330968cd9345bbeb517884a1`, the
+- Runtime source revision `ebb57fb` was built and rehosted after migration
+  thirty-eight. The installed binary has SHA-256
+  `0ea00edc15477c5d7c90c66304bbf001799a952a00fdd01f3e0723e7f6e4aa3b`, the
   live contract has 178 operations, and the service is healthy with zero
   restarts. Migration/constraint checks, Caddy validation, loopback/public
   health and readiness, Swagger, raw OpenAPI, protected tariff/customer-price

@@ -115,8 +115,8 @@ verification before execution.
 
 ## Current state
 
-The current shared development deployment is runtime source revision `a9fc32b`
-with migrations through thirty-seven and 178 OpenAPI operations. The HAL runtime
+The current shared development deployment is runtime source revision `ebb57fb`
+with migrations through thirty-eight and 178 OpenAPI operations. The HAL runtime
 GORM table mapping correction and User App charging-history release are active
 without a database migration.
 

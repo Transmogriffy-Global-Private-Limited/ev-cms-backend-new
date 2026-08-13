@@ -2,7 +2,7 @@
 
 ## Current State
 
-### 2026-08-13 — Commercial tax and hub-prerequisite correction (local, unhosted)
+### 2026-08-13 — Commercial tax and hub-prerequisite correction deployed
 
 - Migration `000038_separate_tariff_gst_and_require_charger_hub` refuses to
   discard any non-null legacy `tariffs.gst_id`, then removes tariff GST
@@ -16,7 +16,11 @@
   positive wallet balance; a free tariff creates a zero hold and derives a
   positive HAL energy limit from connector capacity and the existing maximum
   duration.
-- This source state is not committed, deployed, or migration-applied.
+- Migration 38 is applied on the development VPS and revision `ebb57fb` is
+  active. Tariff GST ownership is removed, hubless chargers are hidden and
+  inactive, and database checks prevent active or customer-visible hubless
+  rows. The 178-operation contract and public/local health/docs routes are
+  healthy.
 
 ### 2026-08-13 — Tariff-targeting correction deployed
 
@@ -356,8 +360,8 @@ provides:
   handler;
 - the additive PostgreSQL database `devevcmsnewdb`, owned by `postgres`.
 
-The active development VPS runs source revision `a9fc32b`, with migrations
-through thirty-seven recorded and the deployed 178-operation contract. Migration
+The active development VPS runs source revision `ebb57fb`, with migrations
+through thirty-eight recorded and the deployed 178-operation contract. Migration
 twenty-nine adds nullable `tariff_type`, `price_type`, and `units` metadata to
 tenant tariffs; omitted values remain null-safe for existing and newly created
 tariffs. The SuperAdmin administrator-list query explicitly binds the platform

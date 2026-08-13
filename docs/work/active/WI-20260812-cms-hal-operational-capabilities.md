@@ -66,8 +66,8 @@ Establish reusable CMS capabilities over HAL-derived operational truth and expos
   source-aligned. The later serial-number HAL admission contract remains out
   of scope.
 - Durable operational events are produced with accepted newer fact projections and consumed through scoped REST cursor replay/SSE. Streams revalidate bearer sessions at heartbeat.
-- Runtime revision `a9fc32b` is active under `evcmsnew-dev.service`; migrations
-  thirty-three through thirty-seven,
+- Runtime revision `ebb57fb` is active under `evcmsnew-dev.service`; migrations
+  thirty-three through thirty-eight,
   loopback/public health and readiness, Swagger, raw OpenAPI, the live
   178-operation contract, singular HAL runtime table mappings, and GST-hub
   route boundaries have been verified. No migration was needed for the model

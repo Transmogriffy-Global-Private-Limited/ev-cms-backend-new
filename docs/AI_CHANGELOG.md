@@ -2,6 +2,28 @@
 
 ## 2026-08-13
 
+### Rehosted commercial-tax and charger-hub prerequisite release
+
+- Applied migration `000038_separate_tariff_gst_and_require_charger_hub` after
+  a validated mode-0600 PostgreSQL rollback dump. The migration removed legacy
+  tariff GST ownership only after confirming zero non-null associations,
+  normalized hubless chargers to hidden/inactive, and installed durable
+  hub-prerequisite checks.
+- Built and rehosted clean runtime revision `ebb57fb`, retaining the prior
+  binary at `builds/evcmsnew.pre-ebb57fb`.
+
+Verification:
+
+- Caddy validation, route/OpenAPI parity, focused CPO/customer/model tests,
+  serial `go test ./...`, serial `go vet ./...`, and `git diff --check` passed.
+- Migration ledger/constraint checks, active service state with zero restarts,
+  loopback/public liveness and readiness, Swagger, raw OpenAPI, the live
+  178-operation contract, and post-rehost warning checks passed. No DNS, Caddy
+  route, or HAL provider configuration changed.
+- `scripts/verify-docs.ps1` was not run because `pwsh` is unavailable on this
+  Ubuntu host. Disposable PostgreSQL lifecycle and full CMS-to-HAL topology
+  acceptance remain pending their dedicated test environment.
+
 ### Commercial tax and charger hub-prerequisite correction (local, unhosted)
 
 - Separated tariff commercial fields from GST ownership. Migration 38 aborts
@@ -14,8 +36,7 @@
 - Added durable and service-layer safeguards that keep hubless chargers hidden
   and inactive. The frozen HAL/OCPP contracts were not changed.
 - Focused CPO, customer-auth, model, route/OpenAPI, and documentation checks
-  passed locally; no disposable `TEST_DATABASE_URL` was selected and no
-  migration, commit, push, or deployment occurred.
+  passed locally before the guarded migration and rehost recorded above.
 
 ### Hosted tariff-targeting correction and User App publication sweep
 

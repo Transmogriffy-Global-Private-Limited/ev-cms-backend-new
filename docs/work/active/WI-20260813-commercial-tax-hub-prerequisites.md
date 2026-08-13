@@ -23,7 +23,7 @@ charger's hub, and prevent hubless chargers from being active or customer-visibl
 
 ## Non-goals
 
-- HAL contracts, OCPP behavior, wallet threshold configuration, or deployment.
+- HAL contracts, OCPP behavior, or wallet threshold configuration.
 
 ## Claimed surfaces
 
@@ -44,16 +44,20 @@ charger's hub, and prevent hubless chargers from being active or customer-visibl
 
 ## Current state
 
-- Core model, resolver, start snapshot, and charger guard work is implemented;
-  contract and verification reconciliation remains.
+- Core model, resolver, start snapshot, charger guard, migration, and deployment
+  work is implemented. Revision `ebb57fb` is active with migration 38 applied;
+  the service has 178 operations and healthy public/local readiness.
 
 ## Verification
 
-- Focused package tests pending final reconciliation.
+- Caddy, route/OpenAPI parity, focused packages, serial full tests, vet,
+  migration constraints, live health/docs, and post-rehost warnings passed.
+  `pwsh` and disposable `TEST_DATABASE_URL` verification remain unavailable.
 
 ## Handoff
 
-- Do not publish this work. Preserve the frozen CMS-to-HAL boundary.
+- Preserve the frozen CMS-to-HAL boundary; full disposable lifecycle and
+  topology acceptance remain pending.
 
 ## Completion
 

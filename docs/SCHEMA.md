@@ -55,6 +55,10 @@ Migration files:
 - `db/migrations/000035_add_gst_id_to_hubs.down.sql`
 - `db/migrations/000036_add_customer_visibility_to_chargers.up.sql`
 - `db/migrations/000036_add_customer_visibility_to_chargers.down.sql`
+- `db/migrations/000037_correct_tariff_targeting.up.sql`
+- `db/migrations/000037_correct_tariff_targeting.down.sql`
+- `db/migrations/000038_separate_tariff_gst_and_require_charger_hub.up.sql`
+- `db/migrations/000038_separate_tariff_gst_and_require_charger_hub.down.sql`
 
 ## Supplied Model Mapping
 
