@@ -2,9 +2,9 @@
 
 ## Current State
 
-### 2026-08-13 — User App charging history source slice (not deployed)
+### 2026-08-13 — User App charging history release deployed
 
-- The current working tree adds `GET /api/v1/app/charging-sessions`, a bounded
+- The deployed release adds `GET /api/v1/app/charging-sessions`, a bounded
   descending `(start_time, id)` history of only materialized sessions owned by
   the authenticated CPO-local customer. Each row has safe charger/hub/connector
   card data and only exposes final energy/amount after completion.
@@ -17,8 +17,13 @@
   The canonical User App handoff documents one authenticated SSE stream,
   REST recovery, cursor replay, and why SSE remains pending in DevTools.
 - No migration was required: the existing customer/session/start-time index
-  supports the bounded history query. The source contract has 177 operations;
-  the deployed `0d50c09` service remains unchanged at 176 operations.
+  supports the bounded history query. Clean source revision `87b8727` is active
+  with 177 OpenAPI operations. The installed binary SHA-256 is
+  `007d40cbd9eeda79392f7b1d546cc4d6e2bf336913212c6ce9f17dde4f9a6434`.
+- The enabled service is active with zero restarts; loopback/public health and
+  readiness, Swagger, raw OpenAPI, the unauthenticated history-route boundary,
+  Caddy validation, migration/table checks, and the post-rehost journal scan
+  passed.
 - Physical charger and CMS-to-HAL-to-charger acceptance were not run and
   remain deferred by design.
 
@@ -238,8 +243,8 @@ provides:
   handler;
 - the additive PostgreSQL database `devevcmsnewdb`, owned by `postgres`.
 
-The active development VPS runs source revision `0d50c09`, with migrations
-through thirty-five recorded and the deployed 176-operation contract. Migration
+The active development VPS runs source revision `87b8727`, with migrations
+through thirty-five recorded and the deployed 177-operation contract. Migration
 twenty-nine adds nullable `tariff_type`, `price_type`, and `units` metadata to
 tenant tariffs; omitted values remain null-safe for existing and newly created
 tariffs. The SuperAdmin administrator-list query explicitly binds the platform
@@ -458,6 +463,17 @@ intentionally unsupported.
   local/public health and readiness, Caddy validation, Swagger, raw OpenAPI,
   the 176-operation contract, and the post-rehost journal scan passed. No DNS,
   Caddy, HAL provider, or database migration changed.
+- Revision `87b8727` was built from the clean `main` worktree and rehosted
+  without a migration for the User App charging-history release. The installed
+  binary SHA-256 is
+  `007d40cbd9eeda79392f7b1d546cc4d6e2bf336913212c6ce9f17dde4f9a6434`, embeds
+  `87b87271fb6d517a9f9d80e7a18b69da13db4b7e` with `vcs.modified=false`, and
+  retains `builds/evcmsnew.pre-87b8727` as the prior-binary rollback artifact.
+  The enabled service is active with zero restarts; migration 35/table checks,
+  local/public health and readiness, Caddy validation, Swagger, raw OpenAPI,
+  the 177-operation contract, the unauthenticated history-route boundary, and
+  the post-rehost journal scan passed. No DNS, Caddy, HAL provider, or database
+  migration changed.
 - Revision `a76d6ae` was built from a clean worktree and rehosted after
   migration thirty-one was applied. The installed binary SHA-256 is
   `0a3d397464dae13ef15b090225b4ca38fb1b4dfff946bf0de7d77cb9a5d3ebc0` and

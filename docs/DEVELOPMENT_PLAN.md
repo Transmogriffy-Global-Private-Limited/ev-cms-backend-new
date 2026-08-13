@@ -109,17 +109,17 @@ Current implementation state:
 
 - CMS source and the development deployment contain the first client, durable records, shared fact receiver,
   customer polling/start/stop routes, reusable operational projections,
-  scoped operational-event replay/SSE, and a 176-operation OpenAPI surface.
+  scoped operational-event replay/SSE, and a 177-operation OpenAPI surface.
   The HAL runtime GORM models explicitly map to the singular migration tables
   `hal_charger_runtime` and `hal_connector_runtime`.
   The HAL v1 provider is
   not configured on this host, and the complete Postgres-to-HAL-to-virtual-
   charger vertical is not verified yet.
-- The current uncommitted CMS source additionally contains the User App
+- The current deployed CMS release additionally contains the User App
   charging-history/detail completion slice: customer/CPO-scoped materialized
   session history, frozen commercial detail, linked settlement projection, and
-  session-correlated operational invalidations. It adds the 177th source-tree
-  OpenAPI operation but is not deployed.
+  session-correlated operational invalidations. It is deployed in clean source
+  revision `87b8727` without a database migration.
 
 Next required slice:
 
@@ -1009,6 +1009,14 @@ Last completed slice:
 
 Last deployment milestone:
 
+- Clean source revision `87b8727` was built and rehosted without a migration
+  for the User App charging-history release. The installed binary has SHA-256
+  `007d40cbd9eeda79392f7b1d546cc4d6e2bf336913212c6ce9f17dde4f9a6434`, the live
+  contract has 177 operations, and the service is healthy with zero restarts.
+  Migration/table checks, Caddy validation, loopback/public health and
+  readiness, Swagger, raw OpenAPI, the unauthenticated history-route boundary,
+  and the post-rehost journal scan passed. Disposable PostgreSQL lifecycle and
+  full HAL/virtual-charger acceptance remain pending.
 - Clean source revision `0d50c09` was built and rehosted without a migration
   after the HAL runtime GORM table-name correction. The installed binary has
   SHA-256 `e3790854e68f7a3996d50a552e2f15ef6a95f644184e10389a95d513d64b24bf`,
