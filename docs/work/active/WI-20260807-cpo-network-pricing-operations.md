@@ -31,7 +31,7 @@ backend work.
 ### Coordination note (2026-08-13)
 
 The user-authorized tariff-targeting correction is being implemented under
-`WI-20260813-tariff-targeting-visibility-sweep.md`. It overlaps the CPO tariff
+`../archive/WI-20260813-tariff-targeting-visibility-sweep.md`. It overlaps the CPO tariff
 schema, scoped routes, and contracts while preserving Abhranil Pal's ownership
 of the broader CPO network/pricing capability.
 
@@ -72,10 +72,11 @@ charging vertical.
 
 ## Current state
 
-The current shared development deployment is runtime source revision `a9528c4`
-with migrations thirty-three through thirty-six applied and 178 OpenAPI
-operations. Charger customer visibility is enforced across CPO publication
-and User App discovery, detail, pricing, and favorites. The HAL runtime model
+The current shared development deployment is runtime source revision `a9fc32b`
+with migrations thirty-three through thirty-seven applied and 178 OpenAPI
+operations. The single-target tariff correction and charger customer visibility
+are enforced across CPO publication and User App discovery, detail, pricing,
+and favorites. The HAL runtime model
 mapping now explicitly targets the singular
 `hal_charger_runtime` and `hal_connector_runtime` tables; no migration was
 needed for this correction. State-aware GST-to-hub assignment validation is
@@ -97,7 +98,8 @@ The hub `state` field is persisted and included in the live CPO hub contracts.
 
 - `go test -p 1 ./src/cpo ./src/customerauth -count=1` and
   `./scripts/verify-docs.ps1` passed for the merged hub-state source and
-  contract repair. No deployment verification is implied.
+  contract repair. The current tariff-release deployment verification is
+  recorded in the archived tariff work item and project state.
 - The current OpenAPI request example, route-contract check, `go test ./...`,
   `go vet ./...`, and `git diff --check` passed after the capacity-name
   reconciliation.
@@ -135,7 +137,8 @@ The hub `state` field is persisted and included in the live CPO hub contracts.
 ## Handoff
 
 The CPO implementation remains owned by Abhranil Pal. The current deployment
-contains migrations through thirty-six and the charger customer-visibility gate
+contains migrations through thirty-seven, the single-target tariff correction,
+and the charger customer-visibility gate
 plus the HAL runtime table mapping
 correction. Connector create/update request payloads and
 response objects use `connector_total_capacity`. Update the canonical OpenAPI,

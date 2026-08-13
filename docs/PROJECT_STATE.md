@@ -2,9 +2,9 @@
 
 ## Current State
 
-### 2026-08-13 — Local tariff-targeting correction (not deployed)
+### 2026-08-13 — Tariff-targeting correction deployed
 
-- Local source now contains migration
+- Deployed source contains migration
   `000037_correct_tariff_targeting`. It normalizes each legacy tariff to one
   target using `usergroup > charger > hub` precedence, makes target columns
   individually nullable, makes `assigned_to` non-null, and enforces both
@@ -25,11 +25,22 @@
   projections, direct detail, price, favorite reads/mutations, and new start
   admission retain it. Existing owned session history/detail/stop access is
   intentionally unaffected.
-- This is source-only: no migration was applied, no service was restarted, and
-  no HAL/OCPP, legacy CMS, QR, wallet-settlement, or session-ownership contract
-  changed. `go test ./...`, `go vet ./...`, documentation verification, and
-  route/OpenAPI parity pass; database lifecycle tests are guarded and skipped
-  without `TEST_DATABASE_URL`.
+- Migration 37 was applied after a mode-0600 custom-format backup. The live
+  database had zero tariff rows before migration, so no rows required
+  normalization. No HAL/OCPP, legacy CMS, QR, wallet-settlement, or
+  session-ownership contract changed.
+- Clean runtime revision `a9fc32b` is active with 178 OpenAPI operations. The
+  installed binary SHA-256 is
+  `0b8c57d7991511e55d9d9200f57961b692ff5acd330968cd9345bbeb517884a1` and
+  embeds `a9fc32b5517676fa3178689d02b87f529ddd0c79` with
+  `vcs.modified=false`.
+- The enabled service is active with zero restarts on `127.0.0.1:18080`.
+  Migration/constraint checks, Caddy validation, loopback and public HTTPS
+  health/readiness, Swagger, raw OpenAPI, 178-operation parity, protected
+  tariff/customer-price boundaries, and the post-rehost journal scan passed.
+- The pre-migration database dump is retained at
+  `/tmp/devevcmsnewdb-pre-a9fc32b.dump` with mode `0600` and SHA-256
+  `1ecec3a7e73b3417fa303239d0938af3f9991a40c1b016317724aea909515e1a`.
 
 ### 2026-08-13 — Charger customer-visibility release deployed
 
@@ -329,8 +340,8 @@ provides:
   handler;
 - the additive PostgreSQL database `devevcmsnewdb`, owned by `postgres`.
 
-The active development VPS runs source revision `a9528c4`, with migrations
-through thirty-six recorded and the deployed 178-operation contract. Migration
+The active development VPS runs source revision `a9fc32b`, with migrations
+through thirty-seven recorded and the deployed 178-operation contract. Migration
 twenty-nine adds nullable `tariff_type`, `price_type`, and `units` metadata to
 tenant tariffs; omitted values remain null-safe for existing and newly created
 tariffs. The SuperAdmin administrator-list query explicitly binds the platform

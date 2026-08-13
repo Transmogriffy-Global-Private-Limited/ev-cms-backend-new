@@ -130,6 +130,12 @@ Current implementation state:
   CPO charger customer-visibility gate. Customer discovery, direct lookup,
   pricing, and favorite paths require both the charger and published-hub
   gates; the live contract contains 178 operations.
+- The current deployed release includes migration thirty-seven and the
+  single-target tariff model. CPO tariff scope is derived from nested routes;
+  User App hub/charger pricing and charging-start snapshots use explicit
+  `USERGROUP > CHARGER > HUB` precedence. The active runtime is revision
+  `a9fc32b`, and all tariff target constraints are present in the development
+  database.
 - The deployed CMS source hardens User App start admission without a
   migration, route, or HAL contract change: a new intent requires committed
   `AVAILABLE` and `FRESH` connector projection state, while same-customer
@@ -930,12 +936,12 @@ Current implementation slice:
   and create-path mapping delivery, align newly generated charger identities,
   and make migration 34/model tariff assignment metadata coherent. The later
   serial-number HAL admission contract remains out of scope.
-- Local tariff-domain correction completed and awaiting only user-directed
-  publication: migration thirty-seven normalizes legacy composite tariff rows
-  to one target, CPO nested tariff CRUD fixes target scope, and User App hub
-  price, charger price, and start-admission snapshots use one
-  `USERGROUP > CHARGER > HUB` selector. The correction does not alter HAL/OCPP,
-  wallet settlement, or session ownership.
+- Tariff-domain correction is deployed in runtime revision `a9fc32b` after
+  migration thirty-seven normalized legacy composite tariff rows to one target.
+  CPO nested tariff CRUD fixes target scope, and User App hub price, charger
+  price, and start-admission snapshots use one `USERGROUP > CHARGER > HUB`
+  selector. The correction does not alter HAL/OCPP, wallet settlement, or
+  session ownership.
 
 Last completed slice:
 
@@ -985,9 +991,9 @@ Last completed slice:
   rows with `usergroup > charger > hub` precedence, adds matching
   `assigned_to`/target constraints, and makes the target foreign keys CPO-safe.
   The CPO nested routes now supply that fixed target; the User App selector and
-  charging snapshot reuse the same fixed precedence. This local source slice
-  has passed Go tests/vet; disposable PostgreSQL lifecycle verification remains
-  guarded by `TEST_DATABASE_URL`.
+  charging snapshot reuse the same fixed precedence. This deployed slice has
+  passed Go tests/vet and live migration/constraint verification; disposable
+  PostgreSQL lifecycle verification remains guarded by `TEST_DATABASE_URL`.
 - Implemented customer favorites over the published discovery projection,
   including bounded independent cursors, idempotent mutations, audit actions,
   unpublish-safe reads, route/OpenAPI parity, and User App documentation.
@@ -1038,6 +1044,14 @@ Last completed slice:
 
 Last deployment milestone:
 
+- Runtime source revision `a9fc32b` was built and rehosted after migration
+  thirty-seven. The installed binary has SHA-256
+  `0b8c57d7991511e55d9d9200f57961b692ff5acd330968cd9345bbeb517884a1`, the
+  live contract has 178 operations, and the service is healthy with zero
+  restarts. Migration/constraint checks, Caddy validation, loopback/public
+  health and readiness, Swagger, raw OpenAPI, protected tariff/customer-price
+  boundaries, and the post-rehost journal scan passed. Disposable PostgreSQL
+  lifecycle and full HAL/virtual-charger acceptance remain pending.
 - Runtime source revision `a9528c4` was built and rehosted after migration
   thirty-six added the charger customer-visibility publication gate. The
   installed binary has SHA-256

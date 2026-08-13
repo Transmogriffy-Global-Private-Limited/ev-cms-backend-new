@@ -2,7 +2,7 @@
 
 ## 2026-08-13
 
-### Corrected tariff targets and User App publication sweep (local source)
+### Hosted tariff-targeting correction and User App publication sweep
 
 - Added migration `000037_correct_tariff_targeting`: legacy composite rows are
   normalized with `usergroup > charger > hub` precedence; every tariff now has
@@ -18,8 +18,8 @@
 - Completed the charger publication sweep by sharing the existing visible
   charger + visible hub predicate with favorite creation and charger-image
   access. Existing customer-owned sessions remain accessible after unpublish.
-- No HAL/OCPP, legacy CMS, QR, wallet settlement, session ownership, deploy,
-  migration execution, commit, or push occurred.
+- No HAL/OCPP, legacy CMS, QR, wallet settlement, or session ownership contract
+  changed.
 
 Verification:
 
@@ -27,9 +27,17 @@ Verification:
   and route/OpenAPI parity tests passed. The migration static test covers
   normalization, constraints, same-CPO charger ownership, and guarded rollback.
 - CPO lifecycle regressions and User App precedence regressions are guarded by
-  `TEST_DATABASE_URL`; they are skipped locally because no disposable database
-  is selected. Documentation verification, including the corrected
-  178-operation assertion, and final diff checks passed.
+  `TEST_DATABASE_URL`; they are skipped because no disposable database is
+  selected. `pwsh` documentation verification is unavailable on this host.
+- The mode-0600 pre-migration dump is
+  `/tmp/devevcmsnewdb-pre-a9fc32b.dump` with SHA-256
+  `1ecec3a7e73b3417fa303239d0938af3f9991a40c1b016317724aea909515e1a`.
+  Migration 37 applied with zero tariff rows to normalize. Runtime revision
+  `a9fc32b` was rehosted with binary SHA-256
+  `0b8c57d7991511e55d9d9200f57961b692ff5acd330968cd9345bbeb517884a1` and
+  `vcs.modified=false`; service, Caddy, database constraints, loopback/public
+  health and readiness, Swagger, raw OpenAPI, 178-operation parity, protected
+  route boundaries, and post-rehost journal checks passed.
 
 ### Hosted charger customer-visibility release
 
