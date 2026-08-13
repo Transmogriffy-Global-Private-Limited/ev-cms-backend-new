@@ -439,6 +439,10 @@ type HALChargerRuntime struct {
 	UpdatedAt            time.Time `gorm:"not null" json:"updated_at"`
 }
 
+func (HALChargerRuntime) TableName() string {
+	return "hal_charger_runtime"
+}
+
 type HALConnectorRuntime struct {
 	CMSConnectorID          uuid.UUID `gorm:"type:uuid;primaryKey" json:"cms_connector_id"`
 	CMSChargerID            uuid.UUID `gorm:"type:uuid;not null;index" json:"cms_charger_id"`
@@ -447,6 +451,10 @@ type HALConnectorRuntime struct {
 	ConnectorStatusSequence int64     `gorm:"type:bigint;not null" json:"connector_status_sequence"`
 	ObservedAt              time.Time `gorm:"type:timestamptz;not null" json:"observed_at"`
 	UpdatedAt               time.Time `gorm:"not null" json:"updated_at"`
+}
+
+func (HALConnectorRuntime) TableName() string {
+	return "hal_connector_runtime"
 }
 
 type WalletTransaction struct {

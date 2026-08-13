@@ -78,12 +78,36 @@ func TestGORMModelsParse(t *testing.T) {
 		&SubscriptionPlanVersion{},
 		&CPOSubscription{},
 		&CPOSubscriptionHistory{},
+		&HALChargerRuntime{},
+		&HALConnectorRuntime{},
 	}
 
 	cache := &sync.Map{}
 	for _, model := range models {
 		if _, err := schema.Parse(model, cache, schema.NamingStrategy{}); err != nil {
 			t.Errorf("parse GORM model %T: %v", model, err)
+		}
+	}
+}
+
+func TestHALRuntimeTableNamesMatchMigration(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		model any
+		want  string
+	}{
+		{model: &HALChargerRuntime{}, want: "hal_charger_runtime"},
+		{model: &HALConnectorRuntime{}, want: "hal_connector_runtime"},
+	}
+
+	for _, test := range tests {
+		parsed, err := schema.Parse(test.model, &sync.Map{}, schema.NamingStrategy{})
+		if err != nil {
+			t.Fatalf("parse GORM model %T: %v", test.model, err)
+		}
+		if parsed.Table != test.want {
+			t.Errorf("model %T maps to table %q, want %q", test.model, parsed.Table, test.want)
 		}
 	}
 }
