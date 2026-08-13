@@ -2,9 +2,9 @@
 
 ## Current State
 
-### 2026-08-13 — User App start-admission hardening in local source (not deployed)
+### 2026-08-13 — User App start-admission hardening release deployed
 
-- The local uncommitted source now admits a new `POST /api/v1/app/charging-sessions`
+- The deployed release admits a new `POST /api/v1/app/charging-sessions`
   request only when the committed CMS `liveops` connector projection is
   `AVAILABLE` and `FRESH`. `CHARGING`, `FAULTED`, `UNAVAILABLE`, unknown,
   offline-parent, and stale projection states return the generic
@@ -15,10 +15,13 @@
   without identity details. The transaction takes a PostgreSQL `FOR UPDATE`
   lock on the connector and rechecks the active intent, so concurrent starts
   cannot both create a durable start path.
-- No migration, route, HAL/OCPP contract, deployment, or physical charger
-  acceptance changed. Focused service/route/OpenAPI checks, serial Go tests,
-  serial vet, and the documentation verifier passed. The disposable PostgreSQL
-  lifecycle test remains skipped because `TEST_DATABASE_URL` is not selected.
+- No migration, route, or HAL/OCPP contract changed. Clean source revision
+  `172bcd4` is active with 177 OpenAPI operations. The installed binary SHA-256
+  is `ab53143ae0bb55d14e9256d77eb5bf3350ce1aed2c280236b41dc4ad80ea2238`.
+- The enabled service is active with zero restarts; Caddy validation,
+  migration/table checks, loopback/public health and readiness, Swagger, raw
+  OpenAPI, the unauthenticated charging-start boundary, and the post-rehost
+  journal scan passed.
 
 ### 2026-08-13 — State-aware GST-to-hub assignment release deployed
 
@@ -275,7 +278,7 @@ provides:
   handler;
 - the additive PostgreSQL database `devevcmsnewdb`, owned by `postgres`.
 
-The active development VPS runs source revision `4377383`, with migrations
+The active development VPS runs source revision `172bcd4`, with migrations
 through thirty-five recorded and the deployed 177-operation contract. Migration
 twenty-nine adds nullable `tariff_type`, `price_type`, and `units` metadata to
 tenant tariffs; omitted values remain null-safe for existing and newly created
@@ -516,6 +519,17 @@ intentionally unsupported.
   local/public health and readiness, Caddy validation, Swagger, raw OpenAPI,
   the 177-operation contract, GST route boundaries, and the post-rehost journal
   scan passed. No DNS, Caddy, HAL provider, or database migration changed.
+- Revision `172bcd4` was built from the clean `main` worktree and rehosted
+  without a migration for User App charging-start admission hardening. The
+  installed binary SHA-256 is
+  `ab53143ae0bb55d14e9256d77eb5bf3350ce1aed2c280236b41dc4ad80ea2238`, embeds
+  `172bcd4c9b9aaed3671983f6b98cd2018c1ac720` with `vcs.modified=false`, and
+  retains `builds/evcmsnew.pre-172bcd4` as the prior-binary rollback artifact.
+  The enabled service is active with zero restarts; migration/table checks,
+  local/public health and readiness, Caddy validation, Swagger, raw OpenAPI,
+  the 177-operation contract, the unauthenticated charging-start boundary, and
+  the post-rehost journal scan passed. No DNS, Caddy, HAL provider, or database
+  migration changed.
 - Revision `a76d6ae` was built from a clean worktree and rehosted after
   migration thirty-one was applied. The installed binary SHA-256 is
   `0a3d397464dae13ef15b090225b4ca38fb1b4dfff946bf0de7d77cb9a5d3ebc0` and

@@ -2,6 +2,27 @@
 
 ## 2026-08-13
 
+### Rehosted User App charging-start admission hardening
+
+- New customer charging starts now require committed connector availability to
+  be `AVAILABLE` and `FRESH`; unavailable, stale, offline, or faulted states
+  return `409 connector_not_available` before charging side effects. Same-
+  customer active-intent replay remains idempotent, and connector row locking
+  serializes competing starts.
+- No migration or HAL/OCPP contract changed.
+
+Verification:
+
+- Focused admission tests, route/OpenAPI parity, serial full Go tests, serial
+  vet, formatting, and diff checks passed. The disposable PostgreSQL lifecycle
+  remains skipped because `TEST_DATABASE_URL` is unavailable.
+- Clean revision `172bcd4` was rehosted with binary SHA-256
+  `ab53143ae0bb55d14e9256d77eb5bf3350ce1aed2c280236b41dc4ad80ea2238` and
+  `vcs.modified=false`; service state, Caddy, migration/table, health,
+  readiness, Swagger, raw OpenAPI, unauthenticated charging-start, and
+  post-rehost journal checks passed. The prior binary is retained at
+  `builds/evcmsnew.pre-172bcd4`.
+
 ### Hardened User App charging-start admission against stale or unavailable live state
 
 - New User App charging starts now require the CMS-owned `liveops` connector

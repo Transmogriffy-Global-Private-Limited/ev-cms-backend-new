@@ -109,7 +109,7 @@ verification before execution.
 
 ## Current state
 
-The current shared development deployment is clean source revision `4377383`
+The current shared development deployment is clean source revision `172bcd4`
 with migrations through thirty-five and 177 OpenAPI operations. The HAL runtime
 GORM table mapping correction and User App charging-history release are active
 without a database migration.
@@ -142,9 +142,9 @@ charging-session history, frozen commercial/session detail, safe payment/debit
 cross-links, and session-correlated charging SSE invalidations. The deployed
 OpenAPI has 177 operations.
 
-The local uncommitted source additionally contains the User App charging-start
-admission hardening described above. It has not been deployed and does not
-change the deployed revision or its 177-operation OpenAPI count.
+The deployed source additionally contains the User App charging-start admission
+hardening described above. It does not change the deployed revision's
+177-operation OpenAPI count.
 
 ## Verification
 
@@ -206,6 +206,10 @@ change the deployed revision or its 177-operation OpenAPI count.
   service is enabled with zero restarts, loopback/public health and readiness,
   Swagger, raw OpenAPI, GST route boundaries, and the post-rehost journal scan
   passed.
+- Revision `172bcd4` is now active with the 177-operation contract; the service
+  is enabled with zero restarts, loopback/public health and readiness, Swagger,
+  raw OpenAPI, the unauthenticated charging-start boundary, and the post-
+  rehost journal scan passed.
 - Earlier revision `d368903` deployment evidence established the prior
   161-operation contract, tenant settings/GST/CMS-HAL routes, and connector
   projection behavior before the current release.

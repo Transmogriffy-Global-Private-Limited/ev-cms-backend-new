@@ -119,16 +119,18 @@ Current implementation state:
   charging-history/detail completion slice: customer/CPO-scoped materialized
   session history, frozen commercial detail, linked settlement projection, and
   session-correlated operational invalidations. It is deployed in clean source
-  revision `87b8727` without a database migration.
-- The current deployed CPO release also enforces state-aware GST-to-hub
-  assignment and replacement validation in clean merge revision `4377383`:
-  same-state hubs require SGST/CGST and different-state hubs require IGST.
-- The local, uncommitted CMS source hardens User App start admission without a
+  revision `87b8727` without a database migration; the current start-admission
+  hardening is deployed in revision `172bcd4` without a migration.
+- The current deployed release includes state-aware GST-to-hub assignment and
+  replacement validation from merge revision `4377383`, plus User App
+  start-admission hardening in revision `172bcd4`: same-state hubs require
+  SGST/CGST, different-state hubs require IGST, and new charging starts require
+  fresh `AVAILABLE` connector state.
+- The deployed CMS source hardens User App start admission without a
   migration, route, or HAL contract change: a new intent requires committed
   `AVAILABLE` and `FRESH` connector projection state, while same-customer
   active-intent replay remains available before that live-state gate. Connector
-  row locking serializes the final active-intent recheck. This source slice is
-  locally verified, remains uncommitted, and is not a deployment claim.
+  row locking serializes the final active-intent recheck.
 
 Next required slice:
 
@@ -1018,6 +1020,14 @@ Last completed slice:
 
 Last deployment milestone:
 
+- Clean source revision `172bcd4` was built and rehosted without a migration for
+  User App charging-start admission hardening. The installed binary has SHA-256
+  `ab53143ae0bb55d14e9256d77eb5bf3350ce1aed2c280236b41dc4ad80ea2238`, the
+  live contract remains at 177 operations, and the service is healthy with zero
+  restarts. Migration/table checks, Caddy validation, loopback/public health and
+  readiness, Swagger, raw OpenAPI, the unauthenticated charging-start boundary,
+  and the post-rehost journal scan passed. Disposable PostgreSQL lifecycle and
+  full HAL/virtual-charger acceptance remain pending.
 - Clean merge revision `4377383` was built and rehosted without a migration for
   state-aware GST-to-hub validation. The installed binary has SHA-256
   `769b71782f47bb93c37e063dbab4ba8af34902b80ac8fb3150c21ac61c2fc5e0`, the
