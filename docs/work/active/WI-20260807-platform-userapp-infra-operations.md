@@ -51,6 +51,11 @@ the full charger-list filters and published-hub/current-CPO boundary while
 returning only charger name and attached-hub coordinates. No migration or
 deployment is included.
 
+Codex is completing the CMS-only User App charging-history slice under
+`src/customerauth/`, its scoped list/detail projections, durable operational
+event correlation, OpenAPI, and canonical User App handoff. It must not touch
+HAL, add a migration, deploy, or claim physical charging acceptance.
+
 ## Non-goals
 
 - This record does not authorize a production deployment, DNS change, database
@@ -97,9 +102,10 @@ verification before execution.
 
 ## Current state
 
-The current shared development deployment is clean source revision `0d50c09`
-with migrations through thirty-five and 176 OpenAPI operations. The HAL runtime
-GORM table mapping correction is active without a database migration.
+The current shared development deployment is clean source revision `87b8727`
+with migrations through thirty-five and 177 OpenAPI operations. The HAL runtime
+GORM table mapping correction and User App charging-history release are active
+without a database migration.
 
 The ownership registration remains active. User App charger projections include
 the CPO-owned display-safe `charger_name`, category/use, and parking metadata,
@@ -124,7 +130,18 @@ published chargers: `charger_name`, attached-hub `latitude`, and attached-hub
 `longitude` only. It shares the full charger list's optional filters, cursor
 rules, near-me behavior, current-CPO scope, and customer-visible-hub boundary.
 
+The current deployed source also adds CPO/customer-scoped materialized
+charging-session history, frozen commercial/session detail, safe payment/debit
+cross-links, and session-correlated charging SSE invalidations. The deployed
+OpenAPI has 177 operations.
+
 ## Verification
+
+- Focused User App charging history/projection tests and route/OpenAPI parity
+  passed, alongside the PowerShell documentation verifier, serial full Go
+  tests, serial vet, and `git diff --check`. Disposable PostgreSQL coverage
+  stays skipped until `TEST_DATABASE_URL` is explicitly selected; physical
+  charger acceptance remains deferred.
 
 - `go test ./src/customerauth -count=1` passed for the compact map-marker
   projection, including serialized exact-field coverage.
@@ -161,9 +178,13 @@ rules, near-me behavior, current-CPO scope, and customer-visible-hub boundary.
   service remains healthy with 172 OpenAPI operations.
 - Earlier revision `e831b32` was active after migration thirty-five; the live service
   remains healthy with 176 OpenAPI operations.
-- Revision `0d50c09` is now active; the service is enabled with zero restarts,
-  loopback/public health and readiness, Swagger, raw OpenAPI, and the post-
-  rehost journal scan passed.
+- Earlier revision `0d50c09` was active; the service was enabled with zero
+  restarts, loopback/public health and readiness, Swagger, raw OpenAPI, and the
+  post-rehost journal scan passed.
+- Revision `87b8727` is now active with the 177-operation contract; the service
+  is enabled with zero restarts, loopback/public health and readiness, Swagger,
+  raw OpenAPI, the unauthenticated history-route boundary, and the post-rehost
+  journal scan passed.
 - Earlier revision `d368903` deployment evidence established the prior
   161-operation contract, tenant settings/GST/CMS-HAL routes, and connector
   projection behavior before the current release.

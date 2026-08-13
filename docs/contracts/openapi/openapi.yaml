@@ -5517,6 +5517,22 @@ paths:
         "500": {$ref: "#/components/responses/InternalError"}
 
   /api/v1/app/charging-sessions:
+    get:
+      tags: [App Charging]
+      operationId: listCustomerChargingSessions
+      summary: List the authenticated customer's materialized charging sessions
+      description: Returns only durable CMS charging sessions owned by the authenticated CPO-local customer. It never includes unmaterialized start intents, HAL command records, or raw HAL facts. Results are ordered by `started_at DESC, id DESC`; send `before` and `before_id` together to continue a page.
+      security: [{BearerAuth: []}]
+      parameters:
+        - {$ref: "#/components/parameters/CPOAppIDHeader"}
+        - {$ref: "#/components/parameters/ListBefore"}
+        - {$ref: "#/components/parameters/ListBeforeID"}
+        - {$ref: "#/components/parameters/ListLimit"}
+      responses:
+        "200": {description: Bounded customer charging-session history, content: {application/json: {schema: {$ref: "#/components/schemas/ChargingSessionHistoryResponse"}}}}
+        "400": {$ref: "#/components/responses/InvalidRequest"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
     post:
       tags: [App Charging]
       operationId: startCustomerCharging
@@ -5560,7 +5576,7 @@ paths:
       tags: [App Charging]
       operationId: getCustomerChargingSession
       summary: Poll the customer-owned active or completed charging projection
-      description: Returns only CMS-durable state. Meter values are exact received OCPP facts and are never interpolated. Connection and connector freshness become stale if the charger is not currently online.
+      description: Returns only CMS-durable state. Meter values are exact received OCPP facts and are never interpolated. Connection and connector freshness become stale if the charger is not currently online. Historical tariff and tax values come from the frozen session snapshots, never today's tariff.
       security: [{BearerAuth: []}]
       parameters:
         - {$ref: "#/components/parameters/CPOAppIDHeader"}
@@ -5604,7 +5620,7 @@ paths:
       tags: [App Charging]
       operationId: listCustomerOperationalEvents
       summary: Recover the customer's retained charging events
-      description: Returns only events scoped to the authenticated customer or safe tenant charger/connector availability events. Session and charger REST projections remain authoritative.
+      description: Returns only events scoped to the authenticated customer or safe tenant charger/connector availability events. For a `CHARGING_SESSION` event, `resource_id` is the materialized CMS charging-session UUID accepted by GET /api/v1/app/charging-sessions/{session_id}. Session and charger REST projections remain authoritative.
       security: [{BearerAuth: []}]
       parameters:
         - {$ref: "#/components/parameters/CPOAppIDHeader"}
@@ -5621,7 +5637,7 @@ paths:
       tags: [App Charging]
       operationId: streamCustomerOperationalEvents
       summary: Stream the customer's retained charging events using SSE
-      description: Bearer-authenticated SSE with CPO app-ID scope and heartbeat revalidation. Use fetch streaming, deduplicate event IDs, and recover with the matching REST route.
+      description: Bearer-authenticated SSE with CPO app-ID scope and heartbeat revalidation. Use fetch streaming, deduplicate event IDs, and recover with the matching REST route. For a `CHARGING_SESSION` event, `resource_id` is the materialized CMS charging-session UUID accepted by GET /api/v1/app/charging-sessions/{session_id}.
       security: [{BearerAuth: []}]
       parameters:
         - {$ref: "#/components/parameters/CPOAppIDHeader"}
@@ -8903,7 +8919,7 @@ components:
     ChargingSessionResponse:
       type: object
       additionalProperties: false
-      required: [id, start_intent_id, state, start_progress, meter_freshness, connection_state, connector_freshness]
+      required: [id, start_intent_id, state, start_progress, meter_freshness, connection_state, connector_freshness, started_at, meter_start_wh, currency, settlement_status, charger, connector, pricing, tax]
       properties:
         id: {type: string, format: uuid}
         start_intent_id: {type: string, format: uuid}
@@ -8920,6 +8936,105 @@ components:
         connector_observed_at: {type: string, format: date-time}
         connector_freshness: {type: string, enum: [FRESH, STALE, UNKNOWN]}
         completed_at: {type: string, format: date-time}
+        started_at: {type: string, format: date-time}
+        meter_start_wh: {type: integer, format: int64}
+        meter_stop_wh: {type: integer, format: int64}
+        total_kwh: {type: string, pattern: "^[0-9]+(?:\\.[0-9]{1,3})?$", description: Present only after a completed session has final persisted energy.}
+        total_amount: {type: string, pattern: "^[0-9]+(?:\\.[0-9]{1,2})?$", description: Present only after a completed session has final persisted settlement.}
+        currency: {type: string, pattern: "^[A-Z]{3}$"}
+        settlement_status: {type: string}
+        stop_reason: {type: string}
+        charger: {$ref: "#/components/schemas/ChargingSessionCharger"}
+        connector: {$ref: "#/components/schemas/ChargingSessionConnector"}
+        pricing: {$ref: "#/components/schemas/ChargingSessionPricing"}
+        tax: {$ref: "#/components/schemas/ChargingSessionTax"}
+        financial: {$ref: "#/components/schemas/ChargingSessionFinancial"}
+
+    ChargingSessionHistoryResponse:
+      type: object
+      additionalProperties: false
+      required: [sessions, has_more]
+      properties:
+        sessions:
+          type: array
+          items: {$ref: "#/components/schemas/ChargingSessionHistoryItem"}
+        next_before: {type: string, format: date-time}
+        next_before_id: {type: string, format: uuid}
+        has_more: {type: boolean}
+
+    ChargingSessionHistoryItem:
+      type: object
+      additionalProperties: false
+      required: [id, state, started_at, currency, settlement_status, charger, connector]
+      properties:
+        id: {type: string, format: uuid}
+        state: {type: string, enum: [START_PENDING, ACTIVE, STOP_PENDING, COMPLETED, FAILED]}
+        started_at: {type: string, format: date-time}
+        completed_at: {type: string, format: date-time}
+        consumed_wh: {type: integer, format: int64, minimum: 0}
+        total_kwh: {type: string, pattern: "^[0-9]+(?:\\.[0-9]{1,3})?$", description: Present only after a completed session has final persisted energy.}
+        total_amount: {type: string, pattern: "^[0-9]+(?:\\.[0-9]{1,2})?$", description: Present only after a completed session has final persisted settlement.}
+        currency: {type: string, pattern: "^[A-Z]{3}$"}
+        settlement_status: {type: string}
+        charger: {$ref: "#/components/schemas/ChargingSessionCharger"}
+        connector: {$ref: "#/components/schemas/ChargingSessionConnector"}
+
+    ChargingSessionCharger:
+      type: object
+      additionalProperties: false
+      required: [id, charger_id, name]
+      properties:
+        id: {type: string, format: uuid}
+        charger_id: {type: string, pattern: "^[a-z0-9]{6}$"}
+        name: {type: string}
+        hub: {$ref: "#/components/schemas/ChargingSessionHub"}
+
+    ChargingSessionHub:
+      type: object
+      additionalProperties: false
+      required: [id, name, address]
+      properties:
+        id: {type: string, format: uuid}
+        name: {type: string}
+        address: {type: string}
+
+    ChargingSessionConnector:
+      type: object
+      additionalProperties: false
+      required: [id, number, type]
+      properties:
+        id: {type: string, format: uuid}
+        number: {type: integer, minimum: 1}
+        type: {type: string}
+
+    ChargingSessionPricing:
+      type: object
+      additionalProperties: false
+      required: [currency]
+      properties:
+        price_per_kwh: {type: string, pattern: "^[0-9]+(?:\\.[0-9]+)?$"}
+        idle_fee_per_minute: {type: string, pattern: "^[0-9]+(?:\\.[0-9]+)?$"}
+        currency: {type: string, pattern: "^[A-Z]{3}$"}
+
+    ChargingSessionTax:
+      type: object
+      additionalProperties: false
+      properties:
+        sgst_rate: {type: string, pattern: "^[0-9]+(?:\\.[0-9]+)?$"}
+        cgst_rate: {type: string, pattern: "^[0-9]+(?:\\.[0-9]+)?$"}
+        igst_rate: {type: string, pattern: "^[0-9]+(?:\\.[0-9]+)?$"}
+
+    ChargingSessionFinancial:
+      type: object
+      additionalProperties: false
+      required: [wallet_transaction_id, payment_id, amount, currency, payment_method, payment_status]
+      properties:
+        wallet_transaction_id: {type: string, format: uuid}
+        payment_id: {type: string, format: uuid}
+        amount: {type: string, pattern: "^[0-9]+(?:\\.[0-9]{1,2})?$"}
+        currency: {type: string, pattern: "^[A-Z]{3}$"}
+        payment_method: {type: string}
+        payment_status: {type: string, enum: [PENDING, COMPLETED, FAILED, REVERSED]}
 
     HALFactEnvelope:
       type: object

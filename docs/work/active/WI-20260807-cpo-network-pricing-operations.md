@@ -65,8 +65,8 @@ charging vertical.
 
 ## Current state
 
-The current shared development deployment is clean source revision `0d50c09`
-with migrations thirty-three through thirty-five applied and 176 OpenAPI
+The current shared development deployment is clean source revision `87b8727`
+with migrations thirty-three through thirty-five applied and 177 OpenAPI
 operations. The HAL runtime model mapping now explicitly targets the singular
 `hal_charger_runtime` and `hal_connector_runtime` tables; no migration was
 needed for this correction.

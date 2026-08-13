@@ -8,6 +8,13 @@ They never contain HAL credentials, raw provider payloads, OCPP transaction
 identifiers, or financial truth. The corresponding REST projection is always
 authoritative after reconnect, duplicate delivery, or a missed event.
 
+For `resource_type=CHARGING_SESSION`, `resource_id` is always the materialized
+CMS `charging_sessions.id`, not the originating `cms_start_intent_id`. A User
+App consumer can therefore refetch it directly through
+`GET /api/v1/app/charging-sessions/{resource_id}`. Meter events whose sequence
+is no longer the stored committed session sequence are suppressed rather than
+emitted as misleading invalidations.
+
 ## Scoped Recovery and Streams
 
 | Consumer | REST recovery | SSE stream | Scope |

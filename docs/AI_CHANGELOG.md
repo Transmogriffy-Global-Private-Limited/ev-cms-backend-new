@@ -2,6 +2,36 @@
 
 ## 2026-08-13
 
+### Completed and rehosted the CMS-side User App charging history release
+
+- Added customer/CPO-scoped materialized charging-session history with bounded
+  keyset pagination, safe card projections, and additive historical detail
+  fields backed by persisted session, frozen tariff/tax, payment, and wallet
+  relations. Unfinished sessions do not present provisional zero totals as a
+  final bill.
+- Corrected the operational-event correlation bug: transaction events now use
+  the materialized CMS charging-session UUID for `CHARGING_SESSION.resource_id`,
+  never the start-intent UUID. Stale meter sequences remain suppressed.
+- Updated OpenAPI (177 operations), the User App handoff, operational event
+  contract, project state, plan, and documentation verifier. No migration or HAL
+  change was required; physical hardware acceptance remains deferred.
+
+Verification:
+
+- Focused customerauth/liveops/operationalrealtime/models checks, route/OpenAPI
+  runtime parity, the PowerShell documentation verifier, `go test -p 1 ./...`,
+  `go vet -p 1 ./...`, and `git diff --check` passed.
+- `TEST_DATABASE_URL` is not configured, so disposable PostgreSQL lifecycle
+  verification is skipped rather than passed. Physical charger and real
+  CMS-to-HAL-to-charger acceptance remain deliberately deferred.
+- Clean revision `87b8727` was then rehosted. The installed binary SHA-256 is
+  `007d40cbd9eeda79392f7b1d546cc4d6e2bf336913212c6ce9f17dde4f9a6434`, with
+  `vcs.modified=false`; service state is active/enabled with zero restarts.
+  Caddy, migration/table, loopback/public health/readiness, Swagger, raw
+  OpenAPI, 177-operation, unauthenticated history-route, and post-rehost
+  journal checks passed. The prior binary is retained at
+  `builds/evcmsnew.pre-87b8727`.
+
 ### Rehosted clean HAL runtime model mapping release
 
 - Corrected GORM table ownership for `HALChargerRuntime` and

@@ -29,7 +29,7 @@ that setting; it must not be used until the OCPP host is explicitly configured
 with TLS/WebSocket support.
 
 The active deployment was updated on August 13, 2026 to source revision
-`0d50c09`. It has migrations one through thirty-five and the current 176-operation
+`87b8727`. It has migrations one through thirty-five and the current 177-operation
 API. Migration thirty-three adds the CPO/customer-scoped `operational_events`
 ledger used for durable operational-notification recovery; its four indexes
 support CPO and customer cursor replay plus retention. Migration twenty-seven
@@ -77,7 +77,8 @@ Migration thirty-five adds nullable `hubs.gst_id` with a same-CPO foreign key;
 the CPO API exposes assign, retrieve, replace, and unassign routes.
 The HAL runtime GORM models explicitly map to the singular migration tables
 `hal_charger_runtime` and `hal_connector_runtime`; this release required no
-database migration.
+database migration. The User App charging-history route and session-detail
+projections are also active in revision `87b8727`; no migration was required.
 GSTIN and complete address identity
 are database-required for CPOs, the
 authenticated platform slug-availability route is live, and known uniqueness
@@ -174,7 +175,7 @@ content exclusions are defined in
 `docs/contracts/internal/http-request-logging.md`. Long-lived SSE requests are
 recorded when they disconnect. A recovered panic first emits a correlated safe
 JSON stack diagnostic without Gin's request dump or the panic value. The
-currently deployed `0d50c09` binary includes this logger.
+currently deployed `87b8727` binary includes this logger.
 
 The platform realtime SSE route is long-lived. If a browser holds that stream
 during a rehost, the application may log `shut down HTTP server: context
