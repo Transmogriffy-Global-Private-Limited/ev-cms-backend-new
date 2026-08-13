@@ -4,7 +4,7 @@ Status: In Progress
 Owner: Codex
 Collaborators: Anubhab Dey (CMS/HAL boundary owner)
 Started: 2026-08-12
-Last updated: 2026-08-12
+Last updated: 2026-08-13
 
 Development-plan reference: `docs/DEVELOPMENT_PLAN.md` — Charging lifecycle and HAL integration
 Detailed-plan reference: `docs/integrations/ocpp-hal-boundary.md`
@@ -66,10 +66,12 @@ Establish reusable CMS capabilities over HAL-derived operational truth and expos
   source-aligned. The later serial-number HAL admission contract remains out
   of scope.
 - Durable operational events are produced with accepted newer fact projections and consumed through scoped REST cursor replay/SSE. Streams revalidate bearer sessions at heartbeat.
-- Revision `e831b32` is active under `evcmsnew-dev.service`; migrations
+- Revision `0d50c09` is active under `evcmsnew-dev.service`; migrations
   thirty-three through thirty-five,
   loopback/public health and readiness, Swagger, raw OpenAPI, the live
-  176-operation contract, and GST-hub route boundaries have been verified.
+  176-operation contract, singular HAL runtime table mappings, and GST-hub
+  route boundaries have been verified. No migration was needed for the model
+  correction.
 
 ## Verification
 

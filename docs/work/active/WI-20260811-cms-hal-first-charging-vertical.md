@@ -4,7 +4,7 @@ Status: In Progress
 Owner: Codex
 Collaborators: Anubhab Dey (User App and CMS/HAL communication ownership)
 Started: 2026-08-11
-Last updated: 2026-08-12
+Last updated: 2026-08-13
 
 Development-plan reference: `docs/DEVELOPMENT_PLAN.md` - Charging lifecycle and HAL integration
 Detailed-plan reference: `docs/integrations/ocpp-hal-boundary.md`
@@ -56,13 +56,18 @@ Implement and verify the first real CMS consumer charging vertical against
 
 ## Current state
 
+- The current shared development deployment is clean source revision
+  `0d50c09` with migrations through thirty-five and 176 OpenAPI operations.
+  The HAL runtime GORM models explicitly map to the singular migration tables;
+  no migration was needed for this correction.
+
 - The source contains the first CMS client, fact receiver, durable records,
   customer start/stop/polling routes, and OpenAPI/configuration documentation.
 - Migration `000028_cms_hal_charging_vertical` and migration
-  `000029_add_tariff_fields` are applied in the development database. Revision
-  `3ca2c35` is active under `evcmsnew-dev.service` with a
-  162-operation live contract; migrations thirty through thirty-two for tenant
-  settings, GST state, and hub state are also applied.
+  `000029_add_tariff_fields` are applied in the development database. Earlier
+  revision `3ca2c35` established the 162-operation live contract; migrations
+  thirty through thirty-two for tenant settings, GST state, and hub state are
+  also applied. The current deployment is revision `0d50c09` as recorded above.
 - The optional HAL v1 base URL and both service credentials remain unset on
   this host, so customer charging is intentionally unavailable until the
   independent provider is configured.
@@ -88,8 +93,11 @@ Implement and verify the first real CMS consumer charging vertical against
   public/loopback health, Swagger, and raw OpenAPI remain healthy.
 - Revision `2e8fdb3` is now active after migration thirty-four; the live
   service remains healthy with 172 OpenAPI operations.
-- Revision `e831b32` is active after migration thirty-five; the live service
+- Earlier revision `e831b32` was active after migration thirty-five; the live service
   remains healthy with 176 OpenAPI operations.
+- Revision `0d50c09` is now active after the HAL runtime model correction; the
+  service, public/loopback health and readiness, Swagger, raw OpenAPI, and
+  post-rehost journal checks passed.
 - The PowerShell documentation verifier was not run because `pwsh` is
   unavailable on this Ubuntu host.
 - Still required: disposable-PostgreSQL lifecycle tests, real loopback

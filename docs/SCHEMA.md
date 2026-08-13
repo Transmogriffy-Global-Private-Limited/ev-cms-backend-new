@@ -124,6 +124,9 @@ Migration files:
 - Migration thirty-five adds nullable `hubs.gst_id` with a same-CPO foreign key
   to `gsts`. The CPO hub GST assignment APIs own assign, read, replace, and
   unassign behavior; no cross-CPO GST can be attached.
+- `HALChargerRuntime` and `HALConnectorRuntime` explicitly map through GORM
+  `TableName` methods to the singular `hal_charger_runtime` and
+  `hal_connector_runtime` tables created by migration twenty-eight.
 
 ## Migration Behavior
 

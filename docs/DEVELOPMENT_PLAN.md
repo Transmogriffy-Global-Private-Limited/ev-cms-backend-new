@@ -109,7 +109,9 @@ Current implementation state:
 
 - CMS source and the development deployment contain the first client, durable records, shared fact receiver,
   customer polling/start/stop routes, reusable operational projections,
-  scoped operational-event replay/SSE, and a 172-operation OpenAPI surface.
+  scoped operational-event replay/SSE, and a 176-operation OpenAPI surface.
+  The HAL runtime GORM models explicitly map to the singular migration tables
+  `hal_charger_runtime` and `hal_connector_runtime`.
   The HAL v1 provider is
   not configured on this host, and the complete Postgres-to-HAL-to-virtual-
   charger vertical is not verified yet.
@@ -1002,18 +1004,17 @@ Last completed slice:
 
 Last deployment milestone:
 
-- Revision `3f3a952` was built from a clean worktree and rehosted on the
-  development VPS after migration thirty-three. The CMS HAL operational
-  capability layer, including durable scoped operational events, is live with
-  the prior inventory, settings, GST, compact User App location, and
-  invoice-logo surfaces. Running-binary SHA/VCS identity, active/enabled
-  systemd state, migration ledger/table/index checks, loopback/public liveness
-  and readiness, Swagger, the live 172-operation OpenAPI surface, and the HAL
-  fact-ingress validation boundary were verified. No DNS, Caddy, or HAL
-  provider configuration changed; current service state is healthy with zero
-  restarts. The disposable PostgreSQL lifecycle and full HAL/virtual-charger
-  acceptance remain pending without the required test topology and
-  `TEST_DATABASE_URL`.
+- Clean source revision `0d50c09` was built and rehosted without a migration
+  after the HAL runtime GORM table-name correction. The installed binary has
+  SHA-256 `e3790854e68f7a3996d50a552e2f15ef6a95f644184e10389a95d513d64b24bf`,
+  the live contract remains at 176 operations, and the service is healthy with
+  zero restarts. Migration/table checks, Caddy validation, loopback/public
+  health and readiness, Swagger, raw OpenAPI, and the post-rehost journal scan
+  passed. The disposable PostgreSQL lifecycle and full HAL/virtual-charger
+  acceptance remain pending.
+- Revision `3f3a952` previously introduced migration thirty-three and durable
+  operational events; revisions `2e8fdb3` and `e831b32` subsequently applied
+  migrations thirty-four and thirty-five.
 - Revision `27c01f3` subsequently rehosted the shared bounded User App
   live-state overlay and its CPO HAL operational manual without a migration.
   Revision `2e8fdb3` then applied migration thirty-four for nullable tariff

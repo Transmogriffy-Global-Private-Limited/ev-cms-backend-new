@@ -4,7 +4,7 @@ Status: In Progress
 Owner: Anubhab Dey
 Collaborators: None
 Started: 2026-08-07
-Last updated: 2026-08-11
+Last updated: 2026-08-13
 
 Development-plan reference:
 
@@ -97,17 +97,22 @@ verification before execution.
 
 ## Current state
 
+The current shared development deployment is clean source revision `0d50c09`
+with migrations through thirty-five and 176 OpenAPI operations. The HAL runtime
+GORM table mapping correction is active without a database migration.
+
 The ownership registration remains active. User App charger projections include
 the CPO-owned display-safe `charger_name`, category/use, and parking metadata,
 alongside safe hub fields and `connector_total_capacity`. Hub
 `open_24_hours`, charger `twenty_four_seven_open_status`, and
 `hub_open_24_hours` are separately represented. Charger-host contact details,
 connection URLs, sanctioned load, and HAL-owned state remain excluded. The
-development VPS now runs application revision `3ca2c35`; the charging vertical,
+Earlier deployment revision `3ca2c35` established the charging vertical,
 nullable tariff metadata, tenant settings API, GST and hub state updates, compact
 charger locations, and protected invoice-logo retrieval are active through
 migration thirty-two
-without a DNS or reverse-proxy change.
+without a DNS or reverse-proxy change; the current deployment is revision
+`0d50c09` as recorded above.
 
 The isolated SuperAdmin administrator-list repair now binds GORM explicitly to
 `models.PlatformAdmin` before joining `users`. Its SQL-shape regression test
@@ -144,7 +149,7 @@ rules, near-me behavior, current-CPO scope, and customer-visible-hub boundary.
 - `go test ./...` passed.
 - `go vet ./...` passed.
 - `git diff --check` passed.
-- Revision `3ca2c35` is active under `evcmsnew-dev.service`; the live OpenAPI
+- Earlier revision `3ca2c35` was active under `evcmsnew-dev.service`; the live OpenAPI
   exposes 162 operations and migration thirty-two is applied. Loopback/public
   liveness and readiness, Swagger, raw OpenAPI, and the protected
   `/api/v1/app/chargers/locations` 401 boundary passed. The post-rehost journal
@@ -154,8 +159,11 @@ rules, near-me behavior, current-CPO scope, and customer-visible-hub boundary.
   public/loopback health, Swagger, and raw OpenAPI remain healthy.
 - Revision `2e8fdb3` is now active after migration thirty-four; the live
   service remains healthy with 172 OpenAPI operations.
-- Revision `e831b32` is active after migration thirty-five; the live service
+- Earlier revision `e831b32` was active after migration thirty-five; the live service
   remains healthy with 176 OpenAPI operations.
+- Revision `0d50c09` is now active; the service is enabled with zero restarts,
+  loopback/public health and readiness, Swagger, raw OpenAPI, and the post-
+  rehost journal scan passed.
 - Earlier revision `d368903` deployment evidence established the prior
   161-operation contract, tenant settings/GST/CMS-HAL routes, and connector
   projection behavior before the current release.

@@ -2,6 +2,21 @@
 
 ## Current State
 
+### 2026-08-13 — HAL runtime model mapping release deployed
+
+- The CMS GORM models now explicitly map `HALChargerRuntime` and
+  `HALConnectorRuntime` to the singular migration tables
+  `hal_charger_runtime` and `hal_connector_runtime`; focused model regression
+  coverage protects the mapping.
+- Clean source revision `0d50c09` is active on the development VPS. No new
+  migration was required because the database already records migrations
+  through thirty-five. The installed binary SHA-256 is
+  `e3790854e68f7a3996d50a552e2f15ef6a95f644184e10389a95d513d64b24bf`.
+- The service is enabled and active with zero restarts; loopback/public health
+  and readiness, Swagger, raw OpenAPI, and the 176-operation contract passed.
+  The HAL provider remains unconfigured and full dual-service acceptance is
+  still pending.
+
 ### 2026-08-12 — CMS HAL operational capability release deployed
 
 - Source now contains `halops` for CMS command/mapping/reconciliation and fact
@@ -15,7 +30,7 @@
   customer-safety gate for displayed availability.
 - Migration thirty-five is applied on the development VPS; `hubs.gst_id` and
   its same-CPO foreign-key constraint are present alongside migrations
-  thirty-three and thirty-four. Revision `e831b32` is active with the
+  thirty-three and thirty-four. Earlier revision `e831b32` was active with the
   176-operation contract and healthy local/public
   liveness, readiness, Swagger, and raw OpenAPI routes.
 - Real PostgreSQL fact/mapping/SSE lifecycle, reconciliation recovery, and
@@ -203,7 +218,7 @@ provides:
   handler;
 - the additive PostgreSQL database `devevcmsnewdb`, owned by `postgres`.
 
-The active development VPS runs source revision `e831b32`, with migrations
+The active development VPS runs source revision `0d50c09`, with migrations
 through thirty-five recorded and the deployed 176-operation contract. Migration
 twenty-nine adds nullable `tariff_type`, `price_type`, and `units` metadata to
 tenant tariffs; omitted values remain null-safe for existing and newly created
@@ -413,6 +428,16 @@ intentionally unsupported.
   GST-hub unauthenticated route boundaries passed. The old process emitted the
   expected stop-time exit warning during rehost; the current process has no
   error or fatal records. No DNS, Caddy, or HAL provider configuration changed.
+- Revision `0d50c09` was built from the clean `main` worktree after the
+  HAL-runtime GORM table-name correction and rehosted without a migration. The
+  installed binary SHA-256 is
+  `e3790854e68f7a3996d50a552e2f15ef6a95f644184e10389a95d513d64b24bf`, embeds
+  `0d50c096ecffef368d7c64208dcf4d6391ff0f38` with `vcs.modified=false`, and
+  retains `builds/evcmsnew.pre-0d50c09` as the prior-binary rollback artifact.
+  The enabled service is active with zero restarts; migration 35/table checks,
+  local/public health and readiness, Caddy validation, Swagger, raw OpenAPI,
+  the 176-operation contract, and the post-rehost journal scan passed. No DNS,
+  Caddy, HAL provider, or database migration changed.
 - Revision `a76d6ae` was built from a clean worktree and rehosted after
   migration thirty-one was applied. The installed binary SHA-256 is
   `0a3d397464dae13ef15b090225b4ca38fb1b4dfff946bf0de7d77cb9a5d3ebc0` and

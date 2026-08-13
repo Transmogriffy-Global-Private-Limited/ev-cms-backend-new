@@ -1,5 +1,33 @@
 # AI Changelog
 
+## 2026-08-13
+
+### Rehosted clean HAL runtime model mapping release
+
+- Corrected GORM table ownership for `HALChargerRuntime` and
+  `HALConnectorRuntime` so they map to the singular migration tables
+  `hal_charger_runtime` and `hal_connector_runtime`. Added focused model
+  regression coverage and formatted the affected release sources.
+- Published the formatter correction as `0d50c09` and rehosted a clean build.
+  No database migration was required; the live ledger remains through
+  migration thirty-five. The prior active binary is retained at
+  `builds/evcmsnew.pre-0d50c09`.
+
+Verification:
+
+- Model regression, route/OpenAPI parity, `go test -p 1 ./...`,
+  `go vet -p 1 ./...`, clean build, and `git diff --check` passed.
+- The clean installed binary SHA-256 is
+  `e3790854e68f7a3996d50a552e2f15ef6a95f644184e10389a95d513d64b24bf`, with
+  `vcs.modified=false`. Service state is active/enabled with zero restarts;
+  Caddy validation, migration/table checks, loopback/public health and
+  readiness, Swagger, raw OpenAPI, the 176-operation contract, and the
+  post-rehost journal scan passed.
+- `scripts/verify-docs.ps1` remains unrun because `pwsh` is unavailable on
+  this Ubuntu host. Disposable PostgreSQL lifecycle and full HAL topology
+  acceptance remain pending because `TEST_DATABASE_URL` and the provider test
+  environment are not configured.
+
 ## 2026-08-12
 
 ### Rehosted GST-to-hub assignment release

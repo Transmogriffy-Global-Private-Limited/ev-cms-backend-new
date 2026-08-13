@@ -4,7 +4,7 @@ Status: In Progress
 Owner: Abhranil Pal
 Collaborators: Codex (guarded development-host deployment and verification)
 Started: 2026-08-07
-Last updated: 2026-08-11
+Last updated: 2026-08-13
 
 Development-plan reference:
 
@@ -65,7 +65,13 @@ charging vertical.
 
 ## Current state
 
-Revision `3ca2c35` was built from a clean worktree and rehosted on
+The current shared development deployment is clean source revision `0d50c09`
+with migrations thirty-three through thirty-five applied and 176 OpenAPI
+operations. The HAL runtime model mapping now explicitly targets the singular
+`hal_charger_runtime` and `hal_connector_runtime` tables; no migration was
+needed for this correction.
+
+Earlier revision `3ca2c35` was built from a clean worktree and rehosted on
 August 11, 2026 after migration thirty-two. The live service exposes the
 162-operation OpenAPI document, and the CPO user-group membership contract now
 includes tenant-scoped, idempotent assignment/removal, the `members` detail
@@ -89,7 +95,7 @@ The hub `state` field is persisted and included in the live CPO hub contracts.
 - `go test ./...` passed.
 - `go vet ./...` passed.
 - `git diff --check` passed.
-- Revision `3ca2c35` is active under `evcmsnew-dev.service`; the installed
+- Earlier revision `3ca2c35` was active under `evcmsnew-dev.service`; the installed
   binary SHA-256 is
   `1771f4bee02ed7f5d270f9feacdad69ecb4c3de435103ea5d7c97e176ab9da12`, and
   rollback artifacts are `builds/evcmsnew.pre-3ca2c35` and
@@ -103,9 +109,13 @@ The hub `state` field is persisted and included in the live CPO hub contracts.
 - Revision `2e8fdb3` is now active after migration thirty-four added nullable
   tariff assignment metadata; the live service remains healthy with 172
   OpenAPI operations.
-- Revision `e831b32` is active after migration thirty-five added same-CPO
+- Earlier revision `e831b32` was active after migration thirty-five added same-CPO
   GST-to-hub assignment; the live service exposes 176 OpenAPI operations and
   all four GST-hub route auth boundaries pass.
+- Revision `0d50c09` is now active after the HAL runtime model correction. The
+  clean installed binary SHA-256 is
+  `e3790854e68f7a3996d50a552e2f15ef6a95f644184e10389a95d513d64b24bf`; service,
+  Caddy, health, Swagger/OpenAPI, table, and post-rehost journal checks passed.
 - Earlier revision `d368903` deployment evidence established the prior
   161-operation contract, CPO user-group projections, connector capacity
   contract, and migration twenty-nine behavior before the current release.
@@ -115,7 +125,8 @@ The hub `state` field is persisted and included in the live CPO hub contracts.
 ## Handoff
 
 The CPO implementation remains owned by Abhranil Pal. The current deployment
-contains migration thirty-two for hub state. Connector create/update request payloads and
+contains migrations through thirty-five and the HAL runtime table mapping
+correction. Connector create/update request payloads and
 response objects use `connector_total_capacity`. Update the canonical OpenAPI,
 human contract, consumer guidance, and verification together.
 

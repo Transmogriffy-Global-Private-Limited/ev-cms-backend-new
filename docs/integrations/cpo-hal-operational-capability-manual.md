@@ -174,7 +174,7 @@ truth; older sequences create neither state regression nor a new event.
 ## Persistence, configuration, development topology, and extension checklist
 
 CMS durable records include `hal_charger_mappings`, `hal_command_records`,
-`hal_fact_receipts`, `hal_charger_runtimes`, `hal_connector_runtimes`, intents,
+`hal_fact_receipts`, `hal_charger_runtime`, `hal_connector_runtime`, intents,
 sessions, holds, and `operational_events`. Migration 28 is the core charging
 vertical; migration 33 is durable event replay. This manual applies neither.
 
@@ -231,8 +231,8 @@ URL/bearer is absent. `GetCommand` is the sole recovery lookup and queries
 | CMS model/table | Key invariant and lifecycle |
 | --- | --- |
 | `HALChargerMapping` / `hal_charger_mappings` | one CMS charger and unique OCPP identity; pending/synchronized/reconciliation mapping evidence. |
-| `HALChargerRuntime` / `hal_charger_runtimes` | one CMS charger; latest accepted connection generation/sequence/observation. |
-| `HALConnectorRuntime` / `hal_connector_runtimes` | one CMS connector; latest accepted OCPP status sequence/observation. |
+| `HALChargerRuntime` / `hal_charger_runtime` | one CMS charger; latest accepted connection generation/sequence/observation. |
+| `HALConnectorRuntime` / `hal_connector_runtime` | one CMS connector; latest accepted OCPP status sequence/observation. |
 | `ChargingStartIntent` | credential hash unique; one materialized session ID; commercial decision before HAL command. |
 | `WalletHold` | one start intent; held/captured/released/reconciliation accounting lifecycle. |
 | `HALCommandRecord` | `cms_command_id` primary and HAL command unique when known; exact recovery identity. |
