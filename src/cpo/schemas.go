@@ -253,6 +253,7 @@ type ChargerView struct {
 	Model                   *string                 `json:"model,omitempty"`
 	SerialNumber            string                  `json:"serial_number"`
 	MaxPowerKW              float64                 `json:"max_power_kw"`
+	CustomerVisibility      bool                    `json:"customer_visibility"`
 	Status                  constants.ChargerStatus `json:"status"`
 	OCPPVersion             string                  `json:"ocpp_version"`
 	LastSeenAt              *time.Time              `json:"last_seen_at,omitempty"`
@@ -591,4 +592,10 @@ type OperationalChargerResponse struct {
 
 type FleetOperationsResponse struct {
 	Fleet liveops.FleetState `json:"fleet"`
+}
+
+// UpdateChargerCustomerVisibilityRequest defines the payload for updating
+// a charger's customer visibility.
+type UpdateChargerCustomerVisibilityRequest struct {
+	CustomerVisible bool `json:"customer_visible"`
 }

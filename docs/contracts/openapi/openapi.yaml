@@ -797,6 +797,52 @@ paths:
             application/json:
               schema: {$ref: "#/components/schemas/ErrorEnvelope"}
         "500": {$ref: "#/components/responses/InternalError"}
+    /api/v1/cpo/chargers/{charger_id}/customer-visibility:
+    parameters:
+      - $ref: "#/components/parameters/ChargerPublicID"
+    put:
+      tags: [CPO Operations - Network]
+      operationId: updateCPOChargerCustomerVisibility
+      summary: Publish or unpublish a charger from User App discovery
+      description: |
+        Requires CPO ADMIN and atomically changes the charger's `customer_visibility`
+        publication gate. Unpublished chargers are omitted from User App discovery
+        and favorites, even if their hub is published. Existing sessions and
+        active charging are unaffected.
+      security:
+        - BearerAuth: []
+          CPOAppID: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateChargerCustomerVisibilityRequest"
+      responses:
+        "200":
+          description: Updated charger projection.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChargerResponse"
+        "400":
+          description: Invalid charger ID, body, or missing app-ID header.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/CPOBusinessForbidden"
+        "404":
+          description: "`charger_not_found` — no charger in this CPO has the ID."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "500":
+          $ref: "#/components/responses/InternalError"
 
   /api/v1/app/chargers:
     get:

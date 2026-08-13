@@ -504,6 +504,7 @@ func RegisterCPORoutes(
 	group.PATCH("/hubs/:hub_id", handler.updateHub)
 	group.DELETE("/hubs/:hub_id", handler.deleteHub)
 	group.PUT("/hubs/:hub_id/customer-visibility", handler.updateHubCustomerVisibility)
+	group.PUT("/chargers/:charger_id/customer-visibility", handler.updateChargerCustomerVisibility)
 	group.POST("/hubs/:hub_id/chargers", handler.assignChargerToHub)
 	group.POST("/hubs/:hub_id/gst", handler.assignGSTToHub)
 	group.GET("/hubs/:hub_id/gst", handler.getGSTForHub)
@@ -2297,5 +2298,50 @@ func (handler *Handler) updateUserGroupTariff(ctx *gin.Context) {
 		writeError(ctx, err)
 		return
 	}
+	ctx.JSON(http.StatusOK, record)
+}
+
+// @Summary Update charger customer visibility
+// @Description Update the customer visibility of a specific charger.
+// @Tags CPO Network
+// @Accept json
+// @Produce json
+// @Param charger_id path string true "Charger ID"
+// @Param visibility body UpdateChargerCustomerVisibilityRequest true "Charger customer visibility update data"
+// @Success 200 {object} ChargerResponse "Successfully updated charger customer visibility"
+// @Failure 400 {object} auth.APIError "Invalid request body or parameters"
+// @Failure 401 {object} auth.APIError "Unauthorized"
+// @Failure 403 {object} auth.APIError "Forbidden"
+// @Failure 404 {object} auth.APIError "Charger not found"
+// @Failure 500 {object} auth.APIError "Internal server error"
+// @Router /cpo/chargers/{charger_id}/customer-visibility [put]
+func (handler *Handler) updateChargerCustomerVisibility(ctx *gin.Context) {
+	principal, _ := auth.CurrentPrincipal(ctx)
+	chargerID, ok := parseChargerID(ctx)
+	if !ok {
+		return
+	}
+
+	var request UpdateChargerCustomerVisibilityRequest
+	if err := decodeJSON(ctx, &request); err != nil {
+		writeError(ctx, &auth.APIError{
+			Status:  http.StatusBadRequest,
+			Code:    "invalid_request",
+			Message: "The request body is invalid.",
+		})
+		return
+	}
+
+	record, err := handler.service.UpdateChargerCustomerVisibility(
+		ctx.Request.Context(),
+		principal,
+		chargerID,
+		request,
+	)
+	if err != nil {
+		writeError(ctx, err)
+		return
+	}
+
 	ctx.JSON(http.StatusOK, record)
 }

@@ -6243,3 +6243,59 @@ func (service *Service) DownloadInvoiceLogo(ctx context.Context, principal auth.
 		ModTime:      info.ModTime(),
 	}, nil
 }
+
+// UpdateChargerCustomerVisibility updates the customer visibility of a specific charger.
+func (service *Service) UpdateChargerCustomerVisibility(
+	ctx context.Context,
+	principal auth.Principal,
+	chargerID uuid.UUID,
+	request UpdateChargerCustomerVisibilityRequest,
+) (ChargerResponse, error) {
+	if err := requireCPOAdminAccess(principal); err != nil {
+		return ChargerResponse{}, err
+	}
+
+	cpoID := *principal.CPOID
+	var charger models.Charger
+
+	err := service.database.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+			Preload("Connectors", func(tx *gorm.DB) *gorm.DB {
+				return tx.Order("connector_number ASC")
+			}).
+			Preload("Hub").
+			First(&charger, "id = ? AND cpo_id = ?", chargerID, cpoID).Error; err != nil {
+			return mapChargerNotFound(err)
+		}
+
+		now := service.now()
+		if err := tx.Model(&charger).
+			Updates(map[string]any{
+				"customer_visibility": request.CustomerVisible,
+				"updated_at":          now,
+			}).Error; err != nil {
+			return mapChargerWriteError(err, "update charger customer visibility")
+		}
+		charger.CustomerVisibility = request.CustomerVisible
+		charger.UpdatedAt = now
+
+		return writeAudit(
+			tx,
+			principal.UserID,
+			cpoID,
+			"CHARGER_CUSTOMER_VISIBILITY_UPDATED",
+			models.JSONB{
+				"charger_id":          charger.ID,
+				"customer_visibility": request.CustomerVisible,
+			},
+			now,
+		)
+	})
+
+	if err != nil {
+		return ChargerResponse{}, err
+	}
+
+	// Reload associations if needed (they are already preloaded in the transaction)
+	return service.chargerView(charger, principal), nil
+}
