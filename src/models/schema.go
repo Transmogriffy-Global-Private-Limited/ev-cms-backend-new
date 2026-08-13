@@ -170,23 +170,23 @@ type Customer struct {
 }
 
 type Hub struct {
-	ID              uuid.UUID `gorm:"type:uuid;primaryKey;default:gen_random_uuid()" json:"id"`
-	CPOID           uuid.UUID `gorm:"type:uuid;not null;index" json:"cpo_id"`
-	CPO             CPO       `gorm:"foreignKey:CPOID;constraint:OnUpdate:CASCADE,OnDelete:RESTRICT" json:"cpo,omitempty"`
-	Name            string    `gorm:"type:varchar(255);not null" json:"name"`
-	Address         string    `gorm:"type:text;not null" json:"address"`
+	ID              uuid.UUID             `gorm:"type:uuid;primaryKey;default:gen_random_uuid()" json:"id"`
+	CPOID           uuid.UUID             `gorm:"type:uuid;not null;index" json:"cpo_id"`
+	CPO             CPO                   `gorm:"foreignKey:CPOID;constraint:OnUpdate:CASCADE,OnDelete:RESTRICT" json:"cpo,omitempty"`
+	Name            string                `gorm:"type:varchar(255);not null" json:"name"`
+	Address         string                `gorm:"type:text;not null" json:"address"`
 	State           constants.IndianState `gorm:"not null;size:100"`
-	Latitude        float64   `gorm:"type:numeric(10,8);not null" json:"latitude"`
-	Longitude       float64   `gorm:"type:numeric(11,8);not null" json:"longitude"`
-	Open24Hours     bool      `gorm:"column:open_24_hours;not null;default:true" json:"open_24_hours"`
-	SanctionLoad    float64   `gorm:"type:numeric(10,2);not null;default:0" json:"sanction_load"`
-	CustomerVisible bool      `gorm:"column:customer_visible;not null;default:false" json:"customer_visible"`
-	GSTID           *uuid.UUID `gorm:"type:uuid;index" json:"gst_id,omitempty"`
-    GST             *GST       `gorm:"foreignKey:GSTID;constraint:OnUpdate:CASCADE,OnDelete:RESTRICT" json:"gst,omitempty"`
-	Chargers        []Charger `gorm:"foreignKey:HubID" json:"chargers,omitempty"`
-	Tariffs         []Tariff  `gorm:"foreignKey:HubID" json:"tariffs,omitempty"`
-	CreatedAt       time.Time `gorm:"not null" json:"created_at"`
-	UpdatedAt       time.Time `gorm:"not null" json:"updated_at"`
+	Latitude        float64               `gorm:"type:numeric(10,8);not null" json:"latitude"`
+	Longitude       float64               `gorm:"type:numeric(11,8);not null" json:"longitude"`
+	Open24Hours     bool                  `gorm:"column:open_24_hours;not null;default:true" json:"open_24_hours"`
+	SanctionLoad    float64               `gorm:"type:numeric(10,2);not null;default:0" json:"sanction_load"`
+	CustomerVisible bool                  `gorm:"column:customer_visible;not null;default:false" json:"customer_visible"`
+	GSTID           *uuid.UUID            `gorm:"type:uuid;index" json:"gst_id,omitempty"`
+	GST             *GST                  `gorm:"foreignKey:GSTID;constraint:OnUpdate:CASCADE,OnDelete:RESTRICT" json:"gst,omitempty"`
+	Chargers        []Charger             `gorm:"foreignKey:HubID" json:"chargers,omitempty"`
+	Tariffs         []Tariff              `gorm:"foreignKey:HubID" json:"tariffs,omitempty"`
+	CreatedAt       time.Time             `gorm:"not null" json:"created_at"`
+	UpdatedAt       time.Time             `gorm:"not null" json:"updated_at"`
 }
 
 type Charger struct {
@@ -263,17 +263,17 @@ type CustomerFavoriteCharger struct {
 }
 
 type GST struct {
-	ID        uuid.UUID        `gorm:"type:uuid;primaryKey;default:gen_random_uuid()" json:"id"`
-	CPOID     uuid.UUID        `gorm:"type:uuid;not null;index" json:"cpo_id"`
-	Name      string           `gorm:"type:varchar(100);not null" json:"name"`
+	ID        uuid.UUID             `gorm:"type:uuid;primaryKey;default:gen_random_uuid()" json:"id"`
+	CPOID     uuid.UUID             `gorm:"type:uuid;not null;index" json:"cpo_id"`
+	Name      string                `gorm:"type:varchar(100);not null" json:"name"`
 	State     constants.IndianState `gorm:"type:varchar(255)" json:"state"`
-	SGSTRate  *decimal.Decimal `gorm:"type:numeric(5,2)" json:"sgst_rate"`
-	CGSTRate  *decimal.Decimal `gorm:"type:numeric(5,2)" json:"cgst_rate"`
-	IGSTRate  *decimal.Decimal `gorm:"type:numeric(5,2)" json:"igst_rate"`
-	IsActive  bool             `gorm:"not null;default:true" json:"is_active"`
-	Tariffs   []Tariff         `gorm:"foreignKey:GSTID" json:"tariffs,omitempty"`
-	CreatedAt time.Time        `gorm:"not null" json:"created_at"`
-	UpdatedAt time.Time        `gorm:"not null" json:"updated_at"`
+	SGSTRate  *decimal.Decimal      `gorm:"type:numeric(5,2)" json:"sgst_rate"`
+	CGSTRate  *decimal.Decimal      `gorm:"type:numeric(5,2)" json:"cgst_rate"`
+	IGSTRate  *decimal.Decimal      `gorm:"type:numeric(5,2)" json:"igst_rate"`
+	IsActive  bool                  `gorm:"not null;default:true" json:"is_active"`
+	Tariffs   []Tariff              `gorm:"foreignKey:GSTID" json:"tariffs,omitempty"`
+	CreatedAt time.Time             `gorm:"not null" json:"created_at"`
+	UpdatedAt time.Time             `gorm:"not null" json:"updated_at"`
 }
 
 func (GST) TableName() string {
