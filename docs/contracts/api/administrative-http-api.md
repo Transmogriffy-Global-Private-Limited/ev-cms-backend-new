@@ -2157,6 +2157,10 @@ IDs or bodies return the shared `400` validation errors.
 ### 9.11 `GET /api/v1/cpo/chargers`
 
 Returns tenant chargers and connectors in descending `(created_at, id)` order.
+Each charger may also include an optional `live` projection containing the
+committed CMS HAL connection state and connector availability/freshness. This
+projection is read-only, CPO-scoped, and absent when no projection is
+available; the request never calls HAL.
 
 Query:
 
@@ -2227,7 +2231,9 @@ The cursor fields are omitted when `has_more` is false. Errors:
 
 Uses the six-character public charger ID, not the charger UUID. Input is trimmed
 and lowercased before validation. `200 OK` returns the Charger object including
-connectors ordered by connector number. The response will also contain the `email` of the CPO admin.
+connectors ordered by connector number and, when available, the optional
+committed `live` projection. The response will also contain the `email` of the
+CPO admin.
 Unknown or cross-tenant IDs return `404 charger_not_found`; malformed IDs return `400 invalid_charger_id`.
 
 ### 9.12A `GET /api/v1/cpo/chargers/{charger_id}/image`
