@@ -4,7 +4,7 @@ Status: In Progress
 Owner: Codex
 Collaborators: Anubhab Dey (CMS/HAL boundary owner)
 Started: 2026-08-12
-Last updated: 2026-08-13
+Last updated: 2026-08-14
 
 Development-plan reference: `docs/DEVELOPMENT_PLAN.md` — Charging lifecycle and HAL integration
 Detailed-plan reference: `docs/integrations/ocpp-hal-boundary.md`
@@ -66,6 +66,11 @@ Establish reusable CMS capabilities over HAL-derived operational truth and expos
   source-aligned. The later serial-number HAL admission contract remains out
   of scope.
 - Durable operational events are produced with accepted newer fact projections and consumed through scoped REST cursor replay/SSE. Streams revalidate bearer sessions at heartbeat.
+- Connection liveness now has a dedicated CMS horizon, independent of meter
+  freshness. Accepted newer HAL Heartbeat facts renew the durable connection
+  observation; REST/read-side recovery and realtime invalidation therefore use
+  the same source of truth. Connector status is live only while parent
+  connection evidence remains fresh.
 - Runtime revision `4cb1edd` is active under `evcmsnew-dev.service`; migrations
   through thirty-eight,
   loopback/public health and readiness, Swagger, raw OpenAPI, the live
@@ -97,6 +102,13 @@ Establish reusable CMS capabilities over HAL-derived operational truth and expos
 - Fact/mapping/SSE lifecycle behavior, reconciliation recovery, and dual-service
   E2E remain pending. The earlier development host lacked `pwsh`; the current
   Windows source checkout passed the PowerShell documentation verifier.
+- The guarded connection-fact sequence regression requires a disposable
+  `TEST_DATABASE_URL`; physical `bd9099` acceptance remains a post-deployment
+  procedure and is not claimed by source verification.
+- 2026-08-14 connection-liveness hardening: focused config/liveops/customer
+  tests, `go test ./...`, `go vet ./...`, and `scripts/verify-docs.ps1` pass.
+  The guarded PostgreSQL projection regression skips safely without
+  `TEST_DATABASE_URL`.
 
 ## Handoff
 

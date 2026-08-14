@@ -22,13 +22,18 @@ const (
 )
 
 type Service struct {
-	database   *gorm.DB
-	staleAfter time.Duration
-	now        func() time.Time
+	database             *gorm.DB
+	meterStaleAfter      time.Duration
+	connectionStaleAfter time.Duration
+	now                  func() time.Time
 }
 
 func New(database *gorm.DB, cfg config.HAL) *Service {
-	return &Service{database: database, staleAfter: cfg.MeterStaleAfter, now: func() time.Time { return time.Now().UTC() }}
+	connectionStaleAfter := cfg.ConnectionStaleAfter
+	if connectionStaleAfter <= 0 {
+		connectionStaleAfter = 15 * time.Minute
+	}
+	return &Service{database: database, meterStaleAfter: cfg.MeterStaleAfter, connectionStaleAfter: connectionStaleAfter, now: func() time.Time { return time.Now().UTC() }}
 }
 
 type ChargerState struct {
@@ -100,7 +105,7 @@ func (service *Service) GetCharger(ctx context.Context, cpoID, chargerID uuid.UU
 	state.ConnectionObservedAt = &runtime.ObservedAt
 	sequence, generation := runtime.ConnectionSequence, runtime.ConnectionGeneration
 	state.ConnectionSequence, state.ConnectionGeneration = &sequence, &generation
-	state.ConnectionFreshness = service.freshness(runtime.ObservedAt)
+	state.ConnectionFreshness = service.connectionFreshness(runtime.ObservedAt)
 	return state, nil
 }
 
@@ -123,7 +128,7 @@ func (service *Service) GetConnector(ctx context.Context, cpoID, connectorID uui
 	}
 	status, sequence := runtime.OCPPConnectorStatus, runtime.ConnectorStatusSequence
 	state.LastOCPPStatus, state.ObservedAt, state.StatusSequence = &status, &runtime.ObservedAt, &sequence
-	state.Freshness = service.freshness(runtime.ObservedAt)
+	state.Freshness = service.connectorFreshness(runtime.ObservedAt, charger)
 	if charger.ConnectionState != "ONLINE" || charger.ConnectionFreshness != FreshnessFresh {
 		state.Availability = "UNAVAILABLE"
 		state.Freshness = FreshnessStale
@@ -193,7 +198,7 @@ func (service *Service) GetChargerDetails(ctx context.Context, cpoID uuid.UUID, 
 		observed, sequence, generation := runtime.ObservedAt, runtime.ConnectionSequence, runtime.ConnectionGeneration
 		state.ConnectionState, state.ConnectionObservedAt = runtime.ConnectionState, &observed
 		state.ConnectionSequence, state.ConnectionGeneration = &sequence, &generation
-		state.ConnectionFreshness = service.freshness(observed)
+		state.ConnectionFreshness = service.connectionFreshness(observed)
 		chargerStateByID[runtime.CMSChargerID] = state
 	}
 	connectorIDs := make([]uuid.UUID, 0)
@@ -250,7 +255,7 @@ func (service *Service) GetSession(ctx context.Context, cpoID, sessionID uuid.UU
 		state.ConsumedWh = &consumed
 	}
 	if session.MeterObservedAt != nil {
-		state.MeterFreshness = service.freshness(*session.MeterObservedAt)
+		state.MeterFreshness = service.meterFreshness(*session.MeterObservedAt)
 	}
 	if session.Status == constants.SessionStatusActive || session.Status == constants.SessionStatusStopPending {
 		charger, err := service.GetCharger(ctx, cpoID, session.ChargerID)
@@ -276,7 +281,7 @@ func (service *Service) GetFleet(ctx context.Context, cpoID uuid.UUID) (FleetSta
 	seen := map[uuid.UUID]bool{}
 	for _, runtime := range runtimes {
 		seen[runtime.CMSChargerID] = true
-		if service.freshness(runtime.ObservedAt) != FreshnessFresh {
+		if service.connectionFreshness(runtime.ObservedAt) != FreshnessFresh {
 			state.UnknownChargers++
 			continue
 		}
@@ -316,7 +321,7 @@ func (service *Service) GetFleet(ctx context.Context, cpoID uuid.UUID) (FleetSta
 		charger := ChargerState{ChargerID: connector.ChargerID, CPOID: cpoID, ConnectionState: "UNKNOWN", ConnectionFreshness: FreshnessUnknown}
 		if runtime, ok := chargerRuntimeByID[connector.ChargerID]; ok {
 			observed, sequence, generation := runtime.ObservedAt, runtime.ConnectionSequence, runtime.ConnectionGeneration
-			charger.ConnectionState, charger.ConnectionObservedAt, charger.ConnectionSequence, charger.ConnectionGeneration, charger.ConnectionFreshness = runtime.ConnectionState, &observed, &sequence, &generation, service.freshness(observed)
+			charger.ConnectionState, charger.ConnectionObservedAt, charger.ConnectionSequence, charger.ConnectionGeneration, charger.ConnectionFreshness = runtime.ConnectionState, &observed, &sequence, &generation, service.connectionFreshness(observed)
 		}
 		live := service.connectorState(connector, connectorRuntimeByID[connector.ID], charger)
 		switch live.Availability {
@@ -340,7 +345,7 @@ func (service *Service) connectorState(connector models.Connector, runtime model
 		return state
 	}
 	status, sequence, observed := runtime.OCPPConnectorStatus, runtime.ConnectorStatusSequence, runtime.ObservedAt
-	state.LastOCPPStatus, state.ObservedAt, state.StatusSequence, state.Freshness = &status, &observed, &sequence, service.freshness(observed)
+	state.LastOCPPStatus, state.ObservedAt, state.StatusSequence, state.Freshness = &status, &observed, &sequence, service.connectorFreshness(observed, charger)
 	if charger.ConnectionState != "ONLINE" || charger.ConnectionFreshness != FreshnessFresh {
 		state.Availability, state.Freshness = "UNAVAILABLE", FreshnessStale
 		return state
@@ -361,11 +366,32 @@ func (service *Service) connectorState(connector models.Connector, runtime model
 	return state
 }
 
-func (service *Service) freshness(observed time.Time) string {
+func (service *Service) meterFreshness(observed time.Time) string {
+	return service.freshness(observed, service.meterStaleAfter)
+}
+
+func (service *Service) connectionFreshness(observed time.Time) string {
+	return service.freshness(observed, service.connectionStaleAfter)
+}
+
+// Connector StatusNotification has no periodic OCPP cadence. Its latest exact
+// status remains live while its parent connection has fresh HAL liveness
+// evidence; a missing status remains UNKNOWN and stale/offline parents dominate.
+func (service *Service) connectorFreshness(observed time.Time, charger ChargerState) string {
 	if observed.IsZero() {
 		return FreshnessUnknown
 	}
-	if service.staleAfter <= 0 || service.now().Sub(observed) > service.staleAfter {
+	if charger.ConnectionState != "ONLINE" || charger.ConnectionFreshness != FreshnessFresh {
+		return FreshnessStale
+	}
+	return FreshnessFresh
+}
+
+func (service *Service) freshness(observed time.Time, staleAfter time.Duration) string {
+	if observed.IsZero() {
+		return FreshnessUnknown
+	}
+	if staleAfter <= 0 || service.now().Sub(observed) > staleAfter {
 		return FreshnessStale
 	}
 	return FreshnessFresh

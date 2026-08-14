@@ -32,8 +32,10 @@ establish start and completion truth.
   independent fact ingress socket. Business services authorize first and never
   build raw HAL requests.
 - `src/liveops` owns current CMS-projection reads for charger, connector,
-  session, and fleet state. It centralizes freshness: connector availability is
-  never fresh when parent connection evidence is stale, offline, or unknown.
+  session, and fleet state. It centralizes freshness: connection evidence uses
+  `HAL_V1_CONNECTION_STALE_AFTER`, meter evidence uses the independent
+  `HAL_V1_METER_STALE_AFTER`, and connector availability is never fresh when
+  parent connection evidence is stale, offline, or unknown.
 - Durable `operational_events` are written in the same transaction as an
   accepted fact projection. They are notification-sized; REST snapshots remain
   the authority after missed delivery or reconnect.
@@ -65,9 +67,45 @@ time component is invented by this implementation.
 set both tokens are required; when no base URL is supplied customer charging
 returns `hal_unavailable`. Local topology uses loopback endpoints only.
 
+HAL emits a new ordered `charger.connection.updated` fact for initial
+connection and for accepted current-connection Heartbeats. CMS applies only an
+advancing `connection_sequence`, so a delayed fact cannot change state or renew
+`observed_at`. Realtime is an invalidation hint only: User App and CPO refreshes
+reconstruct the same connection state/freshness from these durable projections.
+
 No token, raw credential, authorization header, or fact body is logged. The
 HAL client does not retry a mutating command with a new identity. A caller
 reconciles the same command identity after a transport ambiguity.
+
+## Post-deployment Connection-Liveness Acceptance
+
+This procedure is not evidence until it is run after separately approved
+deployment. Use only the mapped development charger `bd9099` / connector `1`;
+do not edit either service database manually.
+
+1. Restart the new HAL. Confirm it projects the prior runtime as `UNKNOWN`,
+   resets its process-scoped generation baseline, and delivers the resulting
+   connection fact to CMS.
+2. Connect `cpconsole` once with `-url wss://dev-ocpphal-new.transev.site`,
+   `-id bd9099`, and `-connector 1`. Do not append the identity to `-url`.
+3. Confirm HAL runtime is `ONLINE`, generation `1`, and has a higher durable
+   connection sequence. Confirm `charger.connection.updated` is delivered with
+   HTTP `204`, then confirm CMS REST reports `ONLINE`/`FRESH`.
+4. Send `StatusNotification(Available)` for connector `1`; confirm its fact is
+   delivered with `204` and CMS REST reports connector `AVAILABLE`/`FRESH`.
+5. Keep the charger connected past the former short meter threshold, send a
+   Heartbeat, and confirm HAL `last_observed_at` and connection sequence advance
+   without changing generation. Confirm the renewed fact reaches CMS, then
+   refresh the User App and confirm its REST reconstruction remains
+   `ONLINE`/`FRESH` and `AVAILABLE`/`FRESH`.
+6. Keep liveness flowing through at least one complete configured heartbeat
+   cycle. Confirm no false stale transition occurs. Then terminate `cpconsole`;
+   confirm HAL `OFFLINE`, a higher ordered fact with HTTP `204`, and CMS/User
+   App unavailable/stale state.
+7. Separately test silence without a disconnect callback. After
+   `HAL_V1_CONNECTION_STALE_AFTER` expires, CMS must treat historical `ONLINE`
+   and connector `Available` as stale/unavailable without synthesizing an
+   `OFFLINE` fact.
 
 ## Current Limitations and Required Follow-up
 

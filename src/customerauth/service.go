@@ -125,7 +125,7 @@ func NewService(
 	// Keep the persisted CMS projection readable in isolated service tests and
 	// non-HAL startup paths. main replaces this with the configured shared
 	// capability before routes are registered.
-	service.live = liveops.New(database, config.HAL{MeterStaleAfter: 30 * time.Second})
+	service.live = liveops.New(database, config.HAL{MeterStaleAfter: 30 * time.Second, ConnectionStaleAfter: 15 * time.Minute})
 	service.factIngestor = halops.NewFactIngestor(database, "", service)
 	return service, nil
 }

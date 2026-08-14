@@ -60,9 +60,9 @@ func TestChargingStartAdmissionWithPostgreSQL(t *testing.T) {
 		t.Fatalf("create customer service: %v", err)
 	}
 	service.WithHALOperations(
-		halops.New(gormDB, config.HAL{BaseURL: halServer.URL, CMSBearerToken: "test", MeterStaleAfter: time.Minute}),
-		liveops.New(gormDB, config.HAL{MeterStaleAfter: time.Minute}),
-		config.HAL{MeterStaleAfter: time.Minute},
+		halops.New(gormDB, config.HAL{BaseURL: halServer.URL, CMSBearerToken: "test", MeterStaleAfter: time.Minute, ConnectionStaleAfter: 15 * time.Minute}),
+		liveops.New(gormDB, config.HAL{MeterStaleAfter: time.Minute, ConnectionStaleAfter: 15 * time.Minute}),
+		config.HAL{MeterStaleAfter: time.Minute, ConnectionStaleAfter: 15 * time.Minute},
 	)
 
 	setChargingAdmissionProjection(t, gormDB, fixture, fixture.connector.ID, "ONLINE", "Available", time.Now().UTC())
