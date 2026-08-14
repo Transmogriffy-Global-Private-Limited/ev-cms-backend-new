@@ -279,7 +279,8 @@ type ChargerView struct {
 
 type ChargerResponse struct {
 	ChargerView
-	Email string `json:"email,omitempty"`
+	Email string                 `json:"email,omitempty"`
+	Live  *liveops.ChargerDetail `json:"live,omitempty"`
 }
 
 type TenantListQuery struct {

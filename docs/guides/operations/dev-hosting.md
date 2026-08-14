@@ -28,8 +28,8 @@ development host it is set in the ignored service environment to
 that setting; it must not be used until the OCPP host is explicitly configured
 with TLS/WebSocket support.
 
-The active deployment was updated on August 13, 2026 to runtime source revision
-`4cb1edd`. It has migrations one through thirty-eight and the current 180-operation
+The active deployment was updated on August 14, 2026 to runtime source revision
+`7350887`. It has migrations one through thirty-eight and the current 180-operation
 API. Migration thirty-three adds the CPO/customer-scoped `operational_events`
 ledger used for durable operational-notification recovery; its four indexes
 support CPO and customer cursor replay plus retention. Migration twenty-seven

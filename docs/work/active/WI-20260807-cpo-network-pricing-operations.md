@@ -74,7 +74,7 @@ charging vertical.
 
 ## Current state
 
-The current shared development deployment is runtime source revision `4cb1edd`
+The current shared development deployment is runtime source revision `7350887`
 with migrations through thirty-eight applied and 180 OpenAPI
 operations. The single-target tariff correction and charger customer visibility
 are enforced across CPO publication and User App discovery, detail, pricing,
@@ -83,6 +83,8 @@ mapping now explicitly targets the singular
 `hal_charger_runtime` and `hal_connector_runtime` tables; no migration was
 needed for this correction. State-aware GST-to-hub assignment validation is
 also active.
+- CPO charger list/detail responses additionally expose optional committed live
+  connection/connector projections; list reads use one bounded batch lookup.
 
 Earlier revision `3ca2c35` was built from a clean worktree and rehosted on
 August 11, 2026 after migration thirty-two. The live service exposes the
