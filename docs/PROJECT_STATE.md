@@ -2,6 +2,17 @@
 
 ## Current State
 
+### 2026-08-14 — Worker current-instance projection (local, unhosted)
+
+- Migration `000039_make_worker_current_instance_explicit` retains durable
+  `worker_instances` history while selecting one `is_current` process
+  incarnation per logical worker name. A replacement registration atomically
+  supersedes the prior current row; delayed heartbeats from old rows are no-ops.
+- Platform workers, SuperAdmin overview/status, and `GET /api/v1/platform/workers`
+  now report only the current projection. Current heartbeats derive `STALE` at
+  read time; readiness evaluates that current required instance rather than raw
+  historical rows. The local source is not migrated, committed, or deployed.
+
 ### 2026-08-13 — CPO charging-session read release deployed
 
 - CPO `ADMIN` now has tenant-scoped `GET /api/v1/cpo/charging-sessions` list

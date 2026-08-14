@@ -1,5 +1,18 @@
 # AI Changelog
 
+## 2026-08-14 - Worker current-instance status projection (local, unhosted)
+
+- Added migration 39 and current-instance service semantics for the
+  single-instance-per-logical-worker deployment. Historical process rows are
+  retained, but worker status APIs and SuperAdmin projections return only one
+  authoritative current incarnation per worker name.
+- A replacement atomically supersedes the old row; later heartbeats from the
+  old instance cannot reclaim current authority. Staleness and readiness are
+  evaluated from the current row only.
+- Added static migration coverage and guarded PostgreSQL restart/replacement,
+  stale, and delayed-heartbeat regression coverage. No migration, commit,
+  push, or deployment occurred.
+
 ## 2026-08-14 - HAL connection-liveness freshness separation
 
 - Added `HAL_V1_CONNECTION_STALE_AFTER` with a backward-compatible `15m`

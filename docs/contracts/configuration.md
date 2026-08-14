@@ -73,7 +73,7 @@ must be positive.
 
 The platform-maintenance worker deletes expired event rows and reports a
 durable heartbeat. The mail worker also reports durable heartbeats when mail is
-enabled. Readiness is evaluated per required worker name: at least one instance
+enabled. Readiness is evaluated per required worker name: its current instance
 must be fresh and healthy, so a stale instance from a replaced process does not
 mask a healthy replacement. Realtime and retention configuration is loaded at
 startup and requires a restart to change.

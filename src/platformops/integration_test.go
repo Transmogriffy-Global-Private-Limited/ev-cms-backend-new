@@ -181,6 +181,39 @@ func TestPlatformEventsAuditAndWorkerLifecycleWithPostgreSQL(t *testing.T) {
 			err,
 		)
 	}
+	workers, err = service.ListWorkers(ctx, principal)
+	if err != nil {
+		t.Fatalf("list current replacement worker: %v", err)
+	}
+	current, count := workerByName(workers.Workers, "test-worker")
+	if count != 1 || current.InstanceKey != replacementInstanceKey || current.Status != "HEALTHY" {
+		t.Fatalf("replacement must be the sole current worker projection: %#v", workers)
+	}
+	// A delayed heartbeat from the superseded incarnation cannot overwrite the
+	// replacement's current projection.
+	if err := service.Heartbeat(ctx, "test-worker", instanceKey); err != nil {
+		t.Fatalf("record delayed old heartbeat: %v", err)
+	}
+	workers, err = service.ListWorkers(ctx, principal)
+	current, count = workerByName(workers.Workers, "test-worker")
+	if err != nil || count != 1 || current.InstanceKey != replacementInstanceKey {
+		t.Fatalf("old heartbeat reclaimed current worker authority: %#v, %v", workers, err)
+	}
+	secondReplacementKey := uuid.NewString()
+	if err := service.Heartbeat(ctx, "test-worker", secondReplacementKey); err != nil {
+		t.Fatalf("record repeated replacement worker: %v", err)
+	}
+	workers, err = service.ListWorkers(ctx, principal)
+	current, count = workerByName(workers.Workers, "test-worker")
+	if err != nil || count != 1 || current.InstanceKey != secondReplacementKey {
+		t.Fatalf("repeated restart accumulated current workers: %#v, %v", workers, err)
+	}
+	service.now = func() time.Time { return now.Add(4 * time.Minute) }
+	workers, err = service.ListWorkers(ctx, principal)
+	current, count = workerByName(workers.Workers, "test-worker")
+	if err != nil || count != 1 || current.Status != "STALE" {
+		t.Fatalf("stale current worker was not represented correctly: %#v, %v", workers, err)
+	}
 
 	if err := gormDB.Delete(&models.AuditLog{}, "id = ?", audit.ID).Error; err != nil {
 		t.Fatalf("delete test audit: %v", err)
@@ -191,7 +224,7 @@ func TestPlatformEventsAuditAndWorkerLifecycleWithPostgreSQL(t *testing.T) {
 	if err := gormDB.Delete(
 		&models.WorkerInstance{},
 		"instance_key IN ?",
-		[]string{instanceKey, replacementInstanceKey},
+		[]string{instanceKey, replacementInstanceKey, secondReplacementKey},
 	).Error; err != nil {
 		t.Fatalf("delete test worker: %v", err)
 	}
@@ -199,4 +232,16 @@ func TestPlatformEventsAuditAndWorkerLifecycleWithPostgreSQL(t *testing.T) {
 		!errors.Is(err, gorm.ErrRecordNotFound) {
 		t.Fatalf("delete test event: %v", err)
 	}
+}
+
+func workerByName(workers []WorkerView, name string) (WorkerView, int) {
+	var match WorkerView
+	count := 0
+	for _, worker := range workers {
+		if worker.Name == name {
+			match = worker
+			count++
+		}
+	}
+	return match, count
 }

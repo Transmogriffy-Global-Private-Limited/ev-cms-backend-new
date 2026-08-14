@@ -59,6 +59,8 @@ Migration files:
 - `db/migrations/000037_correct_tariff_targeting.down.sql`
 - `db/migrations/000038_separate_tariff_gst_and_require_charger_hub.up.sql`
 - `db/migrations/000038_separate_tariff_gst_and_require_charger_hub.down.sql`
+- `db/migrations/000039_make_worker_current_instance_explicit.up.sql`
+- `db/migrations/000039_make_worker_current_instance_explicit.down.sql`
 
 ## Supplied Model Mapping
 
@@ -258,8 +260,8 @@ The sixth migration adds:
 
 - `platform_events`, an append-only, monotonically ordered, retention-bounded
   event log used for superadmin UI invalidation, replay, and SSE delivery; and
-- `worker_instances`, durable process-instance heartbeats used to derive
-  `HEALTHY`, `DEGRADED`, `DISABLED`, or `STALE` operational state.
+- `worker_instances`, durable process-instance heartbeats and history used to
+  derive `HEALTHY`, `DEGRADED`, `DISABLED`, or `STALE` operational state.
 
 `platform_events.id` is the canonical replay and deduplication cursor. Events
 are committed in the same database transaction as the state change they
@@ -268,11 +270,15 @@ OTPs, tokens, integration credentials, or decrypted mail bodies. Expired rows
 are removed by the platform-maintenance worker; authoritative business state
 remains in the owning tables and must be re-fetched after an event.
 
-Worker identity is the unique `(worker_name, instance_key)` pair. Required
-worker rows with a non-healthy reported status or a heartbeat older than
-`PLATFORM_WORKER_STALE_AFTER` make `/health/ready` unavailable. A process that
-has not registered a worker row is not inferred from this table; startup owns
-registration by sending an immediate heartbeat.
+Worker identity is the unique `(worker_name, instance_key)` pair. Migration
+thirty-nine adds an explicit `is_current` projection with a partial unique
+index: this deployment permits one current instance per logical `worker_name`.
+The prior process row remains historical, while a replacement heartbeat
+supersedes it atomically and a delayed old heartbeat cannot reclaim authority.
+Required current workers with a non-healthy reported status or a heartbeat older
+than `PLATFORM_WORKER_STALE_AFTER` make `/health/ready` unavailable. A process
+that has not registered a worker row is not inferred from this table; startup
+owns registration by sending an immediate heartbeat.
 
 ## Retired Platform Billing and Restored Manual Subscriptions
 

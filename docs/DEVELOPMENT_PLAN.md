@@ -39,6 +39,9 @@ and financial operations without accessing another CPO's data.
 - Money will use an exact representation and energy used for billing will use
   integer Wh.
 - The CMS never invents or replaces a HAL-issued OCPP transaction identifier.
+- Runtime worker reporting distinguishes a logical worker role from its
+  ephemeral process instance. The status API projects one authoritative current
+  instance per logical worker; durable historical rows are not current health.
 - Tariffs own commercial pricing only; active tax is resolved from the charger
   hub's same-CPO GST assignment. A zero price or tax rate is configured data,
   never evidence that a required tariff or GST is missing.

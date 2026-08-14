@@ -2170,16 +2170,18 @@ paths:
     get:
       tags: [Superadmin - Platform Operations]
       operationId: listPlatformWorkers
-      summary: List durable worker health
+      summary: List current logical-worker health
       description: |
-        Reports worker instances from durable heartbeats. STALE is derived when
-        the latest heartbeat exceeds PLATFORM_WORKER_STALE_AFTER. This endpoint
-        cannot start, stop, or kill worker processes.
+        Reports one current process incarnation for each logical worker from
+        durable heartbeats. Historical instances are retained but omitted.
+        STALE is derived when the current heartbeat exceeds
+        PLATFORM_WORKER_STALE_AFTER. This endpoint cannot start, stop, or kill
+        worker processes.
       security:
         - BearerAuth: []
       responses:
         "200":
-          description: Worker instances and derived health.
+          description: Current logical-worker instances and derived health.
           content:
             application/json:
               schema:
@@ -8046,7 +8048,7 @@ components:
         instance_key:
           type: string
           maxLength: 255
-          description: Ephemeral process-instance identifier, not a credential.
+          description: Current ephemeral process-instance identifier, not a credential. A restart replaces this value for the logical worker.
         status:
           type: string
           enum: [HEALTHY, DEGRADED, STALE, DISABLED]

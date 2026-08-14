@@ -35,6 +35,7 @@ type WorkerInstance struct {
 	ID                 uuid.UUID  `gorm:"type:uuid;primaryKey;default:gen_random_uuid()" json:"id"`
 	WorkerName         string     `gorm:"type:varchar(100);not null;uniqueIndex:uq_worker_identity,priority:1" json:"name"`
 	InstanceKey        string     `gorm:"type:varchar(255);not null;uniqueIndex:uq_worker_identity,priority:2" json:"instance_key"`
+	IsCurrent          bool       `gorm:"column:is_current;not null;default:false;index" json:"-"`
 	Required           bool       `gorm:"not null;default:true" json:"required"`
 	ReportedStatus     string     `gorm:"type:varchar(20);not null;default:'HEALTHY'" json:"-"`
 	StartedAt          time.Time  `gorm:"not null" json:"started_at"`
