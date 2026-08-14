@@ -2,7 +2,7 @@
 
 ## Current State
 
-### 2026-08-14 — Worker current-instance projection (local, unhosted)
+### 2026-08-14 — Worker current-instance projection deployed
 
 - Migration `000039_make_worker_current_instance_explicit` retains durable
   `worker_instances` history while selecting one `is_current` process
@@ -11,7 +11,14 @@
 - Platform workers, SuperAdmin overview/status, and `GET /api/v1/platform/workers`
   now report only the current projection. Current heartbeats derive `STALE` at
   read time; readiness evaluates that current required instance rather than raw
-  historical rows. The source is not migrated or deployed.
+  historical rows.
+- Migration 39 is applied on the development VPS after a mode-0600 rollback
+  dump. Revision `11c4c23` is active with binary SHA-256
+  `2aa8f6c5cd8e0053a72e36d400c2da87ec84e21e6246544ad4c4082813db7511`.
+- The enabled service is active with zero restarts. Migration/index checks,
+  Caddy validation, serial Go tests and vet, local/public health/readiness,
+  Swagger, raw OpenAPI, and the worker/status auth boundaries passed. The live
+  contract contains 180 operations.
 
 ### 2026-08-14 — CPO charger live projection release deployed
 
@@ -417,8 +424,8 @@ provides:
   handler;
 - the additive PostgreSQL database `devevcmsnewdb`, owned by `postgres`.
 
-The active development VPS runs source revision `7350887`, with migrations
-through thirty-eight recorded and the deployed 180-operation contract. Migration
+The active development VPS runs source revision `11c4c23`, with migrations
+through thirty-nine recorded and the deployed 180-operation contract. Migration
 twenty-nine adds nullable `tariff_type`, `price_type`, and `units` metadata to
 tenant tariffs; omitted values remain null-safe for existing and newly created
 tariffs. The SuperAdmin administrator-list query explicitly binds the platform

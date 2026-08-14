@@ -1,6 +1,6 @@
 # AI Changelog
 
-## 2026-08-14 - Worker current-instance status projection (local, unhosted)
+## 2026-08-14 - Rehosted worker current-instance status projection
 
 - Added migration 39 and current-instance service semantics for the
   single-instance-per-logical-worker deployment. Historical process rows are
@@ -10,8 +10,23 @@
   old instance cannot reclaim current authority. Staleness and readiness are
   evaluated from the current row only.
 - Added static migration coverage and guarded PostgreSQL restart/replacement,
-  stale, and delayed-heartbeat regression coverage. No migration or deployment
-  occurred.
+  stale, and delayed-heartbeat regression coverage.
+- Applied migration 39 after a mode-0600 rollback dump at
+  `/var/backups/postgres/devevcmsnewdb-pre-migration-39-20260814-141424.dump`.
+  Clean runtime revision `11c4c23` was rehosted with binary SHA-256
+  `2aa8f6c5cd8e0053a72e36d400c2da87ec84e21e6246544ad4c4082813db7511`.
+
+Verification:
+
+- Migration ledger, current-worker uniqueness, Caddy validation, focused
+  migration/platform/routes tests, serial `go test ./...`, serial `go vet
+  ./...`, and `git diff --check` passed. The enabled service is active with
+  zero restarts; local/public health, readiness, Swagger, raw OpenAPI, and the
+  unauthenticated worker/status boundaries passed. The live contract remains
+  at 180 operations.
+- `scripts/verify-docs.ps1` was not run because `pwsh` is unavailable on this
+  Ubuntu host. Disposable PostgreSQL lifecycle and full CMS-to-HAL topology
+  acceptance remain pending their dedicated environments.
 
 ## 2026-08-14 - Rehosted CPO charger live projection release
 

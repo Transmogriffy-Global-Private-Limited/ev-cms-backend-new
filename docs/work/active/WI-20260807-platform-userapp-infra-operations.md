@@ -120,13 +120,14 @@ verification before execution.
 
 ## Current state
 
-The local worker-status correction adds migration 39 and an explicit
+The worker-status correction adds migration 39 and an explicit
 single-current-instance projection for each platform worker name. Historical
 rows remain durable, while delayed heartbeats from superseded instances cannot
-overwrite the replacement. It is not yet migrated, committed, or deployed.
+overwrite the replacement. It is deployed in revision `11c4c23`; migration 39
+is applied and the service has one current row per logical worker.
 
-The current shared development deployment is runtime source revision `ebb57fb`
-with migrations through thirty-eight and 180 OpenAPI operations. The HAL runtime
+The current shared development deployment is runtime source revision `11c4c23`
+with migrations through thirty-nine and 180 OpenAPI operations. The HAL runtime
 GORM table mapping correction and User App charging-history release are active
 without a database migration.
 

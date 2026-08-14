@@ -130,6 +130,8 @@ Current implementation state:
 - The current deployed release also includes optional committed live charger
   projections on CPO charger list/detail responses. Revision `7350887` is
   active without a migration; list reads use the bounded batch liveops reader.
+- Migration 39 and the current-worker projection are deployed in revision
+  `11c4c23`; worker status/readiness now ignore superseded historical rows.
 - The current deployed CMS release additionally contains the User App
   charging-history/detail completion slice: customer/CPO-scoped materialized
   session history, frozen commercial detail, linked settlement projection, and

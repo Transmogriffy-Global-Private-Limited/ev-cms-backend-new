@@ -29,7 +29,7 @@ that setting; it must not be used until the OCPP host is explicitly configured
 with TLS/WebSocket support.
 
 The active deployment was updated on August 14, 2026 to runtime source revision
-`7350887`. It has migrations one through thirty-eight and the current 180-operation
+`11c4c23`. It has migrations one through thirty-nine and the current 180-operation
 API. Migration thirty-three adds the CPO/customer-scoped `operational_events`
 ledger used for durable operational-notification recovery; its four indexes
 support CPO and customer cursor replay plus retention. Migration twenty-seven
@@ -85,6 +85,10 @@ start use explicit `USERGROUP > CHARGER > HUB` precedence.
 Migration thirty-eight removes legacy tariff GST ownership only when no legacy
 association remains, normalizes hubless chargers to hidden/inactive, and adds
 database checks requiring a hub for active or customer-visible chargers.
+Migration thirty-nine adds the explicit `worker_instances.is_current` projection
+and partial unique index. Historical process rows remain durable, while exactly
+one current incarnation per logical worker name drives worker status and
+readiness.
 The HAL runtime GORM models explicitly map to the singular migration tables
 `hal_charger_runtime` and `hal_connector_runtime`. The User App charging-history
 route and session-detail
