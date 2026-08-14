@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/auth"
@@ -3332,7 +3333,18 @@ func (service *Service) GetCharger(
 		First(&record, "cpo_id = ? AND charger_id = ?", *principal.CPOID, chargerID).Error; err != nil {
 		return ChargerResponse{}, mapChargerNotFound(err)
 	}
-	return service.chargerView(record, principal), nil
+
+	response := service.chargerView(record, principal)
+
+	if service.liveOperations != nil {
+		live, err := service.liveOperations.GetChargerDetail(ctx, *principal.CPOID, record.ID)
+		if err == nil {
+			response.Live = &live
+		}
+		// We ignore the error if live data is not available
+	}
+
+	return response, nil
 }
 
 func (service *Service) GetOperationalCharger(ctx context.Context, principal auth.Principal, chargerID string) (OperationalChargerResponse, error) {
@@ -4182,12 +4194,27 @@ func (service *Service) ListChargers(
 	if hasMore {
 		chargers = chargers[:query.Limit]
 	}
-	response := make([]ChargerResponse, 0, len(chargers))
-	for _, charger := range chargers {
-		response = append(response, service.chargerView(charger, principal))
+	responses := make([]ChargerResponse, len(chargers))
+	for i, charger := range chargers {
+		responses[i] = service.chargerView(charger, principal)
 	}
 
-	result := ChargerListResponse{Chargers: response, HasMore: hasMore}
+	if service.liveOperations != nil {
+		var wg sync.WaitGroup
+		for i := range chargers {
+			wg.Add(1)
+			go func(index int) {
+				defer wg.Done()
+				live, err := service.liveOperations.GetChargerDetail(ctx, *principal.CPOID, chargers[index].ID)
+				if err == nil {
+					responses[index].Live = &live
+				}
+			}(i)
+		}
+		wg.Wait()
+	}
+
+	result := ChargerListResponse{Chargers: responses, HasMore: hasMore}
 	if hasMore && len(chargers) > 0 {
 		nextBefore := chargers[len(chargers)-1].CreatedAt
 		nextBeforeID := chargers[len(chargers)-1].ID
