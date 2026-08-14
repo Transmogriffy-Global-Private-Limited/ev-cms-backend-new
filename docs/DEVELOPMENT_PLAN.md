@@ -945,6 +945,10 @@ Current implementation slice:
   and create-path mapping delivery, align newly generated charger identities,
   and make migration 34/model tariff assignment metadata coherent. The later
   serial-number HAL admission contract remains out of scope.
+- Current liveness repair: accepted HAL Heartbeats must renew durable ordered
+  connection evidence; CMS reads connection freshness from a dedicated horizon,
+  while meter freshness remains independent. REST recovery and realtime
+  invalidation must converge on the same projected evidence.
 - Tariff-domain correction is deployed in runtime revision `ebb57fb` after
   migration thirty-seven normalized legacy composite tariff rows to one target.
   CPO nested tariff CRUD fixes target scope, and User App hub price, charger

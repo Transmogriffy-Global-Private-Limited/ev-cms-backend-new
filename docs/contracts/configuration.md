@@ -103,6 +103,7 @@ implemented.
 | `HAL_V1_CMS_FACT_BEARER_TOKEN` | Secret. Required with `HAL_V1_BASE_URL`; HAL-to-CMS fact bearer, distinct from the command bearer. |
 | `HAL_V1_REQUEST_TIMEOUT` | `5s`, positive HTTP client timeout. A timeout is reconciliation evidence, not permission to create another command. |
 | `HAL_V1_METER_STALE_AFTER` | `30s`, positive CMS display freshness threshold; it never creates an inferred meter value. |
+| `HAL_V1_CONNECTION_STALE_AFTER` | `15m`, positive CMS connection-liveness horizon. It must remain comfortably longer than HAL's requested Heartbeat cadence (v1 default `300s`); it never creates or infers `ONLINE`. |
 
 Changing any HAL setting requires restart. Never substitute a legacy HAL token,
 customer bearer, staff bearer, or a shared database connection. See

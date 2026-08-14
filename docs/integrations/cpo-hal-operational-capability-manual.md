@@ -103,8 +103,12 @@ historical OCPP status but never presents it as fresh live state after stale,
 ## Derived live state
 
 `liveops` intentionally keeps CMS administrative status separate from HAL
-protocol observations. Freshness is `FRESH`, `STALE`, or `UNKNOWN`, with the
-CMS display threshold `HAL_V1_METER_STALE_AFTER` (default 30s), not a meter SLA.
+protocol observations. Meter freshness uses `HAL_V1_METER_STALE_AFTER` (default
+`30s`) and never creates a meter reading. Connection freshness uses the
+independent `HAL_V1_CONNECTION_STALE_AFTER` (default `15m`), which must remain
+longer than HAL's requested five-minute Heartbeat cadence. A retained connector
+StatusNotification is live only while its parent connection is `ONLINE` and
+connection-fresh; its historical observation remains diagnostic data.
 
 | Runtime evidence | Derived connector availability |
 | --- | --- |
@@ -180,7 +184,8 @@ vertical; migration 33 is durable event replay. This manual applies neither.
 
 Use `HAL_V1_BASE_URL`, `HAL_V1_CMS_BEARER_TOKEN`,
 `HAL_V1_CMS_FACT_BEARER_TOKEN`, `HAL_V1_REQUEST_TIMEOUT`, and
-`HAL_V1_METER_STALE_AFTER` from `contracts/configuration.md`. The provider has
+`HAL_V1_METER_STALE_AFTER`, and `HAL_V1_CONNECTION_STALE_AFTER` from
+`contracts/configuration.md`. The provider has
 separate fact-delivery enablement, CMS facts URL, and fact bearer. All are
 loopback-only in local topology; tokens are distinct and never browser/API
 values, logs, docs examples, or OpenAPI content.
@@ -525,8 +530,10 @@ OCPP connector status, sequences, observations, freshness, session/meter state.
 
 CMS `ACTIVE` is not HAL `ONLINE`. The User App overlay preserves that safety
 gate: inactive charger/connector inventory is unavailable regardless of older
-live evidence. `HAL_V1_METER_STALE_AFTER` defaults to 30 seconds and produces
-`FRESH`, `STALE`, or `UNKNOWN`; it never invents a reading.
+live evidence. `HAL_V1_METER_STALE_AFTER` defaults to 30 seconds and applies
+only to meters; `HAL_V1_CONNECTION_STALE_AFTER` defaults to 15 minutes and
+applies only to HAL connection evidence. Neither setting invents a reading or
+an `ONLINE` connection.
 
 ### 10 — Identifier school
 

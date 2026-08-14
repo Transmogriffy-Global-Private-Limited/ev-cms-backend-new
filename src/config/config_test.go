@@ -176,3 +176,24 @@ func TestPlatformOperationalConfigurationValidation(t *testing.T) {
 		t.Fatalf("got %v, want worker stale interval validation", err)
 	}
 }
+
+func TestHALConnectionFreshnessConfigurationValidation(t *testing.T) {
+	t.Parallel()
+
+	cfg := validTestConfig()
+	cfg.HAL = HAL{
+		BaseURL:              "http://127.0.0.1:29080",
+		CMSBearerToken:       "cms-test-token",
+		FactBearerToken:      "fact-test-token",
+		RequestTimeout:       5 * time.Second,
+		MeterStaleAfter:      30 * time.Second,
+		ConnectionStaleAfter: 15 * time.Minute,
+	}
+	if err := cfg.Validate(); err != nil {
+		t.Fatalf("valid HAL freshness configuration failed: %v", err)
+	}
+	cfg.HAL.ConnectionStaleAfter = 0
+	if err := cfg.Validate(); err == nil || !strings.Contains(err.Error(), "HAL v1 durations") {
+		t.Fatalf("connection stale duration validation=%v", err)
+	}
+}

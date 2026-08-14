@@ -1,5 +1,29 @@
 # AI Changelog
 
+## 2026-08-14 - HAL connection-liveness freshness separation
+
+- Added `HAL_V1_CONNECTION_STALE_AFTER` with a backward-compatible `15m`
+  default. Connection freshness is now independent from the existing `30s`
+  meter freshness horizon.
+- `liveops` now derives connector freshness from an `ONLINE`/fresh parent
+  connection rather than meter-age-style expiry. Historical connector status is
+  still unavailable/stale when parent connection evidence is stale, offline, or
+  unknown; fresh connection evidence never fabricates fresh meter data.
+- Recorded the durable Heartbeat fact/sequence contract and a post-deployment
+  `bd9099` acceptance procedure. REST/read-side recovery and realtime
+  invalidation both consume the same durable HAL fact projection.
+- Added focused liveops/config tests and a guarded PostgreSQL connection-fact
+  sequence regression that rejects stale observations and duplicate facts.
+
+Compatibility: no public response schema or migration changed. Existing HAL
+fact digest validation, receipt idempotency, and connection-sequence ordering
+remain authoritative.
+
+Verification: `gofmt`; focused config/liveops/customerauth tests; `go test
+./...`; `go vet ./...`; and `scripts/verify-docs.ps1` passed with
+`TEST_DATABASE_URL` removed. The PostgreSQL projection regression skipped
+safely because no disposable database was selected.
+
 ## 2026-08-13
 
 ### Rehosted CPO charging-session read release

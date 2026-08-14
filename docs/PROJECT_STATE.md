@@ -205,6 +205,11 @@
   create-path mapping delivery, and aligns new charger `charger_id` and
   `ocpp_identity` values. Migration 34's nullable tariff assignment metadata is
   applied and remains unassigned by current tariff APIs.
+- Current source separates connection freshness from meter freshness:
+  `HAL_V1_CONNECTION_STALE_AFTER` controls durable HAL connection evidence,
+  while meter data remains governed by `HAL_V1_METER_STALE_AFTER`. A fresh
+  parent connection makes the latest accepted connector status live; stale,
+  offline, or unknown parent evidence always makes it unavailable/stale.
 
 The repository began as an empty file scaffold. The implemented foundation now
 provides:
