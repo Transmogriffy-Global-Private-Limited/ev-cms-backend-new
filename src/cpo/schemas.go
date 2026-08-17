@@ -391,6 +391,9 @@ type CPOAdminCustomerView struct {
 	IsVerified        bool                     `json:"is_verified"`
 	LastLoginAt       *time.Time               `json:"last_login_at,omitempty"`
 	UsergroupAssigned bool                     `json:"usergroup_assigned"`
+	TotalUsage        decimal.Decimal          `json:"total_usage_kwh,omitempty"`
+	NoOfSessions      int64                    `json:"session_count,omitempty"`
+	DriverWallet      decimal.Decimal          `json:"wallet_balance,omitempty"`
 	CreatedAt         time.Time                `json:"created_at"`
 	UpdatedAt         time.Time                `json:"updated_at"`
 }

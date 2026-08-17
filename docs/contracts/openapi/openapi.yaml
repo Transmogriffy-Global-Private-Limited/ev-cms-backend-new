@@ -7796,6 +7796,13 @@ components:
         usergroup_assigned:
           type: boolean
           description: Whether the customer currently belongs to a user group.
+        total_usage_kwh:
+          $ref: "#/components/schemas/ExactDecimal"
+        session_count:
+          type: integer
+          format: int64
+        wallet_balance:
+          $ref: "#/components/schemas/ExactDecimal"
         last_login_at:
           type: string
           format: date-time

@@ -4740,9 +4740,15 @@ func (service *Service) ListCustomers(
 		records = records[:query.Limit]
 	}
 
+	aggregates, err := service.getCustomerAggregatesByCPO(ctx, cpoID)
+	if err != nil {
+		return CPOAdminCustomerListResponse{}, fmt.Errorf("getting customer aggregates: %w", err)
+	}
+
 	result := make([]CPOAdminCustomerView, 0, len(records))
 	for _, record := range records {
-		result = append(result, cpoAdminCustomerView(record))
+		customerAggregates := aggregates[record.ID]
+		result = append(result, cpoAdminCustomerView(record, &customerAggregates))
 	}
 
 	response := CPOAdminCustomerListResponse{Customers: result, HasMore: hasMore}
@@ -4753,6 +4759,12 @@ func (service *Service) ListCustomers(
 		response.NextBeforeID = &nextBeforeID
 	}
 	return response, nil
+}
+
+type CustomerAggregates struct {
+	TotalUsageKWh decimal.Decimal
+	SessionCount  int64
+	WalletBalance decimal.Decimal
 }
 
 func (service *Service) GetCustomer(
@@ -4770,11 +4782,98 @@ func (service *Service) GetCustomer(
 		return CPOAdminCustomerView{}, mapCustomerNotFound(err)
 	}
 
-	return cpoAdminCustomerView(record), nil
+	aggregates, err := service.getCustomerAggregates(ctx, customerID)
+	if err != nil {
+		return CPOAdminCustomerView{}, fmt.Errorf("getting customer aggregates: %w", err)
+	}
+
+	return cpoAdminCustomerView(record, aggregates), nil
 }
 
-func cpoAdminCustomerView(record models.Customer) CPOAdminCustomerView {
-	return CPOAdminCustomerView{
+func (service *Service) getCustomerAggregates(ctx context.Context, customerID uuid.UUID) (*CustomerAggregates, error) {
+	var aggregates CustomerAggregates
+
+	err := service.database.WithContext(ctx).Model(&models.ChargingSession{}).
+		Select("COALESCE(SUM(total_kwh), 0) as total_usage_kwh, COUNT(*) as session_count").
+		Where("customer_id = ?", customerID).
+		Scan(&aggregates).Error
+	if err != nil {
+		return nil, err
+	}
+
+	err = service.database.WithContext(ctx).Model(&models.Wallet{}).
+		Select("balance as wallet_balance").
+		Where("customer_id = ?", customerID).
+		Scan(&aggregates).Error
+
+	if err != nil {
+		return nil, err
+	}
+
+	return &aggregates, nil
+}
+
+func (service *Service) getCustomerAggregatesByCPO(ctx context.Context, cpoID uuid.UUID) (map[uuid.UUID]CustomerAggregates, error) {
+	type CustomerAggregateResult struct {
+		CustomerID    uuid.UUID
+		TotalUsageKWh decimal.Decimal
+		SessionCount  int64
+	}
+
+	var sessionAggregates []CustomerAggregateResult
+	err := service.database.WithContext(ctx).Model(&models.ChargingSession{}).
+		Select("customer_id, COALESCE(SUM(total_kwh), 0) as total_usage_kwh, COUNT(*) as session_count").
+		Where("cpo_id = ?", cpoID).
+		Group("customer_id").
+		Scan(&sessionAggregates).Error
+
+	if err != nil {
+		return nil, err
+	}
+
+	customerIDs := make([]uuid.UUID, len(sessionAggregates))
+	for i, agg := range sessionAggregates {
+		customerIDs[i] = agg.CustomerID
+	}
+
+	type WalletResult struct {
+		CustomerID    uuid.UUID
+		WalletBalance decimal.Decimal
+	}
+
+	var walletAggregates []WalletResult
+	if len(customerIDs) > 0 {
+		err = service.database.WithContext(ctx).Model(&models.Wallet{}).
+			Select("customer_id, balance as wallet_balance").
+			Where("customer_id IN (?)", customerIDs).
+			Scan(&walletAggregates).Error
+
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	result := make(map[uuid.UUID]CustomerAggregates)
+	for _, agg := range sessionAggregates {
+		result[agg.CustomerID] = CustomerAggregates{
+			TotalUsageKWh: agg.TotalUsageKWh,
+			SessionCount:  agg.SessionCount,
+		}
+	}
+
+	for _, agg := range walletAggregates {
+		if entry, ok := result[agg.CustomerID]; ok {
+			entry.WalletBalance = agg.WalletBalance
+			result[agg.CustomerID] = entry
+		}
+	}
+
+	return result, nil
+}
+
+
+func cpoAdminCustomerView(record models.Customer, aggregates *CustomerAggregates) CPOAdminCustomerView {
+	view := CPOAdminCustomerView{
 		ID:                record.ID,
 		CPOID:             record.CPOID,
 		Email:             record.Email,
@@ -4787,6 +4886,14 @@ func cpoAdminCustomerView(record models.Customer) CPOAdminCustomerView {
 		CreatedAt:         record.CreatedAt,
 		UpdatedAt:         record.UpdatedAt,
 	}
+
+	if aggregates != nil {
+		view.TotalUsage = aggregates.TotalUsageKWh
+		view.NoOfSessions = aggregates.SessionCount
+		view.DriverWallet = aggregates.WalletBalance
+	}
+
+	return view
 }
 
 func mapCustomerNotFound(err error) error {
@@ -5876,7 +5983,7 @@ func (service *Service) GetUserGroup(
 
 	memberViews := make([]CPOAdminCustomerView, 0, len(members))
 	for _, member := range members {
-		memberViews = append(memberViews, cpoAdminCustomerView(member))
+		memberViews = append(memberViews, cpoAdminCustomerView(member, nil))
 	}
 
 	return userGroupView(record, memberViews), nil
