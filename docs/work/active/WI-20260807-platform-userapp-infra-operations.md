@@ -63,6 +63,11 @@ same-customer active-intent replay, and serialize the final decision with a
 connector-row lock. It must not add a route, migration, HAL/OCPP change,
 deployment, or physical-charger claim.
 
+Codex is correcting the platform worker current-status projection under
+`src/platformops/`, its migration, SuperAdmin worker contract, and focused
+regression coverage. Durable process history remains retained, but a restart
+must supersede rather than duplicate the single current logical-worker entry.
+
 The user-authorized tariff-targeting correction was implemented and deployed
 under
 `../archive/WI-20260813-tariff-targeting-visibility-sweep.md`. It shares the User App
@@ -115,8 +120,14 @@ verification before execution.
 
 ## Current state
 
-The current shared development deployment is runtime source revision `ebb57fb`
-with migrations through thirty-eight and 180 OpenAPI operations. The HAL runtime
+The worker-status correction adds migration 39 and an explicit
+single-current-instance projection for each platform worker name. Historical
+rows remain durable, while delayed heartbeats from superseded instances cannot
+overwrite the replacement. It is deployed in revision `11c4c23`; migration 39
+is applied and the service has one current row per logical worker.
+
+The current shared development deployment is runtime source revision `11c4c23`
+with migrations through thirty-nine and 180 OpenAPI operations. The HAL runtime
 GORM table mapping correction and User App charging-history release are active
 without a database migration.
 

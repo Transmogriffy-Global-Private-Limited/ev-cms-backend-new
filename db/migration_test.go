@@ -517,6 +517,34 @@ func TestPlatformOperationsMigrationContainsDurableEventsAndWorkers(t *testing.T
 	}
 }
 
+func TestWorkerCurrentInstanceMigrationPreservesHistoryAndOneCurrentProjection(t *testing.T) {
+	t.Parallel()
+
+	upBody, err := migrationFiles.ReadFile("migrations/000039_make_worker_current_instance_explicit.up.sql")
+	if err != nil {
+		t.Fatalf("read worker-current migration: %v", err)
+	}
+	downBody, err := migrationFiles.ReadFile("migrations/000039_make_worker_current_instance_explicit.down.sql")
+	if err != nil {
+		t.Fatalf("read worker-current rollback: %v", err)
+	}
+	upSQL, downSQL := string(upBody), string(downBody)
+	for _, required := range []string{
+		"ADD COLUMN is_current boolean NOT NULL DEFAULT false",
+		"PARTITION BY worker_name",
+		"uq_worker_instances_current_worker",
+		"WHERE is_current = true",
+	} {
+		if !strings.Contains(upSQL, required) {
+			t.Errorf("worker-current migration missing %q", required)
+		}
+	}
+	if !strings.Contains(downSQL, "DROP INDEX IF EXISTS uq_worker_instances_current_worker") ||
+		!strings.Contains(downSQL, "DROP COLUMN IF EXISTS is_current") {
+		t.Error("worker-current rollback does not remove only the new projection shape")
+	}
+}
+
 func TestSubscriptionMigrationContainsVersionedLifecycle(t *testing.T) {
 	t.Parallel()
 

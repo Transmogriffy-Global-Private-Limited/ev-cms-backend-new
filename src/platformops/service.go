@@ -237,25 +237,44 @@ func (service *Service) Heartbeat(
 		return errors.New("worker identity exceeds storage limit")
 	}
 	now := service.now()
-	record := models.WorkerInstance{
-		ID:              uuid.New(),
-		WorkerName:      workerName,
-		InstanceKey:     instanceKey,
-		Required:        true,
-		ReportedStatus:  "HEALTHY",
-		StartedAt:       now,
-		LastHeartbeatAt: now,
-		Metadata:        models.JSONB{},
-		UpdatedAt:       now,
-	}
-	return service.database.WithContext(ctx).Clauses(clause.OnConflict{
-		Columns: []clause.Column{{Name: "worker_name"}, {Name: "instance_key"}},
-		DoUpdates: clause.Assignments(map[string]any{
-			"reported_status":   "HEALTHY",
-			"last_heartbeat_at": now,
-			"updated_at":        now,
-		}),
-	}).Create(&record).Error
+	return service.database.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var record models.WorkerInstance
+		err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+			First(&record, "worker_name = ? AND instance_key = ?", workerName, instanceKey).Error
+		if err == nil {
+			// A superseded process must never reclaim logical-worker authority
+			// merely because it sends a delayed heartbeat after replacement.
+			if !record.IsCurrent {
+				return nil
+			}
+			return tx.Model(&record).Updates(map[string]any{
+				"reported_status":   "HEALTHY",
+				"last_heartbeat_at": now,
+				"updated_at":        now,
+			}).Error
+		}
+		if !errors.Is(err, gorm.ErrRecordNotFound) {
+			return fmt.Errorf("load worker instance: %w", err)
+		}
+
+		// This deployment registers one current process incarnation for each
+		// logical worker. Retain prior rows as history but atomically supersede
+		// their current projection before creating the replacement.
+		if err := tx.Model(&models.WorkerInstance{}).
+			Where("worker_name = ? AND is_current = ?", workerName, true).
+			Updates(map[string]any{"is_current": false, "updated_at": now}).Error; err != nil {
+			return fmt.Errorf("supersede prior worker instance: %w", err)
+		}
+		record = models.WorkerInstance{
+			ID: uuid.New(), WorkerName: workerName, InstanceKey: instanceKey,
+			IsCurrent: true, Required: true, ReportedStatus: "HEALTHY",
+			StartedAt: now, LastHeartbeatAt: now, Metadata: models.JSONB{}, UpdatedAt: now,
+		}
+		if err := tx.Create(&record).Error; err != nil {
+			return fmt.Errorf("register current worker instance: %w", err)
+		}
+		return nil
+	})
 }
 
 func (service *Service) JobCompleted(
@@ -266,7 +285,7 @@ func (service *Service) JobCompleted(
 	now := service.now()
 	return service.database.WithContext(ctx).
 		Model(&models.WorkerInstance{}).
-		Where("worker_name = ? AND instance_key = ?", workerName, instanceKey).
+		Where("worker_name = ? AND instance_key = ? AND is_current = ?", workerName, instanceKey, true).
 		Updates(map[string]any{
 			"last_job_completed_at": now,
 			"last_heartbeat_at":     now,
@@ -284,7 +303,8 @@ func (service *Service) ListWorkers(
 	}
 	var records []models.WorkerInstance
 	if err := service.database.WithContext(ctx).
-		Order("worker_name, instance_key").
+		Where("is_current = ?", true).
+		Order("worker_name").
 		Find(&records).Error; err != nil {
 		return WorkerListResponse{}, fmt.Errorf("list worker instances: %w", err)
 	}
@@ -320,6 +340,7 @@ func (service *Service) RequiredWorkersReady(ctx context.Context) (bool, error) 
 		        SELECT worker_name
 		          FROM worker_instances
 		         WHERE required = TRUE
+		           AND is_current = TRUE
 		         GROUP BY worker_name
 		        HAVING NOT BOOL_OR(
 		            reported_status = 'HEALTHY'

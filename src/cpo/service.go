@@ -12,7 +12,6 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/auth"
@@ -4200,18 +4199,18 @@ func (service *Service) ListChargers(
 	}
 
 	if service.liveOperations != nil {
-		var wg sync.WaitGroup
-		for i := range chargers {
-			wg.Add(1)
-			go func(index int) {
-				defer wg.Done()
-				live, err := service.liveOperations.GetChargerDetail(ctx, *principal.CPOID, chargers[index].ID)
-				if err == nil {
-					responses[index].Live = &live
-				}
-			}(i)
+		chargerIDs := make([]uuid.UUID, len(chargers))
+		for i, charger := range chargers {
+			chargerIDs[i] = charger.ID
 		}
-		wg.Wait()
+		liveByCharger, err := service.liveOperations.GetChargerDetails(ctx, *principal.CPOID, chargerIDs)
+		if err == nil {
+			for i, charger := range chargers {
+				if live, ok := liveByCharger[charger.ID]; ok {
+					responses[i].Live = &live
+				}
+			}
+		}
 	}
 
 	result := ChargerListResponse{Chargers: responses, HasMore: hasMore}

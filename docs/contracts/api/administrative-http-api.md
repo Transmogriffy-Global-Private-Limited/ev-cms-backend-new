@@ -2157,6 +2157,10 @@ IDs or bodies return the shared `400` validation errors.
 ### 9.11 `GET /api/v1/cpo/chargers`
 
 Returns tenant chargers and connectors in descending `(created_at, id)` order.
+Each charger may also include an optional `live` projection containing the
+committed CMS HAL connection state and connector availability/freshness. This
+projection is read-only, CPO-scoped, and absent when no projection is
+available; the request never calls HAL.
 
 Query:
 
@@ -2227,7 +2231,9 @@ The cursor fields are omitted when `has_more` is false. Errors:
 
 Uses the six-character public charger ID, not the charger UUID. Input is trimmed
 and lowercased before validation. `200 OK` returns the Charger object including
-connectors ordered by connector number. The response will also contain the `email` of the CPO admin.
+connectors ordered by connector number and, when available, the optional
+committed `live` projection. The response will also contain the `email` of the
+CPO admin.
 Unknown or cross-tenant IDs return `404 charger_not_found`; malformed IDs return `400 invalid_charger_id`.
 
 ### 9.12A `GET /api/v1/cpo/chargers/{charger_id}/image`
@@ -2904,7 +2910,7 @@ Errors: `400 invalid_before`, `invalid_before_id`, `invalid_limit`,
 
 ### 11.4 `GET /api/v1/platform/workers`
 
-Purpose: show durable health for registered worker process instances.
+Purpose: show the durable current-health projection for each logical worker.
 
 `200 OK`:
 
@@ -2926,9 +2932,15 @@ Purpose: show durable health for registered worker process instances.
 }
 ```
 
-`STALE` is derived at read time when the last heartbeat exceeds
+`name` is the logical worker role and `instance_key` identifies its current
+process incarnation. Historical process rows are retained for operations but
+are intentionally absent from this current-status endpoint. A replacement
+heartbeat atomically supersedes the old instance; a delayed old heartbeat
+cannot reclaim current state.
+
+`STALE` is derived at read time when the current heartbeat exceeds
 `PLATFORM_WORKER_STALE_AFTER`; it is not a separately reported database state.
-Registered required workers that are stale or report a non-healthy state make
+Required current workers that are stale or report a non-healthy state make
 `GET /health/ready` return `503`. This endpoint is observational only: it
 cannot start, stop, restart, or kill a process.
 

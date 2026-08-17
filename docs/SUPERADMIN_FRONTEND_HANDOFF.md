@@ -711,7 +711,7 @@ Every operation below requires a current `PLATFORM` bearer session and no
 | `GET /api/v1/platform/events` | `200 PlatformEventPage` | Durable catch-up/polling/recovery |
 | `GET /api/v1/platform/realtime/stream` | `200 text/event-stream` | Low-latency invalidation with replay |
 | `GET /api/v1/platform/audit-logs` | `200 AuditPage` | Immutable privileged-action evidence |
-| `GET /api/v1/platform/workers` | `200 {workers}` | Durable worker instance health |
+| `GET /api/v1/platform/workers` | `200 {workers}` | Current logical-worker health |
 
 ### Platform governance, security, and mail operations
 
@@ -1400,19 +1400,20 @@ invalidation. Do not merge them into one source of truth.
 
 ## Worker Health and Readiness
 
-`GET /api/v1/platform/workers` is read-only. It exposes each registered process
-instance, including stale historical instances.
+`GET /api/v1/platform/workers` is read-only. It exposes one current process
+incarnation for each logical worker. Historical rows are retained operationally
+but never appear as additional current worker cards after restart.
 
 - `HEALTHY`: reported healthy and fresh;
 - `DEGRADED`: worker reported a problem;
 - `STALE`: derived because the last heartbeat is too old;
 - `DISABLED`: intentionally not running;
-- `required=true`: at least one fresh healthy instance with this worker name is
-  needed for readiness.
+- `required=true`: the current incarnation for this worker role must be fresh
+  and healthy for readiness.
 
-Readiness is evaluated per logical worker name, not per historical instance.
-A stale replaced instance does not make readiness fail when another instance
-with the same name is fresh and healthy.
+Registration atomically supersedes the prior incarnation for a logical worker.
+An old delayed heartbeat cannot overwrite the newer current state; if the
+current incarnation disappears, its heartbeat eventually becomes `STALE`.
 
 Use `GET /health/ready` for the aggregate readiness badge and workers for the
 diagnostic table. The API cannot start, stop, restart, retry, or kill a worker.

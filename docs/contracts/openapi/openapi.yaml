@@ -2170,16 +2170,18 @@ paths:
     get:
       tags: [Superadmin - Platform Operations]
       operationId: listPlatformWorkers
-      summary: List durable worker health
+      summary: List current logical-worker health
       description: |
-        Reports worker instances from durable heartbeats. STALE is derived when
-        the latest heartbeat exceeds PLATFORM_WORKER_STALE_AFTER. This endpoint
-        cannot start, stop, or kill worker processes.
+        Reports one current process incarnation for each logical worker from
+        durable heartbeats. Historical instances are retained but omitted.
+        STALE is derived when the current heartbeat exceeds
+        PLATFORM_WORKER_STALE_AFTER. This endpoint cannot start, stop, or kill
+        worker processes.
       security:
         - BearerAuth: []
       responses:
         "200":
-          description: Worker instances and derived health.
+          description: Current logical-worker instances and derived health.
           content:
             application/json:
               schema:
@@ -8160,7 +8162,7 @@ components:
         instance_key:
           type: string
           maxLength: 255
-          description: Ephemeral process-instance identifier, not a credential.
+          description: Current ephemeral process-instance identifier, not a credential. A restart replaces this value for the logical worker.
         status:
           type: string
           enum: [HEALTHY, DEGRADED, STALE, DISABLED]
@@ -8663,6 +8665,9 @@ components:
           type: string
           format: email
           description: Authenticated CPO administrator email; omitted only when unavailable.
+        live:
+          $ref: "#/components/schemas/ChargerLiveDetail"
+          description: Optional committed CMS HAL projection. Absent when no live projection is available; this read never calls HAL.
         status:
           $ref: "#/components/schemas/ChargerStatus"
         ocpp_version: {type: string, maxLength: 20}
@@ -9379,6 +9384,40 @@ components:
                   observed_at: {type: string, format: date-time, nullable: true}
                   status_sequence: {type: integer, format: int64, nullable: true}
                   parent_connection_state: {type: string, enum: [ONLINE, OFFLINE, UNKNOWN]}
+
+    ChargerLiveDetail:
+      type: object
+      additionalProperties: false
+      required: [charger, connectors]
+      properties:
+        charger:
+          type: object
+          additionalProperties: false
+          required: [charger_id, cpo_id, connection_state, connection_freshness]
+          properties:
+            charger_id: {type: string, format: uuid}
+            cpo_id: {type: string, format: uuid}
+            connection_state: {type: string, enum: [ONLINE, OFFLINE, UNKNOWN]}
+            connection_freshness: {type: string, enum: [FRESH, STALE, UNKNOWN]}
+            connection_observed_at: {type: string, format: date-time, nullable: true}
+            connection_sequence: {type: integer, format: int64, nullable: true}
+            connection_generation: {type: integer, format: int64, nullable: true}
+        connectors:
+          type: array
+          items:
+            type: object
+            additionalProperties: false
+            required: [connector_id, charger_id, cpo_id, availability, freshness, parent_connection_state]
+            properties:
+              connector_id: {type: string, format: uuid}
+              charger_id: {type: string, format: uuid}
+              cpo_id: {type: string, format: uuid}
+              last_ocpp_status: {type: string, nullable: true}
+              availability: {type: string, enum: [AVAILABLE, CHARGING, FAULTED, UNAVAILABLE, UNKNOWN]}
+              freshness: {type: string, enum: [FRESH, STALE, UNKNOWN]}
+              observed_at: {type: string, format: date-time, nullable: true}
+              status_sequence: {type: integer, format: int64, nullable: true}
+              parent_connection_state: {type: string, enum: [ONLINE, OFFLINE, UNKNOWN]}
 
     ErrorEnvelope:
       type: object

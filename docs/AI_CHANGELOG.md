@@ -1,5 +1,58 @@
 # AI Changelog
 
+## 2026-08-14 - Rehosted worker current-instance status projection
+
+- Added migration 39 and current-instance service semantics for the
+  single-instance-per-logical-worker deployment. Historical process rows are
+  retained, but worker status APIs and SuperAdmin projections return only one
+  authoritative current incarnation per worker name.
+- A replacement atomically supersedes the old row; later heartbeats from the
+  old instance cannot reclaim current authority. Staleness and readiness are
+  evaluated from the current row only.
+- Added static migration coverage and guarded PostgreSQL restart/replacement,
+  stale, and delayed-heartbeat regression coverage.
+- Applied migration 39 after a mode-0600 rollback dump at
+  `/var/backups/postgres/devevcmsnewdb-pre-migration-39-20260814-141424.dump`.
+  Clean runtime revision `11c4c23` was rehosted with binary SHA-256
+  `2aa8f6c5cd8e0053a72e36d400c2da87ec84e21e6246544ad4c4082813db7511`.
+
+Verification:
+
+- Migration ledger, current-worker uniqueness, Caddy validation, focused
+  migration/platform/routes tests, serial `go test ./...`, serial `go vet
+  ./...`, and `git diff --check` passed. The enabled service is active with
+  zero restarts; local/public health, readiness, Swagger, raw OpenAPI, and the
+  unauthenticated worker/status boundaries passed. The live contract remains
+  at 180 operations.
+- `scripts/verify-docs.ps1` was not run because `pwsh` is unavailable on this
+  Ubuntu host. Disposable PostgreSQL lifecycle and full CMS-to-HAL topology
+  acceptance remain pending their dedicated environments.
+
+## 2026-08-14 - Rehosted CPO charger live projection release
+
+- CPO charger list/detail responses now optionally include the committed
+  `live` projection with charger connection state and connector
+  availability/freshness. Missing projection data remains non-fatal and never
+  triggers a synchronous HAL call.
+- The list path uses the bounded `liveops.GetChargerDetails` batch reader so a
+  page does not create one projection query set per charger. OpenAPI and the
+  human administrative contract now describe the optional `live` field.
+- No migration was required; migration 38 remains the latest applied
+  migration. Clean runtime revision `7350887` was rehosted with binary SHA-256
+  `4e5b771835dce699c8198915225654b0e9979c6d38bf603373cbc2b6591c13ab`.
+
+Verification:
+
+- Caddy validation, focused CPO/liveops/customer tests, route/OpenAPI parity,
+  serial `go test ./...`, serial `go vet ./...`, and `git diff --check` passed.
+  The enabled service is active with zero restarts; local/public health,
+  readiness, Swagger, raw OpenAPI, and the protected CPO-route boundary passed.
+  The live contract contains 180 operations and the live projection schema is
+  present.
+- `scripts/verify-docs.ps1` was not run because `pwsh` is unavailable on this
+  Ubuntu host. Disposable PostgreSQL lifecycle and full CMS-to-HAL topology
+  acceptance remain pending their dedicated environments.
+
 ## 2026-08-14 - HAL connection-liveness freshness separation
 
 - Added `HAL_V1_CONNECTION_STALE_AFTER` with a backward-compatible `15m`

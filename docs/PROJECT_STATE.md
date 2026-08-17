@@ -2,6 +2,45 @@
 
 ## Current State
 
+### 2026-08-14 — Worker current-instance projection deployed
+
+- Migration `000039_make_worker_current_instance_explicit` retains durable
+  `worker_instances` history while selecting one `is_current` process
+  incarnation per logical worker name. A replacement registration atomically
+  supersedes the prior current row; delayed heartbeats from old rows are no-ops.
+- Platform workers, SuperAdmin overview/status, and `GET /api/v1/platform/workers`
+  now report only the current projection. Current heartbeats derive `STALE` at
+  read time; readiness evaluates that current required instance rather than raw
+  historical rows.
+- Migration 39 is applied on the development VPS after a mode-0600 rollback
+  dump. Revision `11c4c23` is active with binary SHA-256
+  `2aa8f6c5cd8e0053a72e36d400c2da87ec84e21e6246544ad4c4082813db7511`.
+- The enabled service is active with zero restarts. Migration/index checks,
+  Caddy validation, serial Go tests and vet, local/public health/readiness,
+  Swagger, raw OpenAPI, and the worker/status auth boundaries passed. The live
+  contract contains 180 operations.
+
+### 2026-08-14 — CPO charger live projection release deployed
+
+- CPO charger list/detail responses now optionally include the committed
+  `live` projection: charger connection state/freshness and connector
+  availability/freshness. Missing projection rows remain non-fatal, and these
+  reads never synchronously call HAL.
+- CPO charger list uses one bounded `liveops.GetChargerDetails` batch read for
+  the page instead of one projection query set per charger. OpenAPI and the
+  human administrative contract describe the optional field.
+- Revision `7350887` is active on the development VPS. No migration was
+  required; migration 38 remains the latest applied migration. The installed
+  binary SHA-256 is `4e5b771835dce699c8198915225654b0e9979c6d38bf603373cbc2b6591c13ab`.
+- The enabled service is active with zero restarts on `127.0.0.1:18080`.
+  Caddy validation, focused CPO/liveops/customer tests, serial Go tests and
+  vet, route/OpenAPI parity, local/public health/readiness, Swagger, raw
+  OpenAPI, and the protected CPO-route boundary passed. The live contract has
+  180 operations.
+- `pwsh` documentation verification and disposable PostgreSQL lifecycle tests
+  remain unavailable on this host; full HAL/virtual-charger acceptance remains
+  deferred pending its dedicated environment.
+
 ### 2026-08-13 — CPO charging-session read release deployed
 
 - CPO `ADMIN` now has tenant-scoped `GET /api/v1/cpo/charging-sessions` list
@@ -385,8 +424,8 @@ provides:
   handler;
 - the additive PostgreSQL database `devevcmsnewdb`, owned by `postgres`.
 
-The active development VPS runs source revision `4cb1edd`, with migrations
-through thirty-eight recorded and the deployed 180-operation contract. Migration
+The active development VPS runs source revision `11c4c23`, with migrations
+through thirty-nine recorded and the deployed 180-operation contract. Migration
 twenty-nine adds nullable `tariff_type`, `price_type`, and `units` metadata to
 tenant tariffs; omitted values remain null-safe for existing and newly created
 tariffs. The SuperAdmin administrator-list query explicitly binds the platform

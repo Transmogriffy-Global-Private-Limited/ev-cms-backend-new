@@ -39,6 +39,9 @@ and financial operations without accessing another CPO's data.
 - Money will use an exact representation and energy used for billing will use
   integer Wh.
 - The CMS never invents or replaces a HAL-issued OCPP transaction identifier.
+- Runtime worker reporting distinguishes a logical worker role from its
+  ephemeral process instance. The status API projects one authoritative current
+  instance per logical worker; durable historical rows are not current health.
 - Tariffs own commercial pricing only; active tax is resolved from the charger
   hub's same-CPO GST assignment. A zero price or tax rate is configured data,
   never evidence that a required tariff or GST is missing.
@@ -122,8 +125,13 @@ Current implementation state:
   charger vertical is not verified yet.
 - The current deployed release also exposes tenant-scoped CPO charging-session
   list/detail reads with bounded keyset pagination and validated lifecycle
-  filters. Revision `4cb1edd` is active without a new migration; the live
+  filters. Revision `7350887` is active without a new migration; the live
   OpenAPI contract contains 180 operations.
+- The current deployed release also includes optional committed live charger
+  projections on CPO charger list/detail responses. Revision `7350887` is
+  active without a migration; list reads use the bounded batch liveops reader.
+- Migration 39 and the current-worker projection are deployed in revision
+  `11c4c23`; worker status/readiness now ignore superseded historical rows.
 - The current deployed CMS release additionally contains the User App
   charging-history/detail completion slice: customer/CPO-scoped materialized
   session history, frozen commercial detail, linked settlement projection, and
