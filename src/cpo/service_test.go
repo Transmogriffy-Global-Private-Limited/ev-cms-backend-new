@@ -456,3 +456,129 @@ func TestHubViewIncludesState(t *testing.T) {
 		t.Fatalf("hub state=%q, want West Bengal", view.State)
 	}
 }
+
+func TestTariffValidation(t *testing.T) {
+	t.Parallel()
+
+	validTariffType := constants.TariffTypeFixed
+	validPriceType := constants.PriceTypeEnergy
+	validUnits := constants.UnitWattHour
+
+	// --- Create ---
+	validCreateReq := CreateTariffRequest{
+		TariffType: &validTariffType,
+		PriceType:  &validPriceType,
+		Units:      &validUnits,
+		Currency:   "INR",
+	}
+
+	if err := validateCreateTariffRequest(validCreateReq); err != nil {
+		t.Fatalf("valid create request was rejected: %v", err)
+	}
+
+	for _, tc := range []struct {
+		name    string
+		req     CreateTariffRequest
+		errCode string
+	}{
+		{
+			"invalid tariff type",
+			func() CreateTariffRequest {
+				req := validCreateReq
+				invalid := constants.TariffType("invalid")
+				req.TariffType = &invalid
+				return req
+			}(),
+			"invalid_tariff_type",
+		},
+		{
+			"invalid price type",
+			func() CreateTariffRequest {
+				req := validCreateReq
+				invalid := constants.PriceType("invalid")
+				req.PriceType = &invalid
+				return req
+			}(),
+			"invalid_price_type",
+		},
+		{
+			"invalid units",
+			func() CreateTariffRequest {
+				req := validCreateReq
+				invalid := constants.Unit("invalid")
+				req.Units = &invalid
+				return req
+			}(),
+			"invalid_units",
+		},
+	} {
+		t.Run("create_"+tc.name, func(t *testing.T) {
+			var apiErr *auth.APIError
+			err := validateCreateTariffRequest(tc.req)
+			if !errors.As(err, &apiErr) || apiErr.Code != tc.errCode {
+				t.Fatalf("got %v, want %s", err, tc.errCode)
+			}
+		})
+	}
+
+	// --- Update ---
+	validUpdateReq := UpdateTariffRequest{
+		TariffType: &validTariffType,
+		PriceType:  &validPriceType,
+		Units:      &validUnits,
+	}
+
+	if err := validateUpdateTariffRequest(validUpdateReq); err != nil {
+		t.Fatalf("valid update request was rejected: %v", err)
+	}
+
+	for _, tc := range []struct {
+		name    string
+		req     UpdateTariffRequest
+		errCode string
+	}{
+		{
+			"invalid tariff type",
+			func() UpdateTariffRequest {
+				req := validUpdateReq
+				invalid := constants.TariffType("invalid")
+				req.TariffType = &invalid
+				return req
+			}(),
+			"invalid_tariff_type",
+		},
+		{
+			"invalid price type",
+			func() UpdateTariffRequest {
+				req := validUpdateReq
+				invalid := constants.PriceType("invalid")
+				req.PriceType = &invalid
+				return req
+			}(),
+			"invalid_price_type",
+		},
+		{
+			"invalid units",
+			func() UpdateTariffRequest {
+				req := validUpdateReq
+				invalid := constants.Unit("invalid")
+				req.Units = &invalid
+				return req
+			}(),
+			"invalid_units",
+		},
+		{
+			"empty update",
+			UpdateTariffRequest{},
+			"invalid_tariff",
+		},
+	} {
+		t.Run("update_"+tc.name, func(t *testing.T) {
+			var apiErr *auth.APIError
+			err := validateUpdateTariffRequest(tc.req)
+			if !errors.As(err, &apiErr) || apiErr.Code != tc.errCode {
+				t.Fatalf("got %v, want %s", err, tc.errCode)
+			}
+		})
+	}
+}

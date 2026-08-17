@@ -1926,3 +1926,145 @@ func TestHubTariffLifecycleWithPostgreSQL(t *testing.T) {
 		t.Fatalf("overlapping charger tariff error is %v, want tariff_schedule_conflict", err)
 	}
 }
+
+func TestHubTariffCreationRejectsInvalidEnums(t *testing.T) {
+	databaseURL := os.Getenv("TEST_DATABASE_URL")
+	if databaseURL == "" {
+		t.Skip("TEST_DATABASE_URL is not set")
+	}
+	ctx := context.Background()
+	gormDB, sqlDB, err := db.Open(ctx, databaseURL)
+	if err != nil {
+		t.Fatalf("open test database: %v", err)
+	}
+	defer sqlDB.Close()
+	if err := db.ApplyMigrations(ctx, sqlDB); err != nil {
+		t.Fatalf("apply migrations: %v", err)
+	}
+
+	platformEmail := "network-platform-" + uuid.NewString() + "@example.com"
+	if err := db.SeedSuperadmin(ctx, gormDB, config.Superadmin{
+		Email:    platformEmail,
+		Password: "PlatformPassword!123",
+		FullName: "Network Platform Admin",
+	}); err != nil {
+		t.Fatalf("seed platform administrator: %v", err)
+	}
+	var platformUser models.User
+	if err := gormDB.First(&platformUser, "email = ?", platformEmail).Error; err != nil {
+		t.Fatalf("load platform administrator: %v", err)
+	}
+	platformPrincipal := auth.Principal{
+		UserID: platformUser.ID,
+		Scope:  constants.AuthScopePlatform,
+	}
+	mailBox, err := security.NewSecretBox(
+		"network-config-test-v1",
+		[]byte(strings.Repeat("n", 32)),
+	)
+	if err != nil {
+		t.Fatalf("create mail secret box: %v", err)
+	}
+	service := NewService(gormDB, cmsmail.NewOutbox(mailBox), true, "dummy.connection.url")
+	created, err := service.Create(ctx, platformPrincipal, CreateRequest{
+		Slug:         "network-" + strings.ToLower(uuid.NewString()),
+		BusinessName: "Network Configuration CPO",
+		CompanyType:  constants.CPOCompanyTypeCompany,
+		GSTIN:        uniqueCPOGSTIN(),
+		Address:      "1 Test Road",
+		City:         "Kolkata",
+		State:        "West Bengal",
+		Pincode:      "700001",
+		Admin: InitialAdminRequest{
+			Email:    "network-admin-" + uuid.NewString() + "@example.com",
+			FullName: "Network Administrator",
+		},
+	})
+	if err != nil {
+		t.Fatalf("create CPO: %v", err)
+	}
+	if _, err := service.Activate(
+		ctx,
+		platformPrincipal,
+		created.CPO.ID,
+		LifecycleRequest{Reason: "Approved for network configuration"},
+	); err != nil {
+		t.Fatalf("activate CPO: %v", err)
+	}
+
+	adminRole := constants.CPORoleAdmin
+	adminPrincipal := auth.Principal{
+		UserID: created.Admin.UserID,
+		Scope:  constants.AuthScopeCPO,
+		CPOID:  &created.CPO.ID,
+		Role:   &adminRole,
+	}
+
+	latitude := 22.5524
+	longitude := 88.3521
+	hub, err := service.CreateHub(ctx, adminPrincipal, CreateHubRequest{
+		Name:      "Park Street Hub",
+		Address:   "12 Park Street, Kolkata",
+		Latitude:  &latitude,
+		Longitude: &longitude,
+	})
+	if err != nil {
+		t.Fatalf("create hub: %v", err)
+	}
+	hubID := hub.ID
+
+	price := decimal.RequireFromString("18.50")
+	invalidTariffType := constants.TariffType("Standard")
+	invalidPriceType := constants.PriceType("Fixed")
+	invalidUnits := constants.Unit("wh")
+
+	testCases := []struct {
+		name    string
+		request CreateTariffRequest
+		errCode string
+	}{
+		{
+			name: "invalid tariff_type",
+			request: CreateTariffRequest{
+				PricePerKWh: price,
+				TariffType:  &invalidTariffType,
+			},
+			errCode: "invalid_tariff_type",
+		},
+		{
+			name: "invalid price_type",
+			request: CreateTariffRequest{
+				PricePerKWh: price,
+				PriceType:   &invalidPriceType,
+			},
+			errCode: "invalid_price_type",
+		},
+		{
+			name: "invalid units",
+			request: CreateTariffRequest{
+				PricePerKWh: price,
+				Units:       &invalidUnits,
+			},
+			errCode: "invalid_units",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := service.CreateHubTariff(ctx, adminPrincipal, hubID, tc.request)
+
+			var apiErr *auth.APIError
+			if !errors.As(err, &apiErr) {
+				t.Fatalf("expected an API error, but got: %v", err)
+			}
+
+			if apiErr.Status != http.StatusBadRequest {
+				t.Errorf("expected status %d, but got %d", http.StatusBadRequest, apiErr.Status)
+			}
+
+			if apiErr.Code != tc.errCode {
+				t.Errorf("expected error code %q, but got %q", tc.errCode, apiErr.Code)
+			}
+		})
+	}
+}

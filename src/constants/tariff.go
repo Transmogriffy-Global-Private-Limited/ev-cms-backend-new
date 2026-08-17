@@ -18,6 +18,15 @@ const (
 	TariffTypeFixed TariffType = "fixed"
 )
 
+func (e TariffType) Valid() bool {
+	switch e {
+	case TariffTypeFixed:
+		return true
+	default:
+		return false
+	}
+}
+
 type PriceType string
 
 const (
@@ -26,9 +35,27 @@ const (
 	PriceTypeEnergy  PriceType = "energy"
 )
 
+func (e PriceType) Valid() bool {
+	switch e {
+	case PriceTypeSession, PriceTypeTime, PriceTypeEnergy:
+		return true
+	default:
+		return false
+	}
+}
+
 type Unit string
 
 const (
 	UnitMinutes  Unit = "minutes"
 	UnitWattHour Unit = "watt/hour"
 )
+
+func (e Unit) Valid() bool {
+	switch e {
+	case UnitMinutes, UnitWattHour:
+		return true
+	default:
+		return false
+	}
+}

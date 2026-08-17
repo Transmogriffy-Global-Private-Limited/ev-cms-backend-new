@@ -5022,6 +5022,15 @@ func validateCreateTariffRequest(request CreateTariffRequest) error {
 	if err := validateTariffDateRange(request.StartDate, request.EndDate); err != nil {
 		return err
 	}
+	if request.TariffType != nil && !request.TariffType.Valid() {
+		return invalid("tariff_type", "Invalid tariff type.")
+	}
+	if request.PriceType != nil && !request.PriceType.Valid() {
+		return invalid("price_type", "Invalid price type.")
+	}
+	if request.Units != nil && !request.Units.Valid() {
+		return invalid("units", "Invalid units.")
+	}
 	return nil
 }
 
@@ -5031,7 +5040,10 @@ func validateUpdateTariffRequest(request UpdateTariffRequest) error {
 		request.Currency == nil &&
 		request.IsActive == nil &&
 		request.StartDate == nil &&
-		request.EndDate == nil {
+		request.EndDate == nil &&
+		request.TariffType == nil &&
+		request.PriceType == nil &&
+		request.Units == nil {
 		return invalid("tariff", "At least one tariff field must be supplied.")
 	}
 
@@ -5043,6 +5055,15 @@ func validateUpdateTariffRequest(request UpdateTariffRequest) error {
 	}
 	if request.Currency != nil && len(*request.Currency) != 3 {
 		return invalid("currency", "Currency must be a 3-letter code.")
+	}
+	if request.TariffType != nil && !request.TariffType.Valid() {
+		return invalid("tariff_type", "Invalid tariff type.")
+	}
+	if request.PriceType != nil && !request.PriceType.Valid() {
+		return invalid("price_type", "Invalid price type.")
+	}
+	if request.Units != nil && !request.Units.Valid() {
+		return invalid("units", "Invalid units.")
 	}
 	return nil
 }
