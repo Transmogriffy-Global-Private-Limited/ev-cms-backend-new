@@ -133,8 +133,11 @@ type ListResponse struct {
 }
 
 type AnalyticsResponse struct {
-	TotalChargers   int64 `json:"total_chargers"`
-	TotalConnectors int64 `json:"total_connectors"`
+	TotalChargers   int64           `json:"total_chargers"`
+	TotalConnectors int64           `json:"total_connectors"`
+	TotalRevenue    decimal.Decimal `json:"total_revenue"`
+	TotalUsage      decimal.Decimal `json:"total_usage"`
+	TotalSessions   int64           `json:"total_sessions"`
 }
 
 type SessionRevocationResponse struct {

@@ -116,6 +116,9 @@ func (service *Service) GetAnalytics(
 	return AnalyticsResponse{
 		TotalChargers:   analytics.TotalChargers,
 		TotalConnectors: analytics.TotalConnectors,
+		TotalRevenue:    analytics.TotalRevenue,
+		TotalUsage:      analytics.TotalUsage,
+		TotalSessions:   analytics.TotalSessions,
 	}, nil
 }
 

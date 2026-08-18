@@ -5,6 +5,7 @@ import (
 
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/models"
 	"github.com/google/uuid"
+	"github.com/shopspring/decimal"
 	"gorm.io/gorm"
 )
 
@@ -25,6 +26,9 @@ func NewRepository(db *gorm.DB) Repository {
 type Analytics struct {
 	TotalChargers   int64
 	TotalConnectors int64
+	TotalRevenue    decimal.Decimal
+	TotalUsage      decimal.Decimal
+	TotalSessions   int64
 }
 
 func (r *repository) GetAnalytics(ctx context.Context, cpoID uuid.UUID) (Analytics, error) {
@@ -35,6 +39,22 @@ func (r *repository) GetAnalytics(ctx context.Context, cpoID uuid.UUID) (Analyti
 	if err := r.db.WithContext(ctx).Model(&models.Connector{}).Where("cpo_id = ?", cpoID).Count(&analytics.TotalConnectors).Error; err != nil {
 		return Analytics{}, err
 	}
+
+	var sessionAnalytics struct {
+		TotalRevenue  decimal.Decimal
+		TotalUsage    decimal.Decimal
+		TotalSessions int64
+	}
+	if err := r.db.WithContext(ctx).Model(&models.ChargingSession{}).
+		Select("COALESCE(SUM(total_amount), 0) as total_revenue, COALESCE(SUM(total_kwh), 0) as total_usage, COUNT(*) as total_sessions").
+		Where("cpo_id = ?", cpoID).
+		Scan(&sessionAnalytics).Error; err != nil {
+		return Analytics{}, err
+	}
+	analytics.TotalRevenue = sessionAnalytics.TotalRevenue
+	analytics.TotalUsage = sessionAnalytics.TotalUsage
+	analytics.TotalSessions = sessionAnalytics.TotalSessions
+
 	return analytics, nil
 }
 

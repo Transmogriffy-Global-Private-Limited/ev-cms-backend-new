@@ -573,7 +573,7 @@ func (handler *Handler) listChargingSessions(ctx *gin.Context) {
 // @Description Get CPO analytics data.
 // @Tags CPO Network
 // @Produce json
-// @Success 200 {object} AnalyticsResponse
+// @Success 200 {object} AnalyticsResponse "Returns CPO analytics data, including total chargers, connectors, revenue, energy usage, and number of sessions."
 // @Failure 401 {object} auth.APIError "Unauthorized"
 // @Failure 403 {object} auth.APIError "Forbidden"
 // @Security BearerAuth
