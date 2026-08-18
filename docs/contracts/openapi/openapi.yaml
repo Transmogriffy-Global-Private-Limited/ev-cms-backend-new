@@ -4254,6 +4254,35 @@ paths:
   /api/v1/cpo/hubs/{hub_id}/chargers:
     parameters:
       - $ref: "#/components/parameters/HubID"
+    get:
+      tags: [CPO Operations - Network]
+      operationId: listChargersByHub
+      summary: List chargers by hub
+      description: Get a list of chargers for a specific hub.
+      security:
+        - BearerAuth: []
+        - CPOAppID: []
+      responses:
+        "200":
+          description: Successfully retrieved chargers
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChargerListResponse"
+        "400":
+          $ref: "#/components/responses/InvalidRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/CPOBusinessForbidden"
+        "404":
+          description: "`hub_not_found`"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "500":
+          $ref: "#/components/responses/InternalError"
     post:
       tags: [CPO Operations - Network]
       operationId: assignChargerToCPOHub

@@ -1970,6 +1970,31 @@ func (service *Service) GetSubscription(
 	return view, nil
 }
 
+func (service *Service) ListChargersByHub(
+	ctx context.Context,
+	principal auth.Principal,
+	hubID uuid.UUID,
+) (ChargerListResponse, error) {
+	if err := requireCPOAdminAccess(principal); err != nil {
+		return ChargerListResponse{}, err
+	}
+
+	chargers, err := service.repository.ListChargersByHub(ctx, *principal.CPOID, hubID)
+	if err != nil {
+		return ChargerListResponse{}, fmt.Errorf("list chargers by hub: %w", err)
+	}
+
+	result := make([]ChargerResponse, 0, len(chargers))
+	for _, charger := range chargers {
+		result = append(result, service.chargerView(charger, principal))
+	}
+
+	return ChargerListResponse{
+		Chargers: result,
+		HasMore:  false,
+	}, nil
+}
+
 func (service *Service) AssignGSTToHub(
 	ctx context.Context,
 	principal auth.Principal,

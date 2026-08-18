@@ -511,6 +511,7 @@ func RegisterCPORoutes(
 	group.GET("/hubs/:hub_id/gst", handler.getGSTForHub)
 	group.PATCH("/hubs/:hub_id/gst", handler.updateGSTForHub)
 	group.DELETE("/hubs/:hub_id/gst", handler.unassignGSTFromHub)
+	group.GET("/hubs/:hub_id/chargers", handler.listChargersByHub)
 
 	// Hub tariffs
 	group.POST("/hubs/:hub_id/tariffs", handler.createHubTariff)
@@ -1606,6 +1607,32 @@ func (handler *Handler) unassignGSTFromHub(ctx *gin.Context) {
 		return
 	}
 	ctx.JSON(http.StatusOK, record)
+}
+
+// @Summary List chargers by hub
+// @Description Get a list of chargers for a specific hub.
+// @Tags CPO Network
+// @Produce json
+// @Param hub_id path string true "Hub ID"
+// @Success 200 {object} ChargerListResponse "Successfully retrieved chargers"
+// @Failure 400 {object} auth.APIError "Invalid hub ID format"
+// @Failure 401 {object} auth.APIError "Unauthorized"
+// @Failure 403 {object} auth.APIError "Forbidden"
+// @Failure 404 {object} auth.APIError "Hub not found"
+// @Failure 500 {object} auth.APIError "Internal server error"
+// @Router /cpo/hubs/{hub_id}/chargers [get]
+func (handler *Handler) listChargersByHub(ctx *gin.Context) {
+	principal, _ := auth.CurrentPrincipal(ctx)
+	hubID, ok := parseHubID(ctx)
+	if !ok {
+		return
+	}
+	records, err := handler.service.ListChargersByHub(ctx.Request.Context(), principal, hubID)
+	if err != nil {
+		writeError(ctx, err)
+		return
+	}
+	ctx.JSON(http.StatusOK, records)
 }
 
 // @Summary Create a GST record

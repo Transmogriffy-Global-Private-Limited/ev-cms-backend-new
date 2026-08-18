@@ -13,6 +13,7 @@ type Repository interface {
 	GetAnalytics(ctx context.Context, cpoID uuid.UUID) (Analytics, error)
 	GetChargingSession(ctx context.Context, cpoID, sessionID uuid.UUID) (*models.ChargingSession, error)
 	ListChargingSessions(ctx context.Context, cpoID uuid.UUID, query ChargingSessionListQuery) ([]models.ChargingSession, error)
+	ListChargersByHub(ctx context.Context, cpoID, hubID uuid.UUID) ([]models.Charger, error)
 }
 
 type repository struct {
@@ -97,4 +98,12 @@ func (r *repository) ListChargingSessions(ctx context.Context, cpoID uuid.UUID, 
 	}
 
 	return sessions, nil
+}
+
+func (r *repository) ListChargersByHub(ctx context.Context, cpoID, hubID uuid.UUID) ([]models.Charger, error) {
+	var chargers []models.Charger
+	if err := r.db.WithContext(ctx).Where("cpo_id = ? AND hub_id = ?", cpoID, hubID).Find(&chargers).Error; err != nil {
+		return nil, err
+	}
+	return chargers, nil
 }
