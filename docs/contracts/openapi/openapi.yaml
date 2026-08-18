@@ -4582,31 +4582,6 @@ paths:
           $ref: "#/components/responses/Conflict"
         "500":
           $ref: "#/components/responses/InternalError"
-    delete:
-      tags: [CPO Operations - Pricing & Tax]
-      operationId: deleteHubTariff
-      summary: Delete a hub tariff
-      security:
-        - BearerAuth: []
-          CPOAppID: []
-      responses:
-        "204":
-          description: Tariff deleted.
-        "400":
-          $ref: "#/components/responses/InvalidRequest"
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-        "403":
-          $ref: "#/components/responses/CPOBusinessForbidden"
-        "404":
-          description: "`tariff_not_found`."
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorEnvelope"
-        "500":
-          $ref: "#/components/responses/InternalError"
-
   /api/v1/cpo/chargers/{charger_id}/tariffs:
     parameters:
       - $ref: "#/components/parameters/ChargerInternalID"
@@ -4741,31 +4716,6 @@ paths:
           $ref: "#/components/responses/Conflict"
         "500":
           $ref: "#/components/responses/InternalError"
-    delete:
-      tags: [CPO Operations - Pricing & Tax]
-      operationId: deleteChargerTariff
-      summary: Delete a charger tariff
-      security:
-        - BearerAuth: []
-          CPOAppID: []
-      responses:
-        "204":
-          description: Tariff deleted.
-        "400":
-          $ref: "#/components/responses/InvalidRequest"
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-        "403":
-          $ref: "#/components/responses/CPOBusinessForbidden"
-        "404":
-          description: "`tariff_not_found`."
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorEnvelope"
-        "500":
-          $ref: "#/components/responses/InternalError"
-
   /api/v1/cpo/user-groups/{user_group_id}/tariffs:
     parameters:
       - $ref: "#/components/parameters/UserGroupID"
@@ -4900,31 +4850,6 @@ paths:
           $ref: "#/components/responses/Conflict"
         "500":
           $ref: "#/components/responses/InternalError"
-    delete:
-      tags: [CPO Operations - Pricing & Tax]
-      operationId: deleteUserGroupTariff
-      summary: Delete a user group tariff
-      security:
-        - BearerAuth: []
-          CPOAppID: []
-      responses:
-        "204":
-          description: Tariff deleted.
-        "400":
-          $ref: "#/components/responses/InvalidRequest"
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-        "403":
-          $ref: "#/components/responses/CPOBusinessForbidden"
-        "404":
-          description: "`tariff_not_found`."
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorEnvelope"
-        "500":
-          $ref: "#/components/responses/InternalError"
-
   /api/v1/cpo/gsts:
     post:
       tags: [CPO Operations - Pricing & Tax]
@@ -5077,42 +5002,6 @@ paths:
                 $ref: "#/components/schemas/ErrorEnvelope"
         "500":
           $ref: "#/components/responses/InternalError"
-    delete:
-      tags: [CPO Operations - Pricing & Tax]
-      operationId: deleteCPOGST
-      summary: Delete a tenant GST profile
-      description: Requires CPO ADMIN. A GST profile cannot be deleted if it is associated with any hubs.
-      security:
-        - BearerAuth: []
-          CPOAppID: []
-      responses:
-        "204":
-          description: GST profile deleted. No response body.
-        "400":
-          description: Invalid GST ID or missing app-ID header.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorEnvelope"
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-        "403":
-          $ref: "#/components/responses/CPOBusinessForbidden"
-        "404":
-          description: "`gst_not_found`."
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorEnvelope"
-        "409":
-          description: "`gst_in_use`."
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorEnvelope"
-        "500":
-          $ref: "#/components/responses/InternalError"
-
   /api/v1/cpo/user-groups:
     post:
       tags: [CPO Operations - Pricing & Tax]
@@ -7133,10 +7022,20 @@ components:
           enum: [AVAILABLE, UNAVAILABLE]
         effective_at: {type: string, format: date-time}
         currency: {type: string, pattern: "^[A-Z]{3}$"}
-        price_per_kwh:
+        price_per_unit:
           type: string
           pattern: "^[0-9]+(?:\\.[0-9]{1,4})?$"
-          description: Exact decimal energy price; present only when available.
+          description: Exact decimal price for the separately declared price_type and units; present only when available.
+        tariff_type:
+          type: string
+          enum: [fixed]
+        price_type:
+          type: string
+          enum: [sessions, time, energy]
+        units:
+          type: string
+          enum: [minutes, watt/hour]
+          description: Present for energy and time tariffs; omitted for a fixed per-session tariff.
         idle_fee_per_minute:
           type: string
           pattern: "^[0-9]+(?:\\.[0-9]{1,4})?$"
@@ -8894,10 +8793,10 @@ components:
     CreateTariffRequest:
       type: object
       additionalProperties: false
-      required: [price_per_kwh]
-      description: Commercial fields only. The nested route determines the one immutable tariff target; GST is configured on the hub, never on a tariff.
+      required: [price_per_unit, tariff_type, price_type]
+      description: Commercial fields only. The nested route determines the one immutable tariff target; GST is configured on the hub, never on a tariff. Supported combinations are fixed energy/watt-hour, fixed time/minutes, and fixed sessions with units omitted.
       properties:
-        price_per_kwh:
+        price_per_unit:
           $ref: "#/components/schemas/DecimalInput"
         idle_fee_per_min:
           $ref: "#/components/schemas/DecimalInput"
@@ -8917,28 +8816,31 @@ components:
         tariff_type:
           type: string
           enum: [fixed]
-          description: Tariff charging model.
+          description: Required tariff charging model; currently fixed.
         price_type:
           type: string
           enum: [sessions, time, energy]
-          description: Unit used to calculate the tariff price.
+          description: Required billable basis.
         units:
           type: string
           enum: [minutes, watt/hour]
-          description: Measurement unit for the selected price type.
+          description: Required for energy (watt/hour) and time (minutes); omit for sessions.
       example:
-        price_per_kwh: "18.5000"
+        price_per_unit: "0.0185"
         idle_fee_per_min: "1.0000"
         currency: INR
         is_active: true
+        tariff_type: fixed
+        price_type: energy
+        units: watt/hour
 
     UpdateTariffRequest:
       type: object
       additionalProperties: false
       minProperties: 1
-      description: Updates commercial fields only. A tariff's target remains the nested route target for its lifetime.
+      description: Updates commercial fields only. A tariff's target remains the nested route target for its lifetime. The resulting tariff must use a supported fixed price_type/units combination.
       properties:
-        price_per_kwh: {$ref: "#/components/schemas/DecimalInput"}
+        price_per_unit: {$ref: "#/components/schemas/DecimalInput"}
         idle_fee_per_min: {$ref: "#/components/schemas/DecimalInput"}
         currency:
           type: string
@@ -8969,7 +8871,7 @@ components:
         - id
         - cpo_id
         - assigned_to
-        - price_per_kwh
+        - price_per_unit
         - idle_fee_per_min
         - currency
         - is_active
@@ -8994,7 +8896,7 @@ components:
           type: string
           format: uuid
           nullable: true
-        price_per_kwh: {$ref: "#/components/schemas/ExactDecimal"}
+        price_per_unit: {$ref: "#/components/schemas/ExactDecimal"}
         idle_fee_per_min: {$ref: "#/components/schemas/ExactDecimal"}
         currency:
           type: string
@@ -9269,7 +9171,11 @@ components:
       additionalProperties: false
       required: [currency]
       properties:
-        price_per_kwh: {type: string, pattern: "^[0-9]+(?:\\.[0-9]+)?$"}
+        price_per_unit: {type: string, pattern: "^[0-9]+(?:\\.[0-9]+)?$", description: "Present for corrected snapshots together with tariff_type, price_type, and applicable units."}
+        legacy_price_per_kwh: {type: string, pattern: "^[0-9]+(?:\\.[0-9]+)?$", description: Present only for pre-correction snapshots that explicitly stored a per-kWh amount.}
+        tariff_type: {type: string, enum: [fixed]}
+        price_type: {type: string, enum: [sessions, time, energy]}
+        units: {type: string, enum: [minutes, watt/hour]}
         idle_fee_per_minute: {type: string, pattern: "^[0-9]+(?:\\.[0-9]+)?$"}
         currency: {type: string, pattern: "^[A-Z]{3}$"}
 

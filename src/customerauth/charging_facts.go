@@ -308,12 +308,38 @@ func (service *Service) applyStartedFact(tx *gorm.DB, p models.JSONB) error {
 	} else if err != gorm.ErrRecordNotFound {
 		return err
 	}
-	session = models.ChargingSession{ID: uuid.New(), CPOID: intent.CPOID, StartIntentID: &intent.ID, TransactionID: ocppID, CustomerID: intent.CustomerID, ChargerID: intent.ChargerID, ConnectorID: intent.ConnectorID, TariffID: intent.TariffID, StartTime: started, MeterStartWh: meter, TotalKWh: decimal.Zero, TotalAmount: decimal.Zero, Currency: stringValue(intent.TariffSnapshot, "currency", "INR"), TariffSnapshot: intent.TariffSnapshot, TaxSnapshot: intent.TaxSnapshot, Status: constants.SessionStatusActive, CreatedAt: service.now(), UpdatedAt: service.now()}
-	session.HALTransactionID = &halTx
+	session = materializedChargingSession(intent, ocppID, halTx, started, meter, service.now())
 	if err := tx.Create(&session).Error; err != nil {
 		return err
 	}
 	return tx.Model(&models.ChargingStartIntent{}).Where("id = ?", intent.ID).Updates(map[string]any{"status": constants.StartIntentStatusActuallyStarted, "materialized_session_id": session.ID, "updated_at": service.now()}).Error
+}
+
+// materializedChargingSession copies the commercial decision already frozen on
+// the start intent. It never re-reads the mutable live tariff when HAL later
+// reports that physical charging started.
+func materializedChargingSession(intent models.ChargingStartIntent, ocppID int64, halTransactionID uuid.UUID, startedAt time.Time, meterStartWh int64, now time.Time) models.ChargingSession {
+	return models.ChargingSession{
+		ID:               uuid.New(),
+		CPOID:            intent.CPOID,
+		StartIntentID:    &intent.ID,
+		HALTransactionID: &halTransactionID,
+		TransactionID:    ocppID,
+		CustomerID:       intent.CustomerID,
+		ChargerID:        intent.ChargerID,
+		ConnectorID:      intent.ConnectorID,
+		TariffID:         intent.TariffID,
+		StartTime:        startedAt,
+		MeterStartWh:     meterStartWh,
+		TotalKWh:         decimal.Zero,
+		TotalAmount:      decimal.Zero,
+		Currency:         stringValue(intent.TariffSnapshot, "currency", "INR"),
+		TariffSnapshot:   intent.TariffSnapshot,
+		TaxSnapshot:      intent.TaxSnapshot,
+		Status:           constants.SessionStatusActive,
+		CreatedAt:        now,
+		UpdatedAt:        now,
+	}
 }
 func (service *Service) applyMeterFact(tx *gorm.DB, p models.JSONB) error {
 	halTx, ok := factID(p, "hal_transaction_id")
@@ -375,7 +401,10 @@ func (service *Service) applyCompletedFact(tx *gorm.DB, p models.JSONB) error {
 	if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&hold, "start_intent_id = ?", session.StartIntentID).Error; err != nil {
 		return err
 	}
-	amount := chargingAmount(session.TariffSnapshot, session.TaxSnapshot, meterStop-session.MeterStartWh)
+	amount, err := chargingAmount(session.TariffSnapshot, session.TaxSnapshot, meterStop-session.MeterStartWh, session.StartTime, stopped)
+	if err != nil {
+		return err
+	}
 	if amount.GreaterThan(hold.Amount) {
 		return tx.Model(&hold).Updates(map[string]any{"status": constants.WalletHoldStatusReconciling, "updated_at": service.now()}).Error
 	}
@@ -411,13 +440,12 @@ func (service *Service) applyCompletedFact(tx *gorm.DB, p models.JSONB) error {
 	return tx.Model(&session).Updates(map[string]any{"meter_stop_wh": meterStop, "latest_meter_wh": meterStop, "meter_observed_at": stopped, "end_time": stopped, "total_kwh": decimal.NewFromInt(meterStop - session.MeterStartWh).Div(decimal.NewFromInt(1000)), "total_amount": amount, "status": constants.SessionStatusCompleted, "settlement_status": "SETTLED", "updated_at": service.now()}).Error
 }
 
-func chargingAmount(tariff, tax models.JSONB, consumed int64) decimal.Decimal {
-	price, _ := decimal.NewFromString(stringValue(tariff, "price_per_kwh", "0"))
-	sgst, _ := decimal.NewFromString(stringValue(tax, "sgst_rate", "0"))
-	cgst, _ := decimal.NewFromString(stringValue(tax, "cgst_rate", "0"))
-	igst, _ := decimal.NewFromString(stringValue(tax, "igst_rate", "0"))
-	base := price.Mul(decimal.NewFromInt(consumed)).Div(decimal.NewFromInt(1000))
-	return base.Add(base.Mul(sgst.Add(cgst).Add(igst)).Div(decimal.NewFromInt(100))).Round(2)
+func chargingAmount(tariff, tax models.JSONB, consumedWh int64, startedAt, stoppedAt time.Time) (decimal.Decimal, error) {
+	pricing, err := tariffPricingFromSnapshot(tariff)
+	if err != nil {
+		return decimal.Zero, err
+	}
+	return pricing.amountWithTaxSnapshot(consumedWh, startedAt, stoppedAt, tax)
 }
 func factID(p models.JSONB, key string) (uuid.UUID, bool) {
 	v, ok := p[key].(string)

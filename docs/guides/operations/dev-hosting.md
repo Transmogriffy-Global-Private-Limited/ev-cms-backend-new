@@ -28,8 +28,8 @@ development host it is set in the ignored service environment to
 that setting; it must not be used until the OCPP host is explicitly configured
 with TLS/WebSocket support.
 
-The active deployment was updated on August 14, 2026 to runtime source revision
-`11c4c23`. It has migrations one through thirty-nine and the current 180-operation
+The active deployment was updated on August 18, 2026 to runtime source revision
+`9e7af67`. It has migrations one through forty and the current 180-operation
 API. Migration thirty-three adds the CPO/customer-scoped `operational_events`
 ledger used for durable operational-notification recovery; its four indexes
 support CPO and customer cursor replay plus retention. Migration twenty-seven
@@ -57,10 +57,12 @@ HAL-command, fact-receipt, mapping, and runtime-projection tables. The current
 CMS environment leaves the optional HAL v1 base URL and credentials unset, so
 customer charging reports `hal_unavailable` until an approved independent HAL
 provider is configured.
-Migration twenty-nine adds nullable tariff metadata fields
-`tariff_type`, `price_type`, and `units`; omitted values remain null and do not
-overwrite existing tariff metadata. The SuperAdmin administrator list binds its
-platform-admin model explicitly.
+Migration twenty-nine adds tariff metadata fields `tariff_type`, `price_type`,
+and `units`. Migration forty renames the durable tariff price column to
+`price_per_unit` without changing stored numeric values. New tariff writes
+must select a supported fixed energy/watt-hour, time/minutes, or per-session
+pricing basis; incomplete legacy rows are not guessed for new charging. The
+SuperAdmin administrator list binds its platform-admin model explicitly.
 Migration thirty adds one tenant-scoped `settings` row per CPO for invoice-note
 and invoice-logo metadata. Its UUID and CPO foreign key follow the existing
 `gen_random_uuid()` and `cpos` conventions.
@@ -129,7 +131,7 @@ The deployment copies `.env.example` to `.env`, then overrides:
 - five independently generated 32-byte base64 cryptographic keys.
 
 `DATABASE_URL` and `SMTP_PASSWORD` contain deployment secrets only in the
-ignored environment file. The service is enabled and active, all thirty-two forward
+ignored environment file. The service is enabled and active, all forty forward
 migrations are recorded, and startup idempotently retained the configured
 platform superadmin.
 

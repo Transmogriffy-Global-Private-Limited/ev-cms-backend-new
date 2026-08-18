@@ -73,6 +73,13 @@ func TestChargingStartAdmissionWithPostgreSQL(t *testing.T) {
 	if halRequests.Load() != 1 {
 		t.Fatalf("HAL start calls=%d, want 1", halRequests.Load())
 	}
+	var intent models.ChargingStartIntent
+	if err := gormDB.First(&intent, "id = ?", first.StartIntentID).Error; err != nil {
+		t.Fatalf("load start intent: %v", err)
+	}
+	if intent.TariffSnapshot["price_per_unit"] != "0.0100" || intent.TariffSnapshot["tariff_type"] != "fixed" || intent.TariffSnapshot["price_type"] != "energy" || intent.TariffSnapshot["units"] != "watt/hour" || intent.TariffSnapshot["price_per_kwh"] != nil {
+		t.Fatalf("start intent did not freeze canonical tariff semantics: %#v", intent.TariffSnapshot)
+	}
 	setChargingAdmissionProjection(t, gormDB, fixture, fixture.connector.ID, "ONLINE", "Preparing", time.Now().UTC())
 	replay, err := service.StartCharging(ctx, fixture.firstPrincipal, ChargingStartRequest{ChargerID: fixture.charger.ChargerID, ConnectorID: fixture.connector.ID}, "admission-replay")
 	if err != nil || replay.StartIntentID != first.StartIntentID {
@@ -166,26 +173,27 @@ func TestUserAppTariffTargetPrecedenceWithPostgreSQL(t *testing.T) {
 	now := time.Now().UTC()
 	assertPrice := func(label, want string, response CustomerPriceResponse, err error) {
 		t.Helper()
-		if err != nil || response.Status != customerPriceAvailable || response.PricePerKWh != want {
+		if err != nil || response.Status != customerPriceAvailable || response.PricePerUnit != want {
 			t.Fatalf("%s price=%+v err=%v, want AVAILABLE %s", label, response, err, want)
 		}
 	}
 
 	hubPrice, err := service.GetCustomerHubPrice(ctx, fixture.firstPrincipal, *fixture.charger.HubID)
-	assertPrice("hub", "10.0000", hubPrice, err)
+	assertPrice("hub", "0.0100", hubPrice, err)
 
-	chargerTariff := models.Tariff{ID: uuid.New(), CPOID: fixture.cpo.ID, AssignedTo: constants.TariffAssignedCharger, ChargerID: &fixture.charger.ID, PricePerKWh: decimal.RequireFromString("11.0000"), IdleFeePerMin: decimal.Zero, Currency: "INR", IsActive: true, CreatedAt: now, UpdatedAt: now}
+	tariffType, priceType, units := energyTariffMetadata()
+	chargerTariff := models.Tariff{ID: uuid.New(), CPOID: fixture.cpo.ID, AssignedTo: constants.TariffAssignedCharger, ChargerID: &fixture.charger.ID, PricePerUnit: decimal.RequireFromString("0.0110"), IdleFeePerMin: decimal.Zero, Currency: "INR", IsActive: true, TariffType: &tariffType, PriceType: &priceType, Units: &units, CreatedAt: now, UpdatedAt: now}
 	if err := gormDB.Create(&chargerTariff).Error; err != nil {
 		t.Fatalf("create charger tariff: %v", err)
 	}
 	chargerPrice, err := service.GetCustomerChargerPrice(ctx, fixture.firstPrincipal, fixture.charger.ChargerID)
-	assertPrice("charger", "11.0000", chargerPrice, err)
+	assertPrice("charger", "0.0110", chargerPrice, err)
 
 	group := models.UserGroup{ID: uuid.New(), CPOID: fixture.cpo.ID, Name: "Pricing group", IsActive: true, CreatedAt: now, UpdatedAt: now}
 	if err := gormDB.Create(&group).Error; err != nil {
 		t.Fatalf("create user group: %v", err)
 	}
-	groupTariff := models.Tariff{ID: uuid.New(), CPOID: fixture.cpo.ID, AssignedTo: constants.TariffAssignedUserGroup, UserGroupID: &group.ID, PricePerKWh: decimal.RequireFromString("12.0000"), IdleFeePerMin: decimal.Zero, Currency: "INR", IsActive: true, CreatedAt: now, UpdatedAt: now}
+	groupTariff := models.Tariff{ID: uuid.New(), CPOID: fixture.cpo.ID, AssignedTo: constants.TariffAssignedUserGroup, UserGroupID: &group.ID, PricePerUnit: decimal.RequireFromString("0.0120"), IdleFeePerMin: decimal.Zero, Currency: "INR", IsActive: true, TariffType: &tariffType, PriceType: &priceType, Units: &units, CreatedAt: now, UpdatedAt: now}
 	if err := gormDB.Create(&groupTariff).Error; err != nil {
 		t.Fatalf("create user-group tariff: %v", err)
 	}
@@ -195,12 +203,12 @@ func TestUserAppTariffTargetPrecedenceWithPostgreSQL(t *testing.T) {
 	fixture.firstPrincipal.Customer.UserGroupID = &group.ID
 
 	chargerPrice, err = service.GetCustomerChargerPrice(ctx, fixture.firstPrincipal, fixture.charger.ChargerID)
-	assertPrice("user-group charger", "12.0000", chargerPrice, err)
+	assertPrice("user-group charger", "0.0120", chargerPrice, err)
 	hubPrice, err = service.GetCustomerHubPrice(ctx, fixture.firstPrincipal, *fixture.charger.HubID)
-	assertPrice("user-group hub", "12.0000", hubPrice, err)
+	assertPrice("user-group hub", "0.0120", hubPrice, err)
 
 	selected, ok := service.effectiveChargingTariff(gormDB.WithContext(ctx), fixture.firstPrincipal, *fixture.charger.HubID, fixture.charger.ID, now)
-	if !ok || !selected.PricePerKWh.Equal(decimal.RequireFromString("12.0000")) {
+	if !ok || !selected.PricePerUnit.Equal(decimal.RequireFromString("0.0120")) {
 		t.Fatalf("charging tariff=%+v ok=%v, want user-group tariff", selected, ok)
 	}
 }
@@ -226,7 +234,8 @@ func newChargingAdmissionFixture(t *testing.T, database *gorm.DB) chargingAdmiss
 	if err := database.Create(&charger).Error; err != nil {
 		t.Fatalf("create charger: %v", err)
 	}
-	tariff := models.Tariff{ID: uuid.New(), CPOID: cpo.ID, HubID: &hub.ID, AssignedTo: constants.TariffAssignedHub, PricePerKWh: decimal.RequireFromString("10.0000"), IdleFeePerMin: decimal.Zero, Currency: "INR", IsActive: true, CreatedAt: now, UpdatedAt: now}
+	tariffType, priceType, units := energyTariffMetadata()
+	tariff := models.Tariff{ID: uuid.New(), CPOID: cpo.ID, HubID: &hub.ID, AssignedTo: constants.TariffAssignedHub, PricePerUnit: decimal.RequireFromString("0.0100"), IdleFeePerMin: decimal.Zero, Currency: "INR", IsActive: true, TariffType: &tariffType, PriceType: &priceType, Units: &units, CreatedAt: now, UpdatedAt: now}
 	if err := database.Create(&tariff).Error; err != nil {
 		t.Fatalf("create tariff: %v", err)
 	}

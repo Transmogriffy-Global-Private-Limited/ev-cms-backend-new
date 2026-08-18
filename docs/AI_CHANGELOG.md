@@ -1,5 +1,64 @@
 # AI Changelog
 
+## 2026-08-18 - Rehosted tariff unit-price semantic correction
+
+- Added forward migration 40 to rename `tariffs.price_per_kwh` and its check
+  constraint to `price_per_unit` without reconstructing or dropping values.
+- Replaced the live tariff/API/model field and require each new tariff to use
+  one supported fixed basis: energy per watt/hour, time per minute, or a fixed
+  per-session amount. The retired request field is rejected.
+- Centralized tariff interpretation for customer price display, start
+  reservation, immutable tariff snapshots, session materialization, and
+  completion settlement. Existing snapshots retain explicit, named legacy
+  per-kWh handling only; no new snapshot writes the old key.
+- Kept tariff time pricing separate from existing time-bounded-session
+  provisioning: actual HAL session timestamps price time tariffs, while the
+  current duration cutoff remains unchanged. GST ownership, tariff precedence,
+  idle-fee non-billing, HAL ownership, and public route shapes are unchanged.
+
+Verification:
+
+- Focused database-free `db`, `models`, `cpo`, and `customerauth` tests cover
+  migration text, retired-field rejection, all three tariff bases, wallet
+  holds, frozen snapshots, and legacy snapshot compatibility.
+- Runtime/OpenAPI/Swagger-route parity, serial `go test ./...`, and serial
+  `go vet ./...` passed. The PowerShell documentation verifier is unavailable
+  on this Ubuntu host because `pwsh` is not installed.
+- Applied migration 40 after a mode-0600 custom-format rollback dump at
+  `/var/backups/postgres/devevcmsnewdb-pre-migration-40-20260818-105424.dump`.
+  Migration 40 is recorded as the latest applied migration.
+- Rehosted clean runtime revision `9e7af67` with binary SHA-256
+  `714001a3aecc6ab08b45af4177cb5a4b7c7884c0ec8c952b849eb33aaa4dc9ed`.
+- The enabled service is active with zero restarts; public/local readiness,
+  Swagger, raw OpenAPI, and the protected worker/status boundaries passed.
+
+The guarded PostgreSQL admission/session lifecycle tests remain unavailable
+because no disposable `TEST_DATABASE_URL` is configured.
+
+## 2026-08-18 - Rehosted customer aggregates and tariff validation release
+
+- Deployed the latest main release with tenant-scoped customer aggregate
+  fields (`total_usage_kwh`, `session_count`, and `wallet_balance`) on CPO
+  customer list/detail responses.
+- Added request-boundary validation for tariff type, price type, and units so
+  unsupported values such as `tariff_type: "Standard"` are rejected as
+  validation errors instead of reaching PostgreSQL and becoming a 500.
+- Removed four unimplemented tariff/GST DELETE operations from OpenAPI so the
+  canonical contract matches the runtime route set. No database migration was
+  required; migration 39 remains the latest applied migration.
+- Rehosted clean runtime revision `d475b41` with binary SHA-256
+  `1ff0938cdbc3fda7b181ac7f788daae8620ecdffc00f060cc227b5e73bae24ba`.
+
+Verification:
+
+- Focused tariff-validation and route/OpenAPI parity tests, serial
+  `go test ./...`, `go vet ./...`, Caddy validation, migration-up no-op,
+  local/public health/readiness, Swagger, raw OpenAPI, and protected worker
+  status boundaries passed. The service is active with zero restarts.
+- `scripts/verify-docs.ps1` was not run because `pwsh` is unavailable on this
+  Ubuntu host. Disposable PostgreSQL lifecycle and full CMS-to-HAL topology
+  acceptance remain pending their dedicated environments.
+
 ## 2026-08-14 - Rehosted worker current-instance status projection
 
 - Added migration 39 and current-instance service semantics for the

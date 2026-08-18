@@ -1780,9 +1780,15 @@ func TestHubTariffLifecycleWithPostgreSQL(t *testing.T) {
 	}
 	hubID := hub.ID
 
-	price := decimal.RequireFromString("18.5000")
+	price := decimal.RequireFromString("0.0185")
+	tariffType := constants.TariffTypeFixed
+	priceType := constants.PriceTypeEnergy
+	units := constants.UnitWattHour
 	tariff, err := service.CreateHubTariff(ctx, adminPrincipal, hubID, CreateTariffRequest{
-		PricePerKWh: price,
+		PricePerUnit: price,
+		TariffType:   &tariffType,
+		PriceType:    &priceType,
+		Units:        &units,
 	})
 	if err != nil {
 		t.Fatalf("create hub tariff: %v", err)
@@ -1815,13 +1821,13 @@ func TestHubTariffLifecycleWithPostgreSQL(t *testing.T) {
 	// Update tariff
 	updatedPrice := decimal.RequireFromString("20.0000")
 	updatedTariff, err := service.UpdateHubTariff(ctx, adminPrincipal, hubID, tariff.ID, UpdateTariffRequest{
-		PricePerKWh: &updatedPrice,
+		PricePerUnit: &updatedPrice,
 	})
 	if err != nil {
 		t.Fatalf("update hub tariff: %v", err)
 	}
-	if !updatedTariff.PricePerKWh.Equal(updatedPrice) {
-		t.Fatalf("updated tariff price is %q, want %q", updatedTariff.PricePerKWh, updatedPrice)
+	if !updatedTariff.PricePerUnit.Equal(updatedPrice) {
+		t.Fatalf("updated tariff price is %q, want %q", updatedTariff.PricePerUnit, updatedPrice)
 	}
 	if updatedTariff.AssignedTo != constants.TariffAssignedHub || updatedTariff.ChargerID != nil || updatedTariff.UserGroupID != nil {
 		t.Fatalf("hub tariff has invalid target %#v", updatedTariff)
@@ -1862,7 +1868,7 @@ func TestHubTariffLifecycleWithPostgreSQL(t *testing.T) {
 		t.Fatalf("independent charger unexpectedly has hub %s", *charger.HubID)
 	}
 
-	chargerTariff, err := service.CreateChargerTariff(ctx, adminPrincipal, charger.ID, CreateTariffRequest{PricePerKWh: price})
+	chargerTariff, err := service.CreateChargerTariff(ctx, adminPrincipal, charger.ID, CreateTariffRequest{PricePerUnit: price, TariffType: &tariffType, PriceType: &priceType, Units: &units})
 	if err != nil {
 		t.Fatalf("create independent charger tariff: %v", err)
 	}
@@ -1876,7 +1882,7 @@ func TestHubTariffLifecycleWithPostgreSQL(t *testing.T) {
 	if err != nil || len(chargerTariffPage.Tariffs) != 1 || chargerTariffPage.Tariffs[0].ID != chargerTariff.ID {
 		t.Fatalf("list charger tariffs got %#v, %v", chargerTariffPage, err)
 	}
-	if _, err := service.UpdateChargerTariff(ctx, adminPrincipal, charger.ID, chargerTariff.ID, UpdateTariffRequest{PricePerKWh: &updatedPrice}); err != nil {
+	if _, err := service.UpdateChargerTariff(ctx, adminPrincipal, charger.ID, chargerTariff.ID, UpdateTariffRequest{PricePerUnit: &updatedPrice}); err != nil {
 		t.Fatalf("update charger tariff: %v", err)
 	}
 
@@ -1884,7 +1890,7 @@ func TestHubTariffLifecycleWithPostgreSQL(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create user group: %v", err)
 	}
-	groupTariff, err := service.CreateUserGroupTariff(ctx, adminPrincipal, group.ID, CreateTariffRequest{PricePerKWh: price})
+	groupTariff, err := service.CreateUserGroupTariff(ctx, adminPrincipal, group.ID, CreateTariffRequest{PricePerUnit: price, TariffType: &tariffType, PriceType: &priceType, Units: &units})
 	if err != nil {
 		t.Fatalf("create user-group tariff: %v", err)
 	}
@@ -1898,7 +1904,7 @@ func TestHubTariffLifecycleWithPostgreSQL(t *testing.T) {
 	if err != nil || len(groupTariffPage.Tariffs) != 1 || groupTariffPage.Tariffs[0].ID != groupTariff.ID {
 		t.Fatalf("list user-group tariffs got %#v, %v", groupTariffPage, err)
 	}
-	if _, err := service.UpdateUserGroupTariff(ctx, adminPrincipal, group.ID, groupTariff.ID, UpdateTariffRequest{PricePerKWh: &updatedPrice}); err != nil {
+	if _, err := service.UpdateUserGroupTariff(ctx, adminPrincipal, group.ID, groupTariff.ID, UpdateTariffRequest{PricePerUnit: &updatedPrice}); err != nil {
 		t.Fatalf("update user-group tariff: %v", err)
 	}
 
@@ -1908,7 +1914,7 @@ func TestHubTariffLifecycleWithPostgreSQL(t *testing.T) {
 		AssignedTo:    constants.TariffAssignedCharger,
 		HubID:         &hubID,
 		ChargerID:     &charger.ID,
-		PricePerKWh:   price,
+		PricePerUnit:  price,
 		IdleFeePerMin: decimal.Zero,
 		Currency:      "INR",
 		IsActive:      false,
@@ -1920,7 +1926,7 @@ func TestHubTariffLifecycleWithPostgreSQL(t *testing.T) {
 		t.Fatalf("multiple-target tariff error is %v, want tariffs_exactly_one_target", err)
 	}
 
-	_, err = service.CreateChargerTariff(ctx, adminPrincipal, charger.ID, CreateTariffRequest{PricePerKWh: price})
+	_, err = service.CreateChargerTariff(ctx, adminPrincipal, charger.ID, CreateTariffRequest{PricePerUnit: price, TariffType: &tariffType, PriceType: &priceType, Units: &units})
 	var apiError *auth.APIError
 	if !errors.As(err, &apiError) || apiError.Code != "tariff_schedule_conflict" {
 		t.Fatalf("overlapping charger tariff error is %v, want tariff_schedule_conflict", err)
@@ -2026,24 +2032,24 @@ func TestHubTariffCreationRejectsInvalidEnums(t *testing.T) {
 		{
 			name: "invalid tariff_type",
 			request: CreateTariffRequest{
-				PricePerKWh: price,
-				TariffType:  &invalidTariffType,
+				PricePerUnit: price,
+				TariffType:   &invalidTariffType,
 			},
 			errCode: "invalid_tariff_type",
 		},
 		{
 			name: "invalid price_type",
 			request: CreateTariffRequest{
-				PricePerKWh: price,
-				PriceType:   &invalidPriceType,
+				PricePerUnit: price,
+				PriceType:    &invalidPriceType,
 			},
 			errCode: "invalid_price_type",
 		},
 		{
 			name: "invalid units",
 			request: CreateTariffRequest{
-				PricePerKWh: price,
-				Units:       &invalidUnits,
+				PricePerUnit: price,
+				Units:        &invalidUnits,
 			},
 			errCode: "invalid_units",
 		},

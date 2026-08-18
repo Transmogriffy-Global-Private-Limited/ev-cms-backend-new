@@ -31,6 +31,19 @@ func TestTariffRequestBodiesRejectTargetIDs(t *testing.T) {
 	}
 }
 
+func TestTariffRequestBodiesRejectLegacyPricePerKWh(t *testing.T) {
+	t.Parallel()
+
+	for _, destination := range []any{&CreateTariffRequest{}, &UpdateTariffRequest{}} {
+		writer := httptest.NewRecorder()
+		ctx, _ := gin.CreateTestContext(writer)
+		ctx.Request = httptest.NewRequest(http.MethodPost, "/", bytes.NewBufferString(`{"price_per_kwh":"10.00"}`))
+		if err := decodeJSON(ctx, destination); err == nil {
+			t.Fatalf("%T accepted the retired price_per_kwh request field", destination)
+		}
+	}
+}
+
 func TestValidateCreateRequest(t *testing.T) {
 	t.Parallel()
 
@@ -475,6 +488,14 @@ func TestTariffValidation(t *testing.T) {
 	if err := validateCreateTariffRequest(validCreateReq); err != nil {
 		t.Fatalf("valid create request was rejected: %v", err)
 	}
+	for _, request := range []CreateTariffRequest{
+		{TariffType: &validTariffType, PriceType: func() *constants.PriceType { value := constants.PriceTypeTime; return &value }(), Units: func() *constants.Unit { value := constants.UnitMinutes; return &value }(), Currency: "INR"},
+		{TariffType: &validTariffType, PriceType: func() *constants.PriceType { value := constants.PriceTypeSession; return &value }(), Currency: "INR"},
+	} {
+		if err := validateCreateTariffRequest(request); err != nil {
+			t.Fatalf("supported tariff request was rejected: %v", err)
+		}
+	}
 
 	for _, tc := range []struct {
 		name    string
@@ -510,6 +531,21 @@ func TestTariffValidation(t *testing.T) {
 				return req
 			}(),
 			"invalid_units",
+		},
+		{
+			"unsupported time unit",
+			func() CreateTariffRequest {
+				req := validCreateReq
+				timePriceType := constants.PriceTypeTime
+				req.PriceType = &timePriceType
+				return req
+			}(),
+			"unsupported_tariff_pricing",
+		},
+		{
+			"missing tariff semantics",
+			CreateTariffRequest{Currency: "INR"},
+			"unsupported_tariff_pricing",
 		},
 	} {
 		t.Run("create_"+tc.name, func(t *testing.T) {

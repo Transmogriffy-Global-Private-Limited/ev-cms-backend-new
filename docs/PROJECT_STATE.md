@@ -2,6 +2,48 @@
 
 ## Current State
 
+### 2026-08-18 — Tariff unit-price semantic correction deployed
+
+- The release adds migration
+  `000040_rename_tariff_price_per_unit`, which preserves tariff values while
+  renaming the misleading durable column to `price_per_unit`. New CPO writes
+  and current tariff/customer responses use that name; `price_per_kwh` is
+  rejected for writes.
+- Supported fixed charging tariffs are explicit: energy per `watt/hour`, time
+  per `minutes`, or one fixed `sessions` amount. The User App price response,
+  charging admission hold, frozen start-intent/session snapshot, and
+  settlement all use the same interpretation. GST continues to come from the
+  charger hub and tariff precedence remains `USERGROUP > CHARGER > HUB`.
+- Time pricing uses the actual session duration from the HAL start/complete
+  facts. It does not alter the independent existing customer/HAL duration
+  cutoff. New snapshots contain their semantic fields; historical snapshots
+  with `price_per_kwh` are read only through a deliberately named legacy path.
+- Migration 40 is applied on the development VPS after a mode-0600 rollback
+  dump. Revision `9e7af67` is active with binary SHA-256
+  `714001a3aecc6ab08b45af4177cb5a4b7c7884c0ec8c952b849eb33aaa4dc9ed`.
+- The service is active with zero restarts; Caddy validation, focused and full
+  Go tests, vet, local/public health/readiness, Swagger, raw OpenAPI, and
+  unauthenticated worker/status boundaries passed. The live contract remains
+  at 180 operations.
+- Disposable PostgreSQL lifecycle and full CMS-to-HAL topology acceptance
+  remain pending their dedicated environments.
+
+### 2026-08-18 — Customer aggregates and tariff validation release deployed
+
+- CPO customer list/detail responses now include tenant-scoped total usage,
+  session count, and wallet balance aggregates.
+- Tariff type, price type, and unit fields are validated before persistence;
+  unsupported values return request validation errors instead of database enum
+  failures. The OpenAPI contract no longer advertises unregistered tariff/GST
+  DELETE operations.
+- No database migration was required; migration 39 remains the latest applied
+  migration. Revision `d475b41` is active with binary SHA-256
+  `1ff0938cdbc3fda7b181ac7f788daae8620ecdffc00f060cc227b5e73bae24ba`.
+- The enabled service is active with zero restarts. Caddy validation, focused
+  and full Go tests, vet, local/public health/readiness, Swagger, raw OpenAPI,
+  and unauthenticated worker/status boundaries passed. The live contract
+  remains at 180 operations.
+
 ### 2026-08-14 — Worker current-instance projection deployed
 
 - Migration `000039_make_worker_current_instance_explicit` retains durable
@@ -424,8 +466,8 @@ provides:
   handler;
 - the additive PostgreSQL database `devevcmsnewdb`, owned by `postgres`.
 
-The active development VPS runs source revision `11c4c23`, with migrations
-through thirty-nine recorded and the deployed 180-operation contract. Migration
+The active development VPS runs source revision `9e7af67`, with migrations
+through forty recorded and the deployed 180-operation contract. Migration
 twenty-nine adds nullable `tariff_type`, `price_type`, and `units` metadata to
 tenant tariffs; omitted values remain null-safe for existing and newly created
 tariffs. The SuperAdmin administrator-list query explicitly binds the platform

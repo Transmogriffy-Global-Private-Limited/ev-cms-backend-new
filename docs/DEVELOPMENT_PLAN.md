@@ -125,13 +125,17 @@ Current implementation state:
   charger vertical is not verified yet.
 - The current deployed release also exposes tenant-scoped CPO charging-session
   list/detail reads with bounded keyset pagination and validated lifecycle
-  filters. Revision `7350887` is active without a new migration; the live
+  filters. Revision `9e7af67` is active with migration 40 applied; the live
   OpenAPI contract contains 180 operations.
 - The current deployed release also includes optional committed live charger
-  projections on CPO charger list/detail responses. Revision `7350887` is
-  active without a migration; list reads use the bounded batch liveops reader.
+  projections on CPO charger list/detail responses. Revision `9e7af67` is
+  active; list reads use the bounded batch liveops reader.
 - Migration 39 and the current-worker projection are deployed in revision
-  `11c4c23`; worker status/readiness now ignore superseded historical rows.
+  `9e7af67`; worker status/readiness now ignore superseded historical rows.
+- The latest release adds tenant-scoped CPO customer usage/session/wallet
+  aggregates and request-boundary tariff enum validation. No migration was
+  required; the OpenAPI contract was reconciled to the registered runtime
+  routes before rehost.
 - The current deployed CMS release additionally contains the User App
   charging-history/detail completion slice: customer/CPO-scoped materialized
   session history, frozen commercial detail, linked settlement projection, and
@@ -158,6 +162,11 @@ Current implementation state:
   `AVAILABLE` and `FRESH` connector projection state, while same-customer
   active-intent replay remains available before that live-state gate. Connector
   row locking serializes the final active-intent recheck.
+- Migration 40 and the tariff semantic correction are deployed in revision
+  `9e7af67`: `price_per_unit` is interpreted explicitly as energy/watt-hour,
+  time/minutes, or per-session across CPO writes, customer price, admission,
+  snapshots, and settlement. The existing HAL/customer duration cutoff is
+  unchanged.
 
 Next required slice:
 

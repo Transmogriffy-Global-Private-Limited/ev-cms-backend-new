@@ -2,6 +2,7 @@ package customerauth
 
 import (
 	"encoding/json"
+	"errors"
 	"strings"
 	"testing"
 	"time"
@@ -15,9 +16,13 @@ import (
 
 func TestAffordableChargingLimitUsesExactIntegerWh(t *testing.T) {
 	t.Parallel()
-	tariff := models.Tariff{PricePerKWh: decimal.RequireFromString("10.0000")}
+	tariffType, priceType, units := energyTariffMetadata()
+	pricing, err := tariffPricingFromTariff(models.Tariff{PricePerUnit: decimal.RequireFromString("0.0100"), TariffType: &tariffType, PriceType: &priceType, Units: &units})
+	if err != nil {
+		t.Fatal(err)
+	}
 	zero := decimal.Zero
-	hold, limit, err := affordableChargingLimit(decimal.RequireFromString("12.34"), tariff, models.GST{SGSTRate: &zero, CGSTRate: &zero, IGSTRate: &zero}, models.Connector{})
+	hold, limit, err := affordableChargingLimit(decimal.RequireFromString("12.34"), pricing, models.GST{SGSTRate: &zero, CGSTRate: &zero, IGSTRate: &zero}, models.Connector{ConnectorTotalCapacity: 7.4})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -29,12 +34,126 @@ func TestAffordableChargingLimitUsesExactIntegerWh(t *testing.T) {
 func TestFreeChargingStillRequiresPhysicalEnergyBound(t *testing.T) {
 	t.Parallel()
 	zero := decimal.Zero
-	_, limit, err := affordableChargingLimit(decimal.NewFromInt(1), models.Tariff{PricePerKWh: zero}, models.GST{SGSTRate: &zero, CGSTRate: &zero, IGSTRate: &zero}, models.Connector{ConnectorTotalCapacity: 7.4})
+	tariffType, priceType, units := energyTariffMetadata()
+	pricing, err := tariffPricingFromTariff(models.Tariff{PricePerUnit: zero, TariffType: &tariffType, PriceType: &priceType, Units: &units})
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, limit, err := affordableChargingLimit(decimal.NewFromInt(1), pricing, models.GST{SGSTRate: &zero, CGSTRate: &zero, IGSTRate: &zero}, models.Connector{ConnectorTotalCapacity: 7.4})
 	if err != nil || limit != 7400 {
 		t.Fatalf("free limit=%d err=%v, want 7400 Wh", limit, err)
 	}
-	if _, _, err := affordableChargingLimit(decimal.NewFromInt(1), models.Tariff{PricePerKWh: zero}, models.GST{SGSTRate: &zero, CGSTRate: &zero, IGSTRate: &zero}, models.Connector{}); err == nil {
+	if _, _, err := affordableChargingLimit(decimal.NewFromInt(1), pricing, models.GST{SGSTRate: &zero, CGSTRate: &zero, IGSTRate: &zero}, models.Connector{}); err == nil {
 		t.Fatal("free charging without a physical capacity must fail")
+	}
+}
+
+func TestTariffPricingCalculatesEachSupportedBasisAndLegacySnapshots(t *testing.T) {
+	t.Parallel()
+	zero := decimal.Zero
+	gst := models.GST{SGSTRate: &zero, CGSTRate: &zero, IGSTRate: &zero}
+	startedAt := time.Date(2026, 8, 18, 10, 0, 0, 0, time.UTC)
+	stoppedAt := startedAt.Add(90 * time.Second)
+
+	energyType, energyPriceType, energyUnits := energyTariffMetadata()
+	energy, err := tariffPricingFromTariff(models.Tariff{PricePerUnit: decimal.RequireFromString("0.0100"), TariffType: &energyType, PriceType: &energyPriceType, Units: &energyUnits})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if amount, err := energy.amountWithGST(1234, startedAt, stoppedAt, gst); err != nil || !amount.Equal(decimal.RequireFromString("12.34")) {
+		t.Fatalf("energy amount=%s err=%v, want 12.34", amount, err)
+	}
+
+	timeType := constants.TariffTypeFixed
+	timePriceType := constants.PriceTypeTime
+	timeUnits := constants.UnitMinutes
+	timePricing, err := tariffPricingFromTariff(models.Tariff{PricePerUnit: decimal.NewFromInt(2), TariffType: &timeType, PriceType: &timePriceType, Units: &timeUnits})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if amount, err := timePricing.amountWithGST(0, startedAt, stoppedAt, gst); err != nil || !amount.Equal(decimal.NewFromInt(3)) {
+		t.Fatalf("time amount=%s err=%v, want 3.00", amount, err)
+	}
+
+	sessionType := constants.TariffTypeFixed
+	sessionPriceType := constants.PriceTypeSession
+	sessionPricing, err := tariffPricingFromTariff(models.Tariff{PricePerUnit: decimal.RequireFromString("25.50"), TariffType: &sessionType, PriceType: &sessionPriceType})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if amount, err := sessionPricing.amountWithGST(0, startedAt, startedAt, gst); err != nil || !amount.Equal(decimal.RequireFromString("25.50")) {
+		t.Fatalf("session amount=%s err=%v, want 25.50", amount, err)
+	}
+	if hold, _, err := affordableChargingLimit(decimal.NewFromInt(200), timePricing, gst, models.Connector{ConnectorTotalCapacity: 7.4}); err != nil || !hold.Equal(decimal.NewFromInt(120)) {
+		t.Fatalf("time hold=%s err=%v, want 120.00", hold, err)
+	}
+	if hold, _, err := affordableChargingLimit(decimal.NewFromInt(30), sessionPricing, gst, models.Connector{ConnectorTotalCapacity: 7.4}); err != nil || !hold.Equal(decimal.RequireFromString("25.50")) {
+		t.Fatalf("session hold=%s err=%v, want 25.50", hold, err)
+	}
+
+	legacy, err := tariffPricingFromSnapshot(models.JSONB{"price_per_kwh": "10.00"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if amount, err := legacy.amountWithGST(1234, startedAt, stoppedAt, gst); err != nil || !amount.Equal(decimal.RequireFromString("12.34")) {
+		t.Fatalf("legacy amount=%s err=%v, want 12.34", amount, err)
+	}
+}
+
+func TestTariffPricingRejectsUnsupportedUnitCombinations(t *testing.T) {
+	t.Parallel()
+	tariffType := constants.TariffTypeFixed
+	priceType := constants.PriceTypeTime
+	units := constants.UnitWattHour
+	if _, err := tariffPricingFromTariff(models.Tariff{TariffType: &tariffType, PriceType: &priceType, Units: &units}); !errors.Is(err, errUnsupportedTariffSemantics) {
+		t.Fatalf("invalid time unit err=%v, want unsupported tariff semantics", err)
+	}
+}
+
+func TestTariffSnapshotAndMaterializedSessionFreezePricingSemantics(t *testing.T) {
+	t.Parallel()
+
+	tariffType := constants.TariffTypeFixed
+	priceType := constants.PriceTypeTime
+	units := constants.UnitMinutes
+	tariff := models.Tariff{
+		ID:           uuid.New(),
+		Currency:     "INR",
+		PricePerUnit: decimal.RequireFromString("2.50"),
+		TariffType:   &tariffType,
+		PriceType:    &priceType,
+		Units:        &units,
+	}
+	pricing, err := tariffPricingFromTariff(tariff)
+	if err != nil {
+		t.Fatal(err)
+	}
+	snapshot := pricing.snapshot(tariff)
+	if snapshot["price_per_unit"] != "2.5" || snapshot["tariff_type"] != "fixed" || snapshot["price_type"] != "time" || snapshot["units"] != "minutes" {
+		t.Fatalf("snapshot omitted or changed tariff semantics: %#v", snapshot)
+	}
+	if _, oldFieldPresent := snapshot["price_per_kwh"]; oldFieldPresent {
+		t.Fatalf("new snapshot retained retired field: %#v", snapshot)
+	}
+
+	intent := models.ChargingStartIntent{
+		ID:             uuid.New(),
+		CPOID:          uuid.New(),
+		CustomerID:     uuid.New(),
+		ChargerID:      uuid.New(),
+		ConnectorID:    uuid.New(),
+		TariffID:       tariff.ID,
+		TariffSnapshot: snapshot,
+		TaxSnapshot:    models.JSONB{"sgst_rate": "0", "cgst_rate": "0", "igst_rate": "0"},
+	}
+	startedAt := time.Date(2026, 8, 18, 10, 0, 0, 0, time.UTC)
+	session := materializedChargingSession(intent, 42, uuid.New(), startedAt, 100, startedAt)
+	if session.TariffSnapshot["price_per_unit"] != "2.5" || session.TariffSnapshot["price_type"] != "time" || session.TariffSnapshot["units"] != "minutes" {
+		t.Fatalf("materialized session did not retain frozen tariff snapshot: %#v", session.TariffSnapshot)
+	}
+	amount, err := chargingAmount(session.TariffSnapshot, session.TaxSnapshot, 0, startedAt, startedAt.Add(90*time.Second))
+	if err != nil || !amount.Equal(decimal.RequireFromString("3.75")) {
+		t.Fatalf("frozen time tariff amount=%s err=%v, want 3.75", amount, err)
 	}
 }
 
@@ -136,7 +255,7 @@ func TestChargingSessionProjectionsUsePersistedCompletionAndSnapshots(t *testing
 		WalletTransaction: models.WalletTransaction{ID: ledgerID, CPOID: cpoID, SessionID: &sessionID, TransactionType: constants.WalletTransactionTypeDebit},
 	}
 	detail := customerChargingSessionDetailView(session, models.ChargingStartIntent{ID: intentID, Status: constants.StartIntentStatusActuallyStarted}, liveops.SessionState{State: "COMPLETED", CompletedAt: &completedAt, MeterFreshness: liveops.FreshnessFresh}, liveops.ChargerState{ConnectionState: "UNKNOWN"}, liveops.ConnectorState{Freshness: liveops.FreshnessUnknown})
-	if detail.Financial == nil || detail.Financial.PaymentID != paymentID || detail.Financial.WalletTransactionID != ledgerID || detail.Pricing.PricePerKWh == nil || *detail.Pricing.PricePerKWh != "15.00" || detail.Tax.CGSTRate == nil || *detail.Tax.CGSTRate != "9.00" {
+	if detail.Financial == nil || detail.Financial.PaymentID != paymentID || detail.Financial.WalletTransactionID != ledgerID || detail.Pricing.LegacyPricePerKWh == nil || *detail.Pricing.LegacyPricePerKWh != "15.00" || detail.Tax.CGSTRate == nil || *detail.Tax.CGSTRate != "9.00" {
 		t.Fatalf("detail did not preserve safe settlement and frozen price/tax data: %+v", detail)
 	}
 
@@ -207,3 +326,7 @@ func TestChargingConnectorAllowsNewStartOnlyWhenAvailableAndFresh(t *testing.T) 
 }
 
 func int64Pointer(value int64) *int64 { return &value }
+
+func energyTariffMetadata() (constants.TariffType, constants.PriceType, constants.Unit) {
+	return constants.TariffTypeFixed, constants.PriceTypeEnergy, constants.UnitWattHour
+}

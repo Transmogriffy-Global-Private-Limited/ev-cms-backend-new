@@ -748,7 +748,9 @@ order is matching UserGroup tariff, then hub tariff. In the current schema,
 customer's existing group assignment.
 
 `200 OK` returns `CustomerPriceResponse`. `AVAILABLE` contains exact decimal
-strings for currency, energy price, idle fee, and referenced active GST rates.
+strings for currency, `price_per_unit`, `tariff_type`, `price_type`, applicable
+`units`, idle fee, and referenced active GST rates. A client must render the
+price from its declared basis; it must not infer kWh from a field name.
 `UNAVAILABLE` with `unavailable_reason: no_eligible_tariff` is returned when no
 eligible tariff exists. `hub_gst_unavailable` is returned when the active hub
 GST is missing or inactive; neither condition is substituted with a zero price
@@ -2406,7 +2408,7 @@ Create requests use this body:
 
 ```json
 {
-  "price_per_kwh": "18.5000",
+  "price_per_unit": "0.0185",
   "idle_fee_per_min": "1.0000",
   "currency": "INR",
   "tariff_type": "fixed",
@@ -2426,15 +2428,18 @@ Rules:
   routes and is not accepted in tariff create or update requests;
 - `PATCH` updates commercial fields only and cannot move a tariff between
   target types or target records;
-- `price_per_kwh` is required and may be zero for free charging;
+- `price_per_unit` is required and may be zero for free charging;
 - idle fee is optional/default zero and cannot be negative;
 - currency is optional/default `INR`, normalized uppercase, and exactly three
   letters;
-- `tariff_type` is optional and currently accepts `fixed`;
-- `price_type` is optional and accepts `sessions`, `time`, or `energy`;
-- `units` is optional and accepts `minutes` or `watt/hour`;
-- omitted optional tariff metadata remains null and is not written as an empty
-  enum value;
+- `tariff_type` is required and currently must be `fixed`;
+- `price_type` is required: `energy` bills measured watt-hours, `time` bills
+  actual StartTransaction-to-StopTransaction minutes, and `sessions` bills one
+  completed session regardless of measured energy or duration;
+- `units` is required as `watt/hour` for energy, required as `minutes` for
+  time, and omitted for sessions;
+- any other combination fails with `unsupported_tariff_pricing` before
+  persistence;
 - `is_active` is optional/default true;
 - `start_date` and `end_date` are either both omitted for an open-ended tariff
   or both supplied with `start_date < end_date`. A dated tariff is effective on
@@ -2470,7 +2475,9 @@ cross-scope tariff; malformed UUIDs return the applicable `400 invalid_*_id`
 error.
 
 A scoped `PATCH` accepts any non-empty subset of the commercial create fields.
-Omitted fields remain unchanged, including the optional tariff metadata fields.
+Omitted fields remain unchanged, but the resulting tariff must retain one
+supported fixed price basis: energy/watt-hour, time/minutes, or sessions with
+no `units` field.
 The optional GST relation cannot currently be cleared to null through this
 route; it can only be omitted or replaced with another owned UUID. Supplying an
 effective-date bound validates the resulting full schedule;

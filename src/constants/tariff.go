@@ -59,3 +59,23 @@ func (e Unit) Valid() bool {
 		return false
 	}
 }
+
+// SupportedChargingTariff reports the charging combinations whose billable
+// basis is explicit: integer Wh, elapsed minutes from StartTransaction to
+// StopTransaction, or one completed session. Session pricing intentionally
+// has no measurement unit.
+func SupportedChargingTariff(tariffType *TariffType, priceType *PriceType, units *Unit) bool {
+	if tariffType == nil || priceType == nil || *tariffType != TariffTypeFixed {
+		return false
+	}
+	switch *priceType {
+	case PriceTypeEnergy:
+		return units != nil && *units == UnitWattHour
+	case PriceTypeTime:
+		return units != nil && *units == UnitMinutes
+	case PriceTypeSession:
+		return units == nil
+	default:
+		return false
+	}
+}
