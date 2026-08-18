@@ -77,7 +77,7 @@ func TestChargingStartAdmissionWithPostgreSQL(t *testing.T) {
 	if err := gormDB.First(&intent, "id = ?", first.StartIntentID).Error; err != nil {
 		t.Fatalf("load start intent: %v", err)
 	}
-	if intent.TariffSnapshot["price_per_unit"] != "0.0100" || intent.TariffSnapshot["tariff_type"] != "fixed" || intent.TariffSnapshot["price_type"] != "energy" || intent.TariffSnapshot["units"] != "watt/hour" || intent.TariffSnapshot["price_per_kwh"] != nil {
+	if intent.TariffSnapshot["price_per_unit"] != "10" || intent.TariffSnapshot["tariff_type"] != "fixed" || intent.TariffSnapshot["price_type"] != "energy" || intent.TariffSnapshot["units"] != "kwh" || intent.TariffSnapshot["price_per_kwh"] != nil {
 		t.Fatalf("start intent did not freeze canonical tariff semantics: %#v", intent.TariffSnapshot)
 	}
 	setChargingAdmissionProjection(t, gormDB, fixture, fixture.connector.ID, "ONLINE", "Preparing", time.Now().UTC())
@@ -179,21 +179,21 @@ func TestUserAppTariffTargetPrecedenceWithPostgreSQL(t *testing.T) {
 	}
 
 	hubPrice, err := service.GetCustomerHubPrice(ctx, fixture.firstPrincipal, *fixture.charger.HubID)
-	assertPrice("hub", "0.0100", hubPrice, err)
+	assertPrice("hub", "10.0000", hubPrice, err)
 
 	tariffType, priceType, units := energyTariffMetadata()
-	chargerTariff := models.Tariff{ID: uuid.New(), CPOID: fixture.cpo.ID, AssignedTo: constants.TariffAssignedCharger, ChargerID: &fixture.charger.ID, PricePerUnit: decimal.RequireFromString("0.0110"), IdleFeePerMin: decimal.Zero, Currency: "INR", IsActive: true, TariffType: &tariffType, PriceType: &priceType, Units: &units, CreatedAt: now, UpdatedAt: now}
+	chargerTariff := models.Tariff{ID: uuid.New(), CPOID: fixture.cpo.ID, AssignedTo: constants.TariffAssignedCharger, ChargerID: &fixture.charger.ID, PricePerUnit: decimal.RequireFromString("11.00"), IdleFeePerMin: decimal.Zero, Currency: "INR", IsActive: true, TariffType: &tariffType, PriceType: &priceType, Units: &units, CreatedAt: now, UpdatedAt: now}
 	if err := gormDB.Create(&chargerTariff).Error; err != nil {
 		t.Fatalf("create charger tariff: %v", err)
 	}
 	chargerPrice, err := service.GetCustomerChargerPrice(ctx, fixture.firstPrincipal, fixture.charger.ChargerID)
-	assertPrice("charger", "0.0110", chargerPrice, err)
+	assertPrice("charger", "11.0000", chargerPrice, err)
 
 	group := models.UserGroup{ID: uuid.New(), CPOID: fixture.cpo.ID, Name: "Pricing group", IsActive: true, CreatedAt: now, UpdatedAt: now}
 	if err := gormDB.Create(&group).Error; err != nil {
 		t.Fatalf("create user group: %v", err)
 	}
-	groupTariff := models.Tariff{ID: uuid.New(), CPOID: fixture.cpo.ID, AssignedTo: constants.TariffAssignedUserGroup, UserGroupID: &group.ID, PricePerUnit: decimal.RequireFromString("0.0120"), IdleFeePerMin: decimal.Zero, Currency: "INR", IsActive: true, TariffType: &tariffType, PriceType: &priceType, Units: &units, CreatedAt: now, UpdatedAt: now}
+	groupTariff := models.Tariff{ID: uuid.New(), CPOID: fixture.cpo.ID, AssignedTo: constants.TariffAssignedUserGroup, UserGroupID: &group.ID, PricePerUnit: decimal.RequireFromString("12.00"), IdleFeePerMin: decimal.Zero, Currency: "INR", IsActive: true, TariffType: &tariffType, PriceType: &priceType, Units: &units, CreatedAt: now, UpdatedAt: now}
 	if err := gormDB.Create(&groupTariff).Error; err != nil {
 		t.Fatalf("create user-group tariff: %v", err)
 	}
@@ -203,13 +203,52 @@ func TestUserAppTariffTargetPrecedenceWithPostgreSQL(t *testing.T) {
 	fixture.firstPrincipal.Customer.UserGroupID = &group.ID
 
 	chargerPrice, err = service.GetCustomerChargerPrice(ctx, fixture.firstPrincipal, fixture.charger.ChargerID)
-	assertPrice("user-group charger", "0.0120", chargerPrice, err)
+	assertPrice("user-group charger", "12.0000", chargerPrice, err)
 	hubPrice, err = service.GetCustomerHubPrice(ctx, fixture.firstPrincipal, *fixture.charger.HubID)
-	assertPrice("user-group hub", "0.0120", hubPrice, err)
+	assertPrice("user-group hub", "12.0000", hubPrice, err)
 
 	selected, ok := service.effectiveChargingTariff(gormDB.WithContext(ctx), fixture.firstPrincipal, *fixture.charger.HubID, fixture.charger.ID, now)
-	if !ok || !selected.PricePerUnit.Equal(decimal.RequireFromString("0.0120")) {
+	if !ok || !selected.PricePerUnit.Equal(decimal.RequireFromString("12.00")) {
 		t.Fatalf("charging tariff=%+v ok=%v, want user-group tariff", selected, ok)
+	}
+}
+
+func TestCustomerPriceRejectsInvalidPersistedHubGSTWithPostgreSQL(t *testing.T) {
+	databaseURL := os.Getenv("TEST_DATABASE_URL")
+	if databaseURL == "" {
+		t.Skip("TEST_DATABASE_URL is not set")
+	}
+	ctx := context.Background()
+	gormDB, sqlDB, err := db.Open(ctx, databaseURL)
+	if err != nil {
+		t.Fatalf("open test database: %v", err)
+	}
+	defer sqlDB.Close()
+	if err := db.ApplyMigrations(ctx, sqlDB); err != nil {
+		t.Fatalf("apply migrations: %v", err)
+	}
+
+	fixture := newChargingAdmissionFixture(t, gormDB)
+	service, err := NewService(gormDB, config.Auth{}, false, nil, nil)
+	if err != nil {
+		t.Fatalf("create customer service: %v", err)
+	}
+	available, err := service.GetCustomerHubPrice(ctx, fixture.firstPrincipal, *fixture.charger.HubID)
+	if err != nil || available.Status != customerPriceAvailable {
+		t.Fatalf("valid Hub GST price=%+v err=%v", available, err)
+	}
+
+	var hub models.Hub
+	if err := gormDB.First(&hub, "id = ?", *fixture.charger.HubID).Error; err != nil || hub.GSTID == nil {
+		t.Fatalf("load fixture Hub GST: hub=%+v err=%v", hub, err)
+	}
+	invalidIGST := decimal.NewFromInt(18)
+	if err := gormDB.Model(&models.GST{}).Where("id = ?", *hub.GSTID).Update("igst_rate", invalidIGST).Error; err != nil {
+		t.Fatalf("inject invalid persisted Hub GST: %v", err)
+	}
+	unavailable, err := service.GetCustomerHubPrice(ctx, fixture.firstPrincipal, *fixture.charger.HubID)
+	if err != nil || unavailable.Status != customerPriceUnavailable || unavailable.UnavailableReason != "hub_gst_unavailable" {
+		t.Fatalf("invalid Hub GST price=%+v err=%v, want unavailable", unavailable, err)
 	}
 }
 
@@ -234,8 +273,17 @@ func newChargingAdmissionFixture(t *testing.T, database *gorm.DB) chargingAdmiss
 	if err := database.Create(&charger).Error; err != nil {
 		t.Fatalf("create charger: %v", err)
 	}
+	nine, zero := decimal.NewFromInt(9), decimal.Zero
+	gst := models.GST{ID: uuid.New(), CPOID: cpo.ID, Name: "Admission GST", State: constants.WestBengal, SGSTRate: &nine, CGSTRate: &nine, IGSTRate: &zero, IsActive: true, CreatedAt: now, UpdatedAt: now}
+	if err := database.Create(&gst).Error; err != nil {
+		t.Fatalf("create hub GST: %v", err)
+	}
+	if err := database.Model(&models.Hub{}).Where("id = ?", hub.ID).Update("gst_id", gst.ID).Error; err != nil {
+		t.Fatalf("assign hub GST: %v", err)
+	}
+	hub.GSTID = &gst.ID
 	tariffType, priceType, units := energyTariffMetadata()
-	tariff := models.Tariff{ID: uuid.New(), CPOID: cpo.ID, HubID: &hub.ID, AssignedTo: constants.TariffAssignedHub, PricePerUnit: decimal.RequireFromString("0.0100"), IdleFeePerMin: decimal.Zero, Currency: "INR", IsActive: true, TariffType: &tariffType, PriceType: &priceType, Units: &units, CreatedAt: now, UpdatedAt: now}
+	tariff := models.Tariff{ID: uuid.New(), CPOID: cpo.ID, HubID: &hub.ID, AssignedTo: constants.TariffAssignedHub, PricePerUnit: decimal.RequireFromString("10.00"), IdleFeePerMin: decimal.Zero, Currency: "INR", IsActive: true, TariffType: &tariffType, PriceType: &priceType, Units: &units, CreatedAt: now, UpdatedAt: now}
 	if err := database.Create(&tariff).Error; err != nil {
 		t.Fatalf("create tariff: %v", err)
 	}
@@ -253,7 +301,7 @@ func (fixture chargingAdmissionFixture) newConnector(t *testing.T) models.Connec
 		t.Fatalf("count connectors: %v", err)
 	}
 	now := time.Now().UTC()
-	connector := models.Connector{ID: uuid.New(), CPOID: fixture.cpo.ID, ChargerID: fixture.charger.ID, ConnectorNumber: int(count) + 1, ConnectorType: "CCS2", Status: constants.ChargerStatusActive, CreatedAt: now, UpdatedAt: now}
+	connector := models.Connector{ID: uuid.New(), CPOID: fixture.cpo.ID, ChargerID: fixture.charger.ID, ConnectorNumber: int(count) + 1, ConnectorType: "CCS2", ConnectorTotalCapacity: 7.4, Status: constants.ChargerStatusActive, CreatedAt: now, UpdatedAt: now}
 	if err := fixture.database.Create(&connector).Error; err != nil {
 		t.Fatalf("create connector: %v", err)
 	}

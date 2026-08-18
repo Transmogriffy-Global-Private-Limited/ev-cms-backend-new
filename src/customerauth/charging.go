@@ -379,18 +379,22 @@ func affordableChargingLimit(balance decimal.Decimal, pricing tariffPricing, gst
 		if pricing.pricePerUnit.IsZero() {
 			return decimal.Zero, energyLimit, nil
 		}
-		unitPrice := pricing.pricePerUnit.Mul(gstMultiplier(gst))
-		affordableWh := balance.Div(unitPrice).Floor().IntPart()
+		multiplier, err := gstMultiplier(gst)
+		if err != nil {
+			return decimal.Zero, 0, err
+		}
+		unitPricePerKWh := pricing.pricePerUnit.Mul(multiplier)
+		affordableWh := balance.Div(unitPricePerKWh).Mul(decimal.NewFromInt(1000)).Floor().IntPart()
 		if affordableWh < 1 {
 			return decimal.Zero, 0, errors.New("no positive affordable energy")
 		}
 		if affordableWh < energyLimit {
 			energyLimit = affordableWh
 		}
-		reserved := unitPrice.Mul(decimal.NewFromInt(energyLimit)).RoundCeil(2)
+		reserved := unitPricePerKWh.Mul(decimal.NewFromInt(energyLimit)).Div(decimal.NewFromInt(1000)).RoundCeil(2)
 		if reserved.GreaterThan(balance) {
 			energyLimit--
-			reserved = unitPrice.Mul(decimal.NewFromInt(energyLimit)).RoundCeil(2)
+			reserved = unitPricePerKWh.Mul(decimal.NewFromInt(energyLimit)).Div(decimal.NewFromInt(1000)).RoundCeil(2)
 		}
 		if energyLimit < 1 {
 			return decimal.Zero, 0, errors.New("no positive affordable energy")

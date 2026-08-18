@@ -4292,7 +4292,7 @@ paths:
       tags:
         - "CPO Operations - Network"
       summary: "Assign a GST profile to a hub"
-      description: "Assigns an existing GST profile to a charging hub. For a same-state hub and GST, SGST and CGST are mandatory and non-zero IGST is rejected. For different states, IGST is mandatory and non-zero SGST or CGST is rejected. Invalid combinations return invalid_gst_for_hub."
+      description: "Assigns an existing GST profile to a charging hub. For a same-state Hub and GST, present SGST/CGST and zero IGST are required. For different states, present IGST and zero SGST/CGST are required. The same resulting-relationship validation protects replacement and later Hub/GST mutations. Invalid combinations return invalid_gst_for_hub."
       operationId: "assign-gst-to-hub"
       parameters:
         - name: "hub_id"
@@ -4367,7 +4367,7 @@ paths:
       tags:
         - "CPO Operations - Network"
       summary: "Update the assigned GST profile for a hub"
-      description: "Replaces the currently assigned GST with a new one. The new GST must belong to the same CPO and not be assigned to another hub. State-aware rate validation applies: same-state assignments require SGST and CGST and reject non-zero IGST; different-state assignments require IGST and reject non-zero SGST or CGST. Invalid combinations return invalid_gst_for_hub."
+      description: "Replaces the currently assigned GST with a new one. The new GST must belong to the same CPO and not be assigned to another hub. State-aware complete-relationship validation applies: same-state assignments require present SGST/CGST and zero IGST; different-state assignments require present IGST and zero SGST/CGST. Invalid combinations return invalid_gst_for_hub."
       operationId: "updateHubGST"
       parameters:
         - name: "hub_id"
@@ -7034,12 +7034,8 @@ components:
           enum: [sessions, time, energy]
         units:
           type: string
-          enum: [minutes, watt/hour]
+          enum: [minutes, kwh]
           description: Present for energy and time tariffs; omitted for a fixed per-session tariff.
-        idle_fee_per_minute:
-          type: string
-          pattern: "^[0-9]+(?:\\.[0-9]{1,4})?$"
-          description: Exact decimal idle fee per minute; present only when available.
         gst:
           type: object
           additionalProperties: false
@@ -7050,7 +7046,7 @@ components:
             igst_rate: {type: string}
         unavailable_reason:
           type: string
-          enum: [no_eligible_tariff]
+          enum: [no_eligible_tariff, hub_gst_unavailable, unsupported_tariff_pricing]
           description: Present only when status is UNAVAILABLE.
 
     PlatformLoginRequest:
@@ -8794,12 +8790,13 @@ components:
       type: object
       additionalProperties: false
       required: [price_per_unit, tariff_type, price_type]
-      description: Commercial fields only. The nested route determines the one immutable tariff target; GST is configured on the hub, never on a tariff. Supported combinations are fixed energy/watt-hour, fixed time/minutes, and fixed sessions with units omitted.
+      description: Commercial fields only. The nested route determines the one immutable tariff target; GST is configured on the hub, never on a tariff. Supported combinations are fixed energy/kWh, fixed time/minutes, and fixed sessions with units omitted. Non-zero idle fees are unsupported until an authoritative idle interval exists.
       properties:
         price_per_unit:
           $ref: "#/components/schemas/DecimalInput"
         idle_fee_per_min:
           $ref: "#/components/schemas/DecimalInput"
+          description: Must be zero for an active tariff. Retained for durable snapshots and inactive legacy records; it is never billed.
         currency:
           type: string
           pattern: "^[A-Za-z]{3}$"
@@ -8823,16 +8820,16 @@ components:
           description: Required billable basis.
         units:
           type: string
-          enum: [minutes, watt/hour]
-          description: Required for energy (watt/hour) and time (minutes); omit for sessions.
+          enum: [minutes, kwh]
+          description: Required as kwh for energy and minutes for time; omit for sessions.
       example:
-        price_per_unit: "0.0185"
-        idle_fee_per_min: "1.0000"
+        price_per_unit: "16.9100"
+        idle_fee_per_min: "0.0000"
         currency: INR
         is_active: true
         tariff_type: fixed
         price_type: energy
-        units: watt/hour
+        units: kwh
 
     UpdateTariffRequest:
       type: object
@@ -8841,7 +8838,9 @@ components:
       description: Updates commercial fields only. A tariff's target remains the nested route target for its lifetime. The resulting tariff must use a supported fixed price_type/units combination.
       properties:
         price_per_unit: {$ref: "#/components/schemas/DecimalInput"}
-        idle_fee_per_min: {$ref: "#/components/schemas/DecimalInput"}
+        idle_fee_per_min:
+          allOf: [{$ref: "#/components/schemas/DecimalInput"}]
+          description: The resulting active tariff must retain a zero idle fee because idle billing is not supported.
         currency:
           type: string
           pattern: "^[A-Za-z]{3}$"
@@ -8862,7 +8861,7 @@ components:
           enum: [sessions, time, energy]
         units:
           type: string
-          enum: [minutes, watt/hour]
+          enum: [minutes, kwh]
 
     Tariff:
       type: object
@@ -8912,7 +8911,7 @@ components:
           enum: [sessions, time, energy]
         units:
           type: string
-          enum: [minutes, watt/hour]
+          enum: [minutes, kwh]
         created_at: {type: string, format: date-time}
         updated_at: {type: string, format: date-time}
 
@@ -9175,8 +9174,14 @@ components:
         legacy_price_per_kwh: {type: string, pattern: "^[0-9]+(?:\\.[0-9]+)?$", description: Present only for pre-correction snapshots that explicitly stored a per-kWh amount.}
         tariff_type: {type: string, enum: [fixed]}
         price_type: {type: string, enum: [sessions, time, energy]}
-        units: {type: string, enum: [minutes, watt/hour]}
-        idle_fee_per_minute: {type: string, pattern: "^[0-9]+(?:\\.[0-9]+)?$"}
+        units:
+          type: string
+          enum: [minutes, kwh, watt/hour]
+          description: watt/hour is retained only for a historical snapshot written before the kWh correction and preserves its original per-Wh meaning.
+        idle_fee_per_minute:
+          type: string
+          pattern: "^[0-9]+(?:\\.[0-9]+)?$"
+          description: Historical audit value only; idle fees are not supported or billed.
         currency: {type: string, pattern: "^[A-Z]{3}$"}
 
     ChargingSessionTax:

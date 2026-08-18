@@ -114,8 +114,11 @@ Migration files:
 - Migration twenty-nine adds `tariff_type`, `price_type`, and `units` columns.
   Migration forty renames the durable tariff amount from `price_per_kwh` to
   `price_per_unit` without recreating values or inventing missing metadata.
-  New CPO writes must use a supported fixed combination: energy/watt-hour,
-  time/minutes, or per-session with no unit. Incomplete legacy live tariffs
+  Migration forty-one renames the `watt/hour` enum value to `kwh` without
+  changing those exact numeric values: energy prices are commercial per-kWh
+  values while OCPP meter readings remain integer Wh. New CPO writes must use
+  a supported fixed combination: energy/kWh, time/minutes, or per-session with
+  no unit. Incomplete legacy live tariffs
   remain durable records but are not eligible for new customer pricing or
   charging until corrected deliberately.
 - Migration thirty adds the tenant-owned `settings` table with one unique row
@@ -141,7 +144,10 @@ Migration files:
   than deleting data or fabricating a hub relationship.
 - Migration thirty-five adds nullable `hubs.gst_id` with a same-CPO foreign key
   to `gsts`. The CPO hub GST assignment APIs own assign, read, replace, and
-  unassign behavior; no cross-CPO GST can be attached.
+  unassign behavior; no cross-CPO GST can be attached. Migration forty-one
+  additionally makes a non-null `(cpo_id, gst_id)` unique so one profile has at
+  most one Hub assignment; application transactions serialize Hub/GST relation
+  changes and validate the resulting state/rate relationship.
 - Migration thirty-eight makes tariffs commercial-only by dropping the legacy
   `tariffs.gst_id` only when every legacy association is null. It also makes a
   hub mandatory for active or customer-visible chargers, normalizing existing

@@ -47,13 +47,17 @@ func (e PriceType) Valid() bool {
 type Unit string
 
 const (
-	UnitMinutes  Unit = "minutes"
-	UnitWattHour Unit = "watt/hour"
+	UnitMinutes Unit = "minutes"
+	UnitKWh     Unit = "kwh"
+
+	// LegacyUnitWattHour is retained only to decode snapshots written by the
+	// released migration-40 contract. It is not a valid tariff write unit.
+	LegacyUnitWattHour Unit = "watt/hour"
 )
 
 func (e Unit) Valid() bool {
 	switch e {
-	case UnitMinutes, UnitWattHour:
+	case UnitMinutes, UnitKWh:
 		return true
 	default:
 		return false
@@ -61,16 +65,16 @@ func (e Unit) Valid() bool {
 }
 
 // SupportedChargingTariff reports the charging combinations whose billable
-// basis is explicit: integer Wh, elapsed minutes from StartTransaction to
-// StopTransaction, or one completed session. Session pricing intentionally
-// has no measurement unit.
+// basis is explicit: kWh derived from meter Wh, elapsed minutes from
+// StartTransaction to StopTransaction, or one completed session. Session
+// pricing intentionally has no measurement unit.
 func SupportedChargingTariff(tariffType *TariffType, priceType *PriceType, units *Unit) bool {
 	if tariffType == nil || priceType == nil || *tariffType != TariffTypeFixed {
 		return false
 	}
 	switch *priceType {
 	case PriceTypeEnergy:
-		return units != nil && *units == UnitWattHour
+		return units != nil && *units == UnitKWh
 	case PriceTypeTime:
 		return units != nil && *units == UnitMinutes
 	case PriceTypeSession:

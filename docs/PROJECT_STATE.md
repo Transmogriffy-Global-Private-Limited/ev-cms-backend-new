@@ -2,23 +2,27 @@
 
 ## Current State
 
-### 2026-08-18 — Tariff unit-price semantic correction in source, not deployed
+### 2026-08-18 — Tariff/GST commercial correction in source, not deployed
 
-- An uncommitted source slice adds migration
-  `000040_rename_tariff_price_per_unit`, which preserves tariff values while
-  renaming the misleading durable column to `price_per_unit`. New CPO writes
-  and current tariff/customer responses use that name; `price_per_kwh` is
-  rejected for writes.
-- Supported fixed charging tariffs are explicit: energy per `watt/hour`, time
-  per `minutes`, or one fixed `sessions` amount. The User App price response,
-  charging admission hold, frozen start-intent/session snapshot, and
-  settlement all use the same interpretation. GST continues to come from the
-  charger hub and tariff precedence remains `USERGROUP > CHARGER > HUB`.
+- Migration `000040_rename_tariff_price_per_unit` preserves tariff values while
+  naming the canonical durable field `price_per_unit`; current writes reject
+  `price_per_kwh`. The source forward migration 41 renames the durable
+  enum value `watt/hour` to `kwh` without changing any numeric price: an energy
+  value such as 16.91 means 16.91 per kWh, and meter Wh are divided by 1000.
+- Supported fixed charging tariffs are explicit: energy per `kwh`, time per
+  `minutes`, or one fixed `sessions` amount. Customer price, admission holds,
+  frozen start-intent/session snapshots, and settlement use that one shared
+  interpretation. GST remains Hub-owned and independent from tariff targeting;
+  precedence is `USERGROUP > CHARGER > HUB`.
 - Time pricing uses the actual session duration from the HAL start/complete
   facts. It does not alter the independent existing customer/HAL duration
   cutoff. New snapshots contain their semantic fields; historical snapshots
   with `price_per_kwh` are read only through a deliberately named legacy path.
-- This change is not deployed and migration 40 has not been applied to any
+- New active tariffs reject a non-zero idle fee because no authoritative idle
+  interval exists; zero remains a durable audit/snapshot value and is never
+  billed. Existing non-zero active records are unavailable for pricing rather
+  than silently under-billed.
+- This change is not deployed and migration 41 has not been applied to any
   database. Disposable PostgreSQL lifecycle verification remains pending an
   explicitly selected `TEST_DATABASE_URL`.
 

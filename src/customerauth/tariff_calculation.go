@@ -4,6 +4,7 @@ import (
 	"errors"
 	"time"
 
+	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/commercial"
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/constants"
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/models"
 	"github.com/shopspring/decimal"
@@ -12,18 +13,22 @@ import (
 var errUnsupportedTariffSemantics = errors.New("unsupported tariff semantics")
 
 // tariffPricing is the single commercial interpretation shared by admission
-// and settlement. legacyPerKWh is intentionally limited to pre-rename JSON
-// snapshots that did not carry enough metadata to describe a unit price.
+// and settlement. The legacy flags are intentionally limited to immutable
+// snapshot formats released before the canonical per-kWh contract.
 type tariffPricing struct {
 	pricePerUnit decimal.Decimal
 	tariffType   constants.TariffType
 	priceType    constants.PriceType
 	units        *constants.Unit
 	legacyPerKWh bool
+	legacyPerWh  bool
 }
 
 func tariffPricingFromTariff(tariff models.Tariff) (tariffPricing, error) {
 	if !constants.SupportedChargingTariff(tariff.TariffType, tariff.PriceType, tariff.Units) {
+		return tariffPricing{}, errUnsupportedTariffSemantics
+	}
+	if !tariff.IdleFeePerMin.IsZero() {
 		return tariffPricing{}, errUnsupportedTariffSemantics
 	}
 	return tariffPricing{
@@ -47,6 +52,12 @@ func tariffPricingFromSnapshot(snapshot models.JSONB) (tariffPricing, error) {
 			value := constants.Unit(rawUnits)
 			units = &value
 		}
+		// This was the short-lived migration-40 contract. It was priced as per
+		// Wh by the released code, so historical completion keeps that exact
+		// interpretation instead of silently treating it as the corrected kWh.
+		if tariffType == constants.TariffTypeFixed && priceType == constants.PriceTypeEnergy && units != nil && *units == constants.LegacyUnitWattHour {
+			return tariffPricing{pricePerUnit: price, tariffType: tariffType, priceType: priceType, units: units, legacyPerWh: true}, nil
+		}
 		if !constants.SupportedChargingTariff(&tariffType, &priceType, units) {
 			return tariffPricing{}, errUnsupportedTariffSemantics
 		}
@@ -68,9 +79,12 @@ func (pricing tariffPricing) baseAmount(consumedWh int64, startedAt, stoppedAt t
 	if pricing.legacyPerKWh {
 		return pricing.pricePerUnit.Mul(decimal.NewFromInt(consumedWh)).Div(decimal.NewFromInt(1000)), nil
 	}
+	if pricing.legacyPerWh {
+		return pricing.pricePerUnit.Mul(decimal.NewFromInt(consumedWh)), nil
+	}
 	switch pricing.priceType {
 	case constants.PriceTypeEnergy:
-		return pricing.pricePerUnit.Mul(decimal.NewFromInt(consumedWh)), nil
+		return pricing.pricePerUnit.Mul(decimal.NewFromInt(consumedWh)).Div(decimal.NewFromInt(1000)), nil
 	case constants.PriceTypeTime:
 		billableMinutes := decimal.NewFromInt(stoppedAt.Sub(startedAt).Nanoseconds()).Div(decimal.NewFromInt(int64(time.Minute)))
 		return pricing.pricePerUnit.Mul(billableMinutes), nil
@@ -86,7 +100,7 @@ func (pricing tariffPricing) amountWithGST(consumedWh int64, startedAt, stoppedA
 	if err != nil {
 		return decimal.Zero, err
 	}
-	return applyGST(baseAmount, gst), nil
+	return applyGST(baseAmount, gst)
 }
 
 func (pricing tariffPricing) snapshot(tariff models.Tariff) models.JSONB {
@@ -104,13 +118,24 @@ func (pricing tariffPricing) snapshot(tariff models.Tariff) models.JSONB {
 	return snapshot
 }
 
-func applyGST(baseAmount decimal.Decimal, gst models.GST) decimal.Decimal {
-	return baseAmount.Mul(gstMultiplier(gst)).Round(2)
+func applyGST(baseAmount decimal.Decimal, gst models.GST) (decimal.Decimal, error) {
+	multiplier, err := gstMultiplier(gst)
+	if err != nil {
+		return decimal.Zero, err
+	}
+	return baseAmount.Mul(multiplier).Round(2), nil
 }
 
-func gstMultiplier(gst models.GST) decimal.Decimal {
-	rate := gst.SGSTRate.Add(*gst.CGSTRate).Add(*gst.IGSTRate).Div(decimal.NewFromInt(100))
-	return decimal.NewFromInt(1).Add(rate)
+func gstMultiplier(gst models.GST) (decimal.Decimal, error) {
+	if gst.SGSTRate == nil || gst.CGSTRate == nil || gst.IGSTRate == nil {
+		return decimal.Zero, errUnsupportedTariffSemantics
+	}
+	for _, rate := range []*decimal.Decimal{gst.SGSTRate, gst.CGSTRate, gst.IGSTRate} {
+		if rate.Sign() < 0 || rate.Cmp(decimal.NewFromInt(100)) > 0 {
+			return decimal.Zero, errUnsupportedTariffSemantics
+		}
+	}
+	return commercial.GSTMultiplier(*gst.SGSTRate, *gst.CGSTRate, *gst.IGSTRate), nil
 }
 
 func (pricing tariffPricing) amountWithTaxSnapshot(consumedWh int64, startedAt, stoppedAt time.Time, tax models.JSONB) (decimal.Decimal, error) {
@@ -124,8 +149,7 @@ func (pricing tariffPricing) amountWithTaxSnapshot(consumedWh int64, startedAt, 
 	if !sgstOK || !cgstOK || !igstOK {
 		return decimal.Zero, errUnsupportedTariffSemantics
 	}
-	rate := sgst.Add(cgst).Add(igst).Div(decimal.NewFromInt(100))
-	return baseAmount.Mul(decimal.NewFromInt(1).Add(rate)).Round(2), nil
+	return baseAmount.Mul(commercial.GSTMultiplier(sgst, cgst, igst)).Round(2), nil
 }
 
 func snapshotDecimalValue(snapshot models.JSONB, key string) (decimal.Decimal, bool) {

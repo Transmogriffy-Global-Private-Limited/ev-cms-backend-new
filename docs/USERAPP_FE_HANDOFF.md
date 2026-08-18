@@ -392,8 +392,7 @@ export type CustomerPriceResponse = {
   price_per_unit?: string;
   tariff_type?: "fixed";
   price_type?: "sessions" | "time" | "energy";
-  units?: "minutes" | "watt/hour";
-  idle_fee_per_minute?: string;
+  units?: "minutes" | "kwh";
   gst?: {
     sgst_rate: string;
     cgst_rate: string;
@@ -404,9 +403,12 @@ export type CustomerPriceResponse = {
 ```
 
 For an `AVAILABLE` price, render `price_per_unit` only with its declared
-`price_type` and `units`: `energy` is per `watt/hour`, `time` is per `minutes`,
-and `sessions` is one fixed session amount with `units` omitted. Do not assume
-that a price means per kWh.
+`price_type` and `units`: `energy` is per `kwh`, `time` is per `minutes`, and
+`sessions` is one fixed session amount with `units` omitted. `price_per_unit`
+for energy is always the exact commercial price per kWh (meter values arrive in
+Wh and are divided by 1000 server-side). Idle billing is not supported, so the
+customer price contract intentionally has no idle-fee field. This does not
+alter the separate customer-selected time-bounded-session cutoff workflow.
 
 `me.user` is a compatibility presentation object. `me.user.id` always equals
 `me.customer.id`; both are the CPO-local `customer_id`.

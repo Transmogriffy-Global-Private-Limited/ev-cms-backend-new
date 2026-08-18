@@ -16,6 +16,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/shopspring/decimal"
 )
 
 func TestTariffRequestBodiesRejectTargetIDs(t *testing.T) {
@@ -470,12 +471,52 @@ func TestHubViewIncludesState(t *testing.T) {
 	}
 }
 
+func TestValidateGSTForHubUsesCompleteResultingRelationship(t *testing.T) {
+	t.Parallel()
+	nine, eighteen, zero := decimal.NewFromInt(9), decimal.NewFromInt(18), decimal.Zero
+	hub := models.Hub{State: constants.WestBengal}
+
+	for _, tc := range []struct {
+		name  string
+		gst   models.GST
+		valid bool
+	}{
+		{"same state split tax", models.GST{IsActive: true, State: constants.WestBengal, SGSTRate: &nine, CGSTRate: &nine, IGSTRate: &zero}, true},
+		{"same state IGST", models.GST{IsActive: true, State: constants.WestBengal, SGSTRate: &nine, CGSTRate: &nine, IGSTRate: &eighteen}, false},
+		{"interstate IGST", models.GST{IsActive: true, State: constants.Maharashtra, SGSTRate: &zero, CGSTRate: &zero, IGSTRate: &eighteen}, true},
+		{"inactive profile", models.GST{IsActive: false, State: constants.WestBengal, SGSTRate: &nine, CGSTRate: &nine, IGSTRate: &zero}, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			err := validateGSTForHub(hub, tc.gst)
+			if (err == nil) != tc.valid {
+				t.Fatalf("validateGSTForHub() error = %v, valid = %v", err, tc.valid)
+			}
+		})
+	}
+}
+
+func TestGSTRequestValidationRejectsMixedTaxComponents(t *testing.T) {
+	t.Parallel()
+	nine, eighteen := decimal.NewFromInt(9), decimal.NewFromInt(18)
+	err := validateCreateGSTRequest(CreateGSTRequest{
+		Name:     "mixed",
+		State:    constants.WestBengal,
+		SGSTRate: &nine,
+		CGSTRate: &nine,
+		IGSTRate: &eighteen,
+	})
+	var apiErr *auth.APIError
+	if !errors.As(err, &apiErr) || apiErr.Code != "invalid_gst_components" {
+		t.Fatalf("mixed GST components error=%v, want invalid_gst_components", err)
+	}
+}
+
 func TestTariffValidation(t *testing.T) {
 	t.Parallel()
 
 	validTariffType := constants.TariffTypeFixed
 	validPriceType := constants.PriceTypeEnergy
-	validUnits := constants.UnitWattHour
+	validUnits := constants.UnitKWh
 
 	// --- Create ---
 	validCreateReq := CreateTariffRequest{
@@ -531,6 +572,25 @@ func TestTariffValidation(t *testing.T) {
 				return req
 			}(),
 			"invalid_units",
+		},
+		{
+			"retired watt hour units",
+			func() CreateTariffRequest {
+				req := validCreateReq
+				legacy := constants.LegacyUnitWattHour
+				req.Units = &legacy
+				return req
+			}(),
+			"invalid_units",
+		},
+		{
+			"active idle fee unsupported",
+			func() CreateTariffRequest {
+				req := validCreateReq
+				req.IdleFeePerMin = decimal.NewFromInt(1)
+				return req
+			}(),
+			"idle_fee_unsupported",
 		},
 		{
 			"unsupported time unit",

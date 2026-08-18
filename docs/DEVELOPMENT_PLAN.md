@@ -112,7 +112,6 @@ Current phase:
 Active work:
 
 - `docs/work/active/WI-20260812-cms-hal-operational-capabilities.md`.
-- `docs/work/active/WI-20260818-tariff-price-per-unit-semantics.md`.
 
 Current implementation state:
 
@@ -163,12 +162,12 @@ Current implementation state:
   `AVAILABLE` and `FRESH` connector projection state, while same-customer
   active-intent replay remains available before that live-state gate. Connector
   row locking serializes the final active-intent recheck.
-- The working tree contains an uncommitted tariff semantic correction awaiting
-  the normal broad verification: forward migration 40 renames the durable
-  price to `price_per_unit`; fixed energy, time, and session pricing receive
-  explicit units/meaning across CPO writes, customer price, admission,
-  snapshots, and settlement. It does not change the existing HAL/customer
-  duration cutoff and is not deployed.
+- Migration 40 introduced the canonical `price_per_unit` column without
+  changing stored tariff values. The active tariff/GST correction now follows
+  it with migration 41: energy units become `kwh` while retaining every numeric
+  value as a per-kWh price, and Hub-owned GST integrity is enforced across
+  assignment and later mutations. See
+  `docs/plans/tariff-gst-commercial-correction.md`.
 
 Next required slice:
 
@@ -978,9 +977,19 @@ Current implementation slice:
   tariff GST ownership is removed, hub GST is authoritative, and active or
   customer-visible chargers require a hub. The live contract remains at 178
   operations.
+- The tariff/GST commercial correction is complete in source and ready for its
+  migration-controlled deployment: migration forty-one converts the energy
+  enum to `kwh` without changing numeric tariff values; one shared pricing
+  interpretation, Hub/GST mutation invariants, runtime GST defense, and the
+  CPO frontend handoff are verified. Disposable PostgreSQL lifecycle coverage
+  remains pending an explicitly selected `TEST_DATABASE_URL`.
 
 Last completed slice:
 
+- Tariff/GST commercial correction: corrected energy per-kWh semantics across
+  tariff writes, customer price, admission, immutable snapshots, and
+  settlement; protected the complete Hub/GST relationship across later
+  mutations; and published the CPO frontend integration handoff.
 - Completed User App consumption of committed HAL operational projections for
   every full charger response without N+1 reads, preserving compact map-only
   location payloads, and added the canonical CPO backend HAL operational
