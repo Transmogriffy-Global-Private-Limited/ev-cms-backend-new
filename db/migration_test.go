@@ -574,11 +574,11 @@ func TestTariffPriceRenameMigrationPreservesTheExistingColumn(t *testing.T) {
 func TestTariffEnergyUnitAndHubGSTMigrationPreservesStoredValues(t *testing.T) {
 	t.Parallel()
 
-	upBody, err := migrationFiles.ReadFile("migrations/000041_correct_tariff_energy_unit_and_hub_gst_uniqueness.up.sql")
+	upBody, err := migrationFiles.ReadFile("migrations/000042_correct_tariff_energy_unit_and_hub_gst_uniqueness.up.sql")
 	if err != nil {
 		t.Fatalf("read tariff-energy migration: %v", err)
 	}
-	downBody, err := migrationFiles.ReadFile("migrations/000041_correct_tariff_energy_unit_and_hub_gst_uniqueness.down.sql")
+	downBody, err := migrationFiles.ReadFile("migrations/000042_correct_tariff_energy_unit_and_hub_gst_uniqueness.down.sql")
 	if err != nil {
 		t.Fatalf("read tariff-energy rollback: %v", err)
 	}

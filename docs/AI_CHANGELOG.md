@@ -3,7 +3,7 @@
 ## 2026-08-18 - Tariff and GST commercial correction in source
 
 - Retained migration 40's data-preserving `price_per_unit` rename and added
-  forward migration 41 to rename the persisted `watt/hour` enum value to
+  forward migration 42 to rename the persisted `watt/hour` enum value to
   `kwh`, without changing stored numeric prices. New energy tariffs therefore
   mean an exact price per kWh and calculate `meter_wh / 1000 * price_per_unit`.
 - Repaired the live tariff/API/model contract to use one supported fixed basis:
@@ -30,9 +30,36 @@ Verification:
   compatibility.
 - Documentation verification, OpenAPI/runtime-route parity, serial
   `go test -p 1 ./...`, and `go vet ./...` passed locally.
-- This local source change is not deployed. Migration 41 and the guarded
+- This local source change is not deployed. Migration 42 and the guarded
   PostgreSQL admission/session lifecycle tests have not run because no
   disposable `TEST_DATABASE_URL` is configured.
+
+## 2026-08-18 - Rehosted wallet-balance aggregate and settings migration
+
+- Applied migration 41, adding non-null `wallet_min_balance` and
+  `wallet_buffer_min_balance` settings columns with zero defaults.
+- Fixed CPO customer aggregate loading so every CPO customer receives wallet
+  balance and zero-valued usage/session aggregates even without sessions.
+- Rehosted clean runtime revision `040b9bb` with binary SHA-256
+  `2b4a0ab8fd77b79ec92bf03a418acaa52eb6320e0e90401c62afbb9d23fced29`.
+- Applied migration 41 after a mode-0600 rollback dump at
+  `/var/backups/postgres/devevcmsnewdb-pre-migration-41-20260818-110956.dump`.
+
+Verification:
+
+- Focused migration/customer/route tests, serial `go test ./...`, `go vet
+  ./...`, Caddy validation, migration/schema checks, local/public
+  health/readiness, Swagger, raw OpenAPI, and protected worker/status
+  boundaries passed. The service is active with zero restarts and the live
+  contract remains at 180 operations.
+- `scripts/verify-docs.ps1` and disposable PostgreSQL lifecycle tests remain
+  unavailable because `pwsh` and `TEST_DATABASE_URL` are not configured.
+
+## 2026-08-18 - Rehosted tariff unit-price semantic correction
+
+- Migration 40 was applied after a mode-0600 custom-format rollback dump at
+  `/var/backups/postgres/devevcmsnewdb-pre-migration-40-20260818-105424.dump`.
+  Revision `9e7af67` is active with its then-current watt/hour source contract.
 
 ## 2026-08-18 - Rehosted customer aggregates and tariff validation release
 

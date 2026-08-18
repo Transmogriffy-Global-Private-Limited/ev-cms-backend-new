@@ -4819,20 +4819,26 @@ func (service *Service) getCustomerAggregatesByCPO(ctx context.Context, cpoID uu
 		SessionCount  int64
 	}
 
-	var sessionAggregates []CustomerAggregateResult
-	err := service.database.WithContext(ctx).Model(&models.ChargingSession{}).
-		Select("customer_id, COALESCE(SUM(total_kwh), 0) as total_usage_kwh, COUNT(*) as session_count").
-		Where("cpo_id = ?", cpoID).
-		Group("customer_id").
-		Scan(&sessionAggregates).Error
-
-	if err != nil {
+	var customers []models.Customer
+	if err := service.database.WithContext(ctx).Model(&models.Customer{}).Where("cpo_id = ?", cpoID).Find(&customers).Error; err != nil {
 		return nil, err
 	}
 
-	customerIDs := make([]uuid.UUID, len(sessionAggregates))
-	for i, agg := range sessionAggregates {
-		customerIDs[i] = agg.CustomerID
+	customerIDs := make([]uuid.UUID, len(customers))
+	for i, c := range customers {
+		customerIDs[i] = c.ID
+	}
+
+	var sessionAggregates []CustomerAggregateResult
+	if len(customerIDs) > 0 {
+		err := service.database.WithContext(ctx).Model(&models.ChargingSession{}).
+			Select("customer_id, COALESCE(SUM(total_kwh), 0) as total_usage_kwh, COUNT(*) as session_count").
+			Where("cpo_id = ? AND customer_id IN (?)", cpoID, customerIDs).
+			Group("customer_id").
+			Scan(&sessionAggregates).Error
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	type WalletResult struct {
@@ -4842,7 +4848,7 @@ func (service *Service) getCustomerAggregatesByCPO(ctx context.Context, cpoID uu
 
 	var walletAggregates []WalletResult
 	if len(customerIDs) > 0 {
-		err = service.database.WithContext(ctx).Model(&models.Wallet{}).
+		err := service.database.WithContext(ctx).Model(&models.Wallet{}).
 			Select("customer_id, balance as wallet_balance").
 			Where("customer_id IN (?)", customerIDs).
 			Scan(&walletAggregates).Error
@@ -4853,10 +4859,15 @@ func (service *Service) getCustomerAggregatesByCPO(ctx context.Context, cpoID uu
 	}
 
 	result := make(map[uuid.UUID]CustomerAggregates)
+	for _, customer := range customers {
+		result[customer.ID] = CustomerAggregates{}
+	}
+
 	for _, agg := range sessionAggregates {
-		result[agg.CustomerID] = CustomerAggregates{
-			TotalUsageKWh: agg.TotalUsageKWh,
-			SessionCount:  agg.SessionCount,
+		if entry, ok := result[agg.CustomerID]; ok {
+			entry.TotalUsageKWh = agg.TotalUsageKWh
+			entry.SessionCount = agg.SessionCount
+			result[agg.CustomerID] = entry
 		}
 	}
 

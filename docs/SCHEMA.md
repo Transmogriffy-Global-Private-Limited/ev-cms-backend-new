@@ -114,7 +114,7 @@ Migration files:
 - Migration twenty-nine adds `tariff_type`, `price_type`, and `units` columns.
   Migration forty renames the durable tariff amount from `price_per_kwh` to
   `price_per_unit` without recreating values or inventing missing metadata.
-  Migration forty-one renames the `watt/hour` enum value to `kwh` without
+  Migration forty-two renames the `watt/hour` enum value to `kwh` without
   changing those exact numeric values: energy prices are commercial per-kWh
   values while OCPP meter readings remain integer Wh. New CPO writes must use
   a supported fixed combination: energy/kWh, time/minutes, or per-session with
@@ -144,7 +144,7 @@ Migration files:
   than deleting data or fabricating a hub relationship.
 - Migration thirty-five adds nullable `hubs.gst_id` with a same-CPO foreign key
   to `gsts`. The CPO hub GST assignment APIs own assign, read, replace, and
-  unassign behavior; no cross-CPO GST can be attached. Migration forty-one
+  unassign behavior; no cross-CPO GST can be attached. Migration forty-two
   additionally makes a non-null `(cpo_id, gst_id)` unique so one profile has at
   most one Hub assignment; application transactions serialize Hub/GST relation
   changes and validate the resulting state/rate relationship.

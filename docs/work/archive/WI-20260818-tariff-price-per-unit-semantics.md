@@ -52,7 +52,8 @@ tariff interpretation.
 - Overlaps the active CPO-network-pricing and User-App work records. The
   user-authorized semantic correction is narrow and preserves their ownership
   boundaries.
-- Disposable PostgreSQL lifecycle verification requires `TEST_DATABASE_URL`.
+- Disposable PostgreSQL lifecycle verification remains unavailable because
+  `TEST_DATABASE_URL` is not configured.
 
 ## Contract impact
 
@@ -82,10 +83,11 @@ tariff interpretation.
 - Focused `go test ./db ./src/customerauth ./src/cpo ./src/models -count=1`
   and follow-up `go test ./src/customerauth ./src/cpo -count=1` passed.
 - `scripts/verify-docs.ps1`, the runtime/OpenAPI/Swagger route test, serial
-  `go test ./...`, and serial `go vet ./...` passed.
-- The static migration test passed. PostgreSQL execution of migration 40 and
-  guarded admission/materialization lifecycle tests were skipped because
-  `TEST_DATABASE_URL` is unset.
+  `go test ./...`, serial `go vet ./...`, Caddy validation, migration 40
+  execution, local/public health/readiness, and protected route boundaries
+  passed.
+- The guarded admission/materialization lifecycle tests remain unavailable
+  because `TEST_DATABASE_URL` is unset.
 
 ## Handoff
 
@@ -96,5 +98,6 @@ tariff interpretation.
 
 ## Completion
 
-Completed locally on 2026-08-18. No migration was applied, and nothing was
-deployed by this work item.
+Completed and deployed on 2026-08-18. Migration 40 is applied and revision
+`040b9bb` is active on the development VPS after the follow-on migration-41
+settings release.

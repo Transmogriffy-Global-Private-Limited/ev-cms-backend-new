@@ -6,7 +6,7 @@
 
 - Migration `000040_rename_tariff_price_per_unit` preserves tariff values while
   naming the canonical durable field `price_per_unit`; current writes reject
-  `price_per_kwh`. The source forward migration 41 renames the durable
+  `price_per_kwh`. The source forward migration 42 renames the durable
   enum value `watt/hour` to `kwh` without changing any numeric price: an energy
   value such as 16.91 means 16.91 per kWh, and meter Wh are divided by 1000.
 - Supported fixed charging tariffs are explicit: energy per `kwh`, time per
@@ -22,9 +22,28 @@
   interval exists; zero remains a durable audit/snapshot value and is never
   billed. Existing non-zero active records are unavailable for pricing rather
   than silently under-billed.
-- This change is not deployed and migration 41 has not been applied to any
+- This change is not deployed and migration 42 has not been applied to any
   database. Disposable PostgreSQL lifecycle verification remains pending an
   explicitly selected `TEST_DATABASE_URL`.
+
+### 2026-08-18 — Wallet aggregates and settings migration deployed
+
+- Migration 41 adds non-null `settings.wallet_min_balance` and
+  `settings.wallet_buffer_min_balance` columns with zero defaults.
+- CPO customer aggregate loading now starts from all customers in the tenant,
+  so wallet balance and zero usage/session values are present even when a
+  customer has no charging-session rows.
+- Revision `040b9bb` is active with binary SHA-256
+  `2b4a0ab8fd77b79ec92bf03a418acaa52eb6320e0e90401c62afbb9d23fced29`.
+
+### 2026-08-18 — Tariff unit-price semantic correction deployed
+
+- Migration 40 is applied on the development VPS after a mode-0600 rollback
+  dump. Revision `9e7af67` is active with the then-current tariff contract.
+- The source correction above is deliberately not deployed and supersedes the
+  former `watt/hour` energy interpretation for the next migration-controlled
+  release. Disposable PostgreSQL lifecycle and full CMS-to-HAL topology
+  acceptance remain pending their dedicated environments.
 
 ### 2026-08-18 — Customer aggregates and tariff validation release deployed
 
@@ -464,8 +483,8 @@ provides:
   handler;
 - the additive PostgreSQL database `devevcmsnewdb`, owned by `postgres`.
 
-The active development VPS runs source revision `d475b41`, with migrations
-through thirty-nine recorded and the deployed 180-operation contract. Migration
+The active development VPS runs source revision `040b9bb`, with migrations
+through forty-one recorded and the deployed 180-operation contract. Migration
 twenty-nine adds nullable `tariff_type`, `price_type`, and `units` metadata to
 tenant tariffs; omitted values remain null-safe for existing and newly created
 tariffs. The SuperAdmin administrator-list query explicitly binds the platform

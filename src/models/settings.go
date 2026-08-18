@@ -7,10 +7,12 @@ import (
 )
 
 type Settings struct {
-	ID          uuid.UUID `gorm:"type:uuid;primaryKey;default:gen_random_uuid()" json:"id"`
-	CPOID       uuid.UUID `gorm:"type:uuid;not null;unique" json:"cpo_id"`
-	InvoiceLogo *string   `gorm:"type:varchar(255)" json:"invoice_logo"`
-	InvoiceNote *string   `gorm:"type:text" json:"invoice_note"`
-	CreatedAt   time.Time `gorm:"not null;default:now()" json:"created_at"`
-	UpdatedAt   time.Time `gorm:"not null;default:now()" json:"updated_at"`
+	ID                     uuid.UUID `gorm:"type:uuid;primaryKey;default:gen_random_uuid()" json:"id"`
+	CPOID                  uuid.UUID `gorm:"type:uuid;not null;unique" json:"cpo_id"`
+	InvoiceLogo            *string   `gorm:"type:varchar(255)" json:"invoice_logo"`
+	InvoiceNote            *string   `gorm:"type:text" json:"invoice_note"`
+	WalletMinBalance       int       `gorm:"not null;default:0" json:"wallet_min_balance"`
+	WalletBufferMinBalance int       `gorm:"not null;default:0" json:"wallet_buffer_min_balance"`
+	CreatedAt              time.Time `gorm:"not null;default:now()" json:"created_at"`
+	UpdatedAt              time.Time `gorm:"not null;default:now()" json:"updated_at"`
 }
