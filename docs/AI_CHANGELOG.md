@@ -1,5 +1,20 @@
 # AI Changelog
 
+## 2026-08-18 - Rehosted tariff/GST correction and wallet admission policy
+
+- Applied migrations 42 and 43 after the guarded custom-format rollback dump
+  at `/var/backups/postgres/devevcmsnewdb-pre-migration-42-43-20260818-123600.dump`
+  (SHA-256 `6123f5c29b9f2c3f826d8b1a87d46905633161c180b75aa86418c0d930f21365`).
+- Rebuilt and rehosted runtime revision `ceefb21`; binary SHA-256 is
+  `b326c525d0a11a1a1d152f60a08c1906bfa50dc00af0e4db7f080f17b59636e1`.
+- Verified migrations 42/43, the `kwh` enum, the CPO/GST uniqueness index,
+  settings backfill, zero service restarts, local/public health and readiness,
+  Swagger, raw OpenAPI (180 operations), protected worker/status boundaries,
+  and a clean post-start error scan.
+- `pwsh` and disposable `TEST_DATABASE_URL` remain unavailable, so the
+  documentation PowerShell verifier and guarded disposable-DB lifecycle tests
+  were not run.
+
 ## 2026-08-18 - CPO wallet admission policy in source
 
 - CPO provisioning now creates its one blank settings row transactionally;

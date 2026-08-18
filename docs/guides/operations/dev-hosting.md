@@ -29,7 +29,7 @@ that setting; it must not be used until the OCPP host is explicitly configured
 with TLS/WebSocket support.
 
 The active deployment was updated on August 18, 2026 to runtime source revision
-`040b9bb`. It has migrations one through forty-one and the current 180-operation
+`ceefb21`. It has migrations one through forty-three and the current 180-operation
 API. Migration thirty-three adds the CPO/customer-scoped `operational_events`
 ledger used for durable operational-notification recovery; its four indexes
 support CPO and customer cursor replay plus retention. Migration twenty-seven
@@ -63,7 +63,10 @@ and `units`. Migration forty renames the durable tariff price column to
 must select a supported fixed energy/watt-hour, time/minutes, or per-session
 pricing basis; incomplete legacy rows are not guessed for new charging.
 Migration forty-one adds zero-default wallet minimum and buffer settings for
-each CPO settings row. The SuperAdmin administrator list binds its
+each CPO settings row. Migration forty-two changes the persisted energy unit
+from `watt/hour` to `kwh` without changing numeric prices and enforces unique
+CPO/GST hub assignment. Migration forty-three backfills missing CPO settings
+rows with zero wallet-policy defaults. The SuperAdmin administrator list binds its
 platform-admin model explicitly.
 Migration thirty adds one tenant-scoped `settings` row per CPO for invoice-note
 and invoice-logo metadata. Its UUID and CPO foreign key follow the existing

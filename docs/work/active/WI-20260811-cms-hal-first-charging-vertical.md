@@ -57,7 +57,7 @@ Implement and verify the first real CMS consumer charging vertical against
 ## Current state
 
 - The current shared development deployment is clean source revision
-  `040b9bb` with migrations through forty-one and 180 OpenAPI operations.
+  `ceefb21` with migrations through forty-three and 180 OpenAPI operations.
   The HAL runtime GORM models explicitly map to the singular migration tables;
   no migration was needed for this correction.
 
@@ -67,7 +67,7 @@ Implement and verify the first real CMS consumer charging vertical against
   `000029_add_tariff_fields` are applied in the development database. Earlier
   revision `3ca2c35` established the 162-operation live contract; migrations
   thirty through thirty-two for tenant settings, GST state, and hub state are
-  also applied. The current deployment is runtime revision `040b9bb` as recorded above.
+  also applied. The current deployment is runtime revision `ceefb21` as recorded above.
 - The optional HAL v1 base URL and both service credentials remain unset on
   this host, so customer charging is intentionally unavailable until the
   independent provider is configured.

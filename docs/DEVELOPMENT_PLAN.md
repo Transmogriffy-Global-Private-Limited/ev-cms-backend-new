@@ -125,13 +125,13 @@ Current implementation state:
   charger vertical is not verified yet.
 - The current deployed release also exposes tenant-scoped CPO charging-session
   list/detail reads with bounded keyset pagination and validated lifecycle
-  filters. Revision `040b9bb` is active with migrations 40-41 applied; the live
+  filters. Revision `ceefb21` is active with migrations 40-43 applied; the live
   OpenAPI contract contains 180 operations.
 - The current deployed release also includes optional committed live charger
-  projections on CPO charger list/detail responses. Revision `040b9bb` is
+  projections on CPO charger list/detail responses. Revision `ceefb21` is
   active; list reads use the bounded batch liveops reader.
 - Migration 39 and the current-worker projection are deployed in revision
-  `040b9bb`; worker status/readiness now ignore superseded historical rows.
+  `ceefb21`; worker status/readiness now ignore superseded historical rows.
 - The latest release adds tenant-scoped CPO customer usage/session/wallet
   aggregates and request-boundary tariff enum validation. No migration was
   required; the OpenAPI contract was reconciled to the registered runtime
@@ -173,9 +173,12 @@ Current implementation state:
   time/minutes, or per-session across CPO writes, customer price, admission,
   snapshots, and settlement. The existing HAL/customer duration cutoff is
   unchanged.
-- Migration 41 and the customer aggregate correction are deployed in revision
-  `040b9bb`; settings now retain wallet minimum/buffer defaults and every
-  tenant customer receives wallet and zero-usage aggregate values.
+- Migrations 41 and 43 and the customer aggregate correction are deployed in
+  revision `ceefb21`; settings now retain wallet minimum/buffer defaults and
+  every tenant customer receives wallet and zero-usage aggregate values.
+- Migration 42 is deployed in the same revision: energy tariffs use the
+  persisted `kwh` enum and Hub-owned GST assignment has a unique CPO/GST
+  constraint.
 
 Next required slice:
 

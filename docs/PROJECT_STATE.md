@@ -2,7 +2,7 @@
 
 ## Current State
 
-### 2026-08-18 — CPO wallet admission policy in source, not deployed
+### 2026-08-18 — CPO wallet admission policy deployed
 
 - Source migration 43 gives every existing CPO a blank `settings` row without
   overwriting existing invoice or wallet-policy values; new CPO provisioning
@@ -17,11 +17,15 @@
   buffer alongside exact `usable_balance` and a threshold-only
   `minimum_recharge_amount`; these are current read projections, while start
   admission remains authoritative at its locked transaction boundary.
-- This source change is not deployed and migration 43 has not been applied to
-  any database. The guarded PostgreSQL admission test requires an explicitly
-  selected disposable `TEST_DATABASE_URL`.
+- Migration 43 was applied to the development database after a mode-0600
+  rollback dump at `/var/backups/postgres/devevcmsnewdb-pre-migration-42-43-20260818-123600.dump`.
+  The development service now has settings rows for all existing CPOs.
+- Runtime revision `ceefb21` is active with binary SHA-256
+  `b326c525d0a11a1a1d152f60a08c1906bfa50dc00af0e4db7f080f17b59636e1`.
+- The guarded PostgreSQL admission test still requires an explicitly selected
+  disposable `TEST_DATABASE_URL` and was not run against the live database.
 
-### 2026-08-18 — Tariff/GST commercial correction in source, not deployed
+### 2026-08-18 — Tariff/GST commercial correction deployed
 
 - Migration `000040_rename_tariff_price_per_unit` preserves tariff values while
   naming the canonical durable field `price_per_unit`; current writes reject
@@ -41,9 +45,11 @@
   interval exists; zero remains a durable audit/snapshot value and is never
   billed. Existing non-zero active records are unavailable for pricing rather
   than silently under-billed.
-- This change is not deployed and migration 42 has not been applied to any
-  database. Disposable PostgreSQL lifecycle verification remains pending an
-  explicitly selected `TEST_DATABASE_URL`.
+- Migration 42 was applied to the development database together with the
+  guarded duplicate-assignment check. The persisted energy enum is now `kwh`,
+  and the partial unique CPO/GST hub-assignment index is present.
+- Disposable PostgreSQL lifecycle verification remains pending an explicitly
+  selected `TEST_DATABASE_URL`.
 
 ### 2026-08-18 — Wallet aggregates and settings migration deployed
 
@@ -502,8 +508,8 @@ provides:
   handler;
 - the additive PostgreSQL database `devevcmsnewdb`, owned by `postgres`.
 
-The active development VPS runs source revision `040b9bb`, with migrations
-through forty-one recorded and the deployed 180-operation contract. Migration
+The active development VPS runs source revision `ceefb21`, with migrations
+through forty-three recorded and the deployed 180-operation contract. Migration
 twenty-nine adds nullable `tariff_type`, `price_type`, and `units` metadata to
 tenant tariffs; omitted values remain null-safe for existing and newly created
 tariffs. The SuperAdmin administrator-list query explicitly binds the platform

@@ -87,5 +87,6 @@ and the downstream charging commercial facts as one compatible CMS-only slice.
 
 ## Completion
 
-Implemented and documented. The source is not deployed; migration 42 remains
-pending normal migration-controlled release.
+Implemented and documented. Migration 42 and runtime revision `ceefb21` are
+deployed on the development VPS; the guarded disposable-PostgreSQL lifecycle
+test remains pending.

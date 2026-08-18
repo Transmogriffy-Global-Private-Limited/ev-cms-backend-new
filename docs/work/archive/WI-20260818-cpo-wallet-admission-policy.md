@@ -39,7 +39,8 @@ start, and guarantee a blank zero-default settings record for every CPO.
 
 ## Dependencies and blockers
 
-- Existing migration 41 has non-negative integer, zero-default settings fields.
+- Existing migration 41 has non-negative integer, zero-default settings fields;
+  migration 43 has now been applied to the development database.
 - Disposable PostgreSQL lifecycle checks require `TEST_DATABASE_URL`.
 
 ## Contract impact
@@ -77,5 +78,5 @@ start, and guarantee a blank zero-default settings record for every CPO.
 
 ## Completion
 
-Completed 2026-08-18. Safe for migration-controlled deployment; no migration
-or runtime operation was performed during this slice.
+Completed 2026-08-18. Migration 43 and runtime revision `ceefb21` are deployed
+on the development VPS; the guarded disposable-PostgreSQL test remains pending.
