@@ -2,9 +2,9 @@
 
 ## Current State
 
-### 2026-08-18 — Tariff unit-price semantic correction in source, not deployed
+### 2026-08-18 — Tariff unit-price semantic correction deployed
 
-- An uncommitted source slice adds migration
+- The release adds migration
   `000040_rename_tariff_price_per_unit`, which preserves tariff values while
   renaming the misleading durable column to `price_per_unit`. New CPO writes
   and current tariff/customer responses use that name; `price_per_kwh` is
@@ -18,9 +18,15 @@
   facts. It does not alter the independent existing customer/HAL duration
   cutoff. New snapshots contain their semantic fields; historical snapshots
   with `price_per_kwh` are read only through a deliberately named legacy path.
-- This change is not deployed and migration 40 has not been applied to any
-  database. Disposable PostgreSQL lifecycle verification remains pending an
-  explicitly selected `TEST_DATABASE_URL`.
+- Migration 40 is applied on the development VPS after a mode-0600 rollback
+  dump. Revision `9e7af67` is active with binary SHA-256
+  `714001a3aecc6ab08b45af4177cb5a4b7c7884c0ec8c952b849eb33aaa4dc9ed`.
+- The service is active with zero restarts; Caddy validation, focused and full
+  Go tests, vet, local/public health/readiness, Swagger, raw OpenAPI, and
+  unauthenticated worker/status boundaries passed. The live contract remains
+  at 180 operations.
+- Disposable PostgreSQL lifecycle and full CMS-to-HAL topology acceptance
+  remain pending their dedicated environments.
 
 ### 2026-08-18 — Customer aggregates and tariff validation release deployed
 
@@ -460,8 +466,8 @@ provides:
   handler;
 - the additive PostgreSQL database `devevcmsnewdb`, owned by `postgres`.
 
-The active development VPS runs source revision `d475b41`, with migrations
-through thirty-nine recorded and the deployed 180-operation contract. Migration
+The active development VPS runs source revision `9e7af67`, with migrations
+through forty recorded and the deployed 180-operation contract. Migration
 twenty-nine adds nullable `tariff_type`, `price_type`, and `units` metadata to
 tenant tariffs; omitted values remain null-safe for existing and newly created
 tariffs. The SuperAdmin administrator-list query explicitly binds the platform

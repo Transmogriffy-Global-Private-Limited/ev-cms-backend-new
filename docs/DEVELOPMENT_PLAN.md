@@ -112,7 +112,6 @@ Current phase:
 Active work:
 
 - `docs/work/active/WI-20260812-cms-hal-operational-capabilities.md`.
-- `docs/work/active/WI-20260818-tariff-price-per-unit-semantics.md`.
 
 Current implementation state:
 
@@ -126,13 +125,13 @@ Current implementation state:
   charger vertical is not verified yet.
 - The current deployed release also exposes tenant-scoped CPO charging-session
   list/detail reads with bounded keyset pagination and validated lifecycle
-  filters. Revision `d475b41` is active without a new migration; the live
+  filters. Revision `9e7af67` is active with migration 40 applied; the live
   OpenAPI contract contains 180 operations.
 - The current deployed release also includes optional committed live charger
-  projections on CPO charger list/detail responses. Revision `d475b41` is
-  active without a migration; list reads use the bounded batch liveops reader.
+  projections on CPO charger list/detail responses. Revision `9e7af67` is
+  active; list reads use the bounded batch liveops reader.
 - Migration 39 and the current-worker projection are deployed in revision
-  `d475b41`; worker status/readiness now ignore superseded historical rows.
+  `9e7af67`; worker status/readiness now ignore superseded historical rows.
 - The latest release adds tenant-scoped CPO customer usage/session/wallet
   aggregates and request-boundary tariff enum validation. No migration was
   required; the OpenAPI contract was reconciled to the registered runtime
@@ -163,12 +162,11 @@ Current implementation state:
   `AVAILABLE` and `FRESH` connector projection state, while same-customer
   active-intent replay remains available before that live-state gate. Connector
   row locking serializes the final active-intent recheck.
-- The working tree contains an uncommitted tariff semantic correction awaiting
-  the normal broad verification: forward migration 40 renames the durable
-  price to `price_per_unit`; fixed energy, time, and session pricing receive
-  explicit units/meaning across CPO writes, customer price, admission,
-  snapshots, and settlement. It does not change the existing HAL/customer
-  duration cutoff and is not deployed.
+- Migration 40 and the tariff semantic correction are deployed in revision
+  `9e7af67`: `price_per_unit` is interpreted explicitly as energy/watt-hour,
+  time/minutes, or per-session across CPO writes, customer price, admission,
+  snapshots, and settlement. The existing HAL/customer duration cutoff is
+  unchanged.
 
 Next required slice:
 

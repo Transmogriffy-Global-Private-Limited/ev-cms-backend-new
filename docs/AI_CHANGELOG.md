@@ -1,6 +1,6 @@
 # AI Changelog
 
-## 2026-08-18 - Tariff unit-price semantic correction in local source
+## 2026-08-18 - Rehosted tariff unit-price semantic correction
 
 - Added forward migration 40 to rename `tariffs.price_per_kwh` and its check
   constraint to `price_per_unit` without reconstructing or dropping values.
@@ -21,11 +21,19 @@ Verification:
 - Focused database-free `db`, `models`, `cpo`, and `customerauth` tests cover
   migration text, retired-field rejection, all three tariff bases, wallet
   holds, frozen snapshots, and legacy snapshot compatibility.
-- Documentation verification, runtime/OpenAPI/Swagger-route parity, serial
-  `go test ./...`, and serial `go vet ./...` passed locally.
-- This local source change is not deployed. Migration 40 and the guarded
-  PostgreSQL admission/session lifecycle tests have not run because no
-  disposable `TEST_DATABASE_URL` is configured.
+- Runtime/OpenAPI/Swagger-route parity, serial `go test ./...`, and serial
+  `go vet ./...` passed. The PowerShell documentation verifier is unavailable
+  on this Ubuntu host because `pwsh` is not installed.
+- Applied migration 40 after a mode-0600 custom-format rollback dump at
+  `/var/backups/postgres/devevcmsnewdb-pre-migration-40-20260818-105424.dump`.
+  Migration 40 is recorded as the latest applied migration.
+- Rehosted clean runtime revision `9e7af67` with binary SHA-256
+  `714001a3aecc6ab08b45af4177cb5a4b7c7884c0ec8c952b849eb33aaa4dc9ed`.
+- The enabled service is active with zero restarts; public/local readiness,
+  Swagger, raw OpenAPI, and the protected worker/status boundaries passed.
+
+The guarded PostgreSQL admission/session lifecycle tests remain unavailable
+because no disposable `TEST_DATABASE_URL` is configured.
 
 ## 2026-08-18 - Rehosted customer aggregates and tariff validation release
 

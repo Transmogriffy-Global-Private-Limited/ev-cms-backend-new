@@ -123,11 +123,11 @@ verification before execution.
 The worker-status correction adds migration 39 and an explicit
 single-current-instance projection for each platform worker name. Historical
 rows remain durable, while delayed heartbeats from superseded instances cannot
-overwrite the replacement. It is deployed in revision `d475b41`; migration 39
+overwrite the replacement. It is deployed in revision `9e7af67`; migrations 39
 is applied and the service has one current row per logical worker.
 
-The current shared development deployment is runtime source revision `d475b41`
-with migrations through thirty-nine and 180 OpenAPI operations. The HAL runtime
+The current shared development deployment is runtime source revision `9e7af67`
+with migrations through forty and 180 OpenAPI operations. The HAL runtime
 GORM table mapping correction and User App charging-history release are active
 without a database migration.
 
