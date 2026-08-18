@@ -2,6 +2,21 @@
 
 ## Current State
 
+### 2026-08-18 — Temporal tariff fallback source change awaiting database verification
+
+- Source migration 44 replaces the prior active-tariff no-overlap exclusion
+  with deterministic root/open-ended/bounded fallback per immutable exact
+  target. Scope precedence remains `USERGROUP > CHARGER > HUB`; time resolves
+  only inside the first matching scope. These dates are commercial applicability
+  and do not alter customer session-duration cutoff behavior.
+- CPO scoped tariff create/PATCH/delete and Hub publication enforce the enabled
+  topology and the requirement that a customer-visible Hub has exactly one
+  enabled unbounded Hub root. User App informational price and new start
+  admission share the resolver and preserve immutable tariff/tax snapshots.
+- This is source state only: migration 44 has not been applied, no service was
+  restarted or deployed, and PostgreSQL lifecycle/concurrency verification is
+  pending an explicitly selected disposable `TEST_DATABASE_URL`.
+
 ### 2026-08-18 — CPO charger transactions deployed
 
 - Added authenticated, tenant-scoped `GET /api/v1/cpo/charger-transactions`

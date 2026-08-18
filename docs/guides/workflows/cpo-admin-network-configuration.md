@@ -135,11 +135,13 @@ Create the tariff through its owning scope: `POST
 /api/v1/cpo/user-groups/{user_group_id}/tariffs`. The route fixes exactly one
 target; target IDs in the body are rejected. Every referenced GST record must
 belong to the same CPO. Currency defaults to INR. An active
-tariff is either open-ended (omit both effective dates) or has a complete
-`[start_date, end_date)` effective period. PostgreSQL rejects overlapping
-active periods for the same exact one-target tariff scope
-with `409 tariff_schedule_conflict`; an open-ended active tariff overlaps every
-dated tariff of that same scope.
+tariff is a root (omit both effective dates), an open-ended fallback (supply a
+start only), or a complete `[start_date, end_date)` bounded override. Enabled
+rows for one exact target may have nested bounded overrides but never crossing
+or identical bounds; duplicate roots/open starts return
+`409 tariff_temporal_conflict`. A customer-visible Hub also requires exactly
+one enabled unbounded Hub root; tariff dates never set a charging-session
+cutoff.
 
 ### 6. Read and update
 
@@ -147,7 +149,9 @@ dated tariff of that same scope.
   plus get/update. Tariffs are listed, retrieved, and updated through their
   hub, charger, or user-group scope.
 - Chargers additionally have dependency-safe deletion.
-- Hubs, GST profiles, and tariffs do not have delete routes.
+- Hubs and GST profiles do not have delete routes. Scoped tariff `DELETE`
+  returns `204` only when no historic charging reference or published-Hub root
+  floor prevents removal.
 - Connector changes occur only as updates to existing connector UUIDs on a
   charger. Adding/removing connectors is not implemented.
 - GST and tariffs are retained by setting `is_active=false`.

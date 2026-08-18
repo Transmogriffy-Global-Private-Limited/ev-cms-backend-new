@@ -184,6 +184,10 @@ Current implementation state:
   183-operation contract.
 - Tariff PATCH intent and frozen GST settlement validation are deployed in
   revision `0ad2de7`; no migration was required.
+- Temporal tariff fallback is in source review: migration forty-four replaces
+  the former same-target no-overlap policy with root/open/bounded hierarchy,
+  retains UserGroup > Charger > Hub as the primary selector, and protects the
+  customer-visible Hub root floor. It is not deployed or database-verified.
 - CPO charger-transaction reads are deployed in revision `a5d1af4`; no
   migration was required.
 

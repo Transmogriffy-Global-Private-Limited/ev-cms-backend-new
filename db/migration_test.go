@@ -359,6 +359,48 @@ func TestTariffTargetingCorrectionMigrationMakesOneExplicitTarget(t *testing.T) 
 	}
 }
 
+func TestTemporalTariffFallbackMigrationGuardsHierarchyAndPublishedHubFloor(t *testing.T) {
+	t.Parallel()
+
+	upBody, err := migrationFiles.ReadFile("migrations/000044_temporal_tariff_fallback.up.sql")
+	if err != nil {
+		t.Fatalf("read temporal tariff fallback migration: %v", err)
+	}
+	downBody, err := migrationFiles.ReadFile("migrations/000044_temporal_tariff_fallback.down.sql")
+	if err != nil {
+		t.Fatalf("read temporal tariff fallback rollback migration: %v", err)
+	}
+	upSQL := string(upBody)
+	downSQL := string(downBody)
+	for _, required := range []string{
+		"DROP CONSTRAINT IF EXISTS tariffs_active_effective_period_exclusion",
+		"tariffs_temporal_dates_check",
+		"uq_tariffs_enabled_target_root",
+		"uq_tariffs_enabled_target_open_start",
+		"ix_tariffs_enabled_target_temporal",
+		"validate_temporal_tariff_target",
+		"tariffs_temporal_target_guard",
+		"hubs_customer_visible_tariff_root_guard",
+		"customer-visible hub requires one enabled unbounded hub tariff",
+		"strictly nested",
+	} {
+		if !strings.Contains(upSQL, required) {
+			t.Errorf("up migration is missing %q", required)
+		}
+	}
+	for _, required := range []string{
+		"cannot roll back temporal tariff fallback",
+		"DROP TRIGGER IF EXISTS tariffs_temporal_target_guard",
+		"DROP INDEX IF EXISTS uq_tariffs_enabled_target_root",
+		"tariffs_effective_dates_check",
+		"tariffs_active_effective_period_exclusion",
+	} {
+		if !strings.Contains(downSQL, required) {
+			t.Errorf("down migration is missing %q", required)
+		}
+	}
+}
+
 func TestCPOProvisioningMigrationContainsAppIdentityAndOnboarding(t *testing.T) {
 	t.Parallel()
 

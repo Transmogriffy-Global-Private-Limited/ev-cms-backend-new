@@ -1,5 +1,27 @@
 # AI Changelog
 
+## 2026-08-18 - Temporal tariff fallback source correction
+
+- Added migration 44 and shared commercial temporal policy for immutable Hub,
+  Charger, and UserGroup tariff targets: root, start-only open fallback, and
+  strictly nested bounded `[start_date,end_date)` overrides. The CMS keeps
+  `USERGROUP > CHARGER > HUB` as primary precedence; time never changes
+  `is_active` and never configures the separate session-duration cutoff.
+- Added CPO-side topology/published-Hub-floor enforcement, scoped tariff
+  deletion with historical-reference protection, and the same fail-closed
+  resolver for User App informational price and charging admission. Existing
+  tariff and Hub-GST snapshots remain immutable.
+- Updated canonical OpenAPI, administrative API contract, CPO frontend handoff,
+  User App handoff, schema, and network workflow. Added focused temporal and
+  migration-static coverage.
+
+Verification:
+
+- Passed focused commercial, CPO, customer-auth, migration-static, and
+  route/OpenAPI Go tests. This is not deployed and migration 44 has not been
+  applied; disposable PostgreSQL lifecycle/concurrency verification awaits an
+  explicitly selected `TEST_DATABASE_URL`.
+
 ## 2026-08-18 - Rehosted CPO charger transaction reads
 
 - Rebuilt and rehosted revision `a5d1af4` after adding the tenant-scoped

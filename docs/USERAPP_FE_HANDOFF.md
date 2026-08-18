@@ -644,7 +644,7 @@ means this CPO cannot currently offer wallet recharge.
 
 The price routes are authenticated, CPO-scoped reads. The server chooses the
 tariff at `effective_at`; the frontend must not reconstruct precedence from CPO
-tariff rows. For a charger read, the precedence is:
+tariff rows. Scope precedence for a charger read is:
 
 1. matching UserGroup tariff;
 2. generic charger tariff;
@@ -654,9 +654,14 @@ In the current backend schema, “UserGroup tariff” is the tariff whose sole
 `user_group_id` target matches the authenticated customer's existing group
 assignment. Every tariff has exactly one target, so no composite row combines a
 group target with a charger or hub target. A customer without a group uses only charger
-then hub tariffs. A hub-price read has no charger context: it resolves a
-matching UserGroup tariff, then the hub tariff. Start admission uses this exact
-same selector before it freezes its tariff/tax snapshot.
+then hub tariffs. Within the winning exact target, the server chooses the
+deepest bounded `[start_date,end_date)` override matching the instant, else the
+latest started open-ended fallback, else the unbounded root. A UserGroup root
+still outranks a Charger or Hub override. A hub-price read has no charger
+context: it resolves a matching UserGroup tariff, then the hub tariff. Start
+admission uses this exact same selector before it freezes its tariff/tax
+snapshot. These tariff dates are commercial applicability only and do not
+configure the separate customer-selected session-duration cutoff.
 `AVAILABLE` includes exact
 decimal strings for currency, energy price, idle fee, and GST when referenced;
 `UNAVAILABLE` is a valid `200` response with `unavailable_reason` and never a

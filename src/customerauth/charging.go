@@ -283,7 +283,7 @@ func (service *Service) StartCharging(ctx context.Context, principal Principal, 
 		}
 		tariff, tariffOK, err := resolveEffectiveTariff(tx, principal.CPOID, principal.Customer.UserGroupID, &charger.ID, charger.HubID, now)
 		if err != nil {
-			return err
+			return &APIError{http.StatusConflict, "no_eligible_tariff", "No unambiguous tariff is available for this charger."}
 		}
 		if !tariffOK {
 			return &APIError{http.StatusConflict, "no_eligible_tariff", "No tariff is available for this charger."}

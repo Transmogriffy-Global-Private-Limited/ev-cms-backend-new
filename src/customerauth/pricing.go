@@ -135,17 +135,30 @@ func effectiveTariffTargets(userGroupID, chargerID, hubID *uuid.UUID) []effectiv
 // intentionally resolved from the charger's hub by resolveActiveHubGST.
 func resolveEffectiveTariff(database *gorm.DB, cpoID uuid.UUID, userGroupID, chargerID, hubID *uuid.UUID, effectiveAt time.Time) (models.Tariff, bool, error) {
 	for _, target := range effectiveTariffTargets(userGroupID, chargerID, hubID) {
-		var tariff models.Tariff
-		err := database.Where(
-			"cpo_id = ? AND assigned_to = ? AND "+target.column+" = ? AND is_active = ? AND (start_date IS NULL OR start_date <= ?) AND (end_date IS NULL OR end_date > ?)",
-			cpoID, target.assignment, target.id, true, effectiveAt, effectiveAt,
-		).First(&tariff).Error
-		if err == nil {
-			return tariff, true, nil
-		}
-		if !errors.Is(err, gorm.ErrRecordNotFound) {
+		var tariffs []models.Tariff
+		if err := database.Where(
+			"cpo_id = ? AND assigned_to = ? AND "+target.column+" = ? AND is_active = ?",
+			cpoID, target.assignment, target.id, true,
+		).Find(&tariffs).Error; err != nil {
 			return models.Tariff{}, false, err
 		}
+		projection := make([]commercial.TemporalTariff, 0, len(tariffs))
+		for _, tariff := range tariffs {
+			projection = append(projection, commercial.TemporalTariff{ID: tariff.ID, IsActive: tariff.IsActive, StartDate: tariff.StartDate, EndDate: tariff.EndDate})
+		}
+		selectedID, ok, err := commercial.ResolveEnabledTariff(projection, effectiveAt)
+		if err != nil {
+			return models.Tariff{}, false, err
+		}
+		if !ok {
+			continue
+		}
+		for _, tariff := range tariffs {
+			if tariff.ID == selectedID {
+				return tariff, true, nil
+			}
+		}
+		return models.Tariff{}, false, errors.New("selected tariff missing from temporal policy set")
 	}
 	return models.Tariff{}, false, nil
 }

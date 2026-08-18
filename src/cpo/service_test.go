@@ -97,7 +97,8 @@ func TestApplyTariffUpdateValidatesResultingTariffState(t *testing.T) {
 		{name: "energy to time sets minutes", patch: UpdateTariffRequest{PriceType: &timePrice, Units: PatchValue(minutes)}, valid: true},
 		{name: "energy remains canonical kwh", patch: UpdateTariffRequest{PriceType: &energy, Units: PatchValue(kwh)}, valid: true},
 		{name: "session without clearing prior units is rejected", patch: UpdateTariffRequest{PriceType: &session}},
-		{name: "partial schedule is rejected", patch: UpdateTariffRequest{StartDate: PatchValue(start)}},
+		{name: "open-ended fallback is accepted", patch: UpdateTariffRequest{StartDate: PatchValue(start)}, valid: true},
+		{name: "end-only schedule is rejected", patch: UpdateTariffRequest{EndDate: PatchValue(end)}},
 		{name: "complete schedule is accepted", patch: UpdateTariffRequest{StartDate: PatchValue(start), EndDate: PatchValue(end)}, valid: true},
 		{name: "schedule clears only as a pair", patch: UpdateTariffRequest{StartDate: PatchNull[time.Time](), EndDate: PatchNull[time.Time]()}, valid: true},
 	} {

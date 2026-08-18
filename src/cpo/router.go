@@ -518,18 +518,21 @@ func RegisterCPORoutes(
 	group.GET("/hubs/:hub_id/tariffs", handler.listHubTariffs)
 	group.GET("/hubs/:hub_id/tariffs/:tariff_id", handler.getHubTariff)
 	group.PATCH("/hubs/:hub_id/tariffs/:tariff_id", handler.updateHubTariff)
+	group.DELETE("/hubs/:hub_id/tariffs/:tariff_id", handler.deleteHubTariff)
 
 	// Charger tariffs
 	group.POST("/chargers/:charger_id/tariffs", handler.createChargerTariff)
 	group.GET("/chargers/:charger_id/tariffs", handler.listChargerTariffs)
 	group.GET("/chargers/:charger_id/tariffs/:tariff_id", handler.getChargerTariff)
 	group.PATCH("/chargers/:charger_id/tariffs/:tariff_id", handler.updateChargerTariff)
+	group.DELETE("/chargers/:charger_id/tariffs/:tariff_id", handler.deleteChargerTariff)
 
 	// User group tariffs
 	group.POST("/user-groups/:user_group_id/tariffs", handler.createUserGroupTariff)
 	group.GET("/user-groups/:user_group_id/tariffs", handler.listUserGroupTariffs)
 	group.GET("/user-groups/:user_group_id/tariffs/:tariff_id", handler.getUserGroupTariff)
 	group.PATCH("/user-groups/:user_group_id/tariffs/:tariff_id", handler.updateUserGroupTariff)
+	group.DELETE("/user-groups/:user_group_id/tariffs/:tariff_id", handler.deleteUserGroupTariff)
 
 	group.POST("/gsts", handler.createGST)
 	group.GET("/gsts", handler.listGSTs)
@@ -641,7 +644,6 @@ func parseChargerTransactionListQuery(ctx *gin.Context) (ChargerTransactionListQ
 	}
 	return query, true
 }
-
 
 // @Summary Get CPO analytics
 // @Description Get CPO analytics data.
@@ -2244,6 +2246,35 @@ func (handler *Handler) updateHubTariff(ctx *gin.Context) {
 	ctx.JSON(http.StatusOK, record)
 }
 
+// @Summary Delete a hub tariff
+// @Description Deletes one unreferenced hub tariff after validating the resulting temporal hierarchy and published-Hub tariff floor.
+// @Tags CPO Network - Tariffs
+// @Produce json
+// @Param hub_id path string true "Hub ID"
+// @Param tariff_id path string true "Tariff ID"
+// @Success 204 "Tariff deleted"
+// @Failure 401 {object} auth.APIError "Unauthorized"
+// @Failure 403 {object} auth.APIError "Forbidden"
+// @Failure 404 {object} auth.APIError "Hub or tariff not found"
+// @Failure 409 {object} auth.APIError "Tariff topology, floor, or history conflict"
+// @Router /cpo/hubs/{hub_id}/tariffs/{tariff_id} [delete]
+func (handler *Handler) deleteHubTariff(ctx *gin.Context) {
+	principal, _ := auth.CurrentPrincipal(ctx)
+	hubID, ok := parseHubID(ctx)
+	if !ok {
+		return
+	}
+	tariffID, ok := parseTariffID(ctx)
+	if !ok {
+		return
+	}
+	if err := handler.service.DeleteHubTariff(ctx.Request.Context(), principal, hubID, tariffID); err != nil {
+		writeError(ctx, err)
+		return
+	}
+	ctx.Status(http.StatusNoContent)
+}
+
 // @Summary Create a charger tariff
 // @Description Creates a new tariff for a specific charger.
 // @Tags CPO Network - Tariffs
@@ -2387,6 +2418,35 @@ func (handler *Handler) updateChargerTariff(ctx *gin.Context) {
 	ctx.JSON(http.StatusOK, record)
 }
 
+// @Summary Delete a charger tariff
+// @Description Deletes one unreferenced charger tariff after validating the resulting temporal hierarchy.
+// @Tags CPO Network - Tariffs
+// @Produce json
+// @Param charger_id path string true "Charger ID"
+// @Param tariff_id path string true "Tariff ID"
+// @Success 204 "Tariff deleted"
+// @Failure 401 {object} auth.APIError "Unauthorized"
+// @Failure 403 {object} auth.APIError "Forbidden"
+// @Failure 404 {object} auth.APIError "Charger or tariff not found"
+// @Failure 409 {object} auth.APIError "Tariff topology or history conflict"
+// @Router /cpo/chargers/{charger_id}/tariffs/{tariff_id} [delete]
+func (handler *Handler) deleteChargerTariff(ctx *gin.Context) {
+	principal, _ := auth.CurrentPrincipal(ctx)
+	chargerID, ok := parseChargerID(ctx)
+	if !ok {
+		return
+	}
+	tariffID, ok := parseTariffID(ctx)
+	if !ok {
+		return
+	}
+	if err := handler.service.DeleteChargerTariff(ctx.Request.Context(), principal, chargerID, tariffID); err != nil {
+		writeError(ctx, err)
+		return
+	}
+	ctx.Status(http.StatusNoContent)
+}
+
 // @Summary Create a user group tariff
 // @Description Creates a new tariff for a specific user group.
 // @Tags CPO Network - Tariffs
@@ -2528,6 +2588,35 @@ func (handler *Handler) updateUserGroupTariff(ctx *gin.Context) {
 		return
 	}
 	ctx.JSON(http.StatusOK, record)
+}
+
+// @Summary Delete a user-group tariff
+// @Description Deletes one unreferenced user-group tariff after validating the resulting temporal hierarchy.
+// @Tags CPO Network - Tariffs
+// @Produce json
+// @Param user_group_id path string true "User Group ID"
+// @Param tariff_id path string true "Tariff ID"
+// @Success 204 "Tariff deleted"
+// @Failure 401 {object} auth.APIError "Unauthorized"
+// @Failure 403 {object} auth.APIError "Forbidden"
+// @Failure 404 {object} auth.APIError "User group or tariff not found"
+// @Failure 409 {object} auth.APIError "Tariff topology or history conflict"
+// @Router /cpo/user-groups/{user_group_id}/tariffs/{tariff_id} [delete]
+func (handler *Handler) deleteUserGroupTariff(ctx *gin.Context) {
+	principal, _ := auth.CurrentPrincipal(ctx)
+	userGroupID, ok := parseUserGroupID(ctx)
+	if !ok {
+		return
+	}
+	tariffID, ok := parseTariffID(ctx)
+	if !ok {
+		return
+	}
+	if err := handler.service.DeleteUserGroupTariff(ctx.Request.Context(), principal, userGroupID, tariffID); err != nil {
+		writeError(ctx, err)
+		return
+	}
+	ctx.Status(http.StatusNoContent)
 }
 
 // @Summary Update charger customer visibility

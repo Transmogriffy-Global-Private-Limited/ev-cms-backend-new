@@ -74,11 +74,11 @@ Choose exactly one target route family. The URL is the immutable target; the
 request body must not contain `hub_id`, `charger_id`, `user_group_id`, or
 `assigned_to`.
 
-| Target | Create/list | Read/update |
+| Target | Create/list | Read/update/delete |
 | --- | --- | --- |
-| Hub | `POST`, `GET /hubs/{hub_id}/tariffs` | `GET`, `PATCH /hubs/{hub_id}/tariffs/{tariff_id}` |
-| Charger | `POST`, `GET /chargers/{charger_id}/tariffs` | `GET`, `PATCH /chargers/{charger_id}/tariffs/{tariff_id}` |
-| UserGroup | `POST`, `GET /user-groups/{user_group_id}/tariffs` | `GET`, `PATCH /user-groups/{user_group_id}/tariffs/{tariff_id}` |
+| Hub | `POST`, `GET /hubs/{hub_id}/tariffs` | `GET`, `PATCH`, `DELETE /hubs/{hub_id}/tariffs/{tariff_id}` |
+| Charger | `POST`, `GET /chargers/{charger_id}/tariffs` | `GET`, `PATCH`, `DELETE /chargers/{charger_id}/tariffs/{tariff_id}` |
+| UserGroup | `POST`, `GET /user-groups/{user_group_id}/tariffs` | `GET`, `PATCH`, `DELETE /user-groups/{user_group_id}/tariffs/{tariff_id}` |
 
 ### Create body
 
@@ -97,10 +97,12 @@ request body must not contain `hub_id`, `charger_id`, `user_group_id`, or
 ```
 
 `price_per_unit`, `tariff_type`, and `price_type` are required. `currency`
-defaults to `INR`; `is_active` defaults to true. A schedule is either omitted
-or supplies both timestamps, with `start_date < end_date`; it is active on the
-half-open interval `[start_date, end_date)`. The server normalizes currency to
-uppercase.
+defaults to `INR`; `is_active` defaults to true. A schedule is a root (omit
+both timestamps), open-ended fallback (supply `start_date`, omit `end_date`),
+or bounded override (`start_date < end_date`, effective on `[start_date,
+end_date)`). An end-only schedule is invalid. Timestamps describe commercial
+tariff applicability, not the separate customer-selected session cutoff. The
+server normalizes currency to uppercase.
 
 For `sessions`, omit `units`. For `energy`, use only `kwh`; for `time`, use
 only `minutes`. Do not send `null` as a substitute for an omitted property
@@ -115,9 +117,9 @@ Unlike create, PATCH gives `units`, `start_date`, and `end_date` a deliberate
 
 - `units: null` clears units; use it when changing to `price_type: "sessions"`.
 - `start_date: null` and `end_date: null` together clear a previously scheduled
-  tariff, making it open-ended.
-- Do not send only one null date, only one supplied date, or an end at/before
-  its start; each fails validation.
+  tariff, making it the unbounded root.
+- A supplied `start_date` with omitted/null `end_date` is an open-ended
+  fallback. A supplied end always requires a start and must be later.
 
 The server applies the patch to the full stored row and validates the result,
 so a basis change must submit its complete final trio in one request. Examples:
@@ -137,6 +139,27 @@ so a basis change must submit its complete final trio in one request. Examples:
 The UI should omit `units` for a normal price-only PATCH. It must not present
 `watt/hour` as an editable option: that value is accepted only when displaying
 historical frozen session data, never in a current tariff request.
+
+### Temporal hierarchy and publish floor
+
+The server validates the complete enabled hierarchy after every create, patch,
+activation/deactivation, date change, and delete. For one exact target it
+allows one root, many open fallbacks with distinct starts, and nested bounded
+overrides only. Crossing or identical bounded overrides, duplicate active root,
+or equal open starts return `409 tariff_temporal_conflict`. Inactive rows still
+need a structurally valid date shape, but may temporarily conflict.
+
+Do not calculate customer price from this list. The backend resolves scope first
+(`UserGroup > Charger > Hub`), then time within that winning exact target:
+deepest matching bounded interval, latest started open fallback, then root.
+`is_active` is an admin switch and never changes automatically when a boundary
+passes. A UserGroup root outranks a Charger override.
+
+Before setting a Hub customer-visible, create exactly one active unbounded Hub
+root. The server rejects publishing, deleting, re-purposing, or deactivating
+that required root with `409 hub_tariff_root_required`. Charger and UserGroup
+roots are optional. `DELETE` returns `204`; `409 tariff_in_use` means a frozen
+charging/history reference prevents removal, so retain or deactivate the row.
 
 ### Tariff response
 
@@ -187,8 +210,10 @@ Show field-level validation errors without retrying unchanged input. Important
 codes include `invalid_price_per_unit`, `invalid_idle_fee_per_min`,
 `invalid_currency`, `invalid_tariff_type`, `invalid_price_type`, `invalid_units`,
 `unsupported_tariff_pricing`, `idle_fee_unsupported`, `invalid_schedule`, and
-`invalid_date_range`. A conflict in active dates returns
-`409 tariff_schedule_conflict`. Incorrect/missing target or tariff IDs return
+`invalid_date_range`. A hierarchy conflict returns
+`409 tariff_temporal_conflict`; a customer-visible Hub missing its root returns
+`409 hub_tariff_root_required`; and history-protected deletion returns
+`409 tariff_in_use`. Incorrect/missing target or tariff IDs return
 the relevant `404` such as `hub_not_found`, `charger_not_found`,
 `user_group_not_found`, or `tariff_not_found`.
 
