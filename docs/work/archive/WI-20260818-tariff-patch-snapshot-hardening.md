@@ -79,5 +79,6 @@ before immutable settlement.
 
 ## Completion
 
-Completed in source on 2026-08-18. No migration, runtime database mutation,
-or deployment was performed.
+Completed and deployed on 2026-08-18 in runtime revision `0ad2de7`. No
+migration or runtime database mutation was required; the guarded disposable
+PostgreSQL lifecycle test remains pending `TEST_DATABASE_URL`.

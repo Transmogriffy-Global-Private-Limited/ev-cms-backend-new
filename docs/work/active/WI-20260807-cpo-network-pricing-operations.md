@@ -74,7 +74,7 @@ charging vertical.
 
 ## Current state
 
-The current shared development deployment is runtime source revision `47b6e41`
+The current shared development deployment is runtime source revision `0ad2de7`
 with migrations through forty-three applied and 182 OpenAPI
 operations. The single-target tariff correction and charger customer visibility
 are enforced across CPO publication and User App discovery, detail, pricing,

@@ -2,7 +2,7 @@
 
 ## Current State
 
-### 2026-08-18 — Tariff PATCH and frozen-settlement hardening in source
+### 2026-08-18 — Tariff PATCH and frozen-settlement hardening deployed
 
 - Tariff PATCH now distinguishes omitted, explicit-null, and concrete values
   for `units`, `start_date`, and `end_date` across Hub, Charger, and UserGroup
@@ -13,9 +13,13 @@
   shared commercial component semantics and never reads current Hub/GST state
   to price an existing session. Legacy frozen tariff snapshot compatibility is
   unchanged.
-- No migration, runtime database mutation, or deployment was performed. The
-  guarded PostgreSQL lifecycle tests still require an explicitly disposable
-  `TEST_DATABASE_URL`.
+- No migration or runtime database mutation was required. Runtime revision
+  `0ad2de7` is active with binary SHA-256
+  `d62b01cad7b25bd4ddd0c82407ce7ee94dd7d03680879edb57057cbd526b9348`.
+- Focused tariff/GST/route tests, full Go tests, vet, Caddy validation,
+  local/public health/readiness, Swagger, raw OpenAPI, auth boundaries, and
+  post-rehost log checks passed. Disposable PostgreSQL lifecycle tests still
+  require an explicitly selected `TEST_DATABASE_URL`; `pwsh` is unavailable.
 
 ### 2026-08-18 — CPO analytics and hub charger listing deployed
 
@@ -28,9 +32,9 @@
 - Corrected the authoritative analytics response schema to match the runtime:
   counts are non-negative integers and decimal revenue/usage values serialize
   as strings.
-- No database migration was required. Runtime revision `47b6e41` is active with
+- No database migration was required. Runtime revision `0ad2de7` is active with
   binary SHA-256
-  `a253a3754fdd5240406fb80dd65bb670cede46aa5f74f155fcdb336ad355f01c` and
+  `d62b01cad7b25bd4ddd0c82407ce7ee94dd7d03680879edb57057cbd526b9348` and
   the live OpenAPI contract contains 182 operations.
 - Focused route/OpenAPI tests, full Go tests, vet, Caddy validation, local/public
   health/readiness, Swagger, raw OpenAPI, auth boundaries, and post-rehost log
@@ -543,7 +547,7 @@ provides:
   handler;
 - the additive PostgreSQL database `devevcmsnewdb`, owned by `postgres`.
 
-The active development VPS runs source revision `47b6e41`, with migrations
+The active development VPS runs source revision `0ad2de7`, with migrations
 through forty-three recorded and the deployed 182-operation contract. Migration
 twenty-nine adds nullable `tariff_type`, `price_type`, and `units` metadata to
 tenant tariffs; omitted values remain null-safe for existing and newly created

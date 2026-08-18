@@ -125,13 +125,13 @@ Current implementation state:
   charger vertical is not verified yet.
 - The current deployed release also exposes tenant-scoped CPO charging-session
   list/detail reads with bounded keyset pagination and validated lifecycle
-  filters. Revision `47b6e41` is active with migrations 40-43 applied; the live
+  filters. Revision `0ad2de7` is active with migrations 40-43 applied; the live
   OpenAPI contract contains 182 operations.
 - The current deployed release also includes optional committed live charger
-  projections on CPO charger list/detail responses. Revision `47b6e41` is
+  projections on CPO charger list/detail responses. Revision `0ad2de7` is
   active; list reads use the bounded batch liveops reader.
 - Migration 39 and the current-worker projection are deployed in revision
-  `47b6e41`; worker status/readiness now ignore superseded historical rows.
+  `0ad2de7`; worker status/readiness now ignore superseded historical rows.
 - The latest release adds tenant-scoped CPO customer usage/session/wallet
   aggregates and request-boundary tariff enum validation. No migration was
   required; the OpenAPI contract was reconciled to the registered runtime
@@ -181,6 +181,8 @@ Current implementation state:
   constraint.
 - The current CPO release also exposes tenant-scoped analytics and hub-scoped
   charger listing reads; both are represented in the 182-operation contract.
+- Tariff PATCH intent and frozen GST settlement validation are deployed in
+  revision `0ad2de7`; no migration was required.
 
 Next required slice:
 
@@ -990,19 +992,18 @@ Current implementation slice:
   tariff GST ownership is removed, hub GST is authoritative, and active or
   customer-visible chargers require a hub. The live contract remains at 178
   operations.
-- The tariff/GST commercial correction is complete in source and ready for its
-  migration-controlled deployment: migration forty-two converts the energy
-  enum to `kwh` without changing numeric tariff values; one shared pricing
-  interpretation, Hub/GST mutation invariants, runtime GST defense, and the
-  CPO frontend handoff are verified. Disposable PostgreSQL lifecycle coverage
-  remains pending an explicitly selected `TEST_DATABASE_URL`.
-- Tariff PATCH and frozen-settlement hardening is complete in source: omitted,
+- The tariff/GST commercial correction is deployed: migration forty-two
+  converts the energy enum to `kwh` without changing numeric tariff values;
+  one shared pricing interpretation, Hub/GST mutation invariants, runtime GST
+  defense, and the CPO frontend handoff are active. Disposable PostgreSQL
+  lifecycle coverage remains pending an explicitly selected `TEST_DATABASE_URL`.
+- Tariff PATCH and frozen-settlement hardening is deployed in revision
+  `0ad2de7`: omitted,
   null, and value semantics are explicit for mutable units/schedule fields;
   all three tariff scopes apply and validate the resulting row through one
   shared helper; immutable GST snapshots validate their own commercial
   components without a current Hub/GST lookup. No migration is required.
-- Wallet admission policy is complete in source and ready for its
-  migration-controlled deployment: migration forty-three backfills a blank
+- Wallet admission policy is deployed: migration forty-three backfills a blank
   settings row for every existing CPO while new CPO provisioning creates the
   same zero-default row. Each new start locks and enforces the CPO minimum and
   buffer before deriving its hold and HAL energy limit; the independent
@@ -1011,11 +1012,13 @@ Current implementation slice:
 
 Last completed slice:
 
-- Added the CPO wallet admission policy: CPO settings expose non-negative
-  whole-currency minimum and buffer values, `balance >= minimum` admits a new
-  start, and only `balance - buffer` is available to tariff affordability and
-  HAL energy limiting. Default rows are created for new CPOs and backfilled
-  for existing CPOs without overwriting their settings.
+- Deployed tariff PATCH nullability and frozen GST settlement hardening in
+  revision `0ad2de7`; no migration was required.
+
+Previous completed slice:
+
+- Wallet admission policy migration forty-three and its tenant-scoped wallet
+  projections are deployed and documented above.
 - Tariff/GST commercial correction: corrected energy per-kWh semantics across
   tariff writes, customer price, admission, immutable snapshots, and
   settlement; protected the complete Hub/GST relationship across later
