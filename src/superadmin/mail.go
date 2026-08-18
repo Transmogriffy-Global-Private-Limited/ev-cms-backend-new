@@ -183,6 +183,7 @@ func (service *Service) MailMetrics(ctx context.Context, principal auth.Principa
 		Count    int64
 	}
 	if err := service.database.WithContext(ctx).Model(&models.MailOutbox{}).
+		Where("template NOT IN (?, ?)", "CUSTOMER_LOGIN_OTP", "CUSTOMER_PASSWORD_RESET_OTP").
 		Select("template, status, count(*) AS count").Group("template, status").Order("template, status").Scan(&rows).Error; err != nil {
 		return MailMetricsResponse{}, fmt.Errorf("aggregate mail metrics: %w", err)
 	}
