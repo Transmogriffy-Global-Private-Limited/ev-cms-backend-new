@@ -197,6 +197,85 @@ func (service *Service) ListChargingSessions(
 	return response, nil
 }
 
+func (service *Service) ListChargerTransactions(
+	ctx context.Context,
+	principal auth.Principal,
+	query ChargerTransactionListQuery,
+) (ChargerTransactionListResponse, error) {
+	if err := requireCPOAdminAccess(principal); err != nil {
+		return ChargerTransactionListResponse{}, err
+	}
+
+	if query.Limit == 0 {
+		query.Limit = defaultListLimit
+	}
+	if query.Limit < 1 || query.Limit > maxListLimit {
+		return ChargerTransactionListResponse{}, invalid(
+			"limit",
+			"Limit must be between 1 and 200.",
+		)
+	}
+
+	transactions, err := service.repository.ListChargerTransactions(ctx, *principal.CPOID, query)
+	if err != nil {
+		return ChargerTransactionListResponse{}, fmt.Errorf("list charger transactions: %w", err)
+	}
+
+	hasMore := len(transactions) > query.Limit
+	if hasMore {
+		transactions = transactions[:query.Limit]
+	}
+
+	result := make([]ChargerTransactionView, 0, len(transactions))
+	for _, transaction := range transactions {
+		result = append(result, toChargerTransactionView(transaction))
+	}
+
+	response := ChargerTransactionListResponse{
+		Transactions: result,
+		HasMore:      hasMore,
+	}
+
+	if hasMore && len(transactions) > 0 {
+		nextBefore := transactions[len(transactions)-1].CreatedAt
+		nextBeforeID := transactions[len(transactions)-1].ID
+		response.NextBefore = &nextBefore
+		response.NextBeforeID = &nextBeforeID
+	}
+
+	return response, nil
+}
+
+func toChargerTransactionView(transaction ChargerTransaction) ChargerTransactionView {
+	var duration string
+	if transaction.EndTime != nil {
+		duration = transaction.EndTime.Sub(transaction.StartTime).String()
+	}
+
+	return ChargerTransactionView{
+		TransactionID: transaction.ID.String(),
+		PaymentStatus: transaction.PaymentStatus,
+		BilledAmount:  transaction.TotalAmount,
+		ChargerID:     transaction.Charger.ChargerID,
+		Duration:      duration,
+		Hub:           transaction.HubName,
+		Tariff:        transaction.TariffPricePerUnit,
+		UsageKWh:      transaction.TotalKWh,
+		Owner:         transaction.CPOBusinessName,
+		HostDetails: HostDetailsView{
+			Name:  transaction.ChargerHostName,
+			Phone: transaction.ChargerHostPhoneNo,
+		},
+		CustomerDetails: CustomerDetailsView{
+			Name:  transaction.CustomerFullName,
+			Email: transaction.CustomerEmail,
+			Phone: transaction.CustomerPhone,
+		},
+		Timestamp: transaction.CreatedAt,
+		Reason:    transaction.StopReason,
+	}
+}
+
 func toChargingSessionView(session models.ChargingSession) ChargingSessionView {
 	return ChargingSessionView{
 		ID:            session.ID,

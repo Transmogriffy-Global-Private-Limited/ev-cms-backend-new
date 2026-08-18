@@ -643,3 +643,45 @@ type ChargingSessionListQuery struct {
 	ChargerID  *uuid.UUID
 	CustomerID *uuid.UUID
 }
+
+type ChargerTransactionView struct {
+	TransactionID   string                  `json:"transaction_id"`
+	PaymentStatus   constants.FinancialStatus `json:"payment_status"`
+	BilledAmount    decimal.Decimal         `json:"billed_amount"`
+	ChargerID       string                  `json:"charger_id"`
+	Duration        string                  `json:"duration"`
+	Hub             string                  `json:"hub"`
+	Tariff          decimal.Decimal         `json:"tariff"`
+	UsageKWh        decimal.Decimal         `json:"usage_kwh"`
+	Owner           string                  `json:"owner"`
+	HostDetails     HostDetailsView         `json:"host_details"`
+	CustomerDetails CustomerDetailsView     `json:"customer_details"`
+	Timestamp       time.Time               `json:"timestamp"`
+	Reason          *string                 `json:"reason,omitempty"`
+}
+
+type HostDetailsView struct {
+	Name  string `json:"name"`
+	Phone string `json:"phone"`
+}
+
+type CustomerDetailsView struct {
+	Name  string  `json:"name"`
+	Email string  `json:"email"`
+	Phone *string `json:"phone,omitempty"`
+}
+
+type ChargerTransactionListResponse struct {
+	Transactions []ChargerTransactionView `json:"transactions"`
+	NextBefore   *time.Time               `json:"next_before,omitempty"`
+	NextBeforeID *uuid.UUID               `json:"next_before_id,omitempty"`
+	HasMore      bool                     `json:"has_more"`
+}
+
+type ChargerTransactionListQuery struct {
+	Before     *time.Time
+	BeforeID   *uuid.UUID
+	Limit      int
+	ChargerID  *uuid.UUID
+	CustomerID *uuid.UUID
+}

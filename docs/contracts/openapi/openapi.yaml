@@ -139,6 +139,44 @@ paths:
                 $ref: "#/components/schemas/ErrorEnvelope"
         "500":
           $ref: "#/components/responses/InternalError"
+  /api/v1/cpo/charger-transactions:
+    get:
+      tags: [CPO Operations - Charging Sessions]
+      operationId: listCPOChargerTransactions
+      summary: List charger transactions for the CPO
+      description: Returns a paginated list of charger transactions for the authenticated CPO, ordered by newest first.
+      security:
+        - BearerAuth: []
+        - CPOAppID: []
+      parameters:
+        - $ref: "#/components/parameters/ListLimit"
+        - $ref: "#/components/parameters/ListBefore"
+        - $ref: "#/components/parameters/ListBeforeID"
+        - name: charger_id
+          in: query
+          schema:
+            type: string
+            format: uuid
+        - name: customer_id
+          in: query
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: A list of charger transactions.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChargerTransactionListResponse"
+        "400":
+          $ref: "#/components/responses/InvalidRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/CPOBusinessForbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
   /health/live:
     get:
       tags: [Health]
@@ -9431,6 +9469,97 @@ components:
             message:
               type: string
               description: Safe human-readable explanation.
+    ChargerTransactionView:
+      type: object
+      properties:
+        transaction_id:
+          type: string
+          format: uuid
+        payment_status:
+          $ref: "#/components/schemas/FinancialStatus"
+        billed_amount:
+          type: string
+          format: decimal
+        charger_id:
+          type: string
+        duration:
+          type: string
+        hub:
+          type: string
+        tariff:
+          type: string
+          format: decimal
+        usage_kwh:
+          type: string
+          format: decimal
+        owner:
+          type: string
+        host_details:
+          $ref: "#/components/schemas/HostDetailsView"
+        customer_details:
+          $ref: "#/components/schemas/CustomerDetailsView"
+        timestamp:
+          type: string
+          format: date-time
+        reason:
+          type: string
+      required:
+        - transaction_id
+        - payment_status
+        - billed_amount
+        - charger_id
+        - duration
+        - hub
+        - tariff
+        - usage_kwh
+        - owner
+        - host_details
+        - customer_details
+        - timestamp
+
+    HostDetailsView:
+      type: object
+      properties:
+        name:
+          type: string
+        phone:
+          type: string
+      required:
+        - name
+        - phone
+
+    CustomerDetailsView:
+      type: object
+      properties:
+        name:
+          type: string
+        email:
+          type: string
+          format: email
+        phone:
+          type: string
+      required:
+        - name
+        - email
+
+    ChargerTransactionListResponse:
+      type: object
+      properties:
+        transactions:
+          type: array
+          items:
+            $ref: "#/components/schemas/ChargerTransactionView"
+        next_before:
+          type: string
+          format: date-time
+        next_before_id:
+          type: string
+          format: uuid
+        has_more:
+          type: boolean
+      required:
+        - transactions
+        - has_more
     ChargingSessionView:
       type: object
       properties:
@@ -9475,6 +9604,11 @@ components:
       type: string
       enum: [START_PENDING, ACTIVE, STOP_PENDING, COMPLETED, FAILED]
       description: Durable charging-session lifecycle status.
+
+    FinancialStatus:
+      type: string
+      enum: [PENDING, COMPLETED, FAILED, REVERSED]
+      description: Financial status of a transaction.
 
     ChargingSessionListResponse:
       type: object

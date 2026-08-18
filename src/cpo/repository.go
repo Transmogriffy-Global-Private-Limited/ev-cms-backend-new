@@ -3,6 +3,8 @@ package cpo
 import (
 	"context"
 
+	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/constants" // <-- added
+
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/models"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
@@ -13,6 +15,7 @@ type Repository interface {
 	GetAnalytics(ctx context.Context, cpoID uuid.UUID) (Analytics, error)
 	GetChargingSession(ctx context.Context, cpoID, sessionID uuid.UUID) (*models.ChargingSession, error)
 	ListChargingSessions(ctx context.Context, cpoID uuid.UUID, query ChargingSessionListQuery) ([]models.ChargingSession, error)
+	ListChargerTransactions(ctx context.Context, cpoID uuid.UUID, query ChargerTransactionListQuery) ([]ChargerTransaction, error)
 	ListChargersByHub(ctx context.Context, cpoID, hubID uuid.UUID) ([]models.Charger, error)
 }
 
@@ -106,4 +109,71 @@ func (r *repository) ListChargersByHub(ctx context.Context, cpoID, hubID uuid.UU
 		return nil, err
 	}
 	return chargers, nil
+}
+
+type ChargerTransaction struct {
+	models.ChargingSession
+	PaymentStatus      constants.FinancialStatus
+	ChargerName        string
+	HubName            string
+	TariffPricePerUnit decimal.Decimal
+	CPOBusinessName    string
+	ChargerHostName    string
+	ChargerHostPhoneNo string
+	CustomerFullName   string
+	CustomerEmail      string
+	CustomerPhone      *string
+}
+
+func (r *repository) ListChargerTransactions(ctx context.Context, cpoID uuid.UUID, query ChargerTransactionListQuery) ([]ChargerTransaction, error) {
+	var transactions []ChargerTransaction
+	db := r.db.WithContext(ctx).Model(&models.ChargingSession{}).
+		Joins("LEFT JOIN wallet_transactions ON wallet_transactions.session_id = charging_sessions.id").
+		Joins("LEFT JOIN chargers ON chargers.id = charging_sessions.charger_id").
+		Joins("LEFT JOIN hubs ON hubs.id = chargers.hub_id").
+		Joins("LEFT JOIN tariffs ON tariffs.id = charging_sessions.tariff_id").
+		Joins("LEFT JOIN cpos ON cpos.id = charging_sessions.cpo_id").
+		Joins("LEFT JOIN customers ON customers.id = charging_sessions.customer_id").
+		Where("charging_sessions.cpo_id = ?", cpoID)
+
+	if query.ChargerID != nil {
+		db = db.Where("charging_sessions.charger_id = ?", *query.ChargerID)
+	}
+	if query.CustomerID != nil {
+		db = db.Where("charging_sessions.customer_id = ?", *query.CustomerID)
+	}
+
+	if query.Before != nil {
+		if query.BeforeID != nil {
+			db = db.Where("(charging_sessions.created_at, charging_sessions.id) < (?, ?)", *query.Before, *query.BeforeID)
+		} else {
+			db = db.Where("charging_sessions.created_at < ?", *query.Before)
+		}
+	}
+
+	if query.Limit > 0 {
+		db = db.Limit(query.Limit + 1)
+	}
+
+	err := db.Select(
+		"charging_sessions.*",
+		"wallet_transactions.status as payment_status",
+		"chargers.charger_name",
+		"hubs.name as hub_name",
+		"tariffs.price_per_unit as tariff_price_per_unit",
+		"cpos.business_name as cpo_business_name",
+		"chargers.charger_host_name",
+		"chargers.charger_host_phone_no",
+		"customers.full_name as customer_full_name",
+		"customers.email as customer_email",
+		"customers.phone as customer_phone",
+	).
+		Order("charging_sessions.created_at DESC, charging_sessions.id DESC").
+		Scan(&transactions).Error
+
+	if err != nil {
+		return nil, err
+	}
+
+	return transactions, nil
 }
