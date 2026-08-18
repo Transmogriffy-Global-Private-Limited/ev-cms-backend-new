@@ -3,6 +3,7 @@ package customerauth
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -147,6 +148,45 @@ func TestChargingStartAdmissionWithPostgreSQL(t *testing.T) {
 	var intents int64
 	if err := gormDB.Model(&models.ChargingStartIntent{}).Where("connector_id = ?", racingConnector.ID).Count(&intents).Error; err != nil || intents != 1 {
 		t.Fatalf("concurrent admission intent count=%d err=%v, want 1", intents, err)
+	}
+
+	if err := gormDB.Create(&models.Settings{CPOID: fixture.cpo.ID, WalletMinBalance: 500, WalletBufferMinBalance: 20}).Error; err != nil {
+		t.Fatalf("create CPO wallet policy: %v", err)
+	}
+	if err := gormDB.Model(&models.Wallet{}).Where("id = ?", fixture.firstPrincipal.Wallet.ID).Update("balance", decimal.NewFromInt(500)).Error; err != nil {
+		t.Fatalf("set wallet balance at CPO threshold: %v", err)
+	}
+	policyConnector := fixture.newConnector(t)
+	if err := gormDB.Model(&models.Connector{}).Where("id = ?", policyConnector.ID).Update("connector_total_capacity", 100).Error; err != nil {
+		t.Fatalf("raise connector capacity for wallet-policy affordability: %v", err)
+	}
+	policyConnector.ConnectorTotalCapacity = 100
+	setChargingAdmissionProjection(t, gormDB, fixture, policyConnector.ID, "ONLINE", "Available", time.Now().UTC())
+	policyStart, err := service.StartCharging(ctx, fixture.firstPrincipal, ChargingStartRequest{ChargerID: fixture.charger.ChargerID, ConnectorID: policyConnector.ID}, "admission-wallet-policy")
+	if err != nil {
+		t.Fatalf("wallet-policy start=%+v err=%v", policyStart, err)
+	}
+	var policyIntent models.ChargingStartIntent
+	if err := gormDB.First(&policyIntent, "id = ?", policyStart.StartIntentID).Error; err != nil || policyIntent.EnergyLimitWh != 40677 {
+		t.Fatalf("wallet-policy intent=%+v err=%v, want 40677 Wh limit", policyIntent, err)
+	}
+	var policyHold models.WalletHold
+	if err := gormDB.First(&policyHold, "start_intent_id = ?", policyStart.StartIntentID).Error; err != nil {
+		t.Fatalf("load wallet-policy hold: %v", err)
+	}
+	if !policyHold.Amount.Equal(decimal.RequireFromString("479.99")) {
+		t.Fatalf("wallet-policy hold=%s, want 479.99 from the 480 usable balance", policyHold.Amount)
+	}
+
+	if err := gormDB.Model(&models.Wallet{}).Where("id = ?", fixture.secondPrincipal.Wallet.ID).Update("balance", decimal.NewFromInt(499)).Error; err != nil {
+		t.Fatalf("set below-minimum wallet balance: %v", err)
+	}
+	minimumConnector := fixture.newConnector(t)
+	setChargingAdmissionProjection(t, gormDB, fixture, minimumConnector.ID, "ONLINE", "Available", time.Now().UTC())
+	_, err = service.StartCharging(ctx, fixture.secondPrincipal, ChargingStartRequest{ChargerID: fixture.charger.ChargerID, ConnectorID: minimumConnector.ID}, "admission-wallet-minimum")
+	var apiError *APIError
+	if !errors.As(err, &apiError) || apiError.Code != "wallet_minimum_balance_not_met" {
+		t.Fatalf("below-minimum start error=%v, want wallet_minimum_balance_not_met", err)
 	}
 }
 

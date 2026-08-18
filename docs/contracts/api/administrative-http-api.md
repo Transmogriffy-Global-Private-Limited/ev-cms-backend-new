@@ -2502,8 +2502,9 @@ There is currently no tariff delete route. Deactivation through
 
 `GET /api/v1/cpo/settings` returns the settings for the authenticated CPO ADMIN.
 The CPO is derived from the verified session and `X-CPO-App-ID`; callers cannot
-select another tenant. If no row exists, the route returns `404
-settings_not_found`.
+select another tenant. CPO provisioning creates a blank settings row, while
+migration forty-three backfills existing CPOs, so a normal CPO GET returns the
+zero-default wallet policy rather than requiring a preliminary settings write.
 
 `POST` and `PUT /api/v1/cpo/settings` accept `multipart/form-data` with the
 following optional fields:
@@ -2511,12 +2512,20 @@ following optional fields:
 - `invoice_note`: text retained with the CPO settings;
 - `invoice_logo`: an uploaded logo file, stored under the service `uploads`
   directory and returned as the stored relative path.
+- `wallet_min_balance`: optional non-negative whole-currency balance required
+  before a customer can start a charging session; default `0`.
+- `wallet_buffer_min_balance`: optional non-negative whole-currency amount
+  withheld from the usable balance at each session start; default `0`.
 
 The update is tenant-scoped and upserts the single settings row for the CPO.
-Omitting either field preserves its existing value. Successful requests return
-the JSON settings projection containing the non-null `invoice_logo` and/or
-`invoice_note` fields. Errors include the shared authentication and forbidden
-responses, `400 invalid_request`, or `500 internal_error`.
+Omitting any field preserves its existing value. Successful requests return the
+JSON settings projection containing both non-null integer wallet fields plus
+the optional `invoice_logo` and `invoice_note` fields. During each new start,
+the backend locks the wallet, requires `balance >= wallet_min_balance`, and
+calculates tariff affordability from `balance - wallet_buffer_min_balance`.
+Errors include the shared authentication and forbidden responses,
+`400 invalid_wallet_min_balance`, `400 invalid_wallet_buffer_min_balance`, or
+`500 internal_error`.
 
 `GET /api/v1/cpo/settings/invoice-logo` streams the authenticated CPO's stored
 logo inline. It accepts no path or CPO parameter and responds with byte-range

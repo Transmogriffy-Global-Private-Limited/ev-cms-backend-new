@@ -2,6 +2,25 @@
 
 ## Current State
 
+### 2026-08-18 — CPO wallet admission policy in source, not deployed
+
+- Source migration 43 gives every existing CPO a blank `settings` row without
+  overwriting existing invoice or wallet-policy values; new CPO provisioning
+  creates the same row transactionally. Both wallet policy fields default to
+  zero and are exposed through the tenant-scoped CPO settings API.
+- Every new customer charging start locks the CPO, wallet, and settings row,
+  rejects `balance < wallet_min_balance`, then calculates the tariff/GST hold
+  and HAL Wh limit from `balance - wallet_buffer_min_balance`. The buffer is
+  not a second admission threshold. Existing start intents, sessions, and
+  settlement snapshots are unchanged.
+- Customer wallet and wallet-history reads expose the current CPO minimum and
+  buffer alongside exact `usable_balance` and a threshold-only
+  `minimum_recharge_amount`; these are current read projections, while start
+  admission remains authoritative at its locked transaction boundary.
+- This source change is not deployed and migration 43 has not been applied to
+  any database. The guarded PostgreSQL admission test requires an explicitly
+  selected disposable `TEST_DATABASE_URL`.
+
 ### 2026-08-18 — Tariff/GST commercial correction in source, not deployed
 
 - Migration `000040_rename_tariff_price_per_unit` preserves tariff values while

@@ -29,6 +29,8 @@ const (
 	chargingMaxDuration        = int64(60 * 60)
 )
 
+var errWalletMinimumBalance = errors.New("wallet balance is below the CPO minimum")
+
 type ChargingStartRequest struct {
 	ChargerID   string    `json:"charger_id"`
 	ConnectorID uuid.UUID `json:"connector_id"`
@@ -275,6 +277,10 @@ func (service *Service) StartCharging(ctx context.Context, principal Principal, 
 		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&wallet, "id = ? AND cpo_id = ? AND customer_id = ?", principal.Wallet.ID, principal.CPOID, principal.CustomerID).Error; err != nil {
 			return err
 		}
+		settings := models.Settings{CPOID: principal.CPOID}
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&settings, "cpo_id = ?", principal.CPOID).Error; err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+			return fmt.Errorf("load CPO wallet policy: %w", err)
+		}
 		tariff, tariffOK, err := resolveEffectiveTariff(tx, principal.CPOID, principal.Customer.UserGroupID, &charger.ID, charger.HubID, now)
 		if err != nil {
 			return err
@@ -293,10 +299,14 @@ func (service *Service) StartCharging(ctx context.Context, principal Principal, 
 		if !gstOK {
 			return &APIError{http.StatusConflict, "hub_gst_unavailable", "An active GST profile is required on this charger's hub."}
 		}
-		if wallet.Balance.LessThanOrEqual(decimal.Zero) {
-			return &APIError{http.StatusConflict, "insufficient_wallet_balance", "A positive wallet balance is required to start charging."}
+		usableBalance, err := usableWalletBalance(wallet.Balance, settings)
+		if err != nil {
+			if errors.Is(err, errWalletMinimumBalance) {
+				return &APIError{http.StatusConflict, "wallet_minimum_balance_not_met", "The wallet balance is below this CPO's minimum required to start charging."}
+			}
+			return &APIError{http.StatusConflict, "insufficient_wallet_balance", "The wallet balance after this CPO's buffer is insufficient for charging."}
 		}
-		reserved, energyLimit, err := affordableChargingLimit(wallet.Balance, pricing, gst, connector)
+		reserved, energyLimit, err := affordableChargingLimit(usableBalance, pricing, gst, connector)
 		if err != nil {
 			return &APIError{http.StatusConflict, "insufficient_wallet_balance", "The wallet balance is insufficient for charging."}
 		}
@@ -341,6 +351,24 @@ func (service *Service) StartCharging(ctx context.Context, principal Principal, 
 		return tx.Model(&models.ChargingStartIntent{}).Where("id = ?", intentID).Updates(map[string]any{"status": constants.StartIntentStatusAcceptedForDelivery, "hal_command_id": command.HALCommandID, "updated_at": service.now()}).Error
 	})
 	return ChargingStartResponse{StartIntentID: intentID, Status: constants.StartIntentStatusAcceptedForDelivery}, nil
+}
+
+// usableWalletBalance applies the CPO admission policy once, inside the
+// wallet-locked start transaction. The buffer limits a new session's total
+// hold; it is not a second minimum-balance threshold.
+func usableWalletBalance(balance decimal.Decimal, settings models.Settings) (decimal.Decimal, error) {
+	if settings.WalletMinBalance < 0 || settings.WalletBufferMinBalance < 0 {
+		return decimal.Zero, errors.New("invalid CPO wallet policy")
+	}
+	minimum := decimal.NewFromInt(int64(settings.WalletMinBalance))
+	if balance.LessThan(minimum) {
+		return decimal.Zero, errWalletMinimumBalance
+	}
+	usable := balance.Sub(decimal.NewFromInt(int64(settings.WalletBufferMinBalance)))
+	if usable.LessThanOrEqual(decimal.Zero) {
+		return decimal.Zero, errors.New("no positive usable wallet balance")
+	}
+	return usable, nil
 }
 
 func requestConnectorNumber(mapping halops.ChargerMapping, connectorID uuid.UUID) int {

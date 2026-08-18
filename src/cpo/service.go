@@ -11,6 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -250,6 +251,15 @@ func (service *Service) Create(
 		}
 		if err := tx.Create(&cpoRecord).Error; err != nil {
 			return mapWriteError(err, "create CPO")
+		}
+		if err := tx.Create(&models.Settings{
+			CPOID:                  cpoRecord.ID,
+			WalletMinBalance:       0,
+			WalletBufferMinBalance: 0,
+			CreatedAt:              now,
+			UpdatedAt:              now,
+		}).Error; err != nil {
+			return mapWriteError(err, "create default CPO settings")
 		}
 
 		result := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
@@ -6323,8 +6333,10 @@ func (service *Service) GetSettings(
 	}
 
 	return SettingsView{
-		InvoiceLogo: settings.InvoiceLogo,
-		InvoiceNote: settings.InvoiceNote,
+		InvoiceLogo:            settings.InvoiceLogo,
+		InvoiceNote:            settings.InvoiceNote,
+		WalletMinBalance:       settings.WalletMinBalance,
+		WalletBufferMinBalance: settings.WalletBufferMinBalance,
 	}, nil
 }
 
@@ -6347,10 +6359,18 @@ func (service *Service) CreateOrUpdateSettings(
 	}
 
 	invoiceNote := ctx.Request.FormValue("invoice_note")
+	walletMinBalance, err := optionalNonNegativeWholeCurrencyFormValue(ctx, "wallet_min_balance")
+	if err != nil {
+		return SettingsView{}, err
+	}
+	walletBufferMinBalance, err := optionalNonNegativeWholeCurrencyFormValue(ctx, "wallet_buffer_min_balance")
+	if err != nil {
+		return SettingsView{}, err
+	}
 
 	var settings models.Settings
 	err = service.database.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		if err := tx.Where("cpo_id = ?", cpoID).First(&settings).Error; err != nil {
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("cpo_id = ?", cpoID).First(&settings).Error; err != nil {
 			if !errors.Is(err, gorm.ErrRecordNotFound) {
 				return fmt.Errorf("failed to get settings: %w", err)
 			}
@@ -6389,10 +6409,16 @@ func (service *Service) CreateOrUpdateSettings(
 		if invoiceNote != "" {
 			settings.InvoiceNote = &invoiceNote
 		}
+		if walletMinBalance != nil {
+			settings.WalletMinBalance = *walletMinBalance
+		}
+		if walletBufferMinBalance != nil {
+			settings.WalletBufferMinBalance = *walletBufferMinBalance
+		}
 
 		if err := tx.Clauses(clause.OnConflict{
 			Columns:   []clause.Column{{Name: "cpo_id"}},
-			DoUpdates: clause.AssignmentColumns([]string{"invoice_logo", "invoice_note", "updated_at"}),
+			DoUpdates: clause.AssignmentColumns([]string{"invoice_logo", "invoice_note", "wallet_min_balance", "wallet_buffer_min_balance", "updated_at"}),
 		}).Create(&settings).Error; err != nil {
 			return fmt.Errorf("failed to save settings: %w", err)
 		}
@@ -6405,9 +6431,23 @@ func (service *Service) CreateOrUpdateSettings(
 	}
 
 	return SettingsView{
-		InvoiceLogo: settings.InvoiceLogo,
-		InvoiceNote: settings.InvoiceNote,
+		InvoiceLogo:            settings.InvoiceLogo,
+		InvoiceNote:            settings.InvoiceNote,
+		WalletMinBalance:       settings.WalletMinBalance,
+		WalletBufferMinBalance: settings.WalletBufferMinBalance,
 	}, nil
+}
+
+func optionalNonNegativeWholeCurrencyFormValue(ctx *gin.Context, field string) (*int, error) {
+	raw, present := ctx.GetPostForm(field)
+	if !present {
+		return nil, nil
+	}
+	value, err := strconv.Atoi(strings.TrimSpace(raw))
+	if err != nil || value < 0 {
+		return nil, invalid(field, "Wallet policy values must be non-negative whole currency amounts.")
+	}
+	return &value, nil
 }
 
 // DownloadInvoiceLogo retrieves the invoice logo file for the authenticated CPO.

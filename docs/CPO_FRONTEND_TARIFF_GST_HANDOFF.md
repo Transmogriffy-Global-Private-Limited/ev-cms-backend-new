@@ -266,7 +266,44 @@ optimistic state update before the response returns.
    or client-side GST aggregation. The backend owns authoritative admission,
    GST, snapshots, and settlement.
 
-## 8. Customer-facing consequence (for CPO preview screens)
+## 8. CPO wallet admission policy
+
+`GET`, `POST`, and `PUT /api/v1/cpo/settings` now include these integer
+whole-currency values in the ordinary settings response and accept them as
+optional `multipart/form-data` fields:
+
+```ts
+type CPOSettings = {
+  invoice_logo?: string;
+  invoice_note?: string;
+  wallet_min_balance: number;
+  wallet_buffer_min_balance: number;
+};
+```
+
+Both default to `0`, must be non-negative whole values, and are created blank
+automatically whenever a CPO is provisioned. Existing CPOs receive the same
+default row through migration 43. The UI should let the CPO update either
+value without resubmitting invoice fields.
+
+At every new session start the backend locks the wallet and current CPO
+settings, then applies this policy before it calculates the tariff hold and
+HAL energy limit:
+
+1. Reject the start when `wallet_balance < wallet_min_balance` with
+   `409 wallet_minimum_balance_not_met`.
+2. Compute `usable_balance = wallet_balance - wallet_buffer_min_balance`.
+3. Use only `usable_balance` for tariff/GST affordability and the resulting
+   maximum Wh sent to HAL; physical connector limits still apply.
+
+For example, minimum `500` and buffer `20` lets a wallet at exactly `500`
+start, but its tariff hold and maximum kWh are calculated from `480`. The
+buffer is not an additional minimum threshold. It affects only that new
+session's hold/limit; settled sessions keep their existing immutable start
+facts. A buffer leaving no positive usable balance returns
+`409 insufficient_wallet_balance`.
+
+## 9. Customer-facing consequence (for CPO preview screens)
 
 The customer price API exposes `currency`, `price_per_unit`, `tariff_type`,
 `price_type`, applicable `units`, and the Hub GST breakdown only when the

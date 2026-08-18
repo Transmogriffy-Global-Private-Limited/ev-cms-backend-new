@@ -63,6 +63,12 @@ Migration files:
 - `db/migrations/000039_make_worker_current_instance_explicit.down.sql`
 - `db/migrations/000040_rename_tariff_price_per_unit.up.sql`
 - `db/migrations/000040_rename_tariff_price_per_unit.down.sql`
+- `db/migrations/000041_add_wallet_balance_to_settings.up.sql`
+- `db/migrations/000041_add_wallet_balance_to_settings.down.sql`
+- `db/migrations/000042_correct_tariff_energy_unit_to_kwh.up.sql`
+- `db/migrations/000042_correct_tariff_energy_unit_to_kwh.down.sql`
+- `db/migrations/000043_backfill_default_cpo_settings.up.sql`
+- `db/migrations/000043_backfill_default_cpo_settings.down.sql`
 
 ## Supplied Model Mapping
 
@@ -124,6 +130,13 @@ Migration files:
 - Migration thirty adds the tenant-owned `settings` table with one unique row
   per CPO, optional invoice logo path, and optional invoice note. It references
   `cpos(id)` and uses the existing `gen_random_uuid()` database function.
+- Migration forty-one adds non-negative, zero-default integer wallet minimum
+  and buffer columns. Migration forty-three inserts the missing blank settings
+  row for every existing CPO without touching an existing row; application CPO
+  provisioning creates the same zero-default row in its transaction. A new
+  charging start locks the settings with the CPO and wallet, requires the
+  configured minimum, and uses the post-buffer balance for its hold and HAL Wh
+  limit.
 - Migration thirty-one adds nullable GST state and makes legacy GST-rate
   columns nullable. API creation still requires a non-empty state and all
   three rate values; the nullable columns preserve historical database rows.

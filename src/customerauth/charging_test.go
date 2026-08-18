@@ -48,6 +48,40 @@ func TestFreeChargingStillRequiresPhysicalEnergyBound(t *testing.T) {
 	}
 }
 
+func TestUsableWalletBalanceEnforcesCPOThresholdAndBuffer(t *testing.T) {
+	t.Parallel()
+	policy := models.Settings{WalletMinBalance: 500, WalletBufferMinBalance: 20}
+	usable, err := usableWalletBalance(decimal.NewFromInt(500), policy)
+	if err != nil || !usable.Equal(decimal.NewFromInt(480)) {
+		t.Fatalf("usable balance=%s err=%v, want 480", usable, err)
+	}
+	tariffType, priceType, units := energyTariffMetadata()
+	pricing, err := tariffPricingFromTariff(models.Tariff{
+		PricePerUnit: decimal.NewFromInt(100),
+		TariffType:   &tariffType,
+		PriceType:    &priceType,
+		Units:        &units,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	zero := decimal.Zero
+	_, limitWh, err := affordableChargingLimit(usable, pricing, models.GST{SGSTRate: &zero, CGSTRate: &zero, IGSTRate: &zero}, models.Connector{ConnectorTotalCapacity: 7.4})
+	if err != nil || limitWh != 4800 {
+		t.Fatalf("usable balance energy limit=%d err=%v, want 4800 Wh", limitWh, err)
+	}
+	if _, err := usableWalletBalance(decimal.NewFromInt(499), policy); !errors.Is(err, errWalletMinimumBalance) {
+		t.Fatalf("below-minimum error=%v, want wallet minimum error", err)
+	}
+	if _, err := usableWalletBalance(decimal.NewFromInt(20), models.Settings{WalletBufferMinBalance: 20}); err == nil {
+		t.Fatal("buffer that leaves no positive usable balance was accepted")
+	}
+	zeroDefault, err := usableWalletBalance(decimal.NewFromInt(1), models.Settings{})
+	if err != nil || !zeroDefault.Equal(decimal.NewFromInt(1)) {
+		t.Fatalf("zero-default usable balance=%s err=%v, want 1", zeroDefault, err)
+	}
+}
+
 func TestTariffPricingCalculatesEachSupportedBasisAndLegacySnapshots(t *testing.T) {
 	t.Parallel()
 	zero := decimal.Zero

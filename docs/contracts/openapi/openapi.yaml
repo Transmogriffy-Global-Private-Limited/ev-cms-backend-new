@@ -1097,14 +1097,14 @@ paths:
       tags: [App User Wallet]
       operationId: getCustomerWallet
       summary: Get the current customer wallet
-      description: Returns the wallet owned by the authenticated CPO-local customer. Balance is an exact decimal string.
+      description: Returns the wallet owned by the authenticated CPO-local customer, including the current CPO minimum/buffer policy, balance usable for a new charging hold, and the threshold-only recharge shortfall. Monetary values are exact decimal strings.
       security:
         - BearerAuth: []
       parameters:
         - $ref: "#/components/parameters/CPOAppIDHeader"
       responses:
         "200":
-          description: Current wallet balance and currency.
+          description: Current wallet balance and CPO charging-admission policy.
           content:
             application/json:
               schema: {$ref: "#/components/schemas/CustomerWalletResponse"}
@@ -1126,7 +1126,7 @@ paths:
       tags: [App User Wallet]
       operationId: listCustomerWalletTransactions
       summary: List the current customer wallet history
-      description: Returns only wallet transactions for the authenticated CPO-local customer using bounded descending keyset pagination.
+      description: Returns only wallet transactions for the authenticated CPO-local customer using bounded descending keyset pagination, plus the same current wallet/CPO admission-policy projection as `GET /wallet`.
       security:
         - BearerAuth: []
       parameters:
@@ -3449,7 +3449,8 @@ paths:
       operationId: getCpoSettings
       summary: Get the CPO's settings
       description: |
-        Returns the settings for the authenticated CPO. The CPO ID is
+        Returns the settings for the authenticated CPO. Every CPO has a
+        blank, zero-default settings row created during provisioning. The CPO ID is
         derived from the verified ADMIN session; callers cannot select another
         tenant.
       security:
@@ -5661,7 +5662,7 @@ paths:
       tags: [App Charging]
       operationId: startCustomerCharging
       summary: Create a durable charging start intent
-      description: Creates the CMS tariff/tax snapshot, affordability reservation, one-use credential, and durable HAL command identity. A new start is admitted only when the committed CMS live-operations projection reports the requested connector as `AVAILABLE` and `FRESH`; `409 connector_not_available` is expected when that projection or a competing active intent prevents admission. A same-customer retry of an existing active intent returns that intent before the live admission check. `202` is not proof that charging started; only a later HAL `transaction.started` fact materializes a session.
+      description: Creates the CMS tariff/tax snapshot, affordability reservation, one-use credential, and durable HAL command identity. A new start is admitted only when the committed CMS live-operations projection reports the requested connector as `AVAILABLE` and `FRESH`; `409 connector_not_available` is expected when that projection or a competing active intent prevents admission. After the CPO minimum-balance check, tariff/GST affordability and the HAL Wh limit use `wallet balance - CPO wallet buffer`; `409 wallet_minimum_balance_not_met` means the balance is below the configured minimum, while `409 insufficient_wallet_balance` means no positive affordable session remains. A same-customer retry of an existing active intent returns that intent before the live admission check. `202` is not proof that charging started; only a later HAL `transaction.started` fact materializes a session.
       security: [{BearerAuth: []}]
       parameters: [{$ref: "#/components/parameters/CPOAppIDHeader"}]
       requestBody:
@@ -5675,7 +5676,7 @@ paths:
         "401": {$ref: "#/components/responses/Unauthorized"}
         "403": {$ref: "#/components/responses/Forbidden"}
         "404": {description: Customer charger or connector was not found.}
-        "409": {description: "Connector is not currently available for a new start, or an active intent already owns it.", content: {application/json: {schema: {$ref: "#/components/schemas/ErrorEnvelope"}}}}
+        "409": {description: "`connector_not_available`, `wallet_minimum_balance_not_met`, or `insufficient_wallet_balance` prevents a new start; an active intent can also own the connector.", content: {application/json: {schema: {$ref: "#/components/schemas/ErrorEnvelope"}}}}
         "503": {description: HAL charging service is unavailable.}
 
   /api/v1/app/charging-start-intents/{start_intent_id}:
@@ -6951,10 +6952,26 @@ components:
     CustomerWalletDetails:
       type: object
       additionalProperties: false
-      required: [id, balance, currency, updated_at]
+      required: [id, balance, usable_balance, minimum_recharge_amount, wallet_min_balance, wallet_buffer_min_balance, currency, updated_at]
       properties:
         id: {type: string, format: uuid}
         balance: {type: string, pattern: "^[0-9]+(?:\\.[0-9]{1,2})?$"}
+        usable_balance:
+          type: string
+          pattern: "^[0-9]+(?:\\.[0-9]{1,2})?$"
+          description: Current balance less the CPO buffer, clamped to zero; it does not itself override the CPO minimum-start requirement.
+        minimum_recharge_amount:
+          type: string
+          pattern: "^[0-9]+(?:\\.[0-9]{1,2})?$"
+          description: Amount needed to reach the CPO minimum balance, or zero when the balance already meets it. It does not add the CPO buffer.
+        wallet_min_balance:
+          type: integer
+          minimum: 0
+          description: Current CPO whole-currency threshold for starting a new charging session.
+        wallet_buffer_min_balance:
+          type: integer
+          minimum: 0
+          description: Current CPO whole-currency amount excluded from a new session's usable balance.
         currency: {type: string, pattern: "^[A-Z]{3}$"}
         updated_at: {type: string, format: date-time}
 
@@ -9220,6 +9237,7 @@ components:
     CpoSettings:
       type: object
       additionalProperties: false
+      required: [wallet_min_balance, wallet_buffer_min_balance]
       properties:
         invoice_logo:
           type: string
@@ -9227,6 +9245,14 @@ components:
         invoice_note:
           type: string
           nullable: true
+        wallet_min_balance:
+          type: integer
+          minimum: 0
+          description: Whole-currency balance required before a new charging session may start.
+        wallet_buffer_min_balance:
+          type: integer
+          minimum: 0
+          description: Whole-currency amount withheld from affordability for each new charging session.
 
     GetCpoSettingsResponse:
       $ref: "#/components/schemas/CpoSettings"
@@ -9241,6 +9267,14 @@ components:
           type: string
           format: binary
           description: Invoice logo file (e.g., JPEG, PNG).
+        wallet_min_balance:
+          type: integer
+          minimum: 0
+          description: Optional non-negative whole-currency admission threshold.
+        wallet_buffer_min_balance:
+          type: integer
+          minimum: 0
+          description: Optional non-negative whole-currency amount removed from usable balance at each start.
 
     FleetOperationsResponse:
       type: object

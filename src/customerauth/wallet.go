@@ -2,20 +2,26 @@ package customerauth
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"time"
 
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/models"
 	"github.com/google/uuid"
+	"github.com/shopspring/decimal"
 	"gorm.io/gorm"
 )
 
 type CustomerWalletView struct {
-	ID        uuid.UUID `json:"id"`
-	Balance   string    `json:"balance"`
-	Currency  string    `json:"currency"`
-	UpdatedAt time.Time `json:"updated_at"`
+	ID                     uuid.UUID `json:"id"`
+	Balance                string    `json:"balance"`
+	UsableBalance          string    `json:"usable_balance"`
+	MinimumRechargeAmount  string    `json:"minimum_recharge_amount"`
+	WalletMinBalance       int       `json:"wallet_min_balance"`
+	WalletBufferMinBalance int       `json:"wallet_buffer_min_balance"`
+	Currency               string    `json:"currency"`
+	UpdatedAt              time.Time `json:"updated_at"`
 }
 
 type CustomerWalletTransactionView struct {
@@ -56,7 +62,11 @@ func (service *Service) GetCustomerWallet(ctx context.Context, principal Princip
 	if err != nil {
 		return CustomerWalletResponse{}, err
 	}
-	return CustomerWalletResponse{Wallet: customerWalletView(wallet)}, nil
+	settings, err := service.loadCustomerWalletPolicy(ctx, principal.CPOID)
+	if err != nil {
+		return CustomerWalletResponse{}, err
+	}
+	return CustomerWalletResponse{Wallet: customerWalletView(wallet, settings)}, nil
 }
 
 func (service *Service) ListCustomerWalletTransactions(ctx context.Context, principal Principal, query CustomerWalletTransactionQuery) (CustomerWalletTransactionListResponse, error) {
@@ -64,6 +74,10 @@ func (service *Service) ListCustomerWalletTransactions(ctx context.Context, prin
 		return CustomerWalletTransactionListResponse{}, err
 	}
 	wallet, err := service.loadCustomerWallet(ctx, principal)
+	if err != nil {
+		return CustomerWalletTransactionListResponse{}, err
+	}
+	settings, err := service.loadCustomerWalletPolicy(ctx, principal.CPOID)
 	if err != nil {
 		return CustomerWalletTransactionListResponse{}, err
 	}
@@ -94,7 +108,7 @@ func (service *Service) ListCustomerWalletTransactions(ctx context.Context, prin
 		})
 	}
 	response := CustomerWalletTransactionListResponse{
-		Wallet:       customerWalletView(wallet),
+		Wallet:       customerWalletView(wallet, settings),
 		Transactions: transactions,
 		HasMore:      hasMore,
 	}
@@ -132,6 +146,38 @@ func (service *Service) loadCustomerWallet(ctx context.Context, principal Princi
 	return wallet, nil
 }
 
-func customerWalletView(wallet models.Wallet) CustomerWalletView {
-	return CustomerWalletView{ID: wallet.ID, Balance: wallet.Balance.StringFixed(2), Currency: wallet.Currency, UpdatedAt: wallet.UpdatedAt}
+func (service *Service) loadCustomerWalletPolicy(ctx context.Context, cpoID uuid.UUID) (models.Settings, error) {
+	var settings models.Settings
+	if err := service.database.WithContext(ctx).Where("cpo_id = ?", cpoID).First(&settings).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			// Migration 43 and CPO provisioning guarantee this row. Retain the
+			// zero-default policy while a rolling deployment reads an older CPO.
+			return models.Settings{CPOID: cpoID}, nil
+		}
+		return models.Settings{}, fmt.Errorf("load CPO wallet policy: %w", err)
+	}
+	return settings, nil
+}
+
+func customerWalletView(wallet models.Wallet, settings models.Settings) CustomerWalletView {
+	minimum := decimal.NewFromInt(int64(max(settings.WalletMinBalance, 0)))
+	buffer := decimal.NewFromInt(int64(max(settings.WalletBufferMinBalance, 0)))
+	usable := wallet.Balance.Sub(buffer)
+	if usable.IsNegative() {
+		usable = decimal.Zero
+	}
+	minimumRecharge := minimum.Sub(wallet.Balance)
+	if minimumRecharge.IsNegative() {
+		minimumRecharge = decimal.Zero
+	}
+	return CustomerWalletView{
+		ID:                     wallet.ID,
+		Balance:                wallet.Balance.StringFixed(2),
+		UsableBalance:          usable.StringFixed(2),
+		MinimumRechargeAmount:  minimumRecharge.StringFixed(2),
+		WalletMinBalance:       max(settings.WalletMinBalance, 0),
+		WalletBufferMinBalance: max(settings.WalletBufferMinBalance, 0),
+		Currency:               wallet.Currency,
+		UpdatedAt:              wallet.UpdatedAt,
+	}
 }

@@ -202,6 +202,13 @@ func TestCPOProvisioningAndFirstAdminLifecycleWithPostgreSQL(t *testing.T) {
 		created.Admin.Role != constants.CPORoleAdmin {
 		t.Fatalf("unexpected CPO creation response: %#v", created)
 	}
+	var defaultSettings models.Settings
+	if err := gormDB.First(&defaultSettings, "cpo_id = ?", created.CPO.ID).Error; err != nil {
+		t.Fatalf("load automatic CPO settings: %v", err)
+	}
+	if defaultSettings.InvoiceLogo != nil || defaultSettings.InvoiceNote != nil || defaultSettings.WalletMinBalance != 0 || defaultSettings.WalletBufferMinBalance != 0 {
+		t.Fatalf("unexpected automatic CPO settings: %#v", defaultSettings)
+	}
 
 	welcome := readMessageFromOutbox(
 		t,

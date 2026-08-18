@@ -45,6 +45,29 @@ func TestTariffRequestBodiesRejectLegacyPricePerKWh(t *testing.T) {
 	}
 }
 
+func TestOptionalNonNegativeWholeCurrencyFormValue(t *testing.T) {
+	makeContext := func(body string) *gin.Context {
+		writer := httptest.NewRecorder()
+		ctx, _ := gin.CreateTestContext(writer)
+		ctx.Request = httptest.NewRequest(http.MethodPost, "/", strings.NewReader(body))
+		ctx.Request.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		return ctx
+	}
+
+	value, err := optionalNonNegativeWholeCurrencyFormValue(makeContext("wallet_min_balance=500"), "wallet_min_balance")
+	if err != nil || value == nil || *value != 500 {
+		t.Fatalf("valid wallet minimum value=%v err=%v, want 500", value, err)
+	}
+	if value, err := optionalNonNegativeWholeCurrencyFormValue(makeContext(""), "wallet_min_balance"); err != nil || value != nil {
+		t.Fatalf("omitted wallet minimum value=%v err=%v, want nil", value, err)
+	}
+	for _, body := range []string{"wallet_min_balance=-1", "wallet_min_balance=20.5", "wallet_min_balance=not-a-number"} {
+		if _, err := optionalNonNegativeWholeCurrencyFormValue(makeContext(body), "wallet_min_balance"); err == nil {
+			t.Fatalf("invalid wallet minimum form %q was accepted", body)
+		}
+	}
+}
+
 func TestValidateCreateRequest(t *testing.T) {
 	t.Parallel()
 

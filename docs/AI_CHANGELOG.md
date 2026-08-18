@@ -1,5 +1,34 @@
 # AI Changelog
 
+## 2026-08-18 - CPO wallet admission policy in source
+
+- CPO provisioning now creates its one blank settings row transactionally;
+  forward migration 43 backfills only CPOs that lack one, preserving all
+  existing settings. The two whole-currency wallet policy fields have
+  non-negative zero defaults and are now part of the CPO settings API and
+  OpenAPI contract.
+- New customer charging starts lock the CPO settings with the CPO and wallet,
+  require `balance >= wallet_min_balance`, and price the hold/maximum HAL Wh
+  from `balance - wallet_buffer_min_balance`. A buffer never changes the
+  independent customer/HAL duration cutoff or historical settlement.
+- Added CPO frontend guidance and the explicit `409
+  wallet_minimum_balance_not_met` admission error; a depleted post-buffer
+  balance uses the existing `409 insufficient_wallet_balance` response.
+- Customer wallet and wallet-history responses now surface the CPO's current
+  minimum/buffer, an exact non-negative usable balance, and the exact amount
+  needed to reach the minimum threshold. The recharge amount deliberately does
+  not add the buffer.
+
+Verification:
+
+- Database-free CPO, customer-auth, and migration tests cover zero defaults,
+  validation, threshold/buffer arithmetic, and resultant affordable Wh limits.
+- The guarded PostgreSQL start-admission test additionally covers the locked
+  persisted setting, hold, limit, and below-threshold rejection when a
+  disposable `TEST_DATABASE_URL` is available.
+- This local source change is not deployed and migration 43 has not been run
+  against a database.
+
 ## 2026-08-18 - Tariff and GST commercial correction in source
 
 - Retained migration 40's data-preserving `price_per_unit` rename and added

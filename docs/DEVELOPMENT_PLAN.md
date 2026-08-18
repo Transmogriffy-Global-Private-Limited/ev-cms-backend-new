@@ -991,9 +991,21 @@ Current implementation slice:
   interpretation, Hub/GST mutation invariants, runtime GST defense, and the
   CPO frontend handoff are verified. Disposable PostgreSQL lifecycle coverage
   remains pending an explicitly selected `TEST_DATABASE_URL`.
+- Wallet admission policy is complete in source and ready for its
+  migration-controlled deployment: migration forty-three backfills a blank
+  settings row for every existing CPO while new CPO provisioning creates the
+  same zero-default row. Each new start locks and enforces the CPO minimum and
+  buffer before deriving its hold and HAL energy limit; the independent
+  duration-cutoff workflow is unchanged. Customer wallet/history reads expose
+  the current policy, usable balance, and threshold recharge shortfall.
 
 Last completed slice:
 
+- Added the CPO wallet admission policy: CPO settings expose non-negative
+  whole-currency minimum and buffer values, `balance >= minimum` admits a new
+  start, and only `balance - buffer` is available to tariff affordability and
+  HAL energy limiting. Default rows are created for new CPOs and backfilled
+  for existing CPOs without overwriting their settings.
 - Tariff/GST commercial correction: corrected energy per-kWh semantics across
   tariff writes, customer price, admission, immutable snapshots, and
   settlement; protected the complete Hub/GST relationship across later
