@@ -681,19 +681,19 @@ type ChargingSessionListQuery struct {
 }
 
 type ChargerTransactionView struct {
-	TransactionID   string                  `json:"transaction_id"`
+	TransactionID   string                    `json:"transaction_id"`
 	PaymentStatus   constants.FinancialStatus `json:"payment_status"`
-	BilledAmount    decimal.Decimal         `json:"billed_amount"`
-	ChargerID       string                  `json:"charger_id"`
-	Duration        string                  `json:"duration"`
-	Hub             string                  `json:"hub"`
-	Tariff          decimal.Decimal         `json:"tariff"`
-	UsageKWh        decimal.Decimal         `json:"usage_kwh"`
-	Owner           string                  `json:"owner"`
-	HostDetails     HostDetailsView         `json:"host_details"`
-	CustomerDetails CustomerDetailsView     `json:"customer_details"`
-	Timestamp       time.Time               `json:"timestamp"`
-	Reason          *string                 `json:"reason,omitempty"`
+	BilledAmount    decimal.Decimal           `json:"billed_amount"`
+	ChargerID       string                    `json:"charger_id"`
+	Duration        string                    `json:"duration"`
+	Hub             string                    `json:"hub"`
+	Tariff          decimal.Decimal           `json:"tariff"`
+	UsageKWh        decimal.Decimal           `json:"usage_kwh"`
+	Owner           string                    `json:"owner"`
+	HostDetails     HostDetailsView           `json:"host_details"`
+	CustomerDetails CustomerDetailsView       `json:"customer_details"`
+	Timestamp       time.Time                 `json:"timestamp"`
+	Reason          *string                   `json:"reason,omitempty"`
 }
 
 type HostDetailsView struct {
