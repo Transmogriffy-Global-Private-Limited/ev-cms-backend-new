@@ -1,5 +1,26 @@
 # AI Changelog
 
+## 2026-08-18 - Rehosted wallet-balance aggregate and settings migration
+
+- Applied migration 41, adding non-null `wallet_min_balance` and
+  `wallet_buffer_min_balance` settings columns with zero defaults.
+- Fixed CPO customer aggregate loading so every CPO customer receives wallet
+  balance and zero-valued usage/session aggregates even without sessions.
+- Rehosted clean runtime revision `040b9bb` with binary SHA-256
+  `2b4a0ab8fd77b79ec92bf03a418acaa52eb6320e0e90401c62afbb9d23fced29`.
+- Applied migration 41 after a mode-0600 rollback dump at
+  `/var/backups/postgres/devevcmsnewdb-pre-migration-41-20260818-110956.dump`.
+
+Verification:
+
+- Focused migration/customer/route tests, serial `go test ./...`, `go vet
+  ./...`, Caddy validation, migration/schema checks, local/public
+  health/readiness, Swagger, raw OpenAPI, and protected worker/status
+  boundaries passed. The service is active with zero restarts and the live
+  contract remains at 180 operations.
+- `scripts/verify-docs.ps1` and disposable PostgreSQL lifecycle tests remain
+  unavailable because `pwsh` and `TEST_DATABASE_URL` are not configured.
+
 ## 2026-08-18 - Rehosted tariff unit-price semantic correction
 
 - Added forward migration 40 to rename `tariffs.price_per_kwh` and its check

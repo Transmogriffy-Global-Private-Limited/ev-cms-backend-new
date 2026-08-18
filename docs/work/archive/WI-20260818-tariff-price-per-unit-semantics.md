@@ -99,4 +99,5 @@ tariff interpretation.
 ## Completion
 
 Completed and deployed on 2026-08-18. Migration 40 is applied and revision
-`9e7af67` is active on the development VPS.
+`040b9bb` is active on the development VPS after the follow-on migration-41
+settings release.

@@ -2,6 +2,20 @@
 
 ## Current State
 
+### 2026-08-18 — Wallet aggregates and settings migration deployed
+
+- Migration 41 adds non-null `settings.wallet_min_balance` and
+  `settings.wallet_buffer_min_balance` columns with zero defaults.
+- CPO customer aggregate loading now starts from all customers in the tenant,
+  so wallet balance and zero usage/session values are present even when a
+  customer has no charging-session rows.
+- Revision `040b9bb` is active with binary SHA-256
+  `2b4a0ab8fd77b79ec92bf03a418acaa52eb6320e0e90401c62afbb9d23fced29`.
+- The service is active with zero restarts; Caddy validation, focused and full
+  Go tests, vet, migration/schema checks, local/public health/readiness,
+  Swagger, raw OpenAPI, and worker/status auth boundaries passed. The live
+  contract remains at 180 operations.
+
 ### 2026-08-18 — Tariff unit-price semantic correction deployed
 
 - The release adds migration
@@ -466,8 +480,8 @@ provides:
   handler;
 - the additive PostgreSQL database `devevcmsnewdb`, owned by `postgres`.
 
-The active development VPS runs source revision `9e7af67`, with migrations
-through forty recorded and the deployed 180-operation contract. Migration
+The active development VPS runs source revision `040b9bb`, with migrations
+through forty-one recorded and the deployed 180-operation contract. Migration
 twenty-nine adds nullable `tariff_type`, `price_type`, and `units` metadata to
 tenant tariffs; omitted values remain null-safe for existing and newly created
 tariffs. The SuperAdmin administrator-list query explicitly binds the platform
