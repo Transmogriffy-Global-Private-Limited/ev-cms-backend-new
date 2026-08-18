@@ -1,5 +1,14 @@
 # AI Changelog
 
+## 2026-08-18 - Rehosted CPO charger transaction reads
+
+- Rebuilt and rehosted revision `798c26a` after adding the tenant-scoped
+  `GET /api/v1/cpo/charger-transactions` cursor-paginated read with optional
+  charger/customer filters. No migration was required.
+- Added the human contract and corrected the OpenAPI financial-status enum to
+  include runtime-supported `REFUNDED`; the live contract now contains 183
+  operations.
+
 ## 2026-08-18 - Rehosted tariff PATCH and frozen GST snapshot hardening
 
 - Made tariff PATCH intent explicit for `units`, `start_date`, and `end_date`:

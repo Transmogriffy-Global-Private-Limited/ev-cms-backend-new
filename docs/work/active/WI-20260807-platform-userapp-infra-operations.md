@@ -123,11 +123,11 @@ verification before execution.
 The worker-status correction adds migration 39 and an explicit
 single-current-instance projection for each platform worker name. Historical
 rows remain durable, while delayed heartbeats from superseded instances cannot
-overwrite the replacement. It is deployed in revision `0ad2de7`; migrations 39
+overwrite the replacement. It is deployed in revision `798c26a`; migrations 39
 is applied and the service has one current row per logical worker.
 
-The current shared development deployment is runtime source revision `0ad2de7`
-with migrations through forty-three and 182 OpenAPI operations. The HAL runtime
+The current shared development deployment is runtime source revision `798c26a`
+with migrations through forty-three and 183 OpenAPI operations. The HAL runtime
 GORM table mapping correction and User App charging-history release are active
 without a database migration.
 
@@ -157,12 +157,12 @@ rules, near-me behavior, current-CPO scope, and customer-visible-hub boundary.
 The current deployed source also adds CPO/customer-scoped materialized
 charging-session history, frozen commercial/session detail, safe payment/debit
 cross-links, and session-correlated charging SSE invalidations. The deployed
-OpenAPI has 182 operations and also includes tenant-scoped CPO
+OpenAPI has 183 operations and also includes tenant-scoped CPO
 charging-session list/detail reads.
 
 The deployed source additionally contains the User App charging-start admission
 hardening described above. It does not change the deployed revision's
-182-operation OpenAPI count.
+183-operation OpenAPI count.
 
 ## Verification
 

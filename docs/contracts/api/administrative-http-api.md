@@ -3187,6 +3187,24 @@ charging_session_not_found`; malformed UUIDs or invalid filters return `400`,
 and unauthenticated or non-ADMIN callers receive the standard `401`/`403`
 errors.
 
+### 12.5 CPO charger transaction reads
+
+`GET /api/v1/cpo/charger-transactions` returns a cursor-paginated transaction
+projection for the authenticated CPO ADMIN. It accepts `limit` (1–200,
+default 50), `before` (RFC3339), `before_id` (UUID), and optional same-CPO
+`charger_id` or `customer_id` UUID filters. Results are ordered newest first
+by `(created_at, id)`; the returned `next_before` and `next_before_id` form the
+next exclusive cursor.
+
+Each transaction includes the session UUID, financial status, decimal-string
+`billed_amount` and `usage_kwh`, tariff unit price, charger ID, elapsed
+duration when complete, hub, CPO owner, host contact projection, customer
+contact projection, creation timestamp, and optional stop reason. The read is
+tenant-scoped and does not contact the HAL or issue charger commands. Financial
+status values are `PENDING`, `COMPLETED`, `FAILED`, `REVERSED`, or `REFUNDED`.
+Malformed filters return `400`; unauthenticated or non-ADMIN callers receive
+the standard `401`/`403` responses.
+
 ## 13. Client State Machine
 
 Recommended frontend sequence:

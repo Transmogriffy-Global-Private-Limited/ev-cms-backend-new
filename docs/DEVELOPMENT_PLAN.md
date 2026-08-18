@@ -117,7 +117,7 @@ Current implementation state:
 
 - CMS source and the development deployment contain the first client, durable records, shared fact receiver,
   customer polling/start/stop routes, reusable operational projections,
-  scoped operational-event replay/SSE, and a 182-operation OpenAPI surface.
+  scoped operational-event replay/SSE, and a 183-operation OpenAPI surface.
   The HAL runtime GORM models explicitly map to the singular migration tables
   `hal_charger_runtime` and `hal_connector_runtime`.
   The HAL v1 provider is
@@ -125,13 +125,13 @@ Current implementation state:
   charger vertical is not verified yet.
 - The current deployed release also exposes tenant-scoped CPO charging-session
   list/detail reads with bounded keyset pagination and validated lifecycle
-  filters. Revision `0ad2de7` is active with migrations 40-43 applied; the live
-  OpenAPI contract contains 182 operations.
+  filters. Revision `798c26a` is active with migrations 40-43 applied; the live
+  OpenAPI contract contains 183 operations.
 - The current deployed release also includes optional committed live charger
-  projections on CPO charger list/detail responses. Revision `0ad2de7` is
+  projections on CPO charger list/detail responses. Revision `798c26a` is
   active; list reads use the bounded batch liveops reader.
 - Migration 39 and the current-worker projection are deployed in revision
-  `0ad2de7`; worker status/readiness now ignore superseded historical rows.
+  `798c26a`; worker status/readiness now ignore superseded historical rows.
 - The latest release adds tenant-scoped CPO customer usage/session/wallet
   aggregates and request-boundary tariff enum validation. No migration was
   required; the OpenAPI contract was reconciled to the registered runtime
@@ -179,10 +179,13 @@ Current implementation state:
 - Migration 42 is deployed in the same revision: energy tariffs use the
   persisted `kwh` enum and Hub-owned GST assignment has a unique CPO/GST
   constraint.
-- The current CPO release also exposes tenant-scoped analytics and hub-scoped
-  charger listing reads; both are represented in the 182-operation contract.
+- The current CPO release also exposes tenant-scoped analytics, hub-scoped
+  charger listing, and charger-transaction reads; all are represented in the
+  183-operation contract.
 - Tariff PATCH intent and frozen GST settlement validation are deployed in
   revision `0ad2de7`; no migration was required.
+- CPO charger-transaction reads are deployed in revision `798c26a`; no
+  migration was required.
 
 Next required slice:
 

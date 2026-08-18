@@ -9611,7 +9611,7 @@ components:
 
     FinancialStatus:
       type: string
-      enum: [PENDING, COMPLETED, FAILED, REVERSED]
+      enum: [PENDING, COMPLETED, FAILED, REVERSED, REFUNDED]
       description: Financial status of a transaction.
 
     ChargingSessionListResponse:

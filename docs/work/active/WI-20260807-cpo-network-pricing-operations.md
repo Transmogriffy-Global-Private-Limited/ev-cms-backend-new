@@ -74,8 +74,8 @@ charging vertical.
 
 ## Current state
 
-The current shared development deployment is runtime source revision `0ad2de7`
-with migrations through forty-three applied and 182 OpenAPI
+The current shared development deployment is runtime source revision `798c26a`
+with migrations through forty-three applied and 183 OpenAPI
 operations. The single-target tariff correction and charger customer visibility
 are enforced across CPO publication and User App discovery, detail, pricing,
 and favorites. The HAL runtime model
@@ -148,6 +148,7 @@ The hub `state` field is persisted and included in the live CPO hub contracts.
 The CPO implementation remains owned by Abhranil Pal. The current deployment
 contains migrations through forty-three, the single-target tariff/GST
 correction, wallet admission policy, CPO analytics, hub-scoped charger listing,
+charger-transaction reads,
 and the charger customer-visibility gate
 plus the HAL runtime table mapping
 correction. Connector create/update request payloads and
