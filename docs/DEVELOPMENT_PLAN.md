@@ -117,7 +117,7 @@ Current implementation state:
 
 - CMS source and the development deployment contain the first client, durable records, shared fact receiver,
   customer polling/start/stop routes, reusable operational projections,
-  scoped operational-event replay/SSE, and a 186-operation OpenAPI surface.
+  scoped operational-event replay/SSE, and a 187-operation OpenAPI surface.
   The HAL runtime GORM models explicitly map to the singular migration tables
   `hal_charger_runtime` and `hal_connector_runtime`.
   The HAL v1 provider is
@@ -125,8 +125,9 @@ Current implementation state:
   charger vertical is not verified yet.
 - The current deployed release also exposes tenant-scoped CPO charging-session
   list/detail reads with bounded keyset pagination and validated lifecycle
-  filters. Revision `38625d9` is active with migrations 40-44 applied; the live
-  OpenAPI contract contains 186 operations.
+  filters. Revision `2a040e0` is active with migrations 40-44 applied; the live
+  OpenAPI contract contains 187 operations. The CPO wallet transaction read is
+  tenant-scoped, newest-first, and cursor-paginated.
 - The current deployed release also includes optional committed live charger
   projections on CPO charger list/detail responses. Revision `a5d1af4` is
   active; list reads use the bounded batch liveops reader.
@@ -181,7 +182,7 @@ Current implementation state:
   constraint.
 - The current CPO release also exposes tenant-scoped analytics, hub-scoped
   charger listing, and charger-transaction reads; all are represented in the
-  186-operation contract.
+  187-operation contract.
 - Tariff PATCH intent and frozen GST settlement validation are deployed in
   revision `0ad2de7`; no migration was required.
 - Temporal tariff fallback is deployed: migration forty-four replaces

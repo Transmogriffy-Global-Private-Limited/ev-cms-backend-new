@@ -1824,7 +1824,52 @@ or a list of users. The read has no side effects or audit write.
 Errors: `400 invalid_user_id`; shared authentication/authorization errors; or
 `404 user_not_found`.
 
-### 9.4A `GET /api/v1/cpo/analytics`
+### 9.4A `GET /api/v1/cpo/wallet-transactions`
+
+Returns wallet transaction projections for customers belonging to the
+authenticated CPO. The read requires the CPO ADMIN session and current
+`X-CPO-App-ID`; the CPO scope is derived from the verified session and cannot
+be selected by the request. It is read-only, side-effect free, and does not
+contact the HAL.
+
+Optional query parameters:
+
+- `limit`: 1–200 records; defaults to 50;
+- `before`: RFC 3339 timestamp cursor;
+- `before_id`: UUID tie-breaker used with `before`;
+- `customer_id`: UUID filter for one CPO-local customer.
+
+Results are ordered by `created_at DESC, id DESC`. When more rows exist,
+`next_before` and `next_before_id` identify the final returned row for the
+next request. Each transaction includes `id`, `customer_id`, customer name and
+email, exact decimal `amount`, `currency`, `transaction_type`, `status`,
+`created_at`, and nullable session/recharge-order IDs. `description` is
+included when present.
+
+```json
+{
+  "transactions": [
+    {
+      "id": "5bd431a7-63f0-4df7-a2f5-1b55112df560",
+      "customer_id": "e5288707-7266-44d4-b5a2-a87d06f1f2b7",
+      "customer_name": "Example Customer",
+      "customer_email": "customer@example.com",
+      "amount": "500.00",
+      "currency": "INR",
+      "transaction_type": "CREDIT",
+      "status": "COMPLETED",
+      "created_at": "2026-08-18T10:00:00Z"
+    }
+  ],
+  "has_more": false
+}
+```
+
+Invalid cursor, UUID, or limit values return `400 invalid_request`; missing or
+invalid authentication/app-ID context returns the shared `401`/`403` errors.
+Database failures return `500 internal_error`.
+
+### 9.4B `GET /api/v1/cpo/analytics`
 
 Returns aggregate tenant analytics for the authenticated CPO. The CPO scope
 comes from the verified ADMIN session and cannot be selected by the request.

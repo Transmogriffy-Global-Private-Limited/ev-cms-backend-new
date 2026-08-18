@@ -2,6 +2,20 @@
 
 ## Current State
 
+### 2026-08-18 — CPO wallet transaction read deployed
+
+- Added authenticated, tenant-scoped `GET /api/v1/cpo/wallet-transactions` for
+  CPO ADMINs. It returns newest-first wallet transaction projections for the
+  authenticated CPO, with optional customer filtering and bounded keyset
+  pagination (`limit`, `before`, `before_id`).
+- No database migration was required. Runtime revision `2a040e0` is active with
+  binary SHA-256
+  `1a5dfc0100f85a6159c916880911c5139b5295a7b0a074b42e92668f29a0dc3e`.
+  The live OpenAPI contract contains 187 operations.
+- Local/public health and readiness, Swagger, raw OpenAPI, the new route's
+  unauthenticated boundary (`401`), Caddy validation, and post-rehost logs
+  passed. `TEST_DATABASE_URL` and `pwsh` remain unavailable.
+
 ### 2026-08-18 — Temporal tariff fallback and hub cleanup deployed
 
 - Source migration 44 replaces the prior active-tariff no-overlap exclusion
