@@ -61,6 +61,8 @@ Migration files:
 - `db/migrations/000038_separate_tariff_gst_and_require_charger_hub.down.sql`
 - `db/migrations/000039_make_worker_current_instance_explicit.up.sql`
 - `db/migrations/000039_make_worker_current_instance_explicit.down.sql`
+- `db/migrations/000040_rename_tariff_price_per_unit.up.sql`
+- `db/migrations/000040_rename_tariff_price_per_unit.down.sql`
 
 ## Supplied Model Mapping
 
@@ -109,9 +111,13 @@ Migration files:
 - Migration twenty-eight extends the legacy session projection with exact HAL
   transaction correlation and live meter fields. It adds durable CMS business
   intent/hold/receipt/projection tables; the HAL database remains separate.
-- Migration twenty-nine adds nullable `tariff_type`, `price_type`, and `units`
-  columns. Existing tariffs remain valid with null metadata, and omitted API
-  fields do not write empty enum values.
+- Migration twenty-nine adds `tariff_type`, `price_type`, and `units` columns.
+  Migration forty renames the durable tariff amount from `price_per_kwh` to
+  `price_per_unit` without recreating values or inventing missing metadata.
+  New CPO writes must use a supported fixed combination: energy/watt-hour,
+  time/minutes, or per-session with no unit. Incomplete legacy live tariffs
+  remain durable records but are not eligible for new customer pricing or
+  charging until corrected deliberately.
 - Migration thirty adds the tenant-owned `settings` table with one unique row
   per CPO, optional invoice logo path, and optional invoice note. It references
   `cpos(id)` and uses the existing `gen_random_uuid()` database function.

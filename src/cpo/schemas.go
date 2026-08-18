@@ -422,7 +422,7 @@ type CreateTariffRequest struct {
 	HubID         *uuid.UUID            `json:"-"`
 	ChargerID     *uuid.UUID            `json:"-"`
 	UserGroupID   *uuid.UUID            `json:"-"`
-	PricePerKWh   decimal.Decimal       `json:"price_per_kwh"`
+	PricePerUnit  decimal.Decimal       `json:"price_per_unit"`
 	IdleFeePerMin decimal.Decimal       `json:"idle_fee_per_min"`
 	Currency      string                `json:"currency"`
 	IsActive      *bool                 `json:"is_active,omitempty"`
@@ -434,7 +434,7 @@ type CreateTariffRequest struct {
 }
 
 type UpdateTariffRequest struct {
-	PricePerKWh   *decimal.Decimal      `json:"price_per_kwh,omitempty"`
+	PricePerUnit  *decimal.Decimal      `json:"price_per_unit,omitempty"`
 	IdleFeePerMin *decimal.Decimal      `json:"idle_fee_per_min,omitempty"`
 	Currency      *string               `json:"currency,omitempty"`
 	IsActive      *bool                 `json:"is_active,omitempty"`
@@ -452,7 +452,7 @@ type TariffView struct {
 	HubID         *uuid.UUID                     `json:"hub_id,omitempty"`
 	ChargerID     *uuid.UUID                     `json:"charger_id,omitempty"`
 	UserGroupID   *uuid.UUID                     `json:"user_group_id,omitempty"`
-	PricePerKWh   decimal.Decimal                `json:"price_per_kwh"`
+	PricePerUnit  decimal.Decimal                `json:"price_per_unit"`
 	IdleFeePerMin decimal.Decimal                `json:"idle_fee_per_min"`
 	Currency      string                         `json:"currency"`
 	IsActive      bool                           `json:"is_active"`

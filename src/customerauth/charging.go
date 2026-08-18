@@ -121,9 +121,13 @@ type ChargingSessionConnectorView struct {
 }
 
 type ChargingSessionPricingView struct {
-	PricePerKWh      *string `json:"price_per_kwh,omitempty"`
-	IdleFeePerMinute *string `json:"idle_fee_per_minute,omitempty"`
-	Currency         string  `json:"currency"`
+	PricePerUnit      *string `json:"price_per_unit,omitempty"`
+	LegacyPricePerKWh *string `json:"legacy_price_per_kwh,omitempty"`
+	TariffType        *string `json:"tariff_type,omitempty"`
+	PriceType         *string `json:"price_type,omitempty"`
+	Units             *string `json:"units,omitempty"`
+	IdleFeePerMinute  *string `json:"idle_fee_per_minute,omitempty"`
+	Currency          string  `json:"currency"`
 }
 
 type ChargingSessionTaxView struct {
@@ -278,6 +282,10 @@ func (service *Service) StartCharging(ctx context.Context, principal Principal, 
 		if !tariffOK {
 			return &APIError{http.StatusConflict, "no_eligible_tariff", "No tariff is available for this charger."}
 		}
+		pricing, err := tariffPricingFromTariff(tariff)
+		if err != nil {
+			return &APIError{http.StatusConflict, "unsupported_tariff_pricing", "The selected tariff does not have supported pricing semantics."}
+		}
 		gst, gstOK, err := resolveActiveHubGST(tx, principal.CPOID, *charger.HubID)
 		if err != nil {
 			return err
@@ -288,11 +296,11 @@ func (service *Service) StartCharging(ctx context.Context, principal Principal, 
 		if wallet.Balance.LessThanOrEqual(decimal.Zero) {
 			return &APIError{http.StatusConflict, "insufficient_wallet_balance", "A positive wallet balance is required to start charging."}
 		}
-		reserved, energyLimit, err := affordableChargingLimit(wallet.Balance, tariff, gst, connector)
+		reserved, energyLimit, err := affordableChargingLimit(wallet.Balance, pricing, gst, connector)
 		if err != nil {
 			return &APIError{http.StatusConflict, "insufficient_wallet_balance", "The wallet balance is insufficient for charging."}
 		}
-		intent = models.ChargingStartIntent{ID: intentID, CPOID: principal.CPOID, CustomerID: principal.CustomerID, ChargerID: charger.ID, ConnectorID: connector.ID, WalletID: wallet.ID, TariffID: tariff.ID, Status: constants.StartIntentStatusRequested, CredentialHash: hash, CredentialExpiresAt: now.Add(chargingCredentialLifetime), CommandExpiresAt: now.Add(chargingCommandLifetime), EnergyLimitWh: energyLimit, MaxDurationSeconds: chargingMaxDuration, TariffSnapshot: tariffSnapshot(tariff), TaxSnapshot: taxSnapshot(*charger.HubID, gst), CreatedAt: now, UpdatedAt: now}
+		intent = models.ChargingStartIntent{ID: intentID, CPOID: principal.CPOID, CustomerID: principal.CustomerID, ChargerID: charger.ID, ConnectorID: connector.ID, WalletID: wallet.ID, TariffID: tariff.ID, Status: constants.StartIntentStatusRequested, CredentialHash: hash, CredentialExpiresAt: now.Add(chargingCredentialLifetime), CommandExpiresAt: now.Add(chargingCommandLifetime), EnergyLimitWh: energyLimit, MaxDurationSeconds: chargingMaxDuration, TariffSnapshot: pricing.snapshot(tariff), TaxSnapshot: taxSnapshot(*charger.HubID, gst), CreatedAt: now, UpdatedAt: now}
 		if err := tx.Create(&intent).Error; err != nil {
 			return err
 		}
@@ -358,35 +366,57 @@ func (service *Service) effectiveChargingTariff(tx *gorm.DB, principal Principal
 	return tariff, ok
 }
 
-func affordableChargingLimit(balance decimal.Decimal, tariff models.Tariff, gst models.GST, connector models.Connector) (decimal.Decimal, int64, error) {
+func affordableChargingLimit(balance decimal.Decimal, pricing tariffPricing, gst models.GST, connector models.Connector) (decimal.Decimal, int64, error) {
 	if balance.LessThanOrEqual(decimal.Zero) {
-		return decimal.Zero, 0, errors.New("no positive affordable energy")
+		return decimal.Zero, 0, errors.New("no positive affordable charge")
 	}
-	if tariff.PricePerKWh.IsZero() {
-		limit, err := freeChargingEnergyLimit(connector)
-		return decimal.Zero, limit, err
+	energyLimit, err := physicalChargingEnergyLimit(connector)
+	if err != nil {
+		return decimal.Zero, 0, err
 	}
-	rate := gst.SGSTRate.Add(*gst.CGSTRate).Add(*gst.IGSTRate).Div(decimal.NewFromInt(100))
-	perWh := tariff.PricePerKWh.Div(decimal.NewFromInt(1000)).Mul(decimal.NewFromInt(1).Add(rate))
-	limit := balance.Div(perWh).Floor().IntPart()
-	if limit < 1 {
-		return decimal.Zero, 0, errors.New("no positive affordable energy")
+	switch pricing.priceType {
+	case constants.PriceTypeEnergy:
+		if pricing.pricePerUnit.IsZero() {
+			return decimal.Zero, energyLimit, nil
+		}
+		unitPrice := pricing.pricePerUnit.Mul(gstMultiplier(gst))
+		affordableWh := balance.Div(unitPrice).Floor().IntPart()
+		if affordableWh < 1 {
+			return decimal.Zero, 0, errors.New("no positive affordable energy")
+		}
+		if affordableWh < energyLimit {
+			energyLimit = affordableWh
+		}
+		reserved := unitPrice.Mul(decimal.NewFromInt(energyLimit)).RoundCeil(2)
+		if reserved.GreaterThan(balance) {
+			energyLimit--
+			reserved = unitPrice.Mul(decimal.NewFromInt(energyLimit)).RoundCeil(2)
+		}
+		if energyLimit < 1 {
+			return decimal.Zero, 0, errors.New("no positive affordable energy")
+		}
+		return reserved, energyLimit, nil
+	case constants.PriceTypeTime:
+		reserved, err := pricing.amountWithGST(0, time.Time{}, time.Time{}.Add(time.Duration(chargingMaxDuration)*time.Second), gst)
+		if err != nil || reserved.GreaterThan(balance) {
+			return decimal.Zero, 0, errors.New("no affordable session duration")
+		}
+		return reserved, energyLimit, nil
+	case constants.PriceTypeSession:
+		reserved, err := pricing.amountWithGST(0, time.Time{}, time.Time{}, gst)
+		if err != nil || reserved.GreaterThan(balance) {
+			return decimal.Zero, 0, errors.New("no affordable session")
+		}
+		return reserved, energyLimit, nil
+	default:
+		return decimal.Zero, 0, errUnsupportedTariffSemantics
 	}
-	reserved := perWh.Mul(decimal.NewFromInt(limit)).RoundCeil(2)
-	if reserved.GreaterThan(balance) {
-		limit--
-		reserved = perWh.Mul(decimal.NewFromInt(limit)).RoundCeil(2)
-	}
-	if limit < 1 {
-		return decimal.Zero, 0, errors.New("no positive affordable energy")
-	}
-	return reserved, limit, nil
 }
 
-// freeChargingEnergyLimit preserves HAL's positive energy bound without
-// inventing a commercial charge. ConnectorTotalCapacity is the registered kW
-// capacity; over the fixed maximum duration it yields a bounded Wh limit.
-func freeChargingEnergyLimit(connector models.Connector) (int64, error) {
+// physicalChargingEnergyLimit preserves HAL's positive energy bound for every
+// tariff mode. ConnectorTotalCapacity is registered kW; over the existing
+// safety duration it yields a bounded Wh limit without pricing time as energy.
+func physicalChargingEnergyLimit(connector models.Connector) (int64, error) {
 	if connector.ConnectorTotalCapacity <= 0 {
 		return 0, errors.New("free charging requires positive connector capacity")
 	}
@@ -401,9 +431,6 @@ func freeChargingEnergyLimit(connector models.Connector) (int64, error) {
 	return limit, nil
 }
 
-func tariffSnapshot(t models.Tariff) models.JSONB {
-	return models.JSONB{"tariff_id": t.ID.String(), "currency": t.Currency, "price_per_kwh": t.PricePerKWh.String(), "idle_fee_per_min": t.IdleFeePerMin.String()}
-}
 func taxSnapshot(hubID uuid.UUID, gst models.GST) models.JSONB {
 	return models.JSONB{"gst_id": gst.ID.String(), "hub_id": hubID.String(), "igst_rate": gst.IGSTRate.String(), "cgst_rate": gst.CGSTRate.String(), "sgst_rate": gst.SGSTRate.String()}
 }
@@ -635,11 +662,21 @@ func customerChargingSessionConnectorView(connector models.Connector) ChargingSe
 }
 
 func customerChargingSessionPricingView(session models.ChargingSession) ChargingSessionPricingView {
-	return ChargingSessionPricingView{
-		PricePerKWh:      snapshotDecimal(session.TariffSnapshot, "price_per_kwh"),
+	view := ChargingSessionPricingView{
 		IdleFeePerMinute: snapshotDecimal(session.TariffSnapshot, "idle_fee_per_min"),
 		Currency:         snapshotString(session.TariffSnapshot, "currency", session.Currency),
 	}
+	if price := snapshotDecimal(session.TariffSnapshot, "price_per_unit"); price != nil {
+		view.PricePerUnit = price
+		view.TariffType = snapshotStringPointer(session.TariffSnapshot, "tariff_type")
+		view.PriceType = snapshotStringPointer(session.TariffSnapshot, "price_type")
+		view.Units = snapshotStringPointer(session.TariffSnapshot, "units")
+		return view
+	}
+	// The legacy property is exposed only for pre-correction snapshots, where
+	// the stored amount was explicitly per kWh and cannot be relabelled safely.
+	view.LegacyPricePerKWh = snapshotDecimal(session.TariffSnapshot, "price_per_kwh")
+	return view
 }
 
 func customerChargingSessionTaxView(session models.ChargingSession) ChargingSessionTaxView {
@@ -681,4 +718,12 @@ func snapshotString(snapshot models.JSONB, key, fallback string) string {
 		return value
 	}
 	return fallback
+}
+
+func snapshotStringPointer(snapshot models.JSONB, key string) *string {
+	value, ok := snapshot[key].(string)
+	if !ok || value == "" {
+		return nil
+	}
+	return &value
 }

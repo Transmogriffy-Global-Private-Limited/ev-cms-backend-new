@@ -1,5 +1,32 @@
 # AI Changelog
 
+## 2026-08-18 - Tariff unit-price semantic correction in local source
+
+- Added forward migration 40 to rename `tariffs.price_per_kwh` and its check
+  constraint to `price_per_unit` without reconstructing or dropping values.
+- Replaced the live tariff/API/model field and require each new tariff to use
+  one supported fixed basis: energy per watt/hour, time per minute, or a fixed
+  per-session amount. The retired request field is rejected.
+- Centralized tariff interpretation for customer price display, start
+  reservation, immutable tariff snapshots, session materialization, and
+  completion settlement. Existing snapshots retain explicit, named legacy
+  per-kWh handling only; no new snapshot writes the old key.
+- Kept tariff time pricing separate from existing time-bounded-session
+  provisioning: actual HAL session timestamps price time tariffs, while the
+  current duration cutoff remains unchanged. GST ownership, tariff precedence,
+  idle-fee non-billing, HAL ownership, and public route shapes are unchanged.
+
+Verification:
+
+- Focused database-free `db`, `models`, `cpo`, and `customerauth` tests cover
+  migration text, retired-field rejection, all three tariff bases, wallet
+  holds, frozen snapshots, and legacy snapshot compatibility.
+- Documentation verification, runtime/OpenAPI/Swagger-route parity, serial
+  `go test ./...`, and serial `go vet ./...` passed locally.
+- This local source change is not deployed. Migration 40 and the guarded
+  PostgreSQL admission/session lifecycle tests have not run because no
+  disposable `TEST_DATABASE_URL` is configured.
+
 ## 2026-08-18 - Rehosted customer aggregates and tariff validation release
 
 - Deployed the latest main release with tenant-scoped customer aggregate

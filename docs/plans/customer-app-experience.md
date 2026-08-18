@@ -241,6 +241,12 @@ exact decimal strings. A missing eligible tariff returns an explicit
 not a charge commitment; a charging session later snapshots the selected tariff
 and tax atomically.
 
+Tariff pricing is explicit in the response: a fixed energy tariff is per
+`watt/hour`, a fixed time tariff is per `minutes` of the actual completed
+session, and a fixed `sessions` tariff is charged once regardless of energy or
+duration. This pricing rule is separate from the existing customer/HAL session
+duration cutoff; the price basis does not configure or change that cutoff.
+
 ### Implemented Endpoints
 
 - `GET /api/v1/app/hubs/{hub_id}/price`

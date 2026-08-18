@@ -545,6 +545,32 @@ func TestWorkerCurrentInstanceMigrationPreservesHistoryAndOneCurrentProjection(t
 	}
 }
 
+func TestTariffPriceRenameMigrationPreservesTheExistingColumn(t *testing.T) {
+	t.Parallel()
+
+	upBody, err := migrationFiles.ReadFile("migrations/000040_rename_tariff_price_per_unit.up.sql")
+	if err != nil {
+		t.Fatalf("read tariff-price rename migration: %v", err)
+	}
+	downBody, err := migrationFiles.ReadFile("migrations/000040_rename_tariff_price_per_unit.down.sql")
+	if err != nil {
+		t.Fatalf("read tariff-price rename rollback: %v", err)
+	}
+	upSQL, downSQL := string(upBody), string(downBody)
+	for _, required := range []string{
+		"RENAME COLUMN price_per_kwh TO price_per_unit",
+		"RENAME CONSTRAINT chk_tariffs_price TO chk_tariffs_price_per_unit",
+	} {
+		if !strings.Contains(upSQL, required) {
+			t.Errorf("tariff-price migration missing %q", required)
+		}
+	}
+	if strings.Contains(upSQL, "DROP COLUMN") ||
+		!strings.Contains(downSQL, "RENAME COLUMN price_per_unit TO price_per_kwh") {
+		t.Error("tariff-price migration is not a reversible data-preserving rename")
+	}
+}
+
 func TestSubscriptionMigrationContainsVersionedLifecycle(t *testing.T) {
 	t.Parallel()
 

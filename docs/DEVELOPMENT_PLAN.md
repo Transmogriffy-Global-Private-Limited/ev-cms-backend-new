@@ -112,6 +112,7 @@ Current phase:
 Active work:
 
 - `docs/work/active/WI-20260812-cms-hal-operational-capabilities.md`.
+- `docs/work/active/WI-20260818-tariff-price-per-unit-semantics.md`.
 
 Current implementation state:
 
@@ -162,6 +163,12 @@ Current implementation state:
   `AVAILABLE` and `FRESH` connector projection state, while same-customer
   active-intent replay remains available before that live-state gate. Connector
   row locking serializes the final active-intent recheck.
+- The working tree contains an uncommitted tariff semantic correction awaiting
+  the normal broad verification: forward migration 40 renames the durable
+  price to `price_per_unit`; fixed energy, time, and session pricing receive
+  explicit units/meaning across CPO writes, customer price, admission,
+  snapshots, and settlement. It does not change the existing HAL/customer
+  duration cutoff and is not deployed.
 
 Next required slice:
 

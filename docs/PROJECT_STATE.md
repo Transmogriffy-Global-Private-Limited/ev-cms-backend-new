@@ -2,6 +2,26 @@
 
 ## Current State
 
+### 2026-08-18 — Tariff unit-price semantic correction in source, not deployed
+
+- An uncommitted source slice adds migration
+  `000040_rename_tariff_price_per_unit`, which preserves tariff values while
+  renaming the misleading durable column to `price_per_unit`. New CPO writes
+  and current tariff/customer responses use that name; `price_per_kwh` is
+  rejected for writes.
+- Supported fixed charging tariffs are explicit: energy per `watt/hour`, time
+  per `minutes`, or one fixed `sessions` amount. The User App price response,
+  charging admission hold, frozen start-intent/session snapshot, and
+  settlement all use the same interpretation. GST continues to come from the
+  charger hub and tariff precedence remains `USERGROUP > CHARGER > HUB`.
+- Time pricing uses the actual session duration from the HAL start/complete
+  facts. It does not alter the independent existing customer/HAL duration
+  cutoff. New snapshots contain their semantic fields; historical snapshots
+  with `price_per_kwh` are read only through a deliberately named legacy path.
+- This change is not deployed and migration 40 has not been applied to any
+  database. Disposable PostgreSQL lifecycle verification remains pending an
+  explicitly selected `TEST_DATABASE_URL`.
+
 ### 2026-08-18 — Customer aggregates and tariff validation release deployed
 
 - CPO customer list/detail responses now include tenant-scoped total usage,

@@ -127,7 +127,7 @@ func TestGORMColumnMappingsMatchMigration(t *testing.T) {
 		{model: &GST{}, field: "SGSTRate", database: "sgst_rate"},
 		{model: &GST{}, field: "CGSTRate", database: "cgst_rate"},
 		{model: &GST{}, field: "IGSTRate", database: "igst_rate"},
-		{model: &Tariff{}, field: "PricePerKWh", database: "price_per_kwh"},
+		{model: &Tariff{}, field: "PricePerUnit", database: "price_per_unit"},
 		{model: &Tariff{}, field: "AssignedTo", database: "assigned_to"},
 	}
 

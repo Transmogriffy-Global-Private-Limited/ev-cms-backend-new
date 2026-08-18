@@ -27,7 +27,10 @@ type CustomerPriceResponse struct {
 	Status            string           `json:"status"`
 	EffectiveAt       time.Time        `json:"effective_at"`
 	Currency          string           `json:"currency,omitempty"`
-	PricePerKWh       string           `json:"price_per_kwh,omitempty"`
+	PricePerUnit      string           `json:"price_per_unit,omitempty"`
+	TariffType        string           `json:"tariff_type,omitempty"`
+	PriceType         string           `json:"price_type,omitempty"`
+	Units             *string          `json:"units,omitempty"`
 	IdleFeePerMinute  string           `json:"idle_fee_per_minute,omitempty"`
 	GST               *CustomerGSTView `json:"gst,omitempty"`
 	UnavailableReason string           `json:"unavailable_reason,omitempty"`
@@ -84,6 +87,11 @@ func (service *Service) resolveCustomerPrice(ctx context.Context, principal Prin
 	if err != nil || !ok {
 		return response
 	}
+	pricing, err := tariffPricingFromTariff(selected)
+	if err != nil {
+		response.UnavailableReason = "unsupported_tariff_pricing"
+		return response
+	}
 	gst, ok, err := resolveActiveHubGST(service.database.WithContext(ctx), principal.CPOID, hubID)
 	if err != nil || !ok {
 		response.UnavailableReason = "hub_gst_unavailable"
@@ -91,7 +99,13 @@ func (service *Service) resolveCustomerPrice(ctx context.Context, principal Prin
 	}
 	response.Status = customerPriceAvailable
 	response.Currency = selected.Currency
-	response.PricePerKWh = selected.PricePerKWh.StringFixed(4)
+	response.PricePerUnit = selected.PricePerUnit.StringFixed(4)
+	response.TariffType = string(pricing.tariffType)
+	response.PriceType = string(pricing.priceType)
+	if pricing.units != nil {
+		units := string(*pricing.units)
+		response.Units = &units
+	}
 	response.IdleFeePerMinute = selected.IdleFeePerMin.StringFixed(4)
 	response.UnavailableReason = ""
 	response.GST = &CustomerGSTView{SGSTRate: gst.SGSTRate.StringFixed(2), CGSTRate: gst.CGSTRate.StringFixed(2), IGSTRate: gst.IGSTRate.StringFixed(2)}

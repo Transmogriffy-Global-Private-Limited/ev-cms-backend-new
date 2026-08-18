@@ -2489,7 +2489,7 @@ func (service *Service) CreateHubTariff(
 			AssignedTo:    constants.TariffAssignedHub,
 			ChargerID:     request.ChargerID,
 			UserGroupID:   request.UserGroupID,
-			PricePerKWh:   request.PricePerKWh,
+			PricePerUnit:  request.PricePerUnit,
 			IdleFeePerMin: request.IdleFeePerMin,
 			Currency:      request.Currency,
 			IsActive:      isActive,
@@ -2627,10 +2627,10 @@ func (service *Service) UpdateHubTariff(
 			return err
 		}
 
-		if request.PricePerKWh != nil {
-			updates["price_per_kwh"] = *request.PricePerKWh
-			record.PricePerKWh = *request.PricePerKWh
-			changedFields["price_per_kwh"] = *request.PricePerKWh
+		if request.PricePerUnit != nil {
+			updates["price_per_unit"] = *request.PricePerUnit
+			record.PricePerUnit = *request.PricePerUnit
+			changedFields["price_per_unit"] = *request.PricePerUnit
 		}
 		if request.IdleFeePerMin != nil {
 			updates["idle_fee_per_min"] = *request.IdleFeePerMin
@@ -2679,6 +2679,9 @@ func (service *Service) UpdateHubTariff(
 				Code:    "invalid_request",
 				Message: "At least one tariff field must be supplied.",
 			}
+		}
+		if err := validateTariffSemantics(record.TariffType, record.PriceType, record.Units); err != nil {
+			return err
 		}
 		now := service.now()
 		updates["updated_at"] = now
@@ -2749,7 +2752,7 @@ func (service *Service) CreateChargerTariff(
 			AssignedTo:    constants.TariffAssignedCharger,
 			ChargerID:     request.ChargerID,
 			UserGroupID:   request.UserGroupID,
-			PricePerKWh:   request.PricePerKWh,
+			PricePerUnit:  request.PricePerUnit,
 			IdleFeePerMin: request.IdleFeePerMin,
 			Currency:      request.Currency,
 			IsActive:      isActive,
@@ -2887,10 +2890,10 @@ func (service *Service) UpdateChargerTariff(
 			return err
 		}
 
-		if request.PricePerKWh != nil {
-			updates["price_per_kwh"] = *request.PricePerKWh
-			record.PricePerKWh = *request.PricePerKWh
-			changedFields["price_per_kwh"] = *request.PricePerKWh
+		if request.PricePerUnit != nil {
+			updates["price_per_unit"] = *request.PricePerUnit
+			record.PricePerUnit = *request.PricePerUnit
+			changedFields["price_per_unit"] = *request.PricePerUnit
 		}
 		if request.IdleFeePerMin != nil {
 			updates["idle_fee_per_min"] = *request.IdleFeePerMin
@@ -2939,6 +2942,9 @@ func (service *Service) UpdateChargerTariff(
 				Code:    "invalid_request",
 				Message: "At least one tariff field must be supplied.",
 			}
+		}
+		if err := validateTariffSemantics(record.TariffType, record.PriceType, record.Units); err != nil {
+			return err
 		}
 		now := service.now()
 		updates["updated_at"] = now
@@ -3008,7 +3014,7 @@ func (service *Service) CreateUserGroupTariff(
 			AssignedTo:    constants.TariffAssignedUserGroup,
 			ChargerID:     request.ChargerID,
 			UserGroupID:   request.UserGroupID,
-			PricePerKWh:   request.PricePerKWh,
+			PricePerUnit:  request.PricePerUnit,
 			IdleFeePerMin: request.IdleFeePerMin,
 			Currency:      request.Currency,
 			IsActive:      isActive,
@@ -3146,10 +3152,10 @@ func (service *Service) UpdateUserGroupTariff(
 			return err
 		}
 
-		if request.PricePerKWh != nil {
-			updates["price_per_kwh"] = *request.PricePerKWh
-			record.PricePerKWh = *request.PricePerKWh
-			changedFields["price_per_kwh"] = *request.PricePerKWh
+		if request.PricePerUnit != nil {
+			updates["price_per_unit"] = *request.PricePerUnit
+			record.PricePerUnit = *request.PricePerUnit
+			changedFields["price_per_unit"] = *request.PricePerUnit
 		}
 		if request.IdleFeePerMin != nil {
 			updates["idle_fee_per_min"] = *request.IdleFeePerMin
@@ -3198,6 +3204,9 @@ func (service *Service) UpdateUserGroupTariff(
 				Code:    "invalid_request",
 				Message: "At least one tariff field must be supplied.",
 			}
+		}
+		if err := validateTariffSemantics(record.TariffType, record.PriceType, record.Units); err != nil {
+			return err
 		}
 		now := service.now()
 		updates["updated_at"] = now
@@ -5115,8 +5124,8 @@ func normalizeUpdateTariffRequest(request UpdateTariffRequest) UpdateTariffReque
 }
 
 func validateCreateTariffRequest(request CreateTariffRequest) error {
-	if request.PricePerKWh.Sign() < 0 {
-		return invalid("price_per_kwh", "Price per kWh must not be negative.")
+	if request.PricePerUnit.Sign() < 0 {
+		return invalid("price_per_unit", "Price per unit must not be negative.")
 	}
 	if request.IdleFeePerMin.Sign() < 0 {
 		return invalid("idle_fee_per_min", "Idle fee per minute must not be negative.")
@@ -5136,11 +5145,11 @@ func validateCreateTariffRequest(request CreateTariffRequest) error {
 	if request.Units != nil && !request.Units.Valid() {
 		return invalid("units", "Invalid units.")
 	}
-	return nil
+	return validateTariffSemantics(request.TariffType, request.PriceType, request.Units)
 }
 
 func validateUpdateTariffRequest(request UpdateTariffRequest) error {
-	if request.PricePerKWh == nil &&
+	if request.PricePerUnit == nil &&
 		request.IdleFeePerMin == nil &&
 		request.Currency == nil &&
 		request.IsActive == nil &&
@@ -5152,8 +5161,8 @@ func validateUpdateTariffRequest(request UpdateTariffRequest) error {
 		return invalid("tariff", "At least one tariff field must be supplied.")
 	}
 
-	if request.PricePerKWh != nil && request.PricePerKWh.Sign() < 0 {
-		return invalid("price_per_kwh", "Price per kWh must not be negative.")
+	if request.PricePerUnit != nil && request.PricePerUnit.Sign() < 0 {
+		return invalid("price_per_unit", "Price per unit must not be negative.")
 	}
 	if request.IdleFeePerMin != nil && request.IdleFeePerMin.Sign() < 0 {
 		return invalid("idle_fee_per_min", "Idle fee per minute must not be negative.")
@@ -5171,6 +5180,17 @@ func validateUpdateTariffRequest(request UpdateTariffRequest) error {
 		return invalid("units", "Invalid units.")
 	}
 	return nil
+}
+
+func validateTariffSemantics(tariffType *constants.TariffType, priceType *constants.PriceType, units *constants.Unit) error {
+	if constants.SupportedChargingTariff(tariffType, priceType, units) {
+		return nil
+	}
+	return &auth.APIError{
+		Status:  http.StatusBadRequest,
+		Code:    "unsupported_tariff_pricing",
+		Message: "Supported tariffs are fixed energy per watt/hour, fixed time per minute, or fixed per session.",
+	}
 }
 
 func validateTariffDateRange(startDate, endDate *time.Time) error {
@@ -5216,7 +5236,7 @@ func (service *Service) tariffView(record *models.Tariff) TariffView {
 		HubID:         record.HubID,
 		ChargerID:     record.ChargerID,
 		UserGroupID:   record.UserGroupID,
-		PricePerKWh:   record.PricePerKWh,
+		PricePerUnit:  record.PricePerUnit,
 		IdleFeePerMin: record.IdleFeePerMin,
 		Currency:      record.Currency,
 		IsActive:      record.IsActive,

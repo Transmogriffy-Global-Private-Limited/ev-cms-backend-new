@@ -290,7 +290,7 @@ type Tariff struct {
 	Charger       *Charger                       `gorm:"foreignKey:ChargerID;constraint:OnUpdate:CASCADE,OnDelete:RESTRICT" json:"charger,omitempty"`
 	UserGroupID   *uuid.UUID                     `gorm:"type:uuid;index" json:"user_group_id,omitempty"`
 	UserGroup     *UserGroup                     `gorm:"foreignKey:UserGroupID;constraint:OnUpdate:CASCADE,OnDelete:RESTRICT" json:"user_group,omitempty"`
-	PricePerKWh   decimal.Decimal                `gorm:"column:price_per_kwh;type:numeric(12,4);not null" json:"price_per_kwh"`
+	PricePerUnit  decimal.Decimal                `gorm:"column:price_per_unit;type:numeric(12,4);not null" json:"price_per_unit"`
 	IdleFeePerMin decimal.Decimal                `gorm:"type:numeric(12,4);not null;default:0" json:"idle_fee_per_min"`
 	Currency      string                         `gorm:"type:char(3);not null;default:'INR'" json:"currency"`
 	IsActive      bool                           `gorm:"not null;default:true" json:"is_active"`

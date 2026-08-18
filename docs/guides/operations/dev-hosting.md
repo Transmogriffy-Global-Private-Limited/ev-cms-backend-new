@@ -57,10 +57,12 @@ HAL-command, fact-receipt, mapping, and runtime-projection tables. The current
 CMS environment leaves the optional HAL v1 base URL and credentials unset, so
 customer charging reports `hal_unavailable` until an approved independent HAL
 provider is configured.
-Migration twenty-nine adds nullable tariff metadata fields
-`tariff_type`, `price_type`, and `units`; omitted values remain null and do not
-overwrite existing tariff metadata. The SuperAdmin administrator list binds its
-platform-admin model explicitly.
+Migration twenty-nine adds tariff metadata fields `tariff_type`, `price_type`,
+and `units`. Migration forty renames the durable tariff price column to
+`price_per_unit` without changing stored numeric values. New tariff writes
+must select a supported fixed energy/watt-hour, time/minutes, or per-session
+pricing basis; incomplete legacy rows are not guessed for new charging. The
+SuperAdmin administrator list binds its platform-admin model explicitly.
 Migration thirty adds one tenant-scoped `settings` row per CPO for invoice-note
 and invoice-logo metadata. Its UUID and CPO foreign key follow the existing
 `gen_random_uuid()` and `cpos` conventions.

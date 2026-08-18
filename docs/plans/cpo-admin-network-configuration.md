@@ -137,7 +137,7 @@ Completed evidence:
   updates, hub/charger/connector/GST/tariff writes, generated identifiers,
   ADMIN-only enforcement, audit evidence, and dependency-safe charger delete.
 - PostgreSQL verification exposed and fixed explicit `open_24_hours` and
-  `price_per_kwh` GORM mappings plus SQLSTATE `23001` handling for the
+  tariff-price GORM mapping plus SQLSTATE `23001` handling for the
   documented `charger_in_use` conflict. Focused regression tests cover these
   database compatibility boundaries.
 - Revision `4502934` and migrations through nineteen are deployed. The migration live

@@ -389,16 +389,24 @@ export type CustomerPriceResponse = {
   status: "AVAILABLE" | "UNAVAILABLE";
   effective_at: string;
   currency?: string;
-  price_per_kwh?: string;
+  price_per_unit?: string;
+  tariff_type?: "fixed";
+  price_type?: "sessions" | "time" | "energy";
+  units?: "minutes" | "watt/hour";
   idle_fee_per_minute?: string;
   gst?: {
     sgst_rate: string;
     cgst_rate: string;
     igst_rate: string;
   };
-  unavailable_reason?: "no_eligible_tariff";
+  unavailable_reason?: "no_eligible_tariff" | "hub_gst_unavailable" | "unsupported_tariff_pricing";
 };
 ```
+
+For an `AVAILABLE` price, render `price_per_unit` only with its declared
+`price_type` and `units`: `energy` is per `watt/hour`, `time` is per `minutes`,
+and `sessions` is one fixed session amount with `units` omitted. Do not assume
+that a price means per kWh.
 
 `me.user` is a compatibility presentation object. `me.user.id` always equals
 `me.customer.id`; both are the CPO-local `customer_id`.
