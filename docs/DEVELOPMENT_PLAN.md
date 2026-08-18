@@ -189,8 +189,10 @@ Current implementation state:
   retains UserGroup > Charger > Hub as the primary selector, protects the
   customer-visible Hub root floor, and makes target identity immutable after
   creation. Visible Hub creation follows hidden Hub → root tariff → publish;
-  resolver infrastructure errors remain 5xx rather than commercial absence. It
-  is not deployed or database-verified.
+  resolver infrastructure errors remain 5xx rather than commercial absence.
+  Its direct-DB Hub publication/root-topology race is serialized with the same
+  `tariff:<cpo_id>:hub:<hub_id>` advisory transaction key. It is not deployed
+  or database-verified.
 - CPO charger-transaction reads are deployed in revision `a5d1af4`; no
   migration was required.
 

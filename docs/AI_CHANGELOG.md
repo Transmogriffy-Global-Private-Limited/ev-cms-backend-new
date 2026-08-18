@@ -1,5 +1,19 @@
 # AI Changelog
 
+## 2026-08-18 - Hub publication/root tariff concurrency closure
+
+- Amended source-only migration 44 so the customer-visible Hub root-floor
+  trigger takes `tariff:<cpo_id>:hub:<hub_id>` before reading the root tariff.
+  That is the exact advisory transaction key already used by Hub tariff
+  mutations, closing the direct-DB publication/deactivation race.
+- Extended static migration coverage to require the Hub guard function, the
+  exact lock expression, and lock acquisition before the root-floor query.
+
+Verification:
+
+- Passed the database-free migration static test, repository-wide Go test/vet,
+  and documentation verification. PostgreSQL runtime execution was not run.
+
 ## 2026-08-18 - Temporal tariff release-blocker closure
 
 - Rejected `customer_visible:true` before initial Hub insertion with the stable

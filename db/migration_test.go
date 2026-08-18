@@ -395,6 +395,26 @@ func TestTemporalTariffFallbackMigrationGuardsHierarchyAndPublishedHubFloor(t *t
 			t.Errorf("up migration is missing %q", required)
 		}
 	}
+	hubRootGuardStart := strings.Index(upSQL, "CREATE OR REPLACE FUNCTION guard_customer_visible_hub_tariff_root()")
+	if hubRootGuardStart < 0 {
+		t.Fatal("up migration is missing guard_customer_visible_hub_tariff_root")
+	}
+	hubRootGuardEnd := strings.Index(upSQL[hubRootGuardStart:], "$$;")
+	if hubRootGuardEnd < 0 {
+		t.Fatal("could not isolate guard_customer_visible_hub_tariff_root body")
+	}
+	hubRootGuard := upSQL[hubRootGuardStart : hubRootGuardStart+hubRootGuardEnd]
+	hubLock := "pg_advisory_xact_lock(hashtextextended('tariff:' || NEW.cpo_id::text || ':hub:' || NEW.id::text, 0))"
+	hubLockIndex := strings.Index(hubRootGuard, hubLock)
+	rootFloorCheckIndex := strings.Index(hubRootGuard, "IF NOT EXISTS (")
+	if hubLockIndex < 0 {
+		t.Errorf("Hub root guard does not acquire the tariff Hub advisory lock %q", hubLock)
+	}
+	if rootFloorCheckIndex < 0 {
+		t.Error("Hub root guard is missing its root-floor check")
+	} else if hubLockIndex >= rootFloorCheckIndex {
+		t.Error("Hub root guard must acquire the tariff Hub advisory lock before its root-floor check")
+	}
 	for _, required := range []string{
 		"cannot roll back temporal tariff fallback",
 		"DROP TRIGGER IF EXISTS tariffs_temporal_target_guard",

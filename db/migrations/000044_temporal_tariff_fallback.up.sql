@@ -184,13 +184,15 @@ RETURNS trigger
 LANGUAGE plpgsql
 AS $$
 BEGIN
-    IF NEW.customer_visible
-       AND NOT EXISTS (
-           SELECT 1 FROM tariffs
-           WHERE cpo_id = NEW.cpo_id AND assigned_to = 'hub'::tariff_assignment_type
-             AND hub_id = NEW.id AND is_active AND start_date IS NULL AND end_date IS NULL
-       ) THEN
-        RAISE EXCEPTION 'customer-visible hub requires one enabled unbounded hub tariff' USING ERRCODE = '23514';
+    IF NEW.customer_visible THEN
+        PERFORM pg_advisory_xact_lock(hashtextextended('tariff:' || NEW.cpo_id::text || ':hub:' || NEW.id::text, 0));
+        IF NOT EXISTS (
+            SELECT 1 FROM tariffs
+            WHERE cpo_id = NEW.cpo_id AND assigned_to = 'hub'::tariff_assignment_type
+              AND hub_id = NEW.id AND is_active AND start_date IS NULL AND end_date IS NULL
+        ) THEN
+            RAISE EXCEPTION 'customer-visible hub requires one enabled unbounded hub tariff' USING ERRCODE = '23514';
+        END IF;
     END IF;
     RETURN NEW;
 END;

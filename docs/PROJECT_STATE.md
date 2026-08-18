@@ -18,6 +18,11 @@
   tariff target identity immutable in migration 44. Resolver topology failures
   fail closed as commercial unavailability, while query/infrastructure failures
   propagate to normal error handling rather than being mislabeled as no tariff.
+- A final source-only concurrency correction makes the Hub publication trigger
+  acquire the same transaction advisory key as Hub tariff topology mutation:
+  `tariff:<cpo_id>:hub:<hub_id>`. Direct concurrent publication and root
+  deactivation/deletion can no longer both commit into a visible Hub without a
+  root tariff.
 - This is source state only: migration 44 has not been applied, no service was
   restarted or deployed, and PostgreSQL lifecycle/concurrency verification is
   pending an explicitly selected disposable `TEST_DATABASE_URL`.
