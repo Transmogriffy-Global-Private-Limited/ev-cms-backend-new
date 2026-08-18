@@ -2,12 +2,14 @@
 
 ## 2026-08-18 - Rehosted CPO charger transaction reads
 
-- Rebuilt and rehosted revision `798c26a` after adding the tenant-scoped
+- Rebuilt and rehosted revision `a5d1af4` after adding the tenant-scoped
   `GET /api/v1/cpo/charger-transactions` cursor-paginated read with optional
   charger/customer filters. No migration was required.
 - Added the human contract and corrected the OpenAPI financial-status enum to
   include runtime-supported `REFUNDED`; the live contract now contains 183
   operations.
+- Binary SHA-256 is
+  `c786df05b310487fb84c6a6f85ab4c769249396f32ac6d0f027efb8c0b273669`.
 
 ## 2026-08-18 - Rehosted tariff PATCH and frozen GST snapshot hardening
 

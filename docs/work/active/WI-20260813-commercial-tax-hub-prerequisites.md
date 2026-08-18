@@ -45,7 +45,7 @@ charger's hub, and prevent hubless chargers from being active or customer-visibl
 ## Current state
 
 - Core model, resolver, start snapshot, charger guard, migration, and deployment
-  work is implemented. Revision `798c26a` is active with migrations through 43;
+  work is implemented. Revision `a5d1af4` is active with migrations through 43;
   the service has 183 operations and healthy public/local readiness.
 
 ## Verification

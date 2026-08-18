@@ -10,8 +10,10 @@
   financial-status projections without contacting the HAL.
 - The authoritative OpenAPI contract now includes the full financial-status
   enum, including `REFUNDED`, and the transaction response schemas.
-- No database migration was required. Runtime revision `798c26a` is active
-  with the live contract expanded to 183 operations.
+- No database migration was required. Runtime revision `a5d1af4` is active
+  with binary SHA-256
+  `c786df05b310487fb84c6a6f85ab4c769249396f32ac6d0f027efb8c0b273669` and
+  the live contract expanded to 183 operations.
 
 ### 2026-08-18 — Tariff PATCH and frozen-settlement hardening deployed
 
@@ -43,7 +45,7 @@
 - Corrected the authoritative analytics response schema to match the runtime:
   counts are non-negative integers and decimal revenue/usage values serialize
   as strings.
-- No database migration was required. Runtime revision `798c26a` is active with
+- No database migration was required. Runtime revision `a5d1af4` is active with
   binary SHA-256
   `d62b01cad7b25bd4ddd0c82407ce7ee94dd7d03680879edb57057cbd526b9348` and
   the live OpenAPI contract contains 182 operations.

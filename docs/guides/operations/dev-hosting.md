@@ -29,7 +29,7 @@ that setting; it must not be used until the OCPP host is explicitly configured
 with TLS/WebSocket support.
 
 The active deployment was updated on August 18, 2026 to runtime source revision
-`798c26a`. It has migrations one through forty-three and the current
+`a5d1af4`. It has migrations one through forty-three and the current
 183-operation API. No migration was required for the CPO analytics,
 hub-scoped charger-list, charger-transaction, or tariff PATCH/frozen-settlement
 changes.
