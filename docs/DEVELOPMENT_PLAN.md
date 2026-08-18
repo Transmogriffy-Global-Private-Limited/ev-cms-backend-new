@@ -996,6 +996,11 @@ Current implementation slice:
   interpretation, Hub/GST mutation invariants, runtime GST defense, and the
   CPO frontend handoff are verified. Disposable PostgreSQL lifecycle coverage
   remains pending an explicitly selected `TEST_DATABASE_URL`.
+- Tariff PATCH and frozen-settlement hardening is complete in source: omitted,
+  null, and value semantics are explicit for mutable units/schedule fields;
+  all three tariff scopes apply and validate the resulting row through one
+  shared helper; immutable GST snapshots validate their own commercial
+  components without a current Hub/GST lookup. No migration is required.
 - Wallet admission policy is complete in source and ready for its
   migration-controlled deployment: migration forty-three backfills a blank
   settings row for every existing CPO while new CPO provisioning creates the
@@ -1015,6 +1020,9 @@ Last completed slice:
   tariff writes, customer price, admission, immutable snapshots, and
   settlement; protected the complete Hub/GST relationship across later
   mutations; and published the CPO frontend integration handoff.
+- Hardened tariff PATCH intent and frozen settlement: `units:null` clears the
+  session basis units, paired null dates clear a schedule, and malformed GST
+  components in a historical snapshot fail safely without mutable GST reads.
 - Completed User App consumption of committed HAL operational projections for
   every full charger response without N+1 reads, preserving compact map-only
   location payloads, and added the canonical CPO backend HAL operational

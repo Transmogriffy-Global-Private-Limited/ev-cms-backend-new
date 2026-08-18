@@ -127,13 +127,8 @@ func applyGST(baseAmount decimal.Decimal, gst models.GST) (decimal.Decimal, erro
 }
 
 func gstMultiplier(gst models.GST) (decimal.Decimal, error) {
-	if gst.SGSTRate == nil || gst.CGSTRate == nil || gst.IGSTRate == nil {
+	if err := commercial.ValidateGSTComponents(gst.SGSTRate, gst.CGSTRate, gst.IGSTRate); err != nil {
 		return decimal.Zero, errUnsupportedTariffSemantics
-	}
-	for _, rate := range []*decimal.Decimal{gst.SGSTRate, gst.CGSTRate, gst.IGSTRate} {
-		if rate.Sign() < 0 || rate.Cmp(decimal.NewFromInt(100)) > 0 {
-			return decimal.Zero, errUnsupportedTariffSemantics
-		}
 	}
 	return commercial.GSTMultiplier(*gst.SGSTRate, *gst.CGSTRate, *gst.IGSTRate), nil
 }
@@ -147,6 +142,9 @@ func (pricing tariffPricing) amountWithTaxSnapshot(consumedWh int64, startedAt, 
 	cgst, cgstOK := snapshotDecimalValue(tax, "cgst_rate")
 	igst, igstOK := snapshotDecimalValue(tax, "igst_rate")
 	if !sgstOK || !cgstOK || !igstOK {
+		return decimal.Zero, errUnsupportedTariffSemantics
+	}
+	if err := commercial.ValidateGSTComponents(&sgst, &cgst, &igst); err != nil {
 		return decimal.Zero, errUnsupportedTariffSemantics
 	}
 	return baseAmount.Mul(commercial.GSTMultiplier(sgst, cgst, igst)).Round(2), nil

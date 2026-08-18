@@ -1,6 +1,8 @@
 package cpo
 
 import (
+	"bytes"
+	"encoding/json"
 	"time"
 
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/constants"
@@ -8,6 +10,40 @@ import (
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 )
+
+// NullablePatchField preserves the difference between an omitted PATCH field,
+// an explicit JSON null, and a concrete JSON value. It is deliberately used
+// only where clearing a nullable tariff field is a supported operation.
+type NullablePatchField[T any] struct {
+	present bool
+	value   *T
+}
+
+func (field *NullablePatchField[T]) UnmarshalJSON(data []byte) error {
+	field.present = true
+	if bytes.Equal(bytes.TrimSpace(data), []byte("null")) {
+		field.value = nil
+		return nil
+	}
+	var value T
+	if err := json.Unmarshal(data, &value); err != nil {
+		return err
+	}
+	field.value = &value
+	return nil
+}
+
+func (field NullablePatchField[T]) Present() bool { return field.present }
+
+func (field NullablePatchField[T]) Value() *T { return field.value }
+
+func PatchValue[T any](value T) NullablePatchField[T] {
+	return NullablePatchField[T]{present: true, value: &value}
+}
+
+func PatchNull[T any]() NullablePatchField[T] {
+	return NullablePatchField[T]{present: true}
+}
 
 type CreateRequest struct {
 	Slug         string                   `json:"slug"`
@@ -442,15 +478,15 @@ type CreateTariffRequest struct {
 }
 
 type UpdateTariffRequest struct {
-	PricePerUnit  *decimal.Decimal      `json:"price_per_unit,omitempty"`
-	IdleFeePerMin *decimal.Decimal      `json:"idle_fee_per_min,omitempty"`
-	Currency      *string               `json:"currency,omitempty"`
-	IsActive      *bool                 `json:"is_active,omitempty"`
-	StartDate     *time.Time            `json:"start_date,omitempty"`
-	EndDate       *time.Time            `json:"end_date,omitempty"`
-	TariffType    *constants.TariffType `json:"tariff_type,omitempty"`
-	PriceType     *constants.PriceType  `json:"price_type,omitempty"`
-	Units         *constants.Unit       `json:"units,omitempty"`
+	PricePerUnit  *decimal.Decimal                   `json:"price_per_unit,omitempty"`
+	IdleFeePerMin *decimal.Decimal                   `json:"idle_fee_per_min,omitempty"`
+	Currency      *string                            `json:"currency,omitempty"`
+	IsActive      *bool                              `json:"is_active,omitempty"`
+	StartDate     NullablePatchField[time.Time]      `json:"start_date,omitempty"`
+	EndDate       NullablePatchField[time.Time]      `json:"end_date,omitempty"`
+	TariffType    *constants.TariffType              `json:"tariff_type,omitempty"`
+	PriceType     *constants.PriceType               `json:"price_type,omitempty"`
+	Units         NullablePatchField[constants.Unit] `json:"units,omitempty"`
 }
 
 type TariffView struct {

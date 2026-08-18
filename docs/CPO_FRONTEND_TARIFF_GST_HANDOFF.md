@@ -106,14 +106,37 @@ For `sessions`, omit `units`. For `energy`, use only `kwh`; for `time`, use
 only `minutes`. Do not send `null` as a substitute for an omitted property
 unless the frontend's serializer is known to omit it.
 
-### Update body and resulting-state validation
+### Update body, explicit clearing, and resulting-state validation
 
-`PATCH` accepts any non-empty subset of the create fields. It cannot move the
-tariff to another target. The server applies the patch to the full stored row
-and validates the result, so a partial update can fail when it would create an
-invalid combination or active non-zero idle fee. A UI changing price basis
-should submit its complete final trio (`tariff_type`, `price_type`, `units`) in
-one request.
+`PATCH` accepts any non-empty subset of the create fields and cannot move the
+tariff to another target. Omitted properties retain their stored values.
+Unlike create, PATCH gives `units`, `start_date`, and `end_date` a deliberate
+`null` meaning:
+
+- `units: null` clears units; use it when changing to `price_type: "sessions"`.
+- `start_date: null` and `end_date: null` together clear a previously scheduled
+  tariff, making it open-ended.
+- Do not send only one null date, only one supplied date, or an end at/before
+  its start; each fails validation.
+
+The server applies the patch to the full stored row and validates the result,
+so a basis change must submit its complete final trio in one request. Examples:
+
+```json
+{"tariff_type":"fixed","price_type":"sessions","units":null}
+```
+
+```json
+{"tariff_type":"fixed","price_type":"time","units":"minutes"}
+```
+
+```json
+{"start_date":null,"end_date":null}
+```
+
+The UI should omit `units` for a normal price-only PATCH. It must not present
+`watt/hour` as an editable option: that value is accepted only when displaying
+historical frozen session data, never in a current tariff request.
 
 ### Tariff response
 

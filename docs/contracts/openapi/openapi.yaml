@@ -8903,7 +8903,7 @@ components:
       type: object
       additionalProperties: false
       minProperties: 1
-      description: Updates commercial fields only. A tariff's target remains the nested route target for its lifetime. The resulting tariff must use a supported fixed price_type/units combination.
+      description: Updates commercial fields only. A tariff's target remains the nested route target for its lifetime. Omitted fields remain unchanged. For units, start_date, and end_date, explicit null clears the stored value. The resulting tariff must use a supported fixed price_type/units combination and an open-ended or complete valid schedule.
       properties:
         price_per_unit: {$ref: "#/components/schemas/DecimalInput"}
         idle_fee_per_min:
@@ -8916,11 +8916,13 @@ components:
         start_date:
           type: string
           format: date-time
-          description: Validated with the resulting end_date.
+          nullable: true
+          description: Omit to retain the current value; send null with end_date null to clear the complete schedule. A supplied value is validated with the resulting end_date.
         end_date:
           type: string
           format: date-time
-          description: Validated with the resulting start_date.
+          nullable: true
+          description: Omit to retain the current value; send null with start_date null to clear the complete schedule. A supplied value is validated with the resulting start_date.
         tariff_type:
           type: string
           enum: [fixed]
@@ -8930,6 +8932,8 @@ components:
         units:
           type: string
           enum: [minutes, kwh]
+          nullable: true
+          description: Omit to retain the current value. Send null when changing to sessions; otherwise energy requires kwh and time requires minutes.
 
     Tariff:
       type: object

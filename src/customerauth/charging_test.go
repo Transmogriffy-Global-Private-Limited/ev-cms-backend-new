@@ -167,6 +167,33 @@ func TestTariffPricingRejectsUnsupportedUnitCombinations(t *testing.T) {
 	}
 }
 
+func TestFrozenTaxSnapshotUsesCommercialComponentValidation(t *testing.T) {
+	t.Parallel()
+
+	pricing := tariffPricing{pricePerUnit: decimal.NewFromInt(10), tariffType: constants.TariffTypeFixed, priceType: constants.PriceTypeEnergy}
+	startedAt := time.Date(2026, 8, 18, 10, 0, 0, 0, time.UTC)
+	stoppedAt := startedAt.Add(time.Hour)
+	for _, test := range []struct {
+		name  string
+		tax   models.JSONB
+		valid bool
+	}{
+		{name: "valid split GST", tax: models.JSONB{"sgst_rate": "9", "cgst_rate": "9", "igst_rate": "0"}, valid: true},
+		{name: "valid IGST", tax: models.JSONB{"sgst_rate": "0", "cgst_rate": "0", "igst_rate": "18"}, valid: true},
+		{name: "mixed GST components", tax: models.JSONB{"sgst_rate": "9", "cgst_rate": "9", "igst_rate": "18"}},
+		{name: "negative component", tax: models.JSONB{"sgst_rate": "-1", "cgst_rate": "0", "igst_rate": "0"}},
+		{name: "over-limit component", tax: models.JSONB{"sgst_rate": "101", "cgst_rate": "0", "igst_rate": "0"}},
+		{name: "missing component", tax: models.JSONB{"sgst_rate": "9", "cgst_rate": "9"}},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			_, err := pricing.amountWithTaxSnapshot(1000, startedAt, stoppedAt, test.tax)
+			if (err == nil) != test.valid {
+				t.Fatalf("tax snapshot result err=%v, want valid=%t", err, test.valid)
+			}
+		})
+	}
+}
+
 func TestTariffSnapshotAndMaterializedSessionFreezePricingSemantics(t *testing.T) {
 	t.Parallel()
 

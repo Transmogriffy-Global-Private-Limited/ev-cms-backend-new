@@ -1,5 +1,29 @@
 # AI Changelog
 
+## 2026-08-18 - Tariff PATCH and frozen GST snapshot hardening in source
+
+- Made tariff PATCH intent explicit for `units`, `start_date`, and `end_date`:
+  omission retains the stored value, explicit `null` clears it, and a concrete
+  value replaces it. Hub, Charger, and UserGroup routes now share the same
+  application helper and validate the resulting tariff before persistence.
+- `units:null` is required when changing to fixed per-session pricing. Both
+  schedule dates must be null to clear a schedule; one-sided schedules remain
+  invalid. The OpenAPI contract and CPO frontend handoff now state the exact
+  request semantics and examples.
+- Completion settlement validates its frozen SGST/CGST/IGST snapshot with the
+  shared commercial component rule, rejecting missing, out-of-range, or mixed
+  split/IGST rates without consulting mutable current Hub/GST state. Released
+  legacy tariff-snapshot readers remain unchanged.
+
+Verification:
+
+- Focused database-free CPO and customer-auth tests cover nullable PATCH
+  decoding, valid/invalid resulting tariff states, schedule clearing, valid
+  GST split/IGST snapshots, and malformed snapshot rejection.
+- No migration, runtime database mutation, deployment, or disposable
+  PostgreSQL lifecycle test was run; the latter still requires
+  `TEST_DATABASE_URL`.
+
 ## 2026-08-18 - Rehosted CPO analytics and hub charger listing APIs
 
 - Rebuilt and rehosted main revision `47b6e41` after adding tenant-scoped

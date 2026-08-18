@@ -2652,58 +2652,11 @@ func (service *Service) UpdateHubTariff(
 			return service.handleTariffError("load tariff", err)
 		}
 
-		updates := map[string]any{}
-		changedFields := models.JSONB{}
-
 		if err := service.validateTariffScope(tx, cpoID, &hubID, nil, nil); err != nil {
 			return err
 		}
 
-		if request.PricePerUnit != nil {
-			updates["price_per_unit"] = *request.PricePerUnit
-			record.PricePerUnit = *request.PricePerUnit
-			changedFields["price_per_unit"] = *request.PricePerUnit
-		}
-		if request.IdleFeePerMin != nil {
-			updates["idle_fee_per_min"] = *request.IdleFeePerMin
-			record.IdleFeePerMin = *request.IdleFeePerMin
-			changedFields["idle_fee_per_min"] = *request.IdleFeePerMin
-		}
-		if request.Currency != nil {
-			updates["currency"] = *request.Currency
-			record.Currency = *request.Currency
-			changedFields["currency"] = *request.Currency
-		}
-		if request.StartDate != nil {
-			updates["start_date"] = request.StartDate
-			record.StartDate = request.StartDate
-			changedFields["start_date"] = request.StartDate
-		}
-		if request.EndDate != nil {
-			updates["end_date"] = request.EndDate
-			record.EndDate = request.EndDate
-			changedFields["end_date"] = request.EndDate
-		}
-		if request.IsActive != nil {
-			updates["is_active"] = *request.IsActive
-			record.IsActive = *request.IsActive
-			changedFields["is_active"] = *request.IsActive
-		}
-		if request.TariffType != nil {
-			updates["tariff_type"] = *request.TariffType
-			record.TariffType = request.TariffType
-			changedFields["tariff_type"] = *request.TariffType
-		}
-		if request.PriceType != nil {
-			updates["price_type"] = *request.PriceType
-			record.PriceType = request.PriceType
-			changedFields["price_type"] = *request.PriceType
-		}
-		if request.Units != nil {
-			updates["units"] = *request.Units
-			record.Units = request.Units
-			changedFields["units"] = *request.Units
-		}
+		updates, changedFields := applyTariffUpdate(&record, request)
 
 		if len(changedFields) == 0 {
 			return &auth.APIError{
@@ -2915,58 +2868,11 @@ func (service *Service) UpdateChargerTariff(
 			return service.handleTariffError("load tariff", err)
 		}
 
-		updates := map[string]any{}
-		changedFields := models.JSONB{}
-
 		if err := service.validateTariffScope(tx, cpoID, nil, &chargerID, nil); err != nil {
 			return err
 		}
 
-		if request.PricePerUnit != nil {
-			updates["price_per_unit"] = *request.PricePerUnit
-			record.PricePerUnit = *request.PricePerUnit
-			changedFields["price_per_unit"] = *request.PricePerUnit
-		}
-		if request.IdleFeePerMin != nil {
-			updates["idle_fee_per_min"] = *request.IdleFeePerMin
-			record.IdleFeePerMin = *request.IdleFeePerMin
-			changedFields["idle_fee_per_min"] = *request.IdleFeePerMin
-		}
-		if request.Currency != nil {
-			updates["currency"] = *request.Currency
-			record.Currency = *request.Currency
-			changedFields["currency"] = *request.Currency
-		}
-		if request.StartDate != nil {
-			updates["start_date"] = request.StartDate
-			record.StartDate = request.StartDate
-			changedFields["start_date"] = request.StartDate
-		}
-		if request.EndDate != nil {
-			updates["end_date"] = request.EndDate
-			record.EndDate = request.EndDate
-			changedFields["end_date"] = request.EndDate
-		}
-		if request.IsActive != nil {
-			updates["is_active"] = *request.IsActive
-			record.IsActive = *request.IsActive
-			changedFields["is_active"] = *request.IsActive
-		}
-		if request.TariffType != nil {
-			updates["tariff_type"] = *request.TariffType
-			record.TariffType = request.TariffType
-			changedFields["tariff_type"] = *request.TariffType
-		}
-		if request.PriceType != nil {
-			updates["price_type"] = *request.PriceType
-			record.PriceType = request.PriceType
-			changedFields["price_type"] = *request.PriceType
-		}
-		if request.Units != nil {
-			updates["units"] = *request.Units
-			record.Units = request.Units
-			changedFields["units"] = *request.Units
-		}
+		updates, changedFields := applyTariffUpdate(&record, request)
 
 		if len(changedFields) == 0 {
 			return &auth.APIError{
@@ -3177,58 +3083,11 @@ func (service *Service) UpdateUserGroupTariff(
 			return service.handleTariffError("load tariff", err)
 		}
 
-		updates := map[string]any{}
-		changedFields := models.JSONB{}
-
 		if err := service.validateTariffScope(tx, cpoID, nil, nil, &userGroupID); err != nil {
 			return err
 		}
 
-		if request.PricePerUnit != nil {
-			updates["price_per_unit"] = *request.PricePerUnit
-			record.PricePerUnit = *request.PricePerUnit
-			changedFields["price_per_unit"] = *request.PricePerUnit
-		}
-		if request.IdleFeePerMin != nil {
-			updates["idle_fee_per_min"] = *request.IdleFeePerMin
-			record.IdleFeePerMin = *request.IdleFeePerMin
-			changedFields["idle_fee_per_min"] = *request.IdleFeePerMin
-		}
-		if request.Currency != nil {
-			updates["currency"] = *request.Currency
-			record.Currency = *request.Currency
-			changedFields["currency"] = *request.Currency
-		}
-		if request.StartDate != nil {
-			updates["start_date"] = request.StartDate
-			record.StartDate = request.StartDate
-			changedFields["start_date"] = request.StartDate
-		}
-		if request.EndDate != nil {
-			updates["end_date"] = request.EndDate
-			record.EndDate = request.EndDate
-			changedFields["end_date"] = request.EndDate
-		}
-		if request.IsActive != nil {
-			updates["is_active"] = *request.IsActive
-			record.IsActive = *request.IsActive
-			changedFields["is_active"] = *request.IsActive
-		}
-		if request.TariffType != nil {
-			updates["tariff_type"] = *request.TariffType
-			record.TariffType = request.TariffType
-			changedFields["tariff_type"] = *request.TariffType
-		}
-		if request.PriceType != nil {
-			updates["price_type"] = *request.PriceType
-			record.PriceType = request.PriceType
-			changedFields["price_type"] = *request.PriceType
-		}
-		if request.Units != nil {
-			updates["units"] = *request.Units
-			record.Units = request.Units
-			changedFields["units"] = *request.Units
-		}
+		updates, changedFields := applyTariffUpdate(&record, request)
 
 		if len(changedFields) == 0 {
 			return &auth.APIError{
@@ -5213,11 +5072,11 @@ func validateUpdateTariffRequest(request UpdateTariffRequest) error {
 		request.IdleFeePerMin == nil &&
 		request.Currency == nil &&
 		request.IsActive == nil &&
-		request.StartDate == nil &&
-		request.EndDate == nil &&
+		!request.StartDate.Present() &&
+		!request.EndDate.Present() &&
 		request.TariffType == nil &&
 		request.PriceType == nil &&
-		request.Units == nil {
+		!request.Units.Present() {
 		return invalid("tariff", "At least one tariff field must be supplied.")
 	}
 
@@ -5236,10 +5095,82 @@ func validateUpdateTariffRequest(request UpdateTariffRequest) error {
 	if request.PriceType != nil && !request.PriceType.Valid() {
 		return invalid("price_type", "Invalid price type.")
 	}
-	if request.Units != nil && !request.Units.Valid() {
+	if request.Units.Present() && request.Units.Value() != nil && !request.Units.Value().Valid() {
 		return invalid("units", "Invalid units.")
 	}
 	return nil
+}
+
+// applyTariffUpdate applies every accepted PATCH field to the in-memory tariff
+// and returns matching persistence and audit projections. Nullable patch fields
+// retain the difference between an omitted key and an explicit JSON null.
+func applyTariffUpdate(tariff *models.Tariff, request UpdateTariffRequest) (map[string]any, models.JSONB) {
+	updates := map[string]any{}
+	changedFields := models.JSONB{}
+	if request.PricePerUnit != nil {
+		updates["price_per_unit"] = *request.PricePerUnit
+		tariff.PricePerUnit = *request.PricePerUnit
+		changedFields["price_per_unit"] = *request.PricePerUnit
+	}
+	if request.IdleFeePerMin != nil {
+		updates["idle_fee_per_min"] = *request.IdleFeePerMin
+		tariff.IdleFeePerMin = *request.IdleFeePerMin
+		changedFields["idle_fee_per_min"] = *request.IdleFeePerMin
+	}
+	if request.Currency != nil {
+		updates["currency"] = *request.Currency
+		tariff.Currency = *request.Currency
+		changedFields["currency"] = *request.Currency
+	}
+	if request.IsActive != nil {
+		updates["is_active"] = *request.IsActive
+		tariff.IsActive = *request.IsActive
+		changedFields["is_active"] = *request.IsActive
+	}
+	if request.StartDate.Present() {
+		value := request.StartDate.Value()
+		tariff.StartDate = value
+		if value == nil {
+			updates["start_date"] = nil
+			changedFields["start_date"] = nil
+		} else {
+			updates["start_date"] = *value
+			changedFields["start_date"] = *value
+		}
+	}
+	if request.EndDate.Present() {
+		value := request.EndDate.Value()
+		tariff.EndDate = value
+		if value == nil {
+			updates["end_date"] = nil
+			changedFields["end_date"] = nil
+		} else {
+			updates["end_date"] = *value
+			changedFields["end_date"] = *value
+		}
+	}
+	if request.TariffType != nil {
+		updates["tariff_type"] = *request.TariffType
+		tariff.TariffType = request.TariffType
+		changedFields["tariff_type"] = *request.TariffType
+	}
+	if request.PriceType != nil {
+		updates["price_type"] = *request.PriceType
+		tariff.PriceType = request.PriceType
+		changedFields["price_type"] = *request.PriceType
+	}
+	if request.Units.Present() {
+		value := request.Units.Value()
+		tariff.Units = value
+		if value == nil {
+			updates["units"] = nil
+			changedFields["units"] = nil
+		} else {
+			updates["units"] = *value
+			changedFields["units"] = *value
+		}
+	}
+	return updates, changedFields
 }
 
 func validateTariffCommercial(tariffType *constants.TariffType, priceType *constants.PriceType, units *constants.Unit, idleFeePerMin decimal.Decimal, isActive bool) error {

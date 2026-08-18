@@ -2518,15 +2518,32 @@ cross-scope tariff; malformed UUIDs return the applicable `400 invalid_*_id`
 error.
 
 A scoped `PATCH` accepts any non-empty subset of the commercial create fields.
-Omitted fields remain unchanged, but the resulting tariff must retain one
-supported fixed price basis: energy/watt-hour, time/minutes, or sessions with
-no `units` field.
-The optional GST relation cannot currently be cleared to null through this
-route; it can only be omitted or replaced with another owned UUID. Supplying an
-effective-date bound validates the resulting full schedule;
-the schedule remains either open-ended or a complete half-open interval. `200
-OK` returns the updated tariff and writes the matching scope-specific update
-audit event. Errors match creation plus `404 tariff_not_found`.
+Every omitted key leaves its stored value unchanged. `units`, `start_date`, and
+`end_date` additionally accept explicit JSON `null`: `units:null` clears units
+for a `sessions` tariff, and `start_date:null` together with `end_date:null`
+clears a prior schedule. A single null date or a single supplied date is
+rejected; the resulting schedule remains either open-ended or a complete
+half-open interval. The server applies the request to the locked stored row and
+then validates the complete resulting tariff, so a basis change must include
+the complete intended combination (`energy`/`kwh`, `time`/`minutes`, or
+`sessions` with no units). `watt/hour` is historical snapshot compatibility
+only and is never accepted for a current tariff.
+
+For example, change an energy tariff to sessions with:
+
+```json
+{"tariff_type":"fixed","price_type":"sessions","units":null}
+```
+
+Clear an existing schedule with:
+
+```json
+{"start_date":null,"end_date":null}
+```
+
+GST remains outside tariff PATCH; Hub GST assignment owns it. `200 OK` returns
+the updated tariff and writes the matching scope-specific update audit event.
+Errors match creation plus `404 tariff_not_found`.
 
 There is currently no tariff delete route. Deactivation through
 `{"is_active":false}` is the supported retention-safe state change.

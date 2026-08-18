@@ -45,6 +45,89 @@ func TestTariffRequestBodiesRejectLegacyPricePerKWh(t *testing.T) {
 	}
 }
 
+func TestUpdateTariffRequestNullableFieldsPreserveJSONIntent(t *testing.T) {
+	t.Parallel()
+
+	var omitted UpdateTariffRequest
+	if err := json.Unmarshal([]byte(`{"price_per_unit":"12.50"}`), &omitted); err != nil {
+		t.Fatal(err)
+	}
+	if omitted.Units.Present() || omitted.StartDate.Present() || omitted.EndDate.Present() {
+		t.Fatalf("omitted nullable fields were marked present: %+v", omitted)
+	}
+
+	var cleared UpdateTariffRequest
+	if err := json.Unmarshal([]byte(`{"units":null,"start_date":null,"end_date":null}`), &cleared); err != nil {
+		t.Fatal(err)
+	}
+	if !cleared.Units.Present() || cleared.Units.Value() != nil || !cleared.StartDate.Present() || cleared.StartDate.Value() != nil || !cleared.EndDate.Present() || cleared.EndDate.Value() != nil {
+		t.Fatalf("explicit null did not preserve clear intent: %+v", cleared)
+	}
+
+	var supplied UpdateTariffRequest
+	if err := json.Unmarshal([]byte(`{"units":"kwh","start_date":"2026-08-20T10:00:00Z","end_date":"2026-08-21T10:00:00Z"}`), &supplied); err != nil {
+		t.Fatal(err)
+	}
+	if units := supplied.Units.Value(); !supplied.Units.Present() || units == nil || *units != constants.UnitKWh {
+		t.Fatalf("units value intent=%v/%v, want kwh", supplied.Units.Present(), units)
+	}
+	if start, end := supplied.StartDate.Value(), supplied.EndDate.Value(); start == nil || end == nil || !start.Before(*end) {
+		t.Fatalf("schedule value intent start=%v end=%v", start, end)
+	}
+}
+
+func TestApplyTariffUpdateValidatesResultingTariffState(t *testing.T) {
+	t.Parallel()
+
+	fixed := constants.TariffTypeFixed
+	energy, timePrice, session := constants.PriceTypeEnergy, constants.PriceTypeTime, constants.PriceTypeSession
+	kwh, minutes := constants.UnitKWh, constants.UnitMinutes
+	start := time.Date(2026, 8, 20, 10, 0, 0, 0, time.UTC)
+	end := start.Add(24 * time.Hour)
+	baseline := func() models.Tariff {
+		return models.Tariff{PricePerUnit: decimal.NewFromInt(10), Currency: "INR", IsActive: true, TariffType: &fixed, PriceType: &energy, Units: &kwh}
+	}
+
+	for _, test := range []struct {
+		name  string
+		patch UpdateTariffRequest
+		valid bool
+	}{
+		{name: "energy to session clears units", patch: UpdateTariffRequest{PriceType: &session, Units: PatchNull[constants.Unit]()}, valid: true},
+		{name: "energy to time sets minutes", patch: UpdateTariffRequest{PriceType: &timePrice, Units: PatchValue(minutes)}, valid: true},
+		{name: "energy remains canonical kwh", patch: UpdateTariffRequest{PriceType: &energy, Units: PatchValue(kwh)}, valid: true},
+		{name: "session without clearing prior units is rejected", patch: UpdateTariffRequest{PriceType: &session}},
+		{name: "partial schedule is rejected", patch: UpdateTariffRequest{StartDate: PatchValue(start)}},
+		{name: "complete schedule is accepted", patch: UpdateTariffRequest{StartDate: PatchValue(start), EndDate: PatchValue(end)}, valid: true},
+		{name: "schedule clears only as a pair", patch: UpdateTariffRequest{StartDate: PatchNull[time.Time](), EndDate: PatchNull[time.Time]()}, valid: true},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			tariff := baseline()
+			updates, changed := applyTariffUpdate(&tariff, test.patch)
+			if len(updates) == 0 || len(changed) == 0 {
+				t.Fatal("patch did not produce persistence/audit projections")
+			}
+			err := validateTariffCommercial(tariff.TariffType, tariff.PriceType, tariff.Units, tariff.IdleFeePerMin, tariff.IsActive)
+			if err == nil {
+				err = validateTariffDateRange(tariff.StartDate, tariff.EndDate)
+			}
+			if (err == nil) != test.valid {
+				t.Fatalf("resulting tariff validation err=%v, want valid=%t", err, test.valid)
+			}
+			if !tariff.PricePerUnit.Equal(decimal.NewFromInt(10)) {
+				t.Fatalf("unpatched price changed to %s", tariff.PricePerUnit)
+			}
+		})
+	}
+
+	tariff := baseline()
+	applyTariffUpdate(&tariff, UpdateTariffRequest{StartDate: PatchValue(start), EndDate: PatchValue(end)})
+	updates, _ := applyTariffUpdate(&tariff, UpdateTariffRequest{StartDate: PatchNull[time.Time](), EndDate: PatchNull[time.Time]()})
+	if tariff.StartDate != nil || tariff.EndDate != nil || updates["start_date"] != nil || updates["end_date"] != nil {
+		t.Fatalf("explicit schedule clear did not persist nil dates: tariff=%+v updates=%+v", tariff, updates)
+	}
+}
+
 func TestOptionalNonNegativeWholeCurrencyFormValue(t *testing.T) {
 	makeContext := func(body string) *gin.Context {
 		writer := httptest.NewRecorder()
@@ -644,7 +727,7 @@ func TestTariffValidation(t *testing.T) {
 	validUpdateReq := UpdateTariffRequest{
 		TariffType: &validTariffType,
 		PriceType:  &validPriceType,
-		Units:      &validUnits,
+		Units:      PatchValue(validUnits),
 	}
 
 	if err := validateUpdateTariffRequest(validUpdateReq); err != nil {
@@ -681,7 +764,7 @@ func TestTariffValidation(t *testing.T) {
 			func() UpdateTariffRequest {
 				req := validUpdateReq
 				invalid := constants.Unit("invalid")
-				req.Units = &invalid
+				req.Units = PatchValue(invalid)
 				return req
 			}(),
 			"invalid_units",

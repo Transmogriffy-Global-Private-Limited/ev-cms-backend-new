@@ -2,6 +2,21 @@
 
 ## Current State
 
+### 2026-08-18 — Tariff PATCH and frozen-settlement hardening in source
+
+- Tariff PATCH now distinguishes omitted, explicit-null, and concrete values
+  for `units`, `start_date`, and `end_date` across Hub, Charger, and UserGroup
+  scopes. `units:null` is the supported sessions transition; both date fields
+  must be null together to clear an existing schedule. Each update validates
+  the resulting locked row before persistence.
+- Completion settlement validates the immutable SGST/CGST/IGST snapshot using
+  shared commercial component semantics and never reads current Hub/GST state
+  to price an existing session. Legacy frozen tariff snapshot compatibility is
+  unchanged.
+- No migration, runtime database mutation, or deployment was performed. The
+  guarded PostgreSQL lifecycle tests still require an explicitly disposable
+  `TEST_DATABASE_URL`.
+
 ### 2026-08-18 — CPO analytics and hub charger listing deployed
 
 - Added authenticated, tenant-scoped `GET /api/v1/cpo/analytics` with charger,
