@@ -4870,7 +4870,6 @@ func (service *Service) getCustomerAggregatesByCPO(ctx context.Context, cpoID uu
 	return result, nil
 }
 
-
 func cpoAdminCustomerView(record models.Customer, aggregates *CustomerAggregates) CPOAdminCustomerView {
 	view := CPOAdminCustomerView{
 		ID:                record.ID,

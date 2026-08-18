@@ -4582,31 +4582,6 @@ paths:
           $ref: "#/components/responses/Conflict"
         "500":
           $ref: "#/components/responses/InternalError"
-    delete:
-      tags: [CPO Operations - Pricing & Tax]
-      operationId: deleteHubTariff
-      summary: Delete a hub tariff
-      security:
-        - BearerAuth: []
-          CPOAppID: []
-      responses:
-        "204":
-          description: Tariff deleted.
-        "400":
-          $ref: "#/components/responses/InvalidRequest"
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-        "403":
-          $ref: "#/components/responses/CPOBusinessForbidden"
-        "404":
-          description: "`tariff_not_found`."
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorEnvelope"
-        "500":
-          $ref: "#/components/responses/InternalError"
-
   /api/v1/cpo/chargers/{charger_id}/tariffs:
     parameters:
       - $ref: "#/components/parameters/ChargerInternalID"
@@ -4741,31 +4716,6 @@ paths:
           $ref: "#/components/responses/Conflict"
         "500":
           $ref: "#/components/responses/InternalError"
-    delete:
-      tags: [CPO Operations - Pricing & Tax]
-      operationId: deleteChargerTariff
-      summary: Delete a charger tariff
-      security:
-        - BearerAuth: []
-          CPOAppID: []
-      responses:
-        "204":
-          description: Tariff deleted.
-        "400":
-          $ref: "#/components/responses/InvalidRequest"
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-        "403":
-          $ref: "#/components/responses/CPOBusinessForbidden"
-        "404":
-          description: "`tariff_not_found`."
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorEnvelope"
-        "500":
-          $ref: "#/components/responses/InternalError"
-
   /api/v1/cpo/user-groups/{user_group_id}/tariffs:
     parameters:
       - $ref: "#/components/parameters/UserGroupID"
@@ -4900,31 +4850,6 @@ paths:
           $ref: "#/components/responses/Conflict"
         "500":
           $ref: "#/components/responses/InternalError"
-    delete:
-      tags: [CPO Operations - Pricing & Tax]
-      operationId: deleteUserGroupTariff
-      summary: Delete a user group tariff
-      security:
-        - BearerAuth: []
-          CPOAppID: []
-      responses:
-        "204":
-          description: Tariff deleted.
-        "400":
-          $ref: "#/components/responses/InvalidRequest"
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-        "403":
-          $ref: "#/components/responses/CPOBusinessForbidden"
-        "404":
-          description: "`tariff_not_found`."
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorEnvelope"
-        "500":
-          $ref: "#/components/responses/InternalError"
-
   /api/v1/cpo/gsts:
     post:
       tags: [CPO Operations - Pricing & Tax]
@@ -5077,42 +5002,6 @@ paths:
                 $ref: "#/components/schemas/ErrorEnvelope"
         "500":
           $ref: "#/components/responses/InternalError"
-    delete:
-      tags: [CPO Operations - Pricing & Tax]
-      operationId: deleteCPOGST
-      summary: Delete a tenant GST profile
-      description: Requires CPO ADMIN. A GST profile cannot be deleted if it is associated with any hubs.
-      security:
-        - BearerAuth: []
-          CPOAppID: []
-      responses:
-        "204":
-          description: GST profile deleted. No response body.
-        "400":
-          description: Invalid GST ID or missing app-ID header.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorEnvelope"
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-        "403":
-          $ref: "#/components/responses/CPOBusinessForbidden"
-        "404":
-          description: "`gst_not_found`."
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorEnvelope"
-        "409":
-          description: "`gst_in_use`."
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorEnvelope"
-        "500":
-          $ref: "#/components/responses/InternalError"
-
   /api/v1/cpo/user-groups:
     post:
       tags: [CPO Operations - Pricing & Tax]
