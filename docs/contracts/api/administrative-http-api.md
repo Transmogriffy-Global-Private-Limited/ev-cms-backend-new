@@ -1875,9 +1875,11 @@ Rules:
 - `open_24_hours`: optional, defaults to `true`;
 - `sanction_load`: optional non-negative site electrical capacity in kW; it
   defaults to `0`, which means not recorded rather than zero capacity;
-- `customer_visible`: optional publication switch, defaulting to `false`;
-  CPO ADMIN may set it to `true` only when the hub is ready for User App
-  discovery. It is not a live-availability claim;
+- `customer_visible`: optional publication switch, defaulting to `false`.
+  Initial Hub creation must leave it false: `customer_visible:true` returns
+  `409 hub_tariff_root_required` because the Hub must first exist, receive
+  exactly one enabled unbounded Hub-root tariff, then be published through a
+  Hub update route. It is not a live-availability claim;
 - `charger_id`: optional UUID of an existing charger to assign to this hub.
 
 `201 Created` returns:

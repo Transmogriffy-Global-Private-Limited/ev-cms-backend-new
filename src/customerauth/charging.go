@@ -283,7 +283,7 @@ func (service *Service) StartCharging(ctx context.Context, principal Principal, 
 		}
 		tariff, tariffOK, err := resolveEffectiveTariff(tx, principal.CPOID, principal.Customer.UserGroupID, &charger.ID, charger.HubID, now)
 		if err != nil {
-			return &APIError{http.StatusConflict, "no_eligible_tariff", "No unambiguous tariff is available for this charger."}
+			return startChargingTariffResolutionError(err)
 		}
 		if !tariffOK {
 			return &APIError{http.StatusConflict, "no_eligible_tariff", "No tariff is available for this charger."}
@@ -380,18 +380,31 @@ func requestConnectorNumber(mapping halops.ChargerMapping, connectorID uuid.UUID
 	return 0
 }
 
-func (service *Service) effectiveChargingCommercial(tx *gorm.DB, principal Principal, hubID, chargerID uuid.UUID, at time.Time) (models.Tariff, models.GST, bool) {
-	tariff, ok, err := resolveEffectiveTariff(tx, principal.CPOID, principal.Customer.UserGroupID, &chargerID, &hubID, at)
-	if err != nil || !ok {
-		return models.Tariff{}, models.GST{}, false
+func startChargingTariffResolutionError(err error) error {
+	if isTariffTopologyError(err) {
+		return &APIError{http.StatusConflict, "no_eligible_tariff", "No unambiguous tariff is available for this charger."}
 	}
-	gst, ok, err := resolveActiveHubGST(tx, principal.CPOID, hubID)
-	return tariff, gst, err == nil && ok
+	return err
 }
 
-func (service *Service) effectiveChargingTariff(tx *gorm.DB, principal Principal, hubID, chargerID uuid.UUID, at time.Time) (models.Tariff, bool) {
-	tariff, _, ok := service.effectiveChargingCommercial(tx, principal, hubID, chargerID, at)
-	return tariff, ok
+func (service *Service) effectiveChargingCommercial(tx *gorm.DB, principal Principal, hubID, chargerID uuid.UUID, at time.Time) (models.Tariff, models.GST, bool, error) {
+	tariff, ok, err := resolveEffectiveTariff(tx, principal.CPOID, principal.Customer.UserGroupID, &chargerID, &hubID, at)
+	if err != nil {
+		return models.Tariff{}, models.GST{}, false, err
+	}
+	if !ok {
+		return models.Tariff{}, models.GST{}, false, nil
+	}
+	gst, ok, err := resolveActiveHubGST(tx, principal.CPOID, hubID)
+	if err != nil {
+		return models.Tariff{}, models.GST{}, false, err
+	}
+	return tariff, gst, ok, nil
+}
+
+func (service *Service) effectiveChargingTariff(tx *gorm.DB, principal Principal, hubID, chargerID uuid.UUID, at time.Time) (models.Tariff, bool, error) {
+	tariff, _, ok, err := service.effectiveChargingCommercial(tx, principal, hubID, chargerID, at)
+	return tariff, ok, err
 }
 
 func affordableChargingLimit(balance decimal.Decimal, pricing tariffPricing, gst models.GST, connector models.Connector) (decimal.Decimal, int64, error) {

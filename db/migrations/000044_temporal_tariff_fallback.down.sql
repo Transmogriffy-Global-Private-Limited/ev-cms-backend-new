@@ -29,6 +29,8 @@ DROP TRIGGER IF EXISTS hubs_customer_visible_tariff_root_guard ON hubs;
 DROP FUNCTION IF EXISTS guard_customer_visible_hub_tariff_root();
 DROP TRIGGER IF EXISTS tariffs_temporal_target_guard ON tariffs;
 DROP FUNCTION IF EXISTS validate_temporal_tariff_target();
+DROP TRIGGER IF EXISTS tariffs_target_immutable_guard ON tariffs;
+DROP FUNCTION IF EXISTS guard_tariff_target_immutable();
 DROP INDEX IF EXISTS ix_tariffs_enabled_target_temporal;
 DROP INDEX IF EXISTS uq_tariffs_enabled_target_open_start;
 DROP INDEX IF EXISTS uq_tariffs_enabled_target_root;

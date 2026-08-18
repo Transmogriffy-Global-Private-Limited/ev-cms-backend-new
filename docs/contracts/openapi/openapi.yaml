@@ -4048,8 +4048,12 @@ paths:
       operationId: createCPOHub
       summary: Create a tenant charging hub
       description: |
-        Requires CPO ADMIN and writes audit evidence atomically. Optionally
-        assigns existing tenant chargers, which must not already belong to a hub.
+        Requires CPO ADMIN and writes audit evidence atomically. The Hub is
+        always created hidden: customer_visible=true is rejected because an
+        enabled unbounded Hub-root tariff can exist only after this Hub exists.
+        Create the root tariff, then publish through the Hub update route.
+        Optionally assigns existing tenant chargers, which must not already
+        belong to a hub.
       security:
         - BearerAuth: []
           CPOAppID: []
@@ -4083,7 +4087,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorEnvelope"
         "409":
-          description: "`hub_conflict` or `charger_already_in_hub`."
+          description: "`hub_conflict`, `charger_already_in_hub`, or `hub_tariff_root_required` when customer_visible=true is requested during creation."
           content:
             application/json:
               schema:
@@ -8803,7 +8807,7 @@ components:
         customer_visible:
           type: boolean
           default: false
-          description: Publish this hub to customer network discovery. CPO ADMIN only.
+          description: Must be false or omitted during creation. Create the Hub, add its enabled unbounded Hub-root tariff, then set this to true through Hub update or the visibility route.
         charger_ids:
           type: array
           items:

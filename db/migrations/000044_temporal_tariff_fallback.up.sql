@@ -89,6 +89,26 @@ CREATE INDEX ix_tariffs_enabled_target_temporal
     ON tariffs (cpo_id, assigned_to, hub_id, charger_id, user_group_id, start_date, end_date)
     WHERE is_active;
 
+CREATE OR REPLACE FUNCTION guard_tariff_target_immutable()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $$
+BEGIN
+    IF NEW.cpo_id IS DISTINCT FROM OLD.cpo_id
+       OR NEW.assigned_to IS DISTINCT FROM OLD.assigned_to
+       OR NEW.hub_id IS DISTINCT FROM OLD.hub_id
+       OR NEW.charger_id IS DISTINCT FROM OLD.charger_id
+       OR NEW.user_group_id IS DISTINCT FROM OLD.user_group_id THEN
+        RAISE EXCEPTION 'tariff target is immutable after creation' USING ERRCODE = '23514';
+    END IF;
+    RETURN NEW;
+END;
+$$;
+
+CREATE TRIGGER tariffs_target_immutable_guard
+BEFORE UPDATE ON tariffs
+FOR EACH ROW EXECUTE FUNCTION guard_tariff_target_immutable();
+
 CREATE OR REPLACE FUNCTION validate_temporal_tariff_target()
 RETURNS trigger
 LANGUAGE plpgsql

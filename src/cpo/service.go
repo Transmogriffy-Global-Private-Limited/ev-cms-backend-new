@@ -4302,6 +4302,9 @@ func (service *Service) CreateHub(
 	if request.CustomerVisible != nil {
 		customerVisible = *request.CustomerVisible
 	}
+	if err := validateInitialHubVisibility(customerVisible); err != nil {
+		return HubView{}, err
+	}
 
 	cpoID := *principal.CPOID
 	var record models.Hub
@@ -5090,6 +5093,13 @@ func validateCreateHubRequest(request CreateHubRequest) error {
 	return nil
 }
 
+func validateInitialHubVisibility(customerVisible bool) error {
+	if customerVisible {
+		return hubTariffRootRequired()
+	}
+	return nil
+}
+
 func validateUpdateHubRequest(request UpdateHubRequest) error {
 	if request.Name == nil &&
 		request.Address == nil &&
@@ -5142,6 +5152,9 @@ func mapHubWriteError(err error, operation string) error {
 		case "23514":
 			if postgresError.ConstraintName == "chk_hubs_sanction_load" {
 				return invalid("sanction_load", "Sanction load must not be negative.")
+			}
+			if strings.Contains(postgresError.Message, "customer-visible hub requires one enabled unbounded hub tariff") {
+				return hubTariffRootRequired()
 			}
 		}
 	}
@@ -5364,7 +5377,7 @@ func hubTariffRootRequired() error {
 	return &auth.APIError{
 		Status:  http.StatusConflict,
 		Code:    "hub_tariff_root_required",
-		Message: "A customer-visible hub requires one enabled unbounded hub tariff.",
+		Message: "A hub must first exist with an enabled unbounded hub tariff before it can become customer-visible.",
 	}
 }
 

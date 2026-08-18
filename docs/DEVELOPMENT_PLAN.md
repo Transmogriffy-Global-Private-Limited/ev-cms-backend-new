@@ -186,8 +186,11 @@ Current implementation state:
   revision `0ad2de7`; no migration was required.
 - Temporal tariff fallback is in source review: migration forty-four replaces
   the former same-target no-overlap policy with root/open/bounded hierarchy,
-  retains UserGroup > Charger > Hub as the primary selector, and protects the
-  customer-visible Hub root floor. It is not deployed or database-verified.
+  retains UserGroup > Charger > Hub as the primary selector, protects the
+  customer-visible Hub root floor, and makes target identity immutable after
+  creation. Visible Hub creation follows hidden Hub → root tariff → publish;
+  resolver infrastructure errors remain 5xx rather than commercial absence. It
+  is not deployed or database-verified.
 - CPO charger-transaction reads are deployed in revision `a5d1af4`; no
   migration was required.
 

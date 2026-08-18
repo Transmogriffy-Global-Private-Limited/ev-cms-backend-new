@@ -3,10 +3,12 @@ package customerauth
 import (
 	"encoding/json"
 	"errors"
+	"net/http"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/commercial"
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/constants"
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/liveops"
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/models"
@@ -413,4 +415,19 @@ func int64Pointer(value int64) *int64 { return &value }
 
 func energyTariffMetadata() (constants.TariffType, constants.PriceType, constants.Unit) {
 	return constants.TariffTypeFixed, constants.PriceTypeEnergy, constants.UnitKWh
+}
+
+func TestStartChargingTariffResolutionErrorDistinguishesTopologyAndInfrastructure(t *testing.T) {
+	t.Parallel()
+
+	topologyErr := startChargingTariffResolutionError(commercial.ErrTariffTemporalConflict)
+	var apiError *APIError
+	if !errors.As(topologyErr, &apiError) || apiError.Status != http.StatusConflict || apiError.Code != "no_eligible_tariff" {
+		t.Fatalf("topology error=%v, want 409 no_eligible_tariff", topologyErr)
+	}
+
+	infrastructureErr := errors.New("query failed")
+	if got := startChargingTariffResolutionError(infrastructureErr); !errors.Is(got, infrastructureErr) {
+		t.Fatalf("infrastructure error=%v, want original query failure", got)
+	}
 }

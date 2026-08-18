@@ -361,6 +361,12 @@ customer-visible only while exactly one active unbounded Hub tariff remains.
 UserGroup and Charger roots are optional. These timestamps govern commercial
 tariff applicability, never the customer session-duration cutoff.
 
+Migration forty-four also rejects direct updates to a tariff's `cpo_id`,
+`assigned_to`, `hub_id`, `charger_id`, or `user_group_id` using null-safe
+PostgreSQL comparisons. Target identity is immutable after creation, so a
+direct write cannot move a root away from a customer-visible Hub or transfer a
+commercial rule between exact targets.
+
 ## Hub Sanctioned Load and Independent Chargers
 
 Before initial deployment, the base CMS migration was reconciled so

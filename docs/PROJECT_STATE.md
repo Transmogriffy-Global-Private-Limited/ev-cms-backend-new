@@ -13,6 +13,11 @@
   topology and the requirement that a customer-visible Hub has exactly one
   enabled unbounded Hub root. User App informational price and new start
   admission share the resolver and preserve immutable tariff/tax snapshots.
+- The source release-blocker follow-up rejects visible Hub creation before
+  insert, maps the Hub root-floor database guard to the same `409`, and makes
+  tariff target identity immutable in migration 44. Resolver topology failures
+  fail closed as commercial unavailability, while query/infrastructure failures
+  propagate to normal error handling rather than being mislabeled as no tariff.
 - This is source state only: migration 44 has not been applied, no service was
   restarted or deployed, and PostgreSQL lifecycle/concurrency verification is
   pending an explicitly selected disposable `TEST_DATABASE_URL`.

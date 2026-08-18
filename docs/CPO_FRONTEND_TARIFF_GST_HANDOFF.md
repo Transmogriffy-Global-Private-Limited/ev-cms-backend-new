@@ -70,9 +70,23 @@ The CMS has no authoritative idle-start/idle-end lifecycle. Therefore:
 
 ## 3. Tariff APIs
 
+### Hub publication lifecycle
+
+Create every Hub hidden. `POST /api/v1/cpo/hubs` accepts the existing
+`customer_visible` field, but `true` is deliberately rejected with
+`409 hub_tariff_root_required`: no Hub tariff can exist before its Hub exists.
+The only valid sequence is: create the Hub with visibility omitted/false;
+create exactly one enabled unbounded Hub root tariff; then publish with Hub
+`PATCH` or the dedicated visibility route. The server never silently changes a
+requested `true` to `false`.
+
 Choose exactly one target route family. The URL is the immutable target; the
 request body must not contain `hub_id`, `charger_id`, `user_group_id`, or
 `assigned_to`.
+
+The database also makes those target fields immutable after creation. A tariff
+can change price, date role, or enabled state through its nested PATCH route,
+but it can never move to another Hub, Charger, UserGroup, or CPO.
 
 | Target | Create/list | Read/update/delete |
 | --- | --- | --- |

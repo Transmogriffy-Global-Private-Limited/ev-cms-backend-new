@@ -1,5 +1,24 @@
 # AI Changelog
 
+## 2026-08-18 - Temporal tariff release-blocker closure
+
+- Rejected `customer_visible:true` before initial Hub insertion with the stable
+  `409 hub_tariff_root_required` lifecycle: hidden Hub, enabled unbounded Hub
+  root tariff, then publish. Hub database-trigger failures now map to the same
+  commercial error.
+- Amended source-only migration 44 with a null-safe PostgreSQL target
+  immutability trigger for tariff CPO/scope/target fields. Price, dates, and
+  administrative enablement remain mutable through the existing nested API.
+- Preserved fail-closed topology handling while allowing resolver query and GST
+  infrastructure errors to reach normal 5xx handling from StartCharging and
+  customer price routes.
+
+Verification:
+
+- Database-free focused tests, migration static tests, route/OpenAPI checks,
+  full Go test/vet, and docs verification are recorded with this source-only
+  slice. PostgreSQL runtime execution is explicitly not performed.
+
 ## 2026-08-18 - Temporal tariff fallback source correction
 
 - Added migration 44 and shared commercial temporal policy for immutable Hub,

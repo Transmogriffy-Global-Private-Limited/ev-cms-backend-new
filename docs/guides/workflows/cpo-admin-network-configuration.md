@@ -91,10 +91,11 @@ Call `POST /api/v1/cpo/hubs` and retain its generated UUID. Latitude and
 longitude are required even when either value is exactly zero. Optional
 `sanction_load` is the site's non-negative electrical capacity in kW; the
 stored default `0` means that capacity has not been recorded. Optional
-`customer_visible` defaults to `false`; set it deliberately when the hub is
-ready for customer discovery. CPO ADMIN may publish or unpublish the hub with
-`PATCH /api/v1/cpo/hubs/{hub_id}`. Only published hubs and their attached
-chargers appear in the User App.
+`customer_visible` defaults to `false` and must remain false at creation:
+`customer_visible:true` returns `409 hub_tariff_root_required`. First create
+the Hub, then create its exactly-one enabled unbounded Hub-root tariff, and
+only then publish with `PATCH /api/v1/cpo/hubs/{hub_id}`. Only published hubs
+and their attached chargers appear in the User App.
 
 ### 2. Register a charger and connectors
 
