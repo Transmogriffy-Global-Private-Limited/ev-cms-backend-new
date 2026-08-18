@@ -2328,7 +2328,7 @@ Creates a named tenant GST profile.
   "state": "West Bengal",
   "sgst_rate": "9.00",
   "cgst_rate": "9.00",
-  "igst_rate": "18.00",
+  "igst_rate": "0.00",
   "is_active": true
 }
 ```
@@ -2340,6 +2340,7 @@ to true. The normalized name is unique per CPO.
 
 Migration thirty-one permits pre-existing GST rows to retain null rate values;
 those response fields are omitted when null. New profiles cannot omit rates.
+A profile cannot mix non-zero split (SGST/CGST) and integrated (IGST) tax.
 
 `201 Created` returns the generated UUID, trusted CPO ID, exact decimal rates
 as JSON strings, active state, and timestamps. The transaction writes
@@ -2369,8 +2370,11 @@ return `404 gst_not_found`; malformed UUIDs return `400 invalid_gst_id`.
 
 Accepts any non-empty subset of `name`, `state`, `sgst_rate`, `cgst_rate`,
 `igst_rate`, and `is_active`, using the create validation for supplied fields.
-Omission preserves a field.
-`200 OK` returns the updated GST profile and writes `GST_UPDATED`.
+Omission preserves a field. The service applies the patch to the complete GST
+profile under a tenant commercial lock and rejects it if the result would make
+an assigned Hub relationship invalid; deactivate or change a profile only
+after unassigning it when necessary. `200 OK` returns the updated GST profile
+and writes `GST_UPDATED`.
 
 There is currently no GST delete route. An inactive profile remains durable for
 historical references.
@@ -2379,10 +2383,12 @@ Hub GST assignment uses `POST` and `PATCH
 /api/v1/cpo/hubs/{hub_id}/gst` with `{"gst_id":"<uuid>"}`. The referenced GST
 must belong to the same CPO and cannot already be assigned to another hub. The
 hub and GST states determine the applicable rates: same-state assignment
-requires SGST and CGST and rejects non-zero IGST; different-state assignment
-requires IGST and rejects non-zero SGST or CGST. Invalid combinations return
-`400 invalid_gst_for_hub`. `GET` reads the assigned profile and `DELETE`
-unassigns it.
+requires present SGST and CGST components and zero IGST; different-state
+assignment requires a present IGST component and zero SGST/CGST. Zero is a
+valid persisted value for a non-applicable component. The same full validation
+also protects replacement, GST state/rate/activation changes, and Hub state
+changes under locking. Invalid combinations return `400 invalid_gst_for_hub`.
+`GET` reads the assigned profile and `DELETE` unassigns it.
 
 ### 9.19 Scoped tariff routes
 
@@ -2408,12 +2414,12 @@ Create requests use this body:
 
 ```json
 {
-  "price_per_unit": "0.0185",
-  "idle_fee_per_min": "1.0000",
+  "price_per_unit": "16.9100",
+  "idle_fee_per_min": "0.0000",
   "currency": "INR",
   "tariff_type": "fixed",
   "price_type": "energy",
-  "units": "watt/hour",
+  "units": "kwh",
   "is_active": true,
   "start_date": "2026-09-01T00:00:00Z",
   "end_date": "2026-10-01T00:00:00Z"
@@ -2429,15 +2435,19 @@ Rules:
 - `PATCH` updates commercial fields only and cannot move a tariff between
   target types or target records;
 - `price_per_unit` is required and may be zero for free charging;
-- idle fee is optional/default zero and cannot be negative;
+- idle fee is optional/default zero and cannot be negative. A non-zero idle
+  fee is rejected for an active tariff because the CMS has no authoritative
+  idle interval and does not bill idle time; zero remains a retained durable
+  field for snapshots and inactive legacy records;
 - currency is optional/default `INR`, normalized uppercase, and exactly three
   letters;
 - `tariff_type` is required and currently must be `fixed`;
-- `price_type` is required: `energy` bills measured watt-hours, `time` bills
-  actual StartTransaction-to-StopTransaction minutes, and `sessions` bills one
+- `price_type` is required: `energy` bills measured Wh divided by 1000 at the
+  exact declared per-kWh price, `time` bills actual HAL
+  StartTransaction-to-StopTransaction minutes, and `sessions` bills one
   completed session regardless of measured energy or duration;
-- `units` is required as `watt/hour` for energy, required as `minutes` for
-  time, and omitted for sessions;
+- `units` is required as `kwh` for energy, required as `minutes` for time,
+  and omitted for sessions;
 - any other combination fails with `unsupported_tariff_pricing` before
   persistence;
 - `is_active` is optional/default true;
@@ -2492,8 +2502,9 @@ There is currently no tariff delete route. Deactivation through
 
 `GET /api/v1/cpo/settings` returns the settings for the authenticated CPO ADMIN.
 The CPO is derived from the verified session and `X-CPO-App-ID`; callers cannot
-select another tenant. If no row exists, the route returns `404
-settings_not_found`.
+select another tenant. CPO provisioning creates a blank settings row, while
+migration forty-three backfills existing CPOs, so a normal CPO GET returns the
+zero-default wallet policy rather than requiring a preliminary settings write.
 
 `POST` and `PUT /api/v1/cpo/settings` accept `multipart/form-data` with the
 following optional fields:
@@ -2501,12 +2512,20 @@ following optional fields:
 - `invoice_note`: text retained with the CPO settings;
 - `invoice_logo`: an uploaded logo file, stored under the service `uploads`
   directory and returned as the stored relative path.
+- `wallet_min_balance`: optional non-negative whole-currency balance required
+  before a customer can start a charging session; default `0`.
+- `wallet_buffer_min_balance`: optional non-negative whole-currency amount
+  withheld from the usable balance at each session start; default `0`.
 
 The update is tenant-scoped and upserts the single settings row for the CPO.
-Omitting either field preserves its existing value. Successful requests return
-the JSON settings projection containing the non-null `invoice_logo` and/or
-`invoice_note` fields. Errors include the shared authentication and forbidden
-responses, `400 invalid_request`, or `500 internal_error`.
+Omitting any field preserves its existing value. Successful requests return the
+JSON settings projection containing both non-null integer wallet fields plus
+the optional `invoice_logo` and `invoice_note` fields. During each new start,
+the backend locks the wallet, requires `balance >= wallet_min_balance`, and
+calculates tariff affordability from `balance - wallet_buffer_min_balance`.
+Errors include the shared authentication and forbidden responses,
+`400 invalid_wallet_min_balance`, `400 invalid_wallet_buffer_min_balance`, or
+`500 internal_error`.
 
 `GET /api/v1/cpo/settings/invoice-logo` streams the authenticated CPO's stored
 logo inline. It accepts no path or CPO parameter and responds with byte-range

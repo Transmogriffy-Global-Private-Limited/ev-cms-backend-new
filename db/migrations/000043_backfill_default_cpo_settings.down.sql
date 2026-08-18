@@ -1,0 +1,2 @@
+-- The forward backfill is intentionally retained: settings rows may have been
+-- edited after migration and cannot be safely distinguished from defaults.

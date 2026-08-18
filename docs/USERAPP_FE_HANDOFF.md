@@ -329,7 +329,11 @@ export type CustomerChargerLocationList = {
 
 export type CustomerWalletDetails = {
   id: string;
-  balance: string;
+  balance: string; // actual ledger balance, exact decimal
+  usable_balance: string; // max(balance - wallet_buffer_min_balance, 0)
+  minimum_recharge_amount: string; // amount to reach wallet_min_balance; does not include buffer
+  wallet_min_balance: number; // CPO whole-currency start threshold
+  wallet_buffer_min_balance: number; // CPO whole-currency reservation buffer
   currency: string;
   updated_at: string;
 };
@@ -392,8 +396,7 @@ export type CustomerPriceResponse = {
   price_per_unit?: string;
   tariff_type?: "fixed";
   price_type?: "sessions" | "time" | "energy";
-  units?: "minutes" | "watt/hour";
-  idle_fee_per_minute?: string;
+  units?: "minutes" | "kwh";
   gst?: {
     sgst_rate: string;
     cgst_rate: string;
@@ -404,9 +407,12 @@ export type CustomerPriceResponse = {
 ```
 
 For an `AVAILABLE` price, render `price_per_unit` only with its declared
-`price_type` and `units`: `energy` is per `watt/hour`, `time` is per `minutes`,
-and `sessions` is one fixed session amount with `units` omitted. Do not assume
-that a price means per kWh.
+`price_type` and `units`: `energy` is per `kwh`, `time` is per `minutes`, and
+`sessions` is one fixed session amount with `units` omitted. `price_per_unit`
+for energy is always the exact commercial price per kWh (meter values arrive in
+Wh and are divided by 1000 server-side). Idle billing is not supported, so the
+customer price contract intentionally has no idle-fee field. This does not
+alter the separate customer-selected time-bounded-session cutoff workflow.
 
 `me.user` is a compatibility presentation object. `me.user.id` always equals
 `me.customer.id`; both are the CPO-local `customer_id`.
@@ -440,8 +446,8 @@ that a price means per kWh.
 | `DELETE /favorite-chargers/{charger_id}` | Yes | `204` | Idempotently remove a charger favorite by its public `charger_id`, never its UUID `id`. |
 | `GET /hubs/{hub_id}/price` | Yes | `200 CustomerPriceResponse` | Resolve the current informational hub price. |
 | `GET /chargers/{charger_id}/price` | Yes | `200 CustomerPriceResponse` | Resolve the current informational charger price. |
-| `GET /wallet` | Yes | `200 CustomerWalletResponse` | Read the current exact-decimal wallet balance. |
-| `GET /wallet/transactions` | Yes | `200 CustomerWalletTransactionList` | Read this customer’s bounded wallet ledger history. |
+| `GET /wallet` | Yes | `200 CustomerWalletResponse` | Read current balance, usable balance, CPO minimum/buffer, and threshold recharge shortfall. |
+| `GET /wallet/transactions` | Yes | `200 CustomerWalletTransactionList` | Read bounded ledger history with the same current wallet-policy projection. |
 | `POST /wallet/recharge/orders` | Yes | `201 CustomerRechargeOrder` | Create an idempotent Razorpay checkout order. |
 | `POST /wallet/recharge/verify` | Yes | `200 CustomerRechargeOrder` | Verify a captured Razorpay payment and credit the wallet once. |
 | `POST /charging-sessions` | Yes | `202 ChargingStartResponse` | Admit only a fresh `AVAILABLE` connector, then persist a customer-owned start intent, commercial hold, and HAL command request; it is not an active session. |
@@ -576,8 +582,17 @@ HAL evidence. Compact map markers intentionally expose no availability.
 ### 5.2 Wallet Reads
 
 `GET /wallet` returns the authenticated customer’s CPO-local wallet with an
-exact two-decimal balance string, currency, and durable wallet update time.
-`GET /wallet/transactions` returns only that wallet’s transactions in
+exact two-decimal balance string, currency, durable wallet update time, and the
+current CPO charging-admission policy. `usable_balance` is
+`max(balance - wallet_buffer_min_balance, 0)`. It is a display/recharge aid,
+not a guarantee that a new start will succeed: `balance` must separately be at
+least `wallet_min_balance`. When it is below that threshold,
+`minimum_recharge_amount` is exactly `wallet_min_balance - balance`; it is zero
+when the threshold is already met and never adds the buffer. For example,
+balance `499`, minimum `500`, buffer `20` returns usable `479` and minimum
+recharge `1`; at balance `500`, usable is `480` and minimum recharge is `0`.
+`GET /wallet/transactions` returns the same current wallet-policy projection
+plus only that wallet’s transactions in
 descending `(created_at, id)` keyset order. It accepts `limit` (default 25,
 maximum 100) plus the paired `before` and `before_id` cursor. Preserve
 `next_before` and `next_before_id` together when fetching the next page. The

@@ -17,6 +17,7 @@ This directory is the durable project memory for the EV CMS backend.
 | Complete SuperAdmin frontend integration handoff | `SUPERADMIN_FRONTEND_HANDOFF.md` |
 | Manual platform subscription semantics | `contracts/api/manual-subscriptions.md` |
 | CPO backend AI-agent orientation and execution | `CPO_BACKEND_AGENT_HANDOFF.md` |
+| CPO frontend tariff and Hub GST integration | `CPO_FRONTEND_TARIFF_GST_HANDOFF.md` |
 | Complete User App frontend authentication handoff | `USERAPP_FE_HANDOFF.md` |
 | Complete superadmin architecture and boundaries | `guides/concepts/superadmin-control-plane.md` |
 | Platform realtime event contract | `contracts/realtime/platform-events.md` |

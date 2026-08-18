@@ -591,8 +591,10 @@ type ChargerStatusResponse struct {
 }
 
 type SettingsView struct {
-	InvoiceLogo *string `json:"invoice_logo,omitempty"`
-	InvoiceNote *string `json:"invoice_note,omitempty"`
+	InvoiceLogo            *string `json:"invoice_logo,omitempty"`
+	InvoiceNote            *string `json:"invoice_note,omitempty"`
+	WalletMinBalance       int     `json:"wallet_min_balance"`
+	WalletBufferMinBalance int     `json:"wallet_buffer_min_balance"`
 }
 
 type OperationalChargerResponse struct {

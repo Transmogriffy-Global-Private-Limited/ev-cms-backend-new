@@ -63,6 +63,12 @@ Migration files:
 - `db/migrations/000039_make_worker_current_instance_explicit.down.sql`
 - `db/migrations/000040_rename_tariff_price_per_unit.up.sql`
 - `db/migrations/000040_rename_tariff_price_per_unit.down.sql`
+- `db/migrations/000041_add_wallet_balance_to_settings.up.sql`
+- `db/migrations/000041_add_wallet_balance_to_settings.down.sql`
+- `db/migrations/000042_correct_tariff_energy_unit_to_kwh.up.sql`
+- `db/migrations/000042_correct_tariff_energy_unit_to_kwh.down.sql`
+- `db/migrations/000043_backfill_default_cpo_settings.up.sql`
+- `db/migrations/000043_backfill_default_cpo_settings.down.sql`
 
 ## Supplied Model Mapping
 
@@ -114,13 +120,23 @@ Migration files:
 - Migration twenty-nine adds `tariff_type`, `price_type`, and `units` columns.
   Migration forty renames the durable tariff amount from `price_per_kwh` to
   `price_per_unit` without recreating values or inventing missing metadata.
-  New CPO writes must use a supported fixed combination: energy/watt-hour,
-  time/minutes, or per-session with no unit. Incomplete legacy live tariffs
+  Migration forty-two renames the `watt/hour` enum value to `kwh` without
+  changing those exact numeric values: energy prices are commercial per-kWh
+  values while OCPP meter readings remain integer Wh. New CPO writes must use
+  a supported fixed combination: energy/kWh, time/minutes, or per-session with
+  no unit. Incomplete legacy live tariffs
   remain durable records but are not eligible for new customer pricing or
   charging until corrected deliberately.
 - Migration thirty adds the tenant-owned `settings` table with one unique row
   per CPO, optional invoice logo path, and optional invoice note. It references
   `cpos(id)` and uses the existing `gen_random_uuid()` database function.
+- Migration forty-one adds non-negative, zero-default integer wallet minimum
+  and buffer columns. Migration forty-three inserts the missing blank settings
+  row for every existing CPO without touching an existing row; application CPO
+  provisioning creates the same zero-default row in its transaction. A new
+  charging start locks the settings with the CPO and wallet, requires the
+  configured minimum, and uses the post-buffer balance for its hold and HAL Wh
+  limit.
 - Migration thirty-one adds nullable GST state and makes legacy GST-rate
   columns nullable. API creation still requires a non-empty state and all
   three rate values; the nullable columns preserve historical database rows.
@@ -141,7 +157,10 @@ Migration files:
   than deleting data or fabricating a hub relationship.
 - Migration thirty-five adds nullable `hubs.gst_id` with a same-CPO foreign key
   to `gsts`. The CPO hub GST assignment APIs own assign, read, replace, and
-  unassign behavior; no cross-CPO GST can be attached.
+  unassign behavior; no cross-CPO GST can be attached. Migration forty-two
+  additionally makes a non-null `(cpo_id, gst_id)` unique so one profile has at
+  most one Hub assignment; application transactions serialize Hub/GST relation
+  changes and validate the resulting state/rate relationship.
 - Migration thirty-eight makes tariffs commercial-only by dropping the legacy
   `tariffs.gst_id` only when every legacy association is null. It also makes a
   hub mandatory for active or customer-visible chargers, normalizing existing

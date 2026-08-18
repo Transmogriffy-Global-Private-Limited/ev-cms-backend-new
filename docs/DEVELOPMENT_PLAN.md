@@ -125,13 +125,13 @@ Current implementation state:
   charger vertical is not verified yet.
 - The current deployed release also exposes tenant-scoped CPO charging-session
   list/detail reads with bounded keyset pagination and validated lifecycle
-  filters. Revision `9e7af67` is active with migration 40 applied; the live
+  filters. Revision `ceefb21` is active with migrations 40-43 applied; the live
   OpenAPI contract contains 180 operations.
 - The current deployed release also includes optional committed live charger
-  projections on CPO charger list/detail responses. Revision `9e7af67` is
+  projections on CPO charger list/detail responses. Revision `ceefb21` is
   active; list reads use the bounded batch liveops reader.
 - Migration 39 and the current-worker projection are deployed in revision
-  `9e7af67`; worker status/readiness now ignore superseded historical rows.
+  `ceefb21`; worker status/readiness now ignore superseded historical rows.
 - The latest release adds tenant-scoped CPO customer usage/session/wallet
   aggregates and request-boundary tariff enum validation. No migration was
   required; the OpenAPI contract was reconciled to the registered runtime
@@ -162,11 +162,23 @@ Current implementation state:
   `AVAILABLE` and `FRESH` connector projection state, while same-customer
   active-intent replay remains available before that live-state gate. Connector
   row locking serializes the final active-intent recheck.
+- Migration 40 introduced the canonical `price_per_unit` column without
+  changing stored tariff values. The active tariff/GST correction now follows
+  it with migration 42: energy units become `kwh` while retaining every numeric
+  value as a per-kWh price, and Hub-owned GST integrity is enforced across
+  assignment and later mutations. See
+  `docs/plans/tariff-gst-commercial-correction.md`.
 - Migration 40 and the tariff semantic correction are deployed in revision
   `9e7af67`: `price_per_unit` is interpreted explicitly as energy/watt-hour,
   time/minutes, or per-session across CPO writes, customer price, admission,
   snapshots, and settlement. The existing HAL/customer duration cutoff is
   unchanged.
+- Migrations 41 and 43 and the customer aggregate correction are deployed in
+  revision `ceefb21`; settings now retain wallet minimum/buffer defaults and
+  every tenant customer receives wallet and zero-usage aggregate values.
+- Migration 42 is deployed in the same revision: energy tariffs use the
+  persisted `kwh` enum and Hub-owned GST assignment has a unique CPO/GST
+  constraint.
 
 Next required slice:
 
@@ -976,9 +988,31 @@ Current implementation slice:
   tariff GST ownership is removed, hub GST is authoritative, and active or
   customer-visible chargers require a hub. The live contract remains at 178
   operations.
+- The tariff/GST commercial correction is complete in source and ready for its
+  migration-controlled deployment: migration forty-two converts the energy
+  enum to `kwh` without changing numeric tariff values; one shared pricing
+  interpretation, Hub/GST mutation invariants, runtime GST defense, and the
+  CPO frontend handoff are verified. Disposable PostgreSQL lifecycle coverage
+  remains pending an explicitly selected `TEST_DATABASE_URL`.
+- Wallet admission policy is complete in source and ready for its
+  migration-controlled deployment: migration forty-three backfills a blank
+  settings row for every existing CPO while new CPO provisioning creates the
+  same zero-default row. Each new start locks and enforces the CPO minimum and
+  buffer before deriving its hold and HAL energy limit; the independent
+  duration-cutoff workflow is unchanged. Customer wallet/history reads expose
+  the current policy, usable balance, and threshold recharge shortfall.
 
 Last completed slice:
 
+- Added the CPO wallet admission policy: CPO settings expose non-negative
+  whole-currency minimum and buffer values, `balance >= minimum` admits a new
+  start, and only `balance - buffer` is available to tariff affordability and
+  HAL energy limiting. Default rows are created for new CPOs and backfilled
+  for existing CPOs without overwriting their settings.
+- Tariff/GST commercial correction: corrected energy per-kWh semantics across
+  tariff writes, customer price, admission, immutable snapshots, and
+  settlement; protected the complete Hub/GST relationship across later
+  mutations; and published the CPO frontend integration handoff.
 - Completed User App consumption of committed HAL operational projections for
   every full charger response without N+1 reads, preserving compact map-only
   location payloads, and added the canonical CPO backend HAL operational

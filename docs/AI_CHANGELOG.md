@@ -1,39 +1,109 @@
 # AI Changelog
 
-## 2026-08-18 - Rehosted tariff unit-price semantic correction
+## 2026-08-18 - Rehosted tariff/GST correction and wallet admission policy
 
-- Added forward migration 40 to rename `tariffs.price_per_kwh` and its check
-  constraint to `price_per_unit` without reconstructing or dropping values.
-- Replaced the live tariff/API/model field and require each new tariff to use
-  one supported fixed basis: energy per watt/hour, time per minute, or a fixed
-  per-session amount. The retired request field is rejected.
+- Applied migrations 42 and 43 after the guarded custom-format rollback dump
+  at `/var/backups/postgres/devevcmsnewdb-pre-migration-42-43-20260818-123600.dump`
+  (SHA-256 `6123f5c29b9f2c3f826d8b1a87d46905633161c180b75aa86418c0d930f21365`).
+- Rebuilt and rehosted runtime revision `ceefb21`; binary SHA-256 is
+  `b326c525d0a11a1a1d152f60a08c1906bfa50dc00af0e4db7f080f17b59636e1`.
+- Verified migrations 42/43, the `kwh` enum, the CPO/GST uniqueness index,
+  settings backfill, zero service restarts, local/public health and readiness,
+  Swagger, raw OpenAPI (180 operations), protected worker/status boundaries,
+  and a clean post-start error scan.
+- `pwsh` and disposable `TEST_DATABASE_URL` remain unavailable, so the
+  documentation PowerShell verifier and guarded disposable-DB lifecycle tests
+  were not run.
+
+## 2026-08-18 - CPO wallet admission policy in source
+
+- CPO provisioning now creates its one blank settings row transactionally;
+  forward migration 43 backfills only CPOs that lack one, preserving all
+  existing settings. The two whole-currency wallet policy fields have
+  non-negative zero defaults and are now part of the CPO settings API and
+  OpenAPI contract.
+- New customer charging starts lock the CPO settings with the CPO and wallet,
+  require `balance >= wallet_min_balance`, and price the hold/maximum HAL Wh
+  from `balance - wallet_buffer_min_balance`. A buffer never changes the
+  independent customer/HAL duration cutoff or historical settlement.
+- Added CPO frontend guidance and the explicit `409
+  wallet_minimum_balance_not_met` admission error; a depleted post-buffer
+  balance uses the existing `409 insufficient_wallet_balance` response.
+- Customer wallet and wallet-history responses now surface the CPO's current
+  minimum/buffer, an exact non-negative usable balance, and the exact amount
+  needed to reach the minimum threshold. The recharge amount deliberately does
+  not add the buffer.
+
+Verification:
+
+- Database-free CPO, customer-auth, and migration tests cover zero defaults,
+  validation, threshold/buffer arithmetic, and resultant affordable Wh limits.
+- The guarded PostgreSQL start-admission test additionally covers the locked
+  persisted setting, hold, limit, and below-threshold rejection when a
+  disposable `TEST_DATABASE_URL` is available.
+- This local source change is not deployed and migration 43 has not been run
+  against a database.
+
+## 2026-08-18 - Tariff and GST commercial correction in source
+
+- Retained migration 40's data-preserving `price_per_unit` rename and added
+  forward migration 42 to rename the persisted `watt/hour` enum value to
+  `kwh`, without changing stored numeric prices. New energy tariffs therefore
+  mean an exact price per kWh and calculate `meter_wh / 1000 * price_per_unit`.
+- Repaired the live tariff/API/model contract to use one supported fixed basis:
+  energy per kWh, time per minute, or a fixed per-session amount. Retired
+  `watt/hour` is rejected for new writes; released snapshots that used it keep
+  their original per-Wh interpretation through an explicit legacy reader.
 - Centralized tariff interpretation for customer price display, start
   reservation, immutable tariff snapshots, session materialization, and
   completion settlement. Existing snapshots retain explicit, named legacy
   per-kWh handling only; no new snapshot writes the old key.
 - Kept tariff time pricing separate from existing time-bounded-session
   provisioning: actual HAL session timestamps price time tariffs, while the
-  current duration cutoff remains unchanged. GST ownership, tariff precedence,
-  idle-fee non-billing, HAL ownership, and public route shapes are unchanged.
+  current duration cutoff remains unchanged. Hub/GST state and tax components
+  now validate as a complete relationship on assignment, replacement, GST
+  update, and Hub state update; customer pricing treats invalid relationships
+  as unavailable. Active non-zero idle fees are rejected and never exposed as
+  a customer billable price.
 
 Verification:
 
-- Focused database-free `db`, `models`, `cpo`, and `customerauth` tests cover
-  migration text, retired-field rejection, all three tariff bases, wallet
-  holds, frozen snapshots, and legacy snapshot compatibility.
-- Runtime/OpenAPI/Swagger-route parity, serial `go test ./...`, and serial
-  `go vet ./...` passed. The PowerShell documentation verifier is unavailable
-  on this Ubuntu host because `pwsh` is not installed.
-- Applied migration 40 after a mode-0600 custom-format rollback dump at
-  `/var/backups/postgres/devevcmsnewdb-pre-migration-40-20260818-105424.dump`.
-  Migration 40 is recorded as the latest applied migration.
-- Rehosted clean runtime revision `9e7af67` with binary SHA-256
-  `714001a3aecc6ab08b45af4177cb5a4b7c7884c0ec8c952b849eb33aaa4dc9ed`.
-- The enabled service is active with zero restarts; public/local readiness,
-  Swagger, raw OpenAPI, and the protected worker/status boundaries passed.
+- Focused database-free `db`, `commercial`, `cpo`, and `customerauth` tests
+  cover migration text, GST state/rate compatibility, retired-unit rejection,
+  all three tariff bases, wallet holds, frozen snapshots, and legacy snapshot
+  compatibility.
+- Documentation verification, OpenAPI/runtime-route parity, serial
+  `go test -p 1 ./...`, and `go vet ./...` passed locally.
+- This local source change is not deployed. Migration 42 and the guarded
+  PostgreSQL admission/session lifecycle tests have not run because no
+  disposable `TEST_DATABASE_URL` is configured.
 
-The guarded PostgreSQL admission/session lifecycle tests remain unavailable
-because no disposable `TEST_DATABASE_URL` is configured.
+## 2026-08-18 - Rehosted wallet-balance aggregate and settings migration
+
+- Applied migration 41, adding non-null `wallet_min_balance` and
+  `wallet_buffer_min_balance` settings columns with zero defaults.
+- Fixed CPO customer aggregate loading so every CPO customer receives wallet
+  balance and zero-valued usage/session aggregates even without sessions.
+- Rehosted clean runtime revision `040b9bb` with binary SHA-256
+  `2b4a0ab8fd77b79ec92bf03a418acaa52eb6320e0e90401c62afbb9d23fced29`.
+- Applied migration 41 after a mode-0600 rollback dump at
+  `/var/backups/postgres/devevcmsnewdb-pre-migration-41-20260818-110956.dump`.
+
+Verification:
+
+- Focused migration/customer/route tests, serial `go test ./...`, `go vet
+  ./...`, Caddy validation, migration/schema checks, local/public
+  health/readiness, Swagger, raw OpenAPI, and protected worker/status
+  boundaries passed. The service is active with zero restarts and the live
+  contract remains at 180 operations.
+- `scripts/verify-docs.ps1` and disposable PostgreSQL lifecycle tests remain
+  unavailable because `pwsh` and `TEST_DATABASE_URL` are not configured.
+
+## 2026-08-18 - Rehosted tariff unit-price semantic correction
+
+- Migration 40 was applied after a mode-0600 custom-format rollback dump at
+  `/var/backups/postgres/devevcmsnewdb-pre-migration-40-20260818-105424.dump`.
+  Revision `9e7af67` is active with its then-current watt/hour source contract.
 
 ## 2026-08-18 - Rehosted customer aggregates and tariff validation release
 

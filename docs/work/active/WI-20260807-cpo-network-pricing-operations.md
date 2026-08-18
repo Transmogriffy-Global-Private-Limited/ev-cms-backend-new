@@ -74,8 +74,8 @@ charging vertical.
 
 ## Current state
 
-The current shared development deployment is runtime source revision `9e7af67`
-with migrations through forty applied and 180 OpenAPI
+The current shared development deployment is runtime source revision `ceefb21`
+with migrations through forty-three applied and 180 OpenAPI
 operations. The single-target tariff correction and charger customer visibility
 are enforced across CPO publication and User App discovery, detail, pricing,
 and favorites. The HAL runtime model
@@ -89,6 +89,7 @@ also active.
   and wallet aggregates. Tariff enum fields are validated before persistence.
 - Tariff pricing now uses `price_per_unit` with explicit energy, time, or
   per-session semantics under migration 40.
+- Migration 41 adds the CPO settings wallet minimum and buffer fields.
 
 Earlier revision `3ca2c35` was built from a clean worktree and rehosted on
 August 11, 2026 after migration thirty-two. The live service exposes the
@@ -145,8 +146,8 @@ The hub `state` field is persisted and included in the live CPO hub contracts.
 ## Handoff
 
 The CPO implementation remains owned by Abhranil Pal. The current deployment
-contains migrations through forty, the single-target tariff correction,
-and the charger customer-visibility gate
+contains migrations through forty-three, the single-target tariff/GST
+correction, wallet admission policy, and the charger customer-visibility gate
 plus the HAL runtime table mapping
 correction. Connector create/update request payloads and
 response objects use `connector_total_capacity`. Update the canonical OpenAPI,

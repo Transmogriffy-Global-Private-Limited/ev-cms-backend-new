@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/commercial"
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/constants"
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/models"
 	"github.com/google/uuid"
@@ -31,7 +32,6 @@ type CustomerPriceResponse struct {
 	TariffType        string           `json:"tariff_type,omitempty"`
 	PriceType         string           `json:"price_type,omitempty"`
 	Units             *string          `json:"units,omitempty"`
-	IdleFeePerMinute  string           `json:"idle_fee_per_minute,omitempty"`
 	GST               *CustomerGSTView `json:"gst,omitempty"`
 	UnavailableReason string           `json:"unavailable_reason,omitempty"`
 }
@@ -106,7 +106,6 @@ func (service *Service) resolveCustomerPrice(ctx context.Context, principal Prin
 		units := string(*pricing.units)
 		response.Units = &units
 	}
-	response.IdleFeePerMinute = selected.IdleFeePerMin.StringFixed(4)
 	response.UnavailableReason = ""
 	response.GST = &CustomerGSTView{SGSTRate: gst.SGSTRate.StringFixed(2), CGSTRate: gst.CGSTRate.StringFixed(2), IGSTRate: gst.IGSTRate.StringFixed(2)}
 	return response
@@ -172,7 +171,7 @@ func resolveActiveHubGST(database *gorm.DB, cpoID, hubID uuid.UUID) (models.GST,
 		}
 		return models.GST{}, false, err
 	}
-	if gst.SGSTRate == nil || gst.CGSTRate == nil || gst.IGSTRate == nil {
+	if commercial.ValidateHubGST(hub.State, gst.State, gst.SGSTRate, gst.CGSTRate, gst.IGSTRate) != nil {
 		return models.GST{}, false, nil
 	}
 	return gst, true, nil

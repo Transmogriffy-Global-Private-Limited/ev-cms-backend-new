@@ -748,9 +748,16 @@ liveops -> parent ONLINE+fresh AND connector fresh -> AVAILABLE
 #### 33.6 Customer charging start request
 
 ```text
-app -> CMS authorization/tariff/wallet lock -> StartIntent + hold + CMS command commit
+app -> CMS authorization/CPO wallet-policy/tariff/wallet lock -> StartIntent + hold + CMS command commit
     -> mapping check -> HAL RemoteStart command -> 202/ACCEPTED_FOR_DELIVERY
 ```
+
+At each new start, CMS locks the CPO settings with the CPO and customer wallet.
+It requires `balance >= wallet_min_balance` and calculates the tariff/GST hold
+and `EnergyLimitWh` from `balance - wallet_buffer_min_balance`; physical
+connector capacity and the existing maximum-duration bound still cap the Wh
+limit. `wallet_minimum_balance_not_met` and `insufficient_wallet_balance` are
+terminal admission responses: no intent, hold, or HAL command is created.
 
 #### 33.7 Actual StartTransaction
 

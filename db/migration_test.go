@@ -571,6 +571,64 @@ func TestTariffPriceRenameMigrationPreservesTheExistingColumn(t *testing.T) {
 	}
 }
 
+func TestTariffEnergyUnitAndHubGSTMigrationPreservesStoredValues(t *testing.T) {
+	t.Parallel()
+
+	upBody, err := migrationFiles.ReadFile("migrations/000042_correct_tariff_energy_unit_and_hub_gst_uniqueness.up.sql")
+	if err != nil {
+		t.Fatalf("read tariff-energy migration: %v", err)
+	}
+	downBody, err := migrationFiles.ReadFile("migrations/000042_correct_tariff_energy_unit_and_hub_gst_uniqueness.down.sql")
+	if err != nil {
+		t.Fatalf("read tariff-energy rollback: %v", err)
+	}
+	upSQL, downSQL := string(upBody), string(downBody)
+	for _, required := range []string{
+		"ALTER TYPE units RENAME VALUE 'watt/hour' TO 'kwh'",
+		"uq_hubs_cpo_gst_id",
+		"WHERE gst_id IS NOT NULL",
+	} {
+		if !strings.Contains(upSQL, required) {
+			t.Errorf("tariff-energy migration missing %q", required)
+		}
+	}
+	if strings.Contains(upSQL, "UPDATE tariffs") || strings.Contains(upSQL, "price_per_unit =") {
+		t.Error("tariff-energy migration must not rewrite stored commercial prices")
+	}
+	if !strings.Contains(downSQL, "ALTER TYPE units RENAME VALUE 'kwh' TO 'watt/hour'") ||
+		!strings.Contains(downSQL, "DROP INDEX IF EXISTS uq_hubs_cpo_gst_id") {
+		t.Error("tariff-energy rollback does not restore only the prior enum and uniqueness shape")
+	}
+}
+
+func TestDefaultCPOSettingsBackfillMigrationPreservesExistingSettings(t *testing.T) {
+	t.Parallel()
+
+	upBody, err := migrationFiles.ReadFile("migrations/000043_backfill_default_cpo_settings.up.sql")
+	if err != nil {
+		t.Fatalf("read default-settings migration: %v", err)
+	}
+	downBody, err := migrationFiles.ReadFile("migrations/000043_backfill_default_cpo_settings.down.sql")
+	if err != nil {
+		t.Fatalf("read default-settings rollback: %v", err)
+	}
+	upSQL, downSQL := string(upBody), string(downBody)
+	for _, required := range []string{
+		"INSERT INTO settings",
+		"LEFT JOIN settings ON settings.cpo_id = cpos.id",
+		"WHERE settings.cpo_id IS NULL",
+		"wallet_min_balance",
+		"wallet_buffer_min_balance",
+	} {
+		if !strings.Contains(upSQL, required) {
+			t.Errorf("default-settings migration missing %q", required)
+		}
+	}
+	if strings.Contains(downSQL, "DELETE FROM settings") {
+		t.Error("default-settings rollback must not delete potentially edited settings")
+	}
+}
+
 func TestSubscriptionMigrationContainsVersionedLifecycle(t *testing.T) {
 	t.Parallel()
 

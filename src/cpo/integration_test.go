@@ -202,6 +202,13 @@ func TestCPOProvisioningAndFirstAdminLifecycleWithPostgreSQL(t *testing.T) {
 		created.Admin.Role != constants.CPORoleAdmin {
 		t.Fatalf("unexpected CPO creation response: %#v", created)
 	}
+	var defaultSettings models.Settings
+	if err := gormDB.First(&defaultSettings, "cpo_id = ?", created.CPO.ID).Error; err != nil {
+		t.Fatalf("load automatic CPO settings: %v", err)
+	}
+	if defaultSettings.InvoiceLogo != nil || defaultSettings.InvoiceNote != nil || defaultSettings.WalletMinBalance != 0 || defaultSettings.WalletBufferMinBalance != 0 {
+		t.Fatalf("unexpected automatic CPO settings: %#v", defaultSettings)
+	}
 
 	welcome := readMessageFromOutbox(
 		t,
@@ -1248,6 +1255,7 @@ func TestCPOAdminProfileAndNetworkConfigurationWithPostgreSQL(t *testing.T) {
 	hub, err := service.CreateHub(ctx, adminPrincipal, CreateHubRequest{
 		Name:      "Park Street Hub",
 		Address:   "12 Park Street, Kolkata",
+		State:     constants.WestBengal,
 		Latitude:  &latitude,
 		Longitude: &longitude,
 	})
@@ -1291,12 +1299,13 @@ func TestCPOAdminProfileAndNetworkConfigurationWithPostgreSQL(t *testing.T) {
 	}
 
 	nine := decimal.RequireFromString("9.00")
-	eighteen := decimal.RequireFromString("18.00")
+	zero := decimal.Zero
 	gst, err := service.CreateGST(ctx, adminPrincipal, CreateGSTRequest{
 		Name:     "Standard GST " + uuid.NewString()[:8],
+		State:    constants.WestBengal,
 		SGSTRate: &nine,
 		CGSTRate: &nine,
-		IGSTRate: &eighteen,
+		IGSTRate: &zero,
 	})
 	if err != nil {
 		t.Fatalf("create GST: %v", err)
@@ -1783,7 +1792,7 @@ func TestHubTariffLifecycleWithPostgreSQL(t *testing.T) {
 	price := decimal.RequireFromString("0.0185")
 	tariffType := constants.TariffTypeFixed
 	priceType := constants.PriceTypeEnergy
-	units := constants.UnitWattHour
+	units := constants.UnitKWh
 	tariff, err := service.CreateHubTariff(ctx, adminPrincipal, hubID, CreateTariffRequest{
 		PricePerUnit: price,
 		TariffType:   &tariffType,

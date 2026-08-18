@@ -1097,14 +1097,14 @@ paths:
       tags: [App User Wallet]
       operationId: getCustomerWallet
       summary: Get the current customer wallet
-      description: Returns the wallet owned by the authenticated CPO-local customer. Balance is an exact decimal string.
+      description: Returns the wallet owned by the authenticated CPO-local customer, including the current CPO minimum/buffer policy, balance usable for a new charging hold, and the threshold-only recharge shortfall. Monetary values are exact decimal strings.
       security:
         - BearerAuth: []
       parameters:
         - $ref: "#/components/parameters/CPOAppIDHeader"
       responses:
         "200":
-          description: Current wallet balance and currency.
+          description: Current wallet balance and CPO charging-admission policy.
           content:
             application/json:
               schema: {$ref: "#/components/schemas/CustomerWalletResponse"}
@@ -1126,7 +1126,7 @@ paths:
       tags: [App User Wallet]
       operationId: listCustomerWalletTransactions
       summary: List the current customer wallet history
-      description: Returns only wallet transactions for the authenticated CPO-local customer using bounded descending keyset pagination.
+      description: Returns only wallet transactions for the authenticated CPO-local customer using bounded descending keyset pagination, plus the same current wallet/CPO admission-policy projection as `GET /wallet`.
       security:
         - BearerAuth: []
       parameters:
@@ -3471,7 +3471,8 @@ paths:
       operationId: getCpoSettings
       summary: Get the CPO's settings
       description: |
-        Returns the settings for the authenticated CPO. The CPO ID is
+        Returns the settings for the authenticated CPO. Every CPO has a
+        blank, zero-default settings row created during provisioning. The CPO ID is
         derived from the verified ADMIN session; callers cannot select another
         tenant.
       security:
@@ -4343,7 +4344,7 @@ paths:
       tags:
         - "CPO Operations - Network"
       summary: "Assign a GST profile to a hub"
-      description: "Assigns an existing GST profile to a charging hub. For a same-state hub and GST, SGST and CGST are mandatory and non-zero IGST is rejected. For different states, IGST is mandatory and non-zero SGST or CGST is rejected. Invalid combinations return invalid_gst_for_hub."
+      description: "Assigns an existing GST profile to a charging hub. For a same-state Hub and GST, present SGST/CGST and zero IGST are required. For different states, present IGST and zero SGST/CGST are required. The same resulting-relationship validation protects replacement and later Hub/GST mutations. Invalid combinations return invalid_gst_for_hub."
       operationId: "assign-gst-to-hub"
       parameters:
         - name: "hub_id"
@@ -4418,7 +4419,7 @@ paths:
       tags:
         - "CPO Operations - Network"
       summary: "Update the assigned GST profile for a hub"
-      description: "Replaces the currently assigned GST with a new one. The new GST must belong to the same CPO and not be assigned to another hub. State-aware rate validation applies: same-state assignments require SGST and CGST and reject non-zero IGST; different-state assignments require IGST and reject non-zero SGST or CGST. Invalid combinations return invalid_gst_for_hub."
+      description: "Replaces the currently assigned GST with a new one. The new GST must belong to the same CPO and not be assigned to another hub. State-aware complete-relationship validation applies: same-state assignments require present SGST/CGST and zero IGST; different-state assignments require present IGST and zero SGST/CGST. Invalid combinations return invalid_gst_for_hub."
       operationId: "updateHubGST"
       parameters:
         - name: "hub_id"
@@ -5712,7 +5713,7 @@ paths:
       tags: [App Charging]
       operationId: startCustomerCharging
       summary: Create a durable charging start intent
-      description: Creates the CMS tariff/tax snapshot, affordability reservation, one-use credential, and durable HAL command identity. A new start is admitted only when the committed CMS live-operations projection reports the requested connector as `AVAILABLE` and `FRESH`; `409 connector_not_available` is expected when that projection or a competing active intent prevents admission. A same-customer retry of an existing active intent returns that intent before the live admission check. `202` is not proof that charging started; only a later HAL `transaction.started` fact materializes a session.
+      description: Creates the CMS tariff/tax snapshot, affordability reservation, one-use credential, and durable HAL command identity. A new start is admitted only when the committed CMS live-operations projection reports the requested connector as `AVAILABLE` and `FRESH`; `409 connector_not_available` is expected when that projection or a competing active intent prevents admission. After the CPO minimum-balance check, tariff/GST affordability and the HAL Wh limit use `wallet balance - CPO wallet buffer`; `409 wallet_minimum_balance_not_met` means the balance is below the configured minimum, while `409 insufficient_wallet_balance` means no positive affordable session remains. A same-customer retry of an existing active intent returns that intent before the live admission check. `202` is not proof that charging started; only a later HAL `transaction.started` fact materializes a session.
       security: [{BearerAuth: []}]
       parameters: [{$ref: "#/components/parameters/CPOAppIDHeader"}]
       requestBody:
@@ -5726,7 +5727,7 @@ paths:
         "401": {$ref: "#/components/responses/Unauthorized"}
         "403": {$ref: "#/components/responses/Forbidden"}
         "404": {description: Customer charger or connector was not found.}
-        "409": {description: "Connector is not currently available for a new start, or an active intent already owns it.", content: {application/json: {schema: {$ref: "#/components/schemas/ErrorEnvelope"}}}}
+        "409": {description: "`connector_not_available`, `wallet_minimum_balance_not_met`, or `insufficient_wallet_balance` prevents a new start; an active intent can also own the connector.", content: {application/json: {schema: {$ref: "#/components/schemas/ErrorEnvelope"}}}}
         "503": {description: HAL charging service is unavailable.}
 
   /api/v1/app/charging-start-intents/{start_intent_id}:
@@ -7002,10 +7003,26 @@ components:
     CustomerWalletDetails:
       type: object
       additionalProperties: false
-      required: [id, balance, currency, updated_at]
+      required: [id, balance, usable_balance, minimum_recharge_amount, wallet_min_balance, wallet_buffer_min_balance, currency, updated_at]
       properties:
         id: {type: string, format: uuid}
         balance: {type: string, pattern: "^[0-9]+(?:\\.[0-9]{1,2})?$"}
+        usable_balance:
+          type: string
+          pattern: "^[0-9]+(?:\\.[0-9]{1,2})?$"
+          description: Current balance less the CPO buffer, clamped to zero; it does not itself override the CPO minimum-start requirement.
+        minimum_recharge_amount:
+          type: string
+          pattern: "^[0-9]+(?:\\.[0-9]{1,2})?$"
+          description: Amount needed to reach the CPO minimum balance, or zero when the balance already meets it. It does not add the CPO buffer.
+        wallet_min_balance:
+          type: integer
+          minimum: 0
+          description: Current CPO whole-currency threshold for starting a new charging session.
+        wallet_buffer_min_balance:
+          type: integer
+          minimum: 0
+          description: Current CPO whole-currency amount excluded from a new session's usable balance.
         currency: {type: string, pattern: "^[A-Z]{3}$"}
         updated_at: {type: string, format: date-time}
 
@@ -7085,12 +7102,8 @@ components:
           enum: [sessions, time, energy]
         units:
           type: string
-          enum: [minutes, watt/hour]
+          enum: [minutes, kwh]
           description: Present for energy and time tariffs; omitted for a fixed per-session tariff.
-        idle_fee_per_minute:
-          type: string
-          pattern: "^[0-9]+(?:\\.[0-9]{1,4})?$"
-          description: Exact decimal idle fee per minute; present only when available.
         gst:
           type: object
           additionalProperties: false
@@ -7101,7 +7114,7 @@ components:
             igst_rate: {type: string}
         unavailable_reason:
           type: string
-          enum: [no_eligible_tariff]
+          enum: [no_eligible_tariff, hub_gst_unavailable, unsupported_tariff_pricing]
           description: Present only when status is UNAVAILABLE.
 
     PlatformLoginRequest:
@@ -8845,12 +8858,13 @@ components:
       type: object
       additionalProperties: false
       required: [price_per_unit, tariff_type, price_type]
-      description: Commercial fields only. The nested route determines the one immutable tariff target; GST is configured on the hub, never on a tariff. Supported combinations are fixed energy/watt-hour, fixed time/minutes, and fixed sessions with units omitted.
+      description: Commercial fields only. The nested route determines the one immutable tariff target; GST is configured on the hub, never on a tariff. Supported combinations are fixed energy/kWh, fixed time/minutes, and fixed sessions with units omitted. Non-zero idle fees are unsupported until an authoritative idle interval exists.
       properties:
         price_per_unit:
           $ref: "#/components/schemas/DecimalInput"
         idle_fee_per_min:
           $ref: "#/components/schemas/DecimalInput"
+          description: Must be zero for an active tariff. Retained for durable snapshots and inactive legacy records; it is never billed.
         currency:
           type: string
           pattern: "^[A-Za-z]{3}$"
@@ -8874,16 +8888,16 @@ components:
           description: Required billable basis.
         units:
           type: string
-          enum: [minutes, watt/hour]
-          description: Required for energy (watt/hour) and time (minutes); omit for sessions.
+          enum: [minutes, kwh]
+          description: Required as kwh for energy and minutes for time; omit for sessions.
       example:
-        price_per_unit: "0.0185"
-        idle_fee_per_min: "1.0000"
+        price_per_unit: "16.9100"
+        idle_fee_per_min: "0.0000"
         currency: INR
         is_active: true
         tariff_type: fixed
         price_type: energy
-        units: watt/hour
+        units: kwh
 
     UpdateTariffRequest:
       type: object
@@ -8892,7 +8906,9 @@ components:
       description: Updates commercial fields only. A tariff's target remains the nested route target for its lifetime. The resulting tariff must use a supported fixed price_type/units combination.
       properties:
         price_per_unit: {$ref: "#/components/schemas/DecimalInput"}
-        idle_fee_per_min: {$ref: "#/components/schemas/DecimalInput"}
+        idle_fee_per_min:
+          allOf: [{$ref: "#/components/schemas/DecimalInput"}]
+          description: The resulting active tariff must retain a zero idle fee because idle billing is not supported.
         currency:
           type: string
           pattern: "^[A-Za-z]{3}$"
@@ -8913,7 +8929,7 @@ components:
           enum: [sessions, time, energy]
         units:
           type: string
-          enum: [minutes, watt/hour]
+          enum: [minutes, kwh]
 
     Tariff:
       type: object
@@ -8963,7 +8979,7 @@ components:
           enum: [sessions, time, energy]
         units:
           type: string
-          enum: [minutes, watt/hour]
+          enum: [minutes, kwh]
         created_at: {type: string, format: date-time}
         updated_at: {type: string, format: date-time}
 
@@ -9226,8 +9242,14 @@ components:
         legacy_price_per_kwh: {type: string, pattern: "^[0-9]+(?:\\.[0-9]+)?$", description: Present only for pre-correction snapshots that explicitly stored a per-kWh amount.}
         tariff_type: {type: string, enum: [fixed]}
         price_type: {type: string, enum: [sessions, time, energy]}
-        units: {type: string, enum: [minutes, watt/hour]}
-        idle_fee_per_minute: {type: string, pattern: "^[0-9]+(?:\\.[0-9]+)?$"}
+        units:
+          type: string
+          enum: [minutes, kwh, watt/hour]
+          description: watt/hour is retained only for a historical snapshot written before the kWh correction and preserves its original per-Wh meaning.
+        idle_fee_per_minute:
+          type: string
+          pattern: "^[0-9]+(?:\\.[0-9]+)?$"
+          description: Historical audit value only; idle fees are not supported or billed.
         currency: {type: string, pattern: "^[A-Z]{3}$"}
 
     ChargingSessionTax:
@@ -9266,6 +9288,7 @@ components:
     CpoSettings:
       type: object
       additionalProperties: false
+      required: [wallet_min_balance, wallet_buffer_min_balance]
       properties:
         invoice_logo:
           type: string
@@ -9273,6 +9296,14 @@ components:
         invoice_note:
           type: string
           nullable: true
+        wallet_min_balance:
+          type: integer
+          minimum: 0
+          description: Whole-currency balance required before a new charging session may start.
+        wallet_buffer_min_balance:
+          type: integer
+          minimum: 0
+          description: Whole-currency amount withheld from affordability for each new charging session.
 
     GetCpoSettingsResponse:
       $ref: "#/components/schemas/CpoSettings"
@@ -9287,6 +9318,14 @@ components:
           type: string
           format: binary
           description: Invoice logo file (e.g., JPEG, PNG).
+        wallet_min_balance:
+          type: integer
+          minimum: 0
+          description: Optional non-negative whole-currency admission threshold.
+        wallet_buffer_min_balance:
+          type: integer
+          minimum: 0
+          description: Optional non-negative whole-currency amount removed from usable balance at each start.
 
     FleetOperationsResponse:
       type: object

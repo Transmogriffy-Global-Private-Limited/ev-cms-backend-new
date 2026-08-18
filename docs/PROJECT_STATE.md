@@ -2,31 +2,73 @@
 
 ## Current State
 
-### 2026-08-18 — Tariff unit-price semantic correction deployed
+### 2026-08-18 — CPO wallet admission policy deployed
 
-- The release adds migration
-  `000040_rename_tariff_price_per_unit`, which preserves tariff values while
-  renaming the misleading durable column to `price_per_unit`. New CPO writes
-  and current tariff/customer responses use that name; `price_per_kwh` is
-  rejected for writes.
-- Supported fixed charging tariffs are explicit: energy per `watt/hour`, time
-  per `minutes`, or one fixed `sessions` amount. The User App price response,
-  charging admission hold, frozen start-intent/session snapshot, and
-  settlement all use the same interpretation. GST continues to come from the
-  charger hub and tariff precedence remains `USERGROUP > CHARGER > HUB`.
+- Source migration 43 gives every existing CPO a blank `settings` row without
+  overwriting existing invoice or wallet-policy values; new CPO provisioning
+  creates the same row transactionally. Both wallet policy fields default to
+  zero and are exposed through the tenant-scoped CPO settings API.
+- Every new customer charging start locks the CPO, wallet, and settings row,
+  rejects `balance < wallet_min_balance`, then calculates the tariff/GST hold
+  and HAL Wh limit from `balance - wallet_buffer_min_balance`. The buffer is
+  not a second admission threshold. Existing start intents, sessions, and
+  settlement snapshots are unchanged.
+- Customer wallet and wallet-history reads expose the current CPO minimum and
+  buffer alongside exact `usable_balance` and a threshold-only
+  `minimum_recharge_amount`; these are current read projections, while start
+  admission remains authoritative at its locked transaction boundary.
+- Migration 43 was applied to the development database after a mode-0600
+  rollback dump at `/var/backups/postgres/devevcmsnewdb-pre-migration-42-43-20260818-123600.dump`.
+  The development service now has settings rows for all existing CPOs.
+- Runtime revision `ceefb21` is active with binary SHA-256
+  `b326c525d0a11a1a1d152f60a08c1906bfa50dc00af0e4db7f080f17b59636e1`.
+- The guarded PostgreSQL admission test still requires an explicitly selected
+  disposable `TEST_DATABASE_URL` and was not run against the live database.
+
+### 2026-08-18 — Tariff/GST commercial correction deployed
+
+- Migration `000040_rename_tariff_price_per_unit` preserves tariff values while
+  naming the canonical durable field `price_per_unit`; current writes reject
+  `price_per_kwh`. The source forward migration 42 renames the durable
+  enum value `watt/hour` to `kwh` without changing any numeric price: an energy
+  value such as 16.91 means 16.91 per kWh, and meter Wh are divided by 1000.
+- Supported fixed charging tariffs are explicit: energy per `kwh`, time per
+  `minutes`, or one fixed `sessions` amount. Customer price, admission holds,
+  frozen start-intent/session snapshots, and settlement use that one shared
+  interpretation. GST remains Hub-owned and independent from tariff targeting;
+  precedence is `USERGROUP > CHARGER > HUB`.
 - Time pricing uses the actual session duration from the HAL start/complete
   facts. It does not alter the independent existing customer/HAL duration
   cutoff. New snapshots contain their semantic fields; historical snapshots
   with `price_per_kwh` are read only through a deliberately named legacy path.
+- New active tariffs reject a non-zero idle fee because no authoritative idle
+  interval exists; zero remains a durable audit/snapshot value and is never
+  billed. Existing non-zero active records are unavailable for pricing rather
+  than silently under-billed.
+- Migration 42 was applied to the development database together with the
+  guarded duplicate-assignment check. The persisted energy enum is now `kwh`,
+  and the partial unique CPO/GST hub-assignment index is present.
+- Disposable PostgreSQL lifecycle verification remains pending an explicitly
+  selected `TEST_DATABASE_URL`.
+
+### 2026-08-18 — Wallet aggregates and settings migration deployed
+
+- Migration 41 adds non-null `settings.wallet_min_balance` and
+  `settings.wallet_buffer_min_balance` columns with zero defaults.
+- CPO customer aggregate loading now starts from all customers in the tenant,
+  so wallet balance and zero usage/session values are present even when a
+  customer has no charging-session rows.
+- Revision `040b9bb` is active with binary SHA-256
+  `2b4a0ab8fd77b79ec92bf03a418acaa52eb6320e0e90401c62afbb9d23fced29`.
+
+### 2026-08-18 — Tariff unit-price semantic correction deployed
+
 - Migration 40 is applied on the development VPS after a mode-0600 rollback
-  dump. Revision `9e7af67` is active with binary SHA-256
-  `714001a3aecc6ab08b45af4177cb5a4b7c7884c0ec8c952b849eb33aaa4dc9ed`.
-- The service is active with zero restarts; Caddy validation, focused and full
-  Go tests, vet, local/public health/readiness, Swagger, raw OpenAPI, and
-  unauthenticated worker/status boundaries passed. The live contract remains
-  at 180 operations.
-- Disposable PostgreSQL lifecycle and full CMS-to-HAL topology acceptance
-  remain pending their dedicated environments.
+  dump. Revision `9e7af67` is active with the then-current tariff contract.
+- The source correction above is deliberately not deployed and supersedes the
+  former `watt/hour` energy interpretation for the next migration-controlled
+  release. Disposable PostgreSQL lifecycle and full CMS-to-HAL topology
+  acceptance remain pending their dedicated environments.
 
 ### 2026-08-18 — Customer aggregates and tariff validation release deployed
 
@@ -466,8 +508,8 @@ provides:
   handler;
 - the additive PostgreSQL database `devevcmsnewdb`, owned by `postgres`.
 
-The active development VPS runs source revision `9e7af67`, with migrations
-through forty recorded and the deployed 180-operation contract. Migration
+The active development VPS runs source revision `ceefb21`, with migrations
+through forty-three recorded and the deployed 180-operation contract. Migration
 twenty-nine adds nullable `tariff_type`, `price_type`, and `units` metadata to
 tenant tariffs; omitted values remain null-safe for existing and newly created
 tariffs. The SuperAdmin administrator-list query explicitly binds the platform

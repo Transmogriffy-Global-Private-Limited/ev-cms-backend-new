@@ -16,6 +16,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/shopspring/decimal"
 )
 
 func TestTariffRequestBodiesRejectTargetIDs(t *testing.T) {
@@ -40,6 +41,29 @@ func TestTariffRequestBodiesRejectLegacyPricePerKWh(t *testing.T) {
 		ctx.Request = httptest.NewRequest(http.MethodPost, "/", bytes.NewBufferString(`{"price_per_kwh":"10.00"}`))
 		if err := decodeJSON(ctx, destination); err == nil {
 			t.Fatalf("%T accepted the retired price_per_kwh request field", destination)
+		}
+	}
+}
+
+func TestOptionalNonNegativeWholeCurrencyFormValue(t *testing.T) {
+	makeContext := func(body string) *gin.Context {
+		writer := httptest.NewRecorder()
+		ctx, _ := gin.CreateTestContext(writer)
+		ctx.Request = httptest.NewRequest(http.MethodPost, "/", strings.NewReader(body))
+		ctx.Request.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		return ctx
+	}
+
+	value, err := optionalNonNegativeWholeCurrencyFormValue(makeContext("wallet_min_balance=500"), "wallet_min_balance")
+	if err != nil || value == nil || *value != 500 {
+		t.Fatalf("valid wallet minimum value=%v err=%v, want 500", value, err)
+	}
+	if value, err := optionalNonNegativeWholeCurrencyFormValue(makeContext(""), "wallet_min_balance"); err != nil || value != nil {
+		t.Fatalf("omitted wallet minimum value=%v err=%v, want nil", value, err)
+	}
+	for _, body := range []string{"wallet_min_balance=-1", "wallet_min_balance=20.5", "wallet_min_balance=not-a-number"} {
+		if _, err := optionalNonNegativeWholeCurrencyFormValue(makeContext(body), "wallet_min_balance"); err == nil {
+			t.Fatalf("invalid wallet minimum form %q was accepted", body)
 		}
 	}
 }
@@ -470,12 +494,52 @@ func TestHubViewIncludesState(t *testing.T) {
 	}
 }
 
+func TestValidateGSTForHubUsesCompleteResultingRelationship(t *testing.T) {
+	t.Parallel()
+	nine, eighteen, zero := decimal.NewFromInt(9), decimal.NewFromInt(18), decimal.Zero
+	hub := models.Hub{State: constants.WestBengal}
+
+	for _, tc := range []struct {
+		name  string
+		gst   models.GST
+		valid bool
+	}{
+		{"same state split tax", models.GST{IsActive: true, State: constants.WestBengal, SGSTRate: &nine, CGSTRate: &nine, IGSTRate: &zero}, true},
+		{"same state IGST", models.GST{IsActive: true, State: constants.WestBengal, SGSTRate: &nine, CGSTRate: &nine, IGSTRate: &eighteen}, false},
+		{"interstate IGST", models.GST{IsActive: true, State: constants.Maharashtra, SGSTRate: &zero, CGSTRate: &zero, IGSTRate: &eighteen}, true},
+		{"inactive profile", models.GST{IsActive: false, State: constants.WestBengal, SGSTRate: &nine, CGSTRate: &nine, IGSTRate: &zero}, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			err := validateGSTForHub(hub, tc.gst)
+			if (err == nil) != tc.valid {
+				t.Fatalf("validateGSTForHub() error = %v, valid = %v", err, tc.valid)
+			}
+		})
+	}
+}
+
+func TestGSTRequestValidationRejectsMixedTaxComponents(t *testing.T) {
+	t.Parallel()
+	nine, eighteen := decimal.NewFromInt(9), decimal.NewFromInt(18)
+	err := validateCreateGSTRequest(CreateGSTRequest{
+		Name:     "mixed",
+		State:    constants.WestBengal,
+		SGSTRate: &nine,
+		CGSTRate: &nine,
+		IGSTRate: &eighteen,
+	})
+	var apiErr *auth.APIError
+	if !errors.As(err, &apiErr) || apiErr.Code != "invalid_gst_components" {
+		t.Fatalf("mixed GST components error=%v, want invalid_gst_components", err)
+	}
+}
+
 func TestTariffValidation(t *testing.T) {
 	t.Parallel()
 
 	validTariffType := constants.TariffTypeFixed
 	validPriceType := constants.PriceTypeEnergy
-	validUnits := constants.UnitWattHour
+	validUnits := constants.UnitKWh
 
 	// --- Create ---
 	validCreateReq := CreateTariffRequest{
@@ -531,6 +595,25 @@ func TestTariffValidation(t *testing.T) {
 				return req
 			}(),
 			"invalid_units",
+		},
+		{
+			"retired watt hour units",
+			func() CreateTariffRequest {
+				req := validCreateReq
+				legacy := constants.LegacyUnitWattHour
+				req.Units = &legacy
+				return req
+			}(),
+			"invalid_units",
+		},
+		{
+			"active idle fee unsupported",
+			func() CreateTariffRequest {
+				req := validCreateReq
+				req.IdleFeePerMin = decimal.NewFromInt(1)
+				return req
+			}(),
+			"idle_fee_unsupported",
 		},
 		{
 			"unsupported time unit",

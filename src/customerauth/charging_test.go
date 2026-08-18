@@ -17,7 +17,7 @@ import (
 func TestAffordableChargingLimitUsesExactIntegerWh(t *testing.T) {
 	t.Parallel()
 	tariffType, priceType, units := energyTariffMetadata()
-	pricing, err := tariffPricingFromTariff(models.Tariff{PricePerUnit: decimal.RequireFromString("0.0100"), TariffType: &tariffType, PriceType: &priceType, Units: &units})
+	pricing, err := tariffPricingFromTariff(models.Tariff{PricePerUnit: decimal.RequireFromString("10.00"), TariffType: &tariffType, PriceType: &priceType, Units: &units})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -48,6 +48,40 @@ func TestFreeChargingStillRequiresPhysicalEnergyBound(t *testing.T) {
 	}
 }
 
+func TestUsableWalletBalanceEnforcesCPOThresholdAndBuffer(t *testing.T) {
+	t.Parallel()
+	policy := models.Settings{WalletMinBalance: 500, WalletBufferMinBalance: 20}
+	usable, err := usableWalletBalance(decimal.NewFromInt(500), policy)
+	if err != nil || !usable.Equal(decimal.NewFromInt(480)) {
+		t.Fatalf("usable balance=%s err=%v, want 480", usable, err)
+	}
+	tariffType, priceType, units := energyTariffMetadata()
+	pricing, err := tariffPricingFromTariff(models.Tariff{
+		PricePerUnit: decimal.NewFromInt(100),
+		TariffType:   &tariffType,
+		PriceType:    &priceType,
+		Units:        &units,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	zero := decimal.Zero
+	_, limitWh, err := affordableChargingLimit(usable, pricing, models.GST{SGSTRate: &zero, CGSTRate: &zero, IGSTRate: &zero}, models.Connector{ConnectorTotalCapacity: 7.4})
+	if err != nil || limitWh != 4800 {
+		t.Fatalf("usable balance energy limit=%d err=%v, want 4800 Wh", limitWh, err)
+	}
+	if _, err := usableWalletBalance(decimal.NewFromInt(499), policy); !errors.Is(err, errWalletMinimumBalance) {
+		t.Fatalf("below-minimum error=%v, want wallet minimum error", err)
+	}
+	if _, err := usableWalletBalance(decimal.NewFromInt(20), models.Settings{WalletBufferMinBalance: 20}); err == nil {
+		t.Fatal("buffer that leaves no positive usable balance was accepted")
+	}
+	zeroDefault, err := usableWalletBalance(decimal.NewFromInt(1), models.Settings{})
+	if err != nil || !zeroDefault.Equal(decimal.NewFromInt(1)) {
+		t.Fatalf("zero-default usable balance=%s err=%v, want 1", zeroDefault, err)
+	}
+}
+
 func TestTariffPricingCalculatesEachSupportedBasisAndLegacySnapshots(t *testing.T) {
 	t.Parallel()
 	zero := decimal.Zero
@@ -56,12 +90,19 @@ func TestTariffPricingCalculatesEachSupportedBasisAndLegacySnapshots(t *testing.
 	stoppedAt := startedAt.Add(90 * time.Second)
 
 	energyType, energyPriceType, energyUnits := energyTariffMetadata()
-	energy, err := tariffPricingFromTariff(models.Tariff{PricePerUnit: decimal.RequireFromString("0.0100"), TariffType: &energyType, PriceType: &energyPriceType, Units: &energyUnits})
+	energy, err := tariffPricingFromTariff(models.Tariff{PricePerUnit: decimal.RequireFromString("10.00"), TariffType: &energyType, PriceType: &energyPriceType, Units: &energyUnits})
 	if err != nil {
 		t.Fatal(err)
 	}
 	if amount, err := energy.amountWithGST(1234, startedAt, stoppedAt, gst); err != nil || !amount.Equal(decimal.RequireFromString("12.34")) {
 		t.Fatalf("energy amount=%s err=%v, want 12.34", amount, err)
+	}
+	energyAtCommercialRate, err := tariffPricingFromTariff(models.Tariff{PricePerUnit: decimal.RequireFromString("16.91"), TariffType: &energyType, PriceType: &energyPriceType, Units: &energyUnits})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if base, err := energyAtCommercialRate.baseAmount(7200, startedAt, stoppedAt); err != nil || !base.Equal(decimal.RequireFromString("121.752")) {
+		t.Fatalf("energy base=%s err=%v, want 121.752 for 7.2 kWh at 16.91/kWh", base, err)
 	}
 
 	timeType := constants.TariffTypeFixed
@@ -98,15 +139,31 @@ func TestTariffPricingCalculatesEachSupportedBasisAndLegacySnapshots(t *testing.
 	if amount, err := legacy.amountWithGST(1234, startedAt, stoppedAt, gst); err != nil || !amount.Equal(decimal.RequireFromString("12.34")) {
 		t.Fatalf("legacy amount=%s err=%v, want 12.34", amount, err)
 	}
+	legacyPerWh, err := tariffPricingFromSnapshot(models.JSONB{
+		"price_per_unit": "16.91", "tariff_type": "fixed", "price_type": "energy", "units": "watt/hour",
+	})
+	if err != nil {
+		t.Fatalf("decode released watt/hour snapshot: %v", err)
+	}
+	if base, err := legacyPerWh.baseAmount(7200, startedAt, stoppedAt); err != nil || !base.Equal(decimal.RequireFromString("121752")) {
+		t.Fatalf("legacy watt/hour snapshot was silently reinterpreted: %s (%v)", base, err)
+	}
 }
 
 func TestTariffPricingRejectsUnsupportedUnitCombinations(t *testing.T) {
 	t.Parallel()
 	tariffType := constants.TariffTypeFixed
 	priceType := constants.PriceTypeTime
-	units := constants.UnitWattHour
+	units := constants.LegacyUnitWattHour
 	if _, err := tariffPricingFromTariff(models.Tariff{TariffType: &tariffType, PriceType: &priceType, Units: &units}); !errors.Is(err, errUnsupportedTariffSemantics) {
 		t.Fatalf("invalid time unit err=%v, want unsupported tariff semantics", err)
+	}
+	energy := constants.PriceTypeEnergy
+	if _, err := tariffPricingFromTariff(models.Tariff{TariffType: &tariffType, PriceType: &energy, Units: &units}); !errors.Is(err, errUnsupportedTariffSemantics) {
+		t.Fatalf("legacy energy unit err=%v, want unsupported tariff semantics", err)
+	}
+	if _, err := tariffPricingFromTariff(models.Tariff{TariffType: &tariffType, PriceType: &energy, Units: func() *constants.Unit { value := constants.UnitKWh; return &value }(), IdleFeePerMin: decimal.NewFromInt(1)}); !errors.Is(err, errUnsupportedTariffSemantics) {
+		t.Fatalf("idle-fee tariff err=%v, want unsupported tariff semantics", err)
 	}
 }
 
@@ -328,5 +385,5 @@ func TestChargingConnectorAllowsNewStartOnlyWhenAvailableAndFresh(t *testing.T) 
 func int64Pointer(value int64) *int64 { return &value }
 
 func energyTariffMetadata() (constants.TariffType, constants.PriceType, constants.Unit) {
-	return constants.TariffTypeFixed, constants.PriceTypeEnergy, constants.UnitWattHour
+	return constants.TariffTypeFixed, constants.PriceTypeEnergy, constants.UnitKWh
 }

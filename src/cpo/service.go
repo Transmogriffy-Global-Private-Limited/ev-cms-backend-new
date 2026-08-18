@@ -11,10 +11,12 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/auth"
+	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/commercial"
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/constants"
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/halops"
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/liveops"
@@ -271,6 +273,15 @@ func (service *Service) Create(
 		}
 		if err := tx.Create(&cpoRecord).Error; err != nil {
 			return mapWriteError(err, "create CPO")
+		}
+		if err := tx.Create(&models.Settings{
+			CPOID:                  cpoRecord.ID,
+			WalletMinBalance:       0,
+			WalletBufferMinBalance: 0,
+			CreatedAt:              now,
+			UpdatedAt:              now,
+		}).Error; err != nil {
+			return mapWriteError(err, "create default CPO settings")
 		}
 
 		result := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
@@ -2008,12 +2019,15 @@ func (service *Service) AssignGSTToHub(
 	cpoID := *principal.CPOID
 	var hub models.Hub
 	err := service.database.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		if err := tx.First(&hub, "id = ? AND cpo_id = ?", hubID, cpoID).Error; err != nil {
+		if err := lockCPOGSTRelations(tx, cpoID); err != nil {
+			return err
+		}
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&hub, "id = ? AND cpo_id = ?", hubID, cpoID).Error; err != nil {
 			return mapHubNotFound(err)
 		}
 
 		var gst models.GST
-		if err := tx.First(&gst, "id = ? AND cpo_id = ?", request.GSTID, cpoID).Error; err != nil {
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&gst, "id = ? AND cpo_id = ?", request.GSTID, cpoID).Error; err != nil {
 			if errors.Is(err, gorm.ErrRecordNotFound) {
 				return &auth.APIError{
 					Status:  http.StatusNotFound,
@@ -2024,36 +2038,8 @@ func (service *Service) AssignGSTToHub(
 			return fmt.Errorf("load GST: %w", err)
 		}
 
-		if hub.State == gst.State {
-			if gst.IGSTRate != nil && !gst.IGSTRate.IsZero() {
-				return &auth.APIError{
-					Status:  http.StatusBadRequest,
-					Code:    "invalid_gst_for_hub",
-					Message: "IGST is not applicable for same state GST assignment.",
-				}
-			}
-			if gst.SGSTRate == nil || gst.CGSTRate == nil {
-				return &auth.APIError{
-					Status:  http.StatusBadRequest,
-					Code:    "invalid_gst_for_hub",
-					Message: "SGST and CGST are mandatory for same state GST assignment.",
-				}
-			}
-		} else {
-			if (gst.SGSTRate != nil && !gst.SGSTRate.IsZero()) || (gst.CGSTRate != nil && !gst.CGSTRate.IsZero()) {
-				return &auth.APIError{
-					Status:  http.StatusBadRequest,
-					Code:    "invalid_gst_for_hub",
-					Message: "SGST and CGST are not applicable for different state GST assignment.",
-				}
-			}
-			if gst.IGSTRate == nil {
-				return &auth.APIError{
-					Status:  http.StatusBadRequest,
-					Code:    "invalid_gst_for_hub",
-					Message: "IGST is mandatory for different state GST assignment.",
-				}
-			}
+		if err := validateGSTForHub(hub, gst); err != nil {
+			return err
 		}
 
 		// Check if GST is already assigned to another hub
@@ -2152,12 +2138,15 @@ func (service *Service) UpdateGSTForHub(
 	cpoID := *principal.CPOID
 	var hub models.Hub
 	err := service.database.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		if err := tx.First(&hub, "id = ? AND cpo_id = ?", hubID, cpoID).Error; err != nil {
+		if err := lockCPOGSTRelations(tx, cpoID); err != nil {
+			return err
+		}
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&hub, "id = ? AND cpo_id = ?", hubID, cpoID).Error; err != nil {
 			return mapHubNotFound(err)
 		}
 
 		var gst models.GST
-		if err := tx.First(&gst, "id = ? AND cpo_id = ?", request.GSTID, cpoID).Error; err != nil {
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&gst, "id = ? AND cpo_id = ?", request.GSTID, cpoID).Error; err != nil {
 			if errors.Is(err, gorm.ErrRecordNotFound) {
 				return &auth.APIError{
 					Status:  http.StatusNotFound,
@@ -2168,36 +2157,8 @@ func (service *Service) UpdateGSTForHub(
 			return fmt.Errorf("load GST: %w", err)
 		}
 
-		if hub.State == gst.State {
-			if gst.IGSTRate != nil && !gst.IGSTRate.IsZero() {
-				return &auth.APIError{
-					Status:  http.StatusBadRequest,
-					Code:    "invalid_gst_for_hub",
-					Message: "IGST is not applicable for same state GST assignment.",
-				}
-			}
-			if gst.SGSTRate == nil || gst.CGSTRate == nil {
-				return &auth.APIError{
-					Status:  http.StatusBadRequest,
-					Code:    "invalid_gst_for_hub",
-					Message: "SGST and CGST are mandatory for same state GST assignment.",
-				}
-			}
-		} else {
-			if (gst.SGSTRate != nil && !gst.SGSTRate.IsZero()) || (gst.CGSTRate != nil && !gst.CGSTRate.IsZero()) {
-				return &auth.APIError{
-					Status:  http.StatusBadRequest,
-					Code:    "invalid_gst_for_hub",
-					Message: "SGST and CGST are not applicable for different state GST assignment.",
-				}
-			}
-			if gst.IGSTRate == nil {
-				return &auth.APIError{
-					Status:  http.StatusBadRequest,
-					Code:    "invalid_gst_for_hub",
-					Message: "IGST is mandatory for different state GST assignment.",
-				}
-			}
+		if err := validateGSTForHub(hub, gst); err != nil {
+			return err
 		}
 
 		// Check if GST is already assigned to another hub
@@ -2257,7 +2218,10 @@ func (service *Service) UnassignGSTFromHub(
 	cpoID := *principal.CPOID
 	var hub models.Hub
 	err := service.database.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		if err := tx.First(&hub, "id = ? AND cpo_id = ?", hubID, cpoID).Error; err != nil {
+		if err := lockCPOGSTRelations(tx, cpoID); err != nil {
+			return err
+		}
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&hub, "id = ? AND cpo_id = ?", hubID, cpoID).Error; err != nil {
 			return mapHubNotFound(err)
 		}
 
@@ -2297,6 +2261,27 @@ func (service *Service) UnassignGSTFromHub(
 	}
 
 	return toHubView(hub), nil
+}
+
+// lockCPOGSTRelations serializes relationship-changing Hub and GST mutations
+// for one tenant before their row locks are acquired. It prevents a concurrent
+// Hub-state and GST-rate update from validating different intermediate states.
+func lockCPOGSTRelations(tx *gorm.DB, cpoID uuid.UUID) error {
+	return tx.Exec(
+		"SELECT pg_advisory_xact_lock(hashtextextended(?, 0))",
+		"cpo-hub-gst:"+cpoID.String(),
+	).Error
+}
+
+func validateGSTForHub(hub models.Hub, gst models.GST) error {
+	if !gst.IsActive || commercial.ValidateHubGST(hub.State, gst.State, gst.SGSTRate, gst.CGSTRate, gst.IGSTRate) != nil {
+		return &auth.APIError{
+			Status:  http.StatusBadRequest,
+			Code:    "invalid_gst_for_hub",
+			Message: "The active GST profile is incompatible with the Hub state and tax components.",
+		}
+	}
+	return nil
 }
 
 func toHubView(hub models.Hub) HubView {
@@ -2727,7 +2712,7 @@ func (service *Service) UpdateHubTariff(
 				Message: "At least one tariff field must be supplied.",
 			}
 		}
-		if err := validateTariffSemantics(record.TariffType, record.PriceType, record.Units); err != nil {
+		if err := validateTariffCommercial(record.TariffType, record.PriceType, record.Units, record.IdleFeePerMin, record.IsActive); err != nil {
 			return err
 		}
 		now := service.now()
@@ -2990,7 +2975,7 @@ func (service *Service) UpdateChargerTariff(
 				Message: "At least one tariff field must be supplied.",
 			}
 		}
-		if err := validateTariffSemantics(record.TariffType, record.PriceType, record.Units); err != nil {
+		if err := validateTariffCommercial(record.TariffType, record.PriceType, record.Units, record.IdleFeePerMin, record.IsActive); err != nil {
 			return err
 		}
 		now := service.now()
@@ -3252,7 +3237,7 @@ func (service *Service) UpdateUserGroupTariff(
 				Message: "At least one tariff field must be supplied.",
 			}
 		}
-		if err := validateTariffSemantics(record.TariffType, record.PriceType, record.Units); err != nil {
+		if err := validateTariffCommercial(record.TariffType, record.PriceType, record.Units, record.IdleFeePerMin, record.IsActive); err != nil {
 			return err
 		}
 		now := service.now()
@@ -4552,6 +4537,9 @@ func (service *Service) UpdateHub(
 	changed := false
 
 	err := service.database.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := lockCPOGSTRelations(tx, cpoID); err != nil {
+			return err
+		}
 		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
 			First(&record, "cpo_id = ? AND id = ?", cpoID, hubID).Error; err != nil {
 			return mapHubNotFound(err)
@@ -4616,6 +4604,19 @@ func (service *Service) UpdateHub(
 				record.CustomerVisible = value.(bool)
 			case "state":
 				record.State = value.(constants.IndianState)
+			}
+		}
+		if record.GSTID != nil {
+			var gst models.GST
+			if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+				First(&gst, "cpo_id = ? AND id = ?", cpoID, *record.GSTID).Error; err != nil {
+				if errors.Is(err, gorm.ErrRecordNotFound) {
+					return &auth.APIError{Status: http.StatusConflict, Code: "invalid_gst_for_hub", Message: "The Hub has no valid assigned GST profile."}
+				}
+				return fmt.Errorf("load Hub GST for validation: %w", err)
+			}
+			if err := validateGSTForHub(record, gst); err != nil {
+				return err
 			}
 		}
 
@@ -5203,7 +5204,8 @@ func validateCreateTariffRequest(request CreateTariffRequest) error {
 	if request.Units != nil && !request.Units.Valid() {
 		return invalid("units", "Invalid units.")
 	}
-	return validateTariffSemantics(request.TariffType, request.PriceType, request.Units)
+	isActive := request.IsActive == nil || *request.IsActive
+	return validateTariffCommercial(request.TariffType, request.PriceType, request.Units, request.IdleFeePerMin, isActive)
 }
 
 func validateUpdateTariffRequest(request UpdateTariffRequest) error {
@@ -5240,14 +5242,21 @@ func validateUpdateTariffRequest(request UpdateTariffRequest) error {
 	return nil
 }
 
-func validateTariffSemantics(tariffType *constants.TariffType, priceType *constants.PriceType, units *constants.Unit) error {
+func validateTariffCommercial(tariffType *constants.TariffType, priceType *constants.PriceType, units *constants.Unit, idleFeePerMin decimal.Decimal, isActive bool) error {
 	if constants.SupportedChargingTariff(tariffType, priceType, units) {
-		return nil
+		if !isActive || idleFeePerMin.IsZero() {
+			return nil
+		}
+		return &auth.APIError{
+			Status:  http.StatusBadRequest,
+			Code:    "idle_fee_unsupported",
+			Message: "A non-zero idle fee is unavailable until an authoritative idle interval exists.",
+		}
 	}
 	return &auth.APIError{
 		Status:  http.StatusBadRequest,
 		Code:    "unsupported_tariff_pricing",
-		Message: "Supported tariffs are fixed energy per watt/hour, fixed time per minute, or fixed per session.",
+		Message: "Supported tariffs are fixed energy per kWh, fixed time per minute, or fixed per session.",
 	}
 }
 
@@ -5503,6 +5512,9 @@ func (service *Service) UpdateGST(
 	var record models.GST
 
 	err := service.database.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := lockCPOGSTRelations(tx, cpoID); err != nil {
+			return err
+		}
 		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
 			First(&record, "cpo_id = ? AND id = ?", cpoID, gstID).Error; err != nil {
 			return mapGSTNotFound(err)
@@ -5549,7 +5561,21 @@ func (service *Service) UpdateGST(
 				Message: "At least one GST field must be supplied.",
 			}
 		}
+		if commercial.ValidateGSTComponents(record.SGSTRate, record.CGSTRate, record.IGSTRate) != nil {
+			return invalid("gst_components", "GST cannot combine split and integrated tax components.")
+		}
 
+		var assignedHubs []models.Hub
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+			Where("cpo_id = ? AND gst_id = ?", cpoID, record.ID).
+			Find(&assignedHubs).Error; err != nil {
+			return fmt.Errorf("load GST Hub assignments: %w", err)
+		}
+		for _, hub := range assignedHubs {
+			if err := validateGSTForHub(hub, record); err != nil {
+				return err
+			}
+		}
 		now := service.now()
 		updates["updated_at"] = now
 		record.UpdatedAt = now
@@ -5627,6 +5653,9 @@ func validateCreateGSTRequest(request CreateGSTRequest) error {
 	}
 	if request.IGSTRate.Cmp(decimal.NewFromInt(100)) > 0 {
 		return invalid("igst_rate", "IGST rate must not exceed 100.")
+	}
+	if commercial.ValidateGSTComponents(request.SGSTRate, request.CGSTRate, request.IGSTRate) != nil {
+		return invalid("gst_components", "GST cannot combine split and integrated tax components.")
 	}
 	return nil
 }
@@ -6351,8 +6380,10 @@ func (service *Service) GetSettings(
 	}
 
 	return SettingsView{
-		InvoiceLogo: settings.InvoiceLogo,
-		InvoiceNote: settings.InvoiceNote,
+		InvoiceLogo:            settings.InvoiceLogo,
+		InvoiceNote:            settings.InvoiceNote,
+		WalletMinBalance:       settings.WalletMinBalance,
+		WalletBufferMinBalance: settings.WalletBufferMinBalance,
 	}, nil
 }
 
@@ -6375,10 +6406,18 @@ func (service *Service) CreateOrUpdateSettings(
 	}
 
 	invoiceNote := ctx.Request.FormValue("invoice_note")
+	walletMinBalance, err := optionalNonNegativeWholeCurrencyFormValue(ctx, "wallet_min_balance")
+	if err != nil {
+		return SettingsView{}, err
+	}
+	walletBufferMinBalance, err := optionalNonNegativeWholeCurrencyFormValue(ctx, "wallet_buffer_min_balance")
+	if err != nil {
+		return SettingsView{}, err
+	}
 
 	var settings models.Settings
 	err = service.database.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		if err := tx.Where("cpo_id = ?", cpoID).First(&settings).Error; err != nil {
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("cpo_id = ?", cpoID).First(&settings).Error; err != nil {
 			if !errors.Is(err, gorm.ErrRecordNotFound) {
 				return fmt.Errorf("failed to get settings: %w", err)
 			}
@@ -6417,10 +6456,16 @@ func (service *Service) CreateOrUpdateSettings(
 		if invoiceNote != "" {
 			settings.InvoiceNote = &invoiceNote
 		}
+		if walletMinBalance != nil {
+			settings.WalletMinBalance = *walletMinBalance
+		}
+		if walletBufferMinBalance != nil {
+			settings.WalletBufferMinBalance = *walletBufferMinBalance
+		}
 
 		if err := tx.Clauses(clause.OnConflict{
 			Columns:   []clause.Column{{Name: "cpo_id"}},
-			DoUpdates: clause.AssignmentColumns([]string{"invoice_logo", "invoice_note", "updated_at"}),
+			DoUpdates: clause.AssignmentColumns([]string{"invoice_logo", "invoice_note", "wallet_min_balance", "wallet_buffer_min_balance", "updated_at"}),
 		}).Create(&settings).Error; err != nil {
 			return fmt.Errorf("failed to save settings: %w", err)
 		}
@@ -6433,9 +6478,23 @@ func (service *Service) CreateOrUpdateSettings(
 	}
 
 	return SettingsView{
-		InvoiceLogo: settings.InvoiceLogo,
-		InvoiceNote: settings.InvoiceNote,
+		InvoiceLogo:            settings.InvoiceLogo,
+		InvoiceNote:            settings.InvoiceNote,
+		WalletMinBalance:       settings.WalletMinBalance,
+		WalletBufferMinBalance: settings.WalletBufferMinBalance,
 	}, nil
+}
+
+func optionalNonNegativeWholeCurrencyFormValue(ctx *gin.Context, field string) (*int, error) {
+	raw, present := ctx.GetPostForm(field)
+	if !present {
+		return nil, nil
+	}
+	value, err := strconv.Atoi(strings.TrimSpace(raw))
+	if err != nil || value < 0 {
+		return nil, invalid(field, "Wallet policy values must be non-negative whole currency amounts.")
+	}
+	return &value, nil
 }
 
 // DownloadInvoiceLogo retrieves the invoice logo file for the authenticated CPO.
