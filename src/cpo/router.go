@@ -487,6 +487,7 @@ func RegisterCPORoutes(
 	group.PATCH("/admin/profile", handler.updateAdminProfile)
 	group.GET("/organization", handler.getOrganization)
 	group.GET("/subscription", handler.getSubscription)
+	group.GET("/analytics", handler.getAnalytics)
 	group.GET("/operations/fleet", handler.getFleetOperations)
 	group.GET("/operations/chargers/:charger_id", handler.getOperationalCharger)
 	group.GET("/operations/events", handler.listOperationalEvents)
@@ -566,6 +567,26 @@ func (handler *Handler) listChargingSessions(ctx *gin.Context) {
 		return
 	}
 	ctx.JSON(http.StatusOK, records)
+}
+
+// @Summary Get CPO analytics
+// @Description Get CPO analytics data.
+// @Tags CPO Network
+// @Produce json
+// @Success 200 {object} AnalyticsResponse
+// @Failure 401 {object} auth.APIError "Unauthorized"
+// @Failure 403 {object} auth.APIError "Forbidden"
+// @Security BearerAuth
+// @Security CPOAppID
+// @Router /cpo/analytics [get]
+func (handler *Handler) getAnalytics(ctx *gin.Context) {
+	principal, _ := auth.CurrentPrincipal(ctx)
+	record, err := handler.service.GetAnalytics(ctx.Request.Context(), principal)
+	if err != nil {
+		writeError(ctx, err)
+		return
+	}
+	ctx.JSON(http.StatusOK, record)
 }
 
 func (handler *Handler) getChargingSession(ctx *gin.Context) {

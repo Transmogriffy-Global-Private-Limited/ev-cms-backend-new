@@ -132,6 +132,11 @@ type ListResponse struct {
 	HasMore      bool       `json:"has_more"`
 }
 
+type AnalyticsResponse struct {
+	TotalChargers   int64 `json:"total_chargers"`
+	TotalConnectors int64 `json:"total_connectors"`
+}
+
 type SessionRevocationResponse struct {
 	RevokedSessions      int64 `json:"revoked_sessions"`
 	RevokedRefreshTokens int64 `json:"revoked_refresh_tokens"`

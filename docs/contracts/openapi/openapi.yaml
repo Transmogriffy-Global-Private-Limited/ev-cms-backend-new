@@ -3243,6 +3243,28 @@ paths:
                   message: No subscription found for this CPO.
         "500":
           $ref: "#/components/responses/InternalError"
+  /api/v1/cpo/analytics:
+    get:
+      tags: [CPO Operations - Account & Notifications]
+      operationId: getCPOAnalytics
+      summary: Get CPO analytics
+      description: Get CPO analytics data.
+      security:
+        - BearerAuth: []
+        - CPOAppID: []
+      responses:
+        "200":
+          description: The CPO analytics data.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AnalyticsResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/CPOBusinessForbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
 
   /api/v1/cpo/customers:
     get:
@@ -9412,3 +9434,22 @@ components:
           type: string
           format: uuid
           description: "The ID of the GST profile to assign."
+    AnalyticsResponse:
+      type: object
+      properties:
+        total_revenue:
+          type: number
+          format: float
+        total_sessions:
+          type: integer
+        active_chargers:
+          type: integer
+        period:
+          type: object
+          properties:
+            start:
+              type: string
+              format: date-time
+            end:
+              type: string
+              format: date-time

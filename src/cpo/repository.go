@@ -9,6 +9,7 @@ import (
 )
 
 type Repository interface {
+	GetAnalytics(ctx context.Context, cpoID uuid.UUID) (Analytics, error)
 	GetChargingSession(ctx context.Context, cpoID, sessionID uuid.UUID) (*models.ChargingSession, error)
 	ListChargingSessions(ctx context.Context, cpoID uuid.UUID, query ChargingSessionListQuery) ([]models.ChargingSession, error)
 }
@@ -19,6 +20,22 @@ type repository struct {
 
 func NewRepository(db *gorm.DB) Repository {
 	return &repository{db: db}
+}
+
+type Analytics struct {
+	TotalChargers   int64
+	TotalConnectors int64
+}
+
+func (r *repository) GetAnalytics(ctx context.Context, cpoID uuid.UUID) (Analytics, error) {
+	var analytics Analytics
+	if err := r.db.WithContext(ctx).Model(&models.Charger{}).Where("cpo_id = ?", cpoID).Count(&analytics.TotalChargers).Error; err != nil {
+		return Analytics{}, err
+	}
+	if err := r.db.WithContext(ctx).Model(&models.Connector{}).Where("cpo_id = ?", cpoID).Count(&analytics.TotalConnectors).Error; err != nil {
+		return Analytics{}, err
+	}
+	return analytics, nil
 }
 
 func (r *repository) GetChargingSession(ctx context.Context, cpoID, sessionID uuid.UUID) (*models.ChargingSession, error) {

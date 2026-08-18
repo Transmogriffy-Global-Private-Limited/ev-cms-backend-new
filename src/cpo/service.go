@@ -100,6 +100,25 @@ func NewService(
 	}
 }
 
+func (service *Service) GetAnalytics(
+	ctx context.Context,
+	principal auth.Principal,
+) (AnalyticsResponse, error) {
+	if err := requireCPOAdminAccess(principal); err != nil {
+		return AnalyticsResponse{}, err
+	}
+
+	analytics, err := service.repository.GetAnalytics(ctx, *principal.CPOID)
+	if err != nil {
+		return AnalyticsResponse{}, fmt.Errorf("get analytics: %w", err)
+	}
+
+	return AnalyticsResponse{
+		TotalChargers:   analytics.TotalChargers,
+		TotalConnectors: analytics.TotalConnectors,
+	}, nil
+}
+
 func (service *Service) GetChargingSession(
 	ctx context.Context,
 	principal auth.Principal,
