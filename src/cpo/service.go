@@ -6642,3 +6642,66 @@ func (service *Service) UpdateChargerCustomerVisibility(
 	// Reload associations if needed (they are already preloaded in the transaction)
 	return service.chargerView(charger, principal), nil
 }
+
+// Add this method to the Service (around line 350, after existing list methods)
+func (service *Service) ListWalletTransactions(
+	ctx context.Context,
+	principal auth.Principal,
+	query WalletTransactionListQuery,
+) (WalletTransactionListResponse, error) {
+	if err := requireCPOAdminAccess(principal); err != nil {
+		return WalletTransactionListResponse{}, err
+	}
+
+	if query.Limit == 0 {
+		query.Limit = defaultListLimit
+	}
+	if query.Limit < 1 || query.Limit > maxListLimit {
+		return WalletTransactionListResponse{}, invalid(
+			"limit",
+			"Limit must be between 1 and 200.",
+		)
+	}
+
+	transactions, err := service.repository.ListWalletTransactions(ctx, *principal.CPOID, query)
+	if err != nil {
+		return WalletTransactionListResponse{}, fmt.Errorf("list wallet transactions: %w", err)
+	}
+
+	hasMore := len(transactions) > query.Limit
+	if hasMore {
+		transactions = transactions[:query.Limit]
+	}
+
+	result := make([]WalletTransactionView, 0, len(transactions))
+	for _, tx := range transactions {
+		result = append(result, WalletTransactionView{
+			ID:              tx.ID,
+			CustomerID:      tx.CustomerID,
+			CustomerName:    tx.CustomerName,
+			CustomerEmail:   tx.CustomerEmail,
+			Amount:          tx.Amount,
+			Currency:        tx.Currency,
+			TransactionType: string(tx.TransactionType), // Assuming this field exists in the model
+			Status:          string(tx.Status),          // Assuming this field exists in the model
+			Description:     &tx.Description,            // Assuming this field exists in the model
+			SessionID:       tx.SessionID,
+			RechargeOrderID: tx.RechargeOrderID,
+			CreatedAt:       tx.CreatedAt,
+		})
+	}
+
+	response := WalletTransactionListResponse{
+		Transactions: result,
+		HasMore:      hasMore,
+	}
+
+	if hasMore && len(transactions) > 0 {
+		nextBefore := transactions[len(transactions)-1].CreatedAt
+		nextBeforeID := transactions[len(transactions)-1].ID
+		response.NextBefore = &nextBefore
+		response.NextBeforeID = &nextBeforeID
+	}
+
+	return response, nil
+}

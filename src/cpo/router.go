@@ -555,6 +555,8 @@ func RegisterCPORoutes(
 	group.GET("/charging-sessions", handler.listChargingSessions)
 	group.GET("/charging-sessions/:session_id", handler.getChargingSession)
 	group.GET("/charger-transactions", handler.listChargerTransactions)
+	group.GET("/wallet-transactions", handler.listWalletTransactions)
+
 }
 
 func (handler *Handler) listChargingSessions(ctx *gin.Context) {
@@ -641,7 +643,6 @@ func parseChargerTransactionListQuery(ctx *gin.Context) (ChargerTransactionListQ
 	}
 	return query, true
 }
-
 
 // @Summary Get CPO analytics
 // @Description Get CPO analytics data.
@@ -2573,4 +2574,72 @@ func (handler *Handler) updateChargerCustomerVisibility(ctx *gin.Context) {
 	}
 
 	ctx.JSON(http.StatusOK, record)
+}
+
+// Add the new handler function after the existing listChargerTransactions function (around line 229)
+// @Summary List wallet transactions
+// @Description Returns a paginated list of wallet transactions for all customers of the authenticated CPO.
+// @Tags CPO Network
+// @Produce json
+// @Param limit query int false "Number of records to return (1-200, default 50)"
+// @Param before query string false "RFC3339 timestamp for keyset pagination"
+// @Param before_id query string false "UUID tie‑breaker for pagination"
+// @Param customer_id query string false "Filter by customer UUID"
+// @Success 200 {object} WalletTransactionListResponse "Successfully retrieved wallet transactions"
+// @Failure 400 {object} auth.APIError "Invalid query parameters"
+// @Failure 401 {object} auth.APIError "Unauthorized"
+// @Failure 403 {object} auth.APIError "Forbidden"
+// @Security BearerAuth
+// @Security CPOAppID
+// @Router /cpo/wallet-transactions [get]
+func (handler *Handler) listWalletTransactions(ctx *gin.Context) {
+	principal, _ := auth.CurrentPrincipal(ctx)
+	query, ok := parseWalletTransactionListQuery(ctx)
+	if !ok {
+		return
+	}
+	records, err := handler.service.ListWalletTransactions(ctx.Request.Context(), principal, query)
+	if err != nil {
+		writeError(ctx, err)
+		return
+	}
+	ctx.JSON(http.StatusOK, records)
+}
+
+// Add the query parser function after the handler (around line 250)
+func parseWalletTransactionListQuery(ctx *gin.Context) (WalletTransactionListQuery, bool) {
+	query := WalletTransactionListQuery{}
+	if limitText := strings.TrimSpace(ctx.Query("limit")); limitText != "" {
+		limit, err := strconv.Atoi(limitText)
+		if err != nil {
+			writeError(ctx, invalid("limit", "Limit must be an integer."))
+			return WalletTransactionListQuery{}, false
+		}
+		query.Limit = limit
+	}
+	if beforeText := strings.TrimSpace(ctx.Query("before")); beforeText != "" {
+		before, err := time.Parse(time.RFC3339, beforeText)
+		if err != nil {
+			writeError(ctx, invalid("before", "Before must be an RFC3339 timestamp."))
+			return WalletTransactionListQuery{}, false
+		}
+		query.Before = &before
+	}
+	if beforeIDText := strings.TrimSpace(ctx.Query("before_id")); beforeIDText != "" {
+		beforeID, err := uuid.Parse(beforeIDText)
+		if err != nil || beforeID == uuid.Nil {
+			writeError(ctx, invalid("before_id", "Before ID must be a non-zero UUID."))
+			return WalletTransactionListQuery{}, false
+		}
+		query.BeforeID = &beforeID
+	}
+	if customerIDText := strings.TrimSpace(ctx.Query("customer_id")); customerIDText != "" {
+		customerID, err := uuid.Parse(customerIDText)
+		if err != nil || customerID == uuid.Nil {
+			writeError(ctx, invalid("customer_id", "Customer ID must be a non-zero UUID."))
+			return WalletTransactionListQuery{}, false
+		}
+		query.CustomerID = &customerID
+	}
+	return query, true
 }

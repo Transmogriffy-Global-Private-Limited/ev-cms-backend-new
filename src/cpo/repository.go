@@ -13,6 +13,7 @@ import (
 
 type Repository interface {
 	GetAnalytics(ctx context.Context, cpoID uuid.UUID) (Analytics, error)
+	ListWalletTransactions(ctx context.Context, cpoID uuid.UUID, query WalletTransactionListQuery) ([]WalletTransactionDetail, error)
 	GetChargingSession(ctx context.Context, cpoID, sessionID uuid.UUID) (*models.ChargingSession, error)
 	ListChargingSessions(ctx context.Context, cpoID uuid.UUID, query ChargingSessionListQuery) ([]models.ChargingSession, error)
 	ListChargerTransactions(ctx context.Context, cpoID uuid.UUID, query ChargerTransactionListQuery) ([]ChargerTransaction, error)
@@ -172,6 +173,48 @@ func (r *repository) ListChargerTransactions(ctx context.Context, cpoID uuid.UUI
 		Scan(&transactions).Error
 
 	if err != nil {
+		return nil, err
+	}
+
+	return transactions, nil
+}
+
+// Define a new struct to hold the joined data from wallet_transactions, wallets, and customers.
+type WalletTransactionDetail struct {
+	models.WalletTransaction
+	CustomerID    uuid.UUID `gorm:"column:customer_id"`
+	CustomerName  string    `gorm:"column:customer_name"`
+	CustomerEmail string    `gorm:"column:customer_email"`
+	Currency      string    `gorm:"column:currency"`
+}
+
+// Implement the new method for the repository struct (around line 114)
+func (r *repository) ListWalletTransactions(ctx context.Context, cpoID uuid.UUID, query WalletTransactionListQuery) ([]WalletTransactionDetail, error) {
+	var transactions []WalletTransactionDetail
+	db := r.db.WithContext(ctx).
+		Table("wallet_transactions").
+		Select("wallet_transactions.*, customers.id as customer_id, customers.full_name as customer_name, customers.email as customer_email, wallets.currency").
+		Joins("JOIN wallets ON wallets.id = wallet_transactions.wallet_id").
+		Joins("JOIN customers ON customers.id = wallets.customer_id").
+		Where("wallet_transactions.cpo_id = ?", cpoID)
+
+	if query.CustomerID != nil {
+		db = db.Where("customers.id = ?", *query.CustomerID)
+	}
+
+	if query.Before != nil {
+		if query.BeforeID != nil {
+			db = db.Where("(wallet_transactions.created_at, wallet_transactions.id) < (?, ?)", *query.Before, *query.BeforeID)
+		} else {
+			db = db.Where("wallet_transactions.created_at < ?", *query.Before)
+		}
+	}
+
+	if query.Limit > 0 {
+		db = db.Limit(query.Limit + 1)
+	}
+
+	if err := db.Order("wallet_transactions.created_at DESC, wallet_transactions.id DESC").Scan(&transactions).Error; err != nil {
 		return nil, err
 	}
 

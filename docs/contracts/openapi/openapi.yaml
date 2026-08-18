@@ -177,6 +177,40 @@ paths:
           $ref: "#/components/responses/CPOBusinessForbidden"
         "500":
           $ref: "#/components/responses/InternalError"
+  /api/v1/cpo/wallet-transactions:
+    get:
+      tags: [CPO Operations - Charging Sessions]
+      operationId: listCPOWalletTransactions
+      summary: List wallet transactions for the CPO
+      description: Returns a paginated list of wallet transactions for all customers of the authenticated CPO, ordered by newest first.
+      security:
+        - BearerAuth: []
+        - CPOAppID: []
+      parameters:
+        - $ref: "#/components/parameters/ListLimit"
+        - $ref: "#/components/parameters/ListBefore"
+        - $ref: "#/components/parameters/ListBeforeID"
+        - name: customer_id
+          in: query
+          schema:
+            type: string
+            format: uuid
+          description: Filter transactions by a specific customer.
+      responses:
+        "200":
+          description: A list of wallet transactions.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WalletTransactionListResponse"
+        "400":
+          $ref: "#/components/responses/InvalidRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/CPOBusinessForbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
   /health/live:
     get:
       tags: [Health]
@@ -9564,6 +9598,80 @@ components:
       required:
         - transactions
         - has_more
+    WalletTransactionView:
+      type: object
+      additionalProperties: false
+      required:
+        - id
+        - customer_id
+        - customer_name
+        - customer_email
+        - amount
+        - currency
+        - transaction_type
+        - status
+        - created_at
+      properties:
+        id:
+          type: string
+          format: uuid
+        customer_id:
+          type: string
+          format: uuid
+        customer_name:
+          type: string
+        customer_email:
+          type: string
+          format: email
+        amount:
+          type: string
+          description: Exact decimal amount.
+          pattern: "^[0-9]+(?:\\.[0-9]{1,4})?$"
+        currency:
+          type: string
+          example: INR
+        transaction_type:
+          type: string
+          enum: [CREDIT, DEBIT]
+        status:
+          type: string
+          enum: [PENDING, COMPLETED, FAILED, REVERSED]
+        description:
+          type: string
+          nullable: true
+        session_id:
+          type: string
+          format: uuid
+          nullable: true
+        recharge_order_id:
+          type: string
+          format: uuid
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+
+    WalletTransactionListResponse:
+      type: object
+      additionalProperties: false
+      required:
+        - transactions
+        - has_more
+      properties:
+        transactions:
+          type: array
+          items:
+            $ref: "#/components/schemas/WalletTransactionView"
+        next_before:
+          type: string
+          format: date-time
+          nullable: true
+        next_before_id:
+          type: string
+          format: uuid
+          nullable: true
+        has_more:
+          type: boolean
     ChargingSessionView:
       type: object
       properties:

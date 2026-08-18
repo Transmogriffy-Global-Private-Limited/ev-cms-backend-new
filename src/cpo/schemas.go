@@ -681,19 +681,19 @@ type ChargingSessionListQuery struct {
 }
 
 type ChargerTransactionView struct {
-	TransactionID   string                  `json:"transaction_id"`
+	TransactionID   string                    `json:"transaction_id"`
 	PaymentStatus   constants.FinancialStatus `json:"payment_status"`
-	BilledAmount    decimal.Decimal         `json:"billed_amount"`
-	ChargerID       string                  `json:"charger_id"`
-	Duration        string                  `json:"duration"`
-	Hub             string                  `json:"hub"`
-	Tariff          decimal.Decimal         `json:"tariff"`
-	UsageKWh        decimal.Decimal         `json:"usage_kwh"`
-	Owner           string                  `json:"owner"`
-	HostDetails     HostDetailsView         `json:"host_details"`
-	CustomerDetails CustomerDetailsView     `json:"customer_details"`
-	Timestamp       time.Time               `json:"timestamp"`
-	Reason          *string                 `json:"reason,omitempty"`
+	BilledAmount    decimal.Decimal           `json:"billed_amount"`
+	ChargerID       string                    `json:"charger_id"`
+	Duration        string                    `json:"duration"`
+	Hub             string                    `json:"hub"`
+	Tariff          decimal.Decimal           `json:"tariff"`
+	UsageKWh        decimal.Decimal           `json:"usage_kwh"`
+	Owner           string                    `json:"owner"`
+	HostDetails     HostDetailsView           `json:"host_details"`
+	CustomerDetails CustomerDetailsView       `json:"customer_details"`
+	Timestamp       time.Time                 `json:"timestamp"`
+	Reason          *string                   `json:"reason,omitempty"`
 }
 
 type HostDetailsView struct {
@@ -720,4 +720,35 @@ type ChargerTransactionListQuery struct {
 	Limit      int
 	ChargerID  *uuid.UUID
 	CustomerID *uuid.UUID
+}
+
+type WalletTransactionListQuery struct {
+	Before     *time.Time
+	BeforeID   *uuid.UUID
+	Limit      int
+	CustomerID *uuid.UUID
+}
+
+// WalletTransactionView represents a wallet transaction for the CPO admin view.
+type WalletTransactionView struct {
+	ID              uuid.UUID       `json:"id"`
+	CustomerID      uuid.UUID       `json:"customer_id"`
+	CustomerName    string          `json:"customer_name"`
+	CustomerEmail   string          `json:"customer_email"`
+	Amount          decimal.Decimal `json:"amount"`
+	Currency        string          `json:"currency"`
+	TransactionType string          `json:"transaction_type"` // e.g., "DEBIT", "CREDIT"
+	Status          string          `json:"status"`           // e.g., "SUCCESS", "FAILED", "PENDING"
+	Description     *string         `json:"description,omitempty"`
+	SessionID       *uuid.UUID      `json:"session_id,omitempty"`
+	RechargeOrderID *uuid.UUID      `json:"recharge_order_id,omitempty"`
+	CreatedAt       time.Time       `json:"created_at"`
+}
+
+// WalletTransactionListResponse is the paginated list of wallet transaction views.
+type WalletTransactionListResponse struct {
+	Transactions []WalletTransactionView `json:"transactions"`
+	NextBefore   *time.Time              `json:"next_before,omitempty"`
+	NextBeforeID *uuid.UUID              `json:"next_before_id,omitempty"`
+	HasMore      bool                    `json:"has_more"`
 }
