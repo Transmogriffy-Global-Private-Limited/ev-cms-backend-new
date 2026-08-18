@@ -359,6 +359,77 @@ func TestTariffTargetingCorrectionMigrationMakesOneExplicitTarget(t *testing.T) 
 	}
 }
 
+func TestTemporalTariffFallbackMigrationGuardsHierarchyAndPublishedHubFloor(t *testing.T) {
+	t.Parallel()
+
+	upBody, err := migrationFiles.ReadFile("migrations/000044_temporal_tariff_fallback.up.sql")
+	if err != nil {
+		t.Fatalf("read temporal tariff fallback migration: %v", err)
+	}
+	downBody, err := migrationFiles.ReadFile("migrations/000044_temporal_tariff_fallback.down.sql")
+	if err != nil {
+		t.Fatalf("read temporal tariff fallback rollback migration: %v", err)
+	}
+	upSQL := string(upBody)
+	downSQL := string(downBody)
+	for _, required := range []string{
+		"DROP CONSTRAINT IF EXISTS tariffs_active_effective_period_exclusion",
+		"tariffs_temporal_dates_check",
+		"uq_tariffs_enabled_target_root",
+		"uq_tariffs_enabled_target_open_start",
+		"ix_tariffs_enabled_target_temporal",
+		"validate_temporal_tariff_target",
+		"tariffs_temporal_target_guard",
+		"guard_tariff_target_immutable",
+		"tariffs_target_immutable_guard",
+		"NEW.cpo_id IS DISTINCT FROM OLD.cpo_id",
+		"NEW.assigned_to IS DISTINCT FROM OLD.assigned_to",
+		"NEW.hub_id IS DISTINCT FROM OLD.hub_id",
+		"NEW.charger_id IS DISTINCT FROM OLD.charger_id",
+		"NEW.user_group_id IS DISTINCT FROM OLD.user_group_id",
+		"hubs_customer_visible_tariff_root_guard",
+		"customer-visible hub requires one enabled unbounded hub tariff",
+		"strictly nested",
+	} {
+		if !strings.Contains(upSQL, required) {
+			t.Errorf("up migration is missing %q", required)
+		}
+	}
+	hubRootGuardStart := strings.Index(upSQL, "CREATE OR REPLACE FUNCTION guard_customer_visible_hub_tariff_root()")
+	if hubRootGuardStart < 0 {
+		t.Fatal("up migration is missing guard_customer_visible_hub_tariff_root")
+	}
+	hubRootGuardEnd := strings.Index(upSQL[hubRootGuardStart:], "$$;")
+	if hubRootGuardEnd < 0 {
+		t.Fatal("could not isolate guard_customer_visible_hub_tariff_root body")
+	}
+	hubRootGuard := upSQL[hubRootGuardStart : hubRootGuardStart+hubRootGuardEnd]
+	hubLock := "pg_advisory_xact_lock(hashtextextended('tariff:' || NEW.cpo_id::text || ':hub:' || NEW.id::text, 0))"
+	hubLockIndex := strings.Index(hubRootGuard, hubLock)
+	rootFloorCheckIndex := strings.Index(hubRootGuard, "IF NOT EXISTS (")
+	if hubLockIndex < 0 {
+		t.Errorf("Hub root guard does not acquire the tariff Hub advisory lock %q", hubLock)
+	}
+	if rootFloorCheckIndex < 0 {
+		t.Error("Hub root guard is missing its root-floor check")
+	} else if hubLockIndex >= rootFloorCheckIndex {
+		t.Error("Hub root guard must acquire the tariff Hub advisory lock before its root-floor check")
+	}
+	for _, required := range []string{
+		"cannot roll back temporal tariff fallback",
+		"DROP TRIGGER IF EXISTS tariffs_temporal_target_guard",
+		"DROP TRIGGER IF EXISTS tariffs_target_immutable_guard",
+		"DROP FUNCTION IF EXISTS guard_tariff_target_immutable",
+		"DROP INDEX IF EXISTS uq_tariffs_enabled_target_root",
+		"tariffs_effective_dates_check",
+		"tariffs_active_effective_period_exclusion",
+	} {
+		if !strings.Contains(downSQL, required) {
+			t.Errorf("down migration is missing %q", required)
+		}
+	}
+}
+
 func TestCPOProvisioningMigrationContainsAppIdentityAndOnboarding(t *testing.T) {
 	t.Parallel()
 

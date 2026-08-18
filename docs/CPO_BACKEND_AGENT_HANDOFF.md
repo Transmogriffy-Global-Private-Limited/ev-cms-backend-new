@@ -203,6 +203,8 @@ organization response omits privileged lifecycle reason and platform actor ID.
 - `PUT /chargers/{charger_id}/customer-visibility`
 - `GET /chargers/{charger_id}/image`
 - `GET/PUT /chargers/{charger_id}/status` (internal charger UUID)
+- `GET /charger-transactions` returns tenant-scoped, cursor-paginated charger
+  transaction projections with optional charger/customer filters.
 - `POST/GET /gsts`
 - `GET/PATCH /gsts/{gst_id}`
 - `POST/GET /tariffs`

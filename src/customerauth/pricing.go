@@ -40,7 +40,7 @@ func (service *Service) GetCustomerHubPrice(ctx context.Context, principal Princ
 	if err := service.customerVisibleHubExists(ctx, principal, hubID); err != nil {
 		return CustomerPriceResponse{}, err
 	}
-	return service.resolveCustomerPrice(ctx, principal, hubID, nil, service.now()), nil
+	return service.resolveCustomerPrice(ctx, principal, hubID, nil, service.now())
 }
 
 func (service *Service) GetCustomerChargerPrice(ctx context.Context, principal Principal, publicChargerID string) (CustomerPriceResponse, error) {
@@ -48,7 +48,7 @@ func (service *Service) GetCustomerChargerPrice(ctx context.Context, principal P
 	if err != nil {
 		return CustomerPriceResponse{}, err
 	}
-	return service.resolveCustomerPrice(ctx, principal, *charger.HubID, &charger.ID, service.now()), nil
+	return service.resolveCustomerPrice(ctx, principal, *charger.HubID, &charger.ID, service.now())
 }
 
 func (service *Service) customerVisibleHubExists(ctx context.Context, principal Principal, hubID uuid.UUID) error {
@@ -81,21 +81,30 @@ func loadPublishedCustomerCharger(database *gorm.DB, cpoID uuid.UUID, publicChar
 	return charger, nil
 }
 
-func (service *Service) resolveCustomerPrice(ctx context.Context, principal Principal, hubID uuid.UUID, chargerID *uuid.UUID, effectiveAt time.Time) CustomerPriceResponse {
+func (service *Service) resolveCustomerPrice(ctx context.Context, principal Principal, hubID uuid.UUID, chargerID *uuid.UUID, effectiveAt time.Time) (CustomerPriceResponse, error) {
 	response := CustomerPriceResponse{Status: customerPriceUnavailable, EffectiveAt: effectiveAt, UnavailableReason: "no_eligible_tariff"}
 	selected, ok, err := resolveEffectiveTariff(service.database.WithContext(ctx), principal.CPOID, principal.Customer.UserGroupID, chargerID, &hubID, effectiveAt)
-	if err != nil || !ok {
-		return response
+	if err != nil {
+		if isTariffTopologyError(err) {
+			return response, nil
+		}
+		return CustomerPriceResponse{}, err
+	}
+	if !ok {
+		return response, nil
 	}
 	pricing, err := tariffPricingFromTariff(selected)
 	if err != nil {
 		response.UnavailableReason = "unsupported_tariff_pricing"
-		return response
+		return response, nil
 	}
 	gst, ok, err := resolveActiveHubGST(service.database.WithContext(ctx), principal.CPOID, hubID)
-	if err != nil || !ok {
+	if err != nil {
+		return CustomerPriceResponse{}, err
+	}
+	if !ok {
 		response.UnavailableReason = "hub_gst_unavailable"
-		return response
+		return response, nil
 	}
 	response.Status = customerPriceAvailable
 	response.Currency = selected.Currency
@@ -108,7 +117,7 @@ func (service *Service) resolveCustomerPrice(ctx context.Context, principal Prin
 	}
 	response.UnavailableReason = ""
 	response.GST = &CustomerGSTView{SGSTRate: gst.SGSTRate.StringFixed(2), CGSTRate: gst.CGSTRate.StringFixed(2), IGSTRate: gst.IGSTRate.StringFixed(2)}
-	return response
+	return response, nil
 }
 
 type effectiveTariffTarget struct {
@@ -135,19 +144,37 @@ func effectiveTariffTargets(userGroupID, chargerID, hubID *uuid.UUID) []effectiv
 // intentionally resolved from the charger's hub by resolveActiveHubGST.
 func resolveEffectiveTariff(database *gorm.DB, cpoID uuid.UUID, userGroupID, chargerID, hubID *uuid.UUID, effectiveAt time.Time) (models.Tariff, bool, error) {
 	for _, target := range effectiveTariffTargets(userGroupID, chargerID, hubID) {
-		var tariff models.Tariff
-		err := database.Where(
-			"cpo_id = ? AND assigned_to = ? AND "+target.column+" = ? AND is_active = ? AND (start_date IS NULL OR start_date <= ?) AND (end_date IS NULL OR end_date > ?)",
-			cpoID, target.assignment, target.id, true, effectiveAt, effectiveAt,
-		).First(&tariff).Error
-		if err == nil {
-			return tariff, true, nil
-		}
-		if !errors.Is(err, gorm.ErrRecordNotFound) {
+		var tariffs []models.Tariff
+		if err := database.Where(
+			"cpo_id = ? AND assigned_to = ? AND "+target.column+" = ? AND is_active = ?",
+			cpoID, target.assignment, target.id, true,
+		).Find(&tariffs).Error; err != nil {
 			return models.Tariff{}, false, err
 		}
+		projection := make([]commercial.TemporalTariff, 0, len(tariffs))
+		for _, tariff := range tariffs {
+			projection = append(projection, commercial.TemporalTariff{ID: tariff.ID, IsActive: tariff.IsActive, StartDate: tariff.StartDate, EndDate: tariff.EndDate})
+		}
+		selectedID, ok, err := commercial.ResolveEnabledTariff(projection, effectiveAt)
+		if err != nil {
+			return models.Tariff{}, false, err
+		}
+		if !ok {
+			continue
+		}
+		for _, tariff := range tariffs {
+			if tariff.ID == selectedID {
+				return tariff, true, nil
+			}
+		}
+		return models.Tariff{}, false, errors.New("selected tariff missing from temporal policy set")
 	}
 	return models.Tariff{}, false, nil
+}
+
+func isTariffTopologyError(err error) bool {
+	return errors.Is(err, commercial.ErrTariffTemporalConflict) ||
+		errors.Is(err, commercial.ErrInvalidTariffDateShape)
 }
 
 // resolveActiveHubGST is the only customer-commercial tax lookup. A missing,

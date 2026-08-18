@@ -1842,6 +1842,73 @@ func TestHubTariffLifecycleWithPostgreSQL(t *testing.T) {
 		t.Fatalf("hub tariff has invalid target %#v", updatedTariff)
 	}
 
+	// One exact target may layer a root, an open fallback, and strictly nested
+	// bounded overrides. The same service/DB guards reject ambiguity and retain
+	// the root while the hub is published.
+	now := time.Now().UTC().Truncate(time.Second)
+	outerStart, outerEnd := now, now.Add(72*time.Hour)
+	nestedStart, nestedEnd := now.Add(24*time.Hour), now.Add(48*time.Hour)
+	openStart := now.Add(-24 * time.Hour)
+	openTariff, err := service.CreateHubTariff(ctx, adminPrincipal, hubID, CreateTariffRequest{
+		PricePerUnit: price, TariffType: &tariffType, PriceType: &priceType, Units: &units, StartDate: &openStart,
+	})
+	if err != nil {
+		t.Fatalf("create open-ended hub fallback: %v", err)
+	}
+	outerTariff, err := service.CreateHubTariff(ctx, adminPrincipal, hubID, CreateTariffRequest{
+		PricePerUnit: price, TariffType: &tariffType, PriceType: &priceType, Units: &units, StartDate: &outerStart, EndDate: &outerEnd,
+	})
+	if err != nil {
+		t.Fatalf("create bounded hub override: %v", err)
+	}
+	nestedTariff, err := service.CreateHubTariff(ctx, adminPrincipal, hubID, CreateTariffRequest{
+		PricePerUnit: price, TariffType: &tariffType, PriceType: &priceType, Units: &units, StartDate: &nestedStart, EndDate: &nestedEnd,
+	})
+	if err != nil {
+		t.Fatalf("create nested hub override: %v", err)
+	}
+	crossingStart, crossingEnd := now.Add(48*time.Hour), now.Add(96*time.Hour)
+	inactive := false
+	crossingTariff, err := service.CreateHubTariff(ctx, adminPrincipal, hubID, CreateTariffRequest{
+		PricePerUnit: price, TariffType: &tariffType, PriceType: &priceType, Units: &units, IsActive: &inactive, StartDate: &crossingStart, EndDate: &crossingEnd,
+	})
+	if err != nil {
+		t.Fatalf("create inactive crossing override: %v", err)
+	}
+	active := true
+	if _, err := service.UpdateHubTariff(ctx, adminPrincipal, hubID, crossingTariff.ID, UpdateTariffRequest{IsActive: &active}); err == nil {
+		t.Fatal("activate crossing override: expected tariff_temporal_conflict")
+	} else {
+		var apiError *auth.APIError
+		if !errors.As(err, &apiError) || apiError.Code != "tariff_temporal_conflict" {
+			t.Fatalf("activate crossing override error is %v, want tariff_temporal_conflict", err)
+		}
+	}
+	if _, err := service.UpdateHubCustomerVisibility(ctx, adminPrincipal, hubID, UpdateHubCustomerVisibilityRequest{CustomerVisible: true}); err != nil {
+		t.Fatalf("publish hub with root tariff: %v", err)
+	}
+	if _, err := service.UpdateHubTariff(ctx, adminPrincipal, hubID, tariff.ID, UpdateTariffRequest{IsActive: &inactive}); err == nil {
+		t.Fatal("deactivate published hub root: expected hub_tariff_root_required")
+	} else {
+		var apiError *auth.APIError
+		if !errors.As(err, &apiError) || apiError.Code != "hub_tariff_root_required" {
+			t.Fatalf("deactivate published hub root error is %v, want hub_tariff_root_required", err)
+		}
+	}
+	for _, temporary := range []uuid.UUID{nestedTariff.ID, outerTariff.ID, openTariff.ID, crossingTariff.ID} {
+		if err := service.DeleteHubTariff(ctx, adminPrincipal, hubID, temporary); err != nil {
+			t.Fatalf("delete temporary hub tariff %s: %v", temporary, err)
+		}
+	}
+	if err := service.DeleteHubTariff(ctx, adminPrincipal, hubID, tariff.ID); err == nil {
+		t.Fatal("delete published hub root: expected hub_tariff_root_required")
+	} else {
+		var apiError *auth.APIError
+		if !errors.As(err, &apiError) || apiError.Code != "hub_tariff_root_required" {
+			t.Fatalf("delete published hub root error is %v, want hub_tariff_root_required", err)
+		}
+	}
+
 	body := new(bytes.Buffer)
 	writer := multipart.NewWriter(body)
 	createChargerRequest := CreateChargerRequest{
@@ -1937,8 +2004,8 @@ func TestHubTariffLifecycleWithPostgreSQL(t *testing.T) {
 
 	_, err = service.CreateChargerTariff(ctx, adminPrincipal, charger.ID, CreateTariffRequest{PricePerUnit: price, TariffType: &tariffType, PriceType: &priceType, Units: &units})
 	var apiError *auth.APIError
-	if !errors.As(err, &apiError) || apiError.Code != "tariff_schedule_conflict" {
-		t.Fatalf("overlapping charger tariff error is %v, want tariff_schedule_conflict", err)
+	if !errors.As(err, &apiError) || apiError.Code != "tariff_temporal_conflict" {
+		t.Fatalf("duplicate charger root error is %v, want tariff_temporal_conflict", err)
 	}
 }
 

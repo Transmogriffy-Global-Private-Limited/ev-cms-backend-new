@@ -2,6 +2,55 @@
 
 ## Current State
 
+### 2026-08-18 — Temporal tariff fallback and hub cleanup deployed
+
+- Source migration 44 replaces the prior active-tariff no-overlap exclusion
+  with deterministic root/open-ended/bounded fallback per immutable exact
+  target. Scope precedence remains `USERGROUP > CHARGER > HUB`; time resolves
+  only inside the first matching scope. These dates are commercial applicability
+  and do not alter customer session-duration cutoff behavior.
+- CPO scoped tariff create/PATCH/delete and Hub publication enforce the enabled
+  topology and the requirement that a customer-visible Hub has exactly one
+  enabled unbounded Hub root. User App informational price and new start
+  admission share the resolver and preserve immutable tariff/tax snapshots.
+- The source release-blocker follow-up rejects visible Hub creation before
+  insert, maps the Hub root-floor database guard to the same `409`, and makes
+  tariff target identity immutable in migration 44. Resolver topology failures
+  fail closed as commercial unavailability, while query/infrastructure failures
+  propagate to normal error handling rather than being mislabeled as no tariff.
+- A final concurrency correction makes the Hub publication trigger
+  acquire the same transaction advisory key as Hub tariff topology mutation:
+  `tariff:<cpo_id>:hub:<hub_id>`. Direct concurrent publication and root
+  deactivation/deletion can no longer both commit into a visible Hub without a
+  root tariff.
+- Migration 44 is applied to the development database after a mode-0600
+  rollback dump at `/var/backups/postgres/devevcmsnewdb-pre-hub-cleanup-migration-44-20260818-162307.dump`
+  (SHA-256 `c64597066e052c83e7f60edc14497727acd9ad89ba628343a462696ae8f9a66e`).
+- The two requested hubs (`63ddfa1f-0c1e-4131-8ad7-eb5835c7cd19` and
+  `e00412ec-785e-4c71-85f8-9cb4e30a2d29`) and their hub tariffs/link rows were
+  removed. Their five chargers and connectors were retained as inventory but
+  unassigned, hidden, and set `INACTIVE`; no charging sessions existed for
+  them.
+- Runtime revision `38625d9` is active with binary SHA-256
+  `70626eb4cca88cfcb3a90590b656e197c54bf8c152d198942f756b4146f9101e`.
+  The live OpenAPI contract contains 186 operations. Local and public health,
+  readiness, Swagger, raw OpenAPI, Caddy validation, and post-rehost log checks
+  passed. Disposable PostgreSQL lifecycle tests still require an explicitly
+  selected `TEST_DATABASE_URL`; `pwsh` is unavailable.
+
+### 2026-08-18 — CPO charger transactions deployed
+
+- Added authenticated, tenant-scoped `GET /api/v1/cpo/charger-transactions`
+  with descending cursor pagination and optional same-CPO charger/customer
+  filters. The read returns billing, usage, tariff, hub, host, customer, and
+  financial-status projections without contacting the HAL.
+- The authoritative OpenAPI contract now includes the full financial-status
+  enum, including `REFUNDED`, and the transaction response schemas.
+- No database migration was required. Runtime revision `a5d1af4` is active
+  with binary SHA-256
+  `c786df05b310487fb84c6a6f85ab4c769249396f32ac6d0f027efb8c0b273669` and
+  the live contract expanded to 183 operations.
+
 ### 2026-08-18 — Tariff PATCH and frozen-settlement hardening deployed
 
 - Tariff PATCH now distinguishes omitted, explicit-null, and concrete values
@@ -32,7 +81,7 @@
 - Corrected the authoritative analytics response schema to match the runtime:
   counts are non-negative integers and decimal revenue/usage values serialize
   as strings.
-- No database migration was required. Runtime revision `0ad2de7` is active with
+- No database migration was required. Runtime revision `a5d1af4` is active with
   binary SHA-256
   `d62b01cad7b25bd4ddd0c82407ce7ee94dd7d03680879edb57057cbd526b9348` and
   the live OpenAPI contract contains 182 operations.
@@ -104,10 +153,10 @@
 
 - Migration 40 is applied on the development VPS after a mode-0600 rollback
   dump. Revision `9e7af67` is active with the then-current tariff contract.
-- The source correction above is deliberately not deployed and supersedes the
-  former `watt/hour` energy interpretation for the next migration-controlled
-  release. Disposable PostgreSQL lifecycle and full CMS-to-HAL topology
-  acceptance remain pending their dedicated environments.
+- The source correction above superseded the former `watt/hour` energy
+  interpretation and is now included in the migration-controlled deployment.
+  Disposable PostgreSQL lifecycle and full CMS-to-HAL topology acceptance
+  remain pending their dedicated environments.
 
 ### 2026-08-18 — Customer aggregates and tariff validation release deployed
 

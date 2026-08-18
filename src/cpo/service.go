@@ -2612,6 +2612,9 @@ func (service *Service) CreateHubTariff(
 			CreatedAt:     now,
 			UpdatedAt:     now,
 		}
+		if err := service.validateTariffTopologyMutation(tx, &record, nil); err != nil {
+			return err
+		}
 
 		if err := tx.Create(&record).Error; err != nil {
 			return service.handleTariffError("create hub tariff", err)
@@ -2753,6 +2756,9 @@ func (service *Service) UpdateHubTariff(
 		if err := validateTariffDateRange(record.StartDate, record.EndDate); err != nil {
 			return err
 		}
+		if err := service.validateTariffTopologyMutation(tx, &record, nil); err != nil {
+			return err
+		}
 		if err := tx.Model(&models.Tariff{}).
 			Where("id = ?", record.ID).
 			Updates(updates).Error; err != nil {
@@ -2827,6 +2833,9 @@ func (service *Service) CreateChargerTariff(
 			Units:         request.Units,
 			CreatedAt:     now,
 			UpdatedAt:     now,
+		}
+		if err := service.validateTariffTopologyMutation(tx, &record, nil); err != nil {
+			return err
 		}
 
 		if err := tx.Create(&record).Error; err != nil {
@@ -2969,6 +2978,9 @@ func (service *Service) UpdateChargerTariff(
 		if err := validateTariffDateRange(record.StartDate, record.EndDate); err != nil {
 			return err
 		}
+		if err := service.validateTariffTopologyMutation(tx, &record, nil); err != nil {
+			return err
+		}
 		if err := tx.Model(&models.Tariff{}).
 			Where("id = ?", record.ID).
 			Updates(updates).Error; err != nil {
@@ -3042,6 +3054,9 @@ func (service *Service) CreateUserGroupTariff(
 			Units:         request.Units,
 			CreatedAt:     now,
 			UpdatedAt:     now,
+		}
+		if err := service.validateTariffTopologyMutation(tx, &record, nil); err != nil {
+			return err
 		}
 
 		if err := tx.Create(&record).Error; err != nil {
@@ -3184,6 +3199,9 @@ func (service *Service) UpdateUserGroupTariff(
 		if err := validateTariffDateRange(record.StartDate, record.EndDate); err != nil {
 			return err
 		}
+		if err := service.validateTariffTopologyMutation(tx, &record, nil); err != nil {
+			return err
+		}
 		if err := tx.Model(&models.Tariff{}).
 			Where("id = ?", record.ID).
 			Updates(updates).Error; err != nil {
@@ -3207,6 +3225,49 @@ func (service *Service) UpdateUserGroupTariff(
 	}
 
 	return service.tariffView(&record), nil // Fix: Call as method
+}
+
+func (service *Service) deleteScopedTariff(
+	ctx context.Context,
+	principal auth.Principal,
+	targetID, tariffID uuid.UUID,
+	assignment constants.TariffAssignmentType,
+	targetColumn, auditAction string,
+) error {
+	if err := requireCPOAdminAccess(principal); err != nil {
+		return err
+	}
+	cpoID := *principal.CPOID
+	return service.database.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var record models.Tariff
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+			First(&record, "cpo_id = ? AND assigned_to = ? AND "+targetColumn+" = ? AND id = ?", cpoID, assignment, targetID, tariffID).Error; err != nil {
+			return service.handleTariffError("load tariff", err)
+		}
+		if err := service.validateTariffTopologyMutation(tx, nil, &record.ID); err != nil {
+			return err
+		}
+		if err := tx.Delete(&record).Error; err != nil {
+			return service.handleTariffError("delete tariff", err)
+		}
+		now := service.now()
+		return writeAudit(tx, principal.UserID, cpoID, auditAction, models.JSONB{
+			"tariff_id": record.ID,
+			"target_id": targetID,
+		}, now)
+	})
+}
+
+func (service *Service) DeleteHubTariff(ctx context.Context, principal auth.Principal, hubID, tariffID uuid.UUID) error {
+	return service.deleteScopedTariff(ctx, principal, hubID, tariffID, constants.TariffAssignedHub, "hub_id", "HUB_TARIFF_DELETED")
+}
+
+func (service *Service) DeleteChargerTariff(ctx context.Context, principal auth.Principal, chargerID, tariffID uuid.UUID) error {
+	return service.deleteScopedTariff(ctx, principal, chargerID, tariffID, constants.TariffAssignedCharger, "charger_id", "CHARGER_TARIFF_DELETED")
+}
+
+func (service *Service) DeleteUserGroupTariff(ctx context.Context, principal auth.Principal, userGroupID, tariffID uuid.UUID) error {
+	return service.deleteScopedTariff(ctx, principal, userGroupID, tariffID, constants.TariffAssignedUserGroup, "user_group_id", "USER_GROUP_TARIFF_DELETED")
 }
 
 func (service *Service) validateTariffScope(
@@ -4031,11 +4092,7 @@ func mapChargerWriteError(err error, operation string) error {
 				Message: "The charger references an invalid related record.",
 			}
 		case "23P01":
-			return &auth.APIError{
-				Status:  http.StatusConflict,
-				Code:    "tariff_schedule_conflict",
-				Message: "Moving the charger would create an overlapping active tariff schedule.",
-			}
+			return tariffTemporalConflict()
 		}
 	}
 	return fmt.Errorf("%s: %w", operation, err)
@@ -4244,6 +4301,9 @@ func (service *Service) CreateHub(
 	customerVisible := false
 	if request.CustomerVisible != nil {
 		customerVisible = *request.CustomerVisible
+	}
+	if err := validateInitialHubVisibility(customerVisible); err != nil {
+		return HubView{}, err
 	}
 
 	cpoID := *principal.CPOID
@@ -4554,6 +4614,11 @@ func (service *Service) UpdateHub(
 				return fmt.Errorf("load Hub GST for validation: %w", err)
 			}
 			if err := validateGSTForHub(record, gst); err != nil {
+				return err
+			}
+		}
+		if record.CustomerVisible {
+			if err := service.validateVisibleHubTariffFloor(tx, cpoID, record.ID); err != nil {
 				return err
 			}
 		}
@@ -5028,6 +5093,13 @@ func validateCreateHubRequest(request CreateHubRequest) error {
 	return nil
 }
 
+func validateInitialHubVisibility(customerVisible bool) error {
+	if customerVisible {
+		return hubTariffRootRequired()
+	}
+	return nil
+}
+
 func validateUpdateHubRequest(request UpdateHubRequest) error {
 	if request.Name == nil &&
 		request.Address == nil &&
@@ -5080,6 +5152,9 @@ func mapHubWriteError(err error, operation string) error {
 		case "23514":
 			if postgresError.ConstraintName == "chk_hubs_sanction_load" {
 				return invalid("sanction_load", "Sanction load must not be negative.")
+			}
+			if strings.Contains(postgresError.Message, "customer-visible hub requires one enabled unbounded hub tariff") {
+				return hubTariffRootRequired()
 			}
 		}
 	}
@@ -5252,6 +5327,149 @@ func applyTariffUpdate(tariff *models.Tariff, request UpdateTariffRequest) (map[
 	return updates, changedFields
 }
 
+type tariffTarget struct {
+	assignment constants.TariffAssignmentType
+	column     string
+	id         uuid.UUID
+}
+
+func tariffTargetFromRecord(tariff models.Tariff) (tariffTarget, error) {
+	switch tariff.AssignedTo {
+	case constants.TariffAssignedHub:
+		if tariff.HubID != nil {
+			return tariffTarget{assignment: tariff.AssignedTo, column: "hub_id", id: *tariff.HubID}, nil
+		}
+	case constants.TariffAssignedCharger:
+		if tariff.ChargerID != nil {
+			return tariffTarget{assignment: tariff.AssignedTo, column: "charger_id", id: *tariff.ChargerID}, nil
+		}
+	case constants.TariffAssignedUserGroup:
+		if tariff.UserGroupID != nil {
+			return tariffTarget{assignment: tariff.AssignedTo, column: "user_group_id", id: *tariff.UserGroupID}, nil
+		}
+	}
+	return tariffTarget{}, errors.New("tariff has no exact target")
+}
+
+func (target tariffTarget) advisoryKey(cpoID uuid.UUID) string {
+	return fmt.Sprintf("tariff:%s:%s:%s", cpoID, target.assignment, target.id)
+}
+
+func tariffTemporalProjection(tariffs []models.Tariff) []commercial.TemporalTariff {
+	projection := make([]commercial.TemporalTariff, 0, len(tariffs))
+	for _, tariff := range tariffs {
+		projection = append(projection, commercial.TemporalTariff{
+			ID: tariff.ID, IsActive: tariff.IsActive, StartDate: tariff.StartDate, EndDate: tariff.EndDate,
+		})
+	}
+	return projection
+}
+
+func tariffTemporalConflict() error {
+	return &auth.APIError{
+		Status:  http.StatusConflict,
+		Code:    "tariff_temporal_conflict",
+		Message: "Enabled tariffs for this target must have one root, unique open-ended starts, and only nested bounded overrides.",
+	}
+}
+
+func hubTariffRootRequired() error {
+	return &auth.APIError{
+		Status:  http.StatusConflict,
+		Code:    "hub_tariff_root_required",
+		Message: "A hub must first exist with an enabled unbounded hub tariff before it can become customer-visible.",
+	}
+}
+
+// validateTariffTopologyMutation serializes one exact target, validates the
+// complete resulting enabled hierarchy, and preserves the published-Hub floor.
+// It is deliberately called for create, activation/deactivation, schedule
+// changes, and delete; time itself never mutates policy rows.
+func (service *Service) validateTariffTopologyMutation(tx *gorm.DB, candidate *models.Tariff, deletingID *uuid.UUID) error {
+	var source models.Tariff
+	if candidate != nil {
+		source = *candidate
+	} else if deletingID != nil {
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&source, "id = ?", *deletingID).Error; err != nil {
+			return service.handleTariffError("load tariff", err)
+		}
+	} else {
+		return errors.New("tariff topology mutation has no candidate")
+	}
+	target, err := tariffTargetFromRecord(source)
+	if err != nil {
+		return invalid("tariff_target", "A tariff must target exactly one hub, charger, or user group.")
+	}
+
+	var hub models.Hub
+	if target.assignment == constants.TariffAssignedHub {
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&hub, "id = ? AND cpo_id = ?", target.id, source.CPOID).Error; err != nil {
+			return mapHubNotFound(err)
+		}
+	}
+	if err := tx.Exec("SELECT pg_advisory_xact_lock(hashtextextended(?, 0))", target.advisoryKey(source.CPOID)).Error; err != nil {
+		return fmt.Errorf("lock tariff target: %w", err)
+	}
+
+	var existing []models.Tariff
+	if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+		Where("cpo_id = ? AND assigned_to = ? AND "+target.column+" = ?", source.CPOID, target.assignment, target.id).
+		Find(&existing).Error; err != nil {
+		return fmt.Errorf("load tariff topology: %w", err)
+	}
+	result := make([]models.Tariff, 0, len(existing)+1)
+	found := false
+	for _, tariff := range existing {
+		if deletingID != nil && tariff.ID == *deletingID {
+			continue
+		}
+		if candidate != nil && tariff.ID == candidate.ID {
+			result = append(result, *candidate)
+			found = true
+			continue
+		}
+		result = append(result, tariff)
+	}
+	if candidate != nil && !found {
+		result = append(result, *candidate)
+	}
+	if err := commercial.ValidateEnabledTariffTopology(tariffTemporalProjection(result)); err != nil {
+		if errors.Is(err, commercial.ErrInvalidTariffDateShape) {
+			return invalid("schedule", "A tariff schedule must be root, start-only, or a complete increasing interval.")
+		}
+		return tariffTemporalConflict()
+	}
+	if target.assignment == constants.TariffAssignedHub && hub.CustomerVisible {
+		rootCount := 0
+		for _, tariff := range result {
+			if tariff.IsActive && tariff.StartDate == nil && tariff.EndDate == nil {
+				rootCount++
+			}
+		}
+		if rootCount != 1 {
+			return hubTariffRootRequired()
+		}
+	}
+	return nil
+}
+
+func (service *Service) validateVisibleHubTariffFloor(tx *gorm.DB, cpoID, hubID uuid.UUID) error {
+	target := tariffTarget{assignment: constants.TariffAssignedHub, column: "hub_id", id: hubID}
+	if err := tx.Exec("SELECT pg_advisory_xact_lock(hashtextextended(?, 0))", target.advisoryKey(cpoID)).Error; err != nil {
+		return fmt.Errorf("lock hub tariff target: %w", err)
+	}
+	var count int64
+	if err := tx.Model(&models.Tariff{}).
+		Where("cpo_id = ? AND assigned_to = ? AND hub_id = ? AND is_active = ? AND start_date IS NULL AND end_date IS NULL", cpoID, constants.TariffAssignedHub, hubID, true).
+		Count(&count).Error; err != nil {
+		return fmt.Errorf("count hub tariff roots: %w", err)
+	}
+	if count != 1 {
+		return hubTariffRootRequired()
+	}
+	return nil
+}
+
 func validateTariffCommercial(tariffType *constants.TariffType, priceType *constants.PriceType, units *constants.Unit, idleFeePerMin decimal.Decimal, isActive bool) error {
 	if constants.SupportedChargingTariff(tariffType, priceType, units) {
 		if !isActive || idleFeePerMin.IsZero() {
@@ -5271,13 +5489,10 @@ func validateTariffCommercial(tariffType *constants.TariffType, priceType *const
 }
 
 func validateTariffDateRange(startDate, endDate *time.Time) error {
-	if startDate == nil && endDate == nil {
-		return nil
-	}
-	if startDate == nil || endDate == nil {
-		return invalid("schedule", "start_date and end_date must be supplied together.")
-	}
-	if !startDate.Before(*endDate) {
+	if err := commercial.ValidateTariffDateShape(startDate, endDate); errors.Is(err, commercial.ErrInvalidTariffDateShape) {
+		if startDate == nil {
+			return invalid("schedule", "end_date requires start_date.")
+		}
 		return invalid("date_range", "Start date must be strictly before end date.")
 	}
 	return nil
@@ -5338,16 +5553,17 @@ func (service *Service) handleTariffError(operation string, err error) error {
 	var postgresError *pgconn.PgError
 	if errors.As(err, &postgresError) {
 		switch postgresError.Code {
-		case "23P01":
-			return &auth.APIError{
-				Status:  http.StatusConflict,
-				Code:    "tariff_schedule_conflict",
-				Message: "An active tariff already covers this target and effective period.",
-			}
+		case "23P01", "23505":
+			return tariffTemporalConflict()
 		case "23514":
 			switch postgresError.ConstraintName {
 			case "tariffs_exactly_one_target", "tariffs_target_matches_assigned_to":
 				return invalid("tariff_target", "A tariff must target exactly one hub, charger, or user group.")
+			case "tariffs_temporal_dates_check":
+				return invalid("schedule", "A tariff schedule must be root, start-only, or a complete increasing interval.")
+			}
+			if strings.Contains(postgresError.Message, "customer-visible hub requires one enabled unbounded hub tariff") {
+				return hubTariffRootRequired()
 			}
 		case "23503":
 			switch postgresError.ConstraintName {
@@ -5369,6 +5585,11 @@ func (service *Service) handleTariffError(operation string, err error) error {
 					Code:    "user_group_not_found",
 					Message: "The user group for this tariff does not exist.",
 				}
+			}
+			return &auth.APIError{
+				Status:  http.StatusConflict,
+				Code:    "tariff_in_use",
+				Message: "This tariff cannot be deleted because it is referenced by charging history.",
 			}
 		}
 	}
@@ -5933,6 +6154,11 @@ func (service *Service) UpdateHubCustomerVisibility(
 		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
 			First(&hub, "id = ? AND cpo_id = ?", hubID, *principal.CPOID).Error; err != nil {
 			return mapHubNotFound(err)
+		}
+		if request.CustomerVisible {
+			if err := service.validateVisibleHubTariffFloor(tx, *principal.CPOID, hubID); err != nil {
+				return err
+			}
 		}
 
 		now := service.now()

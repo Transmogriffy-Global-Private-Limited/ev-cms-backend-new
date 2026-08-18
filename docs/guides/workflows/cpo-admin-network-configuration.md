@@ -91,10 +91,11 @@ Call `POST /api/v1/cpo/hubs` and retain its generated UUID. Latitude and
 longitude are required even when either value is exactly zero. Optional
 `sanction_load` is the site's non-negative electrical capacity in kW; the
 stored default `0` means that capacity has not been recorded. Optional
-`customer_visible` defaults to `false`; set it deliberately when the hub is
-ready for customer discovery. CPO ADMIN may publish or unpublish the hub with
-`PATCH /api/v1/cpo/hubs/{hub_id}`. Only published hubs and their attached
-chargers appear in the User App.
+`customer_visible` defaults to `false` and must remain false at creation:
+`customer_visible:true` returns `409 hub_tariff_root_required`. First create
+the Hub, then create its exactly-one enabled unbounded Hub-root tariff, and
+only then publish with `PATCH /api/v1/cpo/hubs/{hub_id}`. Only published hubs
+and their attached chargers appear in the User App.
 
 ### 2. Register a charger and connectors
 
@@ -135,11 +136,13 @@ Create the tariff through its owning scope: `POST
 /api/v1/cpo/user-groups/{user_group_id}/tariffs`. The route fixes exactly one
 target; target IDs in the body are rejected. Every referenced GST record must
 belong to the same CPO. Currency defaults to INR. An active
-tariff is either open-ended (omit both effective dates) or has a complete
-`[start_date, end_date)` effective period. PostgreSQL rejects overlapping
-active periods for the same exact one-target tariff scope
-with `409 tariff_schedule_conflict`; an open-ended active tariff overlaps every
-dated tariff of that same scope.
+tariff is a root (omit both effective dates), an open-ended fallback (supply a
+start only), or a complete `[start_date, end_date)` bounded override. Enabled
+rows for one exact target may have nested bounded overrides but never crossing
+or identical bounds; duplicate roots/open starts return
+`409 tariff_temporal_conflict`. A customer-visible Hub also requires exactly
+one enabled unbounded Hub root; tariff dates never set a charging-session
+cutoff.
 
 ### 6. Read and update
 
@@ -147,7 +150,9 @@ dated tariff of that same scope.
   plus get/update. Tariffs are listed, retrieved, and updated through their
   hub, charger, or user-group scope.
 - Chargers additionally have dependency-safe deletion.
-- Hubs, GST profiles, and tariffs do not have delete routes.
+- Hubs and GST profiles do not have delete routes. Scoped tariff `DELETE`
+  returns `204` only when no historic charging reference or published-Hub root
+  floor prevents removal.
 - Connector changes occur only as updates to existing connector UUIDs on a
   charger. Adding/removing connectors is not implemented.
 - GST and tariffs are retained by setting `is_active=false`.

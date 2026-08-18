@@ -98,9 +98,10 @@ tenant-scoped hubs, chargers/connectors, GST profiles, and tariffs.
   never becomes a directory.
 - Required client identifiers are server-generated.
 - Blank tariff currency persists as INR.
-- Tariff dates are both absent or form a valid half-open interval, and
-  overlapping active periods in the same scope return
-  `tariff_schedule_conflict` under concurrent writes.
+- Tariffs are root, start-only open fallback, or valid half-open bounded
+  interval. Enabled rows for an exact target have one root, unique open starts,
+  and strictly nested bounded overlaps; conflicting topology returns
+  `tariff_temporal_conflict` under concurrent writes.
 - CPO callers can update the static CMS administrative status of a charger;
   connector status remains created by the CMS. Neither is a live HAL
   projection or availability signal.

@@ -342,17 +342,30 @@ Migration nine was verified up and down against disposable loopback PostgreSQL
 17, including pending-mail refusal, preserved-row archival/restoration, and
 retired-worker disable/restore behavior.
 
-## Tariff Effective Dates
+## Tariff Temporal Fallback
 
-Migration fifteen is additive and must run before a binary that reads or writes
-`tariffs.start_date` or `tariffs.end_date`. A tariff is either open-ended (both
-columns null) or uses a complete half-open effective interval. The migration
-fails before adding its exclusion constraint if existing active tariffs already
-overlap under the same `(cpo_id, hub_id, charger_id, user_group_id)` tuple;
-operators must reconcile those records deliberately rather than receiving an
-ambiguous partial migration. The `btree_gist`-backed constraint treats null
-effective bounds as infinity and uses `IS NOT DISTINCT FROM` semantics for the
-optional UUID target columns, so it remains safe under concurrent writes.
+Migrations fifteen and thirty-seven introduced the timestamp fields and exact
+one-target model. Migration forty-four replaces their no-overlap exclusion with
+the actual temporal fallback policy. A tariff is structurally one of: root
+(`start_date` and `end_date` null), open fallback (`start_date` only), or a
+bounded half-open interval `[start_date, end_date)`. End-only and non-increasing
+dates are invalid even for inactive rows.
+
+For each enabled exact target, PostgreSQL permits one root, unique open-fallback
+starts, and bounded overlap only for strict containment. It rejects crossing or
+identical intervals, serializes target mutation with an advisory transaction
+lock, and uses partial unique indexes for roots/open starts. The migration
+preflights existing ambiguity and customer-visible hubs without an enabled hub
+root; it fails instead of selecting a price arbitrarily. A Hub may become
+customer-visible only while exactly one active unbounded Hub tariff remains.
+UserGroup and Charger roots are optional. These timestamps govern commercial
+tariff applicability, never the customer session-duration cutoff.
+
+Migration forty-four also rejects direct updates to a tariff's `cpo_id`,
+`assigned_to`, `hub_id`, `charger_id`, or `user_group_id` using null-safe
+PostgreSQL comparisons. Target identity is immutable after creation, so a
+direct write cannot move a root away from a customer-visible Hub or transfer a
+commercial rule between exact targets.
 
 ## Hub Sanctioned Load and Independent Chargers
 

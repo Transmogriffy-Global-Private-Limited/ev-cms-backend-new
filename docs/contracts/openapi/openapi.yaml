@@ -4082,8 +4082,12 @@ paths:
       operationId: createCPOHub
       summary: Create a tenant charging hub
       description: |
-        Requires CPO ADMIN and writes audit evidence atomically. Optionally
-        assigns existing tenant chargers, which must not already belong to a hub.
+        Requires CPO ADMIN and writes audit evidence atomically. The Hub is
+        always created hidden: customer_visible=true is rejected because an
+        enabled unbounded Hub-root tariff can exist only after this Hub exists.
+        Create the root tariff, then publish through the Hub update route.
+        Optionally assigns existing tenant chargers, which must not already
+        belong to a hub.
       security:
         - BearerAuth: []
           CPOAppID: []
@@ -4117,7 +4121,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorEnvelope"
         "409":
-          description: "`hub_conflict` or `charger_already_in_hub`."
+          description: "`hub_conflict`, `charger_already_in_hub`, or `hub_tariff_root_required` when customer_visible=true is requested during creation."
           content:
             application/json:
               schema:
@@ -4404,7 +4408,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorEnvelope"
         "409":
-          description: "`tariff_schedule_conflict`."
+          description: "Tariff topology conflict prevents the requested reassignment."
           content:
             application/json:
               schema:
@@ -4706,6 +4710,33 @@ paths:
           $ref: "#/components/responses/Conflict"
         "500":
           $ref: "#/components/responses/InternalError"
+    delete:
+      tags: [CPO Operations - Pricing & Tax]
+      operationId: deleteHubTariff
+      summary: Delete one hub tariff
+      description: Deletes only this immutable hub-target tariff. The operation fails when the tariff is used by charging history, would leave a customer-visible hub without its enabled root tariff, or would make the remaining enabled temporal hierarchy ambiguous.
+      security:
+        - BearerAuth: []
+          CPOAppID: []
+      responses:
+        "204":
+          description: Tariff deleted.
+        "400":
+          $ref: "#/components/responses/InvalidRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/CPOBusinessForbidden"
+        "404":
+          description: "`tariff_not_found`."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "500":
+          $ref: "#/components/responses/InternalError"
   /api/v1/cpo/chargers/{charger_id}/tariffs:
     parameters:
       - $ref: "#/components/parameters/ChargerInternalID"
@@ -4840,6 +4871,33 @@ paths:
           $ref: "#/components/responses/Conflict"
         "500":
           $ref: "#/components/responses/InternalError"
+    delete:
+      tags: [CPO Operations - Pricing & Tax]
+      operationId: deleteChargerTariff
+      summary: Delete one charger tariff
+      description: Deletes only this immutable charger-target tariff. Historic references and resulting temporal hierarchy validation remain enforced.
+      security:
+        - BearerAuth: []
+          CPOAppID: []
+      responses:
+        "204":
+          description: Tariff deleted.
+        "400":
+          $ref: "#/components/responses/InvalidRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/CPOBusinessForbidden"
+        "404":
+          description: "`tariff_not_found`."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "500":
+          $ref: "#/components/responses/InternalError"
   /api/v1/cpo/user-groups/{user_group_id}/tariffs:
     parameters:
       - $ref: "#/components/parameters/UserGroupID"
@@ -4966,6 +5024,33 @@ paths:
           $ref: "#/components/responses/CPOBusinessForbidden"
         "404":
           description: "`tariff_not_found` or other referenced resource not found."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    delete:
+      tags: [CPO Operations - Pricing & Tax]
+      operationId: deleteUserGroupTariff
+      summary: Delete one user-group tariff
+      description: Deletes only this immutable user-group-target tariff. Historic references and resulting temporal hierarchy validation remain enforced.
+      security:
+        - BearerAuth: []
+          CPOAppID: []
+      responses:
+        "204":
+          description: Tariff deleted.
+        "400":
+          $ref: "#/components/responses/InvalidRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/CPOBusinessForbidden"
+        "404":
+          description: "`tariff_not_found`."
           content:
             application/json:
               schema:
@@ -8756,7 +8841,7 @@ components:
         customer_visible:
           type: boolean
           default: false
-          description: Publish this hub to customer network discovery. CPO ADMIN only.
+          description: Must be false or omitted during creation. Create the Hub, add its enabled unbounded Hub-root tariff, then set this to true through Hub update or the visibility route.
         charger_ids:
           type: array
           items:
@@ -8945,11 +9030,11 @@ components:
         start_date:
           type: string
           format: date-time
-          description: Must be supplied together with end_date; inclusive.
+          description: Omit with end_date for an unbounded root, or provide without end_date for an open-ended fallback. With end_date, it is the inclusive beginning of a bounded override.
         end_date:
           type: string
           format: date-time
-          description: Must be later than start_date; exclusive.
+          description: Optional exclusive end of a bounded override. It requires start_date and must be later than it.
         tariff_type:
           type: string
           enum: [fixed]
@@ -8975,7 +9060,7 @@ components:
       type: object
       additionalProperties: false
       minProperties: 1
-      description: Updates commercial fields only. A tariff's target remains the nested route target for its lifetime. Omitted fields remain unchanged. For units, start_date, and end_date, explicit null clears the stored value. The resulting tariff must use a supported fixed price_type/units combination and an open-ended or complete valid schedule.
+      description: Updates commercial fields only. A tariff's target remains the nested route target for its lifetime. Omitted fields remain unchanged. For units, start_date, and end_date, explicit null clears the stored value. The resulting tariff must use a supported fixed price_type/units combination and a root, open-ended fallback, or complete bounded schedule; enabled rows must form the target's valid temporal hierarchy.
       properties:
         price_per_unit: {$ref: "#/components/schemas/DecimalInput"}
         idle_fee_per_min:
@@ -8989,12 +9074,12 @@ components:
           type: string
           format: date-time
           nullable: true
-          description: Omit to retain the current value; send null with end_date null to clear the complete schedule. A supplied value is validated with the resulting end_date.
+          description: Omit to retain the current value; send null with end_date null to make an unbounded root. A supplied value with no end_date is an open-ended fallback; with end_date it begins a bounded override.
         end_date:
           type: string
           format: date-time
           nullable: true
-          description: Omit to retain the current value; send null with start_date null to clear the complete schedule. A supplied value is validated with the resulting start_date.
+          description: Omit to retain the current value; send null with start_date null to make an unbounded root. A supplied value requires start_date and is the exclusive end of a bounded override.
         tariff_type:
           type: string
           enum: [fixed]
@@ -9719,7 +9804,7 @@ components:
 
     FinancialStatus:
       type: string
-      enum: [PENDING, COMPLETED, FAILED, REVERSED]
+      enum: [PENDING, COMPLETED, FAILED, REVERSED, REFUNDED]
       description: Financial status of a transaction.
 
     ChargingSessionListResponse:

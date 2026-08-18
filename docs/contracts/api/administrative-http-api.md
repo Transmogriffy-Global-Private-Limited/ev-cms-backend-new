@@ -1875,9 +1875,11 @@ Rules:
 - `open_24_hours`: optional, defaults to `true`;
 - `sanction_load`: optional non-negative site electrical capacity in kW; it
   defaults to `0`, which means not recorded rather than zero capacity;
-- `customer_visible`: optional publication switch, defaulting to `false`;
-  CPO ADMIN may set it to `true` only when the hub is ready for User App
-  discovery. It is not a live-availability claim;
+- `customer_visible`: optional publication switch, defaulting to `false`.
+  Initial Hub creation must leave it false: `customer_visible:true` returns
+  `409 hub_tariff_root_required` because the Hub must first exist, receive
+  exactly one enabled unbounded Hub-root tariff, then be published through a
+  Hub update route. It is not a live-availability claim;
 - `charger_id`: optional UUID of an existing charger to assign to this hub.
 
 `201 Created` returns:
@@ -2426,15 +2428,15 @@ changes under locking. Invalid combinations return `400 invalid_gst_for_hub`.
 ### 9.19 Scoped tariff routes
 
 All tariff routes require the authenticated CPO ADMIN and its current
-`X-CPO-App-ID`. Tariffs are created, listed, read, and updated through one
-scope:
+`X-CPO-App-ID`. Tariffs are created, listed, read, updated, and deleted through
+one scope:
 
 - hub: `POST`/`GET /api/v1/cpo/hubs/{hub_id}/tariffs` and
-  `GET`/`PATCH /api/v1/cpo/hubs/{hub_id}/tariffs/{tariff_id}`;
+  `GET`/`PATCH`/`DELETE /api/v1/cpo/hubs/{hub_id}/tariffs/{tariff_id}`;
 - charger: `POST`/`GET /api/v1/cpo/chargers/{charger_id}/tariffs` and
-  `GET`/`PATCH /api/v1/cpo/chargers/{charger_id}/tariffs/{tariff_id}`;
+  `GET`/`PATCH`/`DELETE /api/v1/cpo/chargers/{charger_id}/tariffs/{tariff_id}`;
 - user group: `POST`/`GET /api/v1/cpo/user-groups/{user_group_id}/tariffs`
-  and `GET`/`PATCH /api/v1/cpo/user-groups/{user_group_id}/tariffs/{tariff_id}`.
+  and `GET`/`PATCH`/`DELETE /api/v1/cpo/user-groups/{user_group_id}/tariffs/{tariff_id}`.
 
 The path scope is part of the tenant ownership lookup and is the only source of
 the tariff target. Every tariff has **exactly one** durable target:
@@ -2484,13 +2486,22 @@ Rules:
 - any other combination fails with `unsupported_tariff_pricing` before
   persistence;
 - `is_active` is optional/default true;
-- `start_date` and `end_date` are either both omitted for an open-ended tariff
-  or both supplied with `start_date < end_date`. A dated tariff is effective on
-  the half-open interval `[start_date, end_date)`;
-- PostgreSQL rejects overlapping active effective periods for the same CPO and
-  exact one-target scope with
-  `409 tariff_schedule_conflict`. Open-ended active tariffs use infinite bounds
-  and therefore overlap every dated tariff of the same scope.
+- schedule shape is one of: a root (`start_date` and `end_date` both omitted),
+  an open-ended fallback (`start_date` supplied and `end_date` omitted), or a
+  bounded override (`start_date < end_date`) active on `[start_date, end_date)`.
+  An end-only schedule is invalid;
+- date semantics are exact instants, not charging-session duration limits. No
+  worker changes a row when time passes; `is_active` means administratively
+  enabled only;
+- among enabled tariffs for one exact target, there is at most one root,
+  open-ended fallbacks have unique starts, and bounded overlap is allowed only
+  for strict containment. Crossing or identical bounded intervals return
+  `409 tariff_temporal_conflict`. Adjacent intervals where `end_date ==
+  start_date` do not overlap;
+- at an instant, the target chooses its deepest matching bounded override, else
+  its newest started open fallback, else its root. This temporal choice happens
+  only after scope precedence: UserGroup > Charger > Hub. A UserGroup root
+  therefore wins over any Charger or Hub temporal override.
 
 Exact decimal strings are recommended. `201 Created` returns the generated
 tariff UUID, relations, exact decimal strings, currency, active state, and
@@ -2498,8 +2509,8 @@ timestamps. Scope-specific creation writes `HUB_TARIFF_CREATED`,
 `CHARGER_TARIFF_CREATED`, or `USER_GROUP_TARIFF_CREATED`.
 
 Errors include field-specific `400 invalid_*`, relation-specific `404`
-responses, `409 tariff_conflict`, and
-`409 tariff_schedule_conflict`.
+responses, `409 tariff_conflict`, `409 tariff_temporal_conflict`, and, for a
+published Hub floor violation, `409 hub_tariff_root_required`.
 
 Each scoped `GET` collection returns bounded keyset pages:
 
@@ -2521,9 +2532,10 @@ A scoped `PATCH` accepts any non-empty subset of the commercial create fields.
 Every omitted key leaves its stored value unchanged. `units`, `start_date`, and
 `end_date` additionally accept explicit JSON `null`: `units:null` clears units
 for a `sessions` tariff, and `start_date:null` together with `end_date:null`
-clears a prior schedule. A single null date or a single supplied date is
-rejected; the resulting schedule remains either open-ended or a complete
-half-open interval. The server applies the request to the locked stored row and
+clears a prior schedule to the unbounded root. A supplied `start_date` with an
+omitted or null `end_date` creates an open-ended fallback. A supplied end date
+requires a start date; the resulting schedule is root, open fallback, or a
+complete half-open bounded interval. The server applies the request to the locked stored row and
 then validates the complete resulting tariff, so a basis change must include
 the complete intended combination (`energy`/`kwh`, `time`/`minutes`, or
 `sessions` with no units). `watt/hour` is historical snapshot compatibility
@@ -2545,8 +2557,13 @@ GST remains outside tariff PATCH; Hub GST assignment owns it. `200 OK` returns
 the updated tariff and writes the matching scope-specific update audit event.
 Errors match creation plus `404 tariff_not_found`.
 
-There is currently no tariff delete route. Deactivation through
-`{"is_active":false}` is the supported retention-safe state change.
+`DELETE` returns `204 No Content` for the same nested target path. It never
+moves a tariff or deletes charging history: a foreign-key reference to frozen
+pricing, start intent, or charging history returns `409 tariff_in_use`. Deleting
+or deactivating the sole active root on a customer-visible Hub returns
+`409 hub_tariff_root_required`; deleting any row also validates the resulting
+enabled temporal topology. Deactivation remains suitable when historical policy
+retention is desired.
 
 ### CPO Settings
 
@@ -3186,6 +3203,24 @@ or issue charger commands. A missing session returns `404
 charging_session_not_found`; malformed UUIDs or invalid filters return `400`,
 and unauthenticated or non-ADMIN callers receive the standard `401`/`403`
 errors.
+
+### 12.5 CPO charger transaction reads
+
+`GET /api/v1/cpo/charger-transactions` returns a cursor-paginated transaction
+projection for the authenticated CPO ADMIN. It accepts `limit` (1–200,
+default 50), `before` (RFC3339), `before_id` (UUID), and optional same-CPO
+`charger_id` or `customer_id` UUID filters. Results are ordered newest first
+by `(created_at, id)`; the returned `next_before` and `next_before_id` form the
+next exclusive cursor.
+
+Each transaction includes the session UUID, financial status, decimal-string
+`billed_amount` and `usage_kwh`, tariff unit price, charger ID, elapsed
+duration when complete, hub, CPO owner, host contact projection, customer
+contact projection, creation timestamp, and optional stop reason. The read is
+tenant-scoped and does not contact the HAL or issue charger commands. Financial
+status values are `PENDING`, `COMPLETED`, `FAILED`, `REVERSED`, or `REFUNDED`.
+Malformed filters return `400`; unauthenticated or non-ADMIN callers receive
+the standard `401`/`403` responses.
 
 ## 13. Client State Machine
 

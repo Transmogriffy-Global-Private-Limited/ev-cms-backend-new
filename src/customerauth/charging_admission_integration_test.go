@@ -247,9 +247,9 @@ func TestUserAppTariffTargetPrecedenceWithPostgreSQL(t *testing.T) {
 	hubPrice, err = service.GetCustomerHubPrice(ctx, fixture.firstPrincipal, *fixture.charger.HubID)
 	assertPrice("user-group hub", "12.0000", hubPrice, err)
 
-	selected, ok := service.effectiveChargingTariff(gormDB.WithContext(ctx), fixture.firstPrincipal, *fixture.charger.HubID, fixture.charger.ID, now)
-	if !ok || !selected.PricePerUnit.Equal(decimal.RequireFromString("12.00")) {
-		t.Fatalf("charging tariff=%+v ok=%v, want user-group tariff", selected, ok)
+	selected, ok, err := service.effectiveChargingTariff(gormDB.WithContext(ctx), fixture.firstPrincipal, *fixture.charger.HubID, fixture.charger.ID, now)
+	if err != nil || !ok || !selected.PricePerUnit.Equal(decimal.RequireFromString("12.00")) {
+		t.Fatalf("charging tariff=%+v ok=%v err=%v, want user-group tariff", selected, ok, err)
 	}
 }
 

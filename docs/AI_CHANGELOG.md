@@ -1,5 +1,92 @@
 # AI Changelog
 
+## 2026-08-18 - Deployed temporal tariffs and removed the two requested hubs
+
+- Applied migration 44 after creating the guarded rollback dump
+  `/var/backups/postgres/devevcmsnewdb-pre-hub-cleanup-migration-44-20260818-162307.dump`
+  (SHA-256 `c64597066e052c83e7f60edc14497727acd9ad89ba628343a462696ae8f9a66e`).
+- Removed hubs `63ddfa1f-0c1e-4131-8ad7-eb5835c7cd19` and
+  `e00412ec-785e-4c71-85f8-9cb4e30a2d29`, their hub tariffs, and all hub-link
+  rows. Retained the five downstream chargers/connectors as unassigned,
+  hidden, inactive inventory; no sessions were present.
+- Rebuilt and rehosted runtime revision `38625d9`; binary SHA-256 is
+  `70626eb4cca88cfcb3a90590b656e197c54bf8c152d198942f756b4146f9101e`.
+
+Verification:
+
+- Migration prechecks and schema/index/trigger checks passed. The service is
+  active with zero restarts on `127.0.0.1:18080`; local/public health,
+  readiness, Swagger, raw OpenAPI (186 operations), Caddy validation, and the
+  post-rehost error scan passed. `TEST_DATABASE_URL` and `pwsh` remain
+  unavailable, so disposable-DB lifecycle and PowerShell docs verification
+  were not run.
+
+## 2026-08-18 - Hub publication/root tariff concurrency closure
+
+- Amended source-only migration 44 so the customer-visible Hub root-floor
+  trigger takes `tariff:<cpo_id>:hub:<hub_id>` before reading the root tariff.
+  That is the exact advisory transaction key already used by Hub tariff
+  mutations, closing the direct-DB publication/deactivation race.
+- Extended static migration coverage to require the Hub guard function, the
+  exact lock expression, and lock acquisition before the root-floor query.
+
+Verification:
+
+- Passed the database-free migration static test, repository-wide Go test/vet,
+  and documentation verification. PostgreSQL runtime execution was not run.
+
+## 2026-08-18 - Temporal tariff release-blocker closure
+
+- Rejected `customer_visible:true` before initial Hub insertion with the stable
+  `409 hub_tariff_root_required` lifecycle: hidden Hub, enabled unbounded Hub
+  root tariff, then publish. Hub database-trigger failures now map to the same
+  commercial error.
+- Amended source-only migration 44 with a null-safe PostgreSQL target
+  immutability trigger for tariff CPO/scope/target fields. Price, dates, and
+  administrative enablement remain mutable through the existing nested API.
+- Preserved fail-closed topology handling while allowing resolver query and GST
+  infrastructure errors to reach normal 5xx handling from StartCharging and
+  customer price routes.
+
+Verification:
+
+- Database-free focused tests, migration static tests, route/OpenAPI checks,
+  full Go test/vet, and docs verification are recorded with this source-only
+  slice. PostgreSQL runtime execution is explicitly not performed.
+
+## 2026-08-18 - Temporal tariff fallback source correction
+
+- Added migration 44 and shared commercial temporal policy for immutable Hub,
+  Charger, and UserGroup tariff targets: root, start-only open fallback, and
+  strictly nested bounded `[start_date,end_date)` overrides. The CMS keeps
+  `USERGROUP > CHARGER > HUB` as primary precedence; time never changes
+  `is_active` and never configures the separate session-duration cutoff.
+- Added CPO-side topology/published-Hub-floor enforcement, scoped tariff
+  deletion with historical-reference protection, and the same fail-closed
+  resolver for User App informational price and charging admission. Existing
+  tariff and Hub-GST snapshots remain immutable.
+- Updated canonical OpenAPI, administrative API contract, CPO frontend handoff,
+  User App handoff, schema, and network workflow. Added focused temporal and
+  migration-static coverage.
+
+Verification:
+
+- Passed focused commercial, CPO, customer-auth, migration-static, and
+  route/OpenAPI Go tests. This is not deployed and migration 44 has not been
+  applied; disposable PostgreSQL lifecycle/concurrency verification awaits an
+  explicitly selected `TEST_DATABASE_URL`.
+
+## 2026-08-18 - Rehosted CPO charger transaction reads
+
+- Rebuilt and rehosted revision `a5d1af4` after adding the tenant-scoped
+  `GET /api/v1/cpo/charger-transactions` cursor-paginated read with optional
+  charger/customer filters. No migration was required.
+- Added the human contract and corrected the OpenAPI financial-status enum to
+  include runtime-supported `REFUNDED`; the live contract now contains 183
+  operations.
+- Binary SHA-256 is
+  `c786df05b310487fb84c6a6f85ab4c769249396f32ac6d0f027efb8c0b273669`.
+
 ## 2026-08-18 - Rehosted tariff PATCH and frozen GST snapshot hardening
 
 - Made tariff PATCH intent explicit for `units`, `start_date`, and `end_date`:

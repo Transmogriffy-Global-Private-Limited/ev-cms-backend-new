@@ -2,6 +2,7 @@ package cpo
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -42,6 +43,51 @@ func TestTariffRequestBodiesRejectLegacyPricePerKWh(t *testing.T) {
 		if err := decodeJSON(ctx, destination); err == nil {
 			t.Fatalf("%T accepted the retired price_per_kwh request field", destination)
 		}
+	}
+}
+
+func TestInitialHubVisibilityRequiresExistingRootTariff(t *testing.T) {
+	t.Parallel()
+
+	if err := validateInitialHubVisibility(false); err != nil {
+		t.Fatalf("hidden Hub creation validation: %v", err)
+	}
+	err := validateInitialHubVisibility(true)
+	var apiError *auth.APIError
+	if !errors.As(err, &apiError) || apiError.Status != http.StatusConflict || apiError.Code != "hub_tariff_root_required" {
+		t.Fatalf("visible Hub creation error=%v, want 409 hub_tariff_root_required", err)
+	}
+}
+
+func TestCreateHubRejectsVisibleRequestBeforeDatabaseWrite(t *testing.T) {
+	t.Parallel()
+
+	latitude, longitude := 22.55, 88.35
+	visible := true
+	cpoID := uuid.New()
+	role := constants.CPORoleAdmin
+	_, err := (&Service{}).CreateHub(context.Background(), auth.Principal{
+		UserID: uuid.New(), Scope: constants.AuthScopeCPO, CPOID: &cpoID, Role: &role,
+	}, CreateHubRequest{
+		Name: "Hidden first", Address: "1 Test Road", State: constants.IndianState("West Bengal"),
+		Latitude: &latitude, Longitude: &longitude, CustomerVisible: &visible,
+	})
+	var apiError *auth.APIError
+	if !errors.As(err, &apiError) || apiError.Status != http.StatusConflict || apiError.Code != "hub_tariff_root_required" {
+		t.Fatalf("CreateHub visible error=%v, want 409 hub_tariff_root_required", err)
+	}
+}
+
+func TestMapHubWriteErrorMapsCustomerVisibleRootGuard(t *testing.T) {
+	t.Parallel()
+
+	err := mapHubWriteError(&pgconn.PgError{
+		Code:    "23514",
+		Message: "customer-visible hub requires one enabled unbounded hub tariff",
+	}, "create hub")
+	var apiError *auth.APIError
+	if !errors.As(err, &apiError) || apiError.Status != http.StatusConflict || apiError.Code != "hub_tariff_root_required" {
+		t.Fatalf("root guard error=%v, want 409 hub_tariff_root_required", err)
 	}
 }
 
@@ -97,7 +143,8 @@ func TestApplyTariffUpdateValidatesResultingTariffState(t *testing.T) {
 		{name: "energy to time sets minutes", patch: UpdateTariffRequest{PriceType: &timePrice, Units: PatchValue(minutes)}, valid: true},
 		{name: "energy remains canonical kwh", patch: UpdateTariffRequest{PriceType: &energy, Units: PatchValue(kwh)}, valid: true},
 		{name: "session without clearing prior units is rejected", patch: UpdateTariffRequest{PriceType: &session}},
-		{name: "partial schedule is rejected", patch: UpdateTariffRequest{StartDate: PatchValue(start)}},
+		{name: "open-ended fallback is accepted", patch: UpdateTariffRequest{StartDate: PatchValue(start)}, valid: true},
+		{name: "end-only schedule is rejected", patch: UpdateTariffRequest{EndDate: PatchValue(end)}},
 		{name: "complete schedule is accepted", patch: UpdateTariffRequest{StartDate: PatchValue(start), EndDate: PatchValue(end)}, valid: true},
 		{name: "schedule clears only as a pair", patch: UpdateTariffRequest{StartDate: PatchNull[time.Time](), EndDate: PatchNull[time.Time]()}, valid: true},
 	} {

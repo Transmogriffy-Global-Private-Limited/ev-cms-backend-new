@@ -29,9 +29,14 @@ that setting; it must not be used until the OCPP host is explicitly configured
 with TLS/WebSocket support.
 
 The active deployment was updated on August 18, 2026 to runtime source revision
-`0ad2de7`. It has migrations one through forty-three and the current
-182-operation API. No migration was required for the CPO analytics and
-hub-scoped charger-list reads or tariff PATCH/frozen-settlement hardening.
+`38625d9`. It has migrations one through forty-four and the current
+186-operation API. Migration 44 enables temporal tariff fallback and its
+database guards. The two requested hubs were removed with their hub tariffs and
+links; five downstream chargers/connectors were retained as unassigned,
+hidden, inactive inventory. No charging sessions were present for them. No
+migration was required for the CPO analytics,
+hub-scoped charger-list, charger-transaction, or tariff PATCH/frozen-settlement
+changes.
 Migration thirty-three adds the CPO/customer-scoped `operational_events`
 ledger used for durable operational-notification recovery; its four indexes
 support CPO and customer cursor replay plus retention. Migration twenty-seven
