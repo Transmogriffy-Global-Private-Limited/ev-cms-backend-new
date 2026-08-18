@@ -1,5 +1,47 @@
 # AI Changelog
 
+## 2026-08-18 - Rehosted tariff PATCH and frozen GST snapshot hardening
+
+- Made tariff PATCH intent explicit for `units`, `start_date`, and `end_date`:
+  omission retains the stored value, explicit `null` clears it, and a concrete
+  value replaces it. Hub, Charger, and UserGroup routes now share the same
+  application helper and validate the resulting tariff before persistence.
+- `units:null` is required when changing to fixed per-session pricing. Both
+  schedule dates must be null to clear a schedule; one-sided schedules remain
+  invalid. The OpenAPI contract and CPO frontend handoff now state the exact
+  request semantics and examples.
+- Completion settlement validates its frozen SGST/CGST/IGST snapshot with the
+  shared commercial component rule, rejecting missing, out-of-range, or mixed
+  split/IGST rates without consulting mutable current Hub/GST state. Released
+  legacy tariff-snapshot readers remain unchanged.
+
+Verification:
+
+- Focused database-free CPO and customer-auth tests cover nullable PATCH
+  decoding, valid/invalid resulting tariff states, schedule clearing, valid
+  GST split/IGST snapshots, and malformed snapshot rejection.
+- No migration or runtime database mutation was required. Rebuilt and rehosted
+  revision `0ad2de7`; binary SHA-256 is
+  `d62b01cad7b25bd4ddd0c82407ce7ee94dd7d03680879edb57057cbd526b9348`.
+- Verified focused tariff/GST/route tests, full Go tests, vet, Caddy
+  validation, local/public health and readiness, Swagger, raw OpenAPI, auth
+  boundaries, and a clean post-start error scan. `pwsh` and disposable
+  `TEST_DATABASE_URL` remain unavailable.
+
+## 2026-08-18 - Rehosted CPO analytics and hub charger listing APIs
+
+- Rebuilt and rehosted main revision `47b6e41` after adding tenant-scoped
+  `GET /api/v1/cpo/analytics` and
+  `GET /api/v1/cpo/hubs/{hub_id}/chargers`; no migration was required.
+- Corrected the embedded OpenAPI `AnalyticsResponse` schema to match runtime
+  fields and decimal-string serialization. The live contract now has 182
+  operations. Binary SHA-256 is
+  `a253a3754fdd5240406fb80dd65bb670cede46aa5f74f155fcdb336ad355f01c`.
+- Verified focused route/OpenAPI tests, full Go tests, vet, Caddy validation,
+  local/public health and readiness, Swagger, raw OpenAPI, new-route auth
+  boundaries, and a clean post-start error scan.
+- `pwsh` remains unavailable, so `scripts/verify-docs.ps1` was not run.
+
 ## 2026-08-18 - Rehosted tariff/GST correction and wallet admission policy
 
 - Applied migrations 42 and 43 after the guarded custom-format rollback dump

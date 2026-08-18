@@ -182,6 +182,8 @@ Base: `/api/v1/cpo`
 - `GET /organization` returns a tenant-safe, read-only CPO projection.
 - `GET /admin/profile` returns the global administrator identity profile.
 - `PATCH /admin/profile` updates full name and optional phone only.
+- `GET /analytics` returns tenant-scoped charger, connector, session, revenue,
+  and energy-usage aggregates as a side-effect-free read.
 - `GET /subscription` returns the current non-terminal manual platform
   subscription and plan as a read-only tenant view. CPO staff cannot issue,
   mutate, renew, or cancel it, and it never controls tenant authorization.
@@ -195,6 +197,7 @@ organization response omits privileged lifecycle reason and platform actor ID.
 - `GET/PATCH/DELETE /hubs/{hub_id}`
 - `PUT /hubs/{hub_id}/customer-visibility`
 - `POST /hubs/{hub_id}/chargers`
+- `GET /hubs/{hub_id}/chargers`
 - `POST/GET /chargers`
 - `GET/PATCH/DELETE /chargers/{charger_id}`
 - `PUT /chargers/{charger_id}/customer-visibility`

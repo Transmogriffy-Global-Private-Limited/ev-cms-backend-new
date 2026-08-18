@@ -596,6 +596,15 @@ sets `STOP_PENDING` and returns `202`, not `COMPLETED`. Only exact validated
 sends integer Wh/duration limits; HAL enforces them physically without receiving
 tariff, tax, balance, or settlement authority.
 
+Settlement reads only the immutable tariff and tax snapshots captured at start;
+it never re-resolves a current tariff, Hub, GST assignment, or GST state. Before
+using the frozen rates it validates their complete commercial component shape:
+all SGST, CGST, and IGST rates must be present and within 0 through 100, and a
+non-zero IGST component cannot be mixed with non-zero SGST/CGST. A malformed
+snapshot is unsupported rather than silently reinterpreted. Historical tariff
+snapshot readers remain deliberately named compatibility paths for their
+released `price_per_kwh` and `watt/hour` semantics.
+
 ### 20 and 21 — Fact delivery and complete catalog
 
 HAL sends immutable facts to `POST /v1/hal-facts`; after a lost 204 it retries

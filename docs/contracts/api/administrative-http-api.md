@@ -1824,6 +1824,28 @@ or a list of users. The read has no side effects or audit write.
 Errors: `400 invalid_user_id`; shared authentication/authorization errors; or
 `404 user_not_found`.
 
+### 9.4A `GET /api/v1/cpo/analytics`
+
+Returns aggregate tenant analytics for the authenticated CPO. The CPO scope
+comes from the verified ADMIN session and cannot be selected by the request.
+The read is side-effect free and does not contact the HAL.
+
+```json
+{
+  "total_chargers": 12,
+  "total_connectors": 24,
+  "total_revenue": "18450.00",
+  "total_usage": "921.500",
+  "total_sessions": 87
+}
+```
+
+`total_revenue` and `total_usage` are decimal strings. Revenue is the sum of
+persisted session `total_amount`; usage is the sum of persisted session
+`total_kwh`. Counts are non-negative integers and include only records owned by
+the authenticated CPO. Errors are `401 unauthorized`, `403 forbidden`, or
+`500 internal_error`.
+
 ### 9.5 `POST /api/v1/cpo/hubs`
 
 Creates a commercial charging location. The server sources `id`, `cpo_id`, and
@@ -1994,6 +2016,17 @@ The relationship update is atomic. It does not move or rewrite tariffs:
 charger-targeted tariffs remain on their charger and hub-targeted tariffs remain
 on their hub. Errors include `400 invalid_hub_id` or `invalid_charger_id`, and
 tenant-safe `404 hub_not_found` or `charger_not_found`.
+
+### 9.9A `GET /api/v1/cpo/hubs/{hub_id}/chargers`
+
+Returns all chargers attached to the same-CPO hub. The hub UUID is validated
+against the authenticated ADMIN tenant scope; a cross-tenant or unknown hub
+returns `404 hub_not_found`, and a malformed UUID returns `400
+invalid_hub_id`. The response uses the standard `ChargerListResponse` envelope
+with `has_more: false`; it has no side effects and does not contact the HAL.
+
+Errors are `400 invalid_hub_id`, `401 unauthorized`, `403 forbidden`,
+`404 hub_not_found`, or `500 internal_error`.
 
 ### 9.10 `POST /api/v1/cpo/chargers`
 
@@ -2485,15 +2518,32 @@ cross-scope tariff; malformed UUIDs return the applicable `400 invalid_*_id`
 error.
 
 A scoped `PATCH` accepts any non-empty subset of the commercial create fields.
-Omitted fields remain unchanged, but the resulting tariff must retain one
-supported fixed price basis: energy/watt-hour, time/minutes, or sessions with
-no `units` field.
-The optional GST relation cannot currently be cleared to null through this
-route; it can only be omitted or replaced with another owned UUID. Supplying an
-effective-date bound validates the resulting full schedule;
-the schedule remains either open-ended or a complete half-open interval. `200
-OK` returns the updated tariff and writes the matching scope-specific update
-audit event. Errors match creation plus `404 tariff_not_found`.
+Every omitted key leaves its stored value unchanged. `units`, `start_date`, and
+`end_date` additionally accept explicit JSON `null`: `units:null` clears units
+for a `sessions` tariff, and `start_date:null` together with `end_date:null`
+clears a prior schedule. A single null date or a single supplied date is
+rejected; the resulting schedule remains either open-ended or a complete
+half-open interval. The server applies the request to the locked stored row and
+then validates the complete resulting tariff, so a basis change must include
+the complete intended combination (`energy`/`kwh`, `time`/`minutes`, or
+`sessions` with no units). `watt/hour` is historical snapshot compatibility
+only and is never accepted for a current tariff.
+
+For example, change an energy tariff to sessions with:
+
+```json
+{"tariff_type":"fixed","price_type":"sessions","units":null}
+```
+
+Clear an existing schedule with:
+
+```json
+{"start_date":null,"end_date":null}
+```
+
+GST remains outside tariff PATCH; Hub GST assignment owns it. `200 OK` returns
+the updated tariff and writes the matching scope-specific update audit event.
+Errors match creation plus `404 tariff_not_found`.
 
 There is currently no tariff delete route. Deactivation through
 `{"is_active":false}` is the supported retention-safe state change.

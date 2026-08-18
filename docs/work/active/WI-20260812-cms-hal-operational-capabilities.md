@@ -71,10 +71,10 @@ Establish reusable CMS capabilities over HAL-derived operational truth and expos
   observation; REST/read-side recovery and realtime invalidation therefore use
   the same source of truth. Connector status is live only while parent
   connection evidence remains fresh.
-- Runtime revision `ceefb21` is active under `evcmsnew-dev.service`; migrations
+- Runtime revision `0ad2de7` is active under `evcmsnew-dev.service`; migrations
   through forty-three,
   loopback/public health and readiness, Swagger, raw OpenAPI, the live
-  180-operation contract, singular HAL runtime table mappings, and GST-hub
+  182-operation contract, singular HAL runtime table mappings, and GST-hub
   route boundaries have been verified. No migration was needed for the model
   correction, the User App history release, state-aware GST validation, and
   fresh-availability charging admission.
