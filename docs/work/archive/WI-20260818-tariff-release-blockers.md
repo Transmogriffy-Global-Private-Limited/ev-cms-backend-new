@@ -9,7 +9,7 @@ Last updated: 2026-08-18
 ## Outcome
 
 Closed narrow application, database-boundary, and resolver-classification holes
-in the source-only temporal tariff fallback slice.
+in the temporal tariff fallback slice; the resulting migration is deployed.
 
 ## Claimed surfaces
 
@@ -31,16 +31,16 @@ in the source-only temporal tariff fallback slice.
 
 ## Data and migration impact
 
-- Source-only migration 44 gains a null-safe trigger that prevents tariff
-  target identity mutation. The migration remains unapplied.
+- Migration 44 gains a null-safe trigger that prevents tariff target identity
+  mutation and is applied on the development database.
 
 ## Verification
 
 - Passed database-free focused package tests, static migration checks, route
   and OpenAPI checks, documentation verification, `go test -p 1 ./...`, `go
   vet ./...`, and `git diff --check`.
-- PostgreSQL runtime/lifecycle/concurrency testing remains intentionally
-  unperformed because no disposable `TEST_DATABASE_URL` was selected.
+- PostgreSQL disposable lifecycle/concurrency testing remains unperformed
+  because no disposable `TEST_DATABASE_URL` was selected.
 
 ## Completion
 

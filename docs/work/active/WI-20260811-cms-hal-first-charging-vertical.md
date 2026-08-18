@@ -57,7 +57,7 @@ Implement and verify the first real CMS consumer charging vertical against
 ## Current state
 
 - The current shared development deployment is clean source revision
-  `a5d1af4` with migrations through forty-three and 183 OpenAPI operations.
+  `38625d9` with migrations through forty-four and 186 OpenAPI operations.
   The HAL runtime GORM models explicitly map to the singular migration tables;
   no migration was needed for this correction.
 

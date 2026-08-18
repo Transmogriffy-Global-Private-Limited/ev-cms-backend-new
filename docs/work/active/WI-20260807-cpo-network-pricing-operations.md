@@ -74,9 +74,10 @@ charging vertical.
 
 ## Current state
 
-The current shared development deployment is runtime source revision `a5d1af4`
-with migrations through forty-three applied and 183 OpenAPI
-operations. The single-target tariff correction and charger customer visibility
+The current shared development deployment is runtime source revision `38625d9`
+with migrations through forty-four applied and 186 OpenAPI
+operations. Temporal tariff fallback and the customer-visible Hub root guard
+are active. The single-target tariff correction and charger customer visibility
 are enforced across CPO publication and User App discovery, detail, pricing,
 and favorites. The HAL runtime model
 mapping now explicitly targets the singular
@@ -146,7 +147,8 @@ The hub `state` field is persisted and included in the live CPO hub contracts.
 ## Handoff
 
 The CPO implementation remains owned by Abhranil Pal. The current deployment
-contains migrations through forty-three, the single-target tariff/GST
+contains migrations through forty-four, the temporal fallback and root guard,
+the single-target tariff/GST
 correction, wallet admission policy, CPO analytics, hub-scoped charger listing,
 charger-transaction reads,
 and the charger customer-visibility gate

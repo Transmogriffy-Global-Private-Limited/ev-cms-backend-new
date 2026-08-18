@@ -8,7 +8,7 @@ Last updated: 2026-08-18
 
 ## Outcome
 
-Made the source-only migration 44 database boundary serialize Hub publication
+Made migration 44's database boundary serialize Hub publication
 with same-Hub tariff topology mutation.
 
 ## Scope
@@ -28,7 +28,8 @@ with same-Hub tariff topology mutation.
 
 ## Dependencies and blockers
 
-- Migration 44 remains source-only/unapplied according to `docs/PROJECT_STATE.md`.
+- Migration 44 is applied on the development database; disposable lifecycle
+  and concurrency tests remain pending.
 
 ## Contract impact
 
@@ -36,7 +37,8 @@ with same-Hub tariff topology mutation.
 
 ## Data and migration impact
 
-- Amended source-only migration 44 only; it was not executed.
+- Amended migration 44 and applied it during the development rehost after a
+  guarded rollback dump.
 
 ## Verification
 

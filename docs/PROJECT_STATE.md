@@ -2,7 +2,7 @@
 
 ## Current State
 
-### 2026-08-18 — Temporal tariff fallback source change awaiting database verification
+### 2026-08-18 — Temporal tariff fallback and hub cleanup deployed
 
 - Source migration 44 replaces the prior active-tariff no-overlap exclusion
   with deterministic root/open-ended/bounded fallback per immutable exact
@@ -18,14 +18,25 @@
   tariff target identity immutable in migration 44. Resolver topology failures
   fail closed as commercial unavailability, while query/infrastructure failures
   propagate to normal error handling rather than being mislabeled as no tariff.
-- A final source-only concurrency correction makes the Hub publication trigger
+- A final concurrency correction makes the Hub publication trigger
   acquire the same transaction advisory key as Hub tariff topology mutation:
   `tariff:<cpo_id>:hub:<hub_id>`. Direct concurrent publication and root
   deactivation/deletion can no longer both commit into a visible Hub without a
   root tariff.
-- This is source state only: migration 44 has not been applied, no service was
-  restarted or deployed, and PostgreSQL lifecycle/concurrency verification is
-  pending an explicitly selected disposable `TEST_DATABASE_URL`.
+- Migration 44 is applied to the development database after a mode-0600
+  rollback dump at `/var/backups/postgres/devevcmsnewdb-pre-hub-cleanup-migration-44-20260818-162307.dump`
+  (SHA-256 `c64597066e052c83e7f60edc14497727acd9ad89ba628343a462696ae8f9a66e`).
+- The two requested hubs (`63ddfa1f-0c1e-4131-8ad7-eb5835c7cd19` and
+  `e00412ec-785e-4c71-85f8-9cb4e30a2d29`) and their hub tariffs/link rows were
+  removed. Their five chargers and connectors were retained as inventory but
+  unassigned, hidden, and set `INACTIVE`; no charging sessions existed for
+  them.
+- Runtime revision `38625d9` is active with binary SHA-256
+  `70626eb4cca88cfcb3a90590b656e197c54bf8c152d198942f756b4146f9101e`.
+  The live OpenAPI contract contains 186 operations. Local and public health,
+  readiness, Swagger, raw OpenAPI, Caddy validation, and post-rehost log checks
+  passed. Disposable PostgreSQL lifecycle tests still require an explicitly
+  selected `TEST_DATABASE_URL`; `pwsh` is unavailable.
 
 ### 2026-08-18 — CPO charger transactions deployed
 
@@ -142,10 +153,10 @@
 
 - Migration 40 is applied on the development VPS after a mode-0600 rollback
   dump. Revision `9e7af67` is active with the then-current tariff contract.
-- The source correction above is deliberately not deployed and supersedes the
-  former `watt/hour` energy interpretation for the next migration-controlled
-  release. Disposable PostgreSQL lifecycle and full CMS-to-HAL topology
-  acceptance remain pending their dedicated environments.
+- The source correction above superseded the former `watt/hour` energy
+  interpretation and is now included in the migration-controlled deployment.
+  Disposable PostgreSQL lifecycle and full CMS-to-HAL topology acceptance
+  remain pending their dedicated environments.
 
 ### 2026-08-18 — Customer aggregates and tariff validation release deployed
 

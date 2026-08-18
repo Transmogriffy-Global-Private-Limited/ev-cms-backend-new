@@ -74,7 +74,7 @@ Establish reusable CMS capabilities over HAL-derived operational truth and expos
 - Runtime revision `a5d1af4` is active under `evcmsnew-dev.service`; migrations
   through forty-three,
   loopback/public health and readiness, Swagger, raw OpenAPI, the live
-  183-operation contract, singular HAL runtime table mappings, and GST-hub
+  186-operation contract, singular HAL runtime table mappings, and GST-hub
   route boundaries have been verified. No migration was needed for the model
   correction, the User App history release, state-aware GST validation, and
   fresh-availability charging admission.

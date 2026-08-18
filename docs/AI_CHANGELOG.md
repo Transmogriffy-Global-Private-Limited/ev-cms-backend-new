@@ -1,5 +1,26 @@
 # AI Changelog
 
+## 2026-08-18 - Deployed temporal tariffs and removed the two requested hubs
+
+- Applied migration 44 after creating the guarded rollback dump
+  `/var/backups/postgres/devevcmsnewdb-pre-hub-cleanup-migration-44-20260818-162307.dump`
+  (SHA-256 `c64597066e052c83e7f60edc14497727acd9ad89ba628343a462696ae8f9a66e`).
+- Removed hubs `63ddfa1f-0c1e-4131-8ad7-eb5835c7cd19` and
+  `e00412ec-785e-4c71-85f8-9cb4e30a2d29`, their hub tariffs, and all hub-link
+  rows. Retained the five downstream chargers/connectors as unassigned,
+  hidden, inactive inventory; no sessions were present.
+- Rebuilt and rehosted runtime revision `38625d9`; binary SHA-256 is
+  `70626eb4cca88cfcb3a90590b656e197c54bf8c152d198942f756b4146f9101e`.
+
+Verification:
+
+- Migration prechecks and schema/index/trigger checks passed. The service is
+  active with zero restarts on `127.0.0.1:18080`; local/public health,
+  readiness, Swagger, raw OpenAPI (186 operations), Caddy validation, and the
+  post-rehost error scan passed. `TEST_DATABASE_URL` and `pwsh` remain
+  unavailable, so disposable-DB lifecycle and PowerShell docs verification
+  were not run.
+
 ## 2026-08-18 - Hub publication/root tariff concurrency closure
 
 - Amended source-only migration 44 so the customer-visible Hub root-floor
