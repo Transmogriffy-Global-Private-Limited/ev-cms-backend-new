@@ -1,5 +1,19 @@
 # AI Changelog
 
+## 2026-08-18 - Rehosted CPO analytics and hub charger listing APIs
+
+- Rebuilt and rehosted main revision `47b6e41` after adding tenant-scoped
+  `GET /api/v1/cpo/analytics` and
+  `GET /api/v1/cpo/hubs/{hub_id}/chargers`; no migration was required.
+- Corrected the embedded OpenAPI `AnalyticsResponse` schema to match runtime
+  fields and decimal-string serialization. The live contract now has 182
+  operations. Binary SHA-256 is
+  `a253a3754fdd5240406fb80dd65bb670cede46aa5f74f155fcdb336ad355f01c`.
+- Verified focused route/OpenAPI tests, full Go tests, vet, Caddy validation,
+  local/public health and readiness, Swagger, raw OpenAPI, new-route auth
+  boundaries, and a clean post-start error scan.
+- `pwsh` remains unavailable, so `scripts/verify-docs.ps1` was not run.
+
 ## 2026-08-18 - Rehosted tariff/GST correction and wallet admission policy
 
 - Applied migrations 42 and 43 after the guarded custom-format rollback dump

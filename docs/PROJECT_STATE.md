@@ -2,6 +2,26 @@
 
 ## Current State
 
+### 2026-08-18 — CPO analytics and hub charger listing deployed
+
+- Added authenticated, tenant-scoped `GET /api/v1/cpo/analytics` with charger,
+  connector, session, revenue, and energy-usage aggregates.
+- Added authenticated, tenant-scoped `GET /api/v1/cpo/hubs/{hub_id}/chargers`
+  for listing chargers attached to a CPO hub. Both reads are side-effect free
+  and do not contact the HAL; cross-tenant hub IDs remain hidden as
+  `404 hub_not_found`.
+- Corrected the authoritative analytics response schema to match the runtime:
+  counts are non-negative integers and decimal revenue/usage values serialize
+  as strings.
+- No database migration was required. Runtime revision `47b6e41` is active with
+  binary SHA-256
+  `a253a3754fdd5240406fb80dd65bb670cede46aa5f74f155fcdb336ad355f01c` and
+  the live OpenAPI contract contains 182 operations.
+- Focused route/OpenAPI tests, full Go tests, vet, Caddy validation, local/public
+  health/readiness, Swagger, raw OpenAPI, auth boundaries, and post-rehost log
+  checks passed. The PowerShell documentation verifier remains unavailable
+  because `pwsh` is not installed.
+
 ### 2026-08-18 — CPO wallet admission policy deployed
 
 - Source migration 43 gives every existing CPO a blank `settings` row without
@@ -508,8 +528,8 @@ provides:
   handler;
 - the additive PostgreSQL database `devevcmsnewdb`, owned by `postgres`.
 
-The active development VPS runs source revision `ceefb21`, with migrations
-through forty-three recorded and the deployed 180-operation contract. Migration
+The active development VPS runs source revision `47b6e41`, with migrations
+through forty-three recorded and the deployed 182-operation contract. Migration
 twenty-nine adds nullable `tariff_type`, `price_type`, and `units` metadata to
 tenant tariffs; omitted values remain null-safe for existing and newly created
 tariffs. The SuperAdmin administrator-list query explicitly binds the platform

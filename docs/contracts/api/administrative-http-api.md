@@ -1824,6 +1824,28 @@ or a list of users. The read has no side effects or audit write.
 Errors: `400 invalid_user_id`; shared authentication/authorization errors; or
 `404 user_not_found`.
 
+### 9.4A `GET /api/v1/cpo/analytics`
+
+Returns aggregate tenant analytics for the authenticated CPO. The CPO scope
+comes from the verified ADMIN session and cannot be selected by the request.
+The read is side-effect free and does not contact the HAL.
+
+```json
+{
+  "total_chargers": 12,
+  "total_connectors": 24,
+  "total_revenue": "18450.00",
+  "total_usage": "921.500",
+  "total_sessions": 87
+}
+```
+
+`total_revenue` and `total_usage` are decimal strings. Revenue is the sum of
+persisted session `total_amount`; usage is the sum of persisted session
+`total_kwh`. Counts are non-negative integers and include only records owned by
+the authenticated CPO. Errors are `401 unauthorized`, `403 forbidden`, or
+`500 internal_error`.
+
 ### 9.5 `POST /api/v1/cpo/hubs`
 
 Creates a commercial charging location. The server sources `id`, `cpo_id`, and
@@ -1994,6 +2016,17 @@ The relationship update is atomic. It does not move or rewrite tariffs:
 charger-targeted tariffs remain on their charger and hub-targeted tariffs remain
 on their hub. Errors include `400 invalid_hub_id` or `invalid_charger_id`, and
 tenant-safe `404 hub_not_found` or `charger_not_found`.
+
+### 9.9A `GET /api/v1/cpo/hubs/{hub_id}/chargers`
+
+Returns all chargers attached to the same-CPO hub. The hub UUID is validated
+against the authenticated ADMIN tenant scope; a cross-tenant or unknown hub
+returns `404 hub_not_found`, and a malformed UUID returns `400
+invalid_hub_id`. The response uses the standard `ChargerListResponse` envelope
+with `has_more: false`; it has no side effects and does not contact the HAL.
+
+Errors are `400 invalid_hub_id`, `401 unauthorized`, `403 forbidden`,
+`404 hub_not_found`, or `500 internal_error`.
 
 ### 9.10 `POST /api/v1/cpo/chargers`
 

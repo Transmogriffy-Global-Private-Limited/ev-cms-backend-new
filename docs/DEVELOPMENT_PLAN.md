@@ -117,7 +117,7 @@ Current implementation state:
 
 - CMS source and the development deployment contain the first client, durable records, shared fact receiver,
   customer polling/start/stop routes, reusable operational projections,
-  scoped operational-event replay/SSE, and a 180-operation OpenAPI surface.
+  scoped operational-event replay/SSE, and a 182-operation OpenAPI surface.
   The HAL runtime GORM models explicitly map to the singular migration tables
   `hal_charger_runtime` and `hal_connector_runtime`.
   The HAL v1 provider is
@@ -125,13 +125,13 @@ Current implementation state:
   charger vertical is not verified yet.
 - The current deployed release also exposes tenant-scoped CPO charging-session
   list/detail reads with bounded keyset pagination and validated lifecycle
-  filters. Revision `ceefb21` is active with migrations 40-43 applied; the live
-  OpenAPI contract contains 180 operations.
+  filters. Revision `47b6e41` is active with migrations 40-43 applied; the live
+  OpenAPI contract contains 182 operations.
 - The current deployed release also includes optional committed live charger
-  projections on CPO charger list/detail responses. Revision `ceefb21` is
+  projections on CPO charger list/detail responses. Revision `47b6e41` is
   active; list reads use the bounded batch liveops reader.
 - Migration 39 and the current-worker projection are deployed in revision
-  `ceefb21`; worker status/readiness now ignore superseded historical rows.
+  `47b6e41`; worker status/readiness now ignore superseded historical rows.
 - The latest release adds tenant-scoped CPO customer usage/session/wallet
   aggregates and request-boundary tariff enum validation. No migration was
   required; the OpenAPI contract was reconciled to the registered runtime
@@ -179,6 +179,8 @@ Current implementation state:
 - Migration 42 is deployed in the same revision: energy tariffs use the
   persisted `kwh` enum and Hub-owned GST assignment has a unique CPO/GST
   constraint.
+- The current CPO release also exposes tenant-scoped analytics and hub-scoped
+  charger listing reads; both are represented in the 182-operation contract.
 
 Next required slice:
 
