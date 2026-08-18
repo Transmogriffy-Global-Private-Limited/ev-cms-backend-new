@@ -4,7 +4,7 @@ Status: In Progress
 Owner: Abhranil Pal
 Collaborators: Codex (guarded development-host deployment and verification)
 Started: 2026-08-07
-Last updated: 2026-08-13
+Last updated: 2026-08-18
 
 Development-plan reference:
 
@@ -74,7 +74,7 @@ charging vertical.
 
 ## Current state
 
-The current shared development deployment is runtime source revision `11c4c23`
+The current shared development deployment is runtime source revision `d475b41`
 with migrations through thirty-nine applied and 180 OpenAPI
 operations. The single-target tariff correction and charger customer visibility
 are enforced across CPO publication and User App discovery, detail, pricing,
@@ -85,6 +85,8 @@ needed for this correction. State-aware GST-to-hub assignment validation is
 also active.
 - CPO charger list/detail responses additionally expose optional committed live
   connection/connector projections; list reads use one bounded batch lookup.
+- CPO customer list/detail responses include tenant-scoped usage, session-count,
+  and wallet aggregates. Tariff enum fields are validated before persistence.
 
 Earlier revision `3ca2c35` was built from a clean worktree and rehosted on
 August 11, 2026 after migration thirty-two. The live service exposes the

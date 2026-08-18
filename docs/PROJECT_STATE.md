@@ -2,6 +2,22 @@
 
 ## Current State
 
+### 2026-08-18 — Customer aggregates and tariff validation release deployed
+
+- CPO customer list/detail responses now include tenant-scoped total usage,
+  session count, and wallet balance aggregates.
+- Tariff type, price type, and unit fields are validated before persistence;
+  unsupported values return request validation errors instead of database enum
+  failures. The OpenAPI contract no longer advertises unregistered tariff/GST
+  DELETE operations.
+- No database migration was required; migration 39 remains the latest applied
+  migration. Revision `d475b41` is active with binary SHA-256
+  `1ff0938cdbc3fda7b181ac7f788daae8620ecdffc00f060cc227b5e73bae24ba`.
+- The enabled service is active with zero restarts. Caddy validation, focused
+  and full Go tests, vet, local/public health/readiness, Swagger, raw OpenAPI,
+  and unauthenticated worker/status boundaries passed. The live contract
+  remains at 180 operations.
+
 ### 2026-08-14 — Worker current-instance projection deployed
 
 - Migration `000039_make_worker_current_instance_explicit` retains durable
@@ -424,7 +440,7 @@ provides:
   handler;
 - the additive PostgreSQL database `devevcmsnewdb`, owned by `postgres`.
 
-The active development VPS runs source revision `11c4c23`, with migrations
+The active development VPS runs source revision `d475b41`, with migrations
 through thirty-nine recorded and the deployed 180-operation contract. Migration
 twenty-nine adds nullable `tariff_type`, `price_type`, and `units` metadata to
 tenant tariffs; omitted values remain null-safe for existing and newly created

@@ -125,13 +125,17 @@ Current implementation state:
   charger vertical is not verified yet.
 - The current deployed release also exposes tenant-scoped CPO charging-session
   list/detail reads with bounded keyset pagination and validated lifecycle
-  filters. Revision `7350887` is active without a new migration; the live
+  filters. Revision `d475b41` is active without a new migration; the live
   OpenAPI contract contains 180 operations.
 - The current deployed release also includes optional committed live charger
-  projections on CPO charger list/detail responses. Revision `7350887` is
+  projections on CPO charger list/detail responses. Revision `d475b41` is
   active without a migration; list reads use the bounded batch liveops reader.
 - Migration 39 and the current-worker projection are deployed in revision
-  `11c4c23`; worker status/readiness now ignore superseded historical rows.
+  `d475b41`; worker status/readiness now ignore superseded historical rows.
+- The latest release adds tenant-scoped CPO customer usage/session/wallet
+  aggregates and request-boundary tariff enum validation. No migration was
+  required; the OpenAPI contract was reconciled to the registered runtime
+  routes before rehost.
 - The current deployed CMS release additionally contains the User App
   charging-history/detail completion slice: customer/CPO-scoped materialized
   session history, frozen commercial detail, linked settlement projection, and

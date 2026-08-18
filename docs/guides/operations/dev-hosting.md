@@ -28,8 +28,8 @@ development host it is set in the ignored service environment to
 that setting; it must not be used until the OCPP host is explicitly configured
 with TLS/WebSocket support.
 
-The active deployment was updated on August 14, 2026 to runtime source revision
-`11c4c23`. It has migrations one through thirty-nine and the current 180-operation
+The active deployment was updated on August 18, 2026 to runtime source revision
+`d475b41`. It has migrations one through thirty-nine and the current 180-operation
 API. Migration thirty-three adds the CPO/customer-scoped `operational_events`
 ledger used for durable operational-notification recovery; its four indexes
 support CPO and customer cursor replay plus retention. Migration twenty-seven
@@ -129,7 +129,7 @@ The deployment copies `.env.example` to `.env`, then overrides:
 - five independently generated 32-byte base64 cryptographic keys.
 
 `DATABASE_URL` and `SMTP_PASSWORD` contain deployment secrets only in the
-ignored environment file. The service is enabled and active, all thirty-two forward
+ignored environment file. The service is enabled and active, all thirty-nine forward
 migrations are recorded, and startup idempotently retained the configured
 platform superadmin.
 
