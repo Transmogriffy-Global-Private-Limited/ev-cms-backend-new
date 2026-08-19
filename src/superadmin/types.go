@@ -200,6 +200,31 @@ type StatusResponse struct {
 	Workers  []WorkerStatus `json:"workers"`
 }
 
+type CPOAssetsOverview struct {
+	CPOs []CPOWithAssets `json:"cpos"`
+}
+
+type CPOWithAssets struct {
+	ID           uuid.UUID   `json:"id"`
+	BusinessName string      `json:"business_name"`
+	Hubs         []HubInfo   `json:"hubs"`
+	Chargers     []ChargerInfo `json:"chargers"`
+}
+
+type HubInfo struct {
+	ID        uuid.UUID `json:"id"`
+	Name      string    `json:"name"`
+	Status    string    `json:"status"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
+type ChargerInfo struct {
+	ID        uuid.UUID `json:"id"`
+	ChargerID string    `json:"charger_id"`
+	Status    string    `json:"status"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
 func viewAnnouncement(record models.PlatformAnnouncement, recipientCount int64) AnnouncementView {
 	return AnnouncementView{
 		ID: record.ID, Audience: record.Audience, CPOID: record.CPOID,

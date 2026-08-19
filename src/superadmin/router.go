@@ -42,6 +42,7 @@ func RegisterRoutes(group *gin.RouterGroup, authService *auth.Service, service *
 	group.POST("/notifications/:notification_id/read", handler.markNotificationRead)
 	group.GET("/overview", handler.overview)
 	group.GET("/status", handler.status)
+	group.GET("/cpo-assets", handler.cpoAssets)
 }
 
 func RegisterCPONotificationRoutes(group *gin.RouterGroup, authService *auth.Service, service *Service) {
@@ -49,6 +50,16 @@ func RegisterCPONotificationRoutes(group *gin.RouterGroup, authService *auth.Ser
 	group.Use(noStore, authService.Authenticate(), auth.RequireCPOAppID())
 	group.GET("/notifications", handler.cpoNotifications)
 	group.POST("/notifications/:notification_id/read", handler.markNotificationRead)
+}
+
+func (handler *Handler) cpoAssets(ctx *gin.Context) {
+	principal, _ := auth.CurrentPrincipal(ctx)
+	response, err := handler.service.CPOAssets(ctx, principal)
+	if err != nil {
+		writeError(ctx, err)
+		return
+	}
+	ctx.JSON(http.StatusOK, response)
 }
 
 func (handler *Handler) listAdministrators(ctx *gin.Context) {
