@@ -6285,9 +6285,33 @@ func (service *Service) ListUserGroups(
 		records = records[:query.Limit]
 	}
 
+	// Get user group IDs
+	userGroupIDs := make([]uuid.UUID, len(records))
+	for i, record := range records {
+		userGroupIDs[i] = record.ID
+	}
+
+	// Fetch all members for the user groups
+	var members []models.Customer
+	if len(userGroupIDs) > 0 {
+		if err := service.database.WithContext(ctx).
+			Where("user_group_id IN ?", userGroupIDs).
+			Find(&members).Error; err != nil {
+			return UserGroupListResponse{}, fmt.Errorf("list user group members: %w", err)
+		}
+	}
+
+	// Map members to user group IDs
+	membersByGroup := make(map[uuid.UUID][]CPOAdminCustomerView)
+	for _, member := range members {
+		if member.UserGroupID != nil {
+			membersByGroup[*member.UserGroupID] = append(membersByGroup[*member.UserGroupID], cpoAdminCustomerView(member, nil))
+		}
+	}
+
 	userGroups := make([]UserGroupView, 0, len(records))
 	for _, record := range records {
-		userGroups = append(userGroups, userGroupView(record))
+		userGroups = append(userGroups, userGroupView(record, membersByGroup[record.ID]))
 	}
 
 	response := UserGroupListResponse{UserGroups: userGroups, HasMore: hasMore}
