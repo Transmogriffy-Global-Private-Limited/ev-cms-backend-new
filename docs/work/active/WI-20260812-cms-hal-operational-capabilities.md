@@ -122,9 +122,8 @@ Establish reusable CMS capabilities over HAL-derived operational truth and expos
   prerequisite, ambiguous delivery, exact 404 recovery, fact race, expiry,
   idempotency, and fresh retry but is skipped while `TEST_DATABASE_URL` is
   unset. `go test -p 1 ./...`, `go vet ./...`, focused route/OpenAPI parity,
-  and `git diff --check` pass. `scripts/verify-docs.ps1` is blocked before
-  document checks by the unchanged current-main 187-operation schema versus
-  its hard-coded 186-operation expectation.
+  `git diff --check`, and `scripts/verify-docs.ps1` pass after reconciling the
+  verifier baseline to the authoritative 187-operation schema.
 
 ## Handoff
 

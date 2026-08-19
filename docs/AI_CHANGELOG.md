@@ -28,9 +28,9 @@ Verification:
 - Database-free focused customerauth/halops tests pass. No VPS, runtime
   database, migration execution, deployment, restart, commit, or push occurred.
 - `go test -p 1 ./...`, `go vet ./...`, focused route/OpenAPI parity, and
-  `git diff --check` pass. `scripts/verify-docs.ps1` remains blocked before
-  document checks by the existing current-main mismatch: it counts 187 OpenAPI
-  operations while its hard-coded expectation is 186.
+  `git diff --check` pass. The documentation verifier baseline was reconciled
+  from 186 to the authoritative schema's current 187 operations before final
+  branch verification.
 ## 2026-08-18 - Rehosted CPO wallet transaction reads
 
 - Rebuilt and rehosted revision `2a040e0` with authenticated,
