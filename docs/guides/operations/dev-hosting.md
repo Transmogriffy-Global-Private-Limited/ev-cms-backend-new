@@ -28,9 +28,10 @@ development host it is set in the ignored service environment to
 that setting; it must not be used until the OCPP host is explicitly configured
 with TLS/WebSocket support.
 
-The active deployment was updated on August 18, 2026 to runtime source revision
-`38625d9`. It has migrations one through forty-four and the current
-186-operation API. Migration 44 enables temporal tariff fallback and its
+The active deployment was updated on August 19, 2026 to runtime source revision
+`d7f72cd`. It has migrations one through forty-four and the current
+187-operation API. The CPO wallet transaction read is deployed without a new
+migration. Migration 44 enables temporal tariff fallback and its
 database guards. The two requested hubs were removed with their hub tariffs and
 links; five downstream chargers/connectors were retained as unassigned,
 hidden, inactive inventory. No charging sessions were present for them. No

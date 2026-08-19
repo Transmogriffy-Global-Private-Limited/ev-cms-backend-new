@@ -1,6 +1,7 @@
 package customerauth
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -19,11 +20,27 @@ import (
 const maxRequestBytes int64 = 32 * 1024
 
 type Handler struct {
-	service *Service
+	service  *Service
+	charging chargingController
+}
+
+type chargingController interface {
+	StartCharging(context.Context, Principal, ChargingStartRequest, string) (ChargingStartResponse, error)
+	StopCharging(context.Context, Principal, uuid.UUID, ChargingStopRequest, string) error
+}
+
+// requestCorrelationID returns the canonical CMS request identity for a
+// downstream HAL mutation. Client headers are tracing input, never the CMS
+// protocol correlation authority.
+func requestCorrelationID(ctx *gin.Context) string {
+	if requestID, ok := cmsmiddleware.RequestID(ctx); ok && strings.TrimSpace(requestID) != "" {
+		return requestID
+	}
+	return uuid.NewString()
 }
 
 func RegisterRoutes(group *gin.RouterGroup, service *Service) {
-	handler := &Handler{service: service}
+	handler := &Handler{service: service, charging: service}
 	group.Use(noStore)
 
 	auth := group.Group("/auth")
@@ -87,7 +104,7 @@ func (handler *Handler) startCharging(ctx *gin.Context) {
 		writeError(ctx, invalidRequest(err))
 		return
 	}
-	response, err := handler.service.StartCharging(ctx.Request.Context(), principal, request, ctx.GetHeader("X-Request-ID"))
+	response, err := handler.charging.StartCharging(ctx.Request.Context(), principal, request, requestCorrelationID(ctx))
 	if err != nil {
 		writeError(ctx, err)
 		return
@@ -260,7 +277,7 @@ func (handler *Handler) stopCharging(ctx *gin.Context) {
 		writeError(ctx, invalidRequest(err))
 		return
 	}
-	if err := handler.service.StopCharging(ctx.Request.Context(), principal, id, request, ctx.GetHeader("X-Request-ID")); err != nil {
+	if err := handler.charging.StopCharging(ctx.Request.Context(), principal, id, request, requestCorrelationID(ctx)); err != nil {
 		writeError(ctx, err)
 		return
 	}

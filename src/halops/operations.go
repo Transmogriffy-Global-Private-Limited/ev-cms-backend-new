@@ -8,7 +8,6 @@ import (
 	"errors"
 	"fmt"
 	"log"
-	"strings"
 	"time"
 
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/config"
@@ -22,10 +21,20 @@ import (
 // identity reconciliation. It deliberately exposes CMS-shaped request types,
 // leaving halclient wire DTOs private to this integration boundary.
 type Service struct {
-	database *gorm.DB
-	client   *halclient.Client
-	now      func() time.Time
+	database                  *gorm.DB
+	client                    *halclient.Client
+	now                       func() time.Time
+	startCommandAbsentHandler StartCommandAbsentHandler
 }
+
+// StartCommandAbsentHandler lets the charging domain own the financial
+// consequence of an exact HAL command absence without making halops depend on
+// customerauth. The handler must be transactional and idempotent.
+type StartCommandAbsentHandler func(context.Context, uuid.UUID) error
+
+// ErrCommandNotFound is returned only when HAL's exact CMS command lookup
+// responds with HTTP 404. It is authoritative absence, not a transport error.
+var ErrCommandNotFound = errors.New("HAL command not found")
 
 func New(database *gorm.DB, cfg config.HAL) *Service {
 	return &Service{database: database, client: halclient.New(cfg), now: func() time.Time { return time.Now().UTC() }}
@@ -33,6 +42,13 @@ func New(database *gorm.DB, cfg config.HAL) *Service {
 
 func (service *Service) Available() bool {
 	return service != nil && service.client != nil && service.client.Available()
+}
+
+// WithStartCommandAbsentHandler connects exact command lookup to the business
+// owner of start-intent and wallet-hold state.
+func (service *Service) WithStartCommandAbsentHandler(handler StartCommandAbsentHandler) *Service {
+	service.startCommandAbsentHandler = handler
+	return service
 }
 
 type ConnectorMapping struct {
@@ -148,10 +164,15 @@ func (service *Service) ReconcileCommand(ctx context.Context, commandID uuid.UUI
 	}
 	command, err := service.client.GetCommand(ctx, commandID)
 	if err != nil {
-		service.recordCommandFailure(ctx, commandID, err)
+		if isHALHTTPStatus(err, 404) {
+			return Command{}, fmt.Errorf("%w: %s", ErrCommandNotFound, commandID)
+		}
 		return Command{}, err
 	}
 	result := fromWireCommand(command)
+	if result.CMSCommandID != commandID {
+		return Command{}, errors.New("HAL exact command lookup returned a different CMS command identity")
+	}
 	if err := service.database.WithContext(ctx).Model(&models.HALCommandRecord{}).Where("cms_command_id = ?", commandID).Updates(map[string]any{"hal_command_id": result.HALCommandID, "state": result.State, "last_error_category": "", "last_error_detail": "", "updated_at": service.now()}).Error; err != nil {
 		return Command{}, fmt.Errorf("store reconciled HAL command: %w", err)
 	}
@@ -167,17 +188,54 @@ func (service *Service) recordMappingOutcome(ctx context.Context, chargerID uuid
 		updates["last_synchronized_at"] = now
 	} else {
 		updates["sync_state"] = "RECONCILIATION_REQUIRED"
-		updates["last_sync_error"] = "HAL mapping delivery requires reconciliation"
+		updates["last_sync_error"] = "HAL mapping prerequisite synchronization failed"
 	}
 	_ = service.database.WithContext(ctx).Model(&models.HALChargerMapping{}).Where("cms_charger_id = ?", chargerID).Updates(updates).Error
 }
 
-func (service *Service) recordCommandFailure(ctx context.Context, commandID uuid.UUID, cause error) {
-	category := "transport"
-	if httpError := new(halclient.HTTPError); errors.As(cause, &httpError) {
-		category = "provider_http"
+func isHALHTTPStatus(cause error, status int) bool {
+	var httpError *halclient.HTTPError
+	return errors.As(cause, &httpError) && httpError.Status == status
+}
+
+func commandErrorCategory(cause error) string {
+	if errors.Is(cause, halclient.ErrUnavailable) {
+		return "hal_unavailable"
 	}
-	_ = service.database.WithContext(ctx).Model(&models.HALCommandRecord{}).Where("cms_command_id = ?", commandID).Updates(map[string]any{"state": "RECONCILIATION_REQUIRED", "last_error_category": category, "last_error_detail": "HAL command requires exact-identity reconciliation", "updated_at": service.now()}).Error
+	var httpError *halclient.HTTPError
+	if errors.As(cause, &httpError) {
+		return "provider_http"
+	}
+	return "transport"
+}
+
+func commandLookupFailureDetail(cause error) string {
+	var httpError *halclient.HTTPError
+	if errors.As(cause, &httpError) {
+		return fmt.Sprintf("HAL exact command lookup returned HTTP %d; reconciliation will retry", httpError.Status)
+	}
+	if errors.Is(cause, halclient.ErrUnavailable) {
+		return "HAL exact command lookup is unavailable; reconciliation will retry"
+	}
+	return "HAL exact command lookup transport outcome is unknown; reconciliation will retry"
+}
+
+func (service *Service) recordCommandLookupFailure(ctx context.Context, commandID uuid.UUID, cause error) {
+	_ = service.database.WithContext(ctx).Model(&models.HALCommandRecord{}).Where("cms_command_id = ?", commandID).Updates(map[string]any{
+		"state":               "RECONCILIATION_REQUIRED",
+		"last_error_category": commandErrorCategory(cause),
+		"last_error_detail":   commandLookupFailureDetail(cause),
+		"updated_at":          service.now(),
+	}).Error
+}
+
+func (service *Service) recordStopCommandAbsent(ctx context.Context, commandID uuid.UUID) {
+	_ = service.database.WithContext(ctx).Model(&models.HALCommandRecord{}).Where("cms_command_id = ? AND kind = ?", commandID, "STOP").Updates(map[string]any{
+		"state":               "RECONCILIATION_REQUIRED",
+		"last_error_category": "confirmed_absent",
+		"last_error_detail":   "HAL exact stop-command lookup found no durable command; stop reconciliation remains pending",
+		"updated_at":          service.now(),
+	}).Error
 }
 
 // ReconcilePending performs one bounded recovery pass. Missing provider state
@@ -198,7 +256,27 @@ func (service *Service) ReconcilePending(ctx context.Context, limit int) error {
 		return fmt.Errorf("list pending HAL commands: %w", err)
 	}
 	for _, command := range commands {
-		_, _ = service.ReconcileCommand(ctx, command.CMSCommandID)
+		_, err := service.ReconcileCommand(ctx, command.CMSCommandID)
+		if err == nil {
+			continue
+		}
+		if errors.Is(err, ErrCommandNotFound) {
+			if command.Kind != "START" {
+				// A missing STOP command cannot establish that an already-started
+				// session stopped. Keep its conservative reconciliation state.
+				service.recordStopCommandAbsent(ctx, command.CMSCommandID)
+				continue
+			}
+			if service.startCommandAbsentHandler == nil {
+				service.recordCommandLookupFailure(ctx, command.CMSCommandID, errors.New("start command absence handler is unavailable"))
+				continue
+			}
+			if err := service.startCommandAbsentHandler(ctx, command.CMSCommandID); err != nil {
+				return fmt.Errorf("terminalize confirmed-absent start command %s: %w", command.CMSCommandID, err)
+			}
+			continue
+		}
+		service.recordCommandLookupFailure(ctx, command.CMSCommandID, err)
 	}
 	return nil
 }
@@ -219,11 +297,4 @@ func (service *Service) RunReconciler(ctx context.Context, interval time.Duratio
 		case <-ticker.C:
 		}
 	}
-}
-
-func trimError(err error) string {
-	if err == nil {
-		return ""
-	}
-	return strings.TrimSpace(err.Error())
 }

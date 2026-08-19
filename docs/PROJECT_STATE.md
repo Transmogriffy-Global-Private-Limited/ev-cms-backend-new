@@ -2,6 +2,61 @@
 
 ## Current State
 
+### 2026-08-19 — CMS-generated HAL mutation correlation deployed
+
+- User App charging Start and Stop take the canonical CMS `RequestLogger` ID
+  from Gin context for all HAL mapping/start/stop mutations. They do not depend
+  on an incoming `X-Request-ID`; a client-supplied value is not the internal
+  CMS-to-HAL correlation authority.
+- `halclient` rejects an empty or whitespace-only mutation correlation before
+  sending HTTP. Command lookup remains correlation-free, and charging
+  reconciliation, OCPP truth, wallet, tariff, and GST behavior are unchanged.
+- No migration was required. Runtime revision `d7f72cd` is active with binary
+  SHA-256
+  `66a8416d81fc54d397d42c8d4cacb1a866dfa1cc934b5cc6c1ba2b00a46b5754`.
+- Focused correlation/client/route tests, full Go tests, and vet passed. Local
+  and public health/readiness, Swagger, raw OpenAPI (187 operations), Caddy
+  validation, and post-rehost logs passed. `pwsh` and disposable
+  `TEST_DATABASE_URL` remain unavailable.
+
+### 2026-08-19 — Charging-start prerequisite and exact-absence recovery deployed
+
+- A new customer start first synchronizes the exact HAL charger/connector
+  mapping. A preflight failure returns `503 charger_mapping_unavailable`
+  without creating a commercial intent, wallet hold, or HAL command record.
+  A second post-transaction confirmation closes the inventory-change race; its
+  known pre-delivery failure terminalizes/release-cleans the just-created
+  attempt rather than reporting delivery reconciliation.
+- `RECONCILIATION_REQUIRED` now means only that `RequestStart` was invoked and
+  its result is unresolved. Exact HAL GET by the original `cms_command_id`
+  projects a found command; its canonical 404 atomically moves an unmaterialized
+  start to `REJECTED` (or `EXPIRED` after command expiry), marks the command
+  `CONFIRMED_ABSENT`, and changes only `HELD` to `RELEASED`. Other lookup
+  failures retain reconciliation. STOP remains distinct: missing STOP evidence
+  never completes a session or settles money.
+- The appv1 credential remains transient and SHA-256-hashed only in CMS. No
+  schema migration was required. Runtime revision `6f65e8e` is active with
+  binary SHA-256
+  `e675c0acd9e77ba7e3293f422951f8f4b056881b198327119148738f2536711c`.
+- Focused charging/reconciliation and route/OpenAPI tests, full Go tests, and
+  vet passed. Local/public health/readiness, Swagger, raw OpenAPI (187
+  operations), Caddy validation, and post-rehost logs passed. The disposable
+  PostgreSQL reconciliation test remains skipped because `TEST_DATABASE_URL`
+  is unset; `pwsh` is unavailable.
+### 2026-08-18 — CPO wallet transaction read deployed
+
+- Added authenticated, tenant-scoped `GET /api/v1/cpo/wallet-transactions` for
+  CPO ADMINs. It returns newest-first wallet transaction projections for the
+  authenticated CPO, with optional customer filtering and bounded keyset
+  pagination (`limit`, `before`, `before_id`).
+- No database migration was required. Runtime revision `2a040e0` is active with
+  binary SHA-256
+  `1a5dfc0100f85a6159c916880911c5139b5295a7b0a074b42e92668f29a0dc3e`.
+  The live OpenAPI contract contains 187 operations.
+- Local/public health and readiness, Swagger, raw OpenAPI, the new route's
+  unauthenticated boundary (`401`), Caddy validation, and post-rehost logs
+  passed. `TEST_DATABASE_URL` and `pwsh` remain unavailable.
+
 ### 2026-08-18 — Temporal tariff fallback and hub cleanup deployed
 
 - Source migration 44 replaces the prior active-tariff no-overlap exclusion

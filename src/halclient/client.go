@@ -17,7 +17,10 @@ import (
 	"github.com/google/uuid"
 )
 
-var ErrUnavailable = errors.New("HAL v1 service is unavailable")
+var (
+	ErrUnavailable          = errors.New("HAL v1 service is unavailable")
+	ErrMissingCorrelationID = errors.New("HAL v1 mutation requires a non-empty correlation ID")
+)
 
 type HTTPError struct {
 	Status int
@@ -123,6 +126,10 @@ func (client *Client) GetCommand(ctx context.Context, id uuid.UUID) (Command, er
 }
 
 func (client *Client) mutate(ctx context.Context, method, path, idempotency, correlation string, body any, target any) error {
+	correlation = strings.TrimSpace(correlation)
+	if correlation == "" {
+		return ErrMissingCorrelationID
+	}
 	return client.request(ctx, method, path, idempotency, correlation, body, target)
 }
 

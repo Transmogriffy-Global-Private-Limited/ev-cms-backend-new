@@ -5870,7 +5870,7 @@ paths:
       tags: [App Charging]
       operationId: startCustomerCharging
       summary: Create a durable charging start intent
-      description: Creates the CMS tariff/tax snapshot, affordability reservation, one-use credential, and durable HAL command identity. A new start is admitted only when the committed CMS live-operations projection reports the requested connector as `AVAILABLE` and `FRESH`; `409 connector_not_available` is expected when that projection or a competing active intent prevents admission. After the CPO minimum-balance check, tariff/GST affordability and the HAL Wh limit use `wallet balance - CPO wallet buffer`; `409 wallet_minimum_balance_not_met` means the balance is below the configured minimum, while `409 insufficient_wallet_balance` means no positive affordable session remains. A same-customer retry of an existing active intent returns that intent before the live admission check. `202` is not proof that charging started; only a later HAL `transaction.started` fact materializes a session.
+      description: Creates the CMS tariff/tax snapshot, affordability reservation, one-use credential, and durable HAL command identity only after exact charger/connector mapping synchronization succeeds. A new start is admitted only when the committed CMS live-operations projection reports the requested connector as `AVAILABLE` and `FRESH`; `409 connector_not_available` is expected when that projection or a competing active intent prevents admission. After the CPO minimum-balance check, tariff/GST affordability and the HAL Wh limit use `wallet balance - CPO wallet buffer`; `409 wallet_minimum_balance_not_met` means the balance is below the configured minimum, while `409 insufficient_wallet_balance` means no positive affordable session remains. A same-customer retry of an existing active intent returns that intent before the live admission check. `RECONCILIATION_REQUIRED` means an invoked HAL start command has an unresolved delivery outcome; an exact command lookup that returns 404 terminalizes that start, releases its held reservation, and permits a fresh retry. `202` is not proof that charging started; only a later HAL `transaction.started` fact materializes a session.
       security: [{BearerAuth: []}]
       parameters: [{$ref: "#/components/parameters/CPOAppIDHeader"}]
       requestBody:
@@ -5885,7 +5885,7 @@ paths:
         "403": {$ref: "#/components/responses/Forbidden"}
         "404": {description: Customer charger or connector was not found.}
         "409": {description: "`connector_not_available`, `wallet_minimum_balance_not_met`, or `insufficient_wallet_balance` prevents a new start; an active intent can also own the connector.", content: {application/json: {schema: {$ref: "#/components/schemas/ErrorEnvelope"}}}}
-        "503": {description: HAL charging service is unavailable.}
+        "503": {description: "`hal_unavailable` or `charger_mapping_unavailable`: HAL or the required exact charger mapping is temporarily unavailable; no active start intent is created for a preflight mapping failure.", content: {application/json: {schema: {$ref: "#/components/schemas/ErrorEnvelope"}}}}
 
   /api/v1/app/charging-start-intents/{start_intent_id}:
     get:

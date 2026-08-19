@@ -1,5 +1,80 @@
 # AI Changelog
 
+## 2026-08-19 - CMS-generated HAL mutation correlation correction
+
+- Corrected both User App charging handlers to pass the canonical
+  server-generated `RequestLogger` ID from Gin context into CMS/HAL mapping,
+  start, and stop work. The prior code read the incoming `X-Request-ID`
+  header, so an ordinary client request supplied an empty correlation value.
+- CMS-to-HAL mutation correctness no longer depends on a frontend header.
+  The HAL client now rejects an empty or whitespace-only mutation correlation
+  locally; non-mutating command lookup remains unchanged. No charging,
+  wallet, tariff, GST, OCPP, or reconciliation state-machine semantics changed.
+
+Verification:
+
+- Added handler tests proving CMS-generated correlation reaches both start and
+  stop service calls without a client header and does not trust a supplied
+  client request ID. Added HAL transport tests for correlation/idempotency
+  headers and the no-HTTP empty-correlation guard.
+- No migration was required. The source was rebuilt and rehosted as runtime
+  revision `d7f72cd`; binary SHA-256 is
+  `66a8416d81fc54d397d42c8d4cacb1a866dfa1cc934b5cc6c1ba2b00a46b5754`.
+- Post-rehost local/public health/readiness, Swagger, raw OpenAPI (187
+  operations), Caddy validation, and the journal error scan passed. `pwsh` and
+  disposable `TEST_DATABASE_URL` remain unavailable.
+
+## 2026-08-19 - Charging-start prerequisite and exact-absence recovery correction
+
+- Moved customer-start mapping synchronization ahead of commercial admission;
+  `503 charger_mapping_unavailable` now has no start intent, wallet hold, or
+  command record. A post-transaction mapping reconfirmation closes an
+  inventory-change race and terminalizes its known pre-delivery failure as
+  `NOT_ATTEMPTED` with an atomically released hold.
+- Reserved `RECONCILIATION_REQUIRED` for an invoked HAL start whose result is
+  uncertain. Reconciliation now treats only the typed exact HAL command GET
+  404 as confirmed absence: it locks the start command/intent/hold, rejects or
+  expires the unmaterialized intent, releases only `HELD`, and records
+  `CONFIRMED_ABSENT`. Other HTTP errors, timeouts, unavailable HAL, malformed
+  responses, and STOP-command 404 remain conservative reconciliation cases.
+- Preserved the plaintext appv1 credential boundary: the credential is hashed
+  only in CMS and never replayed. A confirmed-absent command is replaced only
+  by a fresh customer start attempt. No migration was needed because the
+  existing intent/hold states and unrestricted HAL command record state cover
+  the new terminal semantics.
+
+Verification:
+
+- Added a disposable-PostgreSQL focused reconciliation test covering mapping
+  prerequisite failure, ambiguous delivery, lookup 500 retention, exact 404
+  cleanup/idempotency, fresh retry, exact-found projection, fact race, and
+  expired absence. It is skipped locally because `TEST_DATABASE_URL` is unset.
+- Database-free focused customerauth/halops tests pass. The source was then
+  rebuilt and rehosted as runtime revision `6f65e8e`; binary SHA-256 is
+  `e675c0acd9e77ba7e3293f422951f8f4b056881b198327119148738f2536711c`.
+- `go test -p 1 ./...`, `go vet ./...`, focused route/OpenAPI parity, and
+  `git diff --check` pass. The documentation verifier baseline was reconciled
+  from 186 to the authoritative schema's current 187 operations before final
+  branch verification. Post-rehost local/public readiness, Swagger, raw
+  OpenAPI, Caddy validation, and the journal error scan passed. No migration
+  was required. The disposable PostgreSQL reconciliation test remains skipped
+  because `TEST_DATABASE_URL` is unset.
+## 2026-08-18 - Rehosted CPO wallet transaction reads
+
+- Rebuilt and rehosted revision `2a040e0` with authenticated,
+  tenant-scoped `GET /api/v1/cpo/wallet-transactions`. The read supports
+  optional `customer_id` filtering and bounded newest-first keyset pagination
+  with `limit`, `before`, and `before_id`; no migration was required.
+- Binary SHA-256 is
+  `1a5dfc0100f85a6159c916880911c5139b5295a7b0a074b42e92668f29a0dc3e`.
+
+Verification:
+
+- Focused CPO/route/OpenAPI tests, full Go tests, and vet passed. The service
+  is active with zero restarts on `127.0.0.1:18080`; local/public health,
+  readiness, Swagger, raw OpenAPI (187 operations), the unauthenticated route
+  boundary, Caddy validation, and the post-rehost error scan passed.
+
 ## 2026-08-18 - Deployed temporal tariffs and removed the two requested hubs
 
 - Applied migration 44 after creating the guarded rollback dump

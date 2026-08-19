@@ -223,13 +223,17 @@ func (s *liveops.Service) GetSession(ctx context.Context, cpoID, sessionID uuid.
 func (s *liveops.Service) GetFleet(ctx context.Context, cpoID uuid.UUID) (FleetState, error)
 ```
 
-`halclient` attaches the CMS bearer, JSON body, `Idempotency-Key`, and optional
-`X-Correlation-ID`; its client timeout is `HAL_V1_REQUEST_TIMEOUT`. Mutating
-calls use the CMS mapping/command ID as their idempotency key. A timeout means
-delivery is unknown, not that it is safe to send another command. It returns a
-typed `HTTPError` for non-2xx provider response and `ErrUnavailable` when base
-URL/bearer is absent. `GetCommand` is the sole recovery lookup and queries
-`GET /v1/remote-commands?cms_command_id=...`.
+`halclient` attaches the CMS bearer, JSON body, `Idempotency-Key`, and a
+required non-empty `X-Correlation-ID` for every mutation; its client timeout is
+`HAL_V1_REQUEST_TIMEOUT`. HTTP-originated calls use the CMS `RequestLogger`
+request ID from Gin context, not an optional client `X-Request-ID` header.
+Mutating calls use the CMS mapping/command ID as their idempotency key. A
+timeout means delivery is unknown, not that it is safe to send another command.
+It returns a typed `HTTPError` for non-2xx provider response,
+`ErrUnavailable` when base URL/bearer is absent, and
+`ErrMissingCorrelationID` locally before an invalid mutation is sent.
+`GetCommand` is the sole recovery lookup and queries
+`GET /v1/remote-commands?cms_command_id=...` without a correlation header.
 
 ## Persistence map and consumer comparison
 
@@ -282,7 +286,9 @@ customer stop OR time/energy limit OR device stop -> HAL one stop workflow
 
 ```text
 CMS command request times out -> state RECONCILIATION_REQUIRED
--> ReconcileCommand(same cms_command_id) -> HAL durable command or 404 evidence
+-> ReconcileCommand(same cms_command_id) -> HAL durable command or exact 404 evidence
+   START 404 with no materialized session -> CMS atomically releases HELD hold and terminalizes start
+   STOP 404 -> remains reconciliation-required; it never proves session completion
 HAL repeats same fact_id/digest -> CMS 204 and no second projection/event
 client reconnects -> GET events after persisted numeric ID -> dedupe -> GET fleet/charger/session
 -> reopen SSE; a missed stream never changes durable truth
@@ -404,9 +410,12 @@ func (c *halclient.Client) GetCommand(ctx context.Context, id uuid.UUID) (Comman
 ```
 
 It sends JSON to the configured HAL base URL with the CMS bearer,
-`Idempotency-Key`, and optional `X-Correlation-ID`. Mapping uses the CMS charger
-UUID as idempotency key; start/stop use `cms_command_id`. Missing base URL or
-command bearer gives `halclient.ErrUnavailable`; non-2xx gives
+`Idempotency-Key`, and a required non-empty `X-Correlation-ID` for mutations.
+Mapping uses the CMS charger UUID as idempotency key; start/stop use
+`cms_command_id`. HTTP-originated callers use the CMS-generated request ID;
+the User App is not required to supply `X-Request-ID`. Missing base URL or
+command bearer gives `halclient.ErrUnavailable`; empty correlation gives
+`halclient.ErrMissingCorrelationID` without sending HTTP; non-2xx gives
 `*halclient.HTTPError`; timeout is unknown delivery, not a safe retry with a
 new identity. It is **PRIVATE TRANSPORT — DO NOT CALL FROM CPO CODE**.
 
@@ -436,6 +445,16 @@ connector IDs, mapped identity/number, one-use credential, expiry, integer Wh
 limit and duration. `StopRequest` contains exact CMS session, HAL transaction,
 and numeric OCPP transaction IDs. `Command` contains `HALCommandID`,
 `CMSCommandID`, kind/state, optional transaction IDs, and `UpdatedAt`.
+
+For customer starts, mapping synchronization is a pre-command operational
+prerequisite. A failed preflight returns `503 charger_mapping_unavailable`
+without a commercial intent. CMS reconfirms the mapping after creating an
+intent only to close a concurrent inventory-change race; a failure on that
+second check is immediately terminalized as `NOT_ATTEMPTED`, never reported as
+delivery reconciliation. `RECONCILIATION_REQUIRED` is reserved for an invoked
+start request whose outcome cannot be known. The appv1 credential remains
+transient and hashed only, so CMS never replays a missing command; exact HAL
+404 instead enables a fresh customer retry with a new credential.
 
 #### 5.3 Fact ingestor: shared infrastructure
 

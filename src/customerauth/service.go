@@ -68,6 +68,9 @@ type Service struct {
 // capabilities. User App business code never constructs HAL wire requests.
 func (service *Service) WithHALOperations(operations *halops.Service, live *liveops.Service, cfg config.HAL) *Service {
 	service.hal = operations
+	if operations != nil {
+		operations.WithStartCommandAbsentHandler(service.ReconcileConfirmedAbsentStartCommand)
+	}
 	service.live = live
 	service.halFactBearer = cfg.FactBearerToken
 	service.halMeterStaleAfter = cfg.MeterStaleAfter
