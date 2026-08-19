@@ -282,7 +282,9 @@ customer stop OR time/energy limit OR device stop -> HAL one stop workflow
 
 ```text
 CMS command request times out -> state RECONCILIATION_REQUIRED
--> ReconcileCommand(same cms_command_id) -> HAL durable command or 404 evidence
+-> ReconcileCommand(same cms_command_id) -> HAL durable command or exact 404 evidence
+   START 404 with no materialized session -> CMS atomically releases HELD hold and terminalizes start
+   STOP 404 -> remains reconciliation-required; it never proves session completion
 HAL repeats same fact_id/digest -> CMS 204 and no second projection/event
 client reconnects -> GET events after persisted numeric ID -> dedupe -> GET fleet/charger/session
 -> reopen SSE; a missed stream never changes durable truth
@@ -436,6 +438,16 @@ connector IDs, mapped identity/number, one-use credential, expiry, integer Wh
 limit and duration. `StopRequest` contains exact CMS session, HAL transaction,
 and numeric OCPP transaction IDs. `Command` contains `HALCommandID`,
 `CMSCommandID`, kind/state, optional transaction IDs, and `UpdatedAt`.
+
+For customer starts, mapping synchronization is a pre-command operational
+prerequisite. A failed preflight returns `503 charger_mapping_unavailable`
+without a commercial intent. CMS reconfirms the mapping after creating an
+intent only to close a concurrent inventory-change race; a failure on that
+second check is immediately terminalized as `NOT_ATTEMPTED`, never reported as
+delivery reconciliation. `RECONCILIATION_REQUIRED` is reserved for an invoked
+start request whose outcome cannot be known. The appv1 credential remains
+transient and hashed only, so CMS never replays a missing command; exact HAL
+404 instead enables a fresh customer retry with a new credential.
 
 #### 5.3 Fact ingestor: shared infrastructure
 

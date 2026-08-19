@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/constants"
+	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/halclient"
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/halops"
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/liveops"
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/models"
@@ -168,6 +169,10 @@ func connectorNotAvailableForCharging() *APIError {
 	return &APIError{http.StatusConflict, "connector_not_available", "The connector is not currently available for charging."}
 }
 
+func chargerMappingUnavailable() *APIError {
+	return &APIError{http.StatusServiceUnavailable, "charger_mapping_unavailable", "Charging is temporarily unavailable for this charger."}
+}
+
 func chargingConnectorAllowsNewStart(state liveops.ConnectorState) bool {
 	return state.Availability == "AVAILABLE" && state.Freshness == liveops.FreshnessFresh
 }
@@ -235,6 +240,12 @@ func (service *Service) StartCharging(ctx context.Context, principal Principal, 
 			return existingChargingStartResponse(existing), nil
 		}
 		return ChargingStartResponse{}, connectorNotAvailableForCharging()
+	}
+	// Mapping is a known operational prerequisite, not a command-delivery
+	// outcome. Perform it before creating a commercial reservation so an
+	// unavailable HAL mapping cannot create a reconciler zombie.
+	if err := service.hal.EnsureChargerMapping(ctx, charger.ID, correlationID); err != nil {
+		return ChargingStartResponse{}, chargerMappingUnavailable()
 	}
 	now := service.now()
 	credential, hash, err := newChargingCredential()
@@ -335,21 +346,31 @@ func (service *Service) StartCharging(ctx context.Context, principal Principal, 
 		}
 		return ChargingStartResponse{}, err
 	}
+	// Inventory can change after the preflight. Reconfirm the mapping after the
+	// transaction and before RequestStart; unlike delivery uncertainty, this
+	// known pre-delivery failure is synchronously terminalized and releases the
+	// new hold rather than becoming a reconciliation-required intent.
 	if err := service.hal.EnsureChargerMapping(ctx, mapping.CMSChargerID, correlationID); err != nil {
-		service.markHALCommandFailure(ctx, commandID, err)
-		return ChargingStartResponse{StartIntentID: intentID, Status: constants.StartIntentStatusReconciliation}, nil
+		if terminalizeErr := service.terminalizeUnattemptedStartCommand(ctx, commandID); terminalizeErr != nil {
+			return ChargingStartResponse{}, fmt.Errorf("terminalize failed mapping prerequisite: %w", terminalizeErr)
+		}
+		return ChargingStartResponse{}, chargerMappingUnavailable()
 	}
 	command, err := service.hal.RequestStart(ctx, halops.StartRequest{CMSCommandID: commandID, CMSStartIntentID: intentID, CPOID: principal.CPOID, CustomerID: principal.CustomerID, CMSChargerID: charger.ID, CMSConnectorID: request.ConnectorID, ChargerOCPPIdentity: charger.OCPPIdentity, OCPPConnectorNumber: requestConnectorNumber(mapping, request.ConnectorID), Credential: credential, CredentialExpiresAt: intent.CredentialExpiresAt, CommandExpiresAt: intent.CommandExpiresAt, EnergyLimitWh: intent.EnergyLimitWh, MaxDurationSeconds: intent.MaxDurationSeconds}, correlationID)
 	if err != nil {
-		service.markHALCommandFailure(ctx, commandID, err)
+		if recordErr := service.markHALCommandFailure(ctx, commandID, err); recordErr != nil {
+			return ChargingStartResponse{}, fmt.Errorf("record uncertain HAL start delivery: %w", recordErr)
+		}
 		return ChargingStartResponse{StartIntentID: intentID, Status: constants.StartIntentStatusReconciliation}, nil
 	}
-	_ = service.database.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+	if err := service.database.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if err := tx.Model(&models.HALCommandRecord{}).Where("cms_command_id = ?", commandID).Updates(map[string]any{"hal_command_id": command.HALCommandID, "state": command.State, "updated_at": service.now()}).Error; err != nil {
 			return err
 		}
 		return tx.Model(&models.ChargingStartIntent{}).Where("id = ?", intentID).Updates(map[string]any{"status": constants.StartIntentStatusAcceptedForDelivery, "hal_command_id": command.HALCommandID, "updated_at": service.now()}).Error
-	})
+	}); err != nil {
+		return ChargingStartResponse{}, fmt.Errorf("record accepted HAL start command: %w", err)
+	}
 	return ChargingStartResponse{StartIntentID: intentID, Status: constants.StartIntentStatusAcceptedForDelivery}, nil
 }
 
@@ -488,11 +509,107 @@ func newChargingCredential() (string, string, error) {
 	sum := sha256.Sum256([]byte(value))
 	return value, hex.EncodeToString(sum[:]), nil
 }
-func (service *Service) markHALCommandFailure(ctx context.Context, commandID uuid.UUID, cause error) {
-	_ = service.database.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		state := "RECONCILIATION_REQUIRED"
-		_ = tx.Model(&models.HALCommandRecord{}).Where("cms_command_id = ?", commandID).Updates(map[string]any{"state": state, "last_error_category": "transport", "last_error_detail": "HAL delivery requires reconciliation", "updated_at": service.now()}).Error
+func commandDeliveryFailureDiagnostic(cause error) (string, string) {
+	var httpError *halclient.HTTPError
+	if errors.As(cause, &httpError) {
+		return "provider_http", fmt.Sprintf("HAL command delivery returned HTTP %d; exact reconciliation required", httpError.Status)
+	}
+	if errors.Is(cause, halclient.ErrUnavailable) {
+		return "hal_unavailable", "HAL command delivery became unavailable; exact reconciliation required"
+	}
+	return "transport", "HAL command delivery transport outcome is unknown; exact reconciliation required"
+}
+
+// markHALCommandFailure is used only after RequestStart or RequestStop has
+// been invoked. Its reconciliation state therefore represents genuine
+// uncertainty, never a known mapping prerequisite failure.
+func (service *Service) markHALCommandFailure(ctx context.Context, commandID uuid.UUID, cause error) error {
+	category, detail := commandDeliveryFailureDiagnostic(cause)
+	return service.database.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Model(&models.HALCommandRecord{}).Where("cms_command_id = ?", commandID).Updates(map[string]any{
+			"state":               "RECONCILIATION_REQUIRED",
+			"last_error_category": category,
+			"last_error_detail":   detail,
+			"updated_at":          service.now(),
+		}).Error; err != nil {
+			return err
+		}
 		return tx.Model(&models.ChargingStartIntent{}).Where("id = (SELECT start_intent_id FROM hal_command_records WHERE cms_command_id = ?)", commandID).Updates(map[string]any{"status": constants.StartIntentStatusReconciliation, "updated_at": service.now()}).Error
+	})
+}
+
+// ReconcileConfirmedAbsentStartCommand is the business-side consequence of a
+// typed exact HAL 404. It is registered with halops at composition time. A
+// command or session fact that wins the intent row lock leaves all financial
+// state untouched.
+func (service *Service) ReconcileConfirmedAbsentStartCommand(ctx context.Context, commandID uuid.UUID) error {
+	return service.terminalizeStartCommand(ctx, commandID, "RECONCILIATION_REQUIRED", constants.StartIntentStatusReconciliation, "CONFIRMED_ABSENT", "confirmed_absent", "HAL exact command lookup confirmed no durable command")
+}
+
+// terminalizeUnattemptedStartCommand handles the narrow post-transaction
+// mapping race: RequestStart has not been called, so the command is known not
+// to exist at HAL. The normal preflight prevents this path in ordinary cases.
+func (service *Service) terminalizeUnattemptedStartCommand(ctx context.Context, commandID uuid.UUID) error {
+	return service.terminalizeStartCommand(ctx, commandID, "PERSISTED", constants.StartIntentStatusRequested, "NOT_ATTEMPTED", "mapping_prerequisite_failed", "HAL mapping prerequisite failed before start command delivery")
+}
+
+func (service *Service) terminalizeStartCommand(ctx context.Context, commandID uuid.UUID, expectedCommandState string, expectedIntentStatus constants.StartIntentStatus, terminalCommandState, errorCategory, errorDetail string) error {
+	now := service.now()
+	return service.database.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var command models.HALCommandRecord
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&command, "cms_command_id = ? AND kind = ?", commandID, "START").Error; err != nil {
+			return err
+		}
+		if command.State != expectedCommandState || command.StartIntentID == nil {
+			return nil
+		}
+
+		var intent models.ChargingStartIntent
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&intent, "id = ?", *command.StartIntentID).Error; err != nil {
+			return err
+		}
+		if intent.Status != expectedIntentStatus {
+			return nil
+		}
+		if intent.MaterializedSessionID != nil {
+			return nil
+		}
+
+		var sessionCount int64
+		if err := tx.Model(&models.ChargingSession{}).Where("start_intent_id = ?", intent.ID).Count(&sessionCount).Error; err != nil {
+			return err
+		}
+		if sessionCount != 0 {
+			return nil
+		}
+
+		var hold models.WalletHold
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&hold, "start_intent_id = ?", intent.ID).Error; err != nil {
+			return err
+		}
+		if hold.Status != constants.WalletHoldStatusHeld {
+			if hold.Status == constants.WalletHoldStatusReleased {
+				return nil
+			}
+			return fmt.Errorf("start command %s has non-releasable wallet hold state %s", commandID, hold.Status)
+		}
+
+		intentStatus := constants.StartIntentStatusRejected
+		if !now.Before(command.CommandExpiresAt) {
+			intentStatus = constants.StartIntentStatusExpired
+		}
+		if err := tx.Model(&hold).Updates(map[string]any{"status": constants.WalletHoldStatusReleased, "released_at": now, "updated_at": now}).Error; err != nil {
+			return err
+		}
+		if err := tx.Model(&command).Updates(map[string]any{
+			"state":               terminalCommandState,
+			"last_error_category": errorCategory,
+			"last_error_detail":   errorDetail,
+			"updated_at":          now,
+		}).Error; err != nil {
+			return err
+		}
+		return tx.Model(&intent).Updates(map[string]any{"status": intentStatus, "updated_at": now}).Error
 	})
 }
 
@@ -525,7 +642,7 @@ func (service *Service) StopCharging(ctx context.Context, principal Principal, s
 	}
 	_, err := service.hal.RequestStop(ctx, halops.StopRequest{CMSCommandID: commandID, CMSChargingSessionID: sessionID, CPOID: principal.CPOID, CustomerID: principal.CustomerID, CMSChargerID: charger.ID, CMSConnectorID: connector.ID, ChargerOCPPIdentity: charger.OCPPIdentity, OCPPConnectorNumber: connector.ConnectorNumber, HALTransactionID: *session.HALTransactionID, OCPPTransactionID: session.TransactionID, RequestedStopInitiator: "CUSTOMER", RequestedStopReason: strings.TrimSpace(request.Reason), CommandExpiresAt: expires}, correlation)
 	if err != nil {
-		service.markHALCommandFailure(ctx, commandID, err)
+		return service.markHALCommandFailure(ctx, commandID, err)
 	}
 	return nil
 }

@@ -675,12 +675,22 @@ and returns `202 ChargingStartResponse`. For a **new** start, the CMS first
 requires its committed connector live projection to be `availability=AVAILABLE`
 and `freshness=FRESH`, then validates the authenticated customer, active CPO,
 published active charger/connector, tariff, wallet, and one pending intent per
-connector. It freezes tariff/tax, holds the affordable amount, derives
-`energy_limit_wh` and a current `max_duration_seconds`, then requests HAL
-delivery. The response status may be `REQUESTED`,
+connector. It first requires exact charger/connector mapping synchronization;
+`503 charger_mapping_unavailable` means this prerequisite failed before any
+customer start intent or hold was created. It then freezes tariff/tax, holds
+the affordable amount, derives `energy_limit_wh` and a current
+`max_duration_seconds`, and requests HAL delivery. The response status may be `REQUESTED`,
 `ACCEPTED_FOR_DELIVERY`, `PROTOCOL_ACKNOWLEDGED`, `ACTUALLY_STARTED`,
 `REJECTED`, `EXPIRED`, or `RECONCILIATION_REQUIRED`. Treat all but
 `ACTUALLY_STARTED` as start-progress, not a charging session.
+
+`RECONCILIATION_REQUIRED` means the original HAL request was invoked but its
+delivery outcome is unknown; keep polling that same intent and do not issue a
+replacement request. If HAL's exact command lookup later proves the command is
+absent, CMS releases the unspent hold and moves the intent to `REJECTED` (or
+`EXPIRED` after command expiry). That terminal intent no longer blocks the
+connector, so a later Start creates a fresh intent and credential. The appv1
+credential is never persisted or replayed by CMS.
 
 Only enable the normal Start button when the charger detail reports the chosen
 connector as `AVAILABLE` and `FRESH`; the backend remains authoritative because
@@ -708,7 +718,7 @@ current, voltage, SOC, or meter data.
 STOPPING/requested, not completion. `transaction.completed` is the only
 completion/settlement evidence. The HAL enforces the CMS-derived energy and
 time limits using actual meter/start facts; it does not receive wallet logic.
-Handle `503 hal_unavailable`, `409` resource/session conflicts, and
+Handle `503 hal_unavailable` or `charger_mapping_unavailable`, `409` resource/session conflicts, and
 `cpo_not_active` as explicit workflow state, rather than retrying with a new
 start identity.
 

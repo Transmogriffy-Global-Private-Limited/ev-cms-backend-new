@@ -4,7 +4,7 @@ Status: In Progress
 Owner: Codex
 Collaborators: Anubhab Dey (CMS/HAL boundary owner)
 Started: 2026-08-12
-Last updated: 2026-08-14
+Last updated: 2026-08-19
 
 Development-plan reference: `docs/DEVELOPMENT_PLAN.md` — Charging lifecycle and HAL integration
 Detailed-plan reference: `docs/integrations/ocpp-hal-boundary.md`
@@ -78,6 +78,14 @@ Establish reusable CMS capabilities over HAL-derived operational truth and expos
   route boundaries have been verified. No migration was needed for the model
   correction, the User App history release, state-aware GST validation, and
   fresh-availability charging admission.
+- Charging-start correction in progress: mapping is now a pre-command
+  prerequisite; an initial mapping failure returns temporary unavailability
+  without a commercial record. The post-transaction mapping reconfirmation is
+  retained solely for the inventory-change race and atomically terminalizes a
+  known unattempted start. Exact HAL command GET 404 now invokes the
+  customer-charging transaction that releases only a HELD hold and marks the
+  unmaterialized START `REJECTED`/`EXPIRED` plus `CONFIRMED_ABSENT`; lookup
+  infrastructure errors and all STOP absence remain reconciliation-required.
 
 ## Verification
 
@@ -109,6 +117,14 @@ Establish reusable CMS capabilities over HAL-derived operational truth and expos
   tests, `go test ./...`, `go vet ./...`, and `scripts/verify-docs.ps1` pass.
   The guarded PostgreSQL projection regression skips safely without
   `TEST_DATABASE_URL`.
+- 2026-08-19 focused database-free customerauth/halops compilation tests pass.
+  New disposable-PostgreSQL coverage is present for the charging-start
+  prerequisite, ambiguous delivery, exact 404 recovery, fact race, expiry,
+  idempotency, and fresh retry but is skipped while `TEST_DATABASE_URL` is
+  unset. `go test -p 1 ./...`, `go vet ./...`, focused route/OpenAPI parity,
+  and `git diff --check` pass. `scripts/verify-docs.ps1` is blocked before
+  document checks by the unchanged current-main 187-operation schema versus
+  its hard-coded 186-operation expectation.
 
 ## Handoff
 

@@ -1,5 +1,37 @@
 # AI Changelog
 
+## 2026-08-19 - Charging-start prerequisite and exact-absence recovery correction
+
+- Moved customer-start mapping synchronization ahead of commercial admission;
+  `503 charger_mapping_unavailable` now has no start intent, wallet hold, or
+  command record. A post-transaction mapping reconfirmation closes an
+  inventory-change race and terminalizes its known pre-delivery failure as
+  `NOT_ATTEMPTED` with an atomically released hold.
+- Reserved `RECONCILIATION_REQUIRED` for an invoked HAL start whose result is
+  uncertain. Reconciliation now treats only the typed exact HAL command GET
+  404 as confirmed absence: it locks the start command/intent/hold, rejects or
+  expires the unmaterialized intent, releases only `HELD`, and records
+  `CONFIRMED_ABSENT`. Other HTTP errors, timeouts, unavailable HAL, malformed
+  responses, and STOP-command 404 remain conservative reconciliation cases.
+- Preserved the plaintext appv1 credential boundary: the credential is hashed
+  only in CMS and never replayed. A confirmed-absent command is replaced only
+  by a fresh customer start attempt. No migration was needed because the
+  existing intent/hold states and unrestricted HAL command record state cover
+  the new terminal semantics.
+
+Verification:
+
+- Added a disposable-PostgreSQL focused reconciliation test covering mapping
+  prerequisite failure, ambiguous delivery, lookup 500 retention, exact 404
+  cleanup/idempotency, fresh retry, exact-found projection, fact race, and
+  expired absence. It is skipped locally because `TEST_DATABASE_URL` is unset.
+- Database-free focused customerauth/halops tests pass. No VPS, runtime
+  database, migration execution, deployment, restart, commit, or push occurred.
+- `go test -p 1 ./...`, `go vet ./...`, focused route/OpenAPI parity, and
+  `git diff --check` pass. `scripts/verify-docs.ps1` remains blocked before
+  document checks by the existing current-main mismatch: it counts 187 OpenAPI
+  operations while its hard-coded expectation is 186.
+
 ## 2026-08-18 - Deployed temporal tariffs and removed the two requested hubs
 
 - Applied migration 44 after creating the guarded rollback dump

@@ -44,10 +44,12 @@ establish start and completion truth.
 
 ```text
 customer bearer + CPO app ID
+-> CMS synchronizes the exact committed charger/connector mapping as an operational prerequisite
 -> CMS locks wallet and resolves User Group > charger > hub tariff
-> CMS freezes the commercial tariff and independent hub GST, derives integer Wh affordability, creates hold,
+-> CMS freezes the commercial tariff and independent hub GST, derives integer Wh affordability, creates hold,
    start intent, one-use appv1_ credential hash, and command identity
--> CMS synchronizes the exact charger/connector mapping then requests HAL start
+-> CMS reconfirms the mapping after the commercial transaction to close an inventory-change race
+-> CMS requests HAL start
 -> HAL fact transaction.started materializes one CMS ACTIVE session
 -> HAL meter/connection/status facts update CMS projections
 -> customer stop persists one CMS stop command and asks HAL
@@ -55,7 +57,9 @@ customer bearer + CPO app ID
 ```
 
 The raw credential is sent to HAL only for the start command; CMS retains only
-its SHA-256 value. Meter values remain integer Wh and are never interpolated.
+its SHA-256 value. It is intentionally neither persisted nor replayed: a lost
+or absent HAL command is terminalized and a later customer retry creates a new
+credential and CMS command identity. Meter values remain integer Wh and are never interpolated.
 The v1 tariff contains energy and idle-fee commercial components; GST belongs
 to the hub tax snapshot. No fixed or
 time component is invented by this implementation.
@@ -76,6 +80,48 @@ reconstruct the same connection state/freshness from these durable projections.
 No token, raw credential, authorization header, or fact body is logged. The
 HAL client does not retry a mutating command with a new identity. A caller
 reconciles the same command identity after a transport ambiguity.
+
+## Start-command failure and reconciliation states
+
+`RECONCILIATION_REQUIRED` is active only while the outcome of an already
+attempted `RequestStart` is unknown. It is not a generic HAL-error state.
+
+```text
+mapping prerequisite fails before a commercial start is committed
+    -> 503 charger_mapping_unavailable
+    -> no intent, hold, or command record
+
+post-commit mapping confirmation fails before RequestStart
+    -> atomically RELEASED hold + REJECTED/EXPIRED intent + NOT_ATTEMPTED command
+    -> 503 charger_mapping_unavailable
+
+RequestStart invoked but transport/provider outcome is uncertain
+    -> RECONCILIATION_REQUIRED start intent and command; HELD hold
+    -> exact GET by the original cms_command_id
+
+exact GET finds command
+    -> project the matching HAL command state; do not release the hold
+
+exact GET returns canonical HTTP 404
+    -> atomically CONFIRMED_ABSENT command + RELEASED hold + REJECTED intent
+    -> EXPIRED instead when command_expires_at has passed
+    -> the connector is no longer blocked; a later customer request is fresh
+
+exact GET has 401/403/409/422/5xx, timeout, malformed, or other failure
+    -> retain RECONCILIATION_REQUIRED and HELD; record safe lookup diagnostics
+```
+
+Confirmed absence is safe only because this is HAL's durable exact command
+lookup. CMS locks the command, intent, and hold; verifies the expected active
+states and that no materialized session or `charging_sessions` row exists; then
+releases only a `HELD` hold in the same transaction. A concurrent
+`transaction.started` fact locks the same intent and wins without releasing a
+hold. The cleanup is idempotent and creates no wallet ledger, debit, capture,
+or settlement.
+
+START and STOP deliberately differ: a missing STOP command never proves that a
+materialized session stopped, so its command remains reconciliation-required
+and session settlement continues to require `transaction.completed`.
 
 ## Post-deployment Connection-Liveness Acceptance
 

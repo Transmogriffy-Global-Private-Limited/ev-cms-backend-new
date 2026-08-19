@@ -2,6 +2,26 @@
 
 ## Current State
 
+### 2026-08-19 — Source-only charging-start prerequisite and exact-absence recovery correction
+
+- A new customer start first synchronizes the exact HAL charger/connector
+  mapping. A preflight failure returns `503 charger_mapping_unavailable`
+  without creating a commercial intent, wallet hold, or HAL command record.
+  A second post-transaction confirmation closes the inventory-change race; its
+  known pre-delivery failure terminalizes/release-cleans the just-created
+  attempt rather than reporting delivery reconciliation.
+- `RECONCILIATION_REQUIRED` now means only that `RequestStart` was invoked and
+  its result is unresolved. Exact HAL GET by the original `cms_command_id`
+  projects a found command; its canonical 404 atomically moves an unmaterialized
+  start to `REJECTED` (or `EXPIRED` after command expiry), marks the command
+  `CONFIRMED_ABSENT`, and changes only `HELD` to `RELEASED`. Other lookup
+  failures retain reconciliation. STOP remains distinct: missing STOP evidence
+  never completes a session or settles money.
+- The appv1 credential remains transient and SHA-256-hashed only in CMS. No
+  schema migration was required. This source change has not been deployed or
+  tested against a disposable PostgreSQL database because `TEST_DATABASE_URL`
+  is unset.
+
 ### 2026-08-18 — Temporal tariff fallback and hub cleanup deployed
 
 - Source migration 44 replaces the prior active-tariff no-overlap exclusion

@@ -115,6 +115,12 @@ Active work:
 
 Current implementation state:
 
+- Source-only charging-start reconciliation correction is in progress: mapping
+  is a pre-command prerequisite, attempted-delivery ambiguity remains exact-ID
+  reconciliation, and a typed exact HAL command 404 terminalizes only an
+  unmaterialized START attempt and releases its HELD hold. STOP remains
+  conservative. No migration is planned; disposable PostgreSQL verification is
+  still required before the work item can close.
 - CMS source and the development deployment contain the first client, durable records, shared fact receiver,
   customer polling/start/stop routes, reusable operational projections,
   scoped operational-event replay/SSE, and a 186-operation OpenAPI surface.
