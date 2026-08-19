@@ -50,6 +50,24 @@ type FactError struct {
 
 func (err *FactError) Error() string { return err.Message }
 
+// FactProjectionError is an integration-boundary error: HAL supplied an
+// authenticated, immutable fact, but CMS cannot apply its business projection.
+// It deliberately carries only the stable public classification. The wrapped
+// cause remains available to safe request diagnostics and is never returned to
+// HAL.
+type FactProjectionError struct {
+	Status        int
+	Code, Message string
+	Cause         error
+}
+
+func (err *FactProjectionError) Error() string { return err.Message }
+func (err *FactProjectionError) Unwrap() error { return err.Cause }
+
+func NewFactProjectionError(status int, code, message string, cause error) *FactProjectionError {
+	return &FactProjectionError{Status: status, Code: code, Message: message, Cause: cause}
+}
+
 // Accept validates immutable provider truth and records its receipt in the same
 // transaction as projection application. Exact duplicates are intentionally a
 // no-op; altered fact identity reuse is an integrity conflict.

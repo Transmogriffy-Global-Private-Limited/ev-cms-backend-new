@@ -1,5 +1,22 @@
 # AI Changelog
 
+## 2026-08-19 - HAL authoritative-start recovery and fact error classification
+
+- Added transport-neutral HAL projection errors so expected immutable-fact
+  validation and correlation failures return stable 4xx/409 responses rather
+  than an opaque CMS 500; unexpected persistence/event failures remain
+  retryable 500 responses with safe debug classification.
+- Added the CMS exact HAL transaction lookup client and bounded stranded-start
+  reconciliation. Returned truth uses the same locked materializer as fact
+  ingress; a 404 creates no session, while late terminal-intent evidence is
+  retained and becomes reconciliation-visible.
+- Prevented a delayed synchronous HAL command response from regressing a
+  fact-materialized `ACTUALLY_STARTED` intent back to delivery state.
+
+Verification: focused database-free HAL client/config/fact packages passed.
+Disposable PostgreSQL state-machine and dual-service virtual-charger acceptance
+remain unrun because `TEST_DATABASE_URL` and the topology were not supplied.
+
 ## 2026-08-19 - CMS-generated HAL mutation correlation correction
 
 - Corrected both User App charging handlers to pass the canonical

@@ -70,6 +70,7 @@ func (service *Service) WithHALOperations(operations *halops.Service, live *live
 	service.hal = operations
 	if operations != nil {
 		operations.WithStartCommandAbsentHandler(service.ReconcileConfirmedAbsentStartCommand)
+		operations.WithStartMaterializer(service.MaterializeAuthoritativeStart)
 	}
 	service.live = live
 	service.halFactBearer = cfg.FactBearerToken

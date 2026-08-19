@@ -2,6 +2,24 @@
 
 ## Current State
 
+### 2026-08-19 — HAL authoritative-start recovery and fact classification source change
+
+- Expected immutable HAL fact rejections now return stable 4xx/409 errors,
+  while only unexpected projection/persistence failures return retryable 500.
+  Safe debug diagnostics classify error type, failure class, and SQLSTATE where
+  available without logging fact contents or credentials.
+- CMS now uses HAL's exact transaction-by-start-intent lookup for old accepted,
+  protocol-acknowledged, and reconciliation-required starts. Returned truth is
+  processed through the same locked materializer as `transaction.started`; a
+  404 cannot create a session. Late truth after a terminal CMS intent is
+  retained and made reconciliation-visible rather than silently discarded.
+- The synchronous start-command response no longer regresses a concurrent
+  fact-materialized `ACTUALLY_STARTED` intent. No migration was required.
+
+Verification: focused database-free HAL-client/config/fact packages pass.
+Disposable PostgreSQL state-machine and dual-service virtual-charger acceptance
+remain unverified because `TEST_DATABASE_URL` and the topology are unavailable.
+
 ### 2026-08-19 — CMS-generated HAL mutation correlation deployed
 
 - User App charging Start and Stop take the canonical CMS `RequestLogger` ID

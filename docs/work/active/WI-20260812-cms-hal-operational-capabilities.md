@@ -25,6 +25,10 @@ Establish reusable CMS capabilities over HAL-derived operational truth and expos
 ## Claimed surfaces
 
 - `src/halclient`, `src/halops`, `src/liveops`, `src/operationalrealtime`, `src/customerauth`, `src/cpo`, models/migrations, routes, OpenAPI, and HAL integration docs.
+- HAL-to-CMS `transaction.started` failure classification, start-intent
+  monotonicity, authoritative transaction lookup reconciliation, and User App
+  truthful recovery after a failed fact projection. The counterpart HAL work
+  item owns outbox delivery diagnostics.
 - User App full charger list, hub detail, single detail, and favorites; compact
   map locations remain explicitly out of scope.
 
@@ -114,6 +118,12 @@ Establish reusable CMS capabilities over HAL-derived operational truth and expos
 - Fact/mapping/SSE lifecycle behavior, reconciliation recovery, and dual-service
   E2E remain pending. The earlier development host lacked `pwsh`; the current
   Windows source checkout passed the PowerShell documentation verifier.
+- 2026-08-19 active repair: investigate and correct the observed condition in
+  which HAL has persisted authoritative `transaction.started` truth but CMS
+  returns a retried 500 and leaves no customer session. The repair must retain
+  HAL physical truth, return typed deterministic fact errors, preserve fact
+  receipt/session/event atomicity, and reconcile authoritative transaction
+  lookup without inventing a session on a 404.
 - The guarded connection-fact sequence regression requires a disposable
   `TEST_DATABASE_URL`; physical `bd9099` acceptance remains a post-deployment
   procedure and is not claimed by source verification.

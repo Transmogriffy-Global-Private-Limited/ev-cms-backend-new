@@ -363,15 +363,44 @@ func (service *Service) StartCharging(ctx context.Context, principal Principal, 
 		}
 		return ChargingStartResponse{StartIntentID: intentID, Status: constants.StartIntentStatusReconciliation}, nil
 	}
+	response := ChargingStartResponse{StartIntentID: intentID, Status: constants.StartIntentStatusAcceptedForDelivery}
 	if err := service.database.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		if err := tx.Model(&models.HALCommandRecord{}).Where("cms_command_id = ?", commandID).Updates(map[string]any{"hal_command_id": command.HALCommandID, "state": command.State, "updated_at": service.now()}).Error; err != nil {
+		var persistedCommand models.HALCommandRecord
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&persistedCommand, "cms_command_id = ?", commandID).Error; err != nil {
 			return err
 		}
-		return tx.Model(&models.ChargingStartIntent{}).Where("id = ?", intentID).Updates(map[string]any{"status": constants.StartIntentStatusAcceptedForDelivery, "hal_command_id": command.HALCommandID, "updated_at": service.now()}).Error
+		var persistedIntent models.ChargingStartIntent
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&persistedIntent, "id = ?", intentID).Error; err != nil {
+			return err
+		}
+		// A charger-originated start fact can win the race while the synchronous
+		// HAL command response is in flight. Only the fact materializer may set
+		// ACTUALLY_STARTED; this response must never move it backwards.
+		if persistedIntent.Status == constants.StartIntentStatusActuallyStarted || persistedIntent.MaterializedSessionID != nil || persistedCommand.State == "MATERIALIZED" {
+			response = existingChargingStartResponse(persistedIntent)
+			return nil
+		}
+		if persistedIntent.Status == constants.StartIntentStatusExpired || persistedIntent.Status == constants.StartIntentStatusRejected || persistedIntent.Status == constants.StartIntentStatusReconciliation {
+			response = existingChargingStartResponse(persistedIntent)
+			return nil
+		}
+		now := service.now()
+		if err := tx.Model(&persistedCommand).Updates(map[string]any{"hal_command_id": command.HALCommandID, "state": command.State, "updated_at": now}).Error; err != nil {
+			return err
+		}
+		status := constants.StartIntentStatusAcceptedForDelivery
+		if command.State == "OCPP_ACCEPTED" {
+			status = constants.StartIntentStatusProtocolAcknowledged
+		}
+		if err := tx.Model(&persistedIntent).Updates(map[string]any{"status": status, "hal_command_id": command.HALCommandID, "updated_at": now}).Error; err != nil {
+			return err
+		}
+		response.Status = status
+		return nil
 	}); err != nil {
 		return ChargingStartResponse{}, fmt.Errorf("record accepted HAL start command: %w", err)
 	}
-	return ChargingStartResponse{StartIntentID: intentID, Status: constants.StartIntentStatusAcceptedForDelivery}, nil
+	return response, nil
 }
 
 // usableWalletBalance applies the CPO admission policy once, inside the

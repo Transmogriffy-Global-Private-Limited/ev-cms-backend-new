@@ -93,6 +93,16 @@ mutation, while non-mutating exact-command lookup remains correlation-free.
 `RECONCILIATION_REQUIRED` is active only while the outcome of an already
 attempted `RequestStart` is unknown. It is not a generic HAL-error state.
 
+HAL fact ingress is independently authenticated and durable. Expected fact
+rejections return stable 4xx/409 codes (`invalid_hal_fact`,
+`unsupported_hal_fact`, `fact_integrity_violation`, or
+`hal_start_evidence_conflict`) so HAL records terminal reconciliation rather
+than retrying a bad immutable fact. An unexpected CMS failure remains 500 and
+HAL retries the same fact ID/body. CMS debug diagnostics retain only safe error
+type/class and PostgreSQL SQLSTATE where available; HAL records only fact ID,
+fact type, HTTP status, and a bounded stable receiver error code. Neither side
+logs a fact body, credential, token, or raw database error.
+
 ```text
 mapping prerequisite fails before a commercial start is committed
     -> 503 charger_mapping_unavailable
@@ -117,6 +127,18 @@ exact GET returns canonical HTTP 404
 exact GET has 401/403/409/422/5xx, timeout, malformed, or other failure
     -> retain RECONCILIATION_REQUIRED and HELD; record safe lookup diagnostics
 ```
+
+For an unmaterialized `ACCEPTED_FOR_DELIVERY`, `PROTOCOL_ACKNOWLEDGED`, or
+older reconciliation-required start, CMS waits
+`HAL_V1_START_RECONCILE_AFTER` and then queries HAL's exact
+`GET /v1/transactions?cms_start_intent_id={uuid}` socket. A returned
+authoritative transaction uses the same locked materializer as
+`transaction.started`; it cannot create a second session. A 404 is not
+transaction truth: CMS reconciles the exact command and makes the intent
+explicitly reconciliation-required rather than claiming an active session.
+Late start evidence after a CMS `REJECTED`/`EXPIRED` intent is retained through
+the immutable fact receipt and moves the intent to reconciliation; it does not
+silently fabricate a normal session or stop the physical HAL transaction.
 
 Confirmed absence is safe only because this is HAL's durable exact command
 lookup. CMS locks the command, intent, and hold; verifies the expected active
@@ -163,8 +185,9 @@ do not edit either service database manually.
 ## Current Limitations and Required Follow-up
 
 The durable data and route surfaces are in source, including bounded
-reconciliation for pending/reconciliation-required mappings and exact command
-identity lookup. CPO charger creation, edits, and status changes leave a
+reconciliation for pending/reconciliation-required mappings, stranded starts,
+and exact command/transaction identity lookup. CPO charger creation, edits,
+and status changes leave a
 durable mapping record and attempt provider synchronization only after their
 CMS transaction commits. Provider failure remains a visible pending state; it
 never fabricates command/session outcome.
