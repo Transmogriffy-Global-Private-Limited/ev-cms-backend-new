@@ -31,6 +31,21 @@ Verification:
   `git diff --check` pass. `scripts/verify-docs.ps1` remains blocked before
   document checks by the existing current-main mismatch: it counts 187 OpenAPI
   operations while its hard-coded expectation is 186.
+## 2026-08-18 - Rehosted CPO wallet transaction reads
+
+- Rebuilt and rehosted revision `2a040e0` with authenticated,
+  tenant-scoped `GET /api/v1/cpo/wallet-transactions`. The read supports
+  optional `customer_id` filtering and bounded newest-first keyset pagination
+  with `limit`, `before`, and `before_id`; no migration was required.
+- Binary SHA-256 is
+  `1a5dfc0100f85a6159c916880911c5139b5295a7b0a074b42e92668f29a0dc3e`.
+
+Verification:
+
+- Focused CPO/route/OpenAPI tests, full Go tests, and vet passed. The service
+  is active with zero restarts on `127.0.0.1:18080`; local/public health,
+  readiness, Swagger, raw OpenAPI (187 operations), the unauthenticated route
+  boundary, Caddy validation, and the post-rehost error scan passed.
 
 ## 2026-08-18 - Deployed temporal tariffs and removed the two requested hubs
 
