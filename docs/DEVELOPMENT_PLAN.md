@@ -131,7 +131,7 @@ Current implementation state:
   charger vertical is not verified yet.
 - The current deployed release also exposes tenant-scoped CPO charging-session
   list/detail reads with bounded keyset pagination and validated lifecycle
-  filters. Revision `6f65e8e` is active with migrations 40-44 applied; the live
+  filters. Revision `d7f72cd` is active with migrations 40-44 applied; the live
   OpenAPI contract contains 187 operations. The CPO wallet transaction read is
   tenant-scoped, newest-first, and cursor-paginated.
 - The current deployed release also includes optional committed live charger

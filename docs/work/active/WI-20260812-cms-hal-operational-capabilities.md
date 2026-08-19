@@ -71,14 +71,14 @@ Establish reusable CMS capabilities over HAL-derived operational truth and expos
   observation; REST/read-side recovery and realtime invalidation therefore use
   the same source of truth. Connector status is live only while parent
   connection evidence remains fresh.
-- Runtime revision `6f65e8e` is active under `evcmsnew-dev.service`; migrations
+- Runtime revision `d7f72cd` is active under `evcmsnew-dev.service`; migrations
   through forty-four,
   loopback/public health and readiness, Swagger, raw OpenAPI, the live
   187-operation contract, singular HAL runtime table mappings, and GST-hub
   route boundaries have been verified. No migration was needed for the model
   correction, the User App history release, state-aware GST validation, and
   fresh-availability charging admission.
-- Charging-start correction in progress: mapping is now a pre-command
+- Charging-start correction is deployed: mapping is now a pre-command
   prerequisite; an initial mapping failure returns temporary unavailability
   without a commercial record. The post-transaction mapping reconfirmation is
   retained solely for the inventory-change race and atomically terminalizes a
@@ -128,6 +128,10 @@ Establish reusable CMS capabilities over HAL-derived operational truth and expos
   unset. `go test -p 1 ./...`, `go vet ./...`, focused route/OpenAPI parity,
   `git diff --check`, and `scripts/verify-docs.ps1` pass after reconciling the
   verifier baseline to the authoritative 187-operation schema.
+- 2026-08-19 correlation correction deployment: runtime revision `d7f72cd` is
+  active with no new migration; local/public readiness, Swagger, raw OpenAPI,
+  Caddy validation, and post-rehost logs passed. `pwsh` and
+  `TEST_DATABASE_URL` remain unavailable on this host.
 - 2026-08-19 request-correlation correction: focused customerauth handler,
   middleware, and halclient tests prove CMS-generated IDs reach Start/Stop,
   client IDs are not trusted, and empty mutation correlation sends no HTTP.

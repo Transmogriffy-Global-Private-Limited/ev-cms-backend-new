@@ -17,8 +17,12 @@ Verification:
   stop service calls without a client header and does not trust a supplied
   client request ID. Added HAL transport tests for correlation/idempotency
   headers and the no-HTTP empty-correlation guard.
-- Source-only change: no migration, VPS/runtime database access, deployment,
-  rehost, or restart occurred during implementation.
+- No migration was required. The source was rebuilt and rehosted as runtime
+  revision `d7f72cd`; binary SHA-256 is
+  `66a8416d81fc54d397d42c8d4cacb1a866dfa1cc934b5cc6c1ba2b00a46b5754`.
+- Post-rehost local/public health/readiness, Swagger, raw OpenAPI (187
+  operations), Caddy validation, and the journal error scan passed. `pwsh` and
+  disposable `TEST_DATABASE_URL` remain unavailable.
 
 ## 2026-08-19 - Charging-start prerequisite and exact-absence recovery correction
 

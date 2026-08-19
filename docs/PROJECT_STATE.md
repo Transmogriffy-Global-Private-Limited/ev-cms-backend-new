@@ -2,7 +2,7 @@
 
 ## Current State
 
-### 2026-08-19 — Source-only CMS-generated HAL mutation correlation correction
+### 2026-08-19 — CMS-generated HAL mutation correlation deployed
 
 - User App charging Start and Stop take the canonical CMS `RequestLogger` ID
   from Gin context for all HAL mapping/start/stop mutations. They do not depend
@@ -11,8 +11,13 @@
 - `halclient` rejects an empty or whitespace-only mutation correlation before
   sending HTTP. Command lookup remains correlation-free, and charging
   reconciliation, OCPP truth, wallet, tariff, and GST behavior are unchanged.
-- No migration, VPS/runtime database access, deployment, rehost, or restart
-  occurred for this source-only correction.
+- No migration was required. Runtime revision `d7f72cd` is active with binary
+  SHA-256
+  `66a8416d81fc54d397d42c8d4cacb1a866dfa1cc934b5cc6c1ba2b00a46b5754`.
+- Focused correlation/client/route tests, full Go tests, and vet passed. Local
+  and public health/readiness, Swagger, raw OpenAPI (187 operations), Caddy
+  validation, and post-rehost logs passed. `pwsh` and disposable
+  `TEST_DATABASE_URL` remain unavailable.
 
 ### 2026-08-19 — Charging-start prerequisite and exact-absence recovery deployed
 
