@@ -115,12 +115,12 @@ Active work:
 
 Current implementation state:
 
-- Source-only charging-start reconciliation correction is in progress: mapping
+- Charging-start reconciliation correction is deployed: mapping
   is a pre-command prerequisite, attempted-delivery ambiguity remains exact-ID
   reconciliation, and a typed exact HAL command 404 terminalizes only an
   unmaterialized START attempt and releases its HELD hold. STOP remains
-  conservative. No migration is planned; disposable PostgreSQL verification is
-  still required before the work item can close.
+  conservative. No migration was required; disposable PostgreSQL verification
+  is still required before the work item can close.
 - CMS source and the development deployment contain the first client, durable records, shared fact receiver,
   customer polling/start/stop routes, reusable operational projections,
   scoped operational-event replay/SSE, and a 187-operation OpenAPI surface.
@@ -131,7 +131,7 @@ Current implementation state:
   charger vertical is not verified yet.
 - The current deployed release also exposes tenant-scoped CPO charging-session
   list/detail reads with bounded keyset pagination and validated lifecycle
-  filters. Revision `2a040e0` is active with migrations 40-44 applied; the live
+  filters. Revision `6f65e8e` is active with migrations 40-44 applied; the live
   OpenAPI contract contains 187 operations. The CPO wallet transaction read is
   tenant-scoped, newest-first, and cursor-paginated.
 - The current deployed release also includes optional committed live charger

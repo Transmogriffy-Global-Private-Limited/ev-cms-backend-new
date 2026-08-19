@@ -25,12 +25,16 @@ Verification:
   prerequisite failure, ambiguous delivery, lookup 500 retention, exact 404
   cleanup/idempotency, fresh retry, exact-found projection, fact race, and
   expired absence. It is skipped locally because `TEST_DATABASE_URL` is unset.
-- Database-free focused customerauth/halops tests pass. No VPS, runtime
-  database, migration execution, deployment, restart, commit, or push occurred.
+- Database-free focused customerauth/halops tests pass. The source was then
+  rebuilt and rehosted as runtime revision `6f65e8e`; binary SHA-256 is
+  `e675c0acd9e77ba7e3293f422951f8f4b056881b198327119148738f2536711c`.
 - `go test -p 1 ./...`, `go vet ./...`, focused route/OpenAPI parity, and
   `git diff --check` pass. The documentation verifier baseline was reconciled
   from 186 to the authoritative schema's current 187 operations before final
-  branch verification.
+  branch verification. Post-rehost local/public readiness, Swagger, raw
+  OpenAPI, Caddy validation, and the journal error scan passed. No migration
+  was required. The disposable PostgreSQL reconciliation test remains skipped
+  because `TEST_DATABASE_URL` is unset.
 ## 2026-08-18 - Rehosted CPO wallet transaction reads
 
 - Rebuilt and rehosted revision `2a040e0` with authenticated,

@@ -2,7 +2,7 @@
 
 ## Current State
 
-### 2026-08-19 — Source-only charging-start prerequisite and exact-absence recovery correction
+### 2026-08-19 — Charging-start prerequisite and exact-absence recovery deployed
 
 - A new customer start first synchronizes the exact HAL charger/connector
   mapping. A preflight failure returns `503 charger_mapping_unavailable`
@@ -18,9 +18,14 @@
   failures retain reconciliation. STOP remains distinct: missing STOP evidence
   never completes a session or settles money.
 - The appv1 credential remains transient and SHA-256-hashed only in CMS. No
-  schema migration was required. This source change has not been deployed or
-  tested against a disposable PostgreSQL database because `TEST_DATABASE_URL`
-  is unset.
+  schema migration was required. Runtime revision `6f65e8e` is active with
+  binary SHA-256
+  `e675c0acd9e77ba7e3293f422951f8f4b056881b198327119148738f2536711c`.
+- Focused charging/reconciliation and route/OpenAPI tests, full Go tests, and
+  vet passed. Local/public health/readiness, Swagger, raw OpenAPI (187
+  operations), Caddy validation, and post-rehost logs passed. The disposable
+  PostgreSQL reconciliation test remains skipped because `TEST_DATABASE_URL`
+  is unset; `pwsh` is unavailable.
 ### 2026-08-18 — CPO wallet transaction read deployed
 
 - Added authenticated, tenant-scoped `GET /api/v1/cpo/wallet-transactions` for
