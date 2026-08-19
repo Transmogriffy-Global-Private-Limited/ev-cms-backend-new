@@ -1,7 +1,8 @@
 package customerauth
 
 import (
-	"net/http"
+	"context"
+	"strings"
 	"time"
 
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/constants"
@@ -27,6 +28,7 @@ func canonicalFactDigest(envelope HALFactEnvelope) (string, error) {
 // while ingress, integrity, receipt and idempotency are integration concerns.
 func (service *Service) ApplyHALFactProjection(tx *gorm.DB, envelope halops.FactEnvelope, payload models.JSONB) error {
 	var err error
+	emit := true
 	switch envelope.FactType {
 	case "charger.connection.updated":
 		err = service.applyConnectionFact(tx, payload)
@@ -35,15 +37,15 @@ func (service *Service) ApplyHALFactProjection(tx *gorm.DB, envelope halops.Fact
 	case "command.updated":
 		err = service.applyCommandFact(tx, payload)
 	case "transaction.started":
-		err = service.applyStartedFact(tx, payload)
+		emit, err = service.applyStartedFact(tx, payload)
 	case "transaction.meter":
 		err = service.applyMeterFact(tx, payload)
 	case "transaction.completed":
 		err = service.applyCompletedFact(tx, payload)
 	default:
-		return &APIError{http.StatusBadRequest, "unsupported_hal_fact", "The HAL fact type is unsupported."}
+		return halops.NewFactProjectionError(400, "unsupported_hal_fact", "The HAL fact type is unsupported.", nil)
 	}
-	if err != nil || service.operationalEvents == nil {
+	if err != nil || !emit || service.operationalEvents == nil {
 		return err
 	}
 	return service.emitOperationalFact(tx, envelope.FactType, payload)
@@ -249,70 +251,123 @@ func (service *Service) applyCommandFact(tx *gorm.DB, p models.JSONB) error {
 	if !ok {
 		return invalidFact()
 	}
-	return tx.Model(&models.HALCommandRecord{}).Where("cms_command_id = ?", commandID).Updates(map[string]any{"state": state, "updated_at": service.now()}).Error
+	var command models.HALCommandRecord
+	if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&command, "cms_command_id = ?", commandID).Error; err != nil {
+		return invalidFact()
+	}
+	// A later command fact may be delivered after the authoritative start fact.
+	// MATERIALIZED is terminal command evidence for this purpose and must never
+	// regress to an earlier delivery acknowledgement.
+	if command.State == "MATERIALIZED" && state != "MATERIALIZED" {
+		return nil
+	}
+	return tx.Model(&command).Updates(map[string]any{"state": state, "updated_at": service.now()}).Error
 }
-func (service *Service) applyStartedFact(tx *gorm.DB, p models.JSONB) error {
-	intentID, ok := factID(p, "cms_start_intent_id")
-	if !ok {
-		return invalidFact()
+func (service *Service) applyStartedFact(tx *gorm.DB, p models.JSONB) (bool, error) {
+	evidence, err := startEvidenceFromFact(p)
+	if err != nil {
+		return false, err
 	}
-	commandID, ok := factID(p, "cms_command_id")
-	if !ok {
-		return invalidFact()
-	}
-	halTx, ok := factID(p, "hal_transaction_id")
-	if !ok {
-		return invalidFact()
-	}
-	ocppID, ok := factInt(p, "ocpp_transaction_id")
-	if !ok || ocppID < 1 {
-		return invalidFact()
-	}
-	meter, ok := factInt(p, "meter_start_wh")
-	if !ok || meter < 0 {
-		return invalidFact()
-	}
-	started, ok := factTime(p, "started_at")
-	if !ok {
-		return invalidFact()
+	_, materialized, err := service.materializeAuthoritativeStart(tx, evidence)
+	return materialized, err
+}
+
+// MaterializeAuthoritativeStart is the reconciliation socket used after HAL
+// confirms a transaction by the exact CMS start-intent ID. It deliberately
+// shares the same transaction-local materializer as immutable fact ingress;
+// neither path can invent a session when HAL returns no transaction.
+func (service *Service) MaterializeAuthoritativeStart(ctx context.Context, evidence halops.StartEvidence) error {
+	return service.database.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		session, materialized, err := service.materializeAuthoritativeStart(tx, evidence)
+		if err != nil || !materialized || service.operationalEvents == nil {
+			return err
+		}
+		return service.emitStartedOperationalEvent(tx, *session)
+	})
+}
+
+func (service *Service) materializeAuthoritativeStart(tx *gorm.DB, evidence halops.StartEvidence) (*models.ChargingSession, bool, error) {
+	if evidence.HALTransactionID == uuid.Nil || evidence.HALCommandID == uuid.Nil || evidence.CMSCommandID == uuid.Nil || evidence.CMSStartIntentID == uuid.Nil || evidence.CPOID == uuid.Nil || evidence.CMSChargerID == uuid.Nil || evidence.CMSConnectorID == uuid.Nil || evidence.OCPPTransactionID < 1 || evidence.MeterStartWh < 0 || evidence.ActualStartedAt.IsZero() || strings.TrimSpace(evidence.ChargerOCPPIdentity) == "" || evidence.OCPPConnectorNumber < 1 {
+		return nil, false, invalidFact()
 	}
 	var intent models.ChargingStartIntent
-	if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&intent, "id = ?", intentID).Error; err != nil {
-		return invalidFact()
-	}
-	if intent.Status == constants.StartIntentStatusExpired || intent.Status == constants.StartIntentStatusRejected {
-		return &APIError{http.StatusConflict, "unsafe_hal_fact_transition", "The start intent cannot accept this fact."}
+	if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&intent, "id = ?", evidence.CMSStartIntentID).Error; err != nil {
+		return nil, false, invalidFact()
 	}
 	var command models.HALCommandRecord
-	if err := tx.First(&command, "cms_command_id = ? AND start_intent_id = ?", commandID, intent.ID).Error; err != nil {
-		return invalidFact()
+	if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&command, "cms_command_id = ? AND start_intent_id = ?", evidence.CMSCommandID, intent.ID).Error; err != nil {
+		return nil, false, invalidFact()
 	}
-	commandHALID, ok := factID(p, "hal_command_id")
-	if !ok || (command.HALCommandID != nil && *command.HALCommandID != commandHALID) {
-		return invalidFact()
+	if command.HALCommandID != nil && *command.HALCommandID != evidence.HALCommandID {
+		return nil, false, halops.NewFactProjectionError(409, "hal_start_evidence_conflict", "The HAL start evidence conflicts with the recorded command.", nil)
 	}
-	identity, ok := p["charger_ocpp_identity"].(string)
-	connectorNumber, connectorNumberOK := factInt(p, "ocpp_connector_number")
-	if !ok || !connectorNumberOK {
-		return invalidFact()
+	if intent.CPOID != evidence.CPOID || intent.ChargerID != evidence.CMSChargerID || intent.ConnectorID != evidence.CMSConnectorID {
+		return nil, false, halops.NewFactProjectionError(409, "hal_start_evidence_conflict", "The HAL start evidence conflicts with the recorded intent.", nil)
 	}
 	var charger models.Charger
 	var connector models.Connector
-	if tx.First(&charger, "id = ? AND cpo_id = ? AND ocpp_identity = ?", intent.ChargerID, intent.CPOID, identity).Error != nil ||
-		tx.First(&connector, "id = ? AND charger_id = ? AND cpo_id = ? AND connector_number = ?", intent.ConnectorID, intent.ChargerID, intent.CPOID, connectorNumber).Error != nil {
-		return invalidFact()
+	if tx.First(&charger, "id = ? AND cpo_id = ? AND ocpp_identity = ?", intent.ChargerID, intent.CPOID, evidence.ChargerOCPPIdentity).Error != nil ||
+		tx.First(&connector, "id = ? AND charger_id = ? AND cpo_id = ? AND connector_number = ?", intent.ConnectorID, intent.ChargerID, intent.CPOID, evidence.OCPPConnectorNumber).Error != nil {
+		return nil, false, invalidFact()
+	}
+	if intent.Status == constants.StartIntentStatusExpired || intent.Status == constants.StartIntentStatusRejected {
+		now := service.now()
+		if err := tx.Model(&command).Updates(map[string]any{"hal_command_id": evidence.HALCommandID, "state": "RECONCILIATION_REQUIRED", "last_error_category": "late_authoritative_start", "last_error_detail": "HAL confirmed a start after CMS terminalized the intent", "updated_at": now}).Error; err != nil {
+			return nil, false, err
+		}
+		if err := tx.Model(&intent).Updates(map[string]any{"status": constants.StartIntentStatusReconciliation, "hal_command_id": evidence.HALCommandID, "updated_at": now}).Error; err != nil {
+			return nil, false, err
+		}
+		return nil, false, nil
 	}
 	var session models.ChargingSession
 	if err := tx.First(&session, "start_intent_id = ?", intent.ID).Error; err == nil {
-		return nil
+		if session.CPOID != intent.CPOID || session.CustomerID != intent.CustomerID || session.ChargerID != intent.ChargerID || session.ConnectorID != intent.ConnectorID || session.HALTransactionID == nil || *session.HALTransactionID != evidence.HALTransactionID || session.TransactionID != evidence.OCPPTransactionID || session.MeterStartWh != evidence.MeterStartWh || !session.StartTime.Equal(evidence.ActualStartedAt) {
+			return nil, false, halops.NewFactProjectionError(409, "hal_start_evidence_conflict", "The HAL start evidence conflicts with the materialized session.", nil)
+		}
+		return &session, false, nil
 	} else if err != gorm.ErrRecordNotFound {
-		return err
+		return nil, false, err
 	}
-	session = materializedChargingSession(intent, ocppID, halTx, started, meter, service.now())
+	if intent.Status == constants.StartIntentStatusActuallyStarted || intent.MaterializedSessionID != nil {
+		return nil, false, halops.NewFactProjectionError(409, "hal_start_evidence_conflict", "The recorded start intent is incomplete or contradictory.", nil)
+	}
+	session = materializedChargingSession(intent, evidence.OCPPTransactionID, evidence.HALTransactionID, evidence.ActualStartedAt, evidence.MeterStartWh, service.now())
 	if err := tx.Create(&session).Error; err != nil {
-		return err
+		return nil, false, err
 	}
-	return tx.Model(&models.ChargingStartIntent{}).Where("id = ?", intent.ID).Updates(map[string]any{"status": constants.StartIntentStatusActuallyStarted, "materialized_session_id": session.ID, "updated_at": service.now()}).Error
+	now := service.now()
+	if err := tx.Model(&command).Updates(map[string]any{"hal_command_id": evidence.HALCommandID, "state": "MATERIALIZED", "last_error_category": "", "last_error_detail": "", "updated_at": now}).Error; err != nil {
+		return nil, false, err
+	}
+	if err := tx.Model(&intent).Updates(map[string]any{"status": constants.StartIntentStatusActuallyStarted, "materialized_session_id": session.ID, "hal_command_id": evidence.HALCommandID, "updated_at": now}).Error; err != nil {
+		return nil, false, err
+	}
+	return &session, true, nil
+}
+
+func startEvidenceFromFact(p models.JSONB) (halops.StartEvidence, error) {
+	intentID, intentOK := factID(p, "cms_start_intent_id")
+	commandID, commandOK := factID(p, "cms_command_id")
+	halCommandID, halCommandOK := factID(p, "hal_command_id")
+	halTransactionID, halTransactionOK := factID(p, "hal_transaction_id")
+	cpoID, cpoOK := factID(p, "cpo_id")
+	chargerID, chargerOK := factID(p, "cms_charger_id")
+	connectorID, connectorOK := factID(p, "cms_connector_id")
+	ocppID, ocppOK := factInt(p, "ocpp_transaction_id")
+	meter, meterOK := factInt(p, "meter_start_wh")
+	startedAt, startedOK := factTime(p, "started_at")
+	identity, identityOK := p["charger_ocpp_identity"].(string)
+	connectorNumber, connectorNumberOK := factInt(p, "ocpp_connector_number")
+	if !intentOK || !commandOK || !halCommandOK || !halTransactionOK || !cpoOK || !chargerOK || !connectorOK || !ocppOK || !meterOK || !startedOK || !identityOK || !connectorNumberOK {
+		return halops.StartEvidence{}, invalidFact()
+	}
+	return halops.StartEvidence{HALTransactionID: halTransactionID, HALCommandID: halCommandID, CMSCommandID: commandID, CMSStartIntentID: intentID, CPOID: cpoID, CMSChargerID: chargerID, CMSConnectorID: connectorID, ChargerOCPPIdentity: identity, OCPPConnectorNumber: int(connectorNumber), OCPPTransactionID: ocppID, MeterStartWh: meter, ActualStartedAt: startedAt}, nil
+}
+
+func (service *Service) emitStartedOperationalEvent(tx *gorm.DB, session models.ChargingSession) error {
+	_, err := service.operationalEvents.Emit(tx, operationalrealtime.Input{CPOID: session.CPOID, CustomerID: &session.CustomerID, Type: "charging.session_changed", ResourceType: "CHARGING_SESSION", ResourceID: session.ID.String(), Data: models.JSONB{}})
+	return err
 }
 
 // materializedChargingSession copies the commercial decision already frozen on
@@ -482,7 +537,7 @@ func factTime(p models.JSONB, key string) (time.Time, bool) {
 	return t, e == nil
 }
 func invalidFact() error {
-	return &APIError{http.StatusUnprocessableEntity, "invalid_hal_fact", "The HAL fact cannot be safely applied."}
+	return halops.NewFactProjectionError(422, "invalid_hal_fact", "The HAL fact cannot be safely applied.", nil)
 }
 func stringValue(p models.JSONB, key, def string) string {
 	v, ok := p[key].(string)

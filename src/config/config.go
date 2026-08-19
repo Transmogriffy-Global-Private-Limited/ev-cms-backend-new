@@ -97,6 +97,7 @@ type HAL struct {
 	RequestTimeout       time.Duration
 	MeterStaleAfter      time.Duration
 	ConnectionStaleAfter time.Duration
+	StartReconcileAfter  time.Duration
 }
 
 func Load() (Config, error) {
@@ -176,6 +177,7 @@ func Load() (Config, error) {
 			RequestTimeout:       durationOrDefault("HAL_V1_REQUEST_TIMEOUT", 5*time.Second),
 			MeterStaleAfter:      durationOrDefault("HAL_V1_METER_STALE_AFTER", 30*time.Second),
 			ConnectionStaleAfter: durationOrDefault("HAL_V1_CONNECTION_STALE_AFTER", 15*time.Minute),
+			StartReconcileAfter:  durationOrDefault("HAL_V1_START_RECONCILE_AFTER", 2*time.Minute),
 		},
 	}
 
@@ -244,7 +246,7 @@ func (cfg Config) Validate() error {
 	if cfg.HAL.BaseURL != "" && (cfg.HAL.CMSBearerToken == "" || cfg.HAL.FactBearerToken == "") {
 		return errors.New("HAL_V1_CMS_BEARER_TOKEN and HAL_V1_CMS_FACT_BEARER_TOKEN are required when HAL_V1_BASE_URL is set")
 	}
-	if cfg.HAL.BaseURL != "" && (cfg.HAL.RequestTimeout <= 0 || cfg.HAL.MeterStaleAfter <= 0 || cfg.HAL.ConnectionStaleAfter <= 0) {
+	if cfg.HAL.BaseURL != "" && (cfg.HAL.RequestTimeout <= 0 || cfg.HAL.MeterStaleAfter <= 0 || cfg.HAL.ConnectionStaleAfter <= 0 || cfg.HAL.StartReconcileAfter <= 0) {
 		return errors.New("HAL v1 durations must be positive")
 	}
 

@@ -25,6 +25,8 @@ type Service struct {
 	client                    *halclient.Client
 	now                       func() time.Time
 	startCommandAbsentHandler StartCommandAbsentHandler
+	startMaterializer         StartMaterializer
+	startReconcileAfter       time.Duration
 }
 
 // StartCommandAbsentHandler lets the charging domain own the financial
@@ -32,12 +34,35 @@ type Service struct {
 // customerauth. The handler must be transactional and idempotent.
 type StartCommandAbsentHandler func(context.Context, uuid.UUID) error
 
+// StartEvidence is HAL's durable, authoritative OCPP start truth normalized
+// for the CMS business projection. It is transport-neutral so the same
+// materializer serves immutable fact ingestion and exact HAL lookup recovery.
+type StartEvidence struct {
+	HALTransactionID    uuid.UUID
+	HALCommandID        uuid.UUID
+	CMSCommandID        uuid.UUID
+	CMSStartIntentID    uuid.UUID
+	CPOID               uuid.UUID
+	CMSChargerID        uuid.UUID
+	CMSConnectorID      uuid.UUID
+	ChargerOCPPIdentity string
+	OCPPConnectorNumber int
+	OCPPTransactionID   int64
+	MeterStartWh        int64
+	ActualStartedAt     time.Time
+}
+
+// StartMaterializer belongs to the charging domain because it owns sessions,
+// wallet holds, and customer-visible projection state. halops only discovers
+// durable HAL truth and invokes this explicit socket.
+type StartMaterializer func(context.Context, StartEvidence) error
+
 // ErrCommandNotFound is returned only when HAL's exact CMS command lookup
 // responds with HTTP 404. It is authoritative absence, not a transport error.
 var ErrCommandNotFound = errors.New("HAL command not found")
 
 func New(database *gorm.DB, cfg config.HAL) *Service {
-	return &Service{database: database, client: halclient.New(cfg), now: func() time.Time { return time.Now().UTC() }}
+	return &Service{database: database, client: halclient.New(cfg), now: func() time.Time { return time.Now().UTC() }, startReconcileAfter: cfg.StartReconcileAfter}
 }
 
 func (service *Service) Available() bool {
@@ -48,6 +73,11 @@ func (service *Service) Available() bool {
 // owner of start-intent and wallet-hold state.
 func (service *Service) WithStartCommandAbsentHandler(handler StartCommandAbsentHandler) *Service {
 	service.startCommandAbsentHandler = handler
+	return service
+}
+
+func (service *Service) WithStartMaterializer(materializer StartMaterializer) *Service {
+	service.startMaterializer = materializer
 	return service
 }
 
@@ -278,7 +308,91 @@ func (service *Service) ReconcilePending(ctx context.Context, limit int) error {
 		}
 		service.recordCommandLookupFailure(ctx, command.CMSCommandID, err)
 	}
+	return service.reconcileStrandedStarts(ctx, limit)
+}
+
+// reconcileStrandedStarts closes the gap in which HAL accepted/delivered a
+// start and later materialized charger truth, but the immutable fact never
+// became a CMS projection. It queries only the exact CMS start-intent ID; a
+// 404 is absence of HAL transaction truth, never permission to fabricate one.
+func (service *Service) reconcileStrandedStarts(ctx context.Context, limit int) error {
+	if service.startMaterializer == nil || !service.Available() {
+		return nil
+	}
+	after := service.startReconcileAfter
+	if after <= 0 {
+		after = 2 * time.Minute
+	}
+	var intents []models.ChargingStartIntent
+	if err := service.database.WithContext(ctx).
+		Where("status IN ? AND materialized_session_id IS NULL AND updated_at <= ?", []string{"ACCEPTED_FOR_DELIVERY", "PROTOCOL_ACKNOWLEDGED", "RECONCILIATION_REQUIRED"}, service.now().Add(-after)).
+		Order("updated_at ASC").Limit(limit).Find(&intents).Error; err != nil {
+		return fmt.Errorf("list stranded HAL start intents: %w", err)
+	}
+	for _, intent := range intents {
+		transaction, err := service.client.GetTransactionByStartIntent(ctx, intent.ID)
+		if err == nil {
+			command, commandErr := service.ReconcileCommand(ctx, transaction.CMSCommandID)
+			if commandErr != nil {
+				service.markStartReconciliation(ctx, intent.ID, commandLookupFailureDetail(commandErr))
+				continue
+			}
+			evidence, conversionErr := startEvidenceFromTransaction(transaction, command.HALCommandID)
+			if conversionErr != nil {
+				service.markStartReconciliation(ctx, intent.ID, "HAL transaction lookup returned invalid authoritative start evidence")
+				continue
+			}
+			if evidence.CMSStartIntentID != intent.ID {
+				service.markStartReconciliation(ctx, intent.ID, "HAL transaction lookup returned a different start intent")
+				continue
+			}
+			if err := service.startMaterializer(ctx, evidence); err != nil {
+				return fmt.Errorf("materialize reconciled HAL start %s: %w", intent.ID, err)
+			}
+			continue
+		}
+		if isHALHTTPStatus(err, 404) {
+			// Reconcile exact command state before making the unresolved outcome
+			// customer-visible. A command response may still become late evidence.
+			service.reconcileStartCommandAfterMissingTransaction(ctx, intent.ID)
+			continue
+		}
+		service.markStartReconciliation(ctx, intent.ID, commandLookupFailureDetail(err))
+	}
 	return nil
+}
+
+func startEvidenceFromTransaction(transaction halclient.Transaction, halCommandID uuid.UUID) (StartEvidence, error) {
+	if transaction.HALTransactionID == uuid.Nil || transaction.CMSStartIntentID == uuid.Nil || transaction.CMSCommandID == uuid.Nil || transaction.CPOID == uuid.Nil || transaction.CMSChargerID == uuid.Nil || transaction.CMSConnectorID == uuid.Nil || transaction.OCPPTransactionID < 1 || transaction.MeterStartWh < 0 || transaction.ActualStartedAt.IsZero() || transaction.OCPPConnectorNumber < 1 || transaction.ChargerOCPPIdentity == "" {
+		return StartEvidence{}, errors.New("HAL transaction lookup omitted required start evidence")
+	}
+	if halCommandID == uuid.Nil {
+		return StartEvidence{}, errors.New("HAL command lookup omitted HAL command identity")
+	}
+	return StartEvidence{HALTransactionID: transaction.HALTransactionID, HALCommandID: halCommandID, CMSCommandID: transaction.CMSCommandID, CMSStartIntentID: transaction.CMSStartIntentID, CPOID: transaction.CPOID, CMSChargerID: transaction.CMSChargerID, CMSConnectorID: transaction.CMSConnectorID, ChargerOCPPIdentity: transaction.ChargerOCPPIdentity, OCPPConnectorNumber: transaction.OCPPConnectorNumber, OCPPTransactionID: transaction.OCPPTransactionID, MeterStartWh: transaction.MeterStartWh, ActualStartedAt: transaction.ActualStartedAt}, nil
+}
+
+func (service *Service) reconcileStartCommandAfterMissingTransaction(ctx context.Context, intentID uuid.UUID) {
+	var command models.HALCommandRecord
+	if err := service.database.WithContext(ctx).First(&command, "start_intent_id = ? AND kind = ?", intentID, "START").Error; err != nil {
+		service.markStartReconciliation(ctx, intentID, "CMS start command could not be loaded for exact HAL reconciliation")
+		return
+	}
+	if _, err := service.ReconcileCommand(ctx, command.CMSCommandID); err != nil && !errors.Is(err, ErrCommandNotFound) {
+		service.markStartReconciliation(ctx, intentID, commandLookupFailureDetail(err))
+		return
+	}
+	service.markStartReconciliation(ctx, intentID, "HAL has no materialized transaction for the start intent; exact command reconciliation remains required")
+}
+
+func (service *Service) markStartReconciliation(ctx context.Context, intentID uuid.UUID, detail string) {
+	now := service.now()
+	_ = service.database.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Model(&models.HALCommandRecord{}).Where("start_intent_id = ? AND kind = ? AND state <> ?", intentID, "START", "MATERIALIZED").Updates(map[string]any{"state": "RECONCILIATION_REQUIRED", "last_error_category": "start_projection_reconciliation", "last_error_detail": detail, "updated_at": now}).Error; err != nil {
+			return err
+		}
+		return tx.Model(&models.ChargingStartIntent{}).Where("id = ? AND status IN ? AND materialized_session_id IS NULL", intentID, []string{"ACCEPTED_FOR_DELIVERY", "PROTOCOL_ACKNOWLEDGED", "RECONCILIATION_REQUIRED"}).Updates(map[string]any{"status": "RECONCILIATION_REQUIRED", "updated_at": now}).Error
+	})
 }
 
 func (service *Service) RunReconciler(ctx context.Context, interval time.Duration) {

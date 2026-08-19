@@ -713,6 +713,14 @@ connection state/time, connector OCPP status/time/freshness, stop progress, and
 completion time. Values are committed actual evidence; never interpolate power,
 current, voltage, SOC, or meter data.
 
+Do not leave the charging screen indefinitely in an optimistic "starting"
+state. `ACCEPTED_FOR_DELIVERY` and `PROTOCOL_ACKNOWLEDGED` mean delivery or
+protocol acknowledgement, not charging. If the same intent becomes
+`RECONCILIATION_REQUIRED`, show that CMS is confirming charger truth and keep
+polling it; do not submit another start. Only `ACTUALLY_STARTED` with a
+`session_id` transitions to the active-session screen. `REJECTED` and
+`EXPIRED` are terminal and require a fresh customer action.
+
 `POST /charging-sessions/{session_id}/stop` accepts optional 200-character
 `reason` and returns `202` after durable stop request creation. It means
 STOPPING/requested, not completion. `transaction.completed` is the only

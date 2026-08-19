@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"strings"
 
+	cmsmiddleware "github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/middleware"
 	"github.com/gin-gonic/gin"
 )
 
@@ -40,8 +41,16 @@ func RegisterFactRoutes(group *gin.RouterGroup, ingestor *FactIngestor) {
 func writeFactError(ctx *gin.Context, err error) {
 	var factError *FactError
 	if errors.As(err, &factError) {
+		cmsmiddleware.LogHandledError(ctx, "hal_facts", factError.Code, factError.Status, err)
 		ctx.JSON(factError.Status, gin.H{"error": gin.H{"code": factError.Code, "message": factError.Message}})
 		return
 	}
+	var projectionError *FactProjectionError
+	if errors.As(err, &projectionError) {
+		cmsmiddleware.LogHandledError(ctx, "hal_facts", projectionError.Code, projectionError.Status, err)
+		ctx.JSON(projectionError.Status, gin.H{"error": gin.H{"code": projectionError.Code, "message": projectionError.Message}})
+		return
+	}
+	cmsmiddleware.LogHandledError(ctx, "hal_facts", "internal_error", http.StatusInternalServerError, err)
 	ctx.JSON(http.StatusInternalServerError, gin.H{"error": gin.H{"code": "internal_error", "message": "The HAL fact could not be processed."}})
 }

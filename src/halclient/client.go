@@ -101,6 +101,23 @@ type Command struct {
 	UpdatedAt         time.Time  `json:"updated_at"`
 }
 
+// Transaction is the exact authoritative start truth returned by HAL's
+// service-only reconciliation lookup. CMS never derives these identities from
+// a charger, command response, or timeout.
+type Transaction struct {
+	HALTransactionID    uuid.UUID `json:"hal_transaction_id"`
+	CMSStartIntentID    uuid.UUID `json:"cms_start_intent_id"`
+	CMSCommandID        uuid.UUID `json:"cms_command_id"`
+	CPOID               uuid.UUID `json:"cpo_id"`
+	CMSChargerID        uuid.UUID `json:"cms_charger_id"`
+	CMSConnectorID      uuid.UUID `json:"cms_connector_id"`
+	ChargerOCPPIdentity string    `json:"charger_ocpp_identity"`
+	OCPPConnectorNumber int       `json:"ocpp_connector_number"`
+	OCPPTransactionID   int64     `json:"ocpp_transaction_id"`
+	ActualStartedAt     time.Time `json:"actual_started_at"`
+	MeterStartWh        int64     `json:"meter_start_wh"`
+}
+
 func (client *Client) SyncMapping(ctx context.Context, mapping ChargerMapping, correlationID string) error {
 	return client.mutate(ctx, http.MethodPut, "/v1/mappings/chargers/"+mapping.CMSChargerID.String(), mapping.CMSChargerID.String(), correlationID, mapping, nil)
 }
@@ -123,6 +140,16 @@ func (client *Client) GetCommand(ctx context.Context, id uuid.UUID) (Command, er
 		return Command{}, err
 	}
 	return command, nil
+}
+
+func (client *Client) GetTransactionByStartIntent(ctx context.Context, id uuid.UUID) (Transaction, error) {
+	var wrapper struct {
+		Transaction Transaction `json:"transaction"`
+	}
+	if err := client.requestJSON(ctx, http.MethodGet, "/v1/transactions?cms_start_intent_id="+url.QueryEscape(id.String()), nil, &wrapper); err != nil {
+		return Transaction{}, err
+	}
+	return wrapper.Transaction, nil
 }
 
 func (client *Client) mutate(ctx context.Context, method, path, idempotency, correlation string, body any, target any) error {
@@ -186,6 +213,47 @@ func (client *Client) request(ctx context.Context, method, path, idempotency, co
 	}
 	if err := json.Unmarshal(wrapper.Command, target); err != nil {
 		return fmt.Errorf("decode HAL v1 command: %w", err)
+	}
+	return nil
+}
+
+func (client *Client) requestJSON(ctx context.Context, method, path string, body any, target any) error {
+	if !client.Available() {
+		return ErrUnavailable
+	}
+	var reader io.Reader
+	if body != nil {
+		raw, err := json.Marshal(body)
+		if err != nil {
+			return fmt.Errorf("marshal HAL v1 request: %w", err)
+		}
+		reader = bytes.NewReader(raw)
+	}
+	req, err := http.NewRequestWithContext(ctx, method, client.baseURL+path, reader)
+	if err != nil {
+		return fmt.Errorf("create HAL v1 request: %w", err)
+	}
+	req.Header.Set("Authorization", "Bearer "+client.bearer)
+	if body != nil {
+		req.Header.Set("Content-Type", "application/json")
+	}
+	response, err := client.http.Do(req)
+	if err != nil {
+		return fmt.Errorf("send HAL v1 request: %w", err)
+	}
+	defer response.Body.Close()
+	if response.StatusCode < 200 || response.StatusCode >= 300 {
+		var errorBody struct {
+			Error string `json:"error"`
+		}
+		_ = json.NewDecoder(io.LimitReader(response.Body, 32*1024)).Decode(&errorBody)
+		return &HTTPError{Status: response.StatusCode, Code: errorBody.Error}
+	}
+	if target == nil {
+		return nil
+	}
+	if err := json.NewDecoder(io.LimitReader(response.Body, 64*1024)).Decode(target); err != nil {
+		return fmt.Errorf("decode HAL v1 response: %w", err)
 	}
 	return nil
 }

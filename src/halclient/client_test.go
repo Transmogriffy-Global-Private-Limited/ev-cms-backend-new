@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/config"
 	"github.com/google/uuid"
@@ -33,6 +34,30 @@ func TestMutationsSendCMSCorrelationAndIdempotencyHeaders(t *testing.T) {
 	}
 	if requestCount.Load() != 1 || correlationID != "cms-request-id" || idempotencyKey != chargerID.String() {
 		t.Fatalf("headers/calls = correlation %q idempotency %q calls %d", correlationID, idempotencyKey, requestCount.Load())
+	}
+}
+
+func TestGetTransactionByStartIntentDecodesAuthoritativeHALTruth(t *testing.T) {
+	transactionID, intentID, commandID := uuid.New(), uuid.New(), uuid.New()
+	cpoID, chargerID, connectorID := uuid.New(), uuid.New(), uuid.New()
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		if request.URL.Path != "/v1/transactions" || request.URL.Query().Get("cms_start_intent_id") != intentID.String() {
+			t.Fatalf("unexpected lookup %s", request.URL.String())
+		}
+		if request.Header.Get("Authorization") != "Bearer test" {
+			t.Fatal("missing HAL service authentication")
+		}
+		writer.Header().Set("Content-Type", "application/json")
+		_, _ = writer.Write([]byte(`{"transaction":{"hal_transaction_id":"` + transactionID.String() + `","cms_start_intent_id":"` + intentID.String() + `","cms_command_id":"` + commandID.String() + `","cpo_id":"` + cpoID.String() + `","cms_charger_id":"` + chargerID.String() + `","cms_connector_id":"` + connectorID.String() + `","charger_ocpp_identity":"charger-1","ocpp_connector_number":1,"ocpp_transaction_id":42,"actual_started_at":"2026-08-19T10:00:00Z","meter_start_wh":100}}`))
+	}))
+	defer server.Close()
+
+	transaction, err := New(config.HAL{BaseURL: server.URL, CMSBearerToken: "test", RequestTimeout: time.Second}).GetTransactionByStartIntent(context.Background(), intentID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if transaction.HALTransactionID != transactionID || transaction.CMSStartIntentID != intentID || transaction.CMSCommandID != commandID || transaction.OCPPTransactionID != 42 || transaction.MeterStartWh != 100 {
+		t.Fatalf("decoded transaction = %#v", transaction)
 	}
 }
 

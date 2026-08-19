@@ -188,6 +188,7 @@ func TestHALConnectionFreshnessConfigurationValidation(t *testing.T) {
 		RequestTimeout:       5 * time.Second,
 		MeterStaleAfter:      30 * time.Second,
 		ConnectionStaleAfter: 15 * time.Minute,
+		StartReconcileAfter:  2 * time.Minute,
 	}
 	if err := cfg.Validate(); err != nil {
 		t.Fatalf("valid HAL freshness configuration failed: %v", err)

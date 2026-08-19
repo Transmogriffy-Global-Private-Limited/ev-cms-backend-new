@@ -115,6 +115,11 @@ Active work:
 
 Current implementation state:
 
+- Source now classifies deterministic HAL fact projection rejections as 4xx/409
+  and uses the existing exact HAL transaction-by-start-intent socket to recover
+  old unmaterialized starts through the same materializer as fact ingress. The
+  remaining disposable-PostgreSQL and dual-service acceptance work is required
+  before this is treated as deployed/verified.
 - Charging-start reconciliation correction is deployed: mapping
   is a pre-command prerequisite, attempted-delivery ambiguity remains exact-ID
   reconciliation, and a typed exact HAL command 404 terminalizes only an
