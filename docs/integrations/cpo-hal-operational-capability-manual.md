@@ -223,13 +223,17 @@ func (s *liveops.Service) GetSession(ctx context.Context, cpoID, sessionID uuid.
 func (s *liveops.Service) GetFleet(ctx context.Context, cpoID uuid.UUID) (FleetState, error)
 ```
 
-`halclient` attaches the CMS bearer, JSON body, `Idempotency-Key`, and optional
-`X-Correlation-ID`; its client timeout is `HAL_V1_REQUEST_TIMEOUT`. Mutating
-calls use the CMS mapping/command ID as their idempotency key. A timeout means
-delivery is unknown, not that it is safe to send another command. It returns a
-typed `HTTPError` for non-2xx provider response and `ErrUnavailable` when base
-URL/bearer is absent. `GetCommand` is the sole recovery lookup and queries
-`GET /v1/remote-commands?cms_command_id=...`.
+`halclient` attaches the CMS bearer, JSON body, `Idempotency-Key`, and a
+required non-empty `X-Correlation-ID` for every mutation; its client timeout is
+`HAL_V1_REQUEST_TIMEOUT`. HTTP-originated calls use the CMS `RequestLogger`
+request ID from Gin context, not an optional client `X-Request-ID` header.
+Mutating calls use the CMS mapping/command ID as their idempotency key. A
+timeout means delivery is unknown, not that it is safe to send another command.
+It returns a typed `HTTPError` for non-2xx provider response,
+`ErrUnavailable` when base URL/bearer is absent, and
+`ErrMissingCorrelationID` locally before an invalid mutation is sent.
+`GetCommand` is the sole recovery lookup and queries
+`GET /v1/remote-commands?cms_command_id=...` without a correlation header.
 
 ## Persistence map and consumer comparison
 
@@ -406,9 +410,12 @@ func (c *halclient.Client) GetCommand(ctx context.Context, id uuid.UUID) (Comman
 ```
 
 It sends JSON to the configured HAL base URL with the CMS bearer,
-`Idempotency-Key`, and optional `X-Correlation-ID`. Mapping uses the CMS charger
-UUID as idempotency key; start/stop use `cms_command_id`. Missing base URL or
-command bearer gives `halclient.ErrUnavailable`; non-2xx gives
+`Idempotency-Key`, and a required non-empty `X-Correlation-ID` for mutations.
+Mapping uses the CMS charger UUID as idempotency key; start/stop use
+`cms_command_id`. HTTP-originated callers use the CMS-generated request ID;
+the User App is not required to supply `X-Request-ID`. Missing base URL or
+command bearer gives `halclient.ErrUnavailable`; empty correlation gives
+`halclient.ErrMissingCorrelationID` without sending HTTP; non-2xx gives
 `*halclient.HTTPError`; timeout is unknown delivery, not a safe retry with a
 new identity. It is **PRIVATE TRANSPORT — DO NOT CALL FROM CPO CODE**.
 

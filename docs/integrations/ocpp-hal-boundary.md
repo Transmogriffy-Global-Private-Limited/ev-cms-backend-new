@@ -81,6 +81,13 @@ No token, raw credential, authorization header, or fact body is logged. The
 HAL client does not retry a mutating command with a new identity. A caller
 reconciles the same command identity after a transport ambiguity.
 
+For an HTTP-originated mapping, start, or stop mutation, CMS `RequestLogger`
+generates the canonical request ID, stores it in Gin context, and the charging
+handler forwards that value as `X-Correlation-ID`. The User App does not need
+to send `X-Request-ID`; a client value is not the CMS-to-HAL correlation
+authority. The CMS HAL client rejects an empty correlation ID before sending a
+mutation, while non-mutating exact-command lookup remains correlation-free.
+
 ## Start-command failure and reconciliation states
 
 `RECONCILIATION_REQUIRED` is active only while the outcome of an already

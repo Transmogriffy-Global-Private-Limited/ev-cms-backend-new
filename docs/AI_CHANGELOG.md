@@ -1,5 +1,25 @@
 # AI Changelog
 
+## 2026-08-19 - CMS-generated HAL mutation correlation correction
+
+- Corrected both User App charging handlers to pass the canonical
+  server-generated `RequestLogger` ID from Gin context into CMS/HAL mapping,
+  start, and stop work. The prior code read the incoming `X-Request-ID`
+  header, so an ordinary client request supplied an empty correlation value.
+- CMS-to-HAL mutation correctness no longer depends on a frontend header.
+  The HAL client now rejects an empty or whitespace-only mutation correlation
+  locally; non-mutating command lookup remains unchanged. No charging,
+  wallet, tariff, GST, OCPP, or reconciliation state-machine semantics changed.
+
+Verification:
+
+- Added handler tests proving CMS-generated correlation reaches both start and
+  stop service calls without a client header and does not trust a supplied
+  client request ID. Added HAL transport tests for correlation/idempotency
+  headers and the no-HTTP empty-correlation guard.
+- Source-only change: no migration, VPS/runtime database access, deployment,
+  rehost, or restart occurred during implementation.
+
 ## 2026-08-19 - Charging-start prerequisite and exact-absence recovery correction
 
 - Moved customer-start mapping synchronization ahead of commercial admission;

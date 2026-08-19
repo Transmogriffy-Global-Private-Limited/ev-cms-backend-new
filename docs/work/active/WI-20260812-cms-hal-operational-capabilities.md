@@ -86,6 +86,10 @@ Establish reusable CMS capabilities over HAL-derived operational truth and expos
   customer-charging transaction that releases only a HELD hold and marks the
   unmaterialized START `REJECTED`/`EXPIRED` plus `CONFIRMED_ABSENT`; lookup
   infrastructure errors and all STOP absence remain reconciliation-required.
+- Charging HTTP handlers now take the server-generated `RequestLogger` ID from
+  Gin context for HAL mapping/start/stop correlation. A User App
+  `X-Request-ID` is neither required nor authoritative; `halclient` rejects an
+  empty mutation correlation locally before it can reach HAL.
 
 ## Verification
 
@@ -124,6 +128,9 @@ Establish reusable CMS capabilities over HAL-derived operational truth and expos
   unset. `go test -p 1 ./...`, `go vet ./...`, focused route/OpenAPI parity,
   `git diff --check`, and `scripts/verify-docs.ps1` pass after reconciling the
   verifier baseline to the authoritative 187-operation schema.
+- 2026-08-19 request-correlation correction: focused customerauth handler,
+  middleware, and halclient tests prove CMS-generated IDs reach Start/Stop,
+  client IDs are not trusted, and empty mutation correlation sends no HTTP.
 
 ## Handoff
 
