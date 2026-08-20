@@ -2,6 +2,8 @@ package customerauth
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"strings"
 	"time"
 
@@ -462,47 +464,108 @@ func (service *Service) applyCompletedFact(tx *gorm.DB, p models.JSONB) error {
 	if !ok || ocppID != session.TransactionID {
 		return invalidFact()
 	}
-	var hold models.WalletHold
-	if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&hold, "start_intent_id = ?", session.StartIntentID).Error; err != nil {
-		return err
-	}
 	amount, err := chargingAmount(session.TariffSnapshot, session.TaxSnapshot, meterStop-session.MeterStartWh, session.StartTime, stopped)
 	if err != nil {
 		return err
 	}
-	if amount.GreaterThan(hold.Amount) {
-		return tx.Model(&hold).Updates(map[string]any{"status": constants.WalletHoldStatusReconciling, "updated_at": service.now()}).Error
+	updates := map[string]any{"meter_stop_wh": meterStop, "latest_meter_wh": meterStop, "meter_observed_at": stopped, "end_time": stopped, "total_kwh": decimal.NewFromInt(meterStop - session.MeterStartWh).Div(decimal.NewFromInt(1000)), "total_amount": amount, "status": constants.SessionStatusReconciliationRequired, "settlement_status": "RECONCILIATION_REQUIRED", "updated_at": service.now()}
+	if reason, ok := factString(p, "stop_reason"); ok {
+		updates["stop_reason"] = reason
 	}
-	if amount.IsZero() {
-		// Wallet ledger rows deliberately require a positive amount. A free
-		// session therefore captures its zero hold and completes without a
-		// synthetic debit/payment, leaving the wallet unchanged.
-		if err := tx.Model(&hold).Updates(map[string]any{"status": constants.WalletHoldStatusCaptured, "captured_at": service.now(), "updated_at": service.now()}).Error; err != nil {
+	if err := tx.Model(&session).Updates(updates).Error; err != nil {
+		return err
+	}
+	session.MeterStopWh, session.LatestMeterWh, session.MeterObservedAt, session.EndTime, session.TotalAmount = &meterStop, &meterStop, &stopped, &stopped, amount
+	session.TotalKWh, session.Status, session.SettlementStatus = decimal.NewFromInt(meterStop-session.MeterStartWh).Div(decimal.NewFromInt(1000)), constants.SessionStatusReconciliationRequired, "RECONCILIATION_REQUIRED"
+	return service.settleCompletedSession(tx, &session)
+}
+
+// settleCompletedSession is called under the session transaction by both the
+// immutable completion fact and bounded recovery. Its payment identity is the
+// session ID, so retries cannot debit a wallet twice.
+func (service *Service) settleCompletedSession(tx *gorm.DB, session *models.ChargingSession) error {
+	if session.EndTime == nil || session.MeterStopWh == nil {
+		return errors.New("completed settlement lacks terminal session evidence")
+	}
+	var hold models.WalletHold
+	if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&hold, "start_intent_id = ?", session.StartIntentID).Error; err != nil {
+		return err
+	}
+	now := service.now()
+	markReconciliation := func() error {
+		if err := tx.Model(&hold).Updates(map[string]any{"status": constants.WalletHoldStatusReconciling, "updated_at": now}).Error; err != nil {
 			return err
 		}
-		return tx.Model(&session).Updates(map[string]any{"meter_stop_wh": meterStop, "latest_meter_wh": meterStop, "meter_observed_at": stopped, "end_time": stopped, "total_kwh": decimal.NewFromInt(meterStop - session.MeterStartWh).Div(decimal.NewFromInt(1000)), "total_amount": decimal.Zero, "status": constants.SessionStatusCompleted, "settlement_status": "SETTLED", "updated_at": service.now()}).Error
+		return tx.Model(&models.ChargingSession{}).Where("id = ?", session.ID).Updates(map[string]any{"status": constants.SessionStatusReconciliationRequired, "settlement_status": "RECONCILIATION_REQUIRED", "updated_at": now}).Error
+	}
+	var payment models.Payment
+	err := tx.First(&payment, "session_id = ?", session.ID).Error
+	if err == nil {
+		if err := tx.Model(&hold).Updates(map[string]any{"status": constants.WalletHoldStatusCaptured, "captured_at": now, "updated_at": now}).Error; err != nil {
+			return err
+		}
+		return tx.Model(&models.ChargingSession{}).Where("id = ?", session.ID).Updates(map[string]any{"status": constants.SessionStatusCompleted, "settlement_status": "SETTLED", "updated_at": now}).Error
+	}
+	if !errors.Is(err, gorm.ErrRecordNotFound) {
+		return err
+	}
+	if session.TotalAmount.GreaterThan(hold.Amount) {
+		return markReconciliation()
+	}
+	if session.TotalAmount.IsZero() {
+		if err := tx.Model(&hold).Updates(map[string]any{"status": constants.WalletHoldStatusCaptured, "captured_at": now, "updated_at": now}).Error; err != nil {
+			return err
+		}
+		return tx.Model(&models.ChargingSession{}).Where("id = ?", session.ID).Updates(map[string]any{"status": constants.SessionStatusCompleted, "settlement_status": "SETTLED", "updated_at": now}).Error
 	}
 	var wallet models.Wallet
 	if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&wallet, "id = ?", hold.WalletID).Error; err != nil {
 		return err
 	}
-	if wallet.Balance.LessThan(amount) {
-		return tx.Model(&hold).Updates(map[string]any{"status": constants.WalletHoldStatusReconciling, "updated_at": service.now()}).Error
+	if wallet.Balance.LessThan(session.TotalAmount) {
+		return markReconciliation()
 	}
-	ledger := models.WalletTransaction{ID: uuid.New(), CPOID: session.CPOID, WalletID: wallet.ID, SessionID: &session.ID, Amount: amount, TransactionType: constants.WalletTransactionTypeDebit, Description: "Charging session settlement", IdempotencyKey: chargingStringPtr("charging-settlement-" + session.ID.String()), Status: constants.FinancialStatusCompleted, CreatedAt: service.now(), UpdatedAt: service.now()}
+	ledger := models.WalletTransaction{ID: uuid.New(), CPOID: session.CPOID, WalletID: wallet.ID, SessionID: &session.ID, Amount: session.TotalAmount, TransactionType: constants.WalletTransactionTypeDebit, Description: "Charging session settlement", IdempotencyKey: chargingStringPtr("charging-settlement-" + session.ID.String()), Status: constants.FinancialStatusCompleted, CreatedAt: now, UpdatedAt: now}
 	if err := tx.Create(&ledger).Error; err != nil {
 		return err
 	}
-	if err := tx.Create(&models.Payment{ID: uuid.New(), CPOID: session.CPOID, SessionID: session.ID, WalletTransactionID: ledger.ID, Amount: amount, PaymentMethod: "WALLET", Status: constants.FinancialStatusCompleted, CreatedAt: service.now(), UpdatedAt: service.now()}).Error; err != nil {
+	if err := tx.Create(&models.Payment{ID: uuid.New(), CPOID: session.CPOID, SessionID: session.ID, WalletTransactionID: ledger.ID, Amount: session.TotalAmount, PaymentMethod: "WALLET", Status: constants.FinancialStatusCompleted, CreatedAt: now, UpdatedAt: now}).Error; err != nil {
 		return err
 	}
-	if err := tx.Model(&wallet).Updates(map[string]any{"balance": wallet.Balance.Sub(amount), "updated_at": service.now()}).Error; err != nil {
+	if err := tx.Model(&wallet).Updates(map[string]any{"balance": wallet.Balance.Sub(session.TotalAmount), "updated_at": now}).Error; err != nil {
 		return err
 	}
-	if err := tx.Model(&hold).Updates(map[string]any{"status": constants.WalletHoldStatusCaptured, "captured_at": service.now(), "updated_at": service.now()}).Error; err != nil {
+	if err := tx.Model(&hold).Updates(map[string]any{"status": constants.WalletHoldStatusCaptured, "captured_at": now, "updated_at": now}).Error; err != nil {
 		return err
 	}
-	return tx.Model(&session).Updates(map[string]any{"meter_stop_wh": meterStop, "latest_meter_wh": meterStop, "meter_observed_at": stopped, "end_time": stopped, "total_kwh": decimal.NewFromInt(meterStop - session.MeterStartWh).Div(decimal.NewFromInt(1000)), "total_amount": amount, "status": constants.SessionStatusCompleted, "settlement_status": "SETTLED", "updated_at": service.now()}).Error
+	return tx.Model(&models.ChargingSession{}).Where("id = ?", session.ID).Updates(map[string]any{"status": constants.SessionStatusCompleted, "settlement_status": "SETTLED", "updated_at": now}).Error
+}
+
+// ReconcileCompletedSettlements makes durable completion evidence recoverable
+// after a wallet top-up or transient financial failure without replaying HAL.
+func (service *Service) ReconcileCompletedSettlements(ctx context.Context, limit int) error {
+	if limit < 1 {
+		limit = 50
+	}
+	var ids []uuid.UUID
+	if err := service.database.WithContext(ctx).Model(&models.ChargingSession{}).Where("status = ? AND settlement_status = ?", constants.SessionStatusReconciliationRequired, "RECONCILIATION_REQUIRED").Order("updated_at ASC").Limit(limit).Pluck("id", &ids).Error; err != nil {
+		return err
+	}
+	for _, id := range ids {
+		if err := service.database.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+			var session models.ChargingSession
+			if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&session, "id = ?", id).Error; err != nil {
+				return err
+			}
+			if session.Status != constants.SessionStatusReconciliationRequired || session.SettlementStatus != "RECONCILIATION_REQUIRED" {
+				return nil
+			}
+			return service.settleCompletedSession(tx, &session)
+		}); err != nil {
+			return fmt.Errorf("reconcile completed session %s: %w", id, err)
+		}
+	}
+	return nil
 }
 
 func chargingAmount(tariff, tax models.JSONB, consumedWh int64, startedAt, stoppedAt time.Time) (decimal.Decimal, error) {
@@ -518,7 +581,11 @@ func factID(p models.JSONB, key string) (uuid.UUID, bool) {
 		return uuid.Nil, false
 	}
 	id, e := uuid.Parse(v)
-	return id, e == nil
+	return id, e == nil && id != uuid.Nil
+}
+func factString(p models.JSONB, key string) (string, bool) {
+	v, ok := p[key].(string)
+	return strings.TrimSpace(v), ok && strings.TrimSpace(v) != ""
 }
 func factIDs(p models.JSONB, first, second string) (uuid.UUID, uuid.UUID, error) {
 	a, ok := factID(p, first)

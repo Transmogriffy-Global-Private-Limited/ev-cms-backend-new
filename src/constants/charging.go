@@ -29,8 +29,12 @@ const (
 	SessionStatusStartPending SessionStatus = "START_PENDING"
 	SessionStatusActive       SessionStatus = "ACTIVE"
 	SessionStatusStopPending  SessionStatus = "STOP_PENDING"
-	SessionStatusCompleted    SessionStatus = "COMPLETED"
-	SessionStatusFailed       SessionStatus = "FAILED"
+	// SessionStatusReconciliationRequired retains connector occupancy after
+	// authoritative OCPP completion when the CMS business settlement cannot
+	// safely be finalized yet.
+	SessionStatusReconciliationRequired SessionStatus = "RECONCILIATION_REQUIRED"
+	SessionStatusCompleted              SessionStatus = "COMPLETED"
+	SessionStatusFailed                 SessionStatus = "FAILED"
 )
 
 func (status SessionStatus) Valid() bool {
@@ -38,6 +42,7 @@ func (status SessionStatus) Valid() bool {
 	case SessionStatusStartPending,
 		SessionStatusActive,
 		SessionStatusStopPending,
+		SessionStatusReconciliationRequired,
 		SessionStatusCompleted,
 		SessionStatusFailed:
 		return true

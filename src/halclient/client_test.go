@@ -62,6 +62,48 @@ func TestGetTransactionByStartIntentDecodesAuthoritativeHALTruth(t *testing.T) {
 	}
 }
 
+func TestGetTransactionByStartIntentRejectsMalformedSuccessfulResponse(t *testing.T) {
+	intentID, transactionID, commandID := uuid.New(), uuid.New(), uuid.New()
+	base := map[string]any{
+		"hal_transaction_id": transactionID, "cms_start_intent_id": intentID, "cms_command_id": commandID,
+		"cpo_id": uuid.New(), "cms_charger_id": uuid.New(), "cms_connector_id": uuid.New(),
+		"charger_ocpp_identity": "charger-1", "ocpp_connector_number": 1, "ocpp_transaction_id": 1,
+		"actual_started_at": time.Now().UTC(), "meter_start_wh": 0,
+	}
+	for _, test := range []struct {
+		name  string
+		alter func(map[string]any)
+		body  any
+	}{
+		{name: "missing transaction", body: map[string]any{}},
+		{name: "zero identity", alter: func(v map[string]any) { v["hal_transaction_id"] = uuid.Nil }},
+		{name: "wrong intent", alter: func(v map[string]any) { v["cms_start_intent_id"] = uuid.New() }},
+		{name: "zero transaction", alter: func(v map[string]any) { v["ocpp_transaction_id"] = 0 }},
+		{name: "zero connector", alter: func(v map[string]any) { v["ocpp_connector_number"] = 0 }},
+		{name: "blank charger identity", alter: func(v map[string]any) { v["charger_ocpp_identity"] = " " }},
+		{name: "zero started timestamp", alter: func(v map[string]any) { v["actual_started_at"] = time.Time{} }},
+		{name: "negative meter start", alter: func(v map[string]any) { v["meter_start_wh"] = -1 }},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			body := test.body
+			if body == nil {
+				transaction := make(map[string]any, len(base))
+				for key, value := range base {
+					transaction[key] = value
+				}
+				test.alter(transaction)
+				body = map[string]any{"transaction": transaction}
+			}
+			server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) { _ = json.NewEncoder(writer).Encode(body) }))
+			defer server.Close()
+			_, err := New(config.HAL{BaseURL: server.URL, CMSBearerToken: "test", RequestTimeout: time.Second}).GetTransactionByStartIntent(context.Background(), intentID)
+			if !errors.Is(err, ErrInvalidTransactionResponse) {
+				t.Fatalf("error=%v, want ErrInvalidTransactionResponse", err)
+			}
+		})
+	}
+}
+
 func TestMutationsRejectEmptyCorrelationBeforeSendingHTTP(t *testing.T) {
 	var requestCount atomic.Int32
 	server := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {

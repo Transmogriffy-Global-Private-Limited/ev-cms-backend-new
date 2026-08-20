@@ -257,7 +257,7 @@ func (service *Service) GetSession(ctx context.Context, cpoID, sessionID uuid.UU
 	if session.MeterObservedAt != nil {
 		state.MeterFreshness = service.meterFreshness(*session.MeterObservedAt)
 	}
-	if session.Status == constants.SessionStatusActive || session.Status == constants.SessionStatusStopPending {
+	if session.Status == constants.SessionStatusActive || session.Status == constants.SessionStatusStopPending || session.Status == constants.SessionStatusReconciliationRequired {
 		charger, err := service.GetCharger(ctx, cpoID, session.ChargerID)
 		if err != nil {
 			return SessionState{}, err
@@ -333,7 +333,7 @@ func (service *Service) GetFleet(ctx context.Context, cpoID uuid.UUID) (FleetSta
 			state.FaultedConnectors++
 		}
 	}
-	if err := service.database.WithContext(ctx).Model(&models.ChargingSession{}).Where("cpo_id = ? AND status IN ?", cpoID, []constants.SessionStatus{constants.SessionStatusActive, constants.SessionStatusStopPending}).Count(&state.ActiveSessions).Error; err != nil {
+	if err := service.database.WithContext(ctx).Model(&models.ChargingSession{}).Where("cpo_id = ? AND status IN ?", cpoID, []constants.SessionStatus{constants.SessionStatusActive, constants.SessionStatusStopPending, constants.SessionStatusReconciliationRequired}).Count(&state.ActiveSessions).Error; err != nil {
 		return FleetState{}, err
 	}
 	return state, nil

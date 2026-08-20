@@ -29,9 +29,9 @@ that setting; it must not be used until the OCPP host is explicitly configured
 with TLS/WebSocket support.
 
 The active deployment was updated on August 20, 2026 to runtime source revision
-`1729b41`. It has migrations one through forty-four and the current
+`b11eeed`. It has migrations one through forty-four and the current
 188-operation API. The binary SHA-256 is
-`00bcedfc71f42e0ce45cd8df99e1616598d03265ce291fd5e08d9cf8338ddb32`. The CPO wallet transaction read is deployed without a new
+`03d8c6bf6e5f257da3bc15d0b369a06bd2beccc02714e829cc7d9a069f7c90ee`. The CPO wallet transaction read is deployed without a new
 migration. Migration 44 enables temporal tariff fallback and its
 database guards. The two requested hubs were removed with their hub tariffs and
 links; five downstream chargers/connectors were retained as unassigned,

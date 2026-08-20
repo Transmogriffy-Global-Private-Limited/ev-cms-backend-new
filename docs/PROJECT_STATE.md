@@ -2,6 +2,42 @@
 
 ## Current State
 
+### 2026-08-20 — Charging lifecycle reconciliation source repair
+
+- Migration `000045_charging_session_occupancy_and_reconciliation` transfers
+  connector ownership from an unmaterialized start intent to one occupying
+  session (`ACTIVE`, `STOP_PENDING`, or `RECONCILIATION_REQUIRED`). It rejects
+  pre-existing conflicting data rather than rewriting it. Historical
+  `ACTUALLY_STARTED` remains valid start evidence and no longer blocks a later
+  session on its own.
+- Completion facts durably record terminal meter/time/amount evidence before
+  settlement. An unsafe settlement keeps the session and wallet hold in
+  `RECONCILIATION_REQUIRED`; bounded transactional retry uses the session's
+  stable payment/ledger identity and cannot debit twice. Start admission now
+  subtracts held and reconciliation reservations while the wallet row is locked.
+- Exact HAL STOP reconciliation is now session-aware: provider rejection or
+  confirmed absence returns an incomplete session to `ACTIVE`; ambiguity stays
+  `STOP_PENDING`, and completion wins. HAL transaction lookup rejects malformed
+  successful payloads, including zero identities.
+
+Verification is source-only so far: focused Go tests pass. The disposable
+PostgreSQL integration tests are present but skipped because `TEST_DATABASE_URL`
+is unset. This has not been deployed or applied to any database.
+
+### 2026-08-20 — ChargingSession `total_kwh` model correction deployed
+
+- `models.ChargingSession.TotalKWh` explicitly maps to the canonical,
+  migration-owned `charging_sessions.total_kwh` column. It no longer relies on
+  GORM's acronym splitting, which inferred the nonexistent `total_k_wh` and
+  caused PostgreSQL `42703` during persistence.
+- The regression suite parses the migration-aligned acronym-sensitive fields
+  and builds a PostgreSQL-dialect dry-run insert that contains `total_kwh` and
+  excludes `total_k_wh`. No migration or database mutation was required.
+  Runtime revision `b11eeed` is active with binary SHA-256
+  `03d8c6bf6e5f257da3bc15d0b369a06bd2beccc02714e829cc7d9a069f7c90ee`.
+  Local/public health-readiness, Swagger, raw OpenAPI (188 operations), Caddy
+  validation, and the post-rehost journal scan passed.
+
 ### 2026-08-20 — HAL command-response contract hardening deployed
 
 - CMS now rejects 2xx HAL command responses without a canonical `command`

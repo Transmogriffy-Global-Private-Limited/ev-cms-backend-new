@@ -18,9 +18,10 @@ import (
 )
 
 var (
-	ErrUnavailable            = errors.New("HAL v1 service is unavailable")
-	ErrMissingCorrelationID   = errors.New("HAL v1 mutation requires a non-empty correlation ID")
-	ErrInvalidCommandResponse = errors.New("HAL v1 command response violates the service contract")
+	ErrUnavailable                = errors.New("HAL v1 service is unavailable")
+	ErrMissingCorrelationID       = errors.New("HAL v1 mutation requires a non-empty correlation ID")
+	ErrInvalidCommandResponse     = errors.New("HAL v1 command response violates the service contract")
+	ErrInvalidTransactionResponse = errors.New("HAL v1 transaction response violates the service contract")
 )
 
 // CommandResponseError deliberately carries only the failed invariant. The
@@ -32,6 +33,17 @@ func (err *CommandResponseError) Error() string {
 }
 
 func (err *CommandResponseError) Unwrap() error { return ErrInvalidCommandResponse }
+
+// TransactionResponseError deliberately keeps provider payloads out of logs.
+// A syntactically valid response is not authoritative transaction truth unless
+// every cross-service identity and OCPP invariant is present.
+type TransactionResponseError struct{ invariant string }
+
+func (err *TransactionResponseError) Error() string {
+	return "HAL v1 transaction response violates the service contract: " + err.invariant
+}
+
+func (err *TransactionResponseError) Unwrap() error { return ErrInvalidTransactionResponse }
 
 type HTTPError struct {
 	Status int
@@ -164,12 +176,18 @@ func (client *Client) GetCommand(ctx context.Context, id uuid.UUID) (Command, er
 
 func (client *Client) GetTransactionByStartIntent(ctx context.Context, id uuid.UUID) (Transaction, error) {
 	var wrapper struct {
-		Transaction Transaction `json:"transaction"`
+		Transaction *Transaction `json:"transaction"`
 	}
 	if err := client.requestJSON(ctx, http.MethodGet, "/v1/transactions?cms_start_intent_id="+url.QueryEscape(id.String()), nil, &wrapper); err != nil {
 		return Transaction{}, err
 	}
-	return wrapper.Transaction, nil
+	if wrapper.Transaction == nil {
+		return Transaction{}, invalidTransactionResponse("missing transaction object")
+	}
+	if err := validateTransaction(*wrapper.Transaction, id); err != nil {
+		return Transaction{}, err
+	}
+	return *wrapper.Transaction, nil
 }
 
 func (client *Client) mutate(ctx context.Context, method, path, idempotency, correlation string, body any, target any) error {
@@ -239,6 +257,50 @@ func (client *Client) request(ctx context.Context, method, path, idempotency, co
 
 func invalidCommandResponse(invariant string) error {
 	return &CommandResponseError{invariant: invariant}
+}
+
+func invalidTransactionResponse(invariant string) error {
+	return &TransactionResponseError{invariant: invariant}
+}
+
+func validateTransaction(transaction Transaction, expectedStartIntentID uuid.UUID) error {
+	if transaction.HALTransactionID == uuid.Nil {
+		return invalidTransactionResponse("hal_transaction_id must be a nonzero UUID")
+	}
+	if transaction.CMSStartIntentID == uuid.Nil {
+		return invalidTransactionResponse("cms_start_intent_id must be a nonzero UUID")
+	}
+	if transaction.CMSStartIntentID != expectedStartIntentID {
+		return invalidTransactionResponse("cms_start_intent_id does not match the requested start intent")
+	}
+	if transaction.CMSCommandID == uuid.Nil {
+		return invalidTransactionResponse("cms_command_id must be a nonzero UUID")
+	}
+	if transaction.CPOID == uuid.Nil {
+		return invalidTransactionResponse("cpo_id must be a nonzero UUID")
+	}
+	if transaction.CMSChargerID == uuid.Nil {
+		return invalidTransactionResponse("cms_charger_id must be a nonzero UUID")
+	}
+	if transaction.CMSConnectorID == uuid.Nil {
+		return invalidTransactionResponse("cms_connector_id must be a nonzero UUID")
+	}
+	if strings.TrimSpace(transaction.ChargerOCPPIdentity) == "" {
+		return invalidTransactionResponse("charger_ocpp_identity is required")
+	}
+	if transaction.OCPPConnectorNumber < 1 {
+		return invalidTransactionResponse("ocpp_connector_number must be positive")
+	}
+	if transaction.OCPPTransactionID < 1 {
+		return invalidTransactionResponse("ocpp_transaction_id must be positive")
+	}
+	if transaction.ActualStartedAt.IsZero() {
+		return invalidTransactionResponse("actual_started_at is required")
+	}
+	if transaction.MeterStartWh < 0 {
+		return invalidTransactionResponse("meter_start_wh must not be negative")
+	}
+	return nil
 }
 
 func validateCommand(command Command, expectedCMSCommandID uuid.UUID, expectedKind string) error {

@@ -26,6 +26,9 @@ type Service struct {
 	now                       func() time.Time
 	startCommandAbsentHandler StartCommandAbsentHandler
 	startMaterializer         StartMaterializer
+	stopCommandAbsentHandler  StopCommandAbsentHandler
+	stopCommandReconciler     StopCommandReconciler
+	settlementReconciler      SettlementReconciler
 	startReconcileAfter       time.Duration
 }
 
@@ -57,6 +60,12 @@ type StartEvidence struct {
 // durable HAL truth and invokes this explicit socket.
 type StartMaterializer func(context.Context, StartEvidence) error
 
+// Stop callbacks keep session policy in the charging domain while halops owns
+// exact provider lookup and durable command evidence.
+type StopCommandAbsentHandler func(context.Context, uuid.UUID) error
+type StopCommandReconciler func(context.Context, uuid.UUID, Command) error
+type SettlementReconciler func(context.Context, int) error
+
 // ErrCommandNotFound is returned only when HAL's exact CMS command lookup
 // responds with HTTP 404. It is authoritative absence, not a transport error.
 var ErrCommandNotFound = errors.New("HAL command not found")
@@ -78,6 +87,19 @@ func (service *Service) WithStartCommandAbsentHandler(handler StartCommandAbsent
 
 func (service *Service) WithStartMaterializer(materializer StartMaterializer) *Service {
 	service.startMaterializer = materializer
+	return service
+}
+
+func (service *Service) WithStopCommandAbsentHandler(handler StopCommandAbsentHandler) *Service {
+	service.stopCommandAbsentHandler = handler
+	return service
+}
+func (service *Service) WithStopCommandReconciler(reconciler StopCommandReconciler) *Service {
+	service.stopCommandReconciler = reconciler
+	return service
+}
+func (service *Service) WithSettlementReconciler(reconciler SettlementReconciler) *Service {
+	service.settlementReconciler = reconciler
 	return service
 }
 
@@ -289,15 +311,24 @@ func (service *Service) ReconcilePending(ctx context.Context, limit int) error {
 		return fmt.Errorf("list pending HAL commands: %w", err)
 	}
 	for _, command := range commands {
-		_, err := service.ReconcileCommand(ctx, command.CMSCommandID)
+		result, err := service.ReconcileCommand(ctx, command.CMSCommandID)
 		if err == nil {
+			if command.Kind == "STOP" && service.stopCommandReconciler != nil {
+				if err := service.stopCommandReconciler(ctx, command.CMSCommandID, result); err != nil {
+					return fmt.Errorf("reconcile stop command %s: %w", command.CMSCommandID, err)
+				}
+			}
 			continue
 		}
 		if errors.Is(err, ErrCommandNotFound) {
-			if command.Kind != "START" {
-				// A missing STOP command cannot establish that an already-started
-				// session stopped. Keep its conservative reconciliation state.
-				service.recordStopCommandAbsent(ctx, command.CMSCommandID)
+			if command.Kind == "STOP" {
+				if service.stopCommandAbsentHandler == nil {
+					service.recordStopCommandAbsent(ctx, command.CMSCommandID)
+					continue
+				}
+				if err := service.stopCommandAbsentHandler(ctx, command.CMSCommandID); err != nil {
+					return fmt.Errorf("reconcile confirmed-absent stop command %s: %w", command.CMSCommandID, err)
+				}
 				continue
 			}
 			if service.startCommandAbsentHandler == nil {
@@ -311,7 +342,13 @@ func (service *Service) ReconcilePending(ctx context.Context, limit int) error {
 		}
 		service.recordCommandLookupFailure(ctx, command.CMSCommandID, err)
 	}
-	return service.reconcileStrandedStarts(ctx, limit)
+	if err := service.reconcileStrandedStarts(ctx, limit); err != nil {
+		return err
+	}
+	if service.settlementReconciler != nil {
+		return service.settlementReconciler(ctx, limit)
+	}
+	return nil
 }
 
 // reconcileStrandedStarts closes the gap in which HAL accepted/delivered a
