@@ -29,9 +29,9 @@ that setting; it must not be used until the OCPP host is explicitly configured
 with TLS/WebSocket support.
 
 The active deployment was updated on August 20, 2026 to runtime source revision
-`b11eeed`. It has migrations one through forty-four and the current
+`765cc80`. It has migrations one through forty-five and the current
 188-operation API. The binary SHA-256 is
-`03d8c6bf6e5f257da3bc15d0b369a06bd2beccc02714e829cc7d9a069f7c90ee`. The CPO wallet transaction read is deployed without a new
+`33a99ca227261065365b00473875f48ade845eb1d72f3a2b21371e2e6dfc412b`. Migration 45 is applied with its pre-migration backup retained. The CPO wallet transaction read is deployed without a new
 migration. Migration 44 enables temporal tariff fallback and its
 database guards. The two requested hubs were removed with their hub tariffs and
 links; five downstream chargers/connectors were retained as unassigned,
@@ -145,7 +145,7 @@ The deployment copies `.env.example` to `.env`, then overrides:
 - five independently generated 32-byte base64 cryptographic keys.
 
 `DATABASE_URL` and `SMTP_PASSWORD` contain deployment secrets only in the
-ignored environment file. The service is enabled and active, all forty-one forward
+ignored environment file. The service is enabled and active, all forty-five forward
 migrations are recorded, and startup idempotently retained the configured
 platform superadmin.
 

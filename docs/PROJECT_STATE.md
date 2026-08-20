@@ -2,7 +2,7 @@
 
 ## Current State
 
-### 2026-08-20 — Charging lifecycle reconciliation source repair
+### 2026-08-20 — Charging lifecycle reconciliation deployed
 
 - Migration `000045_charging_session_occupancy_and_reconciliation` transfers
   connector ownership from an unmaterialized start intent to one occupying
@@ -20,9 +20,15 @@
   `STOP_PENDING`, and completion wins. HAL transaction lookup rejects malformed
   successful payloads, including zero identities.
 
-Verification is source-only so far: focused Go tests pass. The disposable
-PostgreSQL integration tests are present but skipped because `TEST_DATABASE_URL`
-is unset. This has not been deployed or applied to any database.
+Verification: focused charging/HAL/CPO/route checks, full `go test -p 1 ./...`,
+`go vet -p 1 ./...`, and `git diff --check` passed. The disposable PostgreSQL
+occupancy tests are skipped because `TEST_DATABASE_URL` is unset. Migration 45
+was backed up and applied successfully; runtime revision `765cc80` is active
+with binary SHA-256
+`33a99ca227261065365b00473875f48ade845eb1d72f3a2b21371e2e6dfc412b`.
+Local/public health-readiness, Swagger, raw OpenAPI (188 operations), Caddy
+validation, and the post-rehost journal scan passed. `pwsh` remains
+unavailable on this Ubuntu host.
 
 ### 2026-08-20 — ChargingSession `total_kwh` model correction deployed
 
@@ -33,8 +39,8 @@ is unset. This has not been deployed or applied to any database.
 - The regression suite parses the migration-aligned acronym-sensitive fields
   and builds a PostgreSQL-dialect dry-run insert that contains `total_kwh` and
   excludes `total_k_wh`. No migration or database mutation was required.
-  Runtime revision `b11eeed` is active with binary SHA-256
-  `03d8c6bf6e5f257da3bc15d0b369a06bd2beccc02714e829cc7d9a069f7c90ee`.
+  Runtime revision `765cc80` is active with binary SHA-256
+  `33a99ca227261065365b00473875f48ade845eb1d72f3a2b21371e2e6dfc412b`.
   Local/public health-readiness, Swagger, raw OpenAPI (188 operations), Caddy
   validation, and the post-rehost journal scan passed.
 

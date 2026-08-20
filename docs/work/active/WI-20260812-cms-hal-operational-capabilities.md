@@ -82,10 +82,10 @@ Establish reusable CMS capabilities over HAL-derived operational truth and expos
   observation; REST/read-side recovery and realtime invalidation therefore use
   the same source of truth. Connector status is live only while parent
   connection evidence remains fresh.
-- Runtime revision `d7f72cd` is active under `evcmsnew-dev.service`; migrations
-  through forty-four,
+- Runtime revision `765cc80` is active under `evcmsnew-dev.service`; migrations
+  through forty-five,
   loopback/public health and readiness, Swagger, raw OpenAPI, the live
-  187-operation contract, singular HAL runtime table mappings, and GST-hub
+  188-operation contract, singular HAL runtime table mappings, and GST-hub
   route boundaries have been verified. No migration was needed for the model
   correction, the User App history release, state-aware GST validation, and
   fresh-availability charging admission.
@@ -170,7 +170,7 @@ Establish reusable CMS capabilities over HAL-derived operational truth and expos
 - 2026-08-20 response-boundary repair verification: focused HAL-client/charging
   tests, full `go test ./...`, `go vet ./...`, and `git diff --check` pass. The
   integration recovery cases require a disposable `TEST_DATABASE_URL` and
-  were skipped safely. Runtime revision `1729b41` is active after rehost with
+  were skipped safely. Runtime revision `765cc80` is active after rehost with
   no migration or database mutation; loopback/public readiness, Swagger, raw
   OpenAPI (188 operations), Caddy validation, and the post-rehost journal scan
   passed. `pwsh` remains unavailable on this host.
@@ -178,9 +178,16 @@ Establish reusable CMS capabilities over HAL-derived operational truth and expos
   `git diff --check` verify the audited materially acronym-sensitive fields and
   a PostgreSQL-dialect dry-run ChargingSession insert includes `total_kwh`,
   never `total_k_wh`. No migration or database mutation was required. Runtime
-  revision `b11eeed` is active after rehost; local/public readiness, Swagger,
+  revision `765cc80` is active after rehost; local/public readiness, Swagger,
   raw OpenAPI (188 operations), Caddy validation, and the post-rehost journal
   scan passed.
+- 2026-08-20 charging lifecycle repair deployment: migration 45 was backed up
+  and applied successfully. Runtime revision `765cc80` is active with the
+  occupancy indexes and reconciliation status constraint present; focused and
+  full Go verification, local/public readiness, Swagger, raw OpenAPI (188
+  operations), Caddy validation, and the post-rehost journal scan passed.
+  Disposable PostgreSQL occupancy tests remain skipped without
+  `TEST_DATABASE_URL`; `pwsh` is unavailable on this host.
 
 ## Handoff
 

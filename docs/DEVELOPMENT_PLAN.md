@@ -115,23 +115,24 @@ Active work:
 
 Current implementation state:
 
-- Source repair in progress: migration 45 gives connector occupancy to an
+- Charging lifecycle repair is deployed: migration 45 gives connector occupancy to an
   unmaterialized start intent before materialization and to a single active,
   stop-pending, or reconciliation-required session afterwards. Completion
   settlement, wallet reservations, STOP reconciliation, and HAL transaction
-  lookup now have explicit recovery invariants. Full source verification passed;
-  disposable PostgreSQL verification remains required before deployment.
+  lookup now have explicit recovery invariants. Runtime revision `765cc80` is
+  active with migration 45 applied; disposable PostgreSQL occupancy tests
+  remain skipped without `TEST_DATABASE_URL`.
 
 - ChargingSession persistence correction is deployed: `TotalKWh` now has an
   explicit `column:total_kwh` mapping, backed by migration-aligned
   acronym-column and PostgreSQL-dialect dry-run insert regressions. The
   existing database schema is authoritative and unchanged; runtime revision
-  `b11eeed` is active with no migration required.
+  `765cc80` is active with migration 45 applied.
 - HAL command-response contract hardening is deployed: malformed 2xx command
   bodies fail closed, HAL identity is never persisted as zero UUID, and
   authoritative start reconciliation repairs the historical zero sentinel as
-  unknown. Runtime revision `1729b41` is active; migrations remain through
-  `000044_temporal_tariff_fallback.up.sql`. Disposable PostgreSQL recovery and
+  unknown. Runtime revision `765cc80` is active; migrations remain through
+  `000045_charging_session_occupancy_and_reconciliation.up.sql`. Disposable PostgreSQL recovery and
   dual-service physical acceptance remain required for full closure.
 - Source now classifies deterministic HAL fact projection rejections as 4xx/409
   and uses the existing exact HAL transaction-by-start-intent socket to recover
@@ -147,7 +148,7 @@ Current implementation state:
 - CMS source and the development deployment contain the first client, durable records, shared fact receiver,
   customer polling/start/stop routes, reusable operational projections,
   scoped operational-event replay/SSE, and a 188-operation OpenAPI surface.
-  Runtime revision `1729b41` is active.
+  Runtime revision `765cc80` is active.
   The HAL runtime GORM models explicitly map to the singular migration tables
   `hal_charger_runtime` and `hal_connector_runtime`.
   The HAL v1 provider is

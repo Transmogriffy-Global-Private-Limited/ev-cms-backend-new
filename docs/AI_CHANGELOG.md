@@ -10,13 +10,18 @@
   STOP command/session convergence, zero-UUID fact rejection, and fail-closed
   HAL transaction lookup validation. Completion evidence is retained even when
   settlement cannot finish safely.
-- OpenAPI now exposes `RECONCILIATION_REQUIRED` as a session status. No live
-  migration, deployment, database mutation, commit, or push occurred.
+- OpenAPI now exposes `RECONCILIATION_REQUIRED` as a session status.
 
-Verification: focused `go test ./src/halclient ./src/customerauth ./src/halops
-./src/liveops`, full `go test ./...`, `go vet ./...`, OpenAPI/runtime parity,
-the documentation verifier, and `git diff --check` passed. The new PostgreSQL
-occupancy test is skipped without `TEST_DATABASE_URL`.
+Verification: focused charging/HAL/CPO/route checks, full
+`go test -p 1 ./...`, `go vet -p 1 ./...`, OpenAPI/runtime parity, and
+`git diff --check` passed. The new PostgreSQL occupancy test is skipped without
+`TEST_DATABASE_URL`. A verified pre-migration backup was created, migration 45
+was applied, and runtime revision `765cc80` is active under
+`evcmsnew-dev.service` with binary SHA-256
+`33a99ca227261065365b00473875f48ade845eb1d72f3a2b21371e2e6dfc412b`.
+Local/public health-readiness, Swagger, raw OpenAPI (188 operations), Caddy
+validation, and the post-rehost journal error scan passed. `pwsh` remains
+unavailable on this host.
 
 ## 2026-08-20 - ChargingSession `total_kwh` GORM mapping correction deployed
 
@@ -33,7 +38,7 @@ ChargingSession insert contains `total_kwh` and excludes `total_k_wh`; focused
 and full Go tests, vet, and `git diff --check` passed. No migration or data
 mutation was required. Runtime revision `b11eeed` is active under
 `evcmsnew-dev.service` with binary SHA-256
-`03d8c6bf6e5f257da3bc15d0b369a06bd2beccc02714e829cc7d9a069f7c90ee`.
+`33a99ca227261065365b00473875f48ade845eb1d72f3a2b21371e2e6dfc412b`.
 Local/public health-readiness, Swagger, raw OpenAPI (188 operations), Caddy
 validation, and the post-rehost journal error scan passed. `pwsh` and
 disposable `TEST_DATABASE_URL` remain unavailable on this host.
