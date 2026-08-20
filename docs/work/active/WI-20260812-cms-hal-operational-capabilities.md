@@ -96,6 +96,10 @@ Establish reusable CMS capabilities over HAL-derived operational truth and expos
   Gin context for HAL mapping/start/stop correlation. A User App
   `X-Request-ID` is neither required nor authoritative; `halclient` rejects an
   empty mutation correlation locally before it can reach HAL.
+- Source-only persistence correction: `ChargingSession.TotalKWh` explicitly
+  maps to the migration-owned `charging_sessions.total_kwh` column. GORM's
+  inferred `total_k_wh` caused the observed PostgreSQL `42703`; no migration,
+  live database mutation, or deployment is part of this correction.
 
 ## Verification
 
@@ -159,6 +163,11 @@ Establish reusable CMS capabilities over HAL-derived operational truth and expos
   no migration or database mutation; loopback/public readiness, Swagger, raw
   OpenAPI (188 operations), Caddy validation, and the post-rehost journal scan
   passed. `pwsh` remains unavailable on this host.
+- 2026-08-20 model-mapping correction: focused `go test ./src/models` verifies
+  the audited materially acronym-sensitive fields and a PostgreSQL-dialect
+  dry-run ChargingSession insert includes `total_kwh`, never `total_k_wh`.
+  No database connection, migration, live database mutation, or deployment was
+  performed.
 
 ## Handoff
 

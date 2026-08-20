@@ -2,6 +2,17 @@
 
 ## Current State
 
+### 2026-08-20 — ChargingSession `total_kwh` model correction in source
+
+- `models.ChargingSession.TotalKWh` explicitly maps to the canonical,
+  migration-owned `charging_sessions.total_kwh` column. It no longer relies on
+  GORM's acronym splitting, which inferred the nonexistent `total_k_wh` and
+  caused PostgreSQL `42703` during persistence.
+- The regression suite parses the migration-aligned acronym-sensitive fields
+  and builds a PostgreSQL-dialect dry-run insert that contains `total_kwh` and
+  excludes `total_k_wh`. No migration, database mutation, deployment, or live
+  database verification occurred for this source-only correction.
+
 ### 2026-08-20 — HAL command-response contract hardening deployed
 
 - CMS now rejects 2xx HAL command responses without a canonical `command`

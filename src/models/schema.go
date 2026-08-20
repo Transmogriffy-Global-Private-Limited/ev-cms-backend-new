@@ -336,7 +336,7 @@ type ChargingSession struct {
 	LatestMeterWh      *int64                  `gorm:"type:bigint" json:"latest_meter_wh,omitempty"`
 	MeterObservedAt    *time.Time              `gorm:"type:timestamptz" json:"meter_observed_at,omitempty"`
 	MeterSequence      int64                   `gorm:"type:bigint;not null;default:0" json:"meter_sequence"`
-	TotalKWh           decimal.Decimal         `gorm:"type:numeric(14,3);not null;default:0" json:"total_kwh"`
+	TotalKWh           decimal.Decimal         `gorm:"column:total_kwh;type:numeric(14,3);not null;default:0" json:"total_kwh"`
 	TotalAmount        decimal.Decimal         `gorm:"type:numeric(14,2);not null;default:0" json:"total_amount"`
 	Currency           string                  `gorm:"type:char(3);not null;default:'INR'" json:"currency"`
 	StopReason         *string                 `gorm:"type:varchar(50)" json:"stop_reason,omitempty"`
