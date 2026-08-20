@@ -1013,6 +1013,14 @@ Active feature:
 
 Current implementation slice:
 
+- Completed source hardening: one-current authentication challenges are
+  serialized by their identity owner and backed by partial unique indexes;
+  administrative current-password changes lock before authorization; readiness
+  is supplied by the current process's enabled expected-worker set rather than
+  whichever durable rows happen to exist. Migration forty-six deliberately
+  preserves charging migration forty-five and only repairs verified adjacent
+  schema semantics. Full source checks pass; disposable PostgreSQL coverage
+  remains pending an explicitly selected `TEST_DATABASE_URL`.
 - Shared CMS HAL mapping/command reconciliation, fact ingress, durable
   projections, stale/offline freshness, scoped operational events, and CPO/App/
   Platform cursor/SSE consumption. Full User App charger list, hub detail,

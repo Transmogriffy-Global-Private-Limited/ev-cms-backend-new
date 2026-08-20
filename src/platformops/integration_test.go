@@ -234,6 +234,90 @@ func TestPlatformEventsAuditAndWorkerLifecycleWithPostgreSQL(t *testing.T) {
 	}
 }
 
+func TestExpectedWorkerReadinessRequiresThisProcessWithPostgreSQL(t *testing.T) {
+	databaseURL := os.Getenv("TEST_DATABASE_URL")
+	if databaseURL == "" {
+		t.Skip("TEST_DATABASE_URL is not set")
+	}
+	ctx := context.Background()
+	gormDB, sqlDB, err := db.Open(ctx, databaseURL)
+	if err != nil {
+		t.Fatalf("open test database: %v", err)
+	}
+	defer sqlDB.Close()
+	if err := db.ApplyMigrations(ctx, sqlDB); err != nil {
+		t.Fatalf("apply migrations: %v", err)
+	}
+	now := time.Now().UTC().Truncate(time.Microsecond)
+	newService := func(specifications []WorkerSpec) *Service {
+		service := NewService(gormDB, config.Platform{WorkerStaleAfter: time.Minute})
+		service.now = func() time.Time { return now }
+		return service.WithExpectedWorkers(specifications)
+	}
+	processOneMaintenance := uuid.NewString()
+	processOneMail := uuid.NewString()
+	service := newService([]WorkerSpec{
+		{Name: "platform-maintenance", InstanceKey: processOneMaintenance, Required: true, Enabled: true},
+		{Name: "mail-outbox", InstanceKey: processOneMail, Required: true, Enabled: true},
+		{Name: "operational-retention", InstanceKey: uuid.NewString(), Required: false, Enabled: true},
+	})
+	ready, err := service.RequiredWorkersReady(ctx)
+	if err != nil || ready {
+		t.Fatalf("missing required workers readiness = %v, %v; want false, nil", ready, err)
+	}
+	if err := service.Heartbeat(ctx, "platform-maintenance", processOneMaintenance); err != nil {
+		t.Fatalf("heartbeat first expected worker: %v", err)
+	}
+	ready, err = service.RequiredWorkersReady(ctx)
+	if err != nil || ready {
+		t.Fatalf("one of two required workers readiness = %v, %v; want false, nil", ready, err)
+	}
+	if err := service.Heartbeat(ctx, "mail-outbox", processOneMail); err != nil {
+		t.Fatalf("heartbeat second expected worker: %v", err)
+	}
+	ready, err = service.RequiredWorkersReady(ctx)
+	if err != nil || !ready {
+		t.Fatalf("all expected workers readiness = %v, %v; want true, nil", ready, err)
+	}
+	if err := service.MarkUnhealthy(ctx, "mail-outbox", processOneMail); err != nil {
+		t.Fatalf("mark expected worker unhealthy: %v", err)
+	}
+	ready, err = service.RequiredWorkersReady(ctx)
+	if err != nil || ready {
+		t.Fatalf("unhealthy required worker readiness = %v, %v; want false, nil", ready, err)
+	}
+
+	processTwoMaintenance := uuid.NewString()
+	processTwoMail := uuid.NewString()
+	newProcess := newService([]WorkerSpec{
+		{Name: "platform-maintenance", InstanceKey: processTwoMaintenance, Required: true, Enabled: true},
+		{Name: "mail-outbox", InstanceKey: processTwoMail, Required: true, Enabled: true},
+		{Name: "mail-outbox-disabled", InstanceKey: uuid.NewString(), Required: true, Enabled: false},
+	})
+	ready, err = newProcess.RequiredWorkersReady(ctx)
+	if err != nil || ready {
+		t.Fatalf("previous-process workers satisfied new process readiness = %v, %v", ready, err)
+	}
+	if err := newProcess.Heartbeat(ctx, "platform-maintenance", processTwoMaintenance); err != nil {
+		t.Fatalf("register new process maintenance worker: %v", err)
+	}
+	if err := newProcess.Heartbeat(ctx, "mail-outbox", processTwoMail); err != nil {
+		t.Fatalf("register new process mail worker: %v", err)
+	}
+	ready, err = newProcess.RequiredWorkersReady(ctx)
+	if err != nil || !ready {
+		t.Fatalf("new process expected workers readiness = %v, %v", ready, err)
+	}
+	newProcess.now = func() time.Time { return now.Add(2 * time.Minute) }
+	ready, err = newProcess.RequiredWorkersReady(ctx)
+	if err != nil || ready {
+		t.Fatalf("stale expected worker readiness = %v, %v; want false, nil", ready, err)
+	}
+	if err := gormDB.Where("instance_key IN ?", []string{processOneMaintenance, processOneMail, processTwoMaintenance, processTwoMail}).Delete(&models.WorkerInstance{}).Error; err != nil {
+		t.Fatalf("delete expected-worker fixtures: %v", err)
+	}
+}
+
 func workerByName(workers []WorkerView, name string) (WorkerView, int) {
 	var match WorkerView
 	count := 0

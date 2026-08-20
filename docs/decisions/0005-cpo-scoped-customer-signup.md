@@ -23,6 +23,9 @@ global administrator identifier.
 - Historical decision, superseded: reuse an existing active global identity.
 - Create the CPO customer and its INR wallet atomically after verification.
 - Apply durable rate limits and use the encrypted mail outbox.
+- Serialize every pending-challenge creation, resend, and verification by the
+  same CPO/normalized-email advisory transaction lock, with a partial unique
+  current-challenge index as the database backstop.
 - Keep customer login/session issuance outside this implementation slice.
 
 ## Consequences

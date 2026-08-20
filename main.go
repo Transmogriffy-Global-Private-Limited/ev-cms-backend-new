@@ -96,12 +96,25 @@ func run() error {
 	if err != nil {
 		return err
 	}
+	processInstanceKey := uuid.NewString()
+	platformMaintenanceInstanceKey := processInstanceKey + ":platform-maintenance"
+	halReconcilerInstanceKey := processInstanceKey + ":hal-reconciler"
+	operationalRetentionInstanceKey := processInstanceKey + ":operational-retention"
+	mailOutboxInstanceKey := processInstanceKey + ":mail-outbox"
 	platformService := platformops.NewService(gormDB, cfg.Platform)
 	superadminService := superadmin.NewService(gormDB, platformService, outbox, cfg.Mail.Enabled)
 	subscriptionService := subscriptions.NewService(gormDB, platformService)
 	halOperations := halops.New(gormDB, cfg.HAL)
 	liveOperations := liveops.New(gormDB, cfg.HAL)
 	operationalEvents := operationalrealtime.New(gormDB, cfg.Platform)
+	platformService.WithExpectedWorkers([]platformops.WorkerSpec{
+		{Name: "platform-maintenance", InstanceKey: platformMaintenanceInstanceKey, Required: true, Enabled: true},
+		{Name: "hal-reconciler", InstanceKey: halReconcilerInstanceKey, Required: true, Enabled: halOperations.Available()},
+		{Name: "operational-retention", InstanceKey: operationalRetentionInstanceKey, Required: false, Enabled: true},
+		{Name: "mail-outbox", InstanceKey: mailOutboxInstanceKey, Required: true, Enabled: cfg.Mail.Enabled},
+	})
+	halOperations.WithWorkerObserver(platformService, "hal-reconciler", halReconcilerInstanceKey)
+	operationalEvents.WithWorkerObserver(platformService, "operational-retention", operationalRetentionInstanceKey)
 	cpoService := cpo.NewService(gormDB, outbox, cfg.Mail.Enabled, cfg.ChargerConnectionURL).
 		WithPlatformEvents(platformService).
 		WithOperationalCapabilities(halOperations, liveOperations).
@@ -127,8 +140,10 @@ func run() error {
 			WebhookSecret: credentials.WebhookSecret,
 		}, nil
 	})
-	go platformService.RunMaintenance(ctx, uuid.NewString())
-	go halOperations.RunReconciler(ctx, time.Minute)
+	go platformService.RunMaintenance(ctx, platformMaintenanceInstanceKey)
+	if halOperations.Available() {
+		go halOperations.RunReconciler(ctx, time.Minute)
+	}
 	go operationalEvents.RunRetention(ctx, cfg.Platform.MaintenanceEvery)
 
 	if cfg.Mail.Enabled {
@@ -145,7 +160,7 @@ func run() error {
 		).WithObserver(
 			platformService,
 			"mail-outbox",
-			uuid.NewString(),
+			mailOutboxInstanceKey,
 		)
 		go worker.Run(ctx)
 	}

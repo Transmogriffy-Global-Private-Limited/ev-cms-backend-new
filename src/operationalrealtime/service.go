@@ -15,17 +15,28 @@ import (
 
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/config"
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/models"
+	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/workerobs"
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 )
 
 type Service struct {
-	database  *gorm.DB
-	retention time.Duration
-	poll      time.Duration
-	heartbeat time.Duration
-	batchSize int
-	now       func() time.Time
+	database          *gorm.DB
+	retention         time.Duration
+	poll              time.Duration
+	heartbeat         time.Duration
+	batchSize         int
+	now               func() time.Time
+	observer          workerobs.Observer
+	workerName        string
+	workerInstanceKey string
+}
+
+func (service *Service) WithWorkerObserver(observer workerobs.Observer, workerName, instanceKey string) *Service {
+	service.observer = observer
+	service.workerName = workerName
+	service.workerInstanceKey = instanceKey
+	return service
 }
 
 func New(database *gorm.DB, cfg config.Platform) *Service {
@@ -145,14 +156,45 @@ func (service *Service) RunRetention(ctx context.Context, interval time.Duration
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
 	for {
+		service.recordWorkerHeartbeat(ctx)
 		if err := service.DeleteExpired(ctx); err != nil && ctx.Err() == nil {
+			service.markWorkerUnhealthy(ctx)
 			log.Printf("operational event retention cleanup failed: %v", err)
+		} else if ctx.Err() == nil {
+			service.recordWorkerCompletion(ctx)
 		}
 		select {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
 		}
+	}
+}
+
+func (service *Service) recordWorkerHeartbeat(ctx context.Context) {
+	if service.observer == nil {
+		return
+	}
+	if err := service.observer.Heartbeat(ctx, service.workerName, service.workerInstanceKey); err != nil && ctx.Err() == nil {
+		log.Printf("record operational retention heartbeat: %v", err)
+	}
+}
+
+func (service *Service) recordWorkerCompletion(ctx context.Context) {
+	if service.observer == nil {
+		return
+	}
+	if err := service.observer.JobCompleted(ctx, service.workerName, service.workerInstanceKey); err != nil && ctx.Err() == nil {
+		log.Printf("record operational retention completion: %v", err)
+	}
+}
+
+func (service *Service) markWorkerUnhealthy(ctx context.Context) {
+	if service.observer == nil {
+		return
+	}
+	if err := service.observer.MarkUnhealthy(ctx, service.workerName, service.workerInstanceKey); err != nil && ctx.Err() == nil {
+		log.Printf("mark operational retention unhealthy: %v", err)
 	}
 }
 

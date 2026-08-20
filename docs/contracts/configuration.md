@@ -73,10 +73,15 @@ must be positive.
 
 The platform-maintenance worker deletes expired event rows and reports a
 durable heartbeat. The mail worker also reports durable heartbeats when mail is
-enabled. Readiness is evaluated per required worker name: its current instance
-must be fresh and healthy, so a stale instance from a replaced process does not
-mask a healthy replacement. Realtime and retention configuration is loaded at
-startup and requires a restart to change.
+enabled. At startup the application assigns one process-incarnation key per
+enabled worker and readiness requires that exact key to have a fresh, healthy
+current row. It is false while a required worker is missing, starting, stale,
+degraded, or represented only by a previous process. Platform maintenance is
+always required; HAL reconciliation is required only when the HAL integration is
+enabled; mail is required only when `MAIL_ENABLED=true`; operational-event
+retention is observed but does not block serving because it only cleans durable
+replay history. Realtime and retention configuration is loaded at startup and
+requires a restart to change.
 
 ## Cryptographic Keys
 

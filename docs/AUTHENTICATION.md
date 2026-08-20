@@ -107,6 +107,32 @@ Error shape:
 The API deliberately uses generic login, challenge, and password-recovery
 responses to avoid revealing whether an email or authority exists.
 
+## Current Challenge and Password-Mutation Invariants
+
+A current challenge is unconsumed and uninvalidated; expiry determines whether
+it is usable but is not part of the database uniqueness predicate. PostgreSQL
+therefore permits historical expired records while enforcing at most one current
+row for each administrative `(user_id, purpose)` and customer
+`(cpo_id, customer_id, purpose)` identity. Customer signup uses the equivalent
+`(cpo_id, normalized email)` key.
+
+Every create and resend path first locks the owning user/customer row; signup,
+which has no customer yet, first obtains a deterministic PostgreSQL advisory
+transaction lock for the CPO/email identity. It then invalidates the predecessor,
+creates the replacement, and enqueues its encrypted mail in one transaction.
+Verification follows the same owner-before-challenge lock order.
+
+Login performs its final password, active-status, lockout, and authority check
+inside the same identity-locked transaction that creates its challenge. A
+concurrent password replacement therefore cannot leave a formerly accepted
+password with a newly issued OTP challenge.
+
+Administrative and customer password changes lock their identity row before
+checking the current password. A reset locks its challenge owner before
+consumption and mutation. Password, session-revocation, challenge invalidation
+where applicable, and audit changes share one transaction, so an old password
+cannot authorize a second concurrent replacement after the first commits.
+
 ## Login
 
 ### Start platform login

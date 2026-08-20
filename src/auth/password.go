@@ -12,6 +12,7 @@ import (
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/security"
 	"github.com/google/uuid"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 func (service *Service) ForgotPassword(
@@ -163,7 +164,7 @@ func (service *Service) ChangePassword(
 	}
 	return service.database.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		var user models.User
-		if err := tx.First(&user, "id = ?", principal.UserID).Error; err != nil {
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&user, "id = ?", principal.UserID).Error; err != nil {
 			return fmt.Errorf("load identity for password change: %w", err)
 		}
 		matches, err := security.VerifyPassword(request.CurrentPassword, user.PasswordHash)

@@ -44,6 +44,11 @@ Customer-session operations:
   customer account.
 - Backend handlers derive customer and CPO identifiers from the
   validated customer principal, never from request bodies or query parameters.
+- A current login/reset challenge is unique by `(cpo_id, customer_id, purpose)`;
+  its owner row serializes create, resend, verification, and reset paths.
+- Customer password mutation locks that same customer row before testing the
+  old credential, then updates password, revokes sessions, invalidates active
+  challenges, and audits in one transaction.
 
 ## Backend Helper Contract
 

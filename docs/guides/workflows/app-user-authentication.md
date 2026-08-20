@@ -84,6 +84,15 @@ use `CurrentCustomerID`. No app-user request resolves a global `users` row.
 - Customer signup/login/recovery mail jobs carry their owning `cpo_id` for
   tenant-safe operations and deliberately leave administrative `user_id`
   empty.
+- At most one unconsumed, uninvalidated login or reset challenge exists for one
+  `(cpo_id, customer_id, purpose)`. Create and resend serialize on that customer
+  row; a replacement invalidates the predecessor and commits its durable email
+  atomically.
+- Signup uses the same one-current rule by `(cpo_id, normalized email)` under a
+  PostgreSQL advisory transaction lock. Different CPOs remain independent.
+- Password change locks the current customer row before testing
+  `current_password`; parallel requests using the same prior password therefore
+  have exactly one committed winner.
 
 ## CPO-Local Account Identity
 

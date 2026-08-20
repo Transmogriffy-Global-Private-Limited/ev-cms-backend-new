@@ -6,6 +6,7 @@ import (
 	"errors"
 	"os"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -18,6 +19,128 @@ import (
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 )
+
+func TestCustomerChallengeAndSignupConcurrencyWithPostgreSQL(t *testing.T) {
+	databaseURL := os.Getenv("TEST_DATABASE_URL")
+	if databaseURL == "" {
+		t.Skip("TEST_DATABASE_URL is not set")
+	}
+	ctx := context.Background()
+	gormDB, sqlDB, err := db.Open(ctx, databaseURL)
+	if err != nil {
+		t.Fatalf("open test database: %v", err)
+	}
+	defer sqlDB.Close()
+	if err := db.ApplyMigrations(ctx, sqlDB); err != nil {
+		t.Fatalf("apply migrations: %v", err)
+	}
+	box, err := security.NewSecretBox("customer-concurrency-test", []byte(strings.Repeat("m", 32)))
+	if err != nil {
+		t.Fatalf("create mail encryption: %v", err)
+	}
+	tokens, err := security.NewTokenManager("customer-concurrency-test", "customer-concurrency-test-api", 15*time.Minute, []byte(strings.Repeat("s", 32)), []byte(strings.Repeat("e", 32)))
+	if err != nil {
+		t.Fatalf("create token manager: %v", err)
+	}
+	service, err := NewService(gormDB, config.Auth{OTPExpiry: 10 * time.Minute, OTPResendCooldown: time.Second, OTPHMACKey: []byte(strings.Repeat("o", 32)), RateLimitWindow: time.Minute, RateLimitMax: 100, SessionTTL: 24 * time.Hour, LoginMaxAttempts: 5, LoginLockDuration: time.Minute}, true, cmsmail.NewOutbox(box), tokens)
+	if err != nil {
+		t.Fatalf("create customer auth service: %v", err)
+	}
+	cpo := createActiveTestCPO(t, gormDB)
+	password := "CustomerPassword!123"
+	passwordHash, err := security.HashPassword(password)
+	if err != nil {
+		t.Fatalf("hash customer password: %v", err)
+	}
+	now := time.Now().UTC()
+	customer := models.Customer{ID: uuid.New(), CPOID: cpo.ID, Email: "customer-concurrency-" + uuid.NewString() + "@example.com", PasswordHash: passwordHash, FullName: "Concurrency Customer", IsVerified: true, Status: constants.CustomerStatusActive, PasswordChangedAt: now, CreatedAt: now, UpdatedAt: now}
+	if err := gormDB.Create(&customer).Error; err != nil {
+		t.Fatalf("create customer: %v", err)
+	}
+	ip := "127.0.0.1"
+	metadata := RequestMetadata{IPAddress: &ip, UserAgent: "customer-concurrency-test"}
+	start := make(chan struct{})
+	results := make(chan error, 2)
+	var group sync.WaitGroup
+	for range 2 {
+		group.Add(1)
+		go func() {
+			defer group.Done()
+			<-start
+			_, err := service.Login(ctx, cpo.AppID, LoginRequest{Email: customer.Email, Password: password}, metadata)
+			results <- err
+		}()
+	}
+	close(start)
+	group.Wait()
+	close(results)
+	for result := range results {
+		if result != nil {
+			t.Fatalf("concurrent customer login challenge creation: %v", result)
+		}
+	}
+	var currentCustomerChallenges int64
+	if err := gormDB.Model(&models.CustomerAuthChallenge{}).Where("cpo_id = ? AND customer_id = ? AND purpose = ? AND consumed_at IS NULL AND invalidated_at IS NULL", cpo.ID, customer.ID, constants.ChallengeCustomerLogin).Count(&currentCustomerChallenges).Error; err != nil {
+		t.Fatalf("count customer current challenges: %v", err)
+	}
+	if currentCustomerChallenges != 1 {
+		t.Fatalf("customer current challenges = %d, want 1", currentCustomerChallenges)
+	}
+
+	resetStart := make(chan struct{})
+	resetResults := make(chan error, 2)
+	for range 2 {
+		group.Add(1)
+		go func() {
+			defer group.Done()
+			<-resetStart
+			resetResults <- service.ForgotPassword(ctx, cpo.AppID, ForgotPasswordRequest{Email: customer.Email}, metadata)
+		}()
+	}
+	close(resetStart)
+	group.Wait()
+	close(resetResults)
+	for result := range resetResults {
+		if result != nil {
+			t.Fatalf("concurrent customer password-reset challenge creation: %v", result)
+		}
+	}
+	var currentCustomerResetChallenges int64
+	if err := gormDB.Model(&models.CustomerAuthChallenge{}).Where("cpo_id = ? AND customer_id = ? AND purpose = ? AND consumed_at IS NULL AND invalidated_at IS NULL", cpo.ID, customer.ID, constants.ChallengeCustomerReset).Count(&currentCustomerResetChallenges).Error; err != nil {
+		t.Fatalf("count customer current password-reset challenges: %v", err)
+	}
+	if currentCustomerResetChallenges != 1 {
+		t.Fatalf("customer current password-reset challenges = %d, want 1", currentCustomerResetChallenges)
+	}
+
+	signupEmail := "signup-concurrency-" + uuid.NewString() + "@example.com"
+	signupStart := make(chan struct{})
+	signupResults := make(chan error, 2)
+	for range 2 {
+		group.Add(1)
+		go func() {
+			defer group.Done()
+			<-signupStart
+			_, err := service.Start(ctx, cpo.AppID, SignupRequest{Email: signupEmail, Password: password, FullName: "Concurrency Signup"}, metadata)
+			signupResults <- err
+		}()
+	}
+	close(signupStart)
+	group.Wait()
+	close(signupResults)
+	for result := range signupResults {
+		if result != nil {
+			t.Fatalf("concurrent signup challenge creation: %v", result)
+		}
+	}
+	var currentSignupChallenges int64
+	if err := gormDB.Model(&models.CustomerSignupChallenge{}).Where("cpo_id = ? AND lower(btrim(email)) = ? AND consumed_at IS NULL AND invalidated_at IS NULL", cpo.ID, signupEmail).Count(&currentSignupChallenges).Error; err != nil {
+		t.Fatalf("count current signup challenges: %v", err)
+	}
+	if currentSignupChallenges != 1 {
+		t.Fatalf("current signup challenges = %d, want 1", currentSignupChallenges)
+	}
+}
 
 func TestCustomerSignupLifecycleWithPostgreSQL(t *testing.T) {
 	databaseURL := os.Getenv("TEST_DATABASE_URL")

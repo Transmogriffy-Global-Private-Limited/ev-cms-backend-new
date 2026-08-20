@@ -616,6 +616,42 @@ func TestWorkerCurrentInstanceMigrationPreservesHistoryAndOneCurrentProjection(t
 	}
 }
 
+func TestAuthChallengeAndGSTInvariantMigrationIsGuardedAndReversible(t *testing.T) {
+	t.Parallel()
+
+	upBody, err := migrationFiles.ReadFile("migrations/000046_auth_challenge_and_readiness_invariants.up.sql")
+	if err != nil {
+		t.Fatalf("read auth-invariant migration: %v", err)
+	}
+	downBody, err := migrationFiles.ReadFile("migrations/000046_auth_challenge_and_readiness_invariants.down.sql")
+	if err != nil {
+		t.Fatalf("read auth-invariant rollback: %v", err)
+	}
+	upSQL, downSQL := string(upBody), string(downBody)
+	for _, required := range []string{
+		"000046 refuses duplicate current auth challenges",
+		"uq_auth_challenges_current_identity_purpose",
+		"uq_customer_auth_challenges_current_identity_purpose",
+		"uq_customer_signup_challenges_current_identity",
+		"ALTER TABLE gsts ALTER COLUMN state SET NOT NULL",
+		"cannot require gsts.state while NULL GST state rows exist",
+	} {
+		if !strings.Contains(upSQL, required) {
+			t.Errorf("auth-invariant migration missing %q", required)
+		}
+	}
+	for _, required := range []string{
+		"DROP INDEX IF EXISTS uq_auth_challenges_current_identity_purpose",
+		"DROP INDEX IF EXISTS uq_customer_auth_challenges_current_identity_purpose",
+		"DROP INDEX IF EXISTS uq_customer_signup_challenges_current_identity",
+		"ALTER TABLE gsts ALTER COLUMN state DROP NOT NULL",
+	} {
+		if !strings.Contains(downSQL, required) {
+			t.Errorf("auth-invariant rollback missing %q", required)
+		}
+	}
+}
+
 func TestTariffPriceRenameMigrationPreservesTheExistingColumn(t *testing.T) {
 	t.Parallel()
 

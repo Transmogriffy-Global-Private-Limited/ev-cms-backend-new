@@ -13,6 +13,7 @@ import (
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/config"
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/halclient"
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/models"
+	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/workerobs"
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 )
@@ -30,6 +31,9 @@ type Service struct {
 	stopCommandReconciler     StopCommandReconciler
 	settlementReconciler      SettlementReconciler
 	startReconcileAfter       time.Duration
+	observer                  workerobs.Observer
+	workerName                string
+	workerInstanceKey         string
 }
 
 // StartCommandAbsentHandler lets the charging domain own the financial
@@ -100,6 +104,13 @@ func (service *Service) WithStopCommandReconciler(reconciler StopCommandReconcil
 }
 func (service *Service) WithSettlementReconciler(reconciler SettlementReconciler) *Service {
 	service.settlementReconciler = reconciler
+	return service
+}
+
+func (service *Service) WithWorkerObserver(observer workerobs.Observer, workerName, instanceKey string) *Service {
+	service.observer = observer
+	service.workerName = workerName
+	service.workerInstanceKey = instanceKey
 	return service
 }
 
@@ -442,13 +453,44 @@ func (service *Service) RunReconciler(ctx context.Context, interval time.Duratio
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
 	for {
+		service.recordWorkerHeartbeat(ctx)
 		if err := service.ReconcilePending(ctx, 50); err != nil && ctx.Err() == nil {
+			service.markWorkerUnhealthy(ctx)
 			log.Printf("HAL reconciliation pass failed: %v", err)
+		} else if ctx.Err() == nil {
+			service.recordWorkerCompletion(ctx)
 		}
 		select {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
 		}
+	}
+}
+
+func (service *Service) recordWorkerHeartbeat(ctx context.Context) {
+	if service.observer == nil {
+		return
+	}
+	if err := service.observer.Heartbeat(ctx, service.workerName, service.workerInstanceKey); err != nil && ctx.Err() == nil {
+		log.Printf("record HAL reconciler heartbeat: %v", err)
+	}
+}
+
+func (service *Service) recordWorkerCompletion(ctx context.Context) {
+	if service.observer == nil {
+		return
+	}
+	if err := service.observer.JobCompleted(ctx, service.workerName, service.workerInstanceKey); err != nil && ctx.Err() == nil {
+		log.Printf("record HAL reconciler completion: %v", err)
+	}
+}
+
+func (service *Service) markWorkerUnhealthy(ctx context.Context) {
+	if service.observer == nil {
+		return
+	}
+	if err := service.observer.MarkUnhealthy(ctx, service.workerName, service.workerInstanceKey); err != nil && ctx.Err() == nil {
+		log.Printf("mark HAL reconciler unhealthy: %v", err)
 	}
 }

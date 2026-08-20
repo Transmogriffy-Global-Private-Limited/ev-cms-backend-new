@@ -73,6 +73,8 @@ Migration files:
 - `db/migrations/000044_temporal_tariff_fallback.down.sql`
 - `db/migrations/000045_charging_session_occupancy_and_reconciliation.up.sql`
 - `db/migrations/000045_charging_session_occupancy_and_reconciliation.down.sql`
+- `db/migrations/000046_auth_challenge_and_readiness_invariants.up.sql`
+- `db/migrations/000046_auth_challenge_and_readiness_invariants.down.sql`
 
 ## Supplied Model Mapping
 
@@ -146,9 +148,19 @@ Migration files:
   charging start locks the settings with the CPO and wallet, requires the
   configured minimum, and uses the post-buffer balance for its hold and HAL Wh
   limit.
-- Migration thirty-one adds nullable GST state and makes legacy GST-rate
-  columns nullable. API creation still requires a non-empty state and all
-  three rate values; the nullable columns preserve historical database rows.
+- Migration thirty-one added nullable GST state and made legacy GST-rate
+  columns nullable. Migration forty-six refuses to proceed while any GST state
+  is unknown, then makes `gsts.state` non-null to match the current API/domain
+  requirement; nullable rate components remain historical state.
+- Migration forty-six adds partial current-challenge uniqueness for
+  administrative `(user_id, purpose)`, customer `(cpo_id, customer_id, purpose)`,
+  and signup `(cpo_id, normalized email)` identities. It diagnoses duplicate
+  current rows instead of selecting a winner or deleting history.
+- `wallet_recharge_payments.payment_method` remains nullable: provider payloads
+  may omit the method, and the Go model represents that absence as `nil` rather
+  than an invented empty string. `connectors.connector_max_capacity` remains a
+  verified historical, unused schema residue and is intentionally not removed
+  in this safety-focused migration.
 - Migration thirty-two adds the required hub `state` persistence column with a
   compatibility default for existing records; the API enforces non-empty state
   values for new and updated hubs.

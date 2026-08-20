@@ -37,7 +37,7 @@ type WalletRechargePayment struct {
 	AmountMinor       int64                                 `gorm:"not null" json:"amount_minor"`
 	Currency          string                                `gorm:"type:char(3);not null" json:"currency"`
 	Status            constants.WalletRechargePaymentStatus `gorm:"type:varchar(30);not null" json:"status"`
-	PaymentMethod     string                                `gorm:"type:varchar(50)" json:"payment_method,omitempty"`
+	PaymentMethod     *string                               `gorm:"type:varchar(50)" json:"payment_method,omitempty"`
 	ProviderFeeMinor  *int64                                `json:"provider_fee_minor,omitempty"`
 	ProviderTaxMinor  *int64                                `json:"provider_tax_minor,omitempty"`
 	ErrorCode         *string                               `gorm:"type:varchar(100)" json:"error_code,omitempty"`

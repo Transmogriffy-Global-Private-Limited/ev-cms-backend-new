@@ -32,6 +32,9 @@ web application with an independent CPO-local credential boundary.
 - No global administrative identity is read or created for an app customer.
 - Verification is serialized by normalized email and all durable writes occur
   in one PostgreSQL transaction.
+- Creation and resend also serialize by that same `(cpo_id, normalized email)`
+  advisory-lock identity, and a partial unique index retains at most one
+  unconsumed, uninvalidated pending challenge.
 - CPO status and app ID are revalidated at every step.
 
 ## Non-goals

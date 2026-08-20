@@ -1,5 +1,29 @@
 # AI Changelog
 
+## 2026-08-20 - Auth and current-worker invariant hardening
+
+- Added guarded migration 46 with partial current-challenge uniqueness for
+  administrative, customer, and CPO-local signup identities. It fails with a
+  diagnostic for pre-existing duplicate current rows rather than silently
+  deleting or invalidating them, and it safely requires GST state only after
+  proving no existing state is unknown.
+- Serialized challenge lifecycle and password authorization on the identity
+  owner. Login rechecks credentials and active/lockout state after acquiring
+  that lock, so a concurrent password change cannot create an OTP challenge
+  from obsolete credentials. Signup serializes its pre-customer identity with a
+  transaction-scoped PostgreSQL advisory lock.
+- Replaced readiness inference from durable worker-name rows with the current
+  process's explicit expected worker-instance set. HAL reconciliation and
+  operational retention now report worker health; mail remains required only
+  when enabled. Provider-omitted recharge payment methods remain `NULL` in the
+  model instead of a synthetic empty value.
+
+Verification: focused auth/customer-auth/platform-ops checks, the complete
+`go test -p 1 ./...` suite, `go vet -p 1 ./...`, and
+`scripts/verify-docs.ps1` passed. PostgreSQL concurrency and migration checks
+require an explicitly selected disposable `TEST_DATABASE_URL` and were skipped;
+no migration, live data mutation, deployment, or restart was performed.
+
 ## 2026-08-20 - Charging lifecycle occupancy and reconciliation repair
 
 - Added migration 45: an unmaterialized open start intent exclusively reserves

@@ -6,6 +6,7 @@ import (
 	"errors"
 	"os"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -18,6 +19,120 @@ import (
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 )
+
+func TestAdministrativeChallengeAndPasswordConcurrencyWithPostgreSQL(t *testing.T) {
+	databaseURL := os.Getenv("TEST_DATABASE_URL")
+	if databaseURL == "" {
+		t.Skip("TEST_DATABASE_URL is not set")
+	}
+	ctx := context.Background()
+	gormDB, sqlDB, err := db.Open(ctx, databaseURL)
+	if err != nil {
+		t.Fatalf("open test database: %v", err)
+	}
+	defer sqlDB.Close()
+	if err := db.ApplyMigrations(ctx, sqlDB); err != nil {
+		t.Fatalf("apply migrations: %v", err)
+	}
+
+	email := "auth-concurrency-" + uuid.NewString() + "@example.com"
+	oldPassword := "InitialPassword!123"
+	if err := db.SeedSuperadmin(ctx, gormDB, config.Superadmin{Email: email, Password: oldPassword, FullName: "Concurrency Admin"}); err != nil {
+		t.Fatalf("seed administrative identity: %v", err)
+	}
+	var user models.User
+	if err := gormDB.Where("email = ?", email).First(&user).Error; err != nil {
+		t.Fatalf("load seeded administrative identity: %v", err)
+	}
+	service, _ := newIntegrationAuthService(t, gormDB)
+	ip := "127.0.0.1"
+	metadata := RequestMetadata{IPAddress: &ip, UserAgent: "auth-concurrency-test"}
+
+	results := make(chan error, 2)
+	start := make(chan struct{})
+	var group sync.WaitGroup
+	for range 2 {
+		group.Add(1)
+		go func() {
+			defer group.Done()
+			<-start
+			_, err := service.Login(ctx, LoginRequest{Email: email, Password: oldPassword, Scope: constants.AuthScopePlatform}, metadata)
+			results <- err
+		}()
+	}
+	close(start)
+	group.Wait()
+	close(results)
+	for result := range results {
+		if result != nil {
+			t.Fatalf("concurrent login challenge creation: %v", result)
+		}
+	}
+	var currentChallenges int64
+	if err := gormDB.Model(&models.AuthChallenge{}).Where("user_id = ? AND purpose = ? AND consumed_at IS NULL AND invalidated_at IS NULL", user.ID, constants.ChallengeLogin2FA).Count(&currentChallenges).Error; err != nil {
+		t.Fatalf("count current login challenges: %v", err)
+	}
+	if currentChallenges != 1 {
+		t.Fatalf("current login challenges = %d, want 1", currentChallenges)
+	}
+
+	resetResults := make(chan error, 2)
+	resetStart := make(chan struct{})
+	for range 2 {
+		group.Add(1)
+		go func() {
+			defer group.Done()
+			<-resetStart
+			resetResults <- service.ForgotPassword(ctx, ForgotPasswordRequest{Email: email}, metadata)
+		}()
+	}
+	close(resetStart)
+	group.Wait()
+	close(resetResults)
+	for result := range resetResults {
+		if result != nil {
+			t.Fatalf("concurrent password-reset challenge creation: %v", result)
+		}
+	}
+	var currentResetChallenges int64
+	if err := gormDB.Model(&models.AuthChallenge{}).Where("user_id = ? AND purpose = ? AND consumed_at IS NULL AND invalidated_at IS NULL", user.ID, constants.ChallengePasswordReset).Count(&currentResetChallenges).Error; err != nil {
+		t.Fatalf("count current password-reset challenges: %v", err)
+	}
+	if currentResetChallenges != 1 {
+		t.Fatalf("current password-reset challenges = %d, want 1", currentResetChallenges)
+	}
+
+	passwordResults := make(chan error, 2)
+	passwordStart := make(chan struct{})
+	for _, replacement := range []string{"ReplacementPassword!456", "ReplacementPassword!789"} {
+		replacement := replacement
+		group.Add(1)
+		go func() {
+			defer group.Done()
+			<-passwordStart
+			passwordResults <- service.ChangePassword(ctx, Principal{UserID: user.ID, Scope: constants.AuthScopePlatform}, ChangePasswordRequest{CurrentPassword: oldPassword, NewPassword: replacement})
+		}()
+	}
+	close(passwordStart)
+	group.Wait()
+	close(passwordResults)
+	succeeded := 0
+	for result := range passwordResults {
+		if result == nil {
+			succeeded++
+		}
+	}
+	if succeeded != 1 {
+		t.Fatalf("concurrent password changes succeeded %d times, want exactly one", succeeded)
+	}
+	var changes int64
+	if err := gormDB.Model(&models.AuditLog{}).Where("user_id = ? AND action = ?", user.ID, "AUTH_PASSWORD_CHANGED").Count(&changes).Error; err != nil {
+		t.Fatalf("count committed password audits: %v", err)
+	}
+	if changes != 1 {
+		t.Fatalf("password change audit count = %d, want 1", changes)
+	}
+}
 
 func TestPlatformAuthenticationLifecycleWithPostgreSQL(t *testing.T) {
 	databaseURL := os.Getenv("TEST_DATABASE_URL")

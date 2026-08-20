@@ -2,6 +2,33 @@
 
 ## Current State
 
+### 2026-08-20 — Auth/current-worker invariant hardening (source only)
+
+- Migration `000046_auth_challenge_and_readiness_invariants` guards against
+  pre-existing duplicate current challenges, then adds partial unique indexes
+  for administrative, customer, and signup identities. It makes no attempt to
+  select a winner or erase challenge history. It also rejects unknown GST
+  states before requiring the domain-owned `gsts.state` column to be non-null.
+- Challenge issue, resend, verification, and password-reset flows serialize on
+  their user/customer identity; signup uses an advisory transaction lock for
+  its CPO/normalized-email identity. Login repeats credential/state validation
+  after that lock, and concurrent current-password changes are serialized.
+- `/health/ready` now requires the exact enabled worker instances expected by
+  this process. Platform maintenance always blocks readiness; HAL reconciliation
+  does so only when HAL is enabled, mail only when mail is enabled, and
+  operational-event retention remains observable but non-blocking.
+- The wallet-recharge payment-method model now preserves a provider omission as
+  `NULL`; `connectors.connector_max_capacity` remains intentionally retained
+  historical schema residue. Charging migration 45 and its `total_kwh` repair
+  are unchanged.
+
+Verification: focused auth/customer-auth/platform-ops tests, the complete
+`go test -p 1 ./...` suite, `go vet -p 1 ./...`, and documentation contract
+verification passed. The new PostgreSQL migration/concurrency tests are present
+but skipped because no disposable `TEST_DATABASE_URL` was supplied. No
+migration was executed, no database was modified, and nothing was deployed or
+restarted.
+
 ### 2026-08-20 — Charging lifecycle reconciliation deployed
 
 - Migration `000045_charging_session_occupancy_and_reconciliation` transfers

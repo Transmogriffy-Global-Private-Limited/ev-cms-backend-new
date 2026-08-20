@@ -26,6 +26,8 @@ ownership and could expose or revoke unrelated sessions.
   customer/CPO relationship.
 - ADR 0013 makes password changes/resets CPO-local and revokes only the exact
   customer account's sessions.
+- Lock the CPO-local customer row before authorizing a current-password change;
+  an already-committed replacement makes the old password stale for any waiter.
 - Expose trusted `customerauth.Current*` helpers for backend app handlers.
 
 ## Consequences

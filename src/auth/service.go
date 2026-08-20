@@ -139,30 +139,50 @@ func (service *Service) Login(
 		return ChallengeResponse{}, errInvalidCredentials
 	}
 
-	role, err := service.resolveLoginScope(ctx, user.ID, request.Scope, request.CPOID)
+	var response ChallengeResponse
+	var outcome error
+	err := service.database.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		// Recheck credentials after the identity lock. A password mutation must
+		// never race a previously validated login into issuing a new challenge.
+		lockedUser, err := service.lockUser(tx, user.ID)
+		if err != nil {
+			return err
+		}
+		lockedMatches, err := security.VerifyPassword(request.Password, lockedUser.PasswordHash)
+		if err != nil {
+			return fmt.Errorf("verify locked login password: %w", err)
+		}
+		now := service.now()
+		if !lockedMatches || !lockedUser.IsActive ||
+			(lockedUser.LockedUntil != nil && lockedUser.LockedUntil.After(now)) {
+			outcome = errInvalidCredentials
+			return nil
+		}
+		if _, err := service.resolveLoginScopeTx(tx, lockedUser.ID, request.Scope, request.CPOID); err != nil {
+			outcome = err
+			return nil
+		}
+		if err := tx.Model(&models.User{}).Where("id = ?", lockedUser.ID).
+			Updates(map[string]any{
+				"failed_login_attempts": 0,
+				"locked_until":          nil,
+				"updated_at":            now,
+			}).Error; err != nil {
+			return fmt.Errorf("reset failed login state: %w", err)
+		}
+		response, err = service.createChallengeTx(
+			tx, lockedUser, constants.ChallengeLogin2FA, &request.Scope,
+			request.CPOID, metadata, loginMailTemplate, now,
+		)
+		return err
+	})
 	if err != nil {
 		return ChallengeResponse{}, err
 	}
-	if err := service.database.WithContext(ctx).Model(&models.User{}).
-		Where("id = ?", user.ID).
-		Updates(map[string]any{
-			"failed_login_attempts": 0,
-			"locked_until":          nil,
-			"updated_at":            now,
-		}).Error; err != nil {
-		return ChallengeResponse{}, fmt.Errorf("reset failed login state: %w", err)
+	if outcome != nil {
+		return ChallengeResponse{}, outcome
 	}
-
-	return service.createChallenge(
-		ctx,
-		user,
-		constants.ChallengeLogin2FA,
-		&request.Scope,
-		request.CPOID,
-		role,
-		metadata,
-		loginMailTemplate,
-	)
+	return response, nil
 }
 
 func (service *Service) VerifyLoginChallenge(
@@ -359,6 +379,14 @@ func (service *Service) createChallengeTx(
 	template string,
 	now time.Time,
 ) (ChallengeResponse, error) {
+	// The user row is the logical serialization boundary for every active
+	// administrative challenge, regardless of whether the caller is a first
+	// login, password recovery, or resend path.
+	lockedUser, err := service.lockUser(tx, user.ID)
+	if err != nil {
+		return ChallengeResponse{}, err
+	}
+	user = lockedUser
 	code, err := security.RandomDigits(6)
 	if err != nil {
 		return ChallengeResponse{}, err
@@ -426,6 +454,25 @@ func (service *Service) lockChallenge(
 	id uuid.UUID,
 	purpose constants.AuthChallengePurpose,
 ) (models.AuthChallenge, models.User, error) {
+	// Establish the shared owner lock before locking the individual challenge.
+	// Challenge replacement takes the same order (user then challenge rows),
+	// so resend, verify, reset, and creation cannot deadlock each other.
+	var owner struct {
+		UserID uuid.UUID
+	}
+	if err := tx.Model(&models.AuthChallenge{}).
+		Select("user_id").
+		Where("id = ? AND purpose = ?", id, purpose).
+		Take(&owner).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return models.AuthChallenge{}, models.User{}, errInvalidChallenge
+		}
+		return models.AuthChallenge{}, models.User{}, fmt.Errorf("find authentication challenge owner: %w", err)
+	}
+	user, err := service.lockUser(tx, owner.UserID)
+	if err != nil {
+		return models.AuthChallenge{}, models.User{}, err
+	}
 	var challenge models.AuthChallenge
 	if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
 		Where("id = ? AND purpose = ?", id, purpose).
@@ -435,11 +482,15 @@ func (service *Service) lockChallenge(
 		}
 		return models.AuthChallenge{}, models.User{}, fmt.Errorf("lock authentication challenge: %w", err)
 	}
-	var user models.User
-	if err := tx.First(&user, "id = ?", challenge.UserID).Error; err != nil {
-		return models.AuthChallenge{}, models.User{}, fmt.Errorf("load challenged identity: %w", err)
-	}
 	return challenge, user, nil
+}
+
+func (service *Service) lockUser(tx *gorm.DB, userID uuid.UUID) (models.User, error) {
+	var user models.User
+	if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&user, "id = ?", userID).Error; err != nil {
+		return models.User{}, fmt.Errorf("lock authentication identity: %w", err)
+	}
+	return user, nil
 }
 
 func (service *Service) challengeUsable(challenge models.AuthChallenge, now time.Time) bool {

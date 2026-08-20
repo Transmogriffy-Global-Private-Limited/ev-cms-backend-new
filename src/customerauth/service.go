@@ -290,6 +290,14 @@ func (service *Service) Verify(
 	var response SignupResponse
 	var outcome error
 	err := service.database.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		identity, err := service.findSignupChallengeIdentity(tx, request.ChallengeID)
+		if err != nil {
+			outcome = err
+			return nil
+		}
+		if err := lockSignupIdentity(tx, identity.CPOID, identity.Email); err != nil {
+			return err
+		}
 		challenge, err := service.lockChallenge(tx, request.ChallengeID)
 		if err != nil {
 			outcome = err
@@ -320,14 +328,6 @@ func (service *Service) Verify(
 			}).Error; err != nil {
 			return fmt.Errorf("consume signup challenge: %w", err)
 		}
-		if err := tx.Exec(
-			"SELECT pg_advisory_xact_lock(hashtextextended(?, 0))",
-			"customer-signup:"+challenge.CPOID.String()+":"+
-				strings.ToLower(strings.TrimSpace(challenge.Email)),
-		).Error; err != nil {
-			return fmt.Errorf("lock signup identity: %w", err)
-		}
-
 		var existing int64
 		if err := tx.Model(&models.Customer{}).
 			Where("cpo_id = ? AND lower(btrim(email)) = ?", challenge.CPOID, challenge.Email).
@@ -397,6 +397,14 @@ func (service *Service) Resend(
 	var response ChallengeResponse
 	var outcome error
 	err := service.database.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		identity, err := service.findSignupChallengeIdentity(tx, request.ChallengeID)
+		if err != nil {
+			outcome = err
+			return nil
+		}
+		if err := lockSignupIdentity(tx, identity.CPOID, identity.Email); err != nil {
+			return err
+		}
 		challenge, err := service.lockChallenge(tx, request.ChallengeID)
 		if err != nil {
 			outcome = err
@@ -441,6 +449,9 @@ func (service *Service) createChallenge(
 	metadata RequestMetadata,
 	now time.Time,
 ) (ChallengeResponse, error) {
+	if err := lockSignupIdentity(tx, cpoID, email); err != nil {
+		return ChallengeResponse{}, err
+	}
 	code, err := security.RandomDigits(6)
 	if err != nil {
 		return ChallengeResponse{}, err
@@ -483,6 +494,32 @@ func (service *Service) lockChallenge(tx *gorm.DB, id uuid.UUID) (models.Custome
 		return challenge, fmt.Errorf("lock customer signup challenge: %w", err)
 	}
 	return challenge, nil
+}
+
+type signupChallengeIdentity struct {
+	CPOID uuid.UUID
+	Email string
+}
+
+func (service *Service) findSignupChallengeIdentity(tx *gorm.DB, id uuid.UUID) (signupChallengeIdentity, error) {
+	var identity signupChallengeIdentity
+	if err := tx.Model(&models.CustomerSignupChallenge{}).Select("cpo_id, email").Where("id = ?", id).Take(&identity).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return signupChallengeIdentity{}, errInvalidChallenge
+		}
+		return signupChallengeIdentity{}, fmt.Errorf("find signup challenge identity: %w", err)
+	}
+	return identity, nil
+}
+
+func lockSignupIdentity(tx *gorm.DB, cpoID uuid.UUID, email string) error {
+	if err := tx.Exec(
+		"SELECT pg_advisory_xact_lock(hashtextextended(?, 0))",
+		"customer-signup:"+cpoID.String()+":"+strings.ToLower(strings.TrimSpace(email)),
+	).Error; err != nil {
+		return fmt.Errorf("lock signup identity: %w", err)
+	}
+	return nil
 }
 
 func activeCPO(tx *gorm.DB, appID string) (models.CPO, error) {

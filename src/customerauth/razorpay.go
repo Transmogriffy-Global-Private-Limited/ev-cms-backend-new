@@ -420,7 +420,7 @@ func buildRechargePayment(
 		AmountMinor:       order.AmountMinor,
 		Currency:          order.Currency,
 		Status:            status,
-		PaymentMethod:     providerString(data, "method"),
+		PaymentMethod:     stringValuePtr(data, "method"),
 		ProviderFeeMinor:  providerInt64Ptr(data, "fee"),
 		ProviderTaxMinor:  providerInt64Ptr(data, "tax"),
 		ErrorCode:         stringValuePtr(data, "error_code"),

@@ -76,11 +76,41 @@ func (service *Service) Login(ctx context.Context, appID string, request LoginRe
 		}
 		return ChallengeResponse{}, errInvalidCredentials
 	}
-	if err := service.database.WithContext(ctx).Model(&models.Customer{}).Where("id = ? AND cpo_id = ?", customer.ID, cpo.ID).
-		Updates(map[string]any{"failed_login_attempts": 0, "locked_until": nil, "updated_at": now}).Error; err != nil {
-		return ChallengeResponse{}, fmt.Errorf("reset customer failed-login state: %w", err)
+	var response ChallengeResponse
+	var outcome error
+	err = service.database.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		// Recheck credentials after the customer lock so a concurrent password
+		// change cannot leave an accepted login with a fresh OTP challenge.
+		lockedCustomer, err := service.lockCustomer(tx, customer.ID, cpo.ID)
+		if err != nil {
+			return err
+		}
+		lockedMatches, err := security.VerifyPassword(request.Password, lockedCustomer.PasswordHash)
+		if err != nil {
+			return fmt.Errorf("verify locked customer password: %w", err)
+		}
+		now := service.now()
+		if !lockedMatches || lockedCustomer.Status != constants.CustomerStatusActive ||
+			(lockedCustomer.LockedUntil != nil && lockedCustomer.LockedUntil.After(now)) {
+			outcome = errInvalidCredentials
+			return nil
+		}
+		if err := tx.Model(&models.Customer{}).Where("id = ? AND cpo_id = ?", lockedCustomer.ID, cpo.ID).
+			Updates(map[string]any{"failed_login_attempts": 0, "locked_until": nil, "updated_at": now}).Error; err != nil {
+			return fmt.Errorf("reset customer failed-login state: %w", err)
+		}
+		response, err = service.createAuthChallengeTx(
+			tx, lockedCustomer, constants.ChallengeCustomerLogin, metadata, customerLoginMailTemplate, now,
+		)
+		return err
+	})
+	if err != nil {
+		return ChallengeResponse{}, err
 	}
-	return service.createAuthChallenge(ctx, customer, constants.ChallengeCustomerLogin, metadata, customerLoginMailTemplate)
+	if outcome != nil {
+		return ChallengeResponse{}, outcome
+	}
+	return response, nil
 }
 
 func (service *Service) VerifyLogin(ctx context.Context, appID string, request ChallengeRequest, metadata RequestMetadata) (TokenResponse, error) {
@@ -268,6 +298,14 @@ func (service *Service) createAuthChallenge(ctx context.Context, customer models
 }
 
 func (service *Service) createAuthChallengeTx(tx *gorm.DB, customer models.Customer, purpose constants.AuthChallengePurpose, metadata RequestMetadata, template string, now time.Time) (ChallengeResponse, error) {
+	// A customer row is the common serialization boundary for login and reset
+	// challenges. Every create/replacement path takes it before touching the
+	// current-challenge projection.
+	lockedCustomer, err := service.lockCustomer(tx, customer.ID, customer.CPOID)
+	if err != nil {
+		return ChallengeResponse{}, err
+	}
+	customer = lockedCustomer
 	code, err := security.RandomDigits(6)
 	if err != nil {
 		return ChallengeResponse{}, err
@@ -353,6 +391,21 @@ func (service *Service) resendAuthChallenge(ctx context.Context, appID string, r
 }
 
 func (service *Service) lockAuthChallenge(tx *gorm.DB, id uuid.UUID, purpose constants.AuthChallengePurpose) (models.CustomerAuthChallenge, models.Customer, error) {
+	var owner struct {
+		CPOID      uuid.UUID
+		CustomerID uuid.UUID
+	}
+	if err := tx.Model(&models.CustomerAuthChallenge{}).Select("cpo_id, customer_id").
+		Where("id = ? AND purpose = ?", id, purpose).Take(&owner).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return models.CustomerAuthChallenge{}, models.Customer{}, errInvalidChallenge
+		}
+		return models.CustomerAuthChallenge{}, models.Customer{}, fmt.Errorf("find customer authentication challenge owner: %w", err)
+	}
+	customer, err := service.lockCustomer(tx, owner.CustomerID, owner.CPOID)
+	if err != nil {
+		return models.CustomerAuthChallenge{}, models.Customer{}, err
+	}
 	var challenge models.CustomerAuthChallenge
 	if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("id = ? AND purpose = ?", id, purpose).First(&challenge).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -360,11 +413,15 @@ func (service *Service) lockAuthChallenge(tx *gorm.DB, id uuid.UUID, purpose con
 		}
 		return challenge, models.Customer{}, fmt.Errorf("lock customer authentication challenge: %w", err)
 	}
-	var customer models.Customer
-	if err := tx.Where("id = ? AND cpo_id = ?", challenge.CustomerID, challenge.CPOID).First(&customer).Error; err != nil {
-		return challenge, customer, fmt.Errorf("load challenged customer account: %w", err)
-	}
 	return challenge, customer, nil
+}
+
+func (service *Service) lockCustomer(tx *gorm.DB, customerID, cpoID uuid.UUID) (models.Customer, error) {
+	var customer models.Customer
+	if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("id = ? AND cpo_id = ?", customerID, cpoID).First(&customer).Error; err != nil {
+		return models.Customer{}, fmt.Errorf("lock customer authentication identity: %w", err)
+	}
+	return customer, nil
 }
 
 func (service *Service) authOTPHash(id uuid.UUID, purpose constants.AuthChallengePurpose, code string) []byte {

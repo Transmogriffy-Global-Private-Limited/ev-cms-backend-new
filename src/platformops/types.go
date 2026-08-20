@@ -59,3 +59,12 @@ type WorkerView struct {
 type WorkerListResponse struct {
 	Workers []WorkerView `json:"workers"`
 }
+
+// WorkerSpec is application wiring's expected-worker contract. A durable row
+// is an observation of this contract, never the authority that defines it.
+type WorkerSpec struct {
+	Name        string
+	InstanceKey string
+	Required    bool
+	Enabled     bool
+}

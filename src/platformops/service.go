@@ -29,9 +29,23 @@ const (
 )
 
 type Service struct {
-	database *gorm.DB
-	config   config.Platform
-	now      func() time.Time
+	database        *gorm.DB
+	config          config.Platform
+	now             func() time.Time
+	expectedWorkers map[string]WorkerSpec
+}
+
+func (service *Service) WithExpectedWorkers(specifications []WorkerSpec) *Service {
+	service.expectedWorkers = make(map[string]WorkerSpec, len(specifications))
+	for _, specification := range specifications {
+		if strings.TrimSpace(specification.Name) == "" || strings.TrimSpace(specification.InstanceKey) == "" {
+			continue
+		}
+		specification.Name = strings.TrimSpace(specification.Name)
+		specification.InstanceKey = strings.TrimSpace(specification.InstanceKey)
+		service.expectedWorkers[specification.Name] = specification
+	}
+	return service
 }
 
 func NewService(database *gorm.DB, cfg config.Platform) *Service {
@@ -237,6 +251,14 @@ func (service *Service) Heartbeat(
 		return errors.New("worker identity exceeds storage limit")
 	}
 	now := service.now()
+	expected, isExpected := service.expectedWorkers[workerName]
+	if len(service.expectedWorkers) > 0 && (!isExpected || !expected.Enabled || expected.InstanceKey != instanceKey) {
+		return errors.New("worker identity is not expected for this process")
+	}
+	required := true
+	if isExpected {
+		required = expected.Required
+	}
 	return service.database.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		var record models.WorkerInstance
 		err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
@@ -267,7 +289,7 @@ func (service *Service) Heartbeat(
 		}
 		record = models.WorkerInstance{
 			ID: uuid.New(), WorkerName: workerName, InstanceKey: instanceKey,
-			IsCurrent: true, Required: true, ReportedStatus: "HEALTHY",
+			IsCurrent: true, Required: required, ReportedStatus: "HEALTHY",
 			StartedAt: now, LastHeartbeatAt: now, Metadata: models.JSONB{}, UpdatedAt: now,
 		}
 		if err := tx.Create(&record).Error; err != nil {
@@ -275,6 +297,20 @@ func (service *Service) Heartbeat(
 		}
 		return nil
 	})
+}
+
+func (service *Service) MarkUnhealthy(ctx context.Context, workerName, instanceKey string) error {
+	now := service.now()
+	result := service.database.WithContext(ctx).Model(&models.WorkerInstance{}).
+		Where("worker_name = ? AND instance_key = ? AND is_current = ?", workerName, instanceKey, true).
+		Updates(map[string]any{"reported_status": "DEGRADED", "updated_at": now})
+	if result.Error != nil {
+		return fmt.Errorf("mark worker unhealthy: %w", result.Error)
+	}
+	if result.RowsAffected == 0 {
+		return errors.New("current worker instance is not registered")
+	}
+	return nil
 }
 
 func (service *Service) JobCompleted(
@@ -332,6 +368,25 @@ func (service *Service) ListWorkers(
 }
 
 func (service *Service) RequiredWorkersReady(ctx context.Context) (bool, error) {
+	if len(service.expectedWorkers) > 0 {
+		staleBefore := service.now().Add(-service.config.WorkerStaleAfter)
+		for _, expected := range service.expectedWorkers {
+			if !expected.Enabled || !expected.Required {
+				continue
+			}
+			var healthy int64
+			if err := service.database.WithContext(ctx).Model(&models.WorkerInstance{}).Where(
+				"worker_name = ? AND instance_key = ? AND is_current = ? AND reported_status = ? AND last_heartbeat_at >= ?",
+				expected.Name, expected.InstanceKey, true, "HEALTHY", staleBefore,
+			).Count(&healthy).Error; err != nil {
+				return false, fmt.Errorf("inspect expected worker health: %w", err)
+			}
+			if healthy != 1 {
+				return false, nil
+			}
+		}
+		return true, nil
+	}
 	var unhealthy int64
 	staleBefore := service.now().Add(-service.config.WorkerStaleAfter)
 	if err := service.database.WithContext(ctx).Raw(`
@@ -369,6 +424,9 @@ func (service *Service) RunMaintenance(ctx context.Context, instanceKey string) 
 			ctx.Err() == nil {
 			log.Printf("record platform maintenance heartbeat: %v", err)
 		} else if err := service.DeleteExpiredEvents(ctx); err != nil {
+			if markErr := service.MarkUnhealthy(ctx, workerName, instanceKey); markErr != nil && ctx.Err() == nil {
+				log.Printf("mark platform maintenance unhealthy: %v", markErr)
+			}
 			if ctx.Err() == nil {
 				log.Printf("delete expired platform events: %v", err)
 			}
