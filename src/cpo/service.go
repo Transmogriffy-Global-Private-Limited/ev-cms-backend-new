@@ -277,12 +277,9 @@ func toChargerTransactionView(transaction ChargerTransaction) ChargerTransaction
 }
 
 func toChargingSessionView(session models.ChargingSession) ChargingSessionView {
-	return ChargingSessionView{
+	view := ChargingSessionView{
 		ID:            session.ID,
 		TransactionID: session.TransactionID,
-		CustomerID:    session.CustomerID,
-		ChargerID:     session.ChargerID,
-		ConnectorID:   session.ConnectorID,
 		StartTime:     session.StartTime,
 		EndTime:       session.EndTime,
 		TotalKWh:      session.TotalKWh,
@@ -292,6 +289,30 @@ func toChargingSessionView(session models.ChargingSession) ChargingSessionView {
 		StopReason:    session.StopReason,
 		CreatedAt:     session.CreatedAt,
 	}
+
+	if session.Customer.ID != uuid.Nil {
+		view.Customer = ChargingSessionCustomerView{
+			Name:  session.Customer.FullName,
+			Email: session.Customer.Email,
+		}
+	}
+
+	if session.Charger.ID != uuid.Nil {
+		view.Charger = ChargingSessionChargerView{
+			Name: session.Charger.ChargerName,
+		}
+		if session.Charger.Hub != nil {
+			view.Charger.HubName = &session.Charger.Hub.Name
+		}
+	}
+
+	if session.Connector.ID != uuid.Nil {
+		view.Connector = ChargingSessionConnectorView{
+			Number: session.Connector.ConnectorNumber,
+		}
+	}
+
+	return view
 }
 
 func (service *Service) Create(

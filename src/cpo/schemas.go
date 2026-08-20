@@ -648,21 +648,37 @@ type UpdateChargerCustomerVisibilityRequest struct {
 	CustomerVisible bool `json:"customer_visible"`
 }
 
-type ChargingSessionView struct {
-	ID            uuid.UUID               `json:"id"`
-	TransactionID int64                   `json:"transaction_id"`
-	CustomerID    uuid.UUID               `json:"customer_id"`
-	ChargerID     uuid.UUID               `json:"charger_id"`
-	ConnectorID   uuid.UUID               `json:"connector_id"`
-	StartTime     time.Time               `json:"start_time"`
-	EndTime       *time.Time              `json:"end_time,omitempty"`
-	TotalKWh      decimal.Decimal         `json:"total_kwh"`
-	TotalAmount   decimal.Decimal         `json:"total_amount"`
-	Currency      string                  `json:"currency"`
-	Status        constants.SessionStatus `json:"status"`
-	StopReason    *string                 `json:"stop_reason,omitempty"`
-	CreatedAt     time.Time               `json:"created_at"`
+
+type ChargingSessionCustomerView struct {
+	Name  string `json:"name"`
+	Email string `json:"email"`
 }
+
+type ChargingSessionChargerView struct {
+	Name    string  `json:"name"`
+	HubName *string `json:"hub_name,omitempty"`
+}
+
+type ChargingSessionConnectorView struct {
+	Number int `json:"number"`
+}
+
+type ChargingSessionView struct {
+	ID            uuid.UUID                    `json:"id"`
+	TransactionID int64                        `json:"transaction_id"`
+	Customer      ChargingSessionCustomerView  `json:"customer"`
+	Charger       ChargingSessionChargerView   `json:"charger"`
+	Connector     ChargingSessionConnectorView `json:"connector"`
+	StartTime     time.Time                    `json:"start_time"`
+	EndTime       *time.Time                   `json:"end_time,omitempty"`
+	TotalKWh      decimal.Decimal              `json:"total_kwh"`
+	TotalAmount   decimal.Decimal              `json:"total_amount"`
+	Currency      string                       `json:"currency"`
+	Status        constants.SessionStatus      `json:"status"`
+	StopReason    *string                      `json:"stop_reason,omitempty"`
+	CreatedAt     time.Time                    `json:"created_at"`
+}
+
 
 type ChargingSessionListResponse struct {
 	Sessions     []ChargingSessionView `json:"sessions"`

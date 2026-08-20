@@ -65,7 +65,11 @@ func (r *repository) GetAnalytics(ctx context.Context, cpoID uuid.UUID) (Analyti
 
 func (r *repository) GetChargingSession(ctx context.Context, cpoID, sessionID uuid.UUID) (*models.ChargingSession, error) {
 	var session models.ChargingSession
-	if err := r.db.WithContext(ctx).Where("cpo_id = ? AND id = ?", cpoID, sessionID).First(&session).Error; err != nil {
+	if err := r.db.WithContext(ctx).
+		Preload("Customer").
+		Preload("Charger.Hub").
+		Preload("Connector").
+		Where("cpo_id = ? AND id = ?", cpoID, sessionID).First(&session).Error; err != nil {
 		return nil, err
 	}
 	return &session, nil
@@ -73,7 +77,11 @@ func (r *repository) GetChargingSession(ctx context.Context, cpoID, sessionID uu
 
 func (r *repository) ListChargingSessions(ctx context.Context, cpoID uuid.UUID, query ChargingSessionListQuery) ([]models.ChargingSession, error) {
 	var sessions []models.ChargingSession
-	db := r.db.WithContext(ctx).Where("cpo_id = ?", cpoID)
+	db := r.db.WithContext(ctx).
+		Preload("Customer").
+		Preload("Charger.Hub").
+		Preload("Connector").
+		Where("cpo_id = ?", cpoID)
 
 	if query.Status != nil {
 		db = db.Where("status = ?", *query.Status)

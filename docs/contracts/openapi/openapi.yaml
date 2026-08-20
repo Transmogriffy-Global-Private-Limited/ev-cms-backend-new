@@ -9778,6 +9778,34 @@ components:
           nullable: true
         has_more:
           type: boolean
+    ChargingSessionCustomerView:
+      type: object
+      properties:
+        name:
+          type: string
+        email:
+          type: string
+          format: email
+      required:
+        - name
+        - email
+    ChargingSessionChargerView:
+      type: object
+      properties:
+        name:
+          type: string
+        hub_name:
+          type: string
+          nullable: true
+      required:
+        - name
+    ChargingSessionConnectorView:
+      type: object
+      properties:
+        number:
+          type: integer
+      required:
+        - number
     ChargingSessionView:
       type: object
       properties:
@@ -9787,15 +9815,12 @@ components:
         transaction_id:
           type: integer
           format: int64
-        customer_id:
-          type: string
-          format: uuid
-        charger_id:
-          type: string
-          format: uuid
-        connector_id:
-          type: string
-          format: uuid
+        customer:
+          $ref: "#/components/schemas/ChargingSessionCustomerView"
+        charger:
+          $ref: "#/components/schemas/ChargingSessionChargerView"
+        connector:
+          $ref: "#/components/schemas/ChargingSessionConnectorView"
         start_time:
           type: string
           format: date-time
