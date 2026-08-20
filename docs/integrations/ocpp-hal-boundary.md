@@ -88,6 +88,25 @@ to send `X-Request-ID`; a client value is not the CMS-to-HAL correlation
 authority. The CMS HAL client rejects an empty correlation ID before sending a
 mutation, while non-mutating exact-command lookup remains correlation-free.
 
+## HAL command-response contract
+
+CMS accepts a successful HAL start, stop, or exact-command lookup only when it
+contains a `command` object with exact snake_case `hal_command_id`,
+`cms_command_id`, `kind`, `state`, `hal_transaction_id`,
+`ocpp_transaction_id`, and `updated_at` fields. HAL/CMS command identities
+must be nonzero UUIDs, the returned CMS ID must be the requested ID, kind and
+durable state must be supported, and a present transaction ID must not be the
+zero UUID. A missing wrapper, Go-named fields, zero UUID, stale/mismatched CMS
+identity, or unsupported kind/state is an integration contract failure, not a
+successful delivery; CMS leaves the durable HAL identity unknown and enters its
+normal exact-ID reconciliation path.
+
+`NULL` means a HAL identity is not yet known. The all-zero UUID is never a
+valid identity. When authoritative `transaction.started` evidence supplies a
+nonzero HAL command ID, CMS fills a NULL or historical zero value and proceeds
+through the normal locked materializer. Only different nonzero recorded and
+authoritative IDs return `409 hal_start_evidence_conflict`.
+
 ## Start-command failure and reconciliation states
 
 `RECONCILIATION_REQUIRED` is active only while the outcome of an already

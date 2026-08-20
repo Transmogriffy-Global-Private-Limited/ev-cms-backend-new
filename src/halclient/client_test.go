@@ -2,6 +2,7 @@ package halclient
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"net/http"
 	"net/http/httptest"
@@ -102,5 +103,65 @@ func TestMutationsRejectEmptyCorrelationBeforeSendingHTTP(t *testing.T) {
 	}
 	if requestCount.Load() != 0 {
 		t.Fatalf("HTTP mutations = %d, want 0", requestCount.Load())
+	}
+}
+
+func TestCommandResponsesRequireSemanticContract(t *testing.T) {
+	requestedID, halID := uuid.New(), uuid.New()
+	updatedAt := time.Date(2026, time.August, 20, 12, 0, 0, 0, time.UTC).Format(time.RFC3339)
+	valid := map[string]any{"hal_command_id": halID.String(), "cms_command_id": requestedID.String(), "kind": "START", "state": "OCPP_ACCEPTED", "hal_transaction_id": nil, "ocpp_transaction_id": nil, "updated_at": updatedAt}
+	differentID := uuid.New()
+	zeroTransaction := uuid.Nil.String()
+	for _, test := range []struct {
+		name  string
+		body  any
+		valid bool
+	}{
+		{name: "valid snake case", body: valid, valid: true},
+		{name: "old Go field names", body: map[string]any{"HALCommandID": halID.String(), "CMSCommandID": requestedID.String(), "Kind": "START", "State": "OCPP_ACCEPTED", "UpdatedAt": updatedAt}},
+		{name: "missing command", body: nil},
+		{name: "zero HAL identity", body: map[string]any{"hal_command_id": uuid.Nil.String(), "cms_command_id": requestedID.String(), "kind": "START", "state": "OCPP_ACCEPTED", "updated_at": updatedAt}},
+		{name: "missing CMS identity", body: map[string]any{"hal_command_id": halID.String(), "kind": "START", "state": "OCPP_ACCEPTED", "updated_at": updatedAt}},
+		{name: "different CMS identity", body: map[string]any{"hal_command_id": halID.String(), "cms_command_id": differentID.String(), "kind": "START", "state": "OCPP_ACCEPTED", "updated_at": updatedAt}},
+		{name: "invalid kind", body: map[string]any{"hal_command_id": halID.String(), "cms_command_id": requestedID.String(), "kind": "OTHER", "state": "OCPP_ACCEPTED", "updated_at": updatedAt}},
+		{name: "invalid state", body: map[string]any{"hal_command_id": halID.String(), "cms_command_id": requestedID.String(), "kind": "START", "state": "ACCEPTED", "updated_at": updatedAt}},
+		{name: "zero optional transaction identity", body: map[string]any{"hal_command_id": halID.String(), "cms_command_id": requestedID.String(), "kind": "START", "state": "MATERIALIZED", "hal_transaction_id": zeroTransaction, "updated_at": updatedAt}},
+		{name: "zero optional OCPP transaction identity", body: map[string]any{"hal_command_id": halID.String(), "cms_command_id": requestedID.String(), "kind": "START", "state": "MATERIALIZED", "ocpp_transaction_id": 0, "updated_at": updatedAt}},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
+				writer.Header().Set("Content-Type", "application/json")
+				response := map[string]any{}
+				if test.body != nil {
+					response["command"] = test.body
+				}
+				_ = json.NewEncoder(writer).Encode(response)
+			}))
+			defer server.Close()
+
+			command, err := New(config.HAL{BaseURL: server.URL, CMSBearerToken: "test", RequestTimeout: time.Second}).Start(context.Background(), StartCommand{CMSCommandID: requestedID}, "test-correlation")
+			if test.valid {
+				if err != nil || command.HALCommandID != halID || command.CMSCommandID != requestedID {
+					t.Fatalf("command=%+v err=%v", command, err)
+				}
+				return
+			}
+			if !errors.Is(err, ErrInvalidCommandResponse) {
+				t.Fatalf("error=%v, want ErrInvalidCommandResponse", err)
+			}
+		})
+	}
+}
+
+func TestGetCommandRejectsMalformedSuccessfulResponse(t *testing.T) {
+	requestedID := uuid.New()
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
+		_, _ = writer.Write([]byte(`{"command":{"HALCommandID":"` + uuid.NewString() + `","CMSCommandID":"` + requestedID.String() + `","Kind":"START","State":"OCPP_ACCEPTED","UpdatedAt":"2026-08-20T12:00:00Z"}}`))
+	}))
+	defer server.Close()
+
+	_, err := New(config.HAL{BaseURL: server.URL, CMSBearerToken: "test", RequestTimeout: time.Second}).GetCommand(context.Background(), requestedID)
+	if !errors.Is(err, ErrInvalidCommandResponse) {
+		t.Fatalf("error=%v, want ErrInvalidCommandResponse", err)
 	}
 }

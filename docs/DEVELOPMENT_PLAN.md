@@ -115,6 +115,12 @@ Active work:
 
 Current implementation state:
 
+- HAL command-response contract hardening is in source: malformed 2xx command
+  bodies fail closed, HAL identity is never persisted as zero UUID, and
+  authoritative start reconciliation repairs the historical zero sentinel as
+  unknown. HAL must deploy its matching explicit v1 response views before CMS
+  strict validation is deployed; disposable PostgreSQL and dual-service
+  acceptance remain required.
 - Source now classifies deterministic HAL fact projection rejections as 4xx/409
   and uses the existing exact HAL transaction-by-start-intent socket to recover
   old unmaterialized starts through the same materializer as fact ingress. The
@@ -128,7 +134,7 @@ Current implementation state:
   is still required before the work item can close.
 - CMS source and the development deployment contain the first client, durable records, shared fact receiver,
   customer polling/start/stop routes, reusable operational projections,
-  scoped operational-event replay/SSE, and a 187-operation OpenAPI surface.
+  scoped operational-event replay/SSE, and a 188-operation OpenAPI surface.
   The HAL runtime GORM models explicitly map to the singular migration tables
   `hal_charger_runtime` and `hal_connector_runtime`.
   The HAL v1 provider is

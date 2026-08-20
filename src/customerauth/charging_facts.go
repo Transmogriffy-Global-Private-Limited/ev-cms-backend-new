@@ -298,8 +298,11 @@ func (service *Service) materializeAuthoritativeStart(tx *gorm.DB, evidence halo
 	if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&command, "cms_command_id = ? AND start_intent_id = ?", evidence.CMSCommandID, intent.ID).Error; err != nil {
 		return nil, false, invalidFact()
 	}
-	if command.HALCommandID != nil && *command.HALCommandID != evidence.HALCommandID {
+	if establishedHALCommandIdentityConflicts(command.HALCommandID, evidence.HALCommandID) {
 		return nil, false, halops.NewFactProjectionError(409, "hal_start_evidence_conflict", "The HAL start evidence conflicts with the recorded command.", nil)
+	}
+	if establishedHALCommandIdentityConflicts(intent.HALCommandID, evidence.HALCommandID) {
+		return nil, false, halops.NewFactProjectionError(409, "hal_start_evidence_conflict", "The HAL start evidence conflicts with the recorded intent.", nil)
 	}
 	if intent.CPOID != evidence.CPOID || intent.ChargerID != evidence.CMSChargerID || intent.ConnectorID != evidence.CMSConnectorID {
 		return nil, false, halops.NewFactProjectionError(409, "hal_start_evidence_conflict", "The HAL start evidence conflicts with the recorded intent.", nil)
@@ -344,6 +347,13 @@ func (service *Service) materializeAuthoritativeStart(tx *gorm.DB, evidence halo
 		return nil, false, err
 	}
 	return &session, true, nil
+}
+
+// A nil identifier is unknown and a historical zero UUID is invalid external
+// input, not an established HAL identity. Only two different nonzero values
+// are a true identity conflict.
+func establishedHALCommandIdentityConflicts(recorded *uuid.UUID, authoritative uuid.UUID) bool {
+	return recorded != nil && *recorded != uuid.Nil && *recorded != authoritative
 }
 
 func startEvidenceFromFact(p models.JSONB) (halops.StartEvidence, error) {

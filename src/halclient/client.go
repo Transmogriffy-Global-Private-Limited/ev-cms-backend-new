@@ -18,9 +18,20 @@ import (
 )
 
 var (
-	ErrUnavailable          = errors.New("HAL v1 service is unavailable")
-	ErrMissingCorrelationID = errors.New("HAL v1 mutation requires a non-empty correlation ID")
+	ErrUnavailable            = errors.New("HAL v1 service is unavailable")
+	ErrMissingCorrelationID   = errors.New("HAL v1 mutation requires a non-empty correlation ID")
+	ErrInvalidCommandResponse = errors.New("HAL v1 command response violates the service contract")
 )
+
+// CommandResponseError deliberately carries only the failed invariant. The
+// response body can contain service data and must not be propagated to logs.
+type CommandResponseError struct{ invariant string }
+
+func (err *CommandResponseError) Error() string {
+	return "HAL v1 command response violates the service contract: " + err.invariant
+}
+
+func (err *CommandResponseError) Unwrap() error { return ErrInvalidCommandResponse }
 
 type HTTPError struct {
 	Status int
@@ -125,18 +136,27 @@ func (client *Client) SyncMapping(ctx context.Context, mapping ChargerMapping, c
 func (client *Client) Start(ctx context.Context, command StartCommand, correlationID string) (Command, error) {
 	var response Command
 	err := client.mutate(ctx, http.MethodPost, "/v1/remote-commands/start", command.CMSCommandID.String(), correlationID, command, &response)
+	if err == nil {
+		err = validateCommand(response, command.CMSCommandID, "START")
+	}
 	return response, err
 }
 
 func (client *Client) Stop(ctx context.Context, command StopCommand, correlationID string) (Command, error) {
 	var response Command
 	err := client.mutate(ctx, http.MethodPost, "/v1/remote-commands/stop", command.CMSCommandID.String(), correlationID, command, &response)
+	if err == nil {
+		err = validateCommand(response, command.CMSCommandID, "STOP")
+	}
 	return response, err
 }
 
 func (client *Client) GetCommand(ctx context.Context, id uuid.UUID) (Command, error) {
 	var command Command
 	if err := client.request(ctx, http.MethodGet, "/v1/remote-commands?cms_command_id="+url.QueryEscape(id.String()), "", "", nil, &command); err != nil {
+		return Command{}, err
+	}
+	if err := validateCommand(command, id, ""); err != nil {
 		return Command{}, err
 	}
 	return command, nil
@@ -209,12 +229,56 @@ func (client *Client) request(ctx context.Context, method, path, idempotency, co
 		return fmt.Errorf("decode HAL v1 response: %w", err)
 	}
 	if len(wrapper.Command) == 0 {
-		return nil
+		return invalidCommandResponse("missing command object")
 	}
 	if err := json.Unmarshal(wrapper.Command, target); err != nil {
 		return fmt.Errorf("decode HAL v1 command: %w", err)
 	}
 	return nil
+}
+
+func invalidCommandResponse(invariant string) error {
+	return &CommandResponseError{invariant: invariant}
+}
+
+func validateCommand(command Command, expectedCMSCommandID uuid.UUID, expectedKind string) error {
+	if command.HALCommandID == uuid.Nil {
+		return invalidCommandResponse("hal_command_id must be a nonzero UUID")
+	}
+	if command.CMSCommandID == uuid.Nil {
+		return invalidCommandResponse("cms_command_id must be a nonzero UUID")
+	}
+	if command.CMSCommandID != expectedCMSCommandID {
+		return invalidCommandResponse("cms_command_id does not match the requested command")
+	}
+	if command.Kind != "START" && command.Kind != "STOP" {
+		return invalidCommandResponse("kind is not a supported command kind")
+	}
+	if expectedKind != "" && command.Kind != expectedKind {
+		return invalidCommandResponse("kind does not match the requested command")
+	}
+	if !validCommandState(command.State) {
+		return invalidCommandResponse("state is not a supported durable command state")
+	}
+	if command.UpdatedAt.IsZero() {
+		return invalidCommandResponse("updated_at is required")
+	}
+	if command.HALTransactionID != nil && *command.HALTransactionID == uuid.Nil {
+		return invalidCommandResponse("hal_transaction_id must not be a zero UUID")
+	}
+	if command.OCPPTransactionID != nil && *command.OCPPTransactionID < 1 {
+		return invalidCommandResponse("ocpp_transaction_id must be positive when present")
+	}
+	return nil
+}
+
+func validCommandState(state string) bool {
+	switch state {
+	case "PERSISTED", "PENDING_DELIVERY", "DELIVERY_ATTEMPTED", "OCPP_ACCEPTED", "OCPP_REJECTED", "AMBIGUOUS", "MATERIALIZED", "SUPERSEDED":
+		return true
+	default:
+		return false
+	}
 }
 
 func (client *Client) requestJSON(ctx context.Context, method, path string, body any, target any) error {

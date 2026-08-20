@@ -46,8 +46,14 @@ func TestChargingStartAdmissionWithPostgreSQL(t *testing.T) {
 			writer.WriteHeader(http.StatusNoContent)
 		case request.Method == http.MethodPost && request.URL.Path == "/v1/remote-commands/start":
 			halRequests.Add(1)
+			var start struct {
+				CMSCommandID uuid.UUID `json:"cms_command_id"`
+			}
+			if err := json.NewDecoder(request.Body).Decode(&start); err != nil {
+				t.Fatalf("decode HAL start: %v", err)
+			}
 			_ = json.NewEncoder(writer).Encode(map[string]any{
-				"hal_command_id": uuid.New(), "cms_command_id": uuid.New(), "kind": "START", "state": "ACCEPTED", "updated_at": time.Now().UTC(),
+				"command": map[string]any{"hal_command_id": uuid.New(), "cms_command_id": start.CMSCommandID, "kind": "START", "state": "OCPP_ACCEPTED", "updated_at": time.Now().UTC()},
 			})
 		default:
 			http.NotFound(writer, request)

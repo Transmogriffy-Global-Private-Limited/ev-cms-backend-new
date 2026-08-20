@@ -14,6 +14,7 @@ import (
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/db"
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/config"
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/constants"
+	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/halclient"
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/halops"
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/liveops"
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/models"
@@ -39,6 +40,7 @@ func TestChargingStartReconciliationWithPostgreSQL(t *testing.T) {
 	var mappingFails atomic.Bool
 	var abortStart atomic.Bool
 	var lookupStatus atomic.Int32
+	var zeroLookupIdentity atomic.Bool
 	var startRequests atomic.Int32
 	halServer := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		switch {
@@ -61,7 +63,7 @@ func TestChargingStartReconciliationWithPostgreSQL(t *testing.T) {
 			}
 			_ = json.NewEncoder(writer).Encode(map[string]any{"command": map[string]any{
 				"hal_command_id": uuid.New(), "cms_command_id": start.CMSCommandID,
-				"kind": "START", "state": "ACCEPTED", "updated_at": time.Now().UTC(),
+				"kind": "START", "state": "OCPP_ACCEPTED", "updated_at": time.Now().UTC(),
 			}})
 		case request.Method == http.MethodGet && request.URL.Path == "/v1/remote-commands":
 			status := int(lookupStatus.Load())
@@ -74,9 +76,13 @@ func TestChargingStartReconciliationWithPostgreSQL(t *testing.T) {
 				writer.WriteHeader(http.StatusBadRequest)
 				return
 			}
+			halCommandID := uuid.New()
+			if zeroLookupIdentity.Load() {
+				halCommandID = uuid.Nil
+			}
 			_ = json.NewEncoder(writer).Encode(map[string]any{"command": map[string]any{
-				"hal_command_id": uuid.New(), "cms_command_id": commandID,
-				"kind": "START", "state": "ACCEPTED", "updated_at": time.Now().UTC(),
+				"hal_command_id": halCommandID, "cms_command_id": commandID,
+				"kind": "START", "state": "OCPP_ACCEPTED", "updated_at": time.Now().UTC(),
 			}})
 		default:
 			http.NotFound(writer, request)
@@ -108,8 +114,8 @@ func TestChargingStartReconciliationWithPostgreSQL(t *testing.T) {
 		t.Fatalf("ambiguous start response=%+v err=%v, want reconciliation", response, err)
 	}
 	intent, command, hold := loadStartAttempt(t, gormDB, response.StartIntentID)
-	if intent.Status != constants.StartIntentStatusReconciliation || command.State != "RECONCILIATION_REQUIRED" || hold.Status != constants.WalletHoldStatusHeld {
-		t.Fatalf("ambiguous start state intent=%s command=%s hold=%s", intent.Status, command.State, hold.Status)
+	if intent.Status != constants.StartIntentStatusReconciliation || command.State != "RECONCILIATION_REQUIRED" || command.HALCommandID != nil || hold.Status != constants.WalletHoldStatusHeld {
+		t.Fatalf("ambiguous start state intent=%s command=%s hal_command_id=%v hold=%s", intent.Status, command.State, command.HALCommandID, hold.Status)
 	}
 	if err := gormDB.Model(&models.HALCommandRecord{}).Where("cms_command_id = ?", command.CMSCommandID).Updates(map[string]any{
 		"last_error_category": "provider_http",
@@ -158,8 +164,52 @@ func TestChargingStartReconciliationWithPostgreSQL(t *testing.T) {
 		t.Fatalf("reconcile found command: %v", err)
 	}
 	_, retryCommand, retryHold = loadStartAttempt(t, gormDB, retry.StartIntentID)
-	if retryCommand.State != "ACCEPTED" || retryHold.Status != constants.WalletHoldStatusHeld {
+	if retryCommand.State != "OCPP_ACCEPTED" || retryHold.Status != constants.WalletHoldStatusHeld {
 		t.Fatalf("exact command lookup did not retain normal start command=%s hold=%s", retryCommand.State, retryHold.Status)
+	}
+	if retryCommand.HALCommandID == nil || *retryCommand.HALCommandID == uuid.Nil {
+		t.Fatalf("normal command did not retain HAL identity: %+v", retryCommand)
+	}
+	originalHALCommandID := *retryCommand.HALCommandID
+	zeroLookupIdentity.Store(true)
+	if _, err := operations.ReconcileCommand(ctx, retryCommand.CMSCommandID); !errors.Is(err, halclient.ErrInvalidCommandResponse) {
+		t.Fatalf("zero HAL command lookup error=%v", err)
+	}
+	zeroLookupIdentity.Store(false)
+	_, retryCommand, _ = loadStartAttempt(t, gormDB, retry.StartIntentID)
+	if retryCommand.HALCommandID == nil || *retryCommand.HALCommandID != originalHALCommandID {
+		t.Fatalf("zero HAL command lookup changed persisted identity: %+v", retryCommand)
+	}
+
+	// A malformed historical synchronous response may have persisted uuid.Nil.
+	// Authoritative HAL start truth must repair it rather than strand the user.
+	zero := uuid.Nil
+	if err := gormDB.Model(&models.HALCommandRecord{}).Where("cms_command_id = ?", retryCommand.CMSCommandID).Updates(map[string]any{"hal_command_id": zero, "state": "RECONCILIATION_REQUIRED"}).Error; err != nil {
+		t.Fatalf("shape zero HAL command identity: %v", err)
+	}
+	if err := gormDB.Model(&models.ChargingStartIntent{}).Where("id = ?", retry.StartIntentID).Updates(map[string]any{"hal_command_id": zero, "status": constants.StartIntentStatusReconciliation}).Error; err != nil {
+		t.Fatalf("shape zero start-intent HAL command identity: %v", err)
+	}
+	evidence := halops.StartEvidence{HALTransactionID: uuid.New(), HALCommandID: uuid.New(), CMSCommandID: retryCommand.CMSCommandID, CMSStartIntentID: retry.StartIntentID, CPOID: fixture.cpo.ID, CMSChargerID: fixture.charger.ID, CMSConnectorID: fixture.connector.ID, ChargerOCPPIdentity: fixture.charger.OCPPIdentity, OCPPConnectorNumber: fixture.connector.ConnectorNumber, OCPPTransactionID: 81, MeterStartWh: 100, ActualStartedAt: time.Now().UTC()}
+	if err := service.MaterializeAuthoritativeStart(ctx, evidence); err != nil {
+		t.Fatalf("materialize authoritative start over zero identity: %v", err)
+	}
+	if err := service.MaterializeAuthoritativeStart(ctx, evidence); err != nil {
+		t.Fatalf("repeat authoritative start materialization: %v", err)
+	}
+	intent, command, _ = loadStartAttempt(t, gormDB, retry.StartIntentID)
+	if intent.Status != constants.StartIntentStatusActuallyStarted || intent.HALCommandID == nil || *intent.HALCommandID != evidence.HALCommandID || command.State != "MATERIALIZED" || command.HALCommandID == nil || *command.HALCommandID != evidence.HALCommandID {
+		t.Fatalf("zero identity was not repaired intent=%+v command=%+v", intent, command)
+	}
+	conflictingEvidence := evidence
+	conflictingEvidence.HALCommandID = uuid.New()
+	if err := service.MaterializeAuthoritativeStart(ctx, conflictingEvidence); err == nil {
+		t.Fatal("different nonzero authoritative command identity was accepted")
+	} else {
+		var projectionError *halops.FactProjectionError
+		if !errors.As(err, &projectionError) || projectionError.Code != "hal_start_evidence_conflict" {
+			t.Fatalf("conflicting identity error=%v", err)
+		}
 	}
 
 	raceConnector := fixture.newConnector(t)

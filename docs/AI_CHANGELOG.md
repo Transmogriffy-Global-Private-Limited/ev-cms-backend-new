@@ -1,5 +1,22 @@
 # AI Changelog
 
+## 2026-08-20 - HAL command-response contract hardening
+
+- Made CMS HAL command decoding fail closed: missing command wrappers,
+  Go-named/missing fields, zero or mismatched IDs, unsupported kind/state,
+  missing timestamps, and zero optional transaction IDs are integration errors
+  rather than successful command delivery.
+- Applied the nonzero HAL identity invariant to START, STOP, and exact-command
+  persistence. Authoritative start evidence repairs a historical pointer-to-zero
+  command ID, materializes idempotently, and still rejects a true nonzero
+  conflict. No migration or data mutation is required for the source repair.
+
+Verification: `scripts/verify-docs.ps1`, focused
+`go test ./src/halclient ./src/halops ./src/customerauth`, full `go test
+./...`, `go vet ./...`, and `git diff --check` passed. Disposable PostgreSQL
+recovery coverage is present but skipped without `TEST_DATABASE_URL`; no service
+was deployed or restarted.
+
 ## 2026-08-19 - HAL authoritative-start recovery and fact error classification
 
 - Added transport-neutral HAL projection errors so expected immutable-fact

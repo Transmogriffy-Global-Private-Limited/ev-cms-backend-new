@@ -203,6 +203,9 @@ func (service *Service) ReconcileCommand(ctx context.Context, commandID uuid.UUI
 	if result.CMSCommandID != commandID {
 		return Command{}, errors.New("HAL exact command lookup returned a different CMS command identity")
 	}
+	if result.HALCommandID == uuid.Nil {
+		return Command{}, halclient.ErrInvalidCommandResponse
+	}
 	if err := service.database.WithContext(ctx).Model(&models.HALCommandRecord{}).Where("cms_command_id = ?", commandID).Updates(map[string]any{"hal_command_id": result.HALCommandID, "state": result.State, "last_error_category": "", "last_error_detail": "", "updated_at": service.now()}).Error; err != nil {
 		return Command{}, fmt.Errorf("store reconciled HAL command: %w", err)
 	}

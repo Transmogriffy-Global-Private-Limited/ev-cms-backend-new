@@ -4,7 +4,7 @@ Status: In Progress
 Owner: Codex
 Collaborators: Anubhab Dey (CMS/HAL boundary owner)
 Started: 2026-08-12
-Last updated: 2026-08-19
+Last updated: 2026-08-20
 
 Development-plan reference: `docs/DEVELOPMENT_PLAN.md` — Charging lifecycle and HAL integration
 Detailed-plan reference: `docs/integrations/ocpp-hal-boundary.md`
@@ -29,6 +29,8 @@ Establish reusable CMS capabilities over HAL-derived operational truth and expos
   monotonicity, authoritative transaction lookup reconciliation, and User App
   truthful recovery after a failed fact projection. The counterpart HAL work
   item owns outbox delivery diagnostics.
+- HAL command-response semantic validation, HAL command identity persistence,
+  and authoritative-start repair of the invalid legacy zero UUID sentinel.
 - User App full charger list, hub detail, single detail, and favorites; compact
   map locations remain explicitly out of scope.
 
@@ -145,6 +147,16 @@ Establish reusable CMS capabilities over HAL-derived operational truth and expos
 - 2026-08-19 request-correlation correction: focused customerauth handler,
   middleware, and halclient tests prove CMS-generated IDs reach Start/Stop,
   client IDs are not trusted, and empty mutation correlation sends no HTTP.
+- 2026-08-20 confirmed fresh cross-service incident: HAL emitted Go-named
+  command fields while CMS expected snake_case. The 2xx decoder accepted the
+  empty semantic result and persisted `uuid.Nil`; this slice makes malformed
+  command responses fail closed and lets authoritative start evidence repair a
+  stored zero UUID as unknown rather than conflict.
+- 2026-08-20 response-boundary repair verification: `scripts/verify-docs.ps1`,
+  focused HAL-client/charging tests, full `go test ./...`, `go vet ./...`, and
+  `git diff --check` pass. The integration recovery cases require a disposable
+  `TEST_DATABASE_URL` and were skipped safely; no deployment or database
+  mutation occurred.
 
 ## Handoff
 

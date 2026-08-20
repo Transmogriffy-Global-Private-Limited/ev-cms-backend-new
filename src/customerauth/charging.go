@@ -669,9 +669,15 @@ func (service *Service) StopCharging(ctx context.Context, principal Principal, s
 	if err := service.database.WithContext(ctx).Model(&models.ChargingSession{}).Where("id = ?", sessionID).Updates(map[string]any{"status": constants.SessionStatusStopPending, "updated_at": service.now()}).Error; err != nil {
 		return err
 	}
-	_, err := service.hal.RequestStop(ctx, halops.StopRequest{CMSCommandID: commandID, CMSChargingSessionID: sessionID, CPOID: principal.CPOID, CustomerID: principal.CustomerID, CMSChargerID: charger.ID, CMSConnectorID: connector.ID, ChargerOCPPIdentity: charger.OCPPIdentity, OCPPConnectorNumber: connector.ConnectorNumber, HALTransactionID: *session.HALTransactionID, OCPPTransactionID: session.TransactionID, RequestedStopInitiator: "CUSTOMER", RequestedStopReason: strings.TrimSpace(request.Reason), CommandExpiresAt: expires}, correlation)
+	command, err := service.hal.RequestStop(ctx, halops.StopRequest{CMSCommandID: commandID, CMSChargingSessionID: sessionID, CPOID: principal.CPOID, CustomerID: principal.CustomerID, CMSChargerID: charger.ID, CMSConnectorID: connector.ID, ChargerOCPPIdentity: charger.OCPPIdentity, OCPPConnectorNumber: connector.ConnectorNumber, HALTransactionID: *session.HALTransactionID, OCPPTransactionID: session.TransactionID, RequestedStopInitiator: "CUSTOMER", RequestedStopReason: strings.TrimSpace(request.Reason), CommandExpiresAt: expires}, correlation)
 	if err != nil {
 		return service.markHALCommandFailure(ctx, commandID, err)
+	}
+	if command.HALCommandID == uuid.Nil {
+		return service.markHALCommandFailure(ctx, commandID, halclient.ErrInvalidCommandResponse)
+	}
+	if err := service.database.WithContext(ctx).Model(&models.HALCommandRecord{}).Where("cms_command_id = ? AND (hal_command_id IS NULL OR hal_command_id = ?)", commandID, uuid.Nil).Updates(map[string]any{"hal_command_id": command.HALCommandID, "state": command.State, "updated_at": service.now()}).Error; err != nil {
+		return fmt.Errorf("store HAL stop command identity: %w", err)
 	}
 	return nil
 }

@@ -2,6 +2,22 @@
 
 ## Current State
 
+### 2026-08-20 — HAL command-response contract hardening source change
+
+- CMS now rejects 2xx HAL command responses without a canonical `command`
+  wrapper, nonzero/matching HAL and CMS IDs, supported kind/state, valid
+  timestamp, and nonzero optional transaction identity. It cannot persist
+  `uuid.Nil` from a malformed provider response.
+- Synchronous START and STOP command identity persistence and exact-command
+  reconciliation use that fail-closed adapter. Authoritative start evidence
+  now treats a stored zero UUID as unknown, repairs it to HAL's real nonzero
+  identity, and materializes normally; only two different nonzero IDs conflict.
+
+Verification: documentation verification, focused HAL-client/charging checks,
+full `go test ./...`, `go vet ./...`, and `git diff --check` pass. The new
+disposable PostgreSQL recovery regression is skipped while `TEST_DATABASE_URL`
+is unset; no deployment or data mutation occurred.
+
 ### 2026-08-19 — HAL authoritative-start recovery and fact classification source change
 
 - Expected immutable HAL fact rejections now return stable 4xx/409 errors,
