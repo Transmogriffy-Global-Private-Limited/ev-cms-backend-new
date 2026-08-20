@@ -2,7 +2,7 @@
 
 ## Current State
 
-### 2026-08-20 — Auth/current-worker invariant hardening (source only)
+### 2026-08-20 — Auth/current-worker invariant hardening deployed
 
 - Migration `000046_auth_challenge_and_readiness_invariants` guards against
   pre-existing duplicate current challenges, then adds partial unique indexes
@@ -22,12 +22,16 @@
   historical schema residue. Charging migration 45 and its `total_kwh` repair
   are unchanged.
 
-Verification: focused auth/customer-auth/platform-ops tests, the complete
-`go test -p 1 ./...` suite, `go vet -p 1 ./...`, and documentation contract
-verification passed. The new PostgreSQL migration/concurrency tests are present
-but skipped because no disposable `TEST_DATABASE_URL` was supplied. No
-migration was executed, no database was modified, and nothing was deployed or
-restarted.
+Verification: focused auth/customer-auth/platform-ops checks, the complete
+`go test -p 1 ./...` suite, `go vet -p 1 ./...`, and `git diff --check` passed.
+The new PostgreSQL migration/concurrency tests are present but skipped because
+no disposable `TEST_DATABASE_URL` was supplied. A verified pre-migration backup
+was created and migration 46 was applied. Runtime revision `166b0de` is active
+with binary SHA-256
+`07342a2b1a0aa884b12c5f08f24d6721d5946a3db05080b773ed1f882c013b96`.
+Local/public health-readiness, Swagger, raw OpenAPI (188 operations), Caddy
+validation, and the post-rehost journal scan passed. `pwsh` remains unavailable
+on this Ubuntu host.
 
 ### 2026-08-20 — Charging lifecycle reconciliation deployed
 

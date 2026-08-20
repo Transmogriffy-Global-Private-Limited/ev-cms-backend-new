@@ -19,10 +19,15 @@
   model instead of a synthetic empty value.
 
 Verification: focused auth/customer-auth/platform-ops checks, the complete
-`go test -p 1 ./...` suite, `go vet -p 1 ./...`, and
-`scripts/verify-docs.ps1` passed. PostgreSQL concurrency and migration checks
-require an explicitly selected disposable `TEST_DATABASE_URL` and were skipped;
-no migration, live data mutation, deployment, or restart was performed.
+`go test -p 1 ./...` suite, `go vet -p 1 ./...`, and `git diff --check` passed.
+PostgreSQL concurrency and migration checks require an explicitly selected
+disposable `TEST_DATABASE_URL` and were skipped. A verified pre-migration backup
+was created and migration 46 was applied; runtime revision `166b0de` is active
+under `evcmsnew-dev.service` with binary SHA-256
+`07342a2b1a0aa884b12c5f08f24d6721d5946a3db05080b773ed1f882c013b96`.
+Local/public health-readiness, Swagger, raw OpenAPI (188 operations), Caddy
+validation, and the post-rehost journal error scan passed. `pwsh` remains
+unavailable on this host.
 
 ## 2026-08-20 - Charging lifecycle occupancy and reconciliation repair
 

@@ -82,8 +82,8 @@ Establish reusable CMS capabilities over HAL-derived operational truth and expos
   observation; REST/read-side recovery and realtime invalidation therefore use
   the same source of truth. Connector status is live only while parent
   connection evidence remains fresh.
-- Runtime revision `765cc80` is active under `evcmsnew-dev.service`; migrations
-  through forty-five,
+- Runtime revision `166b0de` is active under `evcmsnew-dev.service`; migrations
+  through forty-six,
   loopback/public health and readiness, Swagger, raw OpenAPI, the live
   188-operation contract, singular HAL runtime table mappings, and GST-hub
   route boundaries have been verified. No migration was needed for the model
@@ -170,7 +170,7 @@ Establish reusable CMS capabilities over HAL-derived operational truth and expos
 - 2026-08-20 response-boundary repair verification: focused HAL-client/charging
   tests, full `go test ./...`, `go vet ./...`, and `git diff --check` pass. The
   integration recovery cases require a disposable `TEST_DATABASE_URL` and
-  were skipped safely. Runtime revision `765cc80` is active after rehost with
+  were skipped safely. Runtime revision `1729b41` is active after rehost with
   no migration or database mutation; loopback/public readiness, Swagger, raw
   OpenAPI (188 operations), Caddy validation, and the post-rehost journal scan
   passed. `pwsh` remains unavailable on this host.
@@ -188,6 +188,13 @@ Establish reusable CMS capabilities over HAL-derived operational truth and expos
   operations), Caddy validation, and the post-rehost journal scan passed.
   Disposable PostgreSQL occupancy tests remain skipped without
   `TEST_DATABASE_URL`; `pwsh` is unavailable on this host.
+- 2026-08-20 auth/readiness deployment: migration 46 was backed up and applied
+  successfully. Runtime revision `166b0de` is active with current-worker
+  readiness projection, challenge uniqueness indexes, and non-null GST state;
+  focused/full Go verification, local/public readiness, Swagger, raw OpenAPI
+  (188 operations), Caddy validation, and the post-rehost journal scan passed.
+  PostgreSQL concurrency tests remain skipped without `TEST_DATABASE_URL`, and
+  `pwsh` is unavailable on this host.
 
 ## Handoff
 
