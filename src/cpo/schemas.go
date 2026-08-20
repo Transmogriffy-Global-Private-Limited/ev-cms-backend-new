@@ -655,8 +655,11 @@ type ChargingSessionCustomerView struct {
 }
 
 type ChargingSessionChargerView struct {
-	Name    string  `json:"name"`
-	HubName *string `json:"hub_name,omitempty"`
+	Name       string   `json:"name"`
+	HubName    *string  `json:"hub_name,omitempty"`
+	MaxPowerKW float64  `json:"max_power_kw"`
+	Vendor     string   `json:"vendor"`
+	Model      string   `json:"model"`
 }
 
 type ChargingSessionConnectorView struct {

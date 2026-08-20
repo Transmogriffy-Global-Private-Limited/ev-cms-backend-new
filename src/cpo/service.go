@@ -298,12 +298,20 @@ func toChargingSessionView(session models.ChargingSession) ChargingSessionView {
 	}
 
 	if session.Charger.ID != uuid.Nil {
-		view.Charger = ChargingSessionChargerView{
-			Name: session.Charger.ChargerName,
+		charger := ChargingSessionChargerView{
+			Name:       session.Charger.ChargerName,
+			MaxPowerKW: session.Charger.MaxPowerKW,
+		}
+		if session.Charger.Vendor != nil {
+			charger.Vendor = *session.Charger.Vendor
+		}
+		if session.Charger.Model != nil {
+			charger.Model = *session.Charger.Model
 		}
 		if session.Charger.Hub != nil {
-			view.Charger.HubName = &session.Charger.Hub.Name
+			charger.HubName = &session.Charger.Hub.Name
 		}
+		view.Charger = charger
 	}
 
 	if session.Connector.ID != uuid.Nil {
@@ -4875,7 +4883,7 @@ func (service *Service) getCustomerAggregates(ctx context.Context, customerID uu
 
 	err := service.database.WithContext(ctx).Model(&models.ChargingSession{}).
 		Select("COALESCE(SUM(total_kwh), 0) as total_usage_kwh, COUNT(*) as session_count").
-		Where("customer_id = ?", customerID).
+		Where("customer_id = ? AND status IN (?, ?)", customerID, constants.SessionStatusCompleted, constants.SessionStatusReconciliationRequired).
 		Scan(&aggregates).Error
 	if err != nil {
 		return nil, err
@@ -4914,7 +4922,7 @@ func (service *Service) getCustomerAggregatesByCPO(ctx context.Context, cpoID uu
 	if len(customerIDs) > 0 {
 		err := service.database.WithContext(ctx).Model(&models.ChargingSession{}).
 			Select("customer_id, COALESCE(SUM(total_kwh), 0) as total_usage_kwh, COUNT(*) as session_count").
-			Where("cpo_id = ? AND customer_id IN (?)", cpoID, customerIDs).
+			Where("cpo_id = ? AND customer_id IN (?) AND status IN (?, ?)", cpoID, customerIDs, constants.SessionStatusCompleted, constants.SessionStatusReconciliationRequired).
 			Group("customer_id").
 			Scan(&sessionAggregates).Error
 		if err != nil {
