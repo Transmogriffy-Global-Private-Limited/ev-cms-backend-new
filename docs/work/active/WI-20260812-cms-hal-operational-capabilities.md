@@ -52,6 +52,11 @@ Establish reusable CMS capabilities over HAL-derived operational truth and expos
 
 ## Current state
 
+- Source repair is in progress for connector-occupancy ownership, session and
+  financial reconciliation, wallet reservation accounting, STOP convergence,
+  and strict HAL transaction lookup validation. Claimed migration surface is
+  `000045_charging_session_occupancy_and_reconciliation`.
+
 - `halops` owns CMS mapping/command mechanics, exact-ID reconciliation, and fact ingress; `halclient` remains the wire adapter.
 - `liveops` reads committed CMS projections and centralizes freshness/offline connector semantics.
 - CPO/Platform snapshots and customer own-session/customer-safe charger detail use those capabilities.
@@ -102,6 +107,12 @@ Establish reusable CMS capabilities over HAL-derived operational truth and expos
   live database mutation, or deployment is part of this correction.
 
 ## Verification
+
+- Focused HAL client, customer charging, halops, and liveops tests pass.
+  Disposable PostgreSQL migration/occupancy coverage is present but skipped
+  because `TEST_DATABASE_URL` is not configured. Full `go test ./...`, vet,
+  OpenAPI/runtime parity, documentation verification, and `git diff --check`
+  pass; disposable lifecycle verification remains pending.
 
 - Focused User App and live-projection package tests pass after the batch
   overlay refactor. `go test ./...`, `go vet ./...`, the PowerShell

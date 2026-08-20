@@ -115,6 +115,13 @@ Active work:
 
 Current implementation state:
 
+- Source repair in progress: migration 45 gives connector occupancy to an
+  unmaterialized start intent before materialization and to a single active,
+  stop-pending, or reconciliation-required session afterwards. Completion
+  settlement, wallet reservations, STOP reconciliation, and HAL transaction
+  lookup now have explicit recovery invariants. Full source verification passed;
+  disposable PostgreSQL verification remains required before deployment.
+
 - ChargingSession persistence correction is deployed: `TotalKWh` now has an
   explicit `column:total_kwh` mapping, backed by migration-aligned
   acronym-column and PostgreSQL-dialect dry-run insert regressions. The

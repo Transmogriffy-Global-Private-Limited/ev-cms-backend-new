@@ -69,6 +69,10 @@ Migration files:
 - `db/migrations/000042_correct_tariff_energy_unit_to_kwh.down.sql`
 - `db/migrations/000043_backfill_default_cpo_settings.up.sql`
 - `db/migrations/000043_backfill_default_cpo_settings.down.sql`
+- `db/migrations/000044_temporal_tariff_fallback.up.sql`
+- `db/migrations/000044_temporal_tariff_fallback.down.sql`
+- `db/migrations/000045_charging_session_occupancy_and_reconciliation.up.sql`
+- `db/migrations/000045_charging_session_occupancy_and_reconciliation.down.sql`
 
 ## Supplied Model Mapping
 
@@ -117,6 +121,11 @@ Migration files:
 - Migration twenty-eight extends the legacy session projection with exact HAL
   transaction correlation and live meter fields. It adds durable CMS business
   intent/hold/receipt/projection tables; the HAL database remains separate.
+- Migration forty-five corrects connector ownership: only an unmaterialized
+  open start intent reserves before session materialization, then at most one
+  `ACTIVE`, `STOP_PENDING`, or `RECONCILIATION_REQUIRED` session reserves the
+  connector. It extends the session CHECK constraint for reconciliation and
+  refuses migration if existing rows violate either occupancy invariant.
 - Migration twenty-nine adds `tariff_type`, `price_type`, and `units` columns.
   Migration forty renames the durable tariff amount from `price_per_kwh` to
   `price_per_unit` without recreating values or inventing missing metadata.

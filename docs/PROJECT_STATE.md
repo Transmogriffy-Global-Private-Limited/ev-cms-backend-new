@@ -2,6 +2,28 @@
 
 ## Current State
 
+### 2026-08-20 — Charging lifecycle reconciliation source repair
+
+- Migration `000045_charging_session_occupancy_and_reconciliation` transfers
+  connector ownership from an unmaterialized start intent to one occupying
+  session (`ACTIVE`, `STOP_PENDING`, or `RECONCILIATION_REQUIRED`). It rejects
+  pre-existing conflicting data rather than rewriting it. Historical
+  `ACTUALLY_STARTED` remains valid start evidence and no longer blocks a later
+  session on its own.
+- Completion facts durably record terminal meter/time/amount evidence before
+  settlement. An unsafe settlement keeps the session and wallet hold in
+  `RECONCILIATION_REQUIRED`; bounded transactional retry uses the session's
+  stable payment/ledger identity and cannot debit twice. Start admission now
+  subtracts held and reconciliation reservations while the wallet row is locked.
+- Exact HAL STOP reconciliation is now session-aware: provider rejection or
+  confirmed absence returns an incomplete session to `ACTIVE`; ambiguity stays
+  `STOP_PENDING`, and completion wins. HAL transaction lookup rejects malformed
+  successful payloads, including zero identities.
+
+Verification is source-only so far: focused Go tests pass. The disposable
+PostgreSQL integration tests are present but skipped because `TEST_DATABASE_URL`
+is unset. This has not been deployed or applied to any database.
+
 ### 2026-08-20 — ChargingSession `total_kwh` model correction deployed
 
 - `models.ChargingSession.TotalKWh` explicitly maps to the canonical,

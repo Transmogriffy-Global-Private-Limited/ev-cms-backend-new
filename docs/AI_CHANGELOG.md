@@ -1,5 +1,23 @@
 # AI Changelog
 
+## 2026-08-20 - Charging lifecycle occupancy and reconciliation repair
+
+- Added migration 45: an unmaterialized open start intent exclusively reserves
+  a connector before materialization; one `ACTIVE`, `STOP_PENDING`, or
+  `RECONCILIATION_REQUIRED` session exclusively owns it afterwards. Migration
+  guards fail on conflicting existing data and perform no cleanup.
+- Added durable session settlement reconciliation, wallet-hold-aware admission,
+  STOP command/session convergence, zero-UUID fact rejection, and fail-closed
+  HAL transaction lookup validation. Completion evidence is retained even when
+  settlement cannot finish safely.
+- OpenAPI now exposes `RECONCILIATION_REQUIRED` as a session status. No live
+  migration, deployment, database mutation, commit, or push occurred.
+
+Verification: focused `go test ./src/halclient ./src/customerauth ./src/halops
+./src/liveops`, full `go test ./...`, `go vet ./...`, OpenAPI/runtime parity,
+the documentation verifier, and `git diff --check` passed. The new PostgreSQL
+occupancy test is skipped without `TEST_DATABASE_URL`.
+
 ## 2026-08-20 - ChargingSession `total_kwh` GORM mapping correction deployed
 
 - Corrected `models.ChargingSession.TotalKWh` to explicitly map to the

@@ -834,6 +834,8 @@ charger stops independently -> HAL observes StopTransaction -> completion fact
 ```text
 completion fact -> lock session/hold/wallet -> exact meter + tariff/tax snapshot
                 -> ledger/payment + hold capture + COMPLETED/SETTLED -> event
+                -> unsafe amount/balance -> durable terminal evidence +
+                   session/hold RECONCILIATION_REQUIRED -> bounded retry
 ```
 
 #### 33.14 HAL retry after lost CMS acknowledgement
@@ -856,6 +858,13 @@ same fact_id + changed digest -> 409 integrity conflict -> investigate, do not a
 CMS -> HAL request -> timeout -> CMS record RECONCILIATION_REQUIRED
 CMS -> HAL GET ?cms_command_id=SAME-ID -> known command or explicit missing evidence
 ```
+
+For STOP, a confirmed-absent command returns an incomplete session to `ACTIVE`;
+an OCPP rejection also permits a new stop. Persisted, attempted, accepted, or
+ambiguous provider evidence remains `STOP_PENDING`. A completed transaction
+always wins. A materialized `ACTUALLY_STARTED` intent is historical evidence,
+not connector occupancy: one unmaterialized open intent reserves first, then
+one active/stop-pending/reconciliation-required session reserves the connector.
 
 #### 33.17 CPO dashboard REST
 

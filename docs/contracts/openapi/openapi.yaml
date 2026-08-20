@@ -9820,7 +9820,7 @@ components:
 
     SessionStatus:
       type: string
-      enum: [START_PENDING, ACTIVE, STOP_PENDING, COMPLETED, FAILED]
+      enum: [START_PENDING, ACTIVE, STOP_PENDING, RECONCILIATION_REQUIRED, COMPLETED, FAILED]
       description: Durable charging-session lifecycle status.
 
     FinancialStatus:

@@ -161,8 +161,13 @@ var chargingStartActiveStatuses = []constants.StartIntentStatus{
 	constants.StartIntentStatusRequested,
 	constants.StartIntentStatusAcceptedForDelivery,
 	constants.StartIntentStatusProtocolAcknowledged,
-	constants.StartIntentStatusActuallyStarted,
 	constants.StartIntentStatusReconciliation,
+}
+
+var chargingSessionOccupancyStatuses = []constants.SessionStatus{
+	constants.SessionStatusActive,
+	constants.SessionStatusStopPending,
+	constants.SessionStatusReconciliationRequired,
 }
 
 func connectorNotAvailableForCharging() *APIError {
@@ -179,7 +184,7 @@ func chargingConnectorAllowsNewStart(state liveops.ConnectorState) bool {
 
 func activeChargingStartIntent(query *gorm.DB, connectorID uuid.UUID) (models.ChargingStartIntent, bool, error) {
 	var intent models.ChargingStartIntent
-	err := query.Where("connector_id = ? AND status IN ?", connectorID, chargingStartActiveStatuses).
+	err := query.Where("connector_id = ? AND materialized_session_id IS NULL AND status IN ?", connectorID, chargingStartActiveStatuses).
 		Order("created_at DESC").First(&intent).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return models.ChargingStartIntent{}, false, nil
@@ -188,6 +193,19 @@ func activeChargingStartIntent(query *gorm.DB, connectorID uuid.UUID) (models.Ch
 		return models.ChargingStartIntent{}, false, err
 	}
 	return intent, true, nil
+}
+
+func activeChargingSession(query *gorm.DB, connectorID uuid.UUID) (models.ChargingSession, bool, error) {
+	var session models.ChargingSession
+	err := query.Where("connector_id = ? AND status IN ?", connectorID, chargingSessionOccupancyStatuses).
+		Order("start_time DESC").First(&session).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return models.ChargingSession{}, false, nil
+	}
+	if err != nil {
+		return models.ChargingSession{}, false, err
+	}
+	return session, true, nil
 }
 
 func existingChargingStartResponse(intent models.ChargingStartIntent) ChargingStartResponse {
@@ -280,6 +298,11 @@ func (service *Service) StartCharging(ctx context.Context, principal Principal, 
 			}
 			return connectorNotAvailableForCharging()
 		}
+		if _, occupied, err := activeChargingSession(tx, connector.ID); err != nil {
+			return err
+		} else if occupied {
+			return connectorNotAvailableForCharging()
+		}
 		var connectors []models.Connector
 		if err := tx.Where("cpo_id = ? AND charger_id = ?", principal.CPOID, charger.ID).Order("connector_number ASC").Find(&connectors).Error; err != nil {
 			return err
@@ -310,7 +333,11 @@ func (service *Service) StartCharging(ctx context.Context, principal Principal, 
 		if !gstOK {
 			return &APIError{http.StatusConflict, "hub_gst_unavailable", "An active GST profile is required on this charger's hub."}
 		}
-		usableBalance, err := usableWalletBalance(wallet.Balance, settings)
+		reservedBalance, err := outstandingWalletHolds(tx, wallet.ID)
+		if err != nil {
+			return fmt.Errorf("sum outstanding wallet holds: %w", err)
+		}
+		usableBalance, err := usableWalletBalance(wallet.Balance.Sub(reservedBalance), settings)
 		if err != nil {
 			if errors.Is(err, errWalletMinimumBalance) {
 				return &APIError{http.StatusConflict, "wallet_minimum_balance_not_met", "The wallet balance is below this CPO's minimum required to start charging."}
@@ -358,7 +385,7 @@ func (service *Service) StartCharging(ctx context.Context, principal Principal, 
 	}
 	command, err := service.hal.RequestStart(ctx, halops.StartRequest{CMSCommandID: commandID, CMSStartIntentID: intentID, CPOID: principal.CPOID, CustomerID: principal.CustomerID, CMSChargerID: charger.ID, CMSConnectorID: request.ConnectorID, ChargerOCPPIdentity: charger.OCPPIdentity, OCPPConnectorNumber: requestConnectorNumber(mapping, request.ConnectorID), Credential: credential, CredentialExpiresAt: intent.CredentialExpiresAt, CommandExpiresAt: intent.CommandExpiresAt, EnergyLimitWh: intent.EnergyLimitWh, MaxDurationSeconds: intent.MaxDurationSeconds}, correlationID)
 	if err != nil {
-		if recordErr := service.markHALCommandFailure(ctx, commandID, err); recordErr != nil {
+		if recordErr := service.markHALStartCommandFailure(ctx, commandID, err); recordErr != nil {
 			return ChargingStartResponse{}, fmt.Errorf("record uncertain HAL start delivery: %w", recordErr)
 		}
 		return ChargingStartResponse{StartIntentID: intentID, Status: constants.StartIntentStatusReconciliation}, nil
@@ -401,6 +428,15 @@ func (service *Service) StartCharging(ctx context.Context, principal Principal, 
 		return ChargingStartResponse{}, fmt.Errorf("record accepted HAL start command: %w", err)
 	}
 	return response, nil
+}
+
+// outstandingWalletHolds is called while the wallet is row-locked. HELD and
+// reconciliation holds are money already committed to an earlier start; only
+// captured/released holds are no longer an admission reservation.
+func outstandingWalletHolds(tx *gorm.DB, walletID uuid.UUID) (decimal.Decimal, error) {
+	var reserved decimal.Decimal
+	err := tx.Model(&models.WalletHold{}).Where("wallet_id = ? AND status IN ?", walletID, []constants.WalletHoldStatus{constants.WalletHoldStatusHeld, constants.WalletHoldStatusReconciling}).Select("COALESCE(SUM(amount), 0)").Scan(&reserved).Error
+	return reserved, err
 }
 
 // usableWalletBalance applies the CPO admission policy once, inside the
@@ -549,10 +585,8 @@ func commandDeliveryFailureDiagnostic(cause error) (string, string) {
 	return "transport", "HAL command delivery transport outcome is unknown; exact reconciliation required"
 }
 
-// markHALCommandFailure is used only after RequestStart or RequestStop has
-// been invoked. Its reconciliation state therefore represents genuine
-// uncertainty, never a known mapping prerequisite failure.
-func (service *Service) markHALCommandFailure(ctx context.Context, commandID uuid.UUID, cause error) error {
+// markHALStartCommandFailure records uncertainty after an invoked start.
+func (service *Service) markHALStartCommandFailure(ctx context.Context, commandID uuid.UUID, cause error) error {
 	category, detail := commandDeliveryFailureDiagnostic(cause)
 	return service.database.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if err := tx.Model(&models.HALCommandRecord{}).Where("cms_command_id = ?", commandID).Updates(map[string]any{
@@ -564,6 +598,19 @@ func (service *Service) markHALCommandFailure(ctx context.Context, commandID uui
 			return err
 		}
 		return tx.Model(&models.ChargingStartIntent{}).Where("id = (SELECT start_intent_id FROM hal_command_records WHERE cms_command_id = ?)", commandID).Updates(map[string]any{"status": constants.StartIntentStatusReconciliation, "updated_at": service.now()}).Error
+	})
+}
+
+// markHALStopCommandFailure never rewinds an ambiguous stop. The session
+// remains STOP_PENDING until exact HAL evidence or transaction completion
+// resolves it.
+func (service *Service) markHALStopCommandFailure(ctx context.Context, commandID uuid.UUID, cause error) error {
+	category, detail := commandDeliveryFailureDiagnostic(cause)
+	return service.database.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Model(&models.HALCommandRecord{}).Where("cms_command_id = ? AND kind = ?", commandID, "STOP").Updates(map[string]any{"state": "RECONCILIATION_REQUIRED", "last_error_category": category, "last_error_detail": detail, "updated_at": service.now()}).Error; err != nil {
+			return err
+		}
+		return tx.Model(&models.ChargingSession{}).Where("id = (SELECT charging_session_id FROM hal_command_records WHERE cms_command_id = ?) AND end_time IS NULL", commandID).Updates(map[string]any{"status": constants.SessionStatusStopPending, "updated_at": service.now()}).Error
 	})
 }
 
@@ -650,6 +697,12 @@ func (service *Service) StopCharging(ctx context.Context, principal Principal, s
 	if err := service.database.WithContext(ctx).First(&session, "id = ? AND cpo_id = ? AND customer_id = ?", sessionID, principal.CPOID, principal.CustomerID).Error; err != nil {
 		return customerNetworkNotFound(err, "charging session")
 	}
+	if session.EndTime != nil || session.Status == constants.SessionStatusCompleted {
+		return nil
+	}
+	if session.Status == constants.SessionStatusStopPending || session.Status == constants.SessionStatusReconciliationRequired {
+		return service.reconcileExistingStopCommand(ctx, sessionID)
+	}
 	if session.HALTransactionID == nil || session.Status != constants.SessionStatusActive {
 		return &APIError{http.StatusConflict, "session_not_stoppable", "The charging session is not active."}
 	}
@@ -663,23 +716,40 @@ func (service *Service) StopCharging(ctx context.Context, principal Principal, s
 	}
 	commandID := uuid.New()
 	expires := service.now().Add(chargingCommandLifetime)
-	if err := service.database.WithContext(ctx).Create(&models.HALCommandRecord{CMSCommandID: commandID, CPOID: principal.CPOID, Kind: "STOP", ChargingSessionID: &sessionID, State: "PERSISTED", CommandExpiresAt: expires, CreatedAt: service.now(), UpdatedAt: service.now()}).Error; err != nil {
-		return err
-	}
-	if err := service.database.WithContext(ctx).Model(&models.ChargingSession{}).Where("id = ?", sessionID).Updates(map[string]any{"status": constants.SessionStatusStopPending, "updated_at": service.now()}).Error; err != nil {
+	if err := service.database.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Create(&models.HALCommandRecord{CMSCommandID: commandID, CPOID: principal.CPOID, Kind: "STOP", ChargingSessionID: &sessionID, State: "PERSISTED", CommandExpiresAt: expires, CreatedAt: service.now(), UpdatedAt: service.now()}).Error; err != nil {
+			return err
+		}
+		return tx.Model(&models.ChargingSession{}).Where("id = ? AND status = ?", sessionID, constants.SessionStatusActive).Updates(map[string]any{"status": constants.SessionStatusStopPending, "updated_at": service.now()}).Error
+	}); err != nil {
 		return err
 	}
 	command, err := service.hal.RequestStop(ctx, halops.StopRequest{CMSCommandID: commandID, CMSChargingSessionID: sessionID, CPOID: principal.CPOID, CustomerID: principal.CustomerID, CMSChargerID: charger.ID, CMSConnectorID: connector.ID, ChargerOCPPIdentity: charger.OCPPIdentity, OCPPConnectorNumber: connector.ConnectorNumber, HALTransactionID: *session.HALTransactionID, OCPPTransactionID: session.TransactionID, RequestedStopInitiator: "CUSTOMER", RequestedStopReason: strings.TrimSpace(request.Reason), CommandExpiresAt: expires}, correlation)
 	if err != nil {
-		return service.markHALCommandFailure(ctx, commandID, err)
+		return service.markHALStopCommandFailure(ctx, commandID, err)
 	}
 	if command.HALCommandID == uuid.Nil {
-		return service.markHALCommandFailure(ctx, commandID, halclient.ErrInvalidCommandResponse)
+		return service.markHALStopCommandFailure(ctx, commandID, halclient.ErrInvalidCommandResponse)
 	}
 	if err := service.database.WithContext(ctx).Model(&models.HALCommandRecord{}).Where("cms_command_id = ? AND (hal_command_id IS NULL OR hal_command_id = ?)", commandID, uuid.Nil).Updates(map[string]any{"hal_command_id": command.HALCommandID, "state": command.State, "updated_at": service.now()}).Error; err != nil {
 		return fmt.Errorf("store HAL stop command identity: %w", err)
 	}
-	return nil
+	return service.ReconcileStopCommand(ctx, commandID, command)
+}
+
+func (service *Service) reconcileExistingStopCommand(ctx context.Context, sessionID uuid.UUID) error {
+	var command models.HALCommandRecord
+	if err := service.database.WithContext(ctx).Where("charging_session_id = ? AND kind = ?", sessionID, "STOP").Order("created_at DESC").First(&command).Error; err != nil {
+		return err
+	}
+	result, err := service.hal.ReconcileCommand(ctx, command.CMSCommandID)
+	if errors.Is(err, halops.ErrCommandNotFound) {
+		return service.ReconcileConfirmedAbsentStopCommand(ctx, command.CMSCommandID)
+	}
+	if err != nil {
+		return service.markHALStopCommandFailure(ctx, command.CMSCommandID, err)
+	}
+	return service.ReconcileStopCommand(ctx, command.CMSCommandID, result)
 }
 
 func (service *Service) GetChargingStartIntent(ctx context.Context, principal Principal, intentID uuid.UUID) (ChargingStartResponse, error) {
@@ -771,7 +841,7 @@ func (service *Service) GetChargingSession(ctx context.Context, principal Princi
 		return ChargingSessionView{}, fmt.Errorf("load connector live state: %w", err)
 	}
 	view := customerChargingSessionDetailView(session, intent, live, charger, connector)
-	if session.Status == constants.SessionStatusStopPending {
+	if session.Status == constants.SessionStatusStopPending || session.Status == constants.SessionStatusReconciliationRequired {
 		value := "REQUESTED"
 		view.StopProgress = &value
 	}
@@ -790,7 +860,7 @@ func customerChargingSessionHistoryView(session models.ChargingSession) Charging
 		Charger:          customerChargingSessionChargerView(session.Charger),
 		Connector:        customerChargingSessionConnectorView(session.Connector),
 	}
-	if session.Status == constants.SessionStatusCompleted {
+	if session.EndTime != nil {
 		totalKWh := session.TotalKWh.StringFixed(3)
 		totalAmount := session.TotalAmount.StringFixed(2)
 		view.TotalKWh, view.TotalAmount = &totalKWh, &totalAmount
@@ -826,7 +896,7 @@ func customerChargingSessionDetailView(session models.ChargingSession, intent mo
 		Tax:                  customerChargingSessionTaxView(session),
 		Financial:            customerChargingSessionFinancialView(session),
 	}
-	if session.Status == constants.SessionStatusCompleted {
+	if session.EndTime != nil {
 		totalKWh := session.TotalKWh.StringFixed(3)
 		totalAmount := session.TotalAmount.StringFixed(2)
 		view.TotalKWh, view.TotalAmount = &totalKWh, &totalAmount

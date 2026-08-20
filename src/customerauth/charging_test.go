@@ -84,6 +84,24 @@ func TestUsableWalletBalanceEnforcesCPOThresholdAndBuffer(t *testing.T) {
 	}
 }
 
+func TestChargingOccupancyAndFactIdentityInvariants(t *testing.T) {
+	t.Parallel()
+	for _, status := range chargingStartActiveStatuses {
+		if status == constants.StartIntentStatusActuallyStarted {
+			t.Fatal("historical ACTUALLY_STARTED start intent must not own connector occupancy")
+		}
+	}
+	if len(chargingSessionOccupancyStatuses) != 3 || chargingSessionOccupancyStatuses[2] != constants.SessionStatusReconciliationRequired {
+		t.Fatalf("session occupancy statuses=%v", chargingSessionOccupancyStatuses)
+	}
+	if _, ok := factID(models.JSONB{"id": uuid.Nil.String()}, "id"); ok {
+		t.Fatal("zero UUID fact identity was accepted")
+	}
+	if id := uuid.New(); func() bool { got, ok := factID(models.JSONB{"id": id.String()}, "id"); return ok && got == id }() == false {
+		t.Fatal("nonzero UUID fact identity was rejected")
+	}
+}
+
 func TestTariffPricingCalculatesEachSupportedBasisAndLegacySnapshots(t *testing.T) {
 	t.Parallel()
 	zero := decimal.Zero
