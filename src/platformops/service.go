@@ -33,7 +33,19 @@ type Service struct {
 	config          config.Platform
 	now             func() time.Time
 	expectedWorkers map[string]WorkerSpec
+	factRequeuer    HALFactRequeuer
 }
+
+type HALFactRequeuer interface {
+	RequeuePlatformFact(context.Context, uuid.UUID, string) error
+}
+
+type HALFactRequeueError struct {
+	Status int
+	Code   string
+}
+
+func (err *HALFactRequeueError) Error() string { return "HAL fact requeue " + err.Code }
 
 func (service *Service) WithExpectedWorkers(specifications []WorkerSpec) *Service {
 	service.expectedWorkers = make(map[string]WorkerSpec, len(specifications))
@@ -54,6 +66,43 @@ func NewService(database *gorm.DB, cfg config.Platform) *Service {
 		config:   cfg,
 		now:      func() time.Time { return time.Now().UTC() },
 	}
+}
+
+func (service *Service) WithHALFactRequeuer(requeuer HALFactRequeuer) *Service {
+	service.factRequeuer = requeuer
+	return service
+}
+
+func (service *Service) RequeueHALFact(ctx context.Context, principal auth.Principal, factID uuid.UUID, correlationID string) error {
+	if err := requirePlatform(principal); err != nil {
+		return err
+	}
+	if factID == uuid.Nil {
+		return invalid("fact_id", "fact_id must be a non-zero UUID.")
+	}
+	if service.factRequeuer == nil {
+		return &auth.APIError{Status: http.StatusServiceUnavailable, Code: "hal_unavailable", Message: "HAL fact recovery is unavailable."}
+	}
+	now := service.now()
+	if err := service.database.WithContext(ctx).Create(&models.AuditLog{ID: uuid.New(), UserID: &principal.UserID, Action: "HAL_FACT_REQUEUE_REQUESTED", Entity: "HAL_FACT", EntityID: &factID, Details: models.JSONB{"correlation_id": correlationID}, CreatedAt: now}).Error; err != nil {
+		return fmt.Errorf("record HAL fact requeue request: %w", err)
+	}
+	if err := service.factRequeuer.RequeuePlatformFact(ctx, factID, correlationID); err != nil {
+		_ = service.database.WithContext(ctx).Create(&models.AuditLog{ID: uuid.New(), UserID: &principal.UserID, Action: "HAL_FACT_REQUEUE_FAILED", Entity: "HAL_FACT", EntityID: &factID, Details: models.JSONB{"correlation_id": correlationID}, CreatedAt: service.now()}).Error
+		var provider *HALFactRequeueError
+		if errors.As(err, &provider) {
+			return &auth.APIError{Status: provider.Status, Code: provider.Code, Message: "HAL fact recovery could not be completed."}
+		}
+		return fmt.Errorf("requeue HAL fact: %w", err)
+	}
+	return service.database.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Create(&models.AuditLog{ID: uuid.New(), UserID: &principal.UserID, Action: "HAL_FACT_REQUEUED", Entity: "HAL_FACT", EntityID: &factID, Details: models.JSONB{"correlation_id": correlationID}, CreatedAt: service.now()}).Error; err != nil {
+			return fmt.Errorf("record HAL fact requeue completion: %w", err)
+		}
+		resource := factID.String()
+		_, err := service.Emit(tx, EventInput{Type: "hal.fact_requeued", ActorUserID: &principal.UserID, ResourceType: "HAL_FACT", ResourceID: &resource, Data: models.JSONB{}})
+		return err
+	})
 }
 
 func (service *Service) Emit(tx *gorm.DB, input EventInput) (models.PlatformEvent, error) {

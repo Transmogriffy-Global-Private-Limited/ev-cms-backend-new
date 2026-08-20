@@ -38,6 +38,24 @@ func TestMutationsSendCMSCorrelationAndIdempotencyHeaders(t *testing.T) {
 	}
 }
 
+func TestRequeueFactUsesExactAuthenticatedRecoveryContract(t *testing.T) {
+	factID, correlationID := uuid.New(), uuid.New().String()
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		if request.Method != http.MethodPost || request.URL.Path != "/v1/facts/"+factID.String()+"/requeue" || request.Header.Get("Authorization") != "Bearer test" || request.Header.Get("X-Correlation-ID") != correlationID {
+			t.Fatalf("unexpected requeue request: method=%s path=%s", request.Method, request.URL.Path)
+		}
+		_ = json.NewEncoder(writer).Encode(map[string]any{"fact_id": factID, "status": "PENDING"})
+	}))
+	defer server.Close()
+	client := New(config.HAL{BaseURL: server.URL, CMSBearerToken: "test", RequestTimeout: time.Second})
+	if err := client.RequeueFact(context.Background(), factID, correlationID); err != nil {
+		t.Fatal(err)
+	}
+	if err := client.RequeueFact(context.Background(), uuid.Nil, correlationID); !errors.Is(err, ErrInvalidFactID) {
+		t.Fatalf("zero fact ID error=%v", err)
+	}
+}
+
 func TestGetTransactionByStartIntentDecodesAuthoritativeHALTruth(t *testing.T) {
 	transactionID, intentID, commandID := uuid.New(), uuid.New(), uuid.New()
 	cpoID, chargerID, connectorID := uuid.New(), uuid.New(), uuid.New()

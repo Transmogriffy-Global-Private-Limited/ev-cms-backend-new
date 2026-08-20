@@ -32,6 +32,26 @@ func RegisterRoutes(
 	group.GET("/realtime/stream", handler.stream)
 	group.GET("/audit-logs", handler.auditLogs)
 	group.GET("/workers", handler.workers)
+	group.POST("/hal-facts/:fact_id/requeue", handler.requeueHALFact)
+}
+
+func (handler *Handler) requeueHALFact(ctx *gin.Context) {
+	principal, _ := auth.CurrentPrincipal(ctx)
+	factID, err := uuid.Parse(strings.TrimSpace(ctx.Param("fact_id")))
+	if err != nil || factID == uuid.Nil {
+		writeError(ctx, invalid("fact_id", "fact_id must be a non-zero UUID."))
+		return
+	}
+	correlationID, ok := cmsmiddleware.RequestID(ctx)
+	if !ok {
+		writeError(ctx, &auth.APIError{Status: http.StatusInternalServerError, Code: "request_correlation_unavailable", Message: "The request could not be correlated."})
+		return
+	}
+	if err := handler.service.RequeueHALFact(ctx.Request.Context(), principal, factID, correlationID); err != nil {
+		writeError(ctx, err)
+		return
+	}
+	ctx.JSON(http.StatusAccepted, gin.H{"fact_id": factID, "status": "PENDING"})
 }
 
 func (handler *Handler) events(ctx *gin.Context) {

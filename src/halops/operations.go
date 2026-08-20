@@ -13,6 +13,7 @@ import (
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/config"
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/halclient"
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/models"
+	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/platformops"
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/workerobs"
 	"github.com/google/uuid"
 	"gorm.io/gorm"
@@ -80,6 +81,25 @@ func New(database *gorm.DB, cfg config.HAL) *Service {
 
 func (service *Service) Available() bool {
 	return service != nil && service.client != nil && service.client.Available()
+}
+
+// RequeuePlatformFact adapts HAL's receiver-recovery result to the platform
+// operation port without letting platform code reach into the wire client.
+func (service *Service) RequeuePlatformFact(ctx context.Context, factID uuid.UUID, correlationID string) error {
+	if !service.Available() {
+		return &platformops.HALFactRequeueError{Status: 503, Code: "hal_unavailable"}
+	}
+	err := service.client.RequeueFact(ctx, factID, correlationID)
+	if err == nil {
+		return nil
+	}
+	if isHALHTTPStatus(err, 404) {
+		return &platformops.HALFactRequeueError{Status: 404, Code: "hal_fact_not_found"}
+	}
+	if isHALHTTPStatus(err, 409) {
+		return &platformops.HALFactRequeueError{Status: 409, Code: "hal_fact_not_reconciliation_required"}
+	}
+	return &platformops.HALFactRequeueError{Status: 502, Code: "hal_fact_requeue_failed"}
 }
 
 // WithStartCommandAbsentHandler connects exact command lookup to the business

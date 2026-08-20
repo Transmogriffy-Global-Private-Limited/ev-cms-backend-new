@@ -1,5 +1,25 @@
 # AI Changelog
 
+## 2026-08-20 - CMS/HAL fact-delivery recovery closure
+
+- A repeated customer signup Start now replaces the current CPO/email
+  challenge atomically, invalidating and scrubbing its predecessor before the
+  successor and its mail-outbox row are committed.
+- Added the authenticated platform exact-fact recovery route. It uses the
+  server-generated request UUID for HAL correlation, writes audit evidence for
+  request/outcome, and emits a platform event only after HAL accepts the same
+  immutable fact back to `PENDING`. The source OpenAPI now has 189 operations.
+
+Verification: focused CMS adapter, platform, route/OpenAPI, and customer-auth
+tests, full Go tests, vet, and diff checks passed. PostgreSQL
+concurrency/lifecycle cases are present but skipped without
+`TEST_DATABASE_URL`. Runtime revision `c6b79d4` is active under
+`evcmsnew-dev.service` with binary SHA-256
+`9a1151f94c34ef9518a3067d9192a28e7c4d9843a2b8564b28399bb9195c8b78`.
+Local/public health-readiness, Swagger, raw OpenAPI (189 operations), Caddy
+validation, and the post-rehost journal error scan passed. `pwsh` remains
+unavailable on this host.
+
 ## 2026-08-20 - Auth and current-worker invariant hardening
 
 - Added guarded migration 46 with partial current-challenge uniqueness for

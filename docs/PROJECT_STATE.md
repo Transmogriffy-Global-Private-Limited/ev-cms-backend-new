@@ -2,6 +2,26 @@
 
 ## Current State
 
+### 2026-08-20 — CMS/HAL signup and fact-recovery closure deployed
+
+- A new customer signup Start now atomically invalidates and scrubs the prior
+  current CPO/normalized-email challenge before inserting its replacement and
+  durable mail outbox record. Migration 46 remains the database backstop.
+- Platform superadmins can request HAL requeue of an exact terminal fact only
+  through `POST /api/v1/platform/hal-facts/{fact_id}/requeue`. CMS uses the
+  server-generated request UUID for correlation, records audit evidence, and
+  emits an event only after HAL accepts the immutable fact back to `PENDING`.
+  Runtime revision `c6b79d4` is active; no migration or database mutation was
+  required.
+
+Verification: focused CMS adapter/platform/route/OpenAPI/customer-auth tests,
+full Go tests, vet, and diff checks passed. PostgreSQL signup races remain
+skipped without `TEST_DATABASE_URL`. Binary SHA-256 is
+`9a1151f94c34ef9518a3067d9192a28e7c4d9843a2b8564b28399bb9195c8b78`.
+Local/public health-readiness, Swagger, raw OpenAPI (189 operations), Caddy
+validation, and the post-rehost journal scan passed. `pwsh` remains unavailable
+on this Ubuntu host.
+
 ### 2026-08-20 — Auth/current-worker invariant hardening deployed
 
 - Migration `000046_auth_challenge_and_readiness_invariants` guards against

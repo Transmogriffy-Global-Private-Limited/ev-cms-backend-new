@@ -82,10 +82,10 @@ Establish reusable CMS capabilities over HAL-derived operational truth and expos
   observation; REST/read-side recovery and realtime invalidation therefore use
   the same source of truth. Connector status is live only while parent
   connection evidence remains fresh.
-- Runtime revision `166b0de` is active under `evcmsnew-dev.service`; migrations
+- Runtime revision `c6b79d4` is active under `evcmsnew-dev.service`; migrations
   through forty-six,
   loopback/public health and readiness, Swagger, raw OpenAPI, the live
-  188-operation contract, singular HAL runtime table mappings, and GST-hub
+  189-operation contract, singular HAL runtime table mappings, and GST-hub
   route boundaries have been verified. No migration was needed for the model
   correction, the User App history release, state-aware GST validation, and
   fresh-availability charging admission.
@@ -188,6 +188,12 @@ Establish reusable CMS capabilities over HAL-derived operational truth and expos
   operations), Caddy validation, and the post-rehost journal scan passed.
   Disposable PostgreSQL occupancy tests remain skipped without
   `TEST_DATABASE_URL`; `pwsh` is unavailable on this host.
+- 2026-08-20 CMS/HAL fact-delivery closure deployment: runtime revision
+  `c6b79d4` is active with the authenticated exact-fact requeue route, signup
+  challenge replacement, and 189-operation OpenAPI contract. Focused/full Go
+  verification, local/public readiness, Swagger, Caddy validation, and the
+  post-rehost journal scan passed. PostgreSQL signup races remain skipped
+  without `TEST_DATABASE_URL`; `pwsh` is unavailable on this host.
 - 2026-08-20 auth/readiness deployment: migration 46 was backed up and applied
   successfully. Runtime revision `166b0de` is active with current-worker
   readiness projection, challenge uniqueness indexes, and non-null GST state;

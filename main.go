@@ -105,6 +105,7 @@ func run() error {
 	superadminService := superadmin.NewService(gormDB, platformService, outbox, cfg.Mail.Enabled)
 	subscriptionService := subscriptions.NewService(gormDB, platformService)
 	halOperations := halops.New(gormDB, cfg.HAL)
+	platformService.WithHALFactRequeuer(halOperations)
 	liveOperations := liveops.New(gormDB, cfg.HAL)
 	operationalEvents := operationalrealtime.New(gormDB, cfg.Platform)
 	platformService.WithExpectedWorkers([]platformops.WorkerSpec{

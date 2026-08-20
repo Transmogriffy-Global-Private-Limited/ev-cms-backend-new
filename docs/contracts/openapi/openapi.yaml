@@ -2265,6 +2265,44 @@ paths:
         "500":
           $ref: "#/components/responses/InternalError"
 
+  /api/v1/platform/hal-facts/{fact_id}/requeue:
+    post:
+      tags: [Superadmin - Platform Operations]
+      operationId: requeueHALFact
+      summary: Requeue one HAL fact awaiting receiver reconciliation
+      description: |
+        Requests HAL to requeue exactly one immutable fact that is currently
+        `RECONCILIATION_REQUIRED`. This does not create, alter, or replay a
+        different fact. Platform audit evidence records the requested and
+        resulting outcome; the server-generated request ID is the HAL
+        correlation ID.
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: fact_id
+          in: path
+          required: true
+          schema: {type: string, format: uuid}
+      responses:
+        "202":
+          description: HAL accepted the exact immutable fact for delivery.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [fact_id, status]
+                properties:
+                  fact_id: {type: string, format: uuid}
+                  status: {type: string, enum: [PENDING]}
+        "400": {description: Invalid fact identity.}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {description: HAL has no fact with this exact identity.}
+        "409": {description: The fact is not awaiting reconciliation.}
+        "502": {description: HAL could not complete the requeue request.}
+        "503": {description: HAL recovery is not configured.}
+        "500": {$ref: "#/components/responses/InternalError"}
+
   /api/v1/platform/administrators:
     get:
       tags: [Superadmin - Governance]
