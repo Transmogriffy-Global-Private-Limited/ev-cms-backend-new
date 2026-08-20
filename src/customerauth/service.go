@@ -452,6 +452,14 @@ func (service *Service) createChallenge(
 	if err := lockSignupIdentity(tx, cpoID, email); err != nil {
 		return ChallengeResponse{}, err
 	}
+	// Migration 46 permits exactly one unconsumed, uninvalidated challenge for
+	// this CPO/email identity. A fresh Start intentionally replaces the prior
+	// request so its OTP and password hash can never complete the new request.
+	if err := tx.Model(&models.CustomerSignupChallenge{}).
+		Where("cpo_id = ? AND lower(btrim(email)) = ? AND consumed_at IS NULL AND invalidated_at IS NULL", cpoID, email).
+		Updates(map[string]any{"invalidated_at": now, "password_hash": "INVALIDATED"}).Error; err != nil {
+		return ChallengeResponse{}, fmt.Errorf("replace current customer signup challenge: %w", err)
+	}
 	code, err := security.RandomDigits(6)
 	if err != nil {
 		return ChallengeResponse{}, err

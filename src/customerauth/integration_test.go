@@ -189,6 +189,20 @@ func TestCustomerSignupLifecycleWithPostgreSQL(t *testing.T) {
 	if err != nil {
 		t.Fatalf("start signup: %v", err)
 	}
+	restarted, err := service.Start(ctx, firstCPO.AppID, SignupRequest{
+		Email: email, Password: "ReplacementPassword!123", FullName: "Replacement Start",
+	}, metadata)
+	if err != nil {
+		t.Fatalf("replace signup start: %v", err)
+	}
+	if restarted.ChallengeID == challenge.ChallengeID {
+		t.Fatal("replacement Start reused the obsolete challenge")
+	}
+	firstCode := readSignupOTP(t, gormDB, box, email, firstCPO.ID)
+	if _, err := service.Verify(ctx, firstCPO.AppID, ChallengeRequest{ChallengeID: challenge.ChallengeID, Code: firstCode}, metadata); !errors.Is(err, errInvalidChallenge) {
+		t.Fatalf("replaced Start challenge error=%v, want invalid challenge", err)
+	}
+	challenge = restarted
 	service.now = func() time.Time {
 		return challenge.ResendAvailableAt.Add(time.Second)
 	}

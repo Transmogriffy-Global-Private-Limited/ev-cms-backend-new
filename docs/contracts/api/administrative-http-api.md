@@ -3084,6 +3084,25 @@ cannot start, stop, restart, or kill a process.
 
 Errors: shared `401`, `403`, or `500` responses.
 
+### 11.5 `POST /api/v1/platform/hal-facts/{fact_id}/requeue`
+
+Purpose: request recovery of one exact HAL fact after HAL has stopped automatic
+delivery in `RECONCILIATION_REQUIRED`. A current `PLATFORM` bearer session is
+required. `fact_id` is a non-zero UUID. The CMS supplies its server-generated
+request UUID as the HAL correlation header; clients do not choose it.
+
+The command reaches only HAL's authenticated exact-fact requeue socket. HAL
+accepts only the existing immutable fact and returns it to `PENDING`; neither
+service creates replacement evidence or changes the fact payload/digest. CMS
+stores requested, failed, or completed platform audit evidence and emits
+`hal.fact_requeued` only after HAL accepts the recovery.
+
+`202 Accepted` returns `{"fact_id":"<uuid>","status":"PENDING"}`. HAL
+absence returns `404 hal_fact_not_found`; a fact outside reconciliation returns
+`409 hal_fact_not_reconciliation_required`; unavailable/not configured HAL
+returns `503 hal_unavailable`; other HAL failures return
+`502 hal_fact_requeue_failed`.
+
 ## 12. Manual CPO Platform Access
 
 Subscription management is documented separately in

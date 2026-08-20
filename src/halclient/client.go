@@ -22,6 +22,7 @@ var (
 	ErrMissingCorrelationID       = errors.New("HAL v1 mutation requires a non-empty correlation ID")
 	ErrInvalidCommandResponse     = errors.New("HAL v1 command response violates the service contract")
 	ErrInvalidTransactionResponse = errors.New("HAL v1 transaction response violates the service contract")
+	ErrInvalidFactID              = errors.New("HAL v1 fact ID must be a non-zero canonical UUID")
 )
 
 // CommandResponseError deliberately carries only the failed invariant. The
@@ -188,6 +189,52 @@ func (client *Client) GetTransactionByStartIntent(ctx context.Context, id uuid.U
 		return Transaction{}, err
 	}
 	return *wrapper.Transaction, nil
+}
+
+// RequeueFact invokes HAL's narrow operator recovery socket. It never creates
+// a fact or rewrites its immutable payload; HAL accepts only a durable exact
+// fact in RECONCILIATION_REQUIRED state.
+func (client *Client) RequeueFact(ctx context.Context, factID uuid.UUID, correlationID string) error {
+	if factID == uuid.Nil {
+		return ErrInvalidFactID
+	}
+	correlationID = strings.TrimSpace(correlationID)
+	parsed, err := uuid.Parse(correlationID)
+	if err != nil || parsed == uuid.Nil || parsed.String() != correlationID {
+		return ErrMissingCorrelationID
+	}
+	if !client.Available() {
+		return ErrUnavailable
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, client.baseURL+"/v1/facts/"+factID.String()+"/requeue", nil)
+	if err != nil {
+		return fmt.Errorf("create HAL fact requeue request: %w", err)
+	}
+	req.Header.Set("Authorization", "Bearer "+client.bearer)
+	req.Header.Set("X-Correlation-ID", correlationID)
+	response, err := client.http.Do(req)
+	if err != nil {
+		return fmt.Errorf("send HAL fact requeue request: %w", err)
+	}
+	defer response.Body.Close()
+	if response.StatusCode < 200 || response.StatusCode >= 300 {
+		var errorBody struct {
+			Error string `json:"error"`
+		}
+		_ = json.NewDecoder(io.LimitReader(response.Body, 32*1024)).Decode(&errorBody)
+		return &HTTPError{Status: response.StatusCode, Code: errorBody.Error}
+	}
+	var result struct {
+		FactID uuid.UUID `json:"fact_id"`
+		Status string    `json:"status"`
+	}
+	if err := json.NewDecoder(io.LimitReader(response.Body, 32*1024)).Decode(&result); err != nil {
+		return fmt.Errorf("decode HAL fact requeue response: %w", err)
+	}
+	if result.FactID != factID || result.Status != "PENDING" {
+		return invalidCommandResponse("fact requeue response does not confirm the requested pending fact")
+	}
+	return nil
 }
 
 func (client *Client) mutate(ctx context.Context, method, path, idempotency, correlation string, body any, target any) error {

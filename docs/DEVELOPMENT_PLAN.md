@@ -147,7 +147,7 @@ Current implementation state:
   is still required before the work item can close.
 - CMS source and the development deployment contain the first client, durable records, shared fact receiver,
   customer polling/start/stop routes, reusable operational projections,
-  scoped operational-event replay/SSE, and a 188-operation OpenAPI surface.
+  scoped operational-event replay/SSE, and a 189-operation OpenAPI surface.
   Runtime revision `166b0de` is active.
   The HAL runtime GORM models explicitly map to the singular migration tables
   `hal_charger_runtime` and `hal_connector_runtime`.
@@ -157,7 +157,7 @@ Current implementation state:
 - The current deployed release also exposes tenant-scoped CPO charging-session
   list/detail reads with bounded keyset pagination and validated lifecycle
   filters. Revision `166b0de` is active with migrations 40-46 applied; the live
-  OpenAPI contract contains 188 operations. The CPO wallet transaction read is
+  OpenAPI contract contains 189 operations. The CPO wallet transaction read is
   tenant-scoped, newest-first, and cursor-paginated.
 - The current deployed release also includes optional committed live charger
   projections on CPO charger list/detail responses. Revision `a5d1af4` is
