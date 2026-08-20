@@ -115,11 +115,11 @@ Active work:
 
 Current implementation state:
 
-- Source-only ChargingSession persistence correction: `TotalKWh` now has an
+- ChargingSession persistence correction is deployed: `TotalKWh` now has an
   explicit `column:total_kwh` mapping, backed by migration-aligned
   acronym-column and PostgreSQL-dialect dry-run insert regressions. The
-  existing database schema is authoritative and unchanged; release and live
-  database verification have not been performed for this correction.
+  existing database schema is authoritative and unchanged; runtime revision
+  `b11eeed` is active with no migration required.
 - HAL command-response contract hardening is deployed: malformed 2xx command
   bodies fail closed, HAL identity is never persisted as zero UUID, and
   authoritative start reconciliation repairs the historical zero sentinel as

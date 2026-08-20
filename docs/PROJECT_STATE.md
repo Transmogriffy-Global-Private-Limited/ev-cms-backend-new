@@ -2,7 +2,7 @@
 
 ## Current State
 
-### 2026-08-20 — ChargingSession `total_kwh` model correction in source
+### 2026-08-20 — ChargingSession `total_kwh` model correction deployed
 
 - `models.ChargingSession.TotalKWh` explicitly maps to the canonical,
   migration-owned `charging_sessions.total_kwh` column. It no longer relies on
@@ -10,8 +10,11 @@
   caused PostgreSQL `42703` during persistence.
 - The regression suite parses the migration-aligned acronym-sensitive fields
   and builds a PostgreSQL-dialect dry-run insert that contains `total_kwh` and
-  excludes `total_k_wh`. No migration, database mutation, deployment, or live
-  database verification occurred for this source-only correction.
+  excludes `total_k_wh`. No migration or database mutation was required.
+  Runtime revision `b11eeed` is active with binary SHA-256
+  `03d8c6bf6e5f257da3bc15d0b369a06bd2beccc02714e829cc7d9a069f7c90ee`.
+  Local/public health-readiness, Swagger, raw OpenAPI (188 operations), Caddy
+  validation, and the post-rehost journal scan passed.
 
 ### 2026-08-20 — HAL command-response contract hardening deployed
 

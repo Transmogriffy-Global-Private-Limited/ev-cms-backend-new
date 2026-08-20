@@ -163,11 +163,13 @@ Establish reusable CMS capabilities over HAL-derived operational truth and expos
   no migration or database mutation; loopback/public readiness, Swagger, raw
   OpenAPI (188 operations), Caddy validation, and the post-rehost journal scan
   passed. `pwsh` remains unavailable on this host.
-- 2026-08-20 model-mapping correction: focused `go test ./src/models` verifies
-  the audited materially acronym-sensitive fields and a PostgreSQL-dialect
-  dry-run ChargingSession insert includes `total_kwh`, never `total_k_wh`.
-  No database connection, migration, live database mutation, or deployment was
-  performed.
+- 2026-08-20 model-mapping correction: focused and full Go tests, vet, and
+  `git diff --check` verify the audited materially acronym-sensitive fields and
+  a PostgreSQL-dialect dry-run ChargingSession insert includes `total_kwh`,
+  never `total_k_wh`. No migration or database mutation was required. Runtime
+  revision `b11eeed` is active after rehost; local/public readiness, Swagger,
+  raw OpenAPI (188 operations), Caddy validation, and the post-rehost journal
+  scan passed.
 
 ## Handoff
 

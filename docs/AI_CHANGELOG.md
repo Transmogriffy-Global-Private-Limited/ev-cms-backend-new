@@ -1,19 +1,24 @@
 # AI Changelog
 
-## 2026-08-20 - ChargingSession `total_kwh` GORM mapping correction
+## 2026-08-20 - ChargingSession `total_kwh` GORM mapping correction deployed
 
 - Corrected `models.ChargingSession.TotalKWh` to explicitly map to the
   migration-owned `charging_sessions.total_kwh` column. The prior inferred
   `total_k_wh` spelling caused PostgreSQL `42703` during session persistence.
 - Audited the other acronym-sensitive CMS model mappings against their existing
   migration columns and expanded the model regression coverage for the
-  materially distinct acronym forms. No database schema, migration, or data
-  mutation is part of this source-only correction.
+  materially distinct acronym forms. The existing database schema remains
+  authoritative and unchanged.
 
 Verification: a PostgreSQL-dialect GORM dry-run now proves the generated
 ChargingSession insert contains `total_kwh` and excludes `total_k_wh`; focused
-`go test ./src/models` passed. Full repository verification remains recorded
-with this change rather than implying database execution.
+and full Go tests, vet, and `git diff --check` passed. No migration or data
+mutation was required. Runtime revision `b11eeed` is active under
+`evcmsnew-dev.service` with binary SHA-256
+`03d8c6bf6e5f257da3bc15d0b369a06bd2beccc02714e829cc7d9a069f7c90ee`.
+Local/public health-readiness, Swagger, raw OpenAPI (188 operations), Caddy
+validation, and the post-rehost journal error scan passed. `pwsh` and
+disposable `TEST_DATABASE_URL` remain unavailable on this host.
 
 ## 2026-08-20 - HAL command-response contract hardening
 
