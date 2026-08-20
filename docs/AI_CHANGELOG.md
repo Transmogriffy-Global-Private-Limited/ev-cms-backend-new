@@ -11,9 +11,14 @@
   immutable fact back to `PENDING`. The source OpenAPI now has 189 operations.
 
 Verification: focused CMS adapter, platform, route/OpenAPI, and customer-auth
-tests pass. PostgreSQL concurrency/lifecycle cases are present but skipped
-without `TEST_DATABASE_URL`. No database, deployment, or remote runtime was
-modified.
+tests, full Go tests, vet, and diff checks passed. PostgreSQL
+concurrency/lifecycle cases are present but skipped without
+`TEST_DATABASE_URL`. Runtime revision `c6b79d4` is active under
+`evcmsnew-dev.service` with binary SHA-256
+`9a1151f94c34ef9518a3067d9192a28e7c4d9843a2b8564b28399bb9195c8b78`.
+Local/public health-readiness, Swagger, raw OpenAPI (189 operations), Caddy
+validation, and the post-rehost journal error scan passed. `pwsh` remains
+unavailable on this host.
 
 ## 2026-08-20 - Auth and current-worker invariant hardening
 
