@@ -152,11 +152,13 @@ Establish reusable CMS capabilities over HAL-derived operational truth and expos
   empty semantic result and persisted `uuid.Nil`; this slice makes malformed
   command responses fail closed and lets authoritative start evidence repair a
   stored zero UUID as unknown rather than conflict.
-- 2026-08-20 response-boundary repair verification: `scripts/verify-docs.ps1`,
-  focused HAL-client/charging tests, full `go test ./...`, `go vet ./...`, and
-  `git diff --check` pass. The integration recovery cases require a disposable
-  `TEST_DATABASE_URL` and were skipped safely; no deployment or database
-  mutation occurred.
+- 2026-08-20 response-boundary repair verification: focused HAL-client/charging
+  tests, full `go test ./...`, `go vet ./...`, and `git diff --check` pass. The
+  integration recovery cases require a disposable `TEST_DATABASE_URL` and
+  were skipped safely. Runtime revision `1729b41` is active after rehost with
+  no migration or database mutation; loopback/public readiness, Swagger, raw
+  OpenAPI (188 operations), Caddy validation, and the post-rehost journal scan
+  passed. `pwsh` remains unavailable on this host.
 
 ## Handoff
 

@@ -115,12 +115,12 @@ Active work:
 
 Current implementation state:
 
-- HAL command-response contract hardening is in source: malformed 2xx command
+- HAL command-response contract hardening is deployed: malformed 2xx command
   bodies fail closed, HAL identity is never persisted as zero UUID, and
   authoritative start reconciliation repairs the historical zero sentinel as
-  unknown. HAL must deploy its matching explicit v1 response views before CMS
-  strict validation is deployed; disposable PostgreSQL and dual-service
-  acceptance remain required.
+  unknown. Runtime revision `1729b41` is active; migrations remain through
+  `000044_temporal_tariff_fallback.up.sql`. Disposable PostgreSQL recovery and
+  dual-service physical acceptance remain required for full closure.
 - Source now classifies deterministic HAL fact projection rejections as 4xx/409
   and uses the existing exact HAL transaction-by-start-intent socket to recover
   old unmaterialized starts through the same materializer as fact ingress. The
@@ -135,6 +135,7 @@ Current implementation state:
 - CMS source and the development deployment contain the first client, durable records, shared fact receiver,
   customer polling/start/stop routes, reusable operational projections,
   scoped operational-event replay/SSE, and a 188-operation OpenAPI surface.
+  Runtime revision `1729b41` is active.
   The HAL runtime GORM models explicitly map to the singular migration tables
   `hal_charger_runtime` and `hal_connector_runtime`.
   The HAL v1 provider is
@@ -142,8 +143,8 @@ Current implementation state:
   charger vertical is not verified yet.
 - The current deployed release also exposes tenant-scoped CPO charging-session
   list/detail reads with bounded keyset pagination and validated lifecycle
-  filters. Revision `d7f72cd` is active with migrations 40-44 applied; the live
-  OpenAPI contract contains 187 operations. The CPO wallet transaction read is
+  filters. Revision `1729b41` is active with migrations 40-44 applied; the live
+  OpenAPI contract contains 188 operations. The CPO wallet transaction read is
   tenant-scoped, newest-first, and cursor-paginated.
 - The current deployed release also includes optional committed live charger
   projections on CPO charger list/detail responses. Revision `a5d1af4` is

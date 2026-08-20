@@ -14,8 +14,14 @@
 Verification: `scripts/verify-docs.ps1`, focused
 `go test ./src/halclient ./src/halops ./src/customerauth`, full `go test
 ./...`, `go vet ./...`, and `git diff --check` passed. Disposable PostgreSQL
-recovery coverage is present but skipped without `TEST_DATABASE_URL`; no service
-was deployed or restarted.
+recovery coverage is present but skipped without `TEST_DATABASE_URL`.
+
+Hosting verification: no migration or data mutation was required. Runtime
+revision `1729b41` is active under `evcmsnew-dev.service` with binary SHA-256
+`00bcedfc71f42e0ce45cd8df99e1616598d03265ce291fd5e08d9cf8338ddb32`.
+Loopback/public health-readiness, Swagger, raw OpenAPI (188 operations), Caddy
+validation, zero service restarts, and the post-rehost journal error scan
+passed. `pwsh` remains unavailable on this Ubuntu host.
 
 ## 2026-08-19 - HAL authoritative-start recovery and fact error classification
 

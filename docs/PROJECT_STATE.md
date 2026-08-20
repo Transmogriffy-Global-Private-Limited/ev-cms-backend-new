@@ -2,7 +2,7 @@
 
 ## Current State
 
-### 2026-08-20 — HAL command-response contract hardening source change
+### 2026-08-20 — HAL command-response contract hardening deployed
 
 - CMS now rejects 2xx HAL command responses without a canonical `command`
   wrapper, nonzero/matching HAL and CMS IDs, supported kind/state, valid
@@ -16,7 +16,12 @@
 Verification: documentation verification, focused HAL-client/charging checks,
 full `go test ./...`, `go vet ./...`, and `git diff --check` pass. The new
 disposable PostgreSQL recovery regression is skipped while `TEST_DATABASE_URL`
-is unset; no deployment or data mutation occurred.
+is unset. Runtime revision `1729b41` is active with binary SHA-256
+`00bcedfc71f42e0ce45cd8df99e1616598d03265ce291fd5e08d9cf8338ddb32`.
+Migrations remain through `000044_temporal_tariff_fallback.up.sql`; no
+migration or data mutation was required. Local/public health-readiness,
+Swagger, raw OpenAPI (188 operations), Caddy validation, and the post-rehost
+journal scan passed. `pwsh` remains unavailable on this Ubuntu host.
 
 ### 2026-08-19 — HAL authoritative-start recovery and fact classification source change
 
