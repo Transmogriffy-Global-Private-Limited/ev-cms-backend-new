@@ -216,3 +216,25 @@ the required disposable CMS/HAL databases and virtual charger topology were not
 configured in this slice. Do not claim physical charger acceptance, restart
 recovery, or full vertical-slice completion until the planned dual-service tests
 prove them.
+
+## Real-Hardware Mapping and Start Admission
+
+Every CMS-to-HAL mapping/start/stop mutation uses a canonical nonzero UUID as
+`X-Correlation-ID`. A reconciliation attempt creates a new UUID rather than
+sending a worker label; the label is recorded separately as safe mapping
+diagnostic context. CMS records a bounded category, provider HTTP status/code
+when safe, operation, and correlation UUID on failed mapping delivery. It never
+stores a provider response body, credential, or request payload.
+
+CMS sends `chargers.serial_number` as optional `expected_serial` mapping
+evidence. HAL still treats `charger_ocpp_identity` as canonical: both
+`/{identity}` and `/{identity}/{serial}` are accepted only for a known enabled
+mapping; a configured serial rejects a conflicting URL suffix, while an absent
+suffix remains compatible. HAL stores Boot metadata as observed hardware
+evidence only; it cannot overwrite CMS inventory.
+
+Customer start admission remains independent from display occupancy. A fresh
+online connector with raw OCPP `Available` or `Preparing` may accept a
+CMS-controlled start. `Preparing` remains customer-visible as `CHARGING` and
+all other, stale, offline, unknown, existing-intent, or occupying-session cases
+remain blocked by the existing transaction/constraint path.

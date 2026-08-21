@@ -21,6 +21,7 @@ import (
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/halops"
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/liveops"
 	cmsmail "github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/mail"
+	cmsmiddleware "github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/middleware"
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/models"
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/operationalrealtime"
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/platformops"
@@ -2585,7 +2586,11 @@ func (service *Service) CreateCharger(
 	if service.halOperations != nil {
 		// Inventory is durable even when HAL is unavailable; the capability leaves
 		// the mapping pending for its bounded reconciler.
-		_ = service.halOperations.EnsureChargerMapping(ctx.Request.Context(), record.ID, "cpo-charger-created")
+		correlationID := uuid.NewString()
+		if requestID, ok := cmsmiddleware.RequestID(ctx); ok {
+			correlationID = requestID
+		}
+		_ = service.halOperations.EnsureChargerMapping(ctx.Request.Context(), record.ID, correlationID)
 	}
 
 	return service.chargerView(record, principal), nil
@@ -5996,6 +6001,16 @@ func (service *Service) UpdateChargerStatus(
 	chargerID uuid.UUID,
 	request UpdateChargerStatusRequest,
 ) (ChargerStatusResponse, error) {
+	return service.updateChargerStatus(ctx, principal, chargerID, request, uuid.NewString())
+}
+
+func (service *Service) updateChargerStatus(
+	ctx context.Context,
+	principal auth.Principal,
+	chargerID uuid.UUID,
+	request UpdateChargerStatusRequest,
+	correlationID string,
+) (ChargerStatusResponse, error) {
 	if err := requireCPOAdminAccess(principal); err != nil {
 		return ChargerStatusResponse{}, err
 	}
@@ -6051,7 +6066,7 @@ func (service *Service) UpdateChargerStatus(
 	if service.halOperations != nil {
 		// Keep HAL's enabled projection aligned after the CMS source of truth
 		// commits; failed delivery is recorded for the reconciler.
-		_ = service.halOperations.EnsureChargerMapping(ctx, charger.ID, "cpo-charger-status-update")
+		_ = service.halOperations.EnsureChargerMapping(ctx, charger.ID, correlationID)
 	}
 
 	return ChargerStatusResponse{

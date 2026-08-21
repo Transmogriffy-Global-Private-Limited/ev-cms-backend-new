@@ -151,6 +151,8 @@ func TestGORMColumnMappingsMatchMigration(t *testing.T) {
 		{model: &HALFactReceipt{}, field: "FactID", database: "fact_id"},
 		{model: &HALChargerMapping{}, field: "CMSChargerID", database: "cms_charger_id"},
 		{model: &HALChargerMapping{}, field: "ChargerOCPPIdentity", database: "charger_ocpp_identity"},
+		{model: &HALChargerMapping{}, field: "LastSyncHTTPStatus", database: "last_sync_http_status"},
+		{model: &HALChargerMapping{}, field: "LastSyncCorrelationID", database: "last_sync_correlation_id"},
 		{model: &HALChargerRuntime{}, field: "CMSChargerID", database: "cms_charger_id"},
 		{model: &HALConnectorRuntime{}, field: "OCPPConnectorStatus", database: "ocpp_connector_status"},
 		{model: &AuthChallenge{}, field: "RequestIP", database: "request_ip"},

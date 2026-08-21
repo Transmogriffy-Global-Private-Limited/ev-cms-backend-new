@@ -1062,7 +1062,11 @@ func (handler *Handler) updateChargerStatus(ctx *gin.Context) {
 		return
 	}
 
-	record, err := handler.service.UpdateChargerStatus(ctx.Request.Context(), principal, chargerID, request)
+	correlationID := uuid.NewString()
+	if requestID, ok := cmsmiddleware.RequestID(ctx); ok {
+		correlationID = requestID
+	}
+	record, err := handler.service.updateChargerStatus(ctx.Request.Context(), principal, chargerID, request, correlationID)
 	if err != nil {
 		writeError(ctx, err)
 		return

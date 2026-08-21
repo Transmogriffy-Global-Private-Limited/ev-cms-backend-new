@@ -1,5 +1,22 @@
 # AI Changelog
 
+## 2026-08-21 - Real-hardware CMS/HAL correlation and start-admission hardening
+
+- HAL mutations now reject missing, malformed, zero, uppercase, or otherwise
+  noncanonical correlation UUIDs before HTTP. Reconciliation uses a fresh UUID
+  for each mapping attempt instead of a textual worker label.
+- Added migration 47 and model mapping for bounded mapping diagnostics. CMS
+  forwards optional inventory serial evidence to HAL and retains it outside the
+  customer API surface.
+- Start eligibility now consults fresh online raw OCPP status (`Available` or
+  `Preparing`) instead of collapsing that decision into the existing display
+  availability projection.
+
+Verification: focused adapter, HAL-operation, CPO, model, live-state, and
+charging tests, broad Go package tests, vet, and documentation verification
+pass. PostgreSQL migration/lifecycle and physical charger checks remain unrun
+without an explicitly disposable database and hardware session.
+
 ## 2026-08-21 - CMS/HAL fact-delivery recovery closure
 
 - A repeated customer signup Start now replaces the current CPO/email

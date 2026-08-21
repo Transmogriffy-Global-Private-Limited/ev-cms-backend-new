@@ -27,13 +27,14 @@ func TestMutationsSendCMSCorrelationAndIdempotencyHeaders(t *testing.T) {
 
 	client := New(config.HAL{BaseURL: server.URL, CMSBearerToken: "test"})
 	chargerID := uuid.New()
+	correlation := uuid.NewString()
 	if err := client.SyncMapping(context.Background(), ChargerMapping{
 		CPOID: uuid.New(), CMSChargerID: chargerID, ChargerOCPPIdentity: "charger-1", Enabled: true,
 		Connectors: []ConnectorMapping{{CMSConnectorID: uuid.New(), OCPPConnectorNumber: 1}},
-	}, "cms-request-id"); err != nil {
+	}, correlation); err != nil {
 		t.Fatalf("sync mapping: %v", err)
 	}
-	if requestCount.Load() != 1 || correlationID != "cms-request-id" || idempotencyKey != chargerID.String() {
+	if requestCount.Load() != 1 || correlationID != correlation || idempotencyKey != chargerID.String() {
 		t.Fatalf("headers/calls = correlation %q idempotency %q calls %d", correlationID, idempotencyKey, requestCount.Load())
 	}
 }
@@ -143,14 +144,14 @@ func TestMutationsRejectEmptyCorrelationBeforeSendingHTTP(t *testing.T) {
 		{
 			name: "start",
 			mutate: func() error {
-				_, err := client.Start(context.Background(), StartCommand{CMSCommandID: uuid.New()}, "")
+				_, err := client.Start(context.Background(), StartCommand{CMSCommandID: uuid.New()}, "not-a-uuid")
 				return err
 			},
 		},
 		{
 			name: "stop",
 			mutate: func() error {
-				_, err := client.Stop(context.Background(), StopCommand{CMSCommandID: uuid.New()}, "")
+				_, err := client.Stop(context.Background(), StopCommand{CMSCommandID: uuid.New()}, uuid.NewString()+" ")
 				return err
 			},
 		},
@@ -199,7 +200,7 @@ func TestCommandResponsesRequireSemanticContract(t *testing.T) {
 			}))
 			defer server.Close()
 
-			command, err := New(config.HAL{BaseURL: server.URL, CMSBearerToken: "test", RequestTimeout: time.Second}).Start(context.Background(), StartCommand{CMSCommandID: requestedID}, "test-correlation")
+			command, err := New(config.HAL{BaseURL: server.URL, CMSBearerToken: "test", RequestTimeout: time.Second}).Start(context.Background(), StartCommand{CMSCommandID: requestedID}, uuid.NewString())
 			if test.valid {
 				if err != nil || command.HALCommandID != halID || command.CMSCommandID != requestedID {
 					t.Fatalf("command=%+v err=%v", command, err)
