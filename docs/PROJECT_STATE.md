@@ -2,7 +2,7 @@
 
 ## Current State
 
-### 2026-08-20 — CMS/HAL signup and fact-recovery closure deployed
+### 2026-08-21 — CMS/HAL signup and fact-recovery closure deployed
 
 - A new customer signup Start now atomically invalidates and scrubs the prior
   current CPO/normalized-email challenge before inserting its replacement and

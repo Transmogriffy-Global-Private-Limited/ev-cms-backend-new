@@ -188,7 +188,7 @@ Establish reusable CMS capabilities over HAL-derived operational truth and expos
   operations), Caddy validation, and the post-rehost journal scan passed.
   Disposable PostgreSQL occupancy tests remain skipped without
   `TEST_DATABASE_URL`; `pwsh` is unavailable on this host.
-- 2026-08-20 CMS/HAL fact-delivery closure deployment: runtime revision
+- 2026-08-21 CMS/HAL fact-delivery closure deployment: runtime revision
   `c6b79d4` is active with the authenticated exact-fact requeue route, signup
   challenge replacement, and 189-operation OpenAPI contract. Focused/full Go
   verification, local/public readiness, Swagger, Caddy validation, and the

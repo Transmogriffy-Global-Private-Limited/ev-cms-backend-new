@@ -1,6 +1,6 @@
 # AI Changelog
 
-## 2026-08-20 - CMS/HAL fact-delivery recovery closure
+## 2026-08-21 - CMS/HAL fact-delivery recovery closure
 
 - A repeated customer signup Start now replaces the current CPO/email
   challenge atomically, invalidating and scrubbing its predecessor before the
