@@ -28,10 +28,10 @@ development host it is set in the ignored service environment to
 that setting; it must not be used until the OCPP host is explicitly configured
 with TLS/WebSocket support.
 
-The active deployment was updated on August 20, 2026 to runtime source revision
-`166b0de`. It has migrations one through forty-six and the current
+The active deployment was updated on August 21, 2026 to runtime source revision
+`dfecf3f`. It has migrations one through forty-six and the current
 189-operation API. The binary SHA-256 is
-`9a1151f94c34ef9518a3067d9192a28e7c4d9843a2b8564b28399bb9195c8b78`. Migrations 45 and 46 are applied with their pre-migration backups retained. The CPO wallet transaction read is deployed without a new
+`1c4732668ed3f5de697051c44fc015376d5f142551d63e2cf0dc91d6e18b8a59`. Migrations 45 and 46 are applied with their pre-migration backups retained. The CPO wallet transaction read is deployed without a new
 migration. Migration 44 enables temporal tariff fallback and its
 database guards. The two requested hubs were removed with their hub tariffs and
 links; five downstream chargers/connectors were retained as unassigned,

@@ -414,14 +414,19 @@ type HALFactReceipt struct {
 }
 
 type HALChargerMapping struct {
-	CMSChargerID        uuid.UUID  `gorm:"type:uuid;primaryKey" json:"cms_charger_id"`
-	CPOID               uuid.UUID  `gorm:"type:uuid;not null;index" json:"cpo_id"`
-	ChargerOCPPIdentity string     `gorm:"type:varchar(255);not null;uniqueIndex" json:"charger_ocpp_identity"`
-	SyncState           string     `gorm:"type:varchar(32);not null;index" json:"sync_state"`
-	LastSyncError       string     `gorm:"type:varchar(500);not null;default:''" json:"last_sync_error"`
-	LastSynchronizedAt  *time.Time `gorm:"type:timestamptz" json:"last_synchronized_at,omitempty"`
-	CreatedAt           time.Time  `gorm:"not null" json:"created_at"`
-	UpdatedAt           time.Time  `gorm:"not null" json:"updated_at"`
+	CMSChargerID          uuid.UUID  `gorm:"type:uuid;primaryKey" json:"cms_charger_id"`
+	CPOID                 uuid.UUID  `gorm:"type:uuid;not null;index" json:"cpo_id"`
+	ChargerOCPPIdentity   string     `gorm:"type:varchar(255);not null;uniqueIndex" json:"charger_ocpp_identity"`
+	SyncState             string     `gorm:"type:varchar(32);not null;index" json:"sync_state"`
+	LastSyncError         string     `gorm:"type:varchar(500);not null;default:''" json:"last_sync_error"`
+	LastSyncErrorCategory string     `gorm:"type:varchar(32);not null;default:''" json:"last_sync_error_category"`
+	LastSyncHTTPStatus    *int       `gorm:"column:last_sync_http_status" json:"last_sync_http_status,omitempty"`
+	LastSyncProviderCode  string     `gorm:"type:varchar(128);not null;default:''" json:"last_sync_provider_code"`
+	LastSyncCorrelationID *uuid.UUID `gorm:"type:uuid" json:"last_sync_correlation_id,omitempty"`
+	LastSyncOperation     string     `gorm:"type:varchar(64);not null;default:''" json:"last_sync_operation"`
+	LastSynchronizedAt    *time.Time `gorm:"type:timestamptz" json:"last_synchronized_at,omitempty"`
+	CreatedAt             time.Time  `gorm:"not null" json:"created_at"`
+	UpdatedAt             time.Time  `gorm:"not null" json:"updated_at"`
 }
 
 type HALChargerRuntime struct {

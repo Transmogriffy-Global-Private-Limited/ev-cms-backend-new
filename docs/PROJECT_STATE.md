@@ -2,7 +2,22 @@
 
 ## Current State
 
-### 2026-08-20 — CMS/HAL signup and fact-recovery closure deployed
+### 2026-08-21 — Real-hardware CMS/HAL hardening in source
+
+- CMS mutation correlation is now canonical UUID-only at the HAL client boundary.
+  Mapping reconciliation creates a fresh UUID per attempt, and migration 47
+  adds bounded safe mapping-failure diagnostics; it has not been applied to a
+  database in this slice.
+- CMS forwards optional charger serial evidence without changing OCPP identity.
+  Start admission now permits only fresh online raw `Available` or `Preparing`;
+  the established `Preparing -> CHARGING` display projection is unchanged.
+
+Focused and broad Go tests, vet, and documentation verification pass. Database
+migration/lifecycle and physical-device acceptance remain unrun without an
+explicitly disposable database and hardware session; no database, deployment,
+Caddy, or live service was changed.
+
+### 2026-08-21 — CMS/HAL signup and fact-recovery closure deployed
 
 - A new customer signup Start now atomically invalidates and scrubs the prior
   current CPO/normalized-email challenge before inserting its replacement and

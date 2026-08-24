@@ -19,7 +19,7 @@ import (
 
 var (
 	ErrUnavailable                = errors.New("HAL v1 service is unavailable")
-	ErrMissingCorrelationID       = errors.New("HAL v1 mutation requires a non-empty correlation ID")
+	ErrMissingCorrelationID       = errors.New("HAL v1 mutation requires a non-zero canonical UUID correlation ID")
 	ErrInvalidCommandResponse     = errors.New("HAL v1 command response violates the service contract")
 	ErrInvalidTransactionResponse = errors.New("HAL v1 transaction response violates the service contract")
 	ErrInvalidFactID              = errors.New("HAL v1 fact ID must be a non-zero canonical UUID")
@@ -79,6 +79,7 @@ type ChargerMapping struct {
 	CPOID               uuid.UUID          `json:"cpo_id"`
 	CMSChargerID        uuid.UUID          `json:"cms_charger_id"`
 	ChargerOCPPIdentity string             `json:"charger_ocpp_identity"`
+	ExpectedSerial      string             `json:"expected_serial,omitempty"`
 	Enabled             bool               `json:"enabled"`
 	Connectors          []ConnectorMapping `json:"connectors"`
 }
@@ -238,8 +239,8 @@ func (client *Client) RequeueFact(ctx context.Context, factID uuid.UUID, correla
 }
 
 func (client *Client) mutate(ctx context.Context, method, path, idempotency, correlation string, body any, target any) error {
-	correlation = strings.TrimSpace(correlation)
-	if correlation == "" {
+	parsed, err := uuid.Parse(correlation)
+	if err != nil || parsed == uuid.Nil || parsed.String() != correlation {
 		return ErrMissingCorrelationID
 	}
 	return client.request(ctx, method, path, idempotency, correlation, body, target)

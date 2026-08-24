@@ -8,6 +8,8 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"net"
+	"strings"
 	"time"
 
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/config"
@@ -143,6 +145,7 @@ type ChargerMapping struct {
 	CPOID               uuid.UUID
 	CMSChargerID        uuid.UUID
 	ChargerOCPPIdentity string
+	ExpectedSerial      string
 	Enabled             bool
 	Connectors          []ConnectorMapping
 }
@@ -194,33 +197,43 @@ func fromWireCommand(command halclient.Command) Command {
 }
 
 func (service *Service) SyncMapping(ctx context.Context, mapping ChargerMapping, correlationID string) error {
-	if !service.Available() {
-		return halclient.ErrUnavailable
-	}
-	connectors := make([]halclient.ConnectorMapping, 0, len(mapping.Connectors))
-	for _, connector := range mapping.Connectors {
-		connectors = append(connectors, halclient.ConnectorMapping{CMSConnectorID: connector.CMSConnectorID, OCPPConnectorNumber: connector.OCPPConnectorNumber})
-	}
-	err := service.client.SyncMapping(ctx, halclient.ChargerMapping{CPOID: mapping.CPOID, CMSChargerID: mapping.CMSChargerID, ChargerOCPPIdentity: mapping.ChargerOCPPIdentity, Enabled: mapping.Enabled, Connectors: connectors}, correlationID)
-	service.recordMappingOutcome(ctx, mapping.CMSChargerID, err)
-	return err
+	return service.syncMappingForOperation(ctx, mapping, correlationID, "mapping_sync")
 }
 
 // EnsureChargerMapping builds the mapping from committed CMS inventory. A
 // failed provider attempt leaves the durable mapping pending for reconciliation.
 func (service *Service) EnsureChargerMapping(ctx context.Context, chargerID uuid.UUID, correlationID string) error {
+	return service.ensureChargerMappingForOperation(ctx, chargerID, correlationID, "mapping_sync")
+}
+
+func (service *Service) ensureChargerMappingForOperation(ctx context.Context, chargerID uuid.UUID, correlationID, operation string) error {
 	var charger models.Charger
 	if err := service.database.WithContext(ctx).Preload("Connectors").First(&charger, "id = ?", chargerID).Error; err != nil {
 		return fmt.Errorf("load charger mapping: %w", err)
 	}
-	mapping := ChargerMapping{CPOID: charger.CPOID, CMSChargerID: charger.ID, ChargerOCPPIdentity: charger.OCPPIdentity, Enabled: charger.Status == "ACTIVE", Connectors: make([]ConnectorMapping, 0, len(charger.Connectors))}
+	mapping := ChargerMapping{CPOID: charger.CPOID, CMSChargerID: charger.ID, ChargerOCPPIdentity: charger.OCPPIdentity, ExpectedSerial: strings.TrimSpace(charger.SerialNumber), Enabled: charger.Status == "ACTIVE", Connectors: make([]ConnectorMapping, 0, len(charger.Connectors))}
 	for _, connector := range charger.Connectors {
 		mapping.Connectors = append(mapping.Connectors, ConnectorMapping{CMSConnectorID: connector.ID, OCPPConnectorNumber: connector.ConnectorNumber})
 	}
 	if len(mapping.Connectors) == 0 {
 		return errors.New("charger mapping requires at least one connector")
 	}
-	return service.SyncMapping(ctx, mapping, correlationID)
+	return service.syncMappingForOperation(ctx, mapping, correlationID, operation)
+}
+
+func (service *Service) syncMappingForOperation(ctx context.Context, mapping ChargerMapping, correlationID, operation string) error {
+	if !service.Available() {
+		outcome := halclient.ErrUnavailable
+		service.recordMappingOutcome(ctx, mapping.CMSChargerID, correlationID, operation, outcome)
+		return outcome
+	}
+	connectors := make([]halclient.ConnectorMapping, 0, len(mapping.Connectors))
+	for _, connector := range mapping.Connectors {
+		connectors = append(connectors, halclient.ConnectorMapping{CMSConnectorID: connector.CMSConnectorID, OCPPConnectorNumber: connector.OCPPConnectorNumber})
+	}
+	err := service.client.SyncMapping(ctx, halclient.ChargerMapping{CPOID: mapping.CPOID, CMSChargerID: mapping.CMSChargerID, ChargerOCPPIdentity: mapping.ChargerOCPPIdentity, ExpectedSerial: mapping.ExpectedSerial, Enabled: mapping.Enabled, Connectors: connectors}, correlationID)
+	service.recordMappingOutcome(ctx, mapping.CMSChargerID, correlationID, operation, err)
+	return err
 }
 
 func (service *Service) RequestStart(ctx context.Context, request StartRequest, correlationID string) (Command, error) {
@@ -265,18 +278,67 @@ func (service *Service) ReconcileCommand(ctx context.Context, commandID uuid.UUI
 	return result, nil
 }
 
-func (service *Service) recordMappingOutcome(ctx context.Context, chargerID uuid.UUID, outcome error) {
+func (service *Service) recordMappingOutcome(ctx context.Context, chargerID uuid.UUID, correlationID, operation string, outcome error) {
 	now := service.now()
 	updates := map[string]any{"updated_at": now}
 	if outcome == nil {
 		updates["sync_state"] = "SYNCHRONIZED"
 		updates["last_sync_error"] = ""
+		updates["last_sync_error_category"] = ""
+		updates["last_sync_http_status"] = nil
+		updates["last_sync_provider_code"] = ""
+		updates["last_sync_correlation_id"] = nil
+		updates["last_sync_operation"] = ""
 		updates["last_synchronized_at"] = now
 	} else {
 		updates["sync_state"] = "RECONCILIATION_REQUIRED"
-		updates["last_sync_error"] = "HAL mapping prerequisite synchronization failed"
+		category, status, code, detail := mappingFailureDiagnostic(outcome)
+		updates["last_sync_error"] = detail
+		updates["last_sync_error_category"] = category
+		updates["last_sync_http_status"] = status
+		updates["last_sync_provider_code"] = code
+		updates["last_sync_operation"] = operation
+		if parsed, err := uuid.Parse(correlationID); err == nil && parsed != uuid.Nil && parsed.String() == correlationID {
+			updates["last_sync_correlation_id"] = parsed
+		} else {
+			updates["last_sync_correlation_id"] = nil
+		}
 	}
 	_ = service.database.WithContext(ctx).Model(&models.HALChargerMapping{}).Where("cms_charger_id = ?", chargerID).Updates(updates).Error
+}
+
+// mappingFailureDiagnostic deliberately contains only bounded, transport-safe
+// evidence. It never retains provider bodies, credentials, or request payloads.
+func mappingFailureDiagnostic(cause error) (category string, status any, providerCode, detail string) {
+	if errors.Is(cause, halclient.ErrUnavailable) {
+		return "hal_unavailable", nil, "", "HAL mapping synchronization is unavailable; reconciliation will retry"
+	}
+	if errors.Is(cause, halclient.ErrMissingCorrelationID) {
+		return "invalid_correlation", nil, "", "HAL mapping synchronization was not attempted because its correlation ID was invalid"
+	}
+	var httpError *halclient.HTTPError
+	if errors.As(cause, &httpError) {
+		code := safeProviderCode(httpError.Code)
+		return "provider_http", httpError.Status, code, fmt.Sprintf("HAL mapping synchronization returned HTTP %d; reconciliation will retry", httpError.Status)
+	}
+	var networkError net.Error
+	if errors.As(cause, &networkError) && networkError.Timeout() {
+		return "timeout", nil, "", "HAL mapping synchronization timed out; reconciliation will retry"
+	}
+	return "transport", nil, "", "HAL mapping synchronization transport outcome is unknown; reconciliation will retry"
+}
+
+func safeProviderCode(code string) string {
+	code = strings.TrimSpace(code)
+	if len(code) > 128 {
+		return ""
+	}
+	for _, runeValue := range code {
+		if !(runeValue >= 'a' && runeValue <= 'z' || runeValue >= 'A' && runeValue <= 'Z' || runeValue >= '0' && runeValue <= '9' || runeValue == '_' || runeValue == '-') {
+			return ""
+		}
+	}
+	return code
 }
 
 func isHALHTTPStatus(cause error, status int) bool {
@@ -335,7 +397,9 @@ func (service *Service) ReconcilePending(ctx context.Context, limit int) error {
 		return fmt.Errorf("list pending HAL mappings: %w", err)
 	}
 	for _, mapping := range mappings {
-		_ = service.EnsureChargerMapping(ctx, mapping.CMSChargerID, "hal-mapping-reconciliation")
+		// Each recovery attempt is its own mutation and therefore needs a fresh
+		// canonical correlation ID; the operation label belongs in diagnostics.
+		_ = service.ensureChargerMappingForOperation(ctx, mapping.CMSChargerID, uuid.NewString(), "hal-mapping-reconciliation")
 	}
 	var commands []models.HALCommandRecord
 	if err := service.database.WithContext(ctx).Where("state = ?", "RECONCILIATION_REQUIRED").Order("updated_at ASC").Limit(limit).Find(&commands).Error; err != nil {

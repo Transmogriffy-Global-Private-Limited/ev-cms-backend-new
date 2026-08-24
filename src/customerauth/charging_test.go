@@ -403,20 +403,22 @@ func TestChargingSessionOperationalEventUsesMaterializedSessionID(t *testing.T) 
 	}
 }
 
-func TestChargingConnectorAllowsNewStartOnlyWhenAvailableAndFresh(t *testing.T) {
+func TestChargingConnectorAllowsNewStartOnlyWhenFreshOnlineAndOCPPAllowsIt(t *testing.T) {
 	t.Parallel()
+	available, preparing, charging, faulted := "Available", "Preparing", "Charging", "Faulted"
 
 	tests := []struct {
 		name  string
 		state liveops.ConnectorState
 		want  bool
 	}{
-		{name: "available fresh", state: liveops.ConnectorState{Availability: "AVAILABLE", Freshness: liveops.FreshnessFresh}, want: true},
-		{name: "charging", state: liveops.ConnectorState{Availability: "CHARGING", Freshness: liveops.FreshnessFresh}},
-		{name: "faulted", state: liveops.ConnectorState{Availability: "FAULTED", Freshness: liveops.FreshnessFresh}},
-		{name: "unavailable", state: liveops.ConnectorState{Availability: "UNAVAILABLE", Freshness: liveops.FreshnessFresh}},
-		{name: "unknown", state: liveops.ConnectorState{Availability: "UNKNOWN", Freshness: liveops.FreshnessUnknown}},
-		{name: "stale", state: liveops.ConnectorState{Availability: "AVAILABLE", Freshness: liveops.FreshnessStale}},
+		{name: "available fresh online", state: liveops.ConnectorState{Availability: "AVAILABLE", Freshness: liveops.FreshnessFresh, ParentConnectionState: "ONLINE", LastOCPPStatus: &available}, want: true},
+		{name: "preparing remains displayed charging but admits start", state: liveops.ConnectorState{Availability: "CHARGING", Freshness: liveops.FreshnessFresh, ParentConnectionState: "ONLINE", LastOCPPStatus: &preparing}, want: true},
+		{name: "charging", state: liveops.ConnectorState{Availability: "CHARGING", Freshness: liveops.FreshnessFresh, ParentConnectionState: "ONLINE", LastOCPPStatus: &charging}},
+		{name: "faulted", state: liveops.ConnectorState{Availability: "FAULTED", Freshness: liveops.FreshnessFresh, ParentConnectionState: "ONLINE", LastOCPPStatus: &faulted}},
+		{name: "offline parent", state: liveops.ConnectorState{Availability: "AVAILABLE", Freshness: liveops.FreshnessFresh, ParentConnectionState: "OFFLINE", LastOCPPStatus: &available}},
+		{name: "unknown", state: liveops.ConnectorState{Availability: "UNKNOWN", Freshness: liveops.FreshnessUnknown, ParentConnectionState: "ONLINE"}},
+		{name: "stale", state: liveops.ConnectorState{Availability: "AVAILABLE", Freshness: liveops.FreshnessStale, ParentConnectionState: "ONLINE", LastOCPPStatus: &available}},
 	}
 	for _, test := range tests {
 		test := test

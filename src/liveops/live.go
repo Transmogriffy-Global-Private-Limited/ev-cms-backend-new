@@ -58,6 +58,22 @@ type ConnectorState struct {
 	ParentConnectionState string     `json:"parent_connection_state"`
 }
 
+// AllowsCMSControlledStart is deliberately stricter than the customer-visible
+// occupancy projection. Preparing remains displayed as CHARGING, but a fresh
+// online connector in Preparing can still accept the CMS-controlled start that
+// moves it into an authenticated OCPP transaction.
+func (state ConnectorState) AllowsCMSControlledStart() bool {
+	if state.Freshness != FreshnessFresh || state.ParentConnectionState != "ONLINE" || state.LastOCPPStatus == nil {
+		return false
+	}
+	switch *state.LastOCPPStatus {
+	case "Available", "Preparing":
+		return true
+	default:
+		return false
+	}
+}
+
 type ChargerDetail struct {
 	Charger    ChargerState     `json:"charger"`
 	Connectors []ConnectorState `json:"connectors"`

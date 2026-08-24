@@ -179,7 +179,7 @@ func chargerMappingUnavailable() *APIError {
 }
 
 func chargingConnectorAllowsNewStart(state liveops.ConnectorState) bool {
-	return state.Availability == "AVAILABLE" && state.Freshness == liveops.FreshnessFresh
+	return state.AllowsCMSControlledStart()
 }
 
 func activeChargingStartIntent(query *gorm.DB, connectorID uuid.UUID) (models.ChargingStartIntent, bool, error) {
@@ -360,7 +360,7 @@ func (service *Service) StartCharging(ctx context.Context, principal Principal, 
 		if err := tx.Create(&command).Error; err != nil {
 			return err
 		}
-		mapping = halops.ChargerMapping{CPOID: principal.CPOID, CMSChargerID: charger.ID, ChargerOCPPIdentity: charger.OCPPIdentity, Enabled: true, Connectors: make([]halops.ConnectorMapping, 0, len(connectors))}
+		mapping = halops.ChargerMapping{CPOID: principal.CPOID, CMSChargerID: charger.ID, ChargerOCPPIdentity: charger.OCPPIdentity, ExpectedSerial: strings.TrimSpace(charger.SerialNumber), Enabled: true, Connectors: make([]halops.ConnectorMapping, 0, len(connectors))}
 		for _, mappedConnector := range connectors {
 			mapping.Connectors = append(mapping.Connectors, halops.ConnectorMapping{CMSConnectorID: mappedConnector.ID, OCPPConnectorNumber: mappedConnector.ConnectorNumber})
 		}

@@ -1031,8 +1031,9 @@ Current implementation slice:
 - Current integration repair: preserve the committed HAL/liveops architecture
   while reconciling CPO changes, remove duplicate operational response types
   and create-path mapping delivery, align newly generated charger identities,
-  and make migration 34/model tariff assignment metadata coherent. The later
-  serial-number HAL admission contract remains out of scope.
+  and make migration 34/model tariff assignment metadata coherent. The
+  serial-number HAL admission contract is now implemented in source as optional
+  physical evidence; disposable PostgreSQL and hardware acceptance remain open.
 - Current liveness repair: accepted HAL Heartbeats must renew durable ordered
   connection evidence; CMS reads connection freshness from a dedicated horizon,
   while meter freshness remains independent. REST recovery and realtime
