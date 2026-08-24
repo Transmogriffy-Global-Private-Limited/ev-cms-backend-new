@@ -4192,6 +4192,7 @@ func (service *Service) chargerView(record models.Charger, principal auth.Princi
 			OCPPIdentity:            record.OCPPIdentity,
 			Vendor:                  record.Vendor,
 			Model:                   record.Model,
+			CustomerVisibility:      record.CustomerVisibility,
 			SerialNumber:            record.SerialNumber,
 			MaxPowerKW:              record.MaxPowerKW,
 			Status:                  record.Status,
