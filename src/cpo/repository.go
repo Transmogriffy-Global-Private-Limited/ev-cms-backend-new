@@ -65,11 +65,14 @@ func (r *repository) GetAnalytics(ctx context.Context, cpoID uuid.UUID) (Analyti
 
 func (r *repository) GetChargingSession(ctx context.Context, cpoID, sessionID uuid.UUID) (*models.ChargingSession, error) {
 	var session models.ChargingSession
-	if err := r.db.WithContext(ctx).
+	err := r.db.WithContext(ctx).
 		Preload("Customer").
+		Preload("Charger").
 		Preload("Charger.Hub").
 		Preload("Connector").
-		Where("cpo_id = ? AND id = ?", cpoID, sessionID).First(&session).Error; err != nil {
+		Where("cpo_id = ? AND id = ?", cpoID, sessionID).
+		First(&session).Error
+	if err != nil {
 		return nil, err
 	}
 	return &session, nil
@@ -79,6 +82,7 @@ func (r *repository) ListChargingSessions(ctx context.Context, cpoID uuid.UUID, 
 	var sessions []models.ChargingSession
 	db := r.db.WithContext(ctx).
 		Preload("Customer").
+		Preload("Charger").
 		Preload("Charger.Hub").
 		Preload("Connector").
 		Where("cpo_id = ?", cpoID)
@@ -92,7 +96,6 @@ func (r *repository) ListChargingSessions(ctx context.Context, cpoID uuid.UUID, 
 	if query.CustomerID != nil {
 		db = db.Where("customer_id = ?", *query.CustomerID)
 	}
-
 	if query.Before != nil {
 		if query.BeforeID != nil {
 			db = db.Where("(created_at, id) < (?, ?)", *query.Before, *query.BeforeID)
@@ -100,16 +103,11 @@ func (r *repository) ListChargingSessions(ctx context.Context, cpoID uuid.UUID, 
 			db = db.Where("created_at < ?", *query.Before)
 		}
 	}
-
 	if query.Limit > 0 {
 		db = db.Limit(query.Limit + 1)
 	}
-
-	if err := db.Order("created_at DESC, id DESC").Find(&sessions).Error; err != nil {
-		return nil, err
-	}
-
-	return sessions, nil
+	err := db.Order("created_at DESC, id DESC").Find(&sessions).Error
+	return sessions, err
 }
 
 func (r *repository) ListChargersByHub(ctx context.Context, cpoID, hubID uuid.UUID) ([]models.Charger, error) {

@@ -133,6 +133,7 @@ func (service *Service) GetChargingSession(
 		return ChargingSessionView{}, err
 	}
 
+	// Repository already preloads Customer, Charger, Charger.Hub, Connector
 	session, err := service.repository.GetChargingSession(ctx, *principal.CPOID, sessionID)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -150,11 +151,11 @@ func (service *Service) GetChargingSession(
 	// Overlay live kWh for active sessions
 	if service.liveOperations != nil {
 		statusStr := string(session.Status)
-		// Only try to get live data for sessions that are not finished
+		// Active statuses: START_PENDING, CHARGING, STOP_PENDING
 		if statusStr == "START_PENDING" || statusStr == "CHARGING" || statusStr == "STOP_PENDING" {
 			liveSession, err := service.liveOperations.GetSession(ctx, *principal.CPOID, sessionID)
 			if err == nil && liveSession.ConsumedWh != nil {
-				// Convert from Wh to kWh
+				// Convert Wh → kWh
 				consumedKWh := decimal.NewFromInt(*liveSession.ConsumedWh).Div(decimal.NewFromInt(1000))
 				view.TotalKWh = consumedKWh
 			}
@@ -163,7 +164,6 @@ func (service *Service) GetChargingSession(
 
 	return view, nil
 }
-
 func (service *Service) ListChargingSessions(
 	ctx context.Context,
 	principal auth.Principal,
@@ -193,7 +193,7 @@ func (service *Service) ListChargingSessions(
 		sessions = sessions[:query.Limit]
 	}
 
-	// Build the base views
+	// Build base views
 	result := make([]ChargingSessionView, 0, len(sessions))
 	for _, session := range sessions {
 		view := toChargingSessionView(session)
@@ -202,7 +202,7 @@ func (service *Service) ListChargingSessions(
 
 	// Overlay live kWh for active sessions
 	if service.liveOperations != nil {
-		// Collect IDs of sessions that are still in progress
+		// Collect IDs of active sessions
 		activeSessionIDs := []uuid.UUID{}
 		for _, session := range sessions {
 			statusStr := string(session.Status)
@@ -211,7 +211,7 @@ func (service *Service) ListChargingSessions(
 			}
 		}
 
-		// Fetch live data for each active session (max 200, so this is fine)
+		// Fetch live data for each active session (max 200 – acceptable)
 		for _, sessionID := range activeSessionIDs {
 			liveSession, err := service.liveOperations.GetSession(ctx, *principal.CPOID, sessionID)
 			if err == nil && liveSession.ConsumedWh != nil {
