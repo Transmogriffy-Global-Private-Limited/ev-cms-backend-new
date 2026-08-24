@@ -11,20 +11,18 @@ import (
 	"gorm.io/gorm"
 )
 
-// CPOCustomerIntelligenceResponse is the top-level response for the CPO customer intelligence dashboard.
+// CPOCustomerIntelligenceResponse ...
 type CPOCustomerIntelligenceResponse struct {
 	CPO          CPOInfo             `json:"cpo"`
 	Metrics      IntelligenceMetrics `json:"metrics"`
 	TopCustomers []TopCustomer       `json:"top_customers"`
 }
 
-// CPOInfo contains basic CPO details.
 type CPOInfo struct {
 	ID           uuid.UUID `json:"id"`
 	BusinessName string    `json:"business_name"`
 }
 
-// IntelligenceMetrics holds the aggregated KPIs.
 type IntelligenceMetrics struct {
 	TotalAppUsers      int64   `json:"total_app_users"`
 	ActiveUsers        int64   `json:"active_users"`
@@ -37,7 +35,6 @@ type IntelligenceMetrics struct {
 	CustomerRetention  float64 `json:"customer_retention"`
 }
 
-// TopCustomer represents a single customer in the top list.
 type TopCustomer struct {
 	Rank      int       `json:"rank"`
 	UserID    uuid.UUID `json:"user_id"`
@@ -48,14 +45,12 @@ type TopCustomer struct {
 	Chargers  int64     `json:"chargers_used"`
 }
 
-// CustomerIntelligence returns the customer intelligence dashboard data for a given CPO.
+// CustomerIntelligence ...
 func (service *Service) CustomerIntelligence(ctx context.Context, principal auth.Principal, cpoID uuid.UUID) (CPOCustomerIntelligenceResponse, error) {
-	// 1. Authorization: only superadmin can access this endpoint.
 	if err := requirePlatform(principal); err != nil {
 		return CPOCustomerIntelligenceResponse{}, err
 	}
 
-	// 2. Fetch the CPO details.
 	var cpo models.CPO
 	if err := service.database.WithContext(ctx).Where("id = ?", cpoID).First(&cpo).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
@@ -64,197 +59,170 @@ func (service *Service) CustomerIntelligence(ctx context.Context, principal auth
 		return CPOCustomerIntelligenceResponse{}, fmt.Errorf("failed to fetch CPO: %w", err)
 	}
 
-	// 3. Compute all metrics.
 	metrics, err := service.computeIntelligenceMetrics(ctx, cpoID)
 	if err != nil {
 		return CPOCustomerIntelligenceResponse{}, fmt.Errorf("failed to compute metrics: %w", err)
 	}
 
-	// 4. Fetch top customers.
-	topCustomers, err := service.fetchTopCustomers(ctx, cpoID, 10) // top 10 by spend
+	topCustomers, err := service.fetchTopCustomers(ctx, cpoID, 10)
 	if err != nil {
 		return CPOCustomerIntelligenceResponse{}, fmt.Errorf("failed to fetch top customers: %w", err)
 	}
 
-	// 5. Build response.
-	resp := CPOCustomerIntelligenceResponse{
-		CPO: CPOInfo{
-			ID:           cpo.ID,
-			BusinessName: cpo.BusinessName,
-		},
+	return CPOCustomerIntelligenceResponse{
+		CPO:          CPOInfo{ID: cpo.ID, BusinessName: cpo.BusinessName},
 		Metrics:      metrics,
 		TopCustomers: topCustomers,
-	}
-
-	return resp, nil
+	}, nil
 }
 
-// computeIntelligenceMetrics aggregates KPIs for the given CPO.
+// computeIntelligenceMetrics ...
 func (service *Service) computeIntelligenceMetrics(ctx context.Context, cpoID uuid.UUID) (IntelligenceMetrics, error) {
 	var metrics IntelligenceMetrics
 	db := service.database.WithContext(ctx)
 
-	// Total app users (users belonging to this CPO tenant)
-	if err := db.Model(&models.User{}).Where("tenant_id = ?", cpoID).Count(&metrics.TotalAppUsers).Error; err != nil {
-		return metrics, err
+	// 1. Total app users (customers belonging to this CPO)
+	if err := db.Model(&models.Customer{}).Where("cpo_id = ?", cpoID).Count(&metrics.TotalAppUsers).Error; err != nil {
+		return metrics, fmt.Errorf("failed to count total users: %w", err)
 	}
 
-	// Active users: users who have at least one session in the last 30 days? Or just any session?
-	// We'll define "active" as having at least one session in the last 90 days (common definition).
-	// For "charging customers", we'll count distinct users with at least one session ever.
-	// We'll do these in a single query where possible.
-
-	// We'll compute active, monthly active, charging customers, total sessions, energy, revenue.
-	// All based on charging_sessions table.
-
-	// For simplicity, let's use subqueries or separate queries.
-
-	// Total sessions
+	// 2. Total sessions
 	if err := db.Model(&models.ChargingSession{}).Where("cpo_id = ?", cpoID).Count(&metrics.TotalSessions).Error; err != nil {
-		return metrics, err
+		return metrics, fmt.Errorf("failed to count total sessions: %w", err)
 	}
 
-	// Energy and revenue sums
+	// 3. Energy & revenue sums — using correct column names from ChargingSession model
 	var energy, revenue float64
 	if err := db.Model(&models.ChargingSession{}).
-		Select("COALESCE(SUM(energy_kwh), 0), COALESCE(SUM(amount), 0)").
+		Select("COALESCE(SUM(total_kwh), 0), COALESCE(SUM(total_amount), 0)").
 		Where("cpo_id = ?", cpoID).
 		Row().Scan(&energy, &revenue); err != nil {
-		return metrics, err
+		return metrics, fmt.Errorf("failed to aggregate energy/revenue: %w", err)
 	}
 	metrics.EnergyConsumed = energy
 	metrics.CustomerRevenue = revenue
 
-	// Distinct users who have at least one session (charging customers)
+	// 4. Charging customers (distinct customers with at least one session)
 	if err := db.Model(&models.ChargingSession{}).
 		Where("cpo_id = ?", cpoID).
-		Distinct("user_id").
+		Distinct("customer_id").
 		Count(&metrics.ChargingCustomers).Error; err != nil {
-		return metrics, err
+		return metrics, fmt.Errorf("failed to count charging customers: %w", err)
 	}
 
-	// Active users: users with session in last 90 days
+	// 5. Active users (last 90 days)
 	activeCutoff := time.Now().AddDate(0, 0, -90)
 	if err := db.Model(&models.ChargingSession{}).
 		Where("cpo_id = ? AND start_time >= ?", cpoID, activeCutoff).
-		Distinct("user_id").
+		Distinct("customer_id").
 		Count(&metrics.ActiveUsers).Error; err != nil {
-		return metrics, err
+		return metrics, fmt.Errorf("failed to count active users: %w", err)
 	}
 
-	// Monthly active users: users with session in last 30 days
+	// 6. Monthly active users (last 30 days)
 	monthlyCutoff := time.Now().AddDate(0, 0, -30)
 	if err := db.Model(&models.ChargingSession{}).
 		Where("cpo_id = ? AND start_time >= ?", cpoID, monthlyCutoff).
-		Distinct("user_id").
+		Distinct("customer_id").
 		Count(&metrics.MonthlyActiveUsers).Error; err != nil {
-		return metrics, err
+		return metrics, fmt.Errorf("failed to count monthly active users: %w", err)
 	}
 
-	// Repeat customer rate: percentage of users with more than one session.
-	var repeatUsers int64
-	if err := db.Model(&models.ChargingSession{}).
-		Select("user_id").
-		Where("cpo_id = ?", cpoID).
-		Group("user_id").
-		Having("COUNT(*) > 1").
-		Count(&repeatUsers).Error; err != nil {
-		return metrics, err
+	// 7. Repeat customer rate
+	var repeatCustomers int64
+	if err := db.Raw(`
+		SELECT COUNT(*) FROM (
+			SELECT customer_id
+			FROM charging_sessions
+			WHERE cpo_id = ?
+			GROUP BY customer_id
+			HAVING COUNT(*) > 1
+		) AS repeat_customers
+	`, cpoID).Scan(&repeatCustomers).Error; err != nil {
+		return metrics, fmt.Errorf("failed to count repeat customers: %w", err)
 	}
 	if metrics.ChargingCustomers > 0 {
-		metrics.RepeatCustomerRate = float64(repeatUsers) / float64(metrics.ChargingCustomers) * 100
-	} else {
-		metrics.RepeatCustomerRate = 0
+		metrics.RepeatCustomerRate = (float64(repeatCustomers) / float64(metrics.ChargingCustomers)) * 100
 	}
 
-	// Customer retention: percentage of users active in both current and previous period (e.g., previous 90 days vs prior 90 days)
-	// We'll compute users active in previous period (days -180 to -90) and also active in current period (-90 to now).
-	// Then intersect.
+	// 8. Customer retention
 	priorStart := time.Now().AddDate(0, 0, -180)
 	priorEnd := time.Now().AddDate(0, 0, -90)
 	currentStart := time.Now().AddDate(0, 0, -90)
 
-	var priorUsers []uuid.UUID
+	var priorCustomers []uuid.UUID
 	if err := db.Model(&models.ChargingSession{}).
-		Select("DISTINCT user_id").
+		Select("DISTINCT customer_id").
 		Where("cpo_id = ? AND start_time BETWEEN ? AND ?", cpoID, priorStart, priorEnd).
-		Find(&priorUsers).Error; err != nil {
-		return metrics, err
+		Find(&priorCustomers).Error; err != nil {
+		return metrics, fmt.Errorf("failed to fetch prior customers: %w", err)
 	}
 
-	var currentUsers []uuid.UUID
+	var currentCustomers []uuid.UUID
 	if err := db.Model(&models.ChargingSession{}).
-		Select("DISTINCT user_id").
+		Select("DISTINCT customer_id").
 		Where("cpo_id = ? AND start_time >= ?", cpoID, currentStart).
-		Find(&currentUsers).Error; err != nil {
-		return metrics, err
+		Find(&currentCustomers).Error; err != nil {
+		return metrics, fmt.Errorf("failed to fetch current customers: %w", err)
 	}
 
-	// Calculate intersection
-	priorMap := make(map[uuid.UUID]bool, len(priorUsers))
-	for _, id := range priorUsers {
+	priorMap := make(map[uuid.UUID]bool, len(priorCustomers))
+	for _, id := range priorCustomers {
 		priorMap[id] = true
 	}
 	retained := 0
-	for _, id := range currentUsers {
+	for _, id := range currentCustomers {
 		if priorMap[id] {
 			retained++
 		}
 	}
-	if len(priorUsers) > 0 {
-		metrics.CustomerRetention = float64(retained) / float64(len(priorUsers)) * 100
-	} else {
-		metrics.CustomerRetention = 0
+	if len(priorCustomers) > 0 {
+		metrics.CustomerRetention = (float64(retained) / float64(len(priorCustomers))) * 100
 	}
 
 	return metrics, nil
 }
 
-// fetchTopCustomers returns the top N customers by spend for a given CPO.
+// fetchTopCustomers ...
 func (service *Service) fetchTopCustomers(ctx context.Context, cpoID uuid.UUID, limit int) ([]TopCustomer, error) {
 	type customerAgg struct {
-		UserID   uuid.UUID `gorm:"column:user_id"`
-		UserName string    `gorm:"column:user_name"`
-		Sessions int64     `gorm:"column:sessions"`
-		Energy   float64   `gorm:"column:energy"`
-		Spend    float64   `gorm:"column:spend"`
-		Chargers int64     `gorm:"column:chargers"`
+		CustomerID   uuid.UUID `gorm:"column:customer_id"`
+		CustomerName string    `gorm:"column:customer_name"`
+		Sessions     int64     `gorm:"column:sessions"`
+		Energy       float64   `gorm:"column:energy"`
+		Spend        float64   `gorm:"column:spend"`
+		Chargers     int64     `gorm:"column:chargers"`
 	}
 
 	var aggResults []customerAgg
 	db := service.database.WithContext(ctx)
 
-	// Join with users table to get name.
-	// We assume that charging_sessions has user_id and cpo_id, and users table has name.
-	// Also assume that amount is stored in charging_sessions (or we might need to join with invoices).
-	// For simplicity, we'll sum amount directly from sessions.
 	err := db.Table("charging_sessions").
 		Select(`
-			charging_sessions.user_id,
-			users.name as user_name,
-			COUNT(*) as sessions,
-			COALESCE(SUM(charging_sessions.energy_kwh), 0) as energy,
-			COALESCE(SUM(charging_sessions.amount), 0) as spend,
-			COUNT(DISTINCT charging_sessions.charger_id) as chargers
+			charging_sessions.customer_id,
+			COALESCE(NULLIF(customers.full_name, ''), customers.email, 'Unknown') AS customer_name,
+			COUNT(charging_sessions.id) AS sessions,
+			COALESCE(SUM(charging_sessions.total_kwh), 0) AS energy,
+			COALESCE(SUM(charging_sessions.total_amount), 0) AS spend,
+			COUNT(DISTINCT charging_sessions.charger_id) AS chargers
 		`).
-		Joins("INNER JOIN users ON users.id = charging_sessions.user_id").
+		Joins("INNER JOIN customers ON customers.id = charging_sessions.customer_id").
 		Where("charging_sessions.cpo_id = ?", cpoID).
-		Group("charging_sessions.user_id, users.name").
+		Group("charging_sessions.customer_id, customers.full_name, customers.email").
 		Order("spend DESC").
 		Limit(limit).
 		Scan(&aggResults).Error
 
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to query top customers: %w", err)
 	}
 
-	// Convert to TopCustomer slice with rank.
 	topCustomers := make([]TopCustomer, len(aggResults))
 	for i, agg := range aggResults {
 		topCustomers[i] = TopCustomer{
 			Rank:      i + 1,
-			UserID:    agg.UserID,
-			Name:      agg.UserName,
+			UserID:    agg.CustomerID,
+			Name:      agg.CustomerName,
 			Sessions:  agg.Sessions,
 			EnergyKWh: agg.Energy,
 			Spend:     agg.Spend,
