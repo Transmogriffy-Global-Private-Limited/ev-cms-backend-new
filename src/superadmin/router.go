@@ -43,6 +43,7 @@ func RegisterRoutes(group *gin.RouterGroup, authService *auth.Service, service *
 	group.GET("/overview", handler.overview)
 	group.GET("/status", handler.status)
 	group.GET("/cpo-assets", handler.cpoAssets)
+	group.GET("/cpos/:cpo_id/customer-intelligence", handler.customerIntelligence)
 }
 
 func RegisterCPONotificationRoutes(group *gin.RouterGroup, authService *auth.Service, service *Service) {
@@ -493,4 +494,34 @@ func noStore(ctx *gin.Context) {
 	ctx.Header("Cache-Control", "no-store")
 	ctx.Header("Pragma", "no-cache")
 	ctx.Next()
+}
+
+func (handler *Handler) customerIntelligence(ctx *gin.Context) {
+	principal, _ := auth.CurrentPrincipal(ctx)
+	cpoIDStr := ctx.Param("cpo_id") // changed from "cpoId"
+	cpoID, err := uuid.Parse(cpoIDStr)
+	if err != nil {
+		writeError(ctx, &auth.APIError{
+			Status:  http.StatusBadRequest,
+			Code:    "invalid_cpo_id",
+			Message: "CPO ID must be a valid UUID.",
+		})
+		return
+	}
+
+	resp, err := handler.service.CustomerIntelligence(ctx.Request.Context(), principal, cpoID)
+	if err != nil {
+		// If the error indicates CPO not found, return a 404; otherwise let writeError handle it (500)
+		if strings.Contains(err.Error(), "cpo not found") {
+			writeError(ctx, &auth.APIError{
+				Status:  http.StatusNotFound,
+				Code:    "not_found",
+				Message: "CPO not found.",
+			})
+		} else {
+			writeError(ctx, err)
+		}
+		return
+	}
+	ctx.JSON(http.StatusOK, resp)
 }

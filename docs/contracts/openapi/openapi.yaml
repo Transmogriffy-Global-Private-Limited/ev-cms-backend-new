@@ -3228,6 +3228,45 @@ paths:
           $ref: "#/components/responses/MailUnavailable"
         "500":
           $ref: "#/components/responses/InternalError"
+  /api/v1/platform/cpos/{cpo_id}/customer-intelligence:
+    get:
+      tags: [Superadmin - Platform CPOs]
+      operationId: getCPOCustomerIntelligence
+      summary: Get CPO customer intelligence dashboard data
+      description: |
+        Returns aggregated customer metrics and top customers for a given CPO.
+        Requires platform superadmin authority.
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: cpo_id
+          in: path
+          required: true
+          description: UUID of the CPO.
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: CPO customer intelligence data.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CPOCustomerIntelligenceResponse"
+        "400":
+          $ref: "#/components/responses/InvalidRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          description: CPO not found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "500":
+          $ref: "#/components/responses/InternalError"
 
   /api/v1/platform/cpos/{cpo_id}/administrative-sessions/revoke:
     post:
@@ -9634,6 +9673,112 @@ components:
               observed_at: {type: string, format: date-time, nullable: true}
               status_sequence: {type: integer, format: int64, nullable: true}
               parent_connection_state: {type: string, enum: [ONLINE, OFFLINE, UNKNOWN]}
+    CPOCustomerIntelligenceResponse:
+      type: object
+      additionalProperties: false
+      required:
+        - cpo
+        - metrics
+        - top_customers
+      properties:
+        cpo:
+          $ref: "#/components/schemas/CPOInfo"
+        metrics:
+          $ref: "#/components/schemas/IntelligenceMetrics"
+        top_customers:
+          type: array
+          items:
+            $ref: "#/components/schemas/TopCustomer"
+
+    CPOInfo:
+      type: object
+      additionalProperties: false
+      required:
+        - id
+        - business_name
+      properties:
+        id:
+          type: string
+          format: uuid
+        business_name:
+          type: string
+
+    IntelligenceMetrics:
+      type: object
+      additionalProperties: false
+      required:
+        - total_app_users
+        - active_users
+        - monthly_active_users
+        - charging_customers
+        - total_sessions
+        - energy_consumed_kwh
+        - customer_revenue
+        - repeat_customer_rate
+        - customer_retention
+      properties:
+        total_app_users:
+          type: integer
+          format: int64
+        active_users:
+          type: integer
+          format: int64
+        monthly_active_users:
+          type: integer
+          format: int64
+        charging_customers:
+          type: integer
+          format: int64
+        total_sessions:
+          type: integer
+          format: int64
+        energy_consumed_kwh:
+          type: number
+          format: double
+        customer_revenue:
+          type: number
+          format: double
+        repeat_customer_rate:
+          type: number
+          format: double
+          description: Percentage of customers with more than one session.
+        customer_retention:
+          type: number
+          format: double
+          description: Percentage of users active in both current and previous period.
+
+    TopCustomer:
+      type: object
+      additionalProperties: false
+      required:
+        - rank
+        - user_id
+        - name
+        - sessions
+        - energy_kwh
+        - spend
+        - chargers_used
+      properties:
+        rank:
+          type: integer
+        user_id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        sessions:
+          type: integer
+          format: int64
+        energy_kwh:
+          type: number
+          format: double
+        spend:
+          type: number
+          format: double
+        chargers_used:
+          type: integer
+          format: int64
+          description: Number of distinct chargers used.
 
     ErrorEnvelope:
       type: object
