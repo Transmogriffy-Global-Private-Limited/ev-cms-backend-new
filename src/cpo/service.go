@@ -145,7 +145,23 @@ func (service *Service) GetChargingSession(
 		return ChargingSessionView{}, fmt.Errorf("load charging session: %w", err)
 	}
 
-	return toChargingSessionView(*session), nil
+	view := toChargingSessionView(*session)
+
+	// Overlay live kWh for active sessions
+	if service.liveOperations != nil {
+		statusStr := string(session.Status)
+		// Only try to get live data for sessions that are not finished
+		if statusStr == "START_PENDING" || statusStr == "CHARGING" || statusStr == "STOP_PENDING" {
+			liveSession, err := service.liveOperations.GetSession(ctx, *principal.CPOID, sessionID)
+			if err == nil && liveSession.ConsumedWh != nil {
+				// Convert from Wh to kWh
+				consumedKWh := decimal.NewFromInt(*liveSession.ConsumedWh).Div(decimal.NewFromInt(1000))
+				view.TotalKWh = consumedKWh
+			}
+		}
+	}
+
+	return view, nil
 }
 
 func (service *Service) ListChargingSessions(
@@ -177,9 +193,38 @@ func (service *Service) ListChargingSessions(
 		sessions = sessions[:query.Limit]
 	}
 
+	// Build the base views
 	result := make([]ChargingSessionView, 0, len(sessions))
 	for _, session := range sessions {
-		result = append(result, toChargingSessionView(session))
+		view := toChargingSessionView(session)
+		result = append(result, view)
+	}
+
+	// Overlay live kWh for active sessions
+	if service.liveOperations != nil {
+		// Collect IDs of sessions that are still in progress
+		activeSessionIDs := []uuid.UUID{}
+		for _, session := range sessions {
+			statusStr := string(session.Status)
+			if statusStr == "START_PENDING" || statusStr == "CHARGING" || statusStr == "STOP_PENDING" {
+				activeSessionIDs = append(activeSessionIDs, session.ID)
+			}
+		}
+
+		// Fetch live data for each active session (max 200, so this is fine)
+		for _, sessionID := range activeSessionIDs {
+			liveSession, err := service.liveOperations.GetSession(ctx, *principal.CPOID, sessionID)
+			if err == nil && liveSession.ConsumedWh != nil {
+				consumedKWh := decimal.NewFromInt(*liveSession.ConsumedWh).Div(decimal.NewFromInt(1000))
+				// Update the matching view
+				for i := range result {
+					if result[i].ID == sessionID {
+						result[i].TotalKWh = consumedKWh
+						break
+					}
+				}
+			}
+		}
 	}
 
 	response := ChargingSessionListResponse{
