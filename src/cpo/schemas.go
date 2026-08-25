@@ -696,16 +696,20 @@ type LiveChargingSessionListQuery struct {
 	Limit          int
 }
 
-// LiveChargingSessionView deliberately contains only the context needed to
-// operate a charger and the committed live telemetry. Financial, customer, and
-// historical session fields belong to the separate charging-session read.
+// LiveChargingSessionView deliberately contains only the CPO display context
+// needed to operate a charger and the committed live telemetry. It includes the
+// tenant customer's display name, but no customer identifier or contact data;
+// financial and historical session fields belong to the separate session read.
 type LiveChargingSessionView struct {
 	SessionID       uuid.UUID               `json:"session_id"`
 	Status          constants.SessionStatus `json:"status"`
 	StartedAt       time.Time               `json:"started_at"`
+	DurationSeconds int64                   `json:"duration_seconds"`
+	CustomerName    string                  `json:"customer_name"`
 	ChargerID       string                  `json:"charger_id"`
 	ChargerName     string                  `json:"charger_name"`
 	HubName         *string                 `json:"hub_name,omitempty"`
+	ConnectorID     uuid.UUID               `json:"connector_id"`
 	ConnectorNumber int                     `json:"connector_number"`
 	LatestMeterWh   *int64                  `json:"latest_meter_wh,omitempty"`
 	ConsumedWh      *int64                  `json:"consumed_wh,omitempty"`

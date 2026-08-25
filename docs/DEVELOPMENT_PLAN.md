@@ -1058,11 +1058,13 @@ Current implementation slice:
 
 - CPO ADMIN live-session operations: `GET /operations/live-sessions` is the
   full-snapshot SSE (initial `snapshot`, then replacement `live_sessions`
-  frames) so the FE never reconstructs session state from invalidations. The
-  explicit `/live-sessions/snapshot` JSON endpoint keeps recovery/keyset
-  pagination; filtered event replay is advanced reconciliation only. The source
-  contract grows to 210 operations and requires focused/broad source
-  verification; no deployment is implied.
+  frames) so the FE never reconstructs session state from invalidations. Each
+  CPO-safe row carries `duration_seconds` at `as_of`, `customer_name`, and CMS
+  `connector_id` alongside charger/hub/live telemetry. The explicit
+  `/live-sessions/snapshot` JSON endpoint keeps recovery/keyset pagination;
+  filtered event replay is advanced reconciliation only. The source contract
+  has 210 operations and requires focused/broad source verification; no
+  deployment is implied.
 - Completed source hardening: one-current authentication challenges are
   serialized by their identity owner and backed by partial unique indexes;
   administrative current-password changes lock before authorization; readiness

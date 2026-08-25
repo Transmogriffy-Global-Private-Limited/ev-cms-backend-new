@@ -2,6 +2,14 @@
 
 ## Current State
 
+### 2026-08-25 — CPO live-session display-context source correction
+
+- Source live-session rows now include `duration_seconds` at the response
+  `as_of`, CPO-visible `customer_name`, and canonical CMS `connector_id`.
+  Customer identifiers/contact details and commercial fields remain excluded.
+- Focused and full source verification pass. This correction is not deployed or
+  runtime-verified yet and requires no migration or database mutation.
+
 ### 2026-08-25 — CPO analytics period filters rehost verified
 
 - CPO analytics accepts optional `period`/`date` filters for session revenue,

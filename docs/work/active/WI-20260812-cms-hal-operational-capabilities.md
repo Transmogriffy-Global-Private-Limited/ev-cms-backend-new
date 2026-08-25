@@ -114,8 +114,10 @@ Establish reusable CMS capabilities over HAL-derived operational truth and expos
   committed CMS projections, then replacement snapshots after filtered
   `CHARGING_SESSION` changes; preserve meter/SoC freshness and heartbeat-time
   session/role/app-ID revalidation. `/live-sessions/snapshot` keeps explicit
-  JSON recovery/keyset pagination. No live route may synchronously call HAL or
-  expose customer, wallet, tariff, or provider-secret data.
+  JSON recovery/keyset pagination. Each tenant-safe row includes only
+  `duration_seconds` at `as_of`, `customer_name`, and CMS `connector_id` in
+  addition to charger/hub/live telemetry. No live route may synchronously call
+  HAL or expose customer contact data, wallet, tariff, or provider-secret data.
 - 2026-08-25 admission repair: current commercial admission must prefer the
   PostgreSQL-enforced current subscription over terminal history, so an old
   expired record cannot strand a User App after a later active renewal. Keep
@@ -132,6 +134,11 @@ Establish reusable CMS capabilities over HAL-derived operational truth and expos
   completed-session totals return without a data rewrite.
 
 ## Verification
+
+- 2026-08-25 live-session display-context correction: focused CPO projection/
+  SSE tests, the PowerShell documentation verifier, route/OpenAPI parity, and
+  `go test -p 1 ./...`, `go vet -p 1 ./...`, and `git diff --check` pass. No
+  migration, database mutation, or runtime claim is involved.
 
 - 2026-08-25 CPO analytics period-filter merge: focused CPO analytics and
   route/OpenAPI checks, full Go tests, vet, `git diff --check`, readiness,

@@ -4025,7 +4025,7 @@ paths:
       tags: [CPO Operations - Live]
       operationId: streamCPOLiveChargingSessions
       summary: Stream full materialized ongoing-session snapshots using SSE
-      description: CPO ADMIN-only SSE. It immediately emits a `snapshot` frame and emits a replacement-safe `live_sessions` frame after committed CHARGING_SESSION changes. Each frame contains the complete current CMS live-session projection for the requested limit, never raw event rows or HAL calls. Reconnect this route to receive a new current snapshot; use the explicit snapshot route for non-stream recovery.
+      description: CPO ADMIN-only SSE. It immediately emits a `snapshot` frame and emits a replacement-safe `live_sessions` frame after committed CHARGING_SESSION changes. Each frame contains the complete current CMS live-session projection for the requested limit, including duration in seconds at `as_of`, the CPO-visible customer name, and CMS connector UUID, never raw event rows or HAL calls. Reconnect this route to receive a new current snapshot; use the explicit snapshot route for non-stream recovery.
       security: [{BearerAuth: [], CPOAppID: []}]
       parameters:
         - $ref: "#/components/parameters/CPOAppIDHeader"
@@ -4042,7 +4042,7 @@ paths:
       tags: [CPO Operations - Live]
       operationId: listCPOLiveChargingSessions
       summary: List materialized ongoing sessions with current operational telemetry
-      description: CPO ADMIN-only CMS recovery snapshot. Returns only ACTIVE, STOP_PENDING, and RECONCILIATION_REQUIRED sessions in start-time cursor order. It exposes human-readable charger and hub context plus committed meter/SoC values and freshness; it never calls HAL and does not expose customer, wallet, tariff, or settlement data.
+      description: CPO ADMIN-only CMS recovery snapshot. Returns only ACTIVE, STOP_PENDING, and RECONCILIATION_REQUIRED sessions in start-time cursor order. It exposes duration in seconds at `as_of`, the CPO-visible customer name, human-readable charger/hub context, CMS connector UUID, and committed meter/SoC values and freshness; it never calls HAL and does not expose customer contact data, wallet, tariff, or settlement data.
       security: [{BearerAuth: [], CPOAppID: []}]
       parameters:
         - $ref: "#/components/parameters/CPOAppIDHeader"
@@ -8612,14 +8612,17 @@ components:
     LiveChargingSessionView:
       type: object
       additionalProperties: false
-      required: [session_id, status, started_at, charger_id, charger_name, connector_number, meter_freshness, soc_freshness]
+      required: [session_id, status, started_at, duration_seconds, customer_name, charger_id, charger_name, connector_id, connector_number, meter_freshness, soc_freshness]
       properties:
         session_id: {type: string, format: uuid}
         status: {type: string, enum: [ACTIVE, STOP_PENDING, RECONCILIATION_REQUIRED]}
         started_at: {type: string, format: date-time}
+        duration_seconds: {type: integer, format: int64, minimum: 0, description: Elapsed whole seconds from started_at to the response as_of timestamp.}
+        customer_name: {type: string, description: "CPO-visible customer display name; customer ID, email, and phone are not included."}
         charger_id: {type: string, description: Human-facing CMS charger ID.}
         charger_name: {type: string, description: Human-facing CPO charger name.}
         hub_name: {type: string, nullable: true}
+        connector_id: {type: string, format: uuid, description: Canonical CMS connector UUID.}
         connector_number: {type: integer, minimum: 1}
         latest_meter_wh: {type: integer, format: int64}
         consumed_wh: {type: integer, format: int64, minimum: 0}

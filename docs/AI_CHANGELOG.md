@@ -1,5 +1,21 @@
 # AI Changelog
 
+## 2026-08-25 - Add CPO live-session display context
+
+- Added `duration_seconds`, `customer_name`, and `connector_id` to each CPO
+  live-session SSE/JSON snapshot row. Duration is an integer measured from the
+  session start to the response `as_of` timestamp; the FE can advance its
+  display between frames without relying on an ambiguous formatted duration.
+- The read now preloads the same-CPO customer relation. It deliberately exposes
+  only the customer's display name—not customer ID, email, phone, wallet, or
+  commercial data—and keeps `connector_id` as the canonical CMS UUID distinct
+  from the connector's physical number.
+
+Verification: focused CPO projection/SSE tests, documentation verification,
+OpenAPI/runtime route parity, `go test -p 1 ./...`, `go vet -p 1 ./...`, and
+`git diff --check` pass. No migration, database mutation, deployment, or
+hardware verification was performed.
+
 ## 2026-08-25 - Add CPO analytics period filters
 
 - Added optional `period` (`day`, `week`, `month`, or `year`) and ISO date

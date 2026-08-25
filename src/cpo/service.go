@@ -271,15 +271,16 @@ func (service *Service) ListLiveChargingSessions(ctx context.Context, principal 
 	if err != nil {
 		return LiveChargingSessionListResponse{}, fmt.Errorf("load live charging-session telemetry: %w", err)
 	}
+	asOf := service.now()
 	result := make([]LiveChargingSessionView, 0, len(sessions))
 	for _, session := range sessions {
 		live, ok := liveBySessionID[session.ID]
 		if !ok {
 			return LiveChargingSessionListResponse{}, fmt.Errorf("live charging-session projection disappeared during read")
 		}
-		result = append(result, toLiveChargingSessionView(session, live))
+		result = append(result, toLiveChargingSessionView(session, live, asOf))
 	}
-	response := LiveChargingSessionListResponse{Sessions: result, HasMore: hasMore, AsOf: service.now()}
+	response := LiveChargingSessionListResponse{Sessions: result, HasMore: hasMore, AsOf: asOf}
 	if hasMore && len(sessions) > 0 {
 		next := sessions[len(sessions)-1]
 		response.NextAfterStartedAt, response.NextAfterID = &next.StartTime, &next.ID
@@ -438,7 +439,7 @@ func toChargingSessionView(session models.ChargingSession) ChargingSessionView {
 	return view
 }
 
-func toLiveChargingSessionView(session models.ChargingSession, live liveops.SessionState) LiveChargingSessionView {
+func toLiveChargingSessionView(session models.ChargingSession, live liveops.SessionState, asOf time.Time) LiveChargingSessionView {
 	charger := session.Charger
 	if charger.ID == uuid.Nil && session.Connector.Charger.ID != uuid.Nil {
 		charger = session.Connector.Charger
@@ -447,13 +448,20 @@ func toLiveChargingSessionView(session models.ChargingSession, live liveops.Sess
 	if charger.Hub != nil && charger.Hub.Name != "" {
 		hubName = &charger.Hub.Name
 	}
+	durationSeconds := int64(asOf.Sub(session.StartTime) / time.Second)
+	if durationSeconds < 0 {
+		durationSeconds = 0
+	}
 	return LiveChargingSessionView{
 		SessionID:       session.ID,
 		Status:          session.Status,
 		StartedAt:       session.StartTime,
+		DurationSeconds: durationSeconds,
+		CustomerName:    session.Customer.FullName,
 		ChargerID:       charger.ChargerID,
 		ChargerName:     charger.ChargerName,
 		HubName:         hubName,
+		ConnectorID:     session.Connector.ID,
 		ConnectorNumber: session.Connector.ConnectorNumber,
 		LatestMeterWh:   live.LatestMeterWh,
 		ConsumedWh:      live.ConsumedWh,

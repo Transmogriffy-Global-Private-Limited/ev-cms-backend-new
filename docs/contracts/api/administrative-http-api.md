@@ -46,7 +46,10 @@ offline, or unknown parent connection makes customer/CPO live availability
   meter/event patches. It contains only materialized `ACTIVE`, `STOP_PENDING`,
   and `RECONCILIATION_REQUIRED` sessions with display-safe charger/hub/connector
   context and committed meter/SoC freshness—never customer, wallet, tariff,
-  amount, or settlement data. Reconnect the stream for an immediate fresh
+  amount, or settlement data. Each row additionally contains the CPO-visible
+  `customer_name` and canonical CMS `connector_id`, plus `duration_seconds`
+  measured from `started_at` to the payload's `as_of`. It never contains
+  customer ID, email, or phone. Reconnect the stream for an immediate fresh
   snapshot; the server revalidates bearer, ADMIN role, and app ID at heartbeat.
 - `GET /api/v1/cpo/operations/live-sessions/snapshot` is the explicit JSON
   recovery/pagination route. It has the same authority and payload, and accepts

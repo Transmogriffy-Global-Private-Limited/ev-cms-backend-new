@@ -185,6 +185,7 @@ func (r *repository) ListChargingSessions(ctx context.Context, cpoID uuid.UUID, 
 func (r *repository) ListLiveChargingSessions(ctx context.Context, cpoID uuid.UUID, query LiveChargingSessionListQuery) ([]models.ChargingSession, error) {
 	var sessions []models.ChargingSession
 	db := r.db.WithContext(ctx).
+		Preload("Customer").
 		Preload("Charger").
 		Preload("Charger.Hub").
 		Preload("Connector").

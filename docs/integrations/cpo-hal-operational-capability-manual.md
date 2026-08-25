@@ -169,8 +169,10 @@ truth; older sequences create neither state regression nor a new event.
 The CPO ongoing-session table is intentionally easier: its primary
 `GET /api/v1/cpo/operations/live-sessions` connection emits a complete CMS
 snapshot immediately and complete replacement snapshots after committed
-session/meter/SoC changes. The browser never receives the raw event records for
-normal table updates. Reconnect that route for a fresh snapshot; use
+session/meter/SoC changes. Each CPO-safe row carries `duration_seconds` at
+`as_of`, `customer_name`, the CMS `connector_id`, and charger/hub context; it
+does not carry customer contact or financial data. The browser never receives
+the raw event records for normal table updates. Reconnect that route for a fresh snapshot; use
 `/live-sessions/snapshot` for explicit JSON/keyset recovery. The retained
 `/live-sessions/events` route is only for advanced reconciliation.
 

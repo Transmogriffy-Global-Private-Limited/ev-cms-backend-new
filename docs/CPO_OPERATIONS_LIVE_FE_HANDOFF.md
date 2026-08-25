@@ -184,9 +184,12 @@ export interface LiveChargingSessionView {
   session_id: UUID;
   status: "ACTIVE" | "STOP_PENDING" | "RECONCILIATION_REQUIRED";
   started_at: RFC3339;
+  duration_seconds: number; // elapsed at response.as_of; tick locally for a live clock
+  customer_name: string; // CPO-visible display name only; no customer ID/email/phone
   charger_id: string;
   charger_name: string;
   hub_name?: string;
+  connector_id: UUID; // Canonical CMS connector UUID, distinct from physical number
   connector_number: number;
   latest_meter_wh?: number;
   consumed_wh?: number;
@@ -250,8 +253,11 @@ with `JSON.parse(event.data).sessions`; do not merge meter patches, deduplicate
 event rows, or call another endpoint per update. A completed session simply
 disappears from the next replacement snapshot.
 
-The payload contains no customer identity, wallet, tariff, total amount, or
-settlement fields. `charger_id`, `charger_name`, optional `hub_name`, and
+The payload includes `duration_seconds` measured at the response `as_of`, the
+CPO-visible `customer_name`, and canonical `connector_id`, but no customer ID,
+email, phone, wallet, tariff, total amount, or settlement fields. Use the
+duration plus the current browser clock to keep a display timer moving between
+frames. `charger_id`, `charger_name`, optional `hub_name`, and
 `connector_number` are display fields. Meter and SoC observations are
 independently fresh, stale, or unknown; never display a stale value as current
 charger truth. `limit` defaults to `100` and has a maximum of `200`.
