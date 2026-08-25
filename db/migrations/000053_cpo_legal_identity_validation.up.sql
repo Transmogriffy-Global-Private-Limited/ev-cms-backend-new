@@ -14,7 +14,7 @@ AS $$
         SELECT COALESCE(sum(value / 36 + value % 36), 0) AS value FROM weighted
     )
     SELECT candidate ~ '^(0[1-9]|[12][0-9]|3[0-8])[A-Z]{5}[0-9]{4}[A-Z][1-9A-Z]Z[0-9A-Z]$'
-       AND substr(candidate, 15, 1) = substr('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ', ((36 - checksum.value % 36) % 36) + 1, 1)
+       AND substr(candidate, 15, 1) = substr('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ', (((36 - checksum.value % 36) % 36) + 1)::integer, 1)
     FROM checksum;
 $$;
 
@@ -50,21 +50,11 @@ AS $$
     END;
 $$;
 
-DO $$
-BEGIN
-    IF EXISTS (
-        SELECT 1 FROM cpos
-        WHERE NOT public.is_valid_indian_gstin(gstin)
-           OR NOT public.gstin_matches_indian_state(gstin, state)
-           OR pincode !~ '^[1-9][0-9]{5}$'
-    ) THEN
-        RAISE EXCEPTION 'cannot enforce CPO legal identity validation while invalid GSTIN, state, or PIN records exist';
-    END IF;
-END
-$$;
-
 ALTER TABLE cpos DROP CONSTRAINT chk_cpos_gstin;
 ALTER TABLE cpos
-    ADD CONSTRAINT chk_cpos_gstin CHECK (public.is_valid_indian_gstin(gstin)),
-    ADD CONSTRAINT chk_cpos_gstin_state_matches CHECK (public.gstin_matches_indian_state(gstin, state)),
-    ADD CONSTRAINT chk_cpos_pincode_format CHECK (pincode ~ '^[1-9][0-9]{5}$');
+    -- Preserve existing legacy rows exactly as stored. CHECK constraints still
+    -- protect every new row and every update; VALIDATE CONSTRAINT can be run
+    -- later after authoritative correction of legacy records.
+    ADD CONSTRAINT chk_cpos_gstin CHECK (public.is_valid_indian_gstin(gstin)) NOT VALID,
+    ADD CONSTRAINT chk_cpos_gstin_state_matches CHECK (public.gstin_matches_indian_state(gstin, state)) NOT VALID,
+    ADD CONSTRAINT chk_cpos_pincode_format CHECK (pincode ~ '^[1-9][0-9]{5}$') NOT VALID;

@@ -29,9 +29,21 @@ that setting; it must not be used until the OCPP host is explicitly configured
 with TLS/WebSocket support.
 
 The active deployment was updated on August 25, 2026 to runtime source revision
-`fb058fa`. It has migrations one through forty-eight and the current
-189-operation API. The binary SHA-256 is
-`c27702c4a79c5a7189af51f4a74b95fdb6910aa00806cbb4edad3a4976446a01`. Migrations 45 through 48 are applied with their pre-migration backups retained under `/root/evcmsnew-backups/`. Migration 48 adds the durable initial/latest charger SoC telemetry fields and ordering constraints used by the CMS and User App charging-session projections. The latest release also exposes enriched CPO charging-session projections, active-session live kWh overlays, connector→charger fallback hydration for incomplete session relations, and the SuperAdmin CPO customer-intelligence route; no new migration was required for those changes. The CPO wallet transaction read is deployed without a new
+`162b3be9152fea000e710f7ad2a23a89ae73d610` (`162b3be`). It has migrations one
+through fifty-three and the current 189-operation API. The binary SHA-256 is
+`0dcdc9adc5c93d68fdeaf1df36e6ec18d9345b8a50200ed71f2d0fa433a47c83`.
+The pre-migration binary and database dump for migrations 49 through 53 are
+retained under `/root/evcmsnew-backups/` and
+`builds/evcmsnew.pre-162b3be-20260825-135452`. Migration 53 installs GSTIN,
+GSTIN-state, and PIN checks as `NOT VALID`, preserving three existing legacy
+CPO rows while enforcing the rules for new and updated rows. Migrations 45
+through 48 remain applied with their earlier backups retained. Migration 48
+adds the durable initial/latest charger SoC telemetry fields and ordering
+constraints used by the CMS and User App charging-session projections. The
+latest release also exposes enriched CPO charging-session projections, active-
+session live kWh overlays, connector→charger fallback hydration for incomplete
+session relations, and the SuperAdmin CPO customer-intelligence route; no new
+migration was required for those changes. The CPO wallet transaction read is deployed without a new
 migration. Migration 44 enables temporal tariff fallback and its
 database guards. The two requested hubs were removed with their hub tariffs and
 links; five downstream chargers/connectors were retained as unassigned,
@@ -145,7 +157,7 @@ The deployment copies `.env.example` to `.env`, then overrides:
 - five independently generated 32-byte base64 cryptographic keys.
 
 `DATABASE_URL` and `SMTP_PASSWORD` contain deployment secrets only in the
-ignored environment file. The service is enabled and active, all forty-eight forward
+ignored environment file. The service is enabled and active, all fifty-three forward
 migrations are recorded, and startup idempotently retained the configured
 platform superadmin.
 

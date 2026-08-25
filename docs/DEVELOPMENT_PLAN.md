@@ -127,8 +127,11 @@ Current implementation state:
   projections, active-session live kWh overlays, and the SuperAdmin CPO
   customer-intelligence route. Session reads also hydrate an incomplete charger
   relation through the connector-owned relation. These changes require no
-  additional migration; runtime revision `fb058fa` is active with migrations
-  45-48 applied.
+  additional migration; runtime revision `162b3be` is active with migrations
+  45-53 applied. Migration 53 preserves three existing legacy CPO legal-
+  identity rows with `NOT VALID` database checks while enforcing new and
+  updated rows; the authoritative correction and later constraint validation
+  remain a follow-up operation.
 
 - Charging lifecycle repair is deployed: migration 45 gives connector occupancy to an
   unmaterialized start intent before materialization and to a single active,

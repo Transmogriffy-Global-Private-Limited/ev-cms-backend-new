@@ -259,8 +259,9 @@ Migration fifty-three strengthens the same durable legal-identity boundary:
 - GSTIN must satisfy the Indian structural format and checksum;
 - its two-digit GST registration state code must match `cpos.state`;
 - `pincode` must be a six-digit Indian PIN code; and
-- the preflight rejects existing malformed identity rows rather than inventing
-  tax or address values.
+- the checks are installed as `NOT VALID`, so existing legacy rows remain
+  unchanged while new rows and updates are protected. After authoritative
+  correction, run `VALIDATE CONSTRAINT` for complete database-wide validation.
 
 `uq_cpos_gstin_normalized` remains the sole authoritative normalized GSTIN
 uniqueness index. A `(gstin, business_name)` unique index would be redundant;

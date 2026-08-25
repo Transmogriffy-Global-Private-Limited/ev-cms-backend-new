@@ -20,7 +20,8 @@ uniqueness under concurrent requests.
 
 - Full GSTIN structural, checksum, and state-code validation against CPO state.
 - Canonical CPO/admin text validation and six-digit Indian PIN-code validation.
-- Additive PostgreSQL GSTIN/state/PIN constraints with a fail-closed preflight.
+- Additive PostgreSQL GSTIN/state/PIN constraints that preserve legacy rows
+  with `NOT VALID` while protecting new and updated rows.
 - Updated OpenAPI, human contracts, tests, ADR, and project memory.
 
 ## Non-goals
@@ -47,8 +48,9 @@ uniqueness under concurrent requests.
 
 ## Data and migration impact
 
-- Forward migration 53 preflights CPO records and rejects invalid direct writes.
-- No database was migrated or mutated in this workspace.
+- Forward migration 53 is applied in the development database. Three existing
+  state-prefix-mismatched CPO rows were left unchanged; the three constraints
+  are present with `convalidated = false` pending authoritative correction.
 
 ## Current state
 
@@ -57,10 +59,13 @@ uniqueness under concurrent requests.
 
 ## Verification
 
-- Passed: `./scripts/verify-docs.ps1`, focused CPO and route/OpenAPI tests,
-  `go test ./...`, `go vet ./...`, and `git diff --check`.
-- Not run: migration application and PostgreSQL direct-write constraints because
-  `TEST_DATABASE_URL` is unset.
+- Passed: focused CPO and route/OpenAPI tests, `go test ./...`, `go vet ./...`,
+  `git diff --check`, transactional migration dry-run, live migration
+  application, service rehost, health/readiness, Swagger/OpenAPI, Caddy, and
+  post-rehost log checks.
+- Not run: `./scripts/verify-docs.ps1` because `pwsh` is unavailable; disposable
+  PostgreSQL lifecycle tests remain unavailable because `TEST_DATABASE_URL` is
+  unset.
 
 ## Handoff
 
@@ -70,5 +75,6 @@ uniqueness under concurrent requests.
 
 ## Completion
 
-Source and documentation complete; database execution is intentionally pending
-a disposable database.
+Source, migration, hosting, and documentation complete. Legacy legal-identity
+rows remain readable and unchanged until an authoritative correction permits
+`VALIDATE CONSTRAINT`.

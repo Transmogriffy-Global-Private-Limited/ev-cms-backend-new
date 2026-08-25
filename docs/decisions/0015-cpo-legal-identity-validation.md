@@ -22,9 +22,10 @@ accepted by the API or written directly through another database path.
 - CPO business names/addresses must contain meaningful text; city and
   administrator names must contain a letter. Input whitespace is collapsed for
   consistent display and storage.
-- Migration fifty-three preflights existing CPO records and then adds immutable
-  PostgreSQL GSTIN/checksum, GSTIN-state, and PIN constraints. It does not
-  invent or repair legal data.
+- Migration fifty-three preserves existing CPO records exactly and adds
+  PostgreSQL GSTIN/checksum, GSTIN-state, and PIN constraints as `NOT VALID`.
+  New rows and updates are protected immediately; a later authoritative data
+  correction can run `VALIDATE CONSTRAINT` without inventing legal data.
 - `uq_cpos_gstin_normalized` remains the only CPO GSTIN uniqueness guard. A
   `(gstin, business_name)` uniqueness key is redundant because globally unique
   GSTIN already implies uniqueness of that pair.
@@ -33,9 +34,10 @@ accepted by the API or written directly through another database path.
 
 Create/profile requests can return `invalid_gstin`,
 `invalid_gstin_state_mismatch`, or `invalid_pincode` before persistence. Direct
-database writes receive the equivalent durable check-constraint protection.
-Databases containing prior malformed CPO identity data must be corrected from
-an authoritative source before migration fifty-three can apply.
+database writes receive the equivalent durable check-constraint protection for
+new and updated rows. Existing legacy rows remain readable and unchanged until
+their legal identity is corrected from an authoritative source and the
+constraints are explicitly validated.
 
 The platform validates an identifier, not ownership of a legal business name.
 Verifying that a GSTIN belongs to the supplied business name requires an

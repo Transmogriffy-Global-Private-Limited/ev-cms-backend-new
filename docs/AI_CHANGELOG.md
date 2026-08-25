@@ -1,5 +1,22 @@
 # AI Changelog
 
+## 2026-08-25 - Preserve legacy CPO identity rows during migration
+
+- Changed unapplied migration 53 to install GSTIN, GSTIN-state, and PIN checks
+  as `NOT VALID`, preserving three existing legacy CPO rows without rewriting
+  them while enforcing the rules for new and updated rows.
+- Documented the later `VALIDATE CONSTRAINT` remediation path after an
+  authoritative legal-identity correction.
+
+Verification: read-only live preflight identified three state-prefix mismatches;
+no live data was modified. The transactional migration dry-run passed, then the
+live database applied migrations 49–53. The service was rehosted at revision
+`162b3be`; loopback and public health/readiness, Swagger/OpenAPI routes, service
+state, enabled state, Caddy validation, binary hashes, constraint state, and
+post-rehost logs were verified. `TEST_DATABASE_URL` and `pwsh` remain
+unavailable, so disposable-database and PowerShell documentation checks were
+not run.
+
 ## 2026-08-25 - CPO and SuperAdmin frontend contract reconciliation
 
 - Added a complete CPO frontend integration handoff covering administrative
@@ -29,10 +46,11 @@ deployment, or live-service action occurred.
   CPO/admin text. Initial, replacement-primary, and tenant staff administrator
   names use the same validation.
 - Added migration 53 as the PostgreSQL backstop for GSTIN checksum/state and
-  PIN invariants. It fails closed if pre-existing records are malformed and
-  deliberately adds no redundant `(gstin, business_name)` index: normalized
-  GSTIN is already globally unique. The platform does not claim legal-name
-  ownership validation without an authorized GST registry integration.
+  PIN invariants. It preserves existing legacy rows with `NOT VALID` checks
+  while enforcing new and updated rows, and deliberately adds no redundant
+  `(gstin, business_name)` index: normalized GSTIN is already globally unique.
+  The platform does not claim legal-name ownership validation without an
+  authorized GST registry integration.
 
 Verification: focused CPO tests, documentation/OpenAPI validation, route
 parity, `go test ./...`, `go vet ./...`, and `git diff --check` pass. The
