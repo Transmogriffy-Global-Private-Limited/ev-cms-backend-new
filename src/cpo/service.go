@@ -279,16 +279,19 @@ func toChargerTransactionView(transaction ChargerTransaction) ChargerTransaction
 
 func toChargingSessionView(session models.ChargingSession) ChargingSessionView {
 	view := ChargingSessionView{
-		ID:            session.ID,
-		TransactionID: session.TransactionID,
-		StartTime:     session.StartTime,
-		EndTime:       session.EndTime,
-		TotalKWh:      session.TotalKWh,
-		TotalAmount:   session.TotalAmount,
-		Currency:      session.Currency,
-		Status:        session.Status,
-		StopReason:    session.StopReason,
-		CreatedAt:     session.CreatedAt,
+		ID:                session.ID,
+		TransactionID:     session.TransactionID,
+		StartTime:         session.StartTime,
+		EndTime:           session.EndTime,
+		TotalKWh:          session.TotalKWh,
+		TotalAmount:       session.TotalAmount,
+		Currency:          session.Currency,
+		Status:            session.Status,
+		StopReason:        session.StopReason,
+		InitialSoCPercent: session.InitialSoCPercent,
+		FinalSoCPercent:   session.LatestSoCPercent,
+		SoCObservedAt:     session.SoCObservedAt,
+		CreatedAt:         session.CreatedAt,
 	}
 
 	if session.Customer.ID != uuid.Nil {

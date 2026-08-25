@@ -1,5 +1,18 @@
 # AI Changelog
 
+## 2026-08-25 - Optional charger SoC telemetry
+
+- Added nullable session SoC persistence and migration 48. CMS accepts the
+  additive HAL `transaction.soc` fact with its own ordering sequence, retaining
+  initial evidence and rejecting invalid/out-of-order projection updates.
+- Customer detail/history, CPO session records, liveops, OpenAPI, and scoped
+  operational invalidation now expose actual optional SoC. SoC freshness is
+  independent from energy-meter freshness; missing telemetry remains unknown.
+
+Verification: focused CMS packages, model mapping checks, OpenAPI route parity,
+and documentation verification are run in this source slice. Disposable
+PostgreSQL and HAL/cpconsole acceptance remain unrun.
+
 ## 2026-08-21 - Real-hardware CMS/HAL correlation and start-admission hardening
 
 - HAL mutations now reject missing, malformed, zero, uppercase, or otherwise

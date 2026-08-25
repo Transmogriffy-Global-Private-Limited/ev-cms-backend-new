@@ -9365,7 +9365,7 @@ components:
     ChargingSessionResponse:
       type: object
       additionalProperties: false
-      required: [id, start_intent_id, state, start_progress, meter_freshness, connection_state, connector_freshness, started_at, meter_start_wh, currency, settlement_status, charger, connector, pricing, tax]
+      required: [id, start_intent_id, state, start_progress, meter_freshness, soc_freshness, connection_state, connector_freshness, started_at, meter_start_wh, currency, settlement_status, charger, connector, pricing, tax]
       properties:
         id: {type: string, format: uuid}
         start_intent_id: {type: string, format: uuid}
@@ -9376,6 +9376,9 @@ components:
         consumed_wh: {type: integer, format: int64, minimum: 0}
         meter_observed_at: {type: string, format: date-time}
         meter_freshness: {type: string, enum: [FRESH, STALE, UNKNOWN]}
+        soc_percent: {type: string, pattern: "^[0-9]+(?:\\.[0-9]{1,3})?$", description: "Optional actual charger-observed OCPP state of charge percentage; never estimated or defaulted."}
+        soc_observed_at: {type: string, format: date-time, description: "Timestamp of the latest accepted SoC observation, never refreshed by energy-only meter facts."}
+        soc_freshness: {type: string, enum: [FRESH, STALE, UNKNOWN], description: "SoC freshness is evaluated independently from meter_freshness using the MeterValues stale horizon."}
         connection_state: {type: string, enum: [ONLINE, OFFLINE, UNKNOWN]}
         connection_observed_at: {type: string, format: date-time}
         connector_ocpp_status: {type: string}
@@ -9422,6 +9425,9 @@ components:
         total_amount: {type: string, pattern: "^[0-9]+(?:\\.[0-9]{1,2})?$", description: Present only after a completed session has final persisted settlement.}
         currency: {type: string, pattern: "^[A-Z]{3}$"}
         settlement_status: {type: string}
+        initial_soc_percent: {type: string, pattern: "^[0-9]+(?:\\.[0-9]{1,3})?$", description: First actual SoC observed during the session; absent if no SoC was reported.}
+        final_soc_percent: {type: string, pattern: "^[0-9]+(?:\\.[0-9]{1,3})?$", description: "Last observed SoC, not necessarily a stop-time observation."}
+        soc_observed_at: {type: string, format: date-time, description: Timestamp of final_soc_percent.}
         charger: {$ref: "#/components/schemas/ChargingSessionCharger"}
         connector: {$ref: "#/components/schemas/ChargingSessionConnector"}
 
@@ -9876,6 +9882,18 @@ components:
           $ref: "#/components/schemas/SessionStatus"
         stop_reason:
           type: string
+          nullable: true
+        initial_soc_percent:
+          type: string
+          nullable: true
+          description: First actual charger-observed SoC during this session.
+        final_soc_percent:
+          type: string
+          nullable: true
+          description: Last observed SoC; it is not guaranteed to be a stop-time reading.
+        soc_observed_at:
+          type: string
+          format: date-time
           nullable: true
         created_at:
           type: string
