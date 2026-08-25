@@ -1,5 +1,21 @@
 # AI Changelog
 
+## 2026-08-25 - Add CPO analytics period filters
+
+- Added optional `period` (`day`, `week`, `month`, or `year`) and ISO date
+  filters to CPO analytics while keeping charger/connector counts overall.
+  The OpenAPI contract now documents the query parameters and the invalid-
+  request response; the date example is quoted as an OpenAPI string.
+- No migration or data repair was required; analytics reads remain tenant-
+  scoped and aggregate the existing charging-session data.
+
+Verification: focused CPO analytics and route/OpenAPI checks, full Go tests,
+vet, `git diff --check`, live readiness, protected analytics route, Swagger,
+raw OpenAPI (210 operations), Caddy, binary identity, and post-rehost startup
+checks passed. Runtime revision `f432f45` was rebuilt and rehosted. `pwsh` is
+unavailable on this VPS, so the PowerShell documentation verifier was not
+rerun here.
+
 ## 2026-08-25 - Make the CPO live-session primary route full-snapshot SSE
 
 - Changed `GET /api/v1/cpo/operations/live-sessions` from a JSON table read to

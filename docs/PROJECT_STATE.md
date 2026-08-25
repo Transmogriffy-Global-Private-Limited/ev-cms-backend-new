@@ -2,6 +2,17 @@
 
 ## Current State
 
+### 2026-08-25 — CPO analytics period filters rehost verified
+
+- CPO analytics accepts optional `period`/`date` filters for session revenue,
+  usage, and count while charger/connector totals remain overall. The query is
+  tenant-scoped and uses existing persisted session data; no migration or data
+  repair was required.
+- Runtime revision `f432f45` is active behind Caddy with binary SHA-256
+  `3de4d28e712e31cb2e06c56a7b39570bcecaa5580dcd6710e7f910f8cd9ae4fe`.
+  Service readiness, public routing, protected analytics access, Swagger/raw
+  OpenAPI, Caddy, and post-rehost startup checks passed.
+
 ### 2026-08-25 — CPO full-snapshot live-session SSE rehost verified
 
 - Source now makes `GET /api/v1/cpo/operations/live-sessions` the primary CPO

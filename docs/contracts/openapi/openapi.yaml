@@ -3603,7 +3603,7 @@ paths:
             `period=day` it filters sessions started on that date; for `week`
             it filters the Monday‑to‑Sunday week containing that date; for
             `month` the calendar month; for `year` the calendar year.
-          example: 2026-08-25
+          example: "2026-08-25"
       responses:
         "200":
           description: The CPO analytics data.
