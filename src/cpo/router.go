@@ -771,9 +771,19 @@ func parseChargerTransactionListQuery(ctx *gin.Context) (ChargerTransactionListQ
 // @Security BearerAuth
 // @Security CPOAppID
 // @Router /cpo/analytics [get]
+// getAnalytics handles GET /api/v1/cpo/analytics
 func (handler *Handler) getAnalytics(ctx *gin.Context) {
 	principal, _ := auth.CurrentPrincipal(ctx)
-	record, err := handler.service.GetAnalytics(ctx.Request.Context(), principal)
+
+	// Parse optional period/date query parameters
+	var query AnalyticsQuery
+	if err := ctx.ShouldBindQuery(&query); err != nil {
+		writeError(ctx, invalid("query", "Invalid query parameters"))
+		return
+	}
+
+	// Call service with the parsed query
+	record, err := handler.service.GetAnalytics(ctx.Request.Context(), principal, query)
 	if err != nil {
 		writeError(ctx, err)
 		return

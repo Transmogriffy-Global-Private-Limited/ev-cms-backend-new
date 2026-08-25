@@ -105,19 +105,14 @@ func NewService(
 	}
 }
 
-func (service *Service) GetAnalytics(
-	ctx context.Context,
-	principal auth.Principal,
-) (AnalyticsResponse, error) {
+func (service *Service) GetAnalytics(ctx context.Context, principal auth.Principal, query AnalyticsQuery) (AnalyticsResponse, error) {
 	if err := requireCPOAdminAccess(principal); err != nil {
 		return AnalyticsResponse{}, err
 	}
-
-	analytics, err := service.repository.GetAnalytics(ctx, *principal.CPOID)
+	analytics, err := service.repository.GetAnalytics(ctx, *principal.CPOID, query)
 	if err != nil {
 		return AnalyticsResponse{}, fmt.Errorf("get analytics: %w", err)
 	}
-
 	return AnalyticsResponse{
 		TotalChargers:   analytics.TotalChargers,
 		TotalConnectors: analytics.TotalConnectors,

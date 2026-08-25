@@ -876,3 +876,8 @@ type WalletTransactionListResponse struct {
 	NextBeforeID *uuid.UUID              `json:"next_before_id,omitempty"`
 	HasMore      bool                    `json:"has_more"`
 }
+
+type AnalyticsQuery struct {
+	Period string `form:"period"` // "day", "week", "month", "year"
+	Date   string `form:"date"`   // YYYY-MM-DD
+}

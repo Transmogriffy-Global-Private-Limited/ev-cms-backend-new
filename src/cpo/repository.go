@@ -2,6 +2,7 @@ package cpo
 
 import (
 	"context"
+	"time"
 
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/constants" // <-- added
 
@@ -12,7 +13,7 @@ import (
 )
 
 type Repository interface {
-	GetAnalytics(ctx context.Context, cpoID uuid.UUID) (Analytics, error)
+	GetAnalytics(ctx context.Context, cpoID uuid.UUID, query AnalyticsQuery) (Analytics, error)
 	ListWalletTransactions(ctx context.Context, cpoID uuid.UUID, query WalletTransactionListQuery) ([]WalletTransactionDetail, error)
 	GetChargingSession(ctx context.Context, cpoID, sessionID uuid.UUID) (*models.ChargingSession, error)
 	ListChargingSessions(ctx context.Context, cpoID uuid.UUID, query ChargingSessionListQuery) ([]models.ChargingSession, error)
@@ -36,8 +37,14 @@ type Analytics struct {
 	TotalSessions   int64
 }
 
-func (r *repository) GetAnalytics(ctx context.Context, cpoID uuid.UUID) (Analytics, error) {
+// AnalyticsQuery holds optional time‑range filters for analytics.
+// It should be defined in schemas.go (or alongside the repository).
+
+// GetAnalytics returns overall and optionally period‑filtered analytics.
+func (r *repository) GetAnalytics(ctx context.Context, cpoID uuid.UUID, query AnalyticsQuery) (Analytics, error) {
 	var analytics Analytics
+
+	// 1) Total chargers and connectors – always overall (not time‑filtered)
 	if err := r.db.WithContext(ctx).Model(&models.Charger{}).Where("cpo_id = ?", cpoID).Count(&analytics.TotalChargers).Error; err != nil {
 		return Analytics{}, err
 	}
@@ -45,17 +52,65 @@ func (r *repository) GetAnalytics(ctx context.Context, cpoID uuid.UUID) (Analyti
 		return Analytics{}, err
 	}
 
+	// 2) Build session aggregation query
+	db := r.db.WithContext(ctx).Model(&models.ChargingSession{}).
+		Where("cpo_id = ?", cpoID)
+
+	// 3) Apply time filter if period and date are given and valid
+	if query.Period != "" && query.Date != "" {
+		var start, end time.Time
+		var err error
+
+		switch query.Period {
+		case "day":
+			start, err = time.Parse("2006-01-02", query.Date)
+			if err == nil {
+				end = start.Add(24 * time.Hour)
+				db = db.Where("start_time >= ? AND start_time < ?", start, end)
+			}
+		case "week":
+			// Compute start of the week (Monday) from the given date
+			t, err := time.Parse("2006-01-02", query.Date)
+			if err == nil {
+				// Go's weekday: Sunday=0, Monday=1, ...
+				offset := int((t.Weekday() + 6) % 7) // days back to Monday
+				start = t.AddDate(0, 0, -offset)
+				end = start.AddDate(0, 0, 7)
+				db = db.Where("start_time >= ? AND start_time < ?", start, end)
+			}
+		case "month":
+			t, err := time.Parse("2006-01-02", query.Date)
+			if err == nil {
+				start = time.Date(t.Year(), t.Month(), 1, 0, 0, 0, 0, t.Location())
+				end = start.AddDate(0, 1, 0)
+				db = db.Where("start_time >= ? AND start_time < ?", start, end)
+			}
+		case "year":
+			t, err := time.Parse("2006-01-02", query.Date)
+			if err == nil {
+				start = time.Date(t.Year(), 1, 1, 0, 0, 0, 0, t.Location())
+				end = start.AddDate(1, 0, 0)
+				db = db.Where("start_time >= ? AND start_time < ?", start, end)
+			}
+		default:
+			// Unsupported period -> ignore filter (or you may return an error)
+		}
+	}
+
+	// 4) Execute aggregation
 	var sessionAnalytics struct {
 		TotalRevenue  decimal.Decimal
 		TotalUsage    decimal.Decimal
 		TotalSessions int64
 	}
-	if err := r.db.WithContext(ctx).Model(&models.ChargingSession{}).
-		Select("COALESCE(SUM(total_amount), 0) as total_revenue, COALESCE(SUM(total_kwh), 0) as total_usage, COUNT(*) as total_sessions").
-		Where("cpo_id = ?", cpoID).
-		Scan(&sessionAnalytics).Error; err != nil {
+	if err := db.Select(
+		"COALESCE(SUM(total_amount), 0) as total_revenue, " +
+			"COALESCE(SUM(total_kwh), 0) as total_usage, " +
+			"COUNT(*) as total_sessions",
+	).Scan(&sessionAnalytics).Error; err != nil {
 		return Analytics{}, err
 	}
+
 	analytics.TotalRevenue = sessionAnalytics.TotalRevenue
 	analytics.TotalUsage = sessionAnalytics.TotalUsage
 	analytics.TotalSessions = sessionAnalytics.TotalSessions

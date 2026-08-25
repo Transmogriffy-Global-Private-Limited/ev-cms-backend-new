@@ -3573,10 +3573,37 @@ paths:
       tags: [CPO Operations - Account & Notifications]
       operationId: getCPOAnalytics
       summary: Get CPO analytics
-      description: Get CPO analytics data.
+      description: |
+        Get CPO analytics data. By default returns overall totals for all time.
+        Supply `period` and `date` to filter session aggregates (TotalRevenue,
+        TotalUsage, TotalSessions) to a specific time window. The overall counts
+        of chargers and connectors remain unfiltered.
       security:
         - BearerAuth: []
         - CPOAppID: []
+      parameters:
+        - name: period
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [day, week, month, year]
+          description: |
+            Time period for filtering session data. When omitted, overall
+            session data is returned.
+          example: day
+        - name: date
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date
+          description: |
+            Reference date for the period (ISO 8601 date, YYYY-MM-DD). For
+            `period=day` it filters sessions started on that date; for `week`
+            it filters the Monday‑to‑Sunday week containing that date; for
+            `month` the calendar month; for `year` the calendar year.
+          example: 2026-08-25
       responses:
         "200":
           description: The CPO analytics data.
@@ -3584,13 +3611,14 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/AnalyticsResponse"
+        "400":
+          $ref: "#/components/responses/InvalidRequest"
         "401":
           $ref: "#/components/responses/Unauthorized"
         "403":
           $ref: "#/components/responses/CPOBusinessForbidden"
         "500":
           $ref: "#/components/responses/InternalError"
-
   /api/v1/cpo/customers:
     get:
       tags: [CPO Operations - Account & Notifications]
