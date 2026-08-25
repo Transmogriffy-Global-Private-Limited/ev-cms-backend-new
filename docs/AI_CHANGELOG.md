@@ -1,5 +1,18 @@
 # AI Changelog
 
+## 2026-08-25 - CPO session projections and customer intelligence deployment
+
+- Deployed enriched CPO charging-session list/detail projections with stable
+  customer, charger, hub, and connector fields plus live consumed-kWh overlays
+  for active sessions.
+- Added the SuperAdmin CPO customer-intelligence API and reconciled its
+  OpenAPI contract; no database migration was required.
+
+Verification: focused OpenAPI route parity, full Go tests, vet, diff checks,
+local/public readiness, Swagger, OpenAPI, Caddy validation, and the
+post-rehost journal scan passed. `pwsh` is unavailable for `verify-docs.ps1`;
+disposable PostgreSQL and physical HAL acceptance remain unrun.
+
 ## 2026-08-25 - Optional charger SoC telemetry
 
 - Added nullable session SoC persistence and migration 48. CMS accepts the
