@@ -140,9 +140,11 @@ Establish reusable CMS capabilities over HAL-derived operational truth and expos
   no migration or database mutation is involved.
 
 - 2026-08-25 customer-usage aggregate repair: focused CPO aggregate and
-  route/OpenAPI checks, `scripts/verify-docs.ps1`, `go test ./...`, `go vet
-  ./...`, and `git diff --check` pass. The existing CPO customer list/detail
-  response requires deployment and a live recheck.
+  route/OpenAPI checks, `go test ./...`, `go vet ./...`, and `git diff --check`
+  pass. Runtime revision `849d80b` was rebuilt and rehosted without a migration
+  or data repair; service readiness, public routing, Swagger, Caddy, binary
+  identity, and post-rehost checks passed. `pwsh` and `TEST_DATABASE_URL`
+  remain unavailable.
 
 - 2026-08-25 charger-relation fallback repair: focused CPO regression and
   route/OpenAPI checks, `go test ./...`, `go vet ./...`, and `git diff --check`

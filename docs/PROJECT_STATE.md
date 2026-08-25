@@ -17,15 +17,18 @@
   is source-verified but not deployed or runtime-verified yet; it requires no
   migration or data mutation.
 
-### 2026-08-25 — CPO customer total-usage projection repair in source
+### 2026-08-25 — CPO customer total-usage projection repair rehost verified
 
 - Source now maps the CPO customer list/detail energy aggregate alias
   `total_usage_kwh` explicitly. Completed/reconciliation session energy already
   persisted in `charging_sessions.total_kwh` will therefore populate
   `total_usage_kwh` consistently with `session_count`; no schema or data change
   is required.
-- This repair has not yet been deployed or checked against the reported CPO
-  customer response.
+- Runtime revision `849d80b` is active behind Caddy with binary SHA-256
+  `0c8ca55b819073e905fe09a16345972ec819a2836531c9ab10366d6e433aaf2b`.
+  No migration or data repair was required. Service readiness, public routing,
+  Swagger/OpenAPI, Caddy, binary identity, and post-rehost checks passed; the
+  prior binary is retained for rollback.
 
 ### 2026-08-25 — CPO charging-session charger projection repair rehost verified
 

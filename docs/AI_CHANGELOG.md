@@ -34,7 +34,11 @@ runtime hardware verification was performed.
 
 Verification: focused CPO aggregate and route/OpenAPI checks,
 `scripts/verify-docs.ps1`, `go test ./...`, `go vet ./...`, and
-`git diff --check` pass. Deployment confirmation remains pending this repair.
+`git diff --check` pass. Runtime revision `849d80b` was rebuilt and rehosted
+without a migration or data repair. The aggregate mapping, service readiness,
+public routing, Swagger/OpenAPI, Caddy, binary identity, and post-rehost checks
+passed. The prior binary is retained for rollback. `pwsh` is unavailable on
+this VPS, so the PowerShell documentation verifier was not rerun here.
 
 ## 2026-08-25 - Harden CPO charging-session charger relation fallback
 
