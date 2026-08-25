@@ -2,6 +2,21 @@
 
 ## Current State
 
+### 2026-08-25 — CPO full-snapshot live-session SSE source correction
+
+- Source now makes `GET /api/v1/cpo/operations/live-sessions` the primary CPO
+  ADMIN/app-ID-scoped SSE. It immediately sends the complete current
+  `LiveChargingSessionListResponse` as `snapshot` and sends a complete
+  replacement `live_sessions` payload after committed session/meter/SoC changes.
+  The UI therefore does not consume raw operational events or assemble state
+  from invalidations.
+- `GET /api/v1/cpo/operations/live-sessions/snapshot` retains the JSON
+  recovery/keyset-pagination contract. The filtered retained event route is
+  advanced reconciliation tooling, and the old realtime path is a deprecated
+  compatibility alias. The source contract has 210 operations. This correction
+  is source-verified but not deployed or runtime-verified yet; it requires no
+  migration or data mutation.
+
 ### 2026-08-25 — CPO customer total-usage projection repair in source
 
 - Source now maps the CPO customer list/detail energy aggregate alias

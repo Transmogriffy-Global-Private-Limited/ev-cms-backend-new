@@ -492,9 +492,10 @@ func RegisterCPORoutes(
 	group.GET("/operations/chargers/:charger_id", handler.getOperationalCharger)
 	group.GET("/operations/events", handler.listOperationalEvents)
 	group.GET("/operations/realtime/stream", handler.operationalStream)
-	group.GET("/operations/live-sessions", handler.listLiveChargingSessions)
+	group.GET("/operations/live-sessions", handler.liveChargingSessionsStream)
+	group.GET("/operations/live-sessions/snapshot", handler.listLiveChargingSessions)
 	group.GET("/operations/live-sessions/events", handler.listLiveChargingSessionEvents)
-	group.GET("/operations/live-sessions/realtime/stream", handler.liveChargingSessionStream)
+	group.GET("/operations/live-sessions/realtime/stream", handler.liveChargingSessionsStream)
 	group.GET("/users/:user_id", handler.getUser)
 	group.GET("/permissions/catalog", handler.permissionCatalog)
 	group.GET("/staff", handler.listStaff)
@@ -1033,20 +1034,97 @@ func (handler *Handler) operationalStream(ctx *gin.Context) {
 	})
 }
 
-func (handler *Handler) liveChargingSessionStream(ctx *gin.Context) {
+func (handler *Handler) liveChargingSessionsStream(ctx *gin.Context) {
 	principal, _ := auth.CurrentPrincipal(ctx)
 	token, ok := auth.CurrentAccessToken(ctx)
 	if !ok || principal.CPOID == nil {
 		writeError(ctx, &auth.APIError{Status: http.StatusUnauthorized, Code: "authentication_required", Message: "Authentication is required."})
 		return
 	}
+	query, ok := parseLiveChargingSessionStreamQuery(ctx)
+	if !ok {
+		return
+	}
 	appID := ctx.GetHeader(auth.CPOAppIDHeader)
-	handler.streamOperationalEvents(ctx, func(after int64, limit int) (operationalrealtime.Page, error) {
-		return handler.service.ListLiveChargingSessionEvents(ctx.Request.Context(), principal, after, limit)
-	}, func() bool {
-		refreshed, err := handler.authService.ValidateAccess(ctx.Request.Context(), token)
-		return err == nil && cpoStreamStillAuthorized(refreshed, *principal.CPOID, appID)
-	})
+
+	// A live-session SSE connection is a full, replaceable CMS projection, not
+	// an invalidation feed that asks the client to reconstruct operational state.
+	// The durable event log is used only to notice committed projection changes.
+	snapshot, err := handler.service.ListLiveChargingSessions(ctx.Request.Context(), principal, query)
+	if err != nil {
+		writeError(ctx, err)
+		return
+	}
+	cursor, err := handler.service.LatestLiveChargingSessionEventID(ctx.Request.Context(), principal)
+	if err != nil {
+		writeError(ctx, err)
+		return
+	}
+
+	ctx.Header("Content-Type", "text/event-stream")
+	ctx.Header("Cache-Control", "no-cache, no-store")
+	ctx.Header("Connection", "keep-alive")
+	ctx.Header("X-Accel-Buffering", "no")
+	_ = http.NewResponseController(ctx.Writer).SetWriteDeadline(time.Time{})
+	if err := writeLiveSessionSnapshot(ctx.Writer, "snapshot", cursor, snapshot); err != nil {
+		return
+	}
+	ctx.Writer.Flush()
+
+	poll, heartbeat, batchSize := handler.service.OperationalStreamTiming()
+	pollTicker, heartbeatTicker := time.NewTicker(poll), time.NewTicker(heartbeat)
+	defer pollTicker.Stop()
+	defer heartbeatTicker.Stop()
+	for {
+		select {
+		case <-ctx.Request.Context().Done():
+			return
+		case <-pollTicker.C:
+			page, err := handler.service.ListLiveChargingSessionEvents(ctx.Request.Context(), principal, cursor, batchSize)
+			if err != nil || len(page.Events) == 0 {
+				continue
+			}
+			cursor = page.NextCursor
+			snapshot, err := handler.service.ListLiveChargingSessions(ctx.Request.Context(), principal, query)
+			if err != nil {
+				continue
+			}
+			if err := writeLiveSessionSnapshot(ctx.Writer, "live_sessions", cursor, snapshot); err != nil {
+				return
+			}
+			ctx.Writer.Flush()
+		case <-heartbeatTicker.C:
+			refreshed, err := handler.authService.ValidateAccess(ctx.Request.Context(), token)
+			if err != nil || !cpoStreamStillAuthorized(refreshed, *principal.CPOID, appID) {
+				return
+			}
+			if _, err := fmt.Fprintf(ctx.Writer, ": heartbeat %s\n\n", time.Now().UTC().Format(time.RFC3339)); err != nil {
+				return
+			}
+			ctx.Writer.Flush()
+		}
+	}
+}
+
+func parseLiveChargingSessionStreamQuery(ctx *gin.Context) (LiveChargingSessionListQuery, bool) {
+	query, ok := parseLiveChargingSessionListQuery(ctx)
+	if !ok {
+		return LiveChargingSessionListQuery{}, false
+	}
+	if query.AfterStartedAt != nil || query.AfterID != nil {
+		writeError(ctx, invalid("cursor", "The live-session stream always sends the current snapshot and does not accept a page cursor."))
+		return LiveChargingSessionListQuery{}, false
+	}
+	return query, true
+}
+
+func writeLiveSessionSnapshot(writer io.Writer, eventType string, eventID int64, snapshot LiveChargingSessionListResponse) error {
+	payload, err := json.Marshal(snapshot)
+	if err != nil {
+		return err
+	}
+	_, err = fmt.Fprintf(writer, "id: %d\nevent: %s\ndata: %s\n\n", eventID, eventType, payload)
+	return err
 }
 
 func cpoStreamStillAuthorized(principal auth.Principal, cpoID uuid.UUID, appID string) bool {

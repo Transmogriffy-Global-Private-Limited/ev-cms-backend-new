@@ -1050,12 +1050,13 @@ Active feature:
 
 Current implementation slice:
 
-- CPO ADMIN live-session operations: bounded CMS-only current-session snapshot,
-  filtered `CHARGING_SESSION` replay/SSE, explicit REST recovery, and
-  heartbeat-time bearer/role/app-ID revalidation. Subscription admission also
-  now prioritizes the one current subscription over older terminal history so a
-  successful renewal clears the User App commercial block. Focused and broad
-  source verification are required; no deployment is implied.
+- CPO ADMIN live-session operations: `GET /operations/live-sessions` is the
+  full-snapshot SSE (initial `snapshot`, then replacement `live_sessions`
+  frames) so the FE never reconstructs session state from invalidations. The
+  explicit `/live-sessions/snapshot` JSON endpoint keeps recovery/keyset
+  pagination; filtered event replay is advanced reconciliation only. The source
+  contract grows to 210 operations and requires focused/broad source
+  verification; no deployment is implied.
 - Completed source hardening: one-current authentication challenges are
   serialized by their identity owner and backed by partial unique indexes;
   administrative current-password changes lock before authorization; readiness

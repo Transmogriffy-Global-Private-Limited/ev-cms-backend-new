@@ -166,6 +166,14 @@ scope and close invalid streams. Event types are
 `charging.meter_changed`. They are invalidation hints, never command or meter
 truth; older sequences create neither state regression nor a new event.
 
+The CPO ongoing-session table is intentionally easier: its primary
+`GET /api/v1/cpo/operations/live-sessions` connection emits a complete CMS
+snapshot immediately and complete replacement snapshots after committed
+session/meter/SoC changes. The browser never receives the raw event records for
+normal table updates. Reconnect that route for a fresh snapshot; use
+`/live-sessions/snapshot` for explicit JSON/keyset recovery. The retained
+`/live-sessions/events` route is only for advanced reconciliation.
+
 | Failure/condition | Correct action |
 | --- | --- |
 | no HAL URL/tokens | charging returns `503 hal_unavailable`; projection reads still work. |
@@ -650,6 +658,9 @@ wallet, or frontend event conclusions.
 | `GET /api/v1/cpo/operations/chargers/{charger_id}` | static `ChargerResponse` plus `ChargerDetail` |
 | `GET /api/v1/cpo/operations/events` | ordered retained cursor recovery |
 | `GET /api/v1/cpo/operations/realtime/stream` | scoped SSE |
+| `GET /api/v1/cpo/operations/live-sessions` | primary full-snapshot live-session SSE (`snapshot`, then `live_sessions`) |
+| `GET /api/v1/cpo/operations/live-sessions/snapshot` | JSON recovery/keyset pagination for the live-session projection |
+| `GET /api/v1/cpo/operations/live-sessions/events` | advanced retained `CHARGING_SESSION` reconciliation cursor; not needed by the normal live table |
 
 Current source has no CPO start/stop/reset/unlock endpoint. Customer start and
 owner-only stop are implemented. A future CPO command needs a separate approved

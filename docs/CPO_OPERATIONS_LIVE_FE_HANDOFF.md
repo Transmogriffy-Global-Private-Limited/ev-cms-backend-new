@@ -39,9 +39,10 @@ The following endpoints constitute the CPO Live Operations surface. They are all
 | `GET /api/v1/cpo/operations/chargers/{charger_id}`  | CPO ADMIN | `200 CpoChargerWithLiveState` | Detailed administrative and live state for one charger. |
 | `GET /api/v1/cpo/operations/events`                 | CPO ADMIN | `200 CpoOperationalEventPage` | Durable event replay for catch-up and recovery.      |
 | `GET /api/v1/cpo/operations/realtime/stream`        | CPO ADMIN | `200 text/event-stream`       | Low-latency event stream for UI invalidation.        |
-| `GET /api/v1/cpo/operations/live-sessions`          | CPO ADMIN | `200 LiveChargingSessionListResponse` | Materialized ongoing-session table with committed meter/SoC stats. |
-| `GET /api/v1/cpo/operations/live-sessions/events`   | CPO ADMIN | `200 CpoOperationalEventPage` | CHARGING_SESSION-only durable replay for that table. |
-| `GET /api/v1/cpo/operations/live-sessions/realtime/stream` | CPO ADMIN | `200 text/event-stream` | CHARGING_SESSION-only SSE invalidation stream. |
+| `GET /api/v1/cpo/operations/live-sessions`          | CPO ADMIN | `200 text/event-stream` | Primary full-snapshot live table: immediate `snapshot`, then `live_sessions` replacement frames. |
+| `GET /api/v1/cpo/operations/live-sessions/snapshot` | CPO ADMIN | `200 LiveChargingSessionListResponse` | JSON recovery/keyset pagination when a non-stream read is needed. |
+| `GET /api/v1/cpo/operations/live-sessions/events`   | CPO ADMIN | `200 CpoOperationalEventPage` | Advanced CHARGING_SESSION reconciliation cursor; not needed by the normal table. |
+| `GET /api/v1/cpo/operations/live-sessions/realtime/stream` | CPO ADMIN | `200 text/event-stream` | Deprecated compatibility alias for the primary full-snapshot stream. |
 
 ## TypeScript Contract
 
@@ -237,28 +238,31 @@ This endpoint provides a long-lived Server-Sent Events (SSE) stream for low-late
 
 The stream sends events that should be treated as invalidation hints. When an event for a specific charger or connector is received, the frontend should refetch its authoritative state using the `/operations/chargers/{resource_id}` endpoint.
 
-### Live-session table and its dedicated replay/SSE routes
+### Live-session table: one full-snapshot SSE
 
-`GET /api/v1/cpo/operations/live-sessions` returns only materialized
-`ACTIVE`, `STOP_PENDING`, and `RECONCILIATION_REQUIRED` sessions. It is the
-authoritative CMS snapshot for an operations table, not a substitute for CPO
-history or the customer-facing session view. It contains no customer identity,
-wallet, tariff, total amount, or settlement fields. `charger_id`,
-`charger_name`, optional `hub_name`, and `connector_number` are intended for
-human display. Meter and SoC observations are independently fresh, stale, or
-unknown; never display a stale value as current charger truth.
+`GET /api/v1/cpo/operations/live-sessions` is the one normal live-table
+connection. It returns only materialized `ACTIVE`, `STOP_PENDING`, and
+`RECONCILIATION_REQUIRED` sessions as full `LiveChargingSessionListResponse`
+frames. It first emits `event: snapshot`, then emits `event: live_sessions`
+after committed `charging.session_changed`, `charging.meter_changed`, or
+`charging.telemetry_changed` changes. On either frame, replace the table state
+with `JSON.parse(event.data).sessions`; do not merge meter patches, deduplicate
+event rows, or call another endpoint per update. A completed session simply
+disappears from the next replacement snapshot.
 
-Page it with `limit` (default `100`, maximum `200`) and the paired
-`after_started_at` + `after_id` cursor returned by the preceding page.
+The payload contains no customer identity, wallet, tariff, total amount, or
+settlement fields. `charger_id`, `charger_name`, optional `hub_name`, and
+`connector_number` are display fields. Meter and SoC observations are
+independently fresh, stale, or unknown; never display a stale value as current
+charger truth. `limit` defaults to `100` and has a maximum of `200`.
 
-Use `/operations/live-sessions/events` and
-`/operations/live-sessions/realtime/stream` only for this table. They retain
-and stream `CHARGING_SESSION` invalidations from `charging.session_changed`,
-`charging.meter_changed`, and `charging.telemetry_changed`; a completed-session
-event may mean the row should disappear after the next snapshot refresh. The
-server revalidates the bearer session, ADMIN role, and app ID on stream
-heartbeats. Use `fetch` streaming, deduplicate on `event.id`, and refetch the
-snapshot after each event.
+Reconnect the primary stream after any close: it always gives a new immediate
+snapshot, so no `Last-Event-ID` or durable browser cursor is required for this
+table. `GET /operations/live-sessions/snapshot` is available for manual refresh
+or paginated recovery using the paired `after_started_at` + `after_id` cursor.
+`/operations/live-sessions/events` is only advanced durable reconciliation;
+the old `/realtime/stream` route is a deprecated full-stream alias. The server
+revalidates the bearer session, ADMIN role, and app ID on stream heartbeats.
 
 ## Realtime, Replay, and Recovery Workflow
 
