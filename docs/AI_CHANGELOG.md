@@ -1,5 +1,29 @@
 # AI Changelog
 
+## 2026-08-25 - Make the CPO live-session primary route full-snapshot SSE
+
+- Changed `GET /api/v1/cpo/operations/live-sessions` from a JSON table read to
+  the CPO ADMIN/app-ID-scoped SSE that a frontend consumes directly. It emits
+  the complete CMS `LiveChargingSessionListResponse` immediately as `snapshot`
+  and after committed session, meter, or SoC changes as `live_sessions`.
+  The durable event log remains an internal change detector, not browser state.
+- Moved the JSON table read to
+  `GET /api/v1/cpo/operations/live-sessions/snapshot` for explicit recovery and
+  keyset pagination. The filtered event cursor remains advanced reconciliation;
+  the old realtime stream is a deprecated compatibility alias of the new full
+  snapshot stream. The contract now has 210 operations.
+- Updated the CPO API contract, realtime contract, HAL capability manual, and
+  CPO frontend handoffs so normal UI code replaces the live table per SSE frame
+  and reconnects for a fresh snapshot rather than replaying/merging events.
+
+Verification: focused CPO and operational-realtime tests, OpenAPI/runtime route
+parity, `go test ./...`, `go vet ./...`, and `git diff --check` pass. Runtime
+revision `d3ac043` was rebuilt and rehosted without a migration or database
+mutation. The full-snapshot SSE routes, service readiness, public routing,
+Swagger/OpenAPI (210 operations), Caddy, binary identity, and post-rehost
+startup checks passed. `pwsh` is unavailable on this VPS, so the PowerShell
+documentation verifier was not rerun here.
+
 ## 2026-08-25 - Fix CPO customer total-usage aggregate mapping
 
 - Corrected both CPO customer usage aggregate scan targets to map

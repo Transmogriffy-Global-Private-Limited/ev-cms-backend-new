@@ -38,12 +38,19 @@ offline, or unknown parent connection makes customer/CPO live availability
 - `GET /api/v1/cpo/operations/chargers/{charger_id}` has the same authority
   and returns the existing administrative charger projection plus the current
   CMS live charger/connector projection. It does not grant command authority.
-- `GET /api/v1/cpo/operations/live-sessions` has the same authority and lists
-  only materialized `ACTIVE`, `STOP_PENDING`, and `RECONCILIATION_REQUIRED`
-  sessions. It returns display-safe charger/hub/connector context and committed
-  meter/SoC observations with independent freshness, never customer, wallet,
-  tariff, amount, or settlement data. `limit` defaults to 100 (maximum 200);
-  `after_started_at` plus `after_id` are the exclusive paired cursor.
+- `GET /api/v1/cpo/operations/live-sessions` is the primary live-table SSE.
+  It immediately sends `event: snapshot`, then sends `event: live_sessions`
+  after relevant committed CMS projection changes. Every `data` value is the
+  complete current live-session response for the requested `limit` (default
+  100, maximum 200), so the FE replaces its table state rather than applying
+  meter/event patches. It contains only materialized `ACTIVE`, `STOP_PENDING`,
+  and `RECONCILIATION_REQUIRED` sessions with display-safe charger/hub/connector
+  context and committed meter/SoC freshness—never customer, wallet, tariff,
+  amount, or settlement data. Reconnect the stream for an immediate fresh
+  snapshot; the server revalidates bearer, ADMIN role, and app ID at heartbeat.
+- `GET /api/v1/cpo/operations/live-sessions/snapshot` is the explicit JSON
+  recovery/pagination route. It has the same authority and payload, and accepts
+  the paired `after_started_at` and `after_id` cursor. It never calls HAL.
 - `GET /api/v1/platform/cpos/{cpo_id}/operations/fleet` and
   `GET /api/v1/platform/cpos/{cpo_id}/operations/chargers/{charger_id}` require
   a `PLATFORM` bearer and are observation-only. They do not expose RemoteStop
@@ -56,12 +63,11 @@ offline, or unknown parent connection makes customer/CPO live availability
   may redeliver after reconnect, and revalidate the bearer session at each
   heartbeat. They contain only safe committed-change hints; callers must fetch
   the CPO fleet/charger or customer session projection after an event.
-- The CPO live-session table has a dedicated filtered companion:
-  `/api/v1/cpo/operations/live-sessions/events` and
-  `/api/v1/cpo/operations/live-sessions/realtime/stream` contain only
-  `CHARGING_SESSION` invalidations. They require the same CPO ADMIN bearer and
-  app ID, revalidate bearer, role, and app ID during SSE heartbeats, and retain
-  REST snapshot recovery after reconnect.
+- `GET /api/v1/cpo/operations/live-sessions/events` remains the filtered
+  durable `CHARGING_SESSION` cursor/reconciliation surface for advanced
+  consumers. It is not needed to drive the normal live table. The old
+  `/api/v1/cpo/operations/live-sessions/realtime/stream` is a deprecated alias
+  of the primary full-snapshot SSE route.
 
 The User App charging-session snapshot uses the same internal live capability,
 but remains owner-only and never returns HAL bearer material, raw HAL IDs,

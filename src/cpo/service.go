@@ -3988,6 +3988,16 @@ func (service *Service) ListLiveChargingSessionEvents(ctx context.Context, princ
 	return service.operationalEvents.ListCPOChargingSessionEvents(ctx, *principal.CPOID, after, limit)
 }
 
+func (service *Service) LatestLiveChargingSessionEventID(ctx context.Context, principal auth.Principal) (int64, error) {
+	if err := requireCPOAdminAccess(principal); err != nil {
+		return 0, err
+	}
+	if service.operationalEvents == nil {
+		return 0, fmt.Errorf("operational event capability is unavailable")
+	}
+	return service.operationalEvents.LatestCPOChargingSessionEventID(ctx, *principal.CPOID)
+}
+
 func (service *Service) ListPlatformOperationalEvents(ctx context.Context, principal auth.Principal, cpoID uuid.UUID, after int64, limit int) (operationalrealtime.Page, error) {
 	if err := requirePlatform(principal); err != nil {
 		return operationalrealtime.Page{}, err

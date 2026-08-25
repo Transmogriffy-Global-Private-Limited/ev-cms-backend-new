@@ -1,6 +1,7 @@
 package cpo
 
 import (
+	"bytes"
 	"encoding/json"
 	"strings"
 	"sync"
@@ -103,6 +104,34 @@ func TestLiveChargingSessionProjectionContainsOnlyOperationalContext(t *testing.
 	for _, forbidden := range []string{"customer", "wallet", "tariff", "total_amount", "total_kwh"} {
 		if strings.Contains(string(encoded), forbidden) {
 			t.Fatalf("live session projection leaked %q: %s", forbidden, encoded)
+		}
+	}
+}
+
+func TestLiveChargingSessionSnapshotSSEContainsTheFullOperationalProjection(t *testing.T) {
+	t.Parallel()
+
+	snapshot := LiveChargingSessionListResponse{
+		Sessions: []LiveChargingSessionView{{
+			SessionID: uuid.New(), ChargerID: "cp0001", ChargerName: "Main forecourt DC charger",
+			Status: constants.SessionStatusActive,
+		}},
+		AsOf: time.Date(2026, time.August, 25, 12, 0, 0, 0, time.UTC),
+	}
+	var output bytes.Buffer
+	if err := writeLiveSessionSnapshot(&output, "live_sessions", 17, snapshot); err != nil {
+		t.Fatalf("write live-session snapshot: %v", err)
+	}
+
+	frame := output.String()
+	for _, expected := range []string{"id: 17\n", "event: live_sessions\n", `"sessions":[`, `"charger_id":"cp0001"`, `"as_of":"2026-08-25T12:00:00Z"`} {
+		if !strings.Contains(frame, expected) {
+			t.Fatalf("SSE frame %q missing %q", frame, expected)
+		}
+	}
+	for _, forbidden := range []string{"customer", "wallet", "tariff", "total_amount", "total_kwh"} {
+		if strings.Contains(frame, forbidden) {
+			t.Fatalf("SSE frame leaked %q: %s", forbidden, frame)
 		}
 	}
 }

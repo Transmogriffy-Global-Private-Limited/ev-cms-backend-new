@@ -46,7 +46,7 @@ the active deployment independently before enabling an environment.
 - API prefix: `/api/v1`
 - Interactive contract: `/docs/`
 - Raw OpenAPI: `/openapi.yaml`
-- Current source-tree backend contract: 209 HTTP operations across every persona
+- Current source-tree backend contract: 210 HTTP operations across every persona
 - Operations used by the SuperAdmin application: 77 API operations
   - 12 shared administrative-authentication operations;
   - 65 `PLATFORM` operations, manually classified in
@@ -274,7 +274,7 @@ the bearer session. CPO notification list/read requires the verified
 `X-CPO-App-ID` header and derives the tenant from the CPO session. Overview and
 status are bounded aggregates, not tenant business-data exports.
 
-These SuperAdmin routes are present in the current 209-operation source OpenAPI.
+These SuperAdmin routes are present in the current 210-operation source OpenAPI.
 The complete manual API-by-API authority and risk classification is
 `contracts/api/superadmin-permission-matrix.md`. The CPO ADMIN-only charger
 hub-assignment operation is not callable by SuperAdmin. The CPO user

@@ -4023,9 +4023,26 @@ paths:
   /api/v1/cpo/operations/live-sessions:
     get:
       tags: [CPO Operations - Live]
+      operationId: streamCPOLiveChargingSessions
+      summary: Stream full materialized ongoing-session snapshots using SSE
+      description: CPO ADMIN-only SSE. It immediately emits a `snapshot` frame and emits a replacement-safe `live_sessions` frame after committed CHARGING_SESSION changes. Each frame contains the complete current CMS live-session projection for the requested limit, never raw event rows or HAL calls. Reconnect this route to receive a new current snapshot; use the explicit snapshot route for non-stream recovery.
+      security: [{BearerAuth: [], CPOAppID: []}]
+      parameters:
+        - $ref: "#/components/parameters/CPOAppIDHeader"
+        - $ref: "#/components/parameters/LiveSessionLimit"
+      responses:
+        "200": {description: "text/event-stream frames named `snapshot` and `live_sessions`; each data value is LiveChargingSessionListResponse.", content: {text/event-stream: {schema: {type: string}}}}
+        "400": {$ref: "#/components/responses/InvalidRequest"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/CPOBusinessForbidden"}
+        "500": {$ref: "#/components/responses/InternalError"}
+
+  /api/v1/cpo/operations/live-sessions/snapshot:
+    get:
+      tags: [CPO Operations - Live]
       operationId: listCPOLiveChargingSessions
       summary: List materialized ongoing sessions with current operational telemetry
-      description: CPO ADMIN-only CMS projection. Returns only ACTIVE, STOP_PENDING, and RECONCILIATION_REQUIRED sessions in start-time cursor order. It exposes human-readable charger and hub context plus committed meter/SoC values and freshness; it never calls HAL and does not expose customer, wallet, tariff, or settlement data.
+      description: CPO ADMIN-only CMS recovery snapshot. Returns only ACTIVE, STOP_PENDING, and RECONCILIATION_REQUIRED sessions in start-time cursor order. It exposes human-readable charger and hub context plus committed meter/SoC values and freshness; it never calls HAL and does not expose customer, wallet, tariff, or settlement data.
       security: [{BearerAuth: [], CPOAppID: []}]
       parameters:
         - $ref: "#/components/parameters/CPOAppIDHeader"
@@ -4044,7 +4061,7 @@ paths:
       tags: [CPO Operations - Live]
       operationId: listCPOLiveChargingSessionEvents
       summary: Recover retained live-session invalidation events
-      description: CPO ADMIN-only durable replay filtered to CHARGING_SESSION events. Refetch the live-session REST snapshot after each event; event payload is not the authoritative session state.
+      description: CPO ADMIN-only durable replay filtered to CHARGING_SESSION events. This is an advanced cursor/reconciliation surface; the primary live-session UI consumes the full-snapshot SSE route. Event payload is not authoritative session state.
       security: [{BearerAuth: [], CPOAppID: []}]
       parameters:
         - $ref: "#/components/parameters/CPOAppIDHeader"
@@ -4060,16 +4077,16 @@ paths:
   /api/v1/cpo/operations/live-sessions/realtime/stream:
     get:
       tags: [CPO Operations - Live]
-      operationId: streamCPOLiveChargingSessionEvents
-      summary: Stream live-session invalidation events using SSE
-      description: CPO ADMIN-only SSE filtered to CHARGING_SESSION events. The server revalidates the bearer session, ADMIN role, and current app ID on heartbeats. Clients deduplicate by event ID and replay the filtered REST cursor after reconnect.
+      operationId: streamCPOLiveChargingSessionsLegacy
+      summary: Legacy alias for the full live-session snapshot SSE stream
+      description: Deprecated compatibility alias for `/api/v1/cpo/operations/live-sessions`. It immediately emits a complete `snapshot` and later `live_sessions` replacement snapshots. New clients must use the primary route.
+      deprecated: true
       security: [{BearerAuth: [], CPOAppID: []}]
       parameters:
         - $ref: "#/components/parameters/CPOAppIDHeader"
-        - $ref: "#/components/parameters/AfterID"
-        - $ref: "#/components/parameters/Limit"
+        - $ref: "#/components/parameters/LiveSessionLimit"
       responses:
-        "200": {description: text/event-stream of live-session OperationalEvent records.}
+        "200": {description: "text/event-stream frames named `snapshot` and `live_sessions`; each data value is LiveChargingSessionListResponse.", content: {text/event-stream: {schema: {type: string}}}}
         "400": {$ref: "#/components/responses/InvalidRequest"}
         "401": {$ref: "#/components/responses/Unauthorized"}
         "403": {$ref: "#/components/responses/CPOBusinessForbidden"}

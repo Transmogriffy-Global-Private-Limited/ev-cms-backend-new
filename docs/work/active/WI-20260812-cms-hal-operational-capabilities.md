@@ -41,7 +41,10 @@ Establish reusable CMS capabilities over HAL-derived operational truth and expos
 
 ## Contract impact
 
-- Adds CPO/App/Platform operational read and scoped SSE contracts. REST snapshots remain authoritative; business APIs use CMS capabilities rather than HAL transport.
+- Adds CPO/App/Platform operational read and scoped SSE contracts. The CPO
+  live-session primary route is a complete CMS-snapshot SSE; JSON snapshot
+  recovery remains authoritative. Business APIs use CMS capabilities rather
+  than HAL transport.
 
 ## Data and migration impact
 
@@ -105,13 +108,14 @@ Establish reusable CMS capabilities over HAL-derived operational truth and expos
   maps to the migration-owned `charging_sessions.total_kwh` column. GORM's
   inferred `total_k_wh` caused the observed PostgreSQL `42703`; no migration,
   live database mutation, or deployment is part of this correction.
-- 2026-08-25 active slice: add a CPO ADMIN-only live-session REST snapshot and
-  filtered durable replay/SSE path. It must return only materialized ongoing
-  session live stats from committed CMS projections, preserve meter/SoC
-  freshness, filter the durable event log to `CHARGING_SESSION` invalidations,
-  revalidate the session during SSE heartbeats, and retain REST recovery after
-  reconnect. No live route may synchronously call HAL or expose customer,
-  wallet, tariff, or provider-secret data.
+- 2026-08-25 active slice: CPO ADMIN live-session UI consumes the primary
+  `GET /operations/live-sessions` full-snapshot SSE, not event invalidations.
+  It must immediately send only materialized ongoing-session live stats from
+  committed CMS projections, then replacement snapshots after filtered
+  `CHARGING_SESSION` changes; preserve meter/SoC freshness and heartbeat-time
+  session/role/app-ID revalidation. `/live-sessions/snapshot` keeps explicit
+  JSON recovery/keyset pagination. No live route may synchronously call HAL or
+  expose customer, wallet, tariff, or provider-secret data.
 - 2026-08-25 admission repair: current commercial admission must prefer the
   PostgreSQL-enforced current subscription over terminal history, so an old
   expired record cannot strand a User App after a later active renewal. Keep
@@ -128,6 +132,15 @@ Establish reusable CMS capabilities over HAL-derived operational truth and expos
   completed-session totals return without a data rewrite.
 
 ## Verification
+
+- 2026-08-25 full-snapshot CPO live-session SSE correction: focused CPO and
+  operational-realtime checks, route/OpenAPI parity, `go test ./...`, `go vet
+  ./...`, and `git diff --check` pass. Runtime revision `d3ac043` was rebuilt
+  and rehosted without a migration or database mutation. The full-snapshot
+  stream/snapshot routes, service readiness, public routing, Swagger, Caddy,
+  210-operation contract, and post-rehost startup checks passed. `pwsh` and
+  `TEST_DATABASE_URL` remain unavailable; authenticated UI/hardware acceptance
+  is not claimed.
 
 - 2026-08-25 customer-usage aggregate repair: focused CPO aggregate and
   route/OpenAPI checks, `go test ./...`, `go vet ./...`, and `git diff --check`

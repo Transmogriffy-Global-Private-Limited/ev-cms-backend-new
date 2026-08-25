@@ -20,7 +20,7 @@ emitted as misleading invalidations.
 | Consumer | REST recovery | SSE stream | Scope |
 | --- | --- | --- | --- |
 | CPO ADMIN | `GET /api/v1/cpo/operations/events` | `GET /api/v1/cpo/operations/realtime/stream` | Authenticated tenant and matching `X-CPO-App-ID` |
-| CPO ADMIN live-session table | `GET /api/v1/cpo/operations/live-sessions/events` | `GET /api/v1/cpo/operations/live-sessions/realtime/stream` | Authenticated CPO ADMIN and matching app ID; `CHARGING_SESSION` events only; refresh `/operations/live-sessions` |
+| CPO ADMIN live-session table | `GET /api/v1/cpo/operations/live-sessions/snapshot` | `GET /api/v1/cpo/operations/live-sessions` | Authenticated CPO ADMIN and matching app ID; full initial/replacement `LiveChargingSessionListResponse` snapshots only |
 | Platform | `GET /api/v1/platform/cpos/{cpo_id}/operations/events` | `GET /api/v1/platform/cpos/{cpo_id}/operations/realtime/stream` | `PLATFORM`, selected existing CPO, observation only |
 | User App | `GET /api/v1/app/operations/events` | `GET /api/v1/app/operations/realtime/stream` | Authenticated CPO-local customer and matching app ID |
 
@@ -36,13 +36,19 @@ configured platform realtime interval, and revalidate the durable session at
 each heartbeat. A revoked, expired, scope-changed, or CPO-mismatched session
 causes stream closure.
 
-The CPO live-session pair deliberately has its own cursor. It filters the
-durable log to `resource_type=CHARGING_SESSION` and the committed
-`charging.session_changed`, `charging.meter_changed`, and
-`charging.telemetry_changed` event types. It is an invalidation feed only:
-the paged `GET /api/v1/cpo/operations/live-sessions` CMS snapshot remains the
-state authority, including removal after completion. Its stream additionally
-checks the current CPO ADMIN role and `X-CPO-App-ID` at each heartbeat.
+The primary CPO live-session stream deliberately does not expose the durable
+event log to the frontend. It first reads the current CMS snapshot, establishes
+the latest committed `CHARGING_SESSION` event watermark, and sends `event:
+snapshot`. Later committed `charging.session_changed`, `charging.meter_changed`,
+or `charging.telemetry_changed` records cause one `event: live_sessions`
+replacement snapshot. The data in both frames is the full
+`LiveChargingSessionListResponse`, including removal after completion. A
+reconnect always gets a current snapshot; JSON recovery and keyset pagination
+use `/api/v1/cpo/operations/live-sessions/snapshot`. The retained
+`/live-sessions/events` cursor route is advanced reconciliation tooling, not
+required for the normal UI. The deprecated `/live-sessions/realtime/stream`
+route is a compatibility alias. Both SSE aliases recheck CPO ADMIN and
+`X-CPO-App-ID` at each heartbeat.
 
 ## Event Shape
 

@@ -117,11 +117,11 @@ Active work:
 
 Current implementation state:
 
-- The CPO live-session snapshot, filtered durable replay, and SSE invalidation
-  routes are rehosted in runtime revision `aa44e4b` with migrations 49–53
-  applied. The service is enabled behind Caddy, public readiness and docs
-  routes pass, and the live OpenAPI contract contains 209 operations. No new
-  migration was required.
+- The CPO live-session primary route is now full-snapshot SSE, with the JSON
+  recovery snapshot at `/snapshot`, in runtime revision `d3ac043` with
+  migrations 49–53 applied. The service is enabled behind Caddy, public
+  readiness and docs routes pass, and the live OpenAPI contract contains 210
+  operations. No new migration was required.
 
 - Optional charger-provided SoC telemetry is deployed: HAL `transaction.soc`
   facts now project nullable first/latest SoC, observation time, and an
@@ -133,7 +133,7 @@ Current implementation state:
   projections, active-session live kWh overlays, and the SuperAdmin CPO
   customer-intelligence route. Session reads also hydrate an incomplete charger
   relation through the connector-owned relation. These changes require no
-  additional migration; runtime revision `aa44e4b` is active with migrations
+  additional migration; runtime revision `d3ac043` is active with migrations
   45-53 applied. Migration 53 preserves three existing legacy CPO legal-
   identity rows with `NOT VALID` database checks while enforcing new and
   updated rows; the authoritative correction and later constraint validation
@@ -171,9 +171,9 @@ Current implementation state:
   is still required before the work item can close.
 - CMS source and the development deployment contain the first client, durable records, shared fact receiver,
   customer polling/start/stop routes, reusable operational projections,
-  scoped operational-event replay/SSE, and the CPO live-session snapshot,
-  filtered replay, and SSE routes. Runtime revision `aa44e4b` is active with a
-  209-operation OpenAPI surface.
+  scoped operational-event replay/SSE, and the CPO live-session full-snapshot
+  SSE/recovery routes. Runtime revision `d3ac043` is active with a 210-operation
+  OpenAPI surface.
   The HAL runtime GORM models explicitly map to the singular migration tables
   `hal_charger_runtime` and `hal_connector_runtime`.
   The HAL v1 provider is
@@ -1050,12 +1050,13 @@ Active feature:
 
 Current implementation slice:
 
-- CPO ADMIN live-session operations: bounded CMS-only current-session snapshot,
-  filtered `CHARGING_SESSION` replay/SSE, explicit REST recovery, and
-  heartbeat-time bearer/role/app-ID revalidation. Subscription admission also
-  now prioritizes the one current subscription over older terminal history so a
-  successful renewal clears the User App commercial block. Focused and broad
-  source verification are required; no deployment is implied.
+- CPO ADMIN live-session operations: `GET /operations/live-sessions` is the
+  full-snapshot SSE (initial `snapshot`, then replacement `live_sessions`
+  frames) so the FE never reconstructs session state from invalidations. The
+  explicit `/live-sessions/snapshot` JSON endpoint keeps recovery/keyset
+  pagination; filtered event replay is advanced reconciliation only. The source
+  contract grows to 210 operations and requires focused/broad source
+  verification; no deployment is implied.
 - Completed source hardening: one-current authentication challenges are
   serialized by their identity owner and backed by partial unique indexes;
   administrative current-password changes lock before authorization; readiness

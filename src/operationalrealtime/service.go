@@ -107,6 +107,25 @@ func (service *Service) ListCPOChargingSessionEvents(ctx context.Context, cpoID 
 	return service.list(ctx, cpoID, nil, after, limit, chargingSessionResourceType, chargingSessionEventTypes)
 }
 
+// LatestCPOChargingSessionEventID establishes the committed-event watermark
+// after a caller has read a live-session snapshot. Later events signal that a
+// replacement snapshot must be sent; the event data itself is not state.
+func (service *Service) LatestCPOChargingSessionEventID(ctx context.Context, cpoID uuid.UUID) (int64, error) {
+	if cpoID == uuid.Nil {
+		return 0, fmt.Errorf("CPO ID is required")
+	}
+	var eventID int64
+	err := service.database.WithContext(ctx).
+		Model(&models.OperationalEvent{}).
+		Where("cpo_id = ? AND expires_at > ? AND resource_type = ? AND event_type IN ?", cpoID, service.now(), chargingSessionResourceType, chargingSessionEventTypes).
+		Select("COALESCE(MAX(id), 0)").
+		Scan(&eventID).Error
+	if err != nil {
+		return 0, fmt.Errorf("load latest live charging-session event: %w", err)
+	}
+	return eventID, nil
+}
+
 func (service *Service) ListCustomer(ctx context.Context, cpoID, customerID uuid.UUID, after int64, limit int) (Page, error) {
 	return service.list(ctx, cpoID, &customerID, after, limit, "", nil)
 }
