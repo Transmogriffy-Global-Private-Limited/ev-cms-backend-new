@@ -29,14 +29,15 @@ that setting; it must not be used until the OCPP host is explicitly configured
 with TLS/WebSocket support.
 
 The active deployment was updated on August 25, 2026 to runtime source revision
-`0fd9774c579fc3f4e7d5f2082c63220ee76d9712` (`0fd9774`). It has migrations one
+`849d80bc88f52d4fe4b5ef593fc0d47546708180` (`849d80b`). It has migrations one
 through fifty-three and the current 209-operation API. The binary SHA-256 is
-`214d0c60bab30610ac4174ea8f46644b4b5cd26f0c74dc0fe86c9208b6191aed`.
+`0c8ca55b819073e905fe09a16345972ec819a2836531c9ab10366d6e433aaf2b`.
 The pre-migration binary and database dump for migrations 49 through 53 are
 retained under `/root/evcmsnew-backups/` and
 `builds/evcmsnew.pre-162b3be-20260825-135452` and the newer
 `builds/evcmsnew.pre-aa44e4b-20260825-150135` and the newer
-`builds/evcmsnew.pre-0fd9774-20260825-151917`. Migration 53 installs GSTIN,
+`builds/evcmsnew.pre-0fd9774-20260825-151917` and the newer
+`builds/evcmsnew.pre-849d80b-20260825-153252`. Migration 53 installs GSTIN,
 GSTIN-state, and PIN checks as `NOT VALID`, preserving three existing legacy
 CPO rows while enforcing the rules for new and updated rows. Migrations 45
 through 48 remain applied with their earlier backups retained. Migration 48
