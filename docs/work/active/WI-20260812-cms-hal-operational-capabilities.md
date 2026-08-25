@@ -126,9 +126,11 @@ Establish reusable CMS capabilities over HAL-derived operational truth and expos
 ## Verification
 
 - 2026-08-25 charger-relation fallback repair: focused CPO regression and
-  route/OpenAPI checks, `scripts/verify-docs.ps1`, `go test ./...`, `go vet
-  ./...`, and `git diff --check` pass. The reported authenticated production
-  response has not yet been rechecked after publication.
+  route/OpenAPI checks, `go test ./...`, `go vet ./...`, and `git diff --check`
+  pass. Runtime revision `0fd9774` was rebuilt and rehosted without a
+  migration or database mutation; service readiness, public routing, Swagger,
+  Caddy, binary identity, and startup checks passed. `pwsh` and
+  `TEST_DATABASE_URL` remain unavailable.
 
 - 2026-08-25 live-session/admission slice: focused customerauth, CPO, liveops,
   operational-event, and route/OpenAPI checks pass; `go test ./...`, `go vet

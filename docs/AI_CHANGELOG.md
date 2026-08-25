@@ -11,8 +11,12 @@
 
 Verification: focused CPO regression and route/OpenAPI checks,
 `scripts/verify-docs.ps1`, `go test ./...`, `go vet ./...`, and
-`git diff --check` pass. Deployment/runtime confirmation remains pending this
-repair.
+`git diff --check` pass. Runtime revision `0fd9774` was rebuilt and rehosted
+without a migration or database mutation. Its tenant-scoped charger fallback,
+loopback/public health and readiness, Swagger, raw OpenAPI, Caddy, binary hash,
+and post-rehost startup checks passed. The prior binary is retained for
+rollback. `pwsh` is unavailable on this VPS, so the PowerShell documentation
+verifier was not rerun here.
 
 ## 2026-08-25 - CPO live-session operations and renewed subscription admission
 

@@ -2,7 +2,7 @@
 
 ## Current State
 
-### 2026-08-25 — CPO charging-session charger projection repair in source
+### 2026-08-25 — CPO charging-session charger projection repair rehost verified
 
 - Source now protects CPO charging-session history and live-session reads from
   incomplete nested GORM charger preloads. A missing direct session relation is
@@ -10,7 +10,11 @@
   preserving human-readable charger/hub projection without a database write.
   If neither persisted relation resolves, the response remains unresolved rather
   than fabricating a charger.
-- This repair has not been deployed or verified against the reported response.
+- Runtime revision `0fd9774` is active behind Caddy with binary SHA-256
+  `214d0c60bab30610ac4174ea8f46644b4b5cd26f0c74dc0fe86c9208b6191aed`.
+  No migration or database mutation was required. The tenant-scoped fallback,
+  service readiness, public routing, Swagger/OpenAPI, Caddy, and post-rehost
+  startup checks passed; the prior binary is retained for rollback.
 
 ### 2026-08-25 — CPO live-session operations rehost verified
 
