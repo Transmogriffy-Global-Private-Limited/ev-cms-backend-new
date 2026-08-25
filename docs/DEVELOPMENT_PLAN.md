@@ -121,6 +121,11 @@ Current implementation state:
   operational invalidation expose observed SoC without estimating it. Migration
   48 is applied; disposable CMS/HAL/cpconsole acceptance remains pending.
 
+- The current deployment also exposes enriched CPO charging-session list/detail
+  projections, active-session live kWh overlays, and the SuperAdmin CPO
+  customer-intelligence route. These changes require no additional migration;
+  runtime revision `0a465be` is active with migrations 45-48 applied.
+
 - Charging lifecycle repair is deployed: migration 45 gives connector occupancy to an
   unmaterialized start intent before materialization and to a single active,
   stop-pending, or reconciliation-required session afterwards. Completion
