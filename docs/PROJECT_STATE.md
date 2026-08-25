@@ -2,6 +2,53 @@
 
 ## Current State
 
+### 2026-08-25 — CPO customer total-usage projection repair rehost verified
+
+- Source now maps the CPO customer list/detail energy aggregate alias
+  `total_usage_kwh` explicitly. Completed/reconciliation session energy already
+  persisted in `charging_sessions.total_kwh` will therefore populate
+  `total_usage_kwh` consistently with `session_count`; no schema or data change
+  is required.
+- Runtime revision `849d80b` is active behind Caddy with binary SHA-256
+  `0c8ca55b819073e905fe09a16345972ec819a2836531c9ab10366d6e433aaf2b`.
+  No migration or data repair was required. Service readiness, public routing,
+  Swagger/OpenAPI, Caddy, binary identity, and post-rehost checks passed; the
+  prior binary is retained for rollback.
+
+### 2026-08-25 — CPO charging-session charger projection repair rehost verified
+
+- Source now protects CPO charging-session history and live-session reads from
+  incomplete nested GORM charger preloads. A missing direct session relation is
+  resolved from the connector's CPO-owned charger in one bounded lookup,
+  preserving human-readable charger/hub projection without a database write.
+  If neither persisted relation resolves, the response remains unresolved rather
+  than fabricating a charger.
+- Runtime revision `0fd9774` is active behind Caddy with binary SHA-256
+  `214d0c60bab30610ac4174ea8f46644b4b5cd26f0c74dc0fe86c9208b6191aed`.
+  No migration or database mutation was required. The tenant-scoped fallback,
+  service readiness, public routing, Swagger/OpenAPI, Caddy, and post-rehost
+  startup checks passed; the prior binary is retained for rollback.
+
+### 2026-08-25 — CPO live-session operations rehost verified
+
+- Source now exposes a CPO ADMIN/app-ID-scoped ongoing-session snapshot at
+  `/api/v1/cpo/operations/live-sessions`, plus filtered durable replay and SSE
+  companions. The snapshot contains only materialized `ACTIVE`,
+  `STOP_PENDING`, and `RECONCILIATION_REQUIRED` sessions with human-readable
+  charger/hub context and committed meter/SoC freshness; it never calls HAL or
+  exposes customer, wallet, tariff, or settlement data. REST remains the
+  recovery authority after a retained `CHARGING_SESSION` invalidation.
+- Customer charging/recharge admission now gives the one PostgreSQL-enforced
+  current subscription precedence over terminal subscription history. A prior
+  expired row therefore cannot keep a newly renewed active CPO blocked; an
+  expired current subscription still blocks only new customer paid commands.
+- Runtime revision `aa44e4b` is active behind Caddy with binary SHA-256
+  `b8bbf2453a1f84ffef0d38855b0406a73be1ecca6ee590f6a4727811af8ebe32`.
+  The service is enabled and running, migrations remain through 53, the live
+  session route returns the expected unauthenticated 401, and loopback/public
+  live/readiness, Swagger, raw OpenAPI, and Caddy checks pass. The source
+  OpenAPI serves 209 operations. No database mutation was required.
+
 ### 2026-08-25 — CPO legal-identity migration and rehost verified
 
 - Migration 53 is applied in the development deployment together with

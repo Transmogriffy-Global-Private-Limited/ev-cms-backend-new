@@ -38,11 +38,12 @@ import (
 const dummyAppIDPrefix = "cpo_dummy_"
 
 const (
-	defaultListLimit = 50
-	maxListLimit     = 200
-	maxSearchLength  = 200
-	minReasonLength  = 3
-	maxReasonLength  = 500
+	defaultListLimit            = 50
+	maxListLimit                = 200
+	defaultLiveSessionListLimit = 100
+	maxSearchLength             = 200
+	minReasonLength             = 3
+	maxReasonLength             = 500
 )
 
 var (
@@ -240,6 +241,52 @@ func (service *Service) ListChargingSessions(
 	return response, nil
 }
 
+func (service *Service) ListLiveChargingSessions(ctx context.Context, principal auth.Principal, query LiveChargingSessionListQuery) (LiveChargingSessionListResponse, error) {
+	if err := requireCPOAdminAccess(principal); err != nil {
+		return LiveChargingSessionListResponse{}, err
+	}
+	if service.liveOperations == nil {
+		return LiveChargingSessionListResponse{}, errors.New("live operations capability is unavailable")
+	}
+	if query.Limit == 0 {
+		query.Limit = defaultLiveSessionListLimit
+	}
+	if query.Limit < 1 || query.Limit > maxListLimit {
+		return LiveChargingSessionListResponse{}, invalid("limit", "Limit must be between 1 and 200.")
+	}
+
+	sessions, err := service.repository.ListLiveChargingSessions(ctx, *principal.CPOID, query)
+	if err != nil {
+		return LiveChargingSessionListResponse{}, fmt.Errorf("list live charging sessions: %w", err)
+	}
+	hasMore := len(sessions) > query.Limit
+	if hasMore {
+		sessions = sessions[:query.Limit]
+	}
+	sessionIDs := make([]uuid.UUID, 0, len(sessions))
+	for _, session := range sessions {
+		sessionIDs = append(sessionIDs, session.ID)
+	}
+	liveBySessionID, err := service.liveOperations.GetSessions(ctx, *principal.CPOID, sessionIDs)
+	if err != nil {
+		return LiveChargingSessionListResponse{}, fmt.Errorf("load live charging-session telemetry: %w", err)
+	}
+	result := make([]LiveChargingSessionView, 0, len(sessions))
+	for _, session := range sessions {
+		live, ok := liveBySessionID[session.ID]
+		if !ok {
+			return LiveChargingSessionListResponse{}, fmt.Errorf("live charging-session projection disappeared during read")
+		}
+		result = append(result, toLiveChargingSessionView(session, live))
+	}
+	response := LiveChargingSessionListResponse{Sessions: result, HasMore: hasMore, AsOf: service.now()}
+	if hasMore && len(sessions) > 0 {
+		next := sessions[len(sessions)-1]
+		response.NextAfterStartedAt, response.NextAfterID = &next.StartTime, &next.ID
+	}
+	return response, nil
+}
+
 func (service *Service) ListChargerTransactions(
 	ctx context.Context,
 	principal auth.Principal,
@@ -389,6 +436,33 @@ func toChargingSessionView(session models.ChargingSession) ChargingSessionView {
 	}
 
 	return view
+}
+
+func toLiveChargingSessionView(session models.ChargingSession, live liveops.SessionState) LiveChargingSessionView {
+	charger := session.Charger
+	if charger.ID == uuid.Nil && session.Connector.Charger.ID != uuid.Nil {
+		charger = session.Connector.Charger
+	}
+	var hubName *string
+	if charger.Hub != nil && charger.Hub.Name != "" {
+		hubName = &charger.Hub.Name
+	}
+	return LiveChargingSessionView{
+		SessionID:       session.ID,
+		Status:          session.Status,
+		StartedAt:       session.StartTime,
+		ChargerID:       charger.ChargerID,
+		ChargerName:     charger.ChargerName,
+		HubName:         hubName,
+		ConnectorNumber: session.Connector.ConnectorNumber,
+		LatestMeterWh:   live.LatestMeterWh,
+		ConsumedWh:      live.ConsumedWh,
+		MeterObservedAt: live.MeterObservedAt,
+		MeterFreshness:  live.MeterFreshness,
+		SoCPercent:      live.LatestSoCPercent,
+		SoCObservedAt:   live.SoCObservedAt,
+		SoCFreshness:    live.SoCFreshness,
+	}
 }
 
 // func toChargingSessionView(session models.ChargingSession) ChargingSessionView {
@@ -3904,6 +3978,16 @@ func (service *Service) ListOperationalEvents(ctx context.Context, principal aut
 	return service.operationalEvents.ListCPO(ctx, *principal.CPOID, after, limit)
 }
 
+func (service *Service) ListLiveChargingSessionEvents(ctx context.Context, principal auth.Principal, after int64, limit int) (operationalrealtime.Page, error) {
+	if err := requireCPOAdminAccess(principal); err != nil {
+		return operationalrealtime.Page{}, err
+	}
+	if service.operationalEvents == nil {
+		return operationalrealtime.Page{}, fmt.Errorf("operational event capability is unavailable")
+	}
+	return service.operationalEvents.ListCPOChargingSessionEvents(ctx, *principal.CPOID, after, limit)
+}
+
 func (service *Service) ListPlatformOperationalEvents(ctx context.Context, principal auth.Principal, cpoID uuid.UUID, after int64, limit int) (operationalrealtime.Page, error) {
 	if err := requirePlatform(principal); err != nil {
 		return operationalrealtime.Page{}, err
@@ -5256,9 +5340,15 @@ func (service *Service) ListCustomers(
 }
 
 type CustomerAggregates struct {
-	TotalUsageKWh decimal.Decimal
-	SessionCount  int64
-	WalletBalance decimal.Decimal
+	TotalUsageKWh decimal.Decimal `gorm:"column:total_usage_kwh"`
+	SessionCount  int64           `gorm:"column:session_count"`
+	WalletBalance decimal.Decimal `gorm:"column:wallet_balance"`
+}
+
+type customerAggregateResult struct {
+	CustomerID    uuid.UUID       `gorm:"column:customer_id"`
+	TotalUsageKWh decimal.Decimal `gorm:"column:total_usage_kwh"`
+	SessionCount  int64           `gorm:"column:session_count"`
 }
 
 func (service *Service) GetCustomer(
@@ -5308,12 +5398,6 @@ func (service *Service) getCustomerAggregates(ctx context.Context, customerID uu
 }
 
 func (service *Service) getCustomerAggregatesByCPO(ctx context.Context, cpoID uuid.UUID) (map[uuid.UUID]CustomerAggregates, error) {
-	type CustomerAggregateResult struct {
-		CustomerID    uuid.UUID
-		TotalUsageKWh decimal.Decimal
-		SessionCount  int64
-	}
-
 	var customers []models.Customer
 	if err := service.database.WithContext(ctx).Model(&models.Customer{}).Where("cpo_id = ?", cpoID).Find(&customers).Error; err != nil {
 		return nil, err
@@ -5324,7 +5408,7 @@ func (service *Service) getCustomerAggregatesByCPO(ctx context.Context, cpoID uu
 		customerIDs[i] = c.ID
 	}
 
-	var sessionAggregates []CustomerAggregateResult
+	var sessionAggregates []customerAggregateResult
 	if len(customerIDs) > 0 {
 		err := service.database.WithContext(ctx).Model(&models.ChargingSession{}).
 			Select("customer_id, COALESCE(SUM(total_kwh), 0) as total_usage_kwh, COUNT(*) as session_count").

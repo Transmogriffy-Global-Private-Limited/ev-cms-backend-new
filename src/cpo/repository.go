@@ -17,6 +17,7 @@ type Repository interface {
 	ListWalletTransactions(ctx context.Context, cpoID uuid.UUID, query WalletTransactionListQuery) ([]WalletTransactionDetail, error)
 	GetChargingSession(ctx context.Context, cpoID, sessionID uuid.UUID) (*models.ChargingSession, error)
 	ListChargingSessions(ctx context.Context, cpoID uuid.UUID, query ChargingSessionListQuery) ([]models.ChargingSession, error)
+	ListLiveChargingSessions(ctx context.Context, cpoID uuid.UUID, query LiveChargingSessionListQuery) ([]models.ChargingSession, error)
 	ListChargerTransactions(ctx context.Context, cpoID uuid.UUID, query ChargerTransactionListQuery) ([]ChargerTransaction, error)
 	ListChargersByHub(ctx context.Context, cpoID, hubID uuid.UUID) ([]models.Charger, error)
 }
@@ -133,12 +134,11 @@ func (r *repository) GetChargingSession(ctx context.Context, cpoID, sessionID uu
 		return nil, err
 	}
 
-	// Fallback: if session.Charger is empty but connector has a charger, use it.
-	if session.Charger.ID == uuid.Nil && session.Connector.Charger.ID != uuid.Nil {
-		session.Charger = session.Connector.Charger
-		session.ChargerID = session.Connector.Charger.ID
+	sessions := []models.ChargingSession{session}
+	if err := r.hydrateMissingSessionChargers(ctx, cpoID, sessions); err != nil {
+		return nil, err
 	}
-	return &session, nil
+	return &sessions[0], nil
 }
 
 func (r *repository) ListChargingSessions(ctx context.Context, cpoID uuid.UUID, query ChargingSessionListQuery) ([]models.ChargingSession, error) {
@@ -176,14 +176,110 @@ func (r *repository) ListChargingSessions(ctx context.Context, cpoID uuid.UUID, 
 		return nil, err
 	}
 
-	// For each session, fallback to connector's charger if needed.
-	for i := range sessions {
-		if sessions[i].Charger.ID == uuid.Nil && sessions[i].Connector.Charger.ID != uuid.Nil {
-			sessions[i].Charger = sessions[i].Connector.Charger
-			sessions[i].ChargerID = sessions[i].Connector.Charger.ID
-		}
+	if err := r.hydrateMissingSessionChargers(ctx, cpoID, sessions); err != nil {
+		return nil, err
 	}
 	return sessions, nil
+}
+
+func (r *repository) ListLiveChargingSessions(ctx context.Context, cpoID uuid.UUID, query LiveChargingSessionListQuery) ([]models.ChargingSession, error) {
+	var sessions []models.ChargingSession
+	db := r.db.WithContext(ctx).
+		Preload("Charger").
+		Preload("Charger.Hub").
+		Preload("Connector").
+		Preload("Connector.Charger").
+		Preload("Connector.Charger.Hub").
+		Where("cpo_id = ? AND status IN ?", cpoID, []constants.SessionStatus{
+			constants.SessionStatusActive,
+			constants.SessionStatusStopPending,
+			constants.SessionStatusReconciliationRequired,
+		})
+	if query.AfterStartedAt != nil {
+		if query.AfterID != nil {
+			db = db.Where("(start_time, id) > (?, ?)", *query.AfterStartedAt, *query.AfterID)
+		} else {
+			db = db.Where("start_time > ?", *query.AfterStartedAt)
+		}
+	}
+	if query.Limit > 0 {
+		db = db.Limit(query.Limit + 1)
+	}
+	if err := db.Order("start_time ASC, id ASC").Find(&sessions).Error; err != nil {
+		return nil, err
+	}
+	if err := r.hydrateMissingSessionChargers(ctx, cpoID, sessions); err != nil {
+		return nil, err
+	}
+	return sessions, nil
+}
+
+// hydrateMissingSessionChargers protects historical CPO session reads from an
+// incomplete nested preload. Connector ownership is the fallback authority for
+// a session whose direct charger association was not hydrated; the lookup stays
+// CPO-scoped and never fabricates a relation when neither persisted key resolves.
+func (r *repository) hydrateMissingSessionChargers(ctx context.Context, cpoID uuid.UUID, sessions []models.ChargingSession) error {
+	chargerIDs := make([]uuid.UUID, 0, len(sessions)*2)
+	for _, session := range sessions {
+		if session.Charger.ID != uuid.Nil {
+			continue
+		}
+		if session.Connector.ChargerID != uuid.Nil {
+			chargerIDs = append(chargerIDs, session.Connector.ChargerID)
+		}
+		if session.ChargerID != uuid.Nil {
+			chargerIDs = append(chargerIDs, session.ChargerID)
+		}
+	}
+	chargerIDs = uniqueUUIDs(chargerIDs)
+	if len(chargerIDs) == 0 {
+		return nil
+	}
+
+	var chargers []models.Charger
+	if err := r.db.WithContext(ctx).
+		Preload("Hub").
+		Where("cpo_id = ? AND id IN ?", cpoID, chargerIDs).
+		Find(&chargers).Error; err != nil {
+		return err
+	}
+	chargersByID := make(map[uuid.UUID]models.Charger, len(chargers))
+	for _, charger := range chargers {
+		chargersByID[charger.ID] = charger
+	}
+	for i := range sessions {
+		assignSessionChargerFallback(&sessions[i], chargersByID)
+	}
+	return nil
+}
+
+func assignSessionChargerFallback(session *models.ChargingSession, chargersByID map[uuid.UUID]models.Charger) {
+	if session.Charger.ID != uuid.Nil {
+		return
+	}
+	for _, candidateID := range []uuid.UUID{session.Connector.ChargerID, session.ChargerID} {
+		if charger, ok := chargersByID[candidateID]; ok {
+			session.Charger = charger
+			session.ChargerID = charger.ID
+			return
+		}
+	}
+}
+
+func uniqueUUIDs(ids []uuid.UUID) []uuid.UUID {
+	seen := make(map[uuid.UUID]struct{}, len(ids))
+	result := make([]uuid.UUID, 0, len(ids))
+	for _, id := range ids {
+		if id == uuid.Nil {
+			continue
+		}
+		if _, ok := seen[id]; ok {
+			continue
+		}
+		seen[id] = struct{}{}
+		result = append(result, id)
+	}
+	return result
 }
 
 func (r *repository) ListChargersByHub(ctx context.Context, cpoID, hubID uuid.UUID) ([]models.Charger, error) {

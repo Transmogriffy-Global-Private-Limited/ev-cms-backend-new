@@ -31,3 +31,18 @@ func TestSubscriptionBlocksNewCustomerCommandsAtExpiry(t *testing.T) {
 		})
 	}
 }
+
+func TestCurrentRenewalTakesPrecedenceOverExpiredSubscriptionHistory(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, time.August, 25, 12, 0, 0, 0, time.UTC)
+	expired := models.CPOSubscription{Status: "EXPIRED", CurrentPeriodEndsAt: now.Add(-24 * time.Hour)}
+	renewed := models.CPOSubscription{Status: "ACTIVE", CurrentPeriodEndsAt: now.Add(30 * 24 * time.Hour)}
+
+	if customerSubscriptionAdmissionBlocked(&renewed, &expired, now) {
+		t.Fatal("a current active renewal must admit customer commands despite an expired historical row")
+	}
+	if !customerSubscriptionAdmissionBlocked(nil, &expired, now) {
+		t.Fatal("an expired subscription must still block when no current subscription exists")
+	}
+}

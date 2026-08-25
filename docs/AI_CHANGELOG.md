@@ -1,5 +1,67 @@
 # AI Changelog
 
+## 2026-08-25 - Fix CPO customer total-usage aggregate mapping
+
+- Corrected both CPO customer usage aggregate scan targets to map
+  `TotalUsageKWh` explicitly to the SQL alias `total_usage_kwh`. GORM had
+  inferred `total_usage_k_wh`, so the same queries correctly populated
+  `session_count` but silently serialized zero usage despite completed sessions
+  with nonzero `charging_sessions.total_kwh`.
+- The list and single-customer read now share the canonical alias mapping; no
+  migration or data repair is required because the energy is already stored in
+  the migration-owned `total_kwh` column.
+
+Verification: focused CPO aggregate and route/OpenAPI checks,
+`scripts/verify-docs.ps1`, `go test ./...`, `go vet ./...`, and
+`git diff --check` pass. Runtime revision `849d80b` was rebuilt and rehosted
+without a migration or data repair. The aggregate mapping, service readiness,
+public routing, Swagger/OpenAPI, Caddy, binary identity, and post-rehost checks
+passed. The prior binary is retained for rollback. `pwsh` is unavailable on
+this VPS, so the PowerShell documentation verifier was not rerun here.
+
+## 2026-08-25 - Harden CPO charging-session charger relation fallback
+
+- Hardened the CPO historical charging-session and live-session reads against
+  an incomplete nested GORM preload. When the direct session charger is empty,
+  the repository now performs one bounded CPO-scoped charger lookup using the
+  persisted connector charger key, with the direct session key as a fallback.
+  It supplies the existing human-readable charger and hub projection without
+  mutating data or inventing an unresolved relation.
+
+Verification: focused CPO regression and route/OpenAPI checks,
+`scripts/verify-docs.ps1`, `go test ./...`, `go vet ./...`, and
+`git diff --check` pass. Runtime revision `0fd9774` was rebuilt and rehosted
+without a migration or database mutation. Its tenant-scoped charger fallback,
+loopback/public health and readiness, Swagger, raw OpenAPI, Caddy, binary hash,
+and post-rehost startup checks passed. The prior binary is retained for
+rollback. `pwsh` is unavailable on this VPS, so the PowerShell documentation
+verifier was not rerun here.
+
+## 2026-08-25 - CPO live-session operations and renewed subscription admission
+
+- Added CPO ADMIN/app-ID-scoped `GET /api/v1/cpo/operations/live-sessions` for
+  the bounded CMS-projected ongoing-session table, with human-readable
+  charger/hub/connector context and independent committed meter/SoC freshness.
+  It returns only `ACTIVE`, `STOP_PENDING`, and `RECONCILIATION_REQUIRED`
+  sessions and deliberately excludes customer, wallet, tariff, amount, and
+  settlement data.
+- Added dedicated retained replay and SSE routes filtered to
+  `CHARGING_SESSION` invalidations. SSE revalidates bearer session, ADMIN role,
+  and app ID at heartbeat; REST remains the authoritative recovery snapshot.
+- Corrected customer commercial admission to prefer the PostgreSQL-enforced
+  current subscription over terminal history. An older expired row can no
+  longer strand a User App after its CPO is renewed; a current expired or
+  elapsed subscription retains the existing narrow start/recharge block.
+
+Verification: focused customerauth, CPO, liveops, operational-event, and
+route/OpenAPI checks, `go test ./...`, `go vet ./...`, and `git diff --check`
+pass. Runtime revision `aa44e4b` was rebuilt and rehosted with no migration or
+database mutation. The service is enabled and healthy; loopback/public health,
+readiness, Swagger, raw OpenAPI, expected unauthenticated live-session access,
+209-operation count, Caddy validation, binary hashes, and post-rehost logs were
+verified. `pwsh` is unavailable on this VPS, so the PowerShell documentation
+verifier was not rerun here.
+
 ## 2026-08-25 - Preserve legacy CPO identity rows during migration
 
 - Changed unapplied migration 53 to install GSTIN, GSTIN-state, and PIN checks

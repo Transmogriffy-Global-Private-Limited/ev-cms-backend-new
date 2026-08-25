@@ -18,7 +18,7 @@ The "Live Operations" APIs do **not** make synchronous calls to the HAL or the p
 
 ## Authentication
 
-All endpoints described in this document are protected and require an authenticated CPO `ADMIN` session. As per ADR 0009, `ADMIN` is the only CPO staff role that can currently authenticate and perform business operations.
+All endpoints described in this document are protected and require an authenticated CPO `ADMIN` session. Other active CPO staff memberships may authenticate for their separately supported support/notification surfaces, but they cannot call this ADMIN-gated operational surface.
 
 Every request must include two headers:
 
@@ -39,6 +39,9 @@ The following endpoints constitute the CPO Live Operations surface. They are all
 | `GET /api/v1/cpo/operations/chargers/{charger_id}`  | CPO ADMIN | `200 CpoChargerWithLiveState` | Detailed administrative and live state for one charger. |
 | `GET /api/v1/cpo/operations/events`                 | CPO ADMIN | `200 CpoOperationalEventPage` | Durable event replay for catch-up and recovery.      |
 | `GET /api/v1/cpo/operations/realtime/stream`        | CPO ADMIN | `200 text/event-stream`       | Low-latency event stream for UI invalidation.        |
+| `GET /api/v1/cpo/operations/live-sessions`          | CPO ADMIN | `200 LiveChargingSessionListResponse` | Materialized ongoing-session table with committed meter/SoC stats. |
+| `GET /api/v1/cpo/operations/live-sessions/events`   | CPO ADMIN | `200 CpoOperationalEventPage` | CHARGING_SESSION-only durable replay for that table. |
+| `GET /api/v1/cpo/operations/live-sessions/realtime/stream` | CPO ADMIN | `200 text/event-stream` | CHARGING_SESSION-only SSE invalidation stream. |
 
 ## TypeScript Contract
 
@@ -174,6 +177,32 @@ export interface CpoOperationalEventPage {
   next_cursor: number;
   has_more: boolean;
 }
+
+/** A CMS-projected ongoing session; this is intentionally not billing or customer history. */
+export interface LiveChargingSessionView {
+  session_id: UUID;
+  status: "ACTIVE" | "STOP_PENDING" | "RECONCILIATION_REQUIRED";
+  started_at: RFC3339;
+  charger_id: string;
+  charger_name: string;
+  hub_name?: string;
+  connector_number: number;
+  latest_meter_wh?: number;
+  consumed_wh?: number;
+  meter_observed_at?: RFC3339;
+  meter_freshness: "FRESH" | "STALE" | "UNKNOWN";
+  soc_percent?: string;
+  soc_observed_at?: RFC3339;
+  soc_freshness: "FRESH" | "STALE" | "UNKNOWN";
+}
+
+export interface LiveChargingSessionListResponse {
+  sessions: LiveChargingSessionView[];
+  next_after_started_at?: RFC3339;
+  next_after_id?: UUID;
+  has_more: boolean;
+  as_of: RFC3339;
+}
 ```
 
 ## API Endpoints Explained
@@ -207,6 +236,29 @@ This endpoint provides a long-lived Server-Sent Events (SSE) stream for low-late
 **Crucial Implementation Detail:** You **must** use `fetch()` with a `ReadableStream` to consume this endpoint. The native browser `EventSource` API does not support sending the required `Authorization` and `X-CPO-App-ID` headers.
 
 The stream sends events that should be treated as invalidation hints. When an event for a specific charger or connector is received, the frontend should refetch its authoritative state using the `/operations/chargers/{resource_id}` endpoint.
+
+### Live-session table and its dedicated replay/SSE routes
+
+`GET /api/v1/cpo/operations/live-sessions` returns only materialized
+`ACTIVE`, `STOP_PENDING`, and `RECONCILIATION_REQUIRED` sessions. It is the
+authoritative CMS snapshot for an operations table, not a substitute for CPO
+history or the customer-facing session view. It contains no customer identity,
+wallet, tariff, total amount, or settlement fields. `charger_id`,
+`charger_name`, optional `hub_name`, and `connector_number` are intended for
+human display. Meter and SoC observations are independently fresh, stale, or
+unknown; never display a stale value as current charger truth.
+
+Page it with `limit` (default `100`, maximum `200`) and the paired
+`after_started_at` + `after_id` cursor returned by the preceding page.
+
+Use `/operations/live-sessions/events` and
+`/operations/live-sessions/realtime/stream` only for this table. They retain
+and stream `CHARGING_SESSION` invalidations from `charging.session_changed`,
+`charging.meter_changed`, and `charging.telemetry_changed`; a completed-session
+event may mean the row should disappear after the next snapshot refresh. The
+server revalidates the bearer session, ADMIN role, and app ID on stream
+heartbeats. Use `fetch` streaming, deduplicate on `event.id`, and refetch the
+snapshot after each event.
 
 ## Realtime, Replay, and Recovery Workflow
 

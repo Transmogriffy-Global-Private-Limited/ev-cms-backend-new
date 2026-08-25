@@ -29,12 +29,15 @@ that setting; it must not be used until the OCPP host is explicitly configured
 with TLS/WebSocket support.
 
 The active deployment was updated on August 25, 2026 to runtime source revision
-`162b3be9152fea000e710f7ad2a23a89ae73d610` (`162b3be`). It has migrations one
-through fifty-three and the current 189-operation API. The binary SHA-256 is
-`0dcdc9adc5c93d68fdeaf1df36e6ec18d9345b8a50200ed71f2d0fa433a47c83`.
+`849d80bc88f52d4fe4b5ef593fc0d47546708180` (`849d80b`). It has migrations one
+through fifty-three and the current 209-operation API. The binary SHA-256 is
+`0c8ca55b819073e905fe09a16345972ec819a2836531c9ab10366d6e433aaf2b`.
 The pre-migration binary and database dump for migrations 49 through 53 are
 retained under `/root/evcmsnew-backups/` and
-`builds/evcmsnew.pre-162b3be-20260825-135452`. Migration 53 installs GSTIN,
+`builds/evcmsnew.pre-162b3be-20260825-135452` and the newer
+`builds/evcmsnew.pre-aa44e4b-20260825-150135` and the newer
+`builds/evcmsnew.pre-0fd9774-20260825-151917` and the newer
+`builds/evcmsnew.pre-849d80b-20260825-153252`. Migration 53 installs GSTIN,
 GSTIN-state, and PIN checks as `NOT VALID`, preserving three existing legacy
 CPO rows while enforcing the rules for new and updated rows. Migrations 45
 through 48 remain applied with their earlier backups retained. Migration 48
@@ -43,8 +46,9 @@ constraints used by the CMS and User App charging-session projections. The
 latest release also exposes enriched CPO charging-session projections, active-
 session live kWh overlays, connector→charger fallback hydration for incomplete
 session relations, and the SuperAdmin CPO customer-intelligence route; no new
-migration was required for those changes. The CPO wallet transaction read is deployed without a new
-migration. Migration 44 enables temporal tariff fallback and its
+migration was required for those changes. The CPO live-session snapshot,
+filtered replay, and SSE routes are also deployed without a new migration. The
+CPO wallet transaction read is deployed without a new migration. Migration 44 enables temporal tariff fallback and its
 database guards. The two requested hubs were removed with their hub tariffs and
 links; five downstream chargers/connectors were retained as unassigned,
 hidden, inactive inventory. No charging sessions were present for them. No

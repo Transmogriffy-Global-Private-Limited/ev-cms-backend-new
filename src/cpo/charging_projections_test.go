@@ -3,13 +3,16 @@ package cpo
 import (
 	"encoding/json"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/constants"
+	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/liveops"
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/models"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
+	"gorm.io/gorm/schema"
 )
 
 func TestCPOTransactionProjectionUsesJoinedHumanAndProtocolIdentity(t *testing.T) {
@@ -60,5 +63,85 @@ func TestCPOCustomerUsageAlwaysSerializes(t *testing.T) {
 	encoded, err := json.Marshal(view)
 	if err != nil || !strings.Contains(string(encoded), `"total_usage_kwh":"0"`) {
 		t.Fatalf("zero usage JSON=%s err=%v", encoded, err)
+	}
+}
+
+func TestLiveChargingSessionProjectionContainsOnlyOperationalContext(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, time.August, 25, 12, 0, 0, 0, time.UTC)
+	meter, consumed := int64(50120), int64(120)
+	soc := decimal.RequireFromString("63.5")
+	session := models.ChargingSession{
+		ID:        uuid.New(),
+		Status:    constants.SessionStatusActive,
+		StartTime: now,
+		Charger: models.Charger{
+			ChargerID:   "cp0001",
+			ChargerName: "Main forecourt DC charger",
+			Hub:         &models.Hub{Name: "Salt Lake Hub"},
+		},
+		Connector: models.Connector{ConnectorNumber: 2},
+	}
+	view := toLiveChargingSessionView(session, liveops.SessionState{
+		LatestMeterWh:    &meter,
+		ConsumedWh:       &consumed,
+		MeterObservedAt:  &now,
+		MeterFreshness:   liveops.FreshnessFresh,
+		LatestSoCPercent: &soc,
+		SoCObservedAt:    &now,
+		SoCFreshness:     liveops.FreshnessFresh,
+	})
+
+	if view.ChargerID != "cp0001" || view.ChargerName != "Main forecourt DC charger" || view.HubName == nil || *view.HubName != "Salt Lake Hub" || view.ConnectorNumber != 2 || view.LatestMeterWh == nil || *view.LatestMeterWh != meter || view.ConsumedWh == nil || *view.ConsumedWh != consumed || view.SoCPercent == nil || !view.SoCPercent.Equal(soc) {
+		t.Fatalf("live session operational projection=%+v", view)
+	}
+	encoded, err := json.Marshal(view)
+	if err != nil {
+		t.Fatalf("marshal live session view: %v", err)
+	}
+	for _, forbidden := range []string{"customer", "wallet", "tariff", "total_amount", "total_kwh"} {
+		if strings.Contains(string(encoded), forbidden) {
+			t.Fatalf("live session projection leaked %q: %s", forbidden, encoded)
+		}
+	}
+}
+
+func TestSessionChargerFallbackUsesTenantResolvedConnectorCharger(t *testing.T) {
+	t.Parallel()
+
+	chargerID := uuid.New()
+	session := models.ChargingSession{
+		Connector: models.Connector{ChargerID: chargerID},
+	}
+	charger := models.Charger{ID: chargerID, ChargerID: "cp0001", ChargerName: "Main forecourt DC charger", Hub: &models.Hub{Name: "Salt Lake Hub"}}
+	assignSessionChargerFallback(&session, map[uuid.UUID]models.Charger{chargerID: charger})
+
+	if session.Charger.ID != chargerID || session.ChargerID != chargerID || session.Charger.ChargerID != "cp0001" || session.Charger.Hub == nil || session.Charger.Hub.Name != "Salt Lake Hub" {
+		t.Fatalf("connector charger fallback=%+v", session.Charger)
+	}
+
+	missing := models.ChargingSession{Connector: models.Connector{ChargerID: uuid.New()}}
+	assignSessionChargerFallback(&missing, map[uuid.UUID]models.Charger{})
+	if missing.Charger.ID != uuid.Nil {
+		t.Fatalf("missing charger must not be fabricated: %+v", missing.Charger)
+	}
+}
+
+func TestCustomerUsageAggregateUsesCanonicalKWhAlias(t *testing.T) {
+	t.Parallel()
+
+	for _, target := range []any{&CustomerAggregates{}, &customerAggregateResult{}} {
+		parsed, err := schema.Parse(target, &sync.Map{}, schema.NamingStrategy{})
+		if err != nil {
+			t.Fatalf("parse aggregate %T: %v", target, err)
+		}
+		field := parsed.LookUpField("TotalUsageKWh")
+		if field == nil {
+			t.Fatalf("aggregate %T has no TotalUsageKWh field", target)
+		}
+		if field.DBName != "total_usage_kwh" {
+			t.Fatalf("aggregate %T maps TotalUsageKWh to %q, want total_usage_kwh", target, field.DBName)
+		}
 	}
 }

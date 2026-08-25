@@ -492,6 +492,9 @@ func RegisterCPORoutes(
 	group.GET("/operations/chargers/:charger_id", handler.getOperationalCharger)
 	group.GET("/operations/events", handler.listOperationalEvents)
 	group.GET("/operations/realtime/stream", handler.operationalStream)
+	group.GET("/operations/live-sessions", handler.listLiveChargingSessions)
+	group.GET("/operations/live-sessions/events", handler.listLiveChargingSessionEvents)
+	group.GET("/operations/live-sessions/realtime/stream", handler.liveChargingSessionStream)
 	group.GET("/users/:user_id", handler.getUser)
 	group.GET("/permissions/catalog", handler.permissionCatalog)
 	group.GET("/staff", handler.listStaff)
@@ -683,6 +686,20 @@ func (handler *Handler) listChargingSessions(ctx *gin.Context) {
 		return
 	}
 	records, err := handler.service.ListChargingSessions(ctx.Request.Context(), principal, query)
+	if err != nil {
+		writeError(ctx, err)
+		return
+	}
+	ctx.JSON(http.StatusOK, records)
+}
+
+func (handler *Handler) listLiveChargingSessions(ctx *gin.Context) {
+	principal, _ := auth.CurrentPrincipal(ctx)
+	query, ok := parseLiveChargingSessionListQuery(ctx)
+	if !ok {
+		return
+	}
+	records, err := handler.service.ListLiveChargingSessions(ctx.Request.Context(), principal, query)
 	if err != nil {
 		writeError(ctx, err)
 		return
@@ -883,6 +900,39 @@ func parseChargingSessionListQuery(ctx *gin.Context) (ChargingSessionListQuery, 
 	return query, true
 }
 
+func parseLiveChargingSessionListQuery(ctx *gin.Context) (LiveChargingSessionListQuery, bool) {
+	query := LiveChargingSessionListQuery{}
+	if limitText := strings.TrimSpace(ctx.Query("limit")); limitText != "" {
+		limit, err := strconv.Atoi(limitText)
+		if err != nil {
+			writeError(ctx, invalid("limit", "Limit must be an integer."))
+			return LiveChargingSessionListQuery{}, false
+		}
+		query.Limit = limit
+	}
+	if afterStartedAtText := strings.TrimSpace(ctx.Query("after_started_at")); afterStartedAtText != "" {
+		afterStartedAt, err := time.Parse(time.RFC3339, afterStartedAtText)
+		if err != nil {
+			writeError(ctx, invalid("after_started_at", "After started at must be an RFC3339 timestamp."))
+			return LiveChargingSessionListQuery{}, false
+		}
+		query.AfterStartedAt = &afterStartedAt
+	}
+	if afterIDText := strings.TrimSpace(ctx.Query("after_id")); afterIDText != "" {
+		afterID, err := uuid.Parse(afterIDText)
+		if err != nil || afterID == uuid.Nil {
+			writeError(ctx, invalid("after_id", "After ID must be a non-zero UUID."))
+			return LiveChargingSessionListQuery{}, false
+		}
+		query.AfterID = &afterID
+	}
+	if query.AfterID != nil && query.AfterStartedAt == nil {
+		writeError(ctx, invalid("after_started_at", "After started at is required when after ID is supplied."))
+		return LiveChargingSessionListQuery{}, false
+	}
+	return query, true
+}
+
 func (handler *Handler) getPlatformFleetOperations(ctx *gin.Context) {
 	principal, _ := auth.CurrentPrincipal(ctx)
 	cpoID, ok := parseCPOID(ctx)
@@ -945,6 +995,20 @@ func (handler *Handler) listOperationalEvents(ctx *gin.Context) {
 	ctx.JSON(http.StatusOK, page)
 }
 
+func (handler *Handler) listLiveChargingSessionEvents(ctx *gin.Context) {
+	principal, _ := auth.CurrentPrincipal(ctx)
+	after, limit, ok := parseOperationalEventQuery(ctx)
+	if !ok {
+		return
+	}
+	page, err := handler.service.ListLiveChargingSessionEvents(ctx.Request.Context(), principal, after, limit)
+	if err != nil {
+		writeError(ctx, err)
+		return
+	}
+	ctx.JSON(http.StatusOK, page)
+}
+
 func (handler *Handler) listPlatformOperationalEvents(ctx *gin.Context) {
 	principal, _ := auth.CurrentPrincipal(ctx)
 	cpoID, ok := parseCPOID(ctx)
@@ -970,12 +1034,36 @@ func (handler *Handler) operationalStream(ctx *gin.Context) {
 		writeError(ctx, &auth.APIError{Status: http.StatusUnauthorized, Code: "authentication_required", Message: "Authentication is required."})
 		return
 	}
+	appID := ctx.GetHeader(auth.CPOAppIDHeader)
 	handler.streamOperationalEvents(ctx, func(after int64, limit int) (operationalrealtime.Page, error) {
 		return handler.service.ListOperationalEvents(ctx.Request.Context(), principal, after, limit)
 	}, func() bool {
 		refreshed, err := handler.authService.ValidateAccess(ctx.Request.Context(), token)
-		return err == nil && refreshed.Scope == "CPO" && refreshed.CPOID != nil && *refreshed.CPOID == *principal.CPOID
+		return err == nil && cpoStreamStillAuthorized(refreshed, *principal.CPOID, appID)
 	})
+}
+
+func (handler *Handler) liveChargingSessionStream(ctx *gin.Context) {
+	principal, _ := auth.CurrentPrincipal(ctx)
+	token, ok := auth.CurrentAccessToken(ctx)
+	if !ok || principal.CPOID == nil {
+		writeError(ctx, &auth.APIError{Status: http.StatusUnauthorized, Code: "authentication_required", Message: "Authentication is required."})
+		return
+	}
+	appID := ctx.GetHeader(auth.CPOAppIDHeader)
+	handler.streamOperationalEvents(ctx, func(after int64, limit int) (operationalrealtime.Page, error) {
+		return handler.service.ListLiveChargingSessionEvents(ctx.Request.Context(), principal, after, limit)
+	}, func() bool {
+		refreshed, err := handler.authService.ValidateAccess(ctx.Request.Context(), token)
+		return err == nil && cpoStreamStillAuthorized(refreshed, *principal.CPOID, appID)
+	})
+}
+
+func cpoStreamStillAuthorized(principal auth.Principal, cpoID uuid.UUID, appID string) bool {
+	return principal.Scope == constants.AuthScopeCPO &&
+		principal.CPOID != nil && *principal.CPOID == cpoID &&
+		principal.Role != nil && *principal.Role == constants.CPORoleAdmin &&
+		principal.CPOAppID != nil && *principal.CPOAppID == appID
 }
 
 func (handler *Handler) platformOperationalStream(ctx *gin.Context) {
