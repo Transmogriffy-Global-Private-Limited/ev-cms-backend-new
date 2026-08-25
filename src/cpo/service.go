@@ -338,15 +338,21 @@ func toChargingSessionView(session models.ChargingSession) ChargingSessionView {
 
 	if session.Customer.ID != uuid.Nil {
 		view.Customer = ChargingSessionCustomerView{
+			ID:    session.Customer.ID,
 			Name:  session.Customer.FullName,
 			Email: session.Customer.Email,
+			Phone: session.Customer.Phone,
 		}
 	}
 
 	if session.Charger.ID != uuid.Nil {
 		charger := ChargingSessionChargerView{
-			Name:       session.Charger.ChargerName,
-			MaxPowerKW: session.Charger.MaxPowerKW,
+			ID:           session.Charger.ID,
+			ChargerID:    session.Charger.ChargerID,
+			OCPPIdentity: session.Charger.OCPPIdentity,
+			Name:         session.Charger.ChargerName,
+			MaxPowerKW:   session.Charger.MaxPowerKW,
+			HubID:        session.Charger.HubID,
 		}
 		if session.Charger.Vendor != nil {
 			charger.Vendor = *session.Charger.Vendor
@@ -362,12 +368,62 @@ func toChargingSessionView(session models.ChargingSession) ChargingSessionView {
 
 	if session.Connector.ID != uuid.Nil {
 		view.Connector = ChargingSessionConnectorView{
-			Number: session.Connector.ConnectorNumber,
+			ID:                     session.Connector.ID,
+			Number:                 session.Connector.ConnectorNumber,
+			ConnectorType:          session.Connector.ConnectorType,
+			ConnectorTotalCapacity: session.Connector.ConnectorTotalCapacity,
 		}
 	}
 
 	return view
 }
+
+// func toChargingSessionView(session models.ChargingSession) ChargingSessionView {
+// 	view := ChargingSessionView{
+// 		ID:            session.ID,
+// 		TransactionID: session.TransactionID,
+// 		StartTime:     session.StartTime,
+// 		EndTime:       session.EndTime,
+// 		TotalKWh:      session.TotalKWh,
+// 		TotalAmount:   session.TotalAmount,
+// 		Currency:      session.Currency,
+// 		Status:        session.Status,
+// 		StopReason:    session.StopReason,
+// 		CreatedAt:     session.CreatedAt,
+// 	}
+
+// 	if session.Customer.ID != uuid.Nil {
+// 		view.Customer = ChargingSessionCustomerView{
+// 			Name:  session.Customer.FullName,
+// 			Email: session.Customer.Email,
+// 		}
+// 	}
+
+// 	if session.Charger.ID != uuid.Nil {
+// 		charger := ChargingSessionChargerView{
+// 			Name:       session.Charger.ChargerName,
+// 			MaxPowerKW: session.Charger.MaxPowerKW,
+// 		}
+// 		if session.Charger.Vendor != nil {
+// 			charger.Vendor = *session.Charger.Vendor
+// 		}
+// 		if session.Charger.Model != nil {
+// 			charger.Model = *session.Charger.Model
+// 		}
+// 		if session.Charger.Hub != nil {
+// 			charger.HubName = &session.Charger.Hub.Name
+// 		}
+// 		view.Charger = charger
+// 	}
+
+// 	if session.Connector.ID != uuid.Nil {
+// 		view.Connector = ChargingSessionConnectorView{
+// 			Number: session.Connector.ConnectorNumber,
+// 		}
+// 	}
+
+// 	return view
+// }
 
 func (service *Service) Create(
 	ctx context.Context,

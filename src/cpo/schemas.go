@@ -648,22 +648,62 @@ type UpdateChargerCustomerVisibilityRequest struct {
 	CustomerVisible bool `json:"customer_visible"`
 }
 
+// type ChargingSessionCustomerView struct {
+// 	Name  string `json:"name"`
+// 	Email string `json:"email"`
+// }
 
+// type ChargingSessionChargerView struct {
+// 	Name       string   `json:"name"`
+// 	HubName    *string  `json:"hub_name,omitempty"`
+// 	MaxPowerKW float64  `json:"max_power_kw"`
+// 	Vendor     string   `json:"vendor"`
+// 	Model      string   `json:"model"`
+// }
+
+// type ChargingSessionConnectorView struct {
+// 	Number int `json:"number"`
+// }
+
+//	type ChargingSessionView struct {
+//		ID            uuid.UUID                    `json:"id"`
+//		TransactionID int64                        `json:"transaction_id"`
+//		Customer      ChargingSessionCustomerView  `json:"customer"`
+//		Charger       ChargingSessionChargerView   `json:"charger"`
+//		Connector     ChargingSessionConnectorView `json:"connector"`
+//		StartTime     time.Time                    `json:"start_time"`
+//		EndTime       *time.Time                   `json:"end_time,omitempty"`
+//		TotalKWh      decimal.Decimal              `json:"total_kwh"`
+//		TotalAmount   decimal.Decimal              `json:"total_amount"`
+//		Currency      string                       `json:"currency"`
+//		Status        constants.SessionStatus      `json:"status"`
+//		StopReason    *string                      `json:"stop_reason,omitempty"`
+//		CreatedAt     time.Time                    `json:"created_at"`
+//	}
 type ChargingSessionCustomerView struct {
-	Name  string `json:"name"`
-	Email string `json:"email"`
+	ID    uuid.UUID `json:"id"`
+	Name  string    `json:"name"`
+	Email string    `json:"email"`
+	Phone *string   `json:"phone,omitempty"`
 }
 
 type ChargingSessionChargerView struct {
-	Name       string   `json:"name"`
-	HubName    *string  `json:"hub_name,omitempty"`
-	MaxPowerKW float64  `json:"max_power_kw"`
-	Vendor     string   `json:"vendor"`
-	Model      string   `json:"model"`
+	ID           uuid.UUID  `json:"id"`
+	ChargerID    string     `json:"charger_id"` // 6-character code (e.g., "a3kd81")
+	OCPPIdentity string     `json:"ocpp_identity"`
+	Name         string     `json:"name"`
+	HubID        *uuid.UUID `json:"hub_id,omitempty"`
+	HubName      *string    `json:"hub_name,omitempty"`
+	MaxPowerKW   float64    `json:"max_power_kw"`
+	Vendor       string     `json:"vendor"`
+	Model        string     `json:"model"`
 }
 
 type ChargingSessionConnectorView struct {
-	Number int `json:"number"`
+	ID                     uuid.UUID `json:"id"`
+	Number                 int       `json:"number"`
+	ConnectorType          string    `json:"connector_type"`
+	ConnectorTotalCapacity float64   `json:"connector_total_capacity"`
 }
 
 type ChargingSessionView struct {
@@ -681,7 +721,6 @@ type ChargingSessionView struct {
 	StopReason    *string                      `json:"stop_reason,omitempty"`
 	CreatedAt     time.Time                    `json:"created_at"`
 }
-
 
 type ChargingSessionListResponse struct {
 	Sessions     []ChargingSessionView `json:"sessions"`
