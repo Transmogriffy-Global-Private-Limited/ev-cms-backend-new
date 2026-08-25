@@ -2,7 +2,7 @@
 
 ## Current State
 
-### 2026-08-25 — CPO full-snapshot live-session SSE source correction
+### 2026-08-25 — CPO full-snapshot live-session SSE rehost verified
 
 - Source now makes `GET /api/v1/cpo/operations/live-sessions` the primary CPO
   ADMIN/app-ID-scoped SSE. It immediately sends the complete current
@@ -13,9 +13,13 @@
 - `GET /api/v1/cpo/operations/live-sessions/snapshot` retains the JSON
   recovery/keyset-pagination contract. The filtered retained event route is
   advanced reconciliation tooling, and the old realtime path is a deprecated
-  compatibility alias. The source contract has 210 operations. This correction
-  is source-verified but not deployed or runtime-verified yet; it requires no
-  migration or data mutation.
+  compatibility alias. Runtime revision `d3ac043` is active behind Caddy with
+  binary SHA-256
+  `0595788804141ccea4972be4abd33b06fa1031ae50a2720df3e357725c6738b6`.
+  The service is enabled and healthy; migrations remain through 53, the source
+  contract serves 210 operations, and public/loopback readiness, Swagger,
+  protected stream/snapshot routes, Caddy, and post-rehost startup checks pass.
+  No migration or database mutation was required.
 
 ### 2026-08-25 — CPO customer total-usage projection repair rehost verified
 

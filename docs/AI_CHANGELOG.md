@@ -16,10 +16,13 @@
   CPO frontend handoffs so normal UI code replaces the live table per SSE frame
   and reconnects for a fresh snapshot rather than replaying/merging events.
 
-Verification: focused CPO and operational-realtime tests, documentation
-verification, OpenAPI/runtime route parity, `go test ./...`, `go vet ./...`,
-and `git diff --check` pass. No migration, database mutation, deployment, or
-runtime hardware verification was performed.
+Verification: focused CPO and operational-realtime tests, OpenAPI/runtime route
+parity, `go test ./...`, `go vet ./...`, and `git diff --check` pass. Runtime
+revision `d3ac043` was rebuilt and rehosted without a migration or database
+mutation. The full-snapshot SSE routes, service readiness, public routing,
+Swagger/OpenAPI (210 operations), Caddy, binary identity, and post-rehost
+startup checks passed. `pwsh` is unavailable on this VPS, so the PowerShell
+documentation verifier was not rerun here.
 
 ## 2026-08-25 - Fix CPO customer total-usage aggregate mapping
 

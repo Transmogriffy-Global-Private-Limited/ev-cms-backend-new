@@ -134,10 +134,13 @@ Establish reusable CMS capabilities over HAL-derived operational truth and expos
 ## Verification
 
 - 2026-08-25 full-snapshot CPO live-session SSE correction: focused CPO and
-  operational-realtime checks, the PowerShell documentation verifier,
-  route/OpenAPI parity, `go test ./...`, `go vet ./...`, and `git diff --check`
-  pass. The full UI/hardware behaviour remains unverified without deployment;
-  no migration or database mutation is involved.
+  operational-realtime checks, route/OpenAPI parity, `go test ./...`, `go vet
+  ./...`, and `git diff --check` pass. Runtime revision `d3ac043` was rebuilt
+  and rehosted without a migration or database mutation. The full-snapshot
+  stream/snapshot routes, service readiness, public routing, Swagger, Caddy,
+  210-operation contract, and post-rehost startup checks passed. `pwsh` and
+  `TEST_DATABASE_URL` remain unavailable; authenticated UI/hardware acceptance
+  is not claimed.
 
 - 2026-08-25 customer-usage aggregate repair: focused CPO aggregate and
   route/OpenAPI checks, `go test ./...`, `go vet ./...`, and `git diff --check`
