@@ -117,8 +117,18 @@ Establish reusable CMS capabilities over HAL-derived operational truth and expos
   expired record cannot strand a User App after a later active renewal. Keep
   the existing narrow gate: only new customer charging starts and recharge
   order creation are blocked by current expired/elapsed state.
+- 2026-08-25 session-projection repair: historical CPO session reads returned
+  zero-value charger objects despite a connector projection. Resolve a missing
+  direct session charger from the connector's CPO-owned charger in one bounded
+  query, retain no-fabrication behavior when both relations are absent, and
+  verify the actual deployed response after publication.
 
 ## Verification
+
+- 2026-08-25 charger-relation fallback repair: focused CPO regression and
+  route/OpenAPI checks, `scripts/verify-docs.ps1`, `go test ./...`, `go vet
+  ./...`, and `git diff --check` pass. The reported authenticated production
+  response has not yet been rechecked after publication.
 
 - 2026-08-25 live-session/admission slice: focused customerauth, CPO, liveops,
   operational-event, and route/OpenAPI checks pass; `go test ./...`, `go vet

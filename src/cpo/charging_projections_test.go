@@ -104,3 +104,24 @@ func TestLiveChargingSessionProjectionContainsOnlyOperationalContext(t *testing.
 		}
 	}
 }
+
+func TestSessionChargerFallbackUsesTenantResolvedConnectorCharger(t *testing.T) {
+	t.Parallel()
+
+	chargerID := uuid.New()
+	session := models.ChargingSession{
+		Connector: models.Connector{ChargerID: chargerID},
+	}
+	charger := models.Charger{ID: chargerID, ChargerID: "cp0001", ChargerName: "Main forecourt DC charger", Hub: &models.Hub{Name: "Salt Lake Hub"}}
+	assignSessionChargerFallback(&session, map[uuid.UUID]models.Charger{chargerID: charger})
+
+	if session.Charger.ID != chargerID || session.ChargerID != chargerID || session.Charger.ChargerID != "cp0001" || session.Charger.Hub == nil || session.Charger.Hub.Name != "Salt Lake Hub" {
+		t.Fatalf("connector charger fallback=%+v", session.Charger)
+	}
+
+	missing := models.ChargingSession{Connector: models.Connector{ChargerID: uuid.New()}}
+	assignSessionChargerFallback(&missing, map[uuid.UUID]models.Charger{})
+	if missing.Charger.ID != uuid.Nil {
+		t.Fatalf("missing charger must not be fabricated: %+v", missing.Charger)
+	}
+}

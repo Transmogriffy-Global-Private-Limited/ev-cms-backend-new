@@ -1,5 +1,19 @@
 # AI Changelog
 
+## 2026-08-25 - Harden CPO charging-session charger relation fallback
+
+- Hardened the CPO historical charging-session and live-session reads against
+  an incomplete nested GORM preload. When the direct session charger is empty,
+  the repository now performs one bounded CPO-scoped charger lookup using the
+  persisted connector charger key, with the direct session key as a fallback.
+  It supplies the existing human-readable charger and hub projection without
+  mutating data or inventing an unresolved relation.
+
+Verification: focused CPO regression and route/OpenAPI checks,
+`scripts/verify-docs.ps1`, `go test ./...`, `go vet ./...`, and
+`git diff --check` pass. Deployment/runtime confirmation remains pending this
+repair.
+
 ## 2026-08-25 - CPO live-session operations and renewed subscription admission
 
 - Added CPO ADMIN/app-ID-scoped `GET /api/v1/cpo/operations/live-sessions` for

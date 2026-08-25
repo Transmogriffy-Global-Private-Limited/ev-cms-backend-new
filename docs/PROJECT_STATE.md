@@ -2,6 +2,16 @@
 
 ## Current State
 
+### 2026-08-25 — CPO charging-session charger projection repair in source
+
+- Source now protects CPO charging-session history and live-session reads from
+  incomplete nested GORM charger preloads. A missing direct session relation is
+  resolved from the connector's CPO-owned charger in one bounded lookup,
+  preserving human-readable charger/hub projection without a database write.
+  If neither persisted relation resolves, the response remains unresolved rather
+  than fabricating a charger.
+- This repair has not been deployed or verified against the reported response.
+
 ### 2026-08-25 — CPO live-session operations rehost verified
 
 - Source now exposes a CPO ADMIN/app-ID-scoped ongoing-session snapshot at
