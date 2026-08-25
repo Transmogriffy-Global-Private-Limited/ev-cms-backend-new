@@ -14,6 +14,7 @@ import (
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/constants"
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/models"
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/security"
+	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/testsupport"
 	"github.com/google/uuid"
 )
 
@@ -53,7 +54,7 @@ func TestCPOIntegrationCredentialIsolationWithPostgreSQL(t *testing.T) {
 		Slug:            "cpo-" + uuid.NewString(),
 		BusinessName:    "Credential Test CPO",
 		CompanyType:     constants.CPOCompanyTypeCompany,
-		GSTIN:           strings.ToUpper(strings.ReplaceAll(uuid.NewString(), "-", ""))[:15],
+		GSTIN:           testsupport.ValidGSTIN("19"),
 		Address:         "1 Test Road",
 		City:            "Kolkata",
 		State:           "West Bengal",

@@ -32,6 +32,7 @@ This directory is the durable project memory for the EV CMS backend.
 | Approved customer-app experience sequence | `plans/customer-app-experience.md` |
 | CPO-scoped customer-account decision | `decisions/0013-cpo-scoped-customer-accounts.md` |
 | Subscription expiry customer-command admission | `decisions/0014-subscription-expiry-customer-command-admission.md` |
+| CPO GSTIN, registration-state, and PIN validation | `decisions/0015-cpo-legal-identity-validation.md` |
 | Architectural decisions | `decisions/` |
 | Detailed approved plans | `plans/` |
 | Learning and operational workflows | `guides/` |

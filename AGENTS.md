@@ -96,6 +96,10 @@ protocol responsibilities.
   overrides without an approved module catalog and enforcement design. Platform
   invoices, payments, checkout, and provider webhooks require a new explicit
   decision beyond ADR 0012.
+- CPO registration identity is normalized and durable: GSTIN is globally
+  unique, checksum-valid, and state-matched; pincode is a six-digit Indian PIN.
+  Do not add a redundant `(gstin, business_name)` unique key or claim legal-name
+  ownership verification without an authorized registry integration (ADR 0015).
 - Preserve transaction boundaries, database constraints, idempotency, and
   durable outbox semantics. New asynchronous or cross-service behaviour must
   document ownership, retry layer, duplicate handling, terminal failure, and

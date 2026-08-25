@@ -2834,7 +2834,7 @@ paths:
         "400":
           description: |
             `invalid_request`, `invalid_slug`, `invalid_business_name`,
-            `invalid_company_type`, `invalid_gstin`, `invalid_address`,
+            `invalid_company_type`, `invalid_gstin`, `invalid_gstin_state_mismatch`, `invalid_address`,
             `invalid_city`, `invalid_state`, `invalid_pincode`,
             `invalid_admin_email`, or `invalid_admin_full_name`.
           content:
@@ -3089,7 +3089,7 @@ paths:
         "400":
           description: |
             `invalid_request`, `invalid_cpo_id`, `invalid_business_name`,
-            `invalid_company_type`, `invalid_gstin`, `invalid_address`,
+            `invalid_company_type`, `invalid_gstin`, `invalid_gstin_state_mismatch`, `invalid_address`,
             `invalid_city`, `invalid_state`, or `invalid_pincode`.
           content:
             application/json:
@@ -7835,13 +7835,14 @@ components:
           type: string
           minLength: 1
           maxLength: 255
+          description: Required display/legal business name. The server collapses whitespace and rejects control-only or punctuation-only values.
         company_type:
           type: string
           enum: [INDIVIDUAL, COMPANY]
         gstin:
           type: string
-          pattern: "^[0-9A-Za-z]{15}$"
-          description: Required, globally unique after server-side uppercasing.
+          pattern: "^(0[1-9]|[12][0-9]|3[0-8])[A-Za-z]{5}[0-9]{4}[A-Za-z][1-9A-Za-z][Zz][0-9A-Za-z]$"
+          description: Required and globally unique after uppercasing. The server also verifies the GSTIN checksum and requires its state code to match `state`.
         address:
           type: string
           minLength: 1
@@ -7856,8 +7857,8 @@ components:
           maxLength: 100
         pincode:
           type: string
-          minLength: 1
-          maxLength: 10
+          pattern: "^[1-9][0-9]{5}$"
+          description: Six-digit Indian PIN code.
         admin:
           $ref: "#/components/schemas/InitialAdminRequest"
 
@@ -7874,6 +7875,7 @@ components:
           type: string
           minLength: 1
           maxLength: 255
+          description: Required human name; whitespace is collapsed and the value must contain a letter.
 
     SetCPOAppIDRequest:
       type: object
@@ -7903,13 +7905,14 @@ components:
           type: string
           minLength: 1
           maxLength: 255
+          description: Required display/legal business name. The server collapses whitespace and rejects control-only or punctuation-only values.
         company_type:
           type: string
           enum: [INDIVIDUAL, COMPANY]
         gstin:
           type: string
-          pattern: "^[0-9A-Za-z]{15}$"
-          description: Required and globally unique after server-side uppercasing.
+          pattern: "^(0[1-9]|[12][0-9]|3[0-8])[A-Za-z]{5}[0-9]{4}[A-Za-z][1-9A-Za-z][Zz][0-9A-Za-z]$"
+          description: Required and globally unique after uppercasing. The server also verifies the GSTIN checksum and requires its state code to match `state`.
         address:
           type: string
           minLength: 1
@@ -7924,8 +7927,8 @@ components:
           maxLength: 100
         pincode:
           type: string
-          minLength: 1
-          maxLength: 10
+          pattern: "^[1-9][0-9]{5}$"
+          description: Six-digit Indian PIN code.
 
     ReasonRequest:
       type: object
@@ -7951,7 +7954,7 @@ components:
           type: string
           minLength: 1
           maxLength: 255
-          description: Used only when a new global identity must be created.
+          description: Required human name; whitespace is collapsed and the value must contain a letter. Used only when a new global identity must be created.
         reason:
           type: string
           minLength: 3
@@ -8717,7 +8720,7 @@ components:
       required: [email, full_name, role]
       properties:
         email: {type: string, format: email}
-        full_name: {type: string, maxLength: 255}
+        full_name: {type: string, minLength: 1, maxLength: 255, description: Required human name; whitespace is collapsed and the value must contain a letter.}
         role: {type: string, enum: [ADMIN, OPERATOR, VIEWER]}
         overrides: {type: array, items: {$ref: "#/components/schemas/MembershipPermissionOverride"}}
     UpdateStaffRequest:
@@ -8756,11 +8759,11 @@ components:
           enum: [INDIVIDUAL, COMPANY]
         gstin:
           type: string
-          pattern: "^[0-9A-Z]{15}$"
+          pattern: "^(0[1-9]|[12][0-9]|3[0-8])[A-Z]{5}[0-9]{4}[A-Z][1-9A-Z]Z[0-9A-Z]$"
         address: {type: string, minLength: 1, maxLength: 5000}
         city: {type: string, minLength: 1, maxLength: 100}
         state: {type: string, minLength: 1, maxLength: 100}
-        pincode: {type: string, minLength: 1, maxLength: 10}
+        pincode: {type: string, pattern: "^[1-9][0-9]{5}$"}
         status:
           type: string
           enum: [PENDING, ACTIVE, SUSPENDED]

@@ -16,6 +16,7 @@ import (
 	cmsmail "github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/mail"
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/models"
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/security"
+	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/testsupport"
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 )
@@ -256,7 +257,7 @@ func TestPlatformAuthenticationLifecycleWithPostgreSQL(t *testing.T) {
 		Slug:            "auth-cpo-" + uuid.NewString(),
 		BusinessName:    "Authentication Test CPO",
 		CompanyType:     constants.CPOCompanyTypeCompany,
-		GSTIN:           strings.ToUpper(strings.ReplaceAll(uuid.NewString(), "-", ""))[:15],
+		GSTIN:           testsupport.ValidGSTIN("19"),
 		Address:         "1 Test Road",
 		City:            "Kolkata",
 		State:           "West Bengal",

@@ -22,6 +22,7 @@ import (
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/models"
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/platformops"
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/security"
+	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/testsupport"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgconn"
@@ -30,7 +31,7 @@ import (
 )
 
 func uniqueCPOGSTIN() string {
-	return strings.ToUpper(strings.ReplaceAll(uuid.NewString(), "-", ""))[:15]
+	return testsupport.ValidGSTIN("19")
 }
 
 func TestConcurrentCPOCreationReusesOneAdminIdentityWithPostgreSQL(t *testing.T) {
@@ -685,6 +686,27 @@ func TestCPOSuperadminDependencyLifecycleWithPostgreSQL(t *testing.T) {
 		created.CPO.ID,
 	).Error; err == nil {
 		t.Fatal("database accepted a null CPO GSTIN")
+	}
+	if err := gormDB.Exec(
+		"UPDATE cpos SET gstin = ? WHERE id = ?",
+		"19ABCDE1234F1ZZ",
+		created.CPO.ID,
+	).Error; err == nil {
+		t.Fatal("database accepted a checksum-invalid CPO GSTIN")
+	}
+	if err := gormDB.Exec(
+		"UPDATE cpos SET state = ? WHERE id = ?",
+		constants.Maharashtra,
+		created.CPO.ID,
+	).Error; err == nil {
+		t.Fatal("database accepted a GSTIN/state mismatch")
+	}
+	if err := gormDB.Exec(
+		"UPDATE cpos SET pincode = ? WHERE id = ?",
+		"70001A",
+		created.CPO.ID,
+	).Error; err == nil {
+		t.Fatal("database accepted a malformed CPO PIN code")
 	}
 	var primaryCount int64
 	if err := gormDB.Model(&models.CPOMembership{}).

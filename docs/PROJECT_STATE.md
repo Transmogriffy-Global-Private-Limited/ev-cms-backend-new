@@ -4,6 +4,14 @@
 
 ### 2026-08-25 — CPO staff authority and human-readable charging projections in source
 
+- CPO create/profile writes now normalize human text, require meaningful CPO
+  and administrator names, verify Indian GSTIN structure/checksum, require its
+  state code to match the CPO registration state, and require a six-digit Indian
+  PIN. Migration 53 is source-only and preflights existing records before
+  adding equivalent PostgreSQL constraints; no database migration was applied.
+  Normalized GSTIN remains globally unique, so no redundant GSTIN/business-name
+  compound key exists; legal-name ownership remains unverified without a GST
+  registry integration.
 - Additive migrations 49 and 50 define per-membership CPO permission overrides
   and snapshot multi-CPO announcement targeting. They are source changes only;
   no database migration was applied in this slice.

@@ -965,6 +965,8 @@ Scope:
 - Bounded charger listing and dependency-safe charger deletion
 - Server-generated identifiers and exact decimal pricing/tax values
 - Transactional audit evidence
+- CPO legal-identity validation: checksum-valid GSTIN, GSTIN-state matching,
+  six-digit Indian PIN code, and normalized human-readable CPO/admin fields
 - OpenAPI, human contract, educational/integration guidance, and verification
 
 Non-goals:
@@ -986,6 +988,7 @@ Agent handoff:
 Architecture decision:
 
 - `docs/decisions/0009-admin-only-cpo-authority.md`
+- `docs/decisions/0015-cpo-legal-identity-validation.md`
 
 ### Feature: CPO customer directory
 

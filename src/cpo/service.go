@@ -47,7 +47,8 @@ const (
 
 var (
 	slugPattern                    = regexp.MustCompile(`^[a-z0-9]+(?:-[a-z0-9]+)*$`)
-	gstinPattern                   = regexp.MustCompile(`^[0-9A-Z]{15}$`)
+	gstinPattern                   = regexp.MustCompile(`^(0[1-9]|[12][0-9]|3[0-8])[A-Z]{5}[0-9]{4}[A-Z][1-9A-Z]Z[0-9A-Z]$`)
+	pincodePattern                 = regexp.MustCompile(`^[1-9][0-9]{5}$`)
 	appIDPattern                   = regexp.MustCompile(`^[a-z0-9_-]{16,100}$`)
 	currentCPOSubscriptionStatuses = []string{"TRIAL", "ACTIVE", "PAUSED", "PAST_DUE"}
 )
@@ -980,7 +981,7 @@ func (service *Service) SetPrimaryAdmin(
 		}
 	}
 	request.Email = strings.ToLower(strings.TrimSpace(request.Email))
-	request.FullName = strings.TrimSpace(request.FullName)
+	request.FullName = normalizeCPOText(request.FullName)
 	request.Reason = strings.TrimSpace(request.Reason)
 	if !validEmail(request.Email) {
 		return PrimaryAdminView{}, invalid(
@@ -988,7 +989,7 @@ func (service *Service) SetPrimaryAdmin(
 			"Primary administrator email is invalid.",
 		)
 	}
-	if request.FullName == "" || len(request.FullName) > 255 {
+	if !validPersonName(request.FullName) {
 		return PrimaryAdminView{}, invalid(
 			"full_name",
 			"Full name is required and must not exceed 255 characters.",
@@ -1660,29 +1661,29 @@ func (service *Service) find(ctx context.Context, cpoID uuid.UUID) (models.CPO, 
 
 func normalizeCreateRequest(request CreateRequest) CreateRequest {
 	request.Slug = normalizeSlug(request.Slug)
-	request.BusinessName = strings.TrimSpace(request.BusinessName)
+	request.BusinessName = normalizeCPOText(request.BusinessName)
 	request.GSTIN = strings.ToUpper(strings.TrimSpace(request.GSTIN))
-	request.Address = strings.TrimSpace(request.Address)
-	request.City = strings.TrimSpace(request.City)
+	request.Address = normalizeCPOText(request.Address)
+	request.City = normalizeCPOText(request.City)
 	request.State = constants.IndianState(strings.TrimSpace(string(request.State)))
 	request.Pincode = strings.TrimSpace(request.Pincode)
 	request.Admin.Email = strings.ToLower(strings.TrimSpace(request.Admin.Email))
-	request.Admin.FullName = strings.TrimSpace(request.Admin.FullName)
+	request.Admin.FullName = normalizeCPOText(request.Admin.FullName)
 	return request
 }
 
 func normalizeProfileRequest(request UpdateProfileRequest) UpdateProfileRequest {
-	request.BusinessName = strings.TrimSpace(request.BusinessName)
+	request.BusinessName = normalizeCPOText(request.BusinessName)
 	request.GSTIN = strings.ToUpper(strings.TrimSpace(request.GSTIN))
-	request.Address = strings.TrimSpace(request.Address)
-	request.City = strings.TrimSpace(request.City)
+	request.Address = normalizeCPOText(request.Address)
+	request.City = normalizeCPOText(request.City)
 	request.State = constants.IndianState(strings.TrimSpace(string(request.State)))
 	request.Pincode = strings.TrimSpace(request.Pincode)
 	return request
 }
 
 func validateProfileRequest(request UpdateProfileRequest) error {
-	if request.BusinessName == "" || len(request.BusinessName) > 255 {
+	if !validBusinessName(request.BusinessName) {
 		return invalid(
 			"business_name",
 			"Business name is required and must not exceed 255 characters.",
@@ -1694,23 +1695,20 @@ func validateProfileRequest(request UpdateProfileRequest) error {
 			"Company type must be INDIVIDUAL or COMPANY.",
 		)
 	}
-	if !gstinPattern.MatchString(request.GSTIN) {
-		return invalid(
-			"gstin",
-			"GSTIN is required and must contain 15 uppercase letters or digits.",
-		)
-	}
-	if request.Address == "" || len(request.Address) > 5000 {
+	if !validAddress(request.Address) {
 		return invalid("address", "Address is required and must not exceed 5000 characters.")
 	}
-	if request.City == "" || len(request.City) > 100 {
+	if !validCity(request.City) {
 		return invalid("city", "City is required and must not exceed 100 characters.")
 	}
 	if !request.State.Valid() {
 		return invalid("state", "Invalid state.")
 	}
-	if request.Pincode == "" || len(request.Pincode) > 10 {
-		return invalid("pincode", "Pincode is required and must not exceed 10 characters.")
+	if err := validateGSTIN(request.GSTIN, request.State); err != nil {
+		return err
+	}
+	if !pincodePattern.MatchString(request.Pincode) {
+		return invalid("pincode", "Pincode must be a valid six-digit Indian PIN code.")
 	}
 	return nil
 }
@@ -1730,31 +1728,31 @@ func validateCreateRequest(request CreateRequest) error {
 	if err := validateSlug(request.Slug); err != nil {
 		return err
 	}
-	if request.BusinessName == "" || len(request.BusinessName) > 255 {
+	if !validBusinessName(request.BusinessName) {
 		return invalid("business_name", "Business name is required and must not exceed 255 characters.")
 	}
 	if !request.CompanyType.Valid() {
 		return invalid("company_type", "Company type must be INDIVIDUAL or COMPANY.")
 	}
-	if !gstinPattern.MatchString(request.GSTIN) {
-		return invalid("gstin", "GSTIN is required and must contain 15 uppercase letters or digits.")
-	}
-	if request.Address == "" || len(request.Address) > 5000 {
+	if !validAddress(request.Address) {
 		return invalid("address", "Address is required and must not exceed 5000 characters.")
 	}
-	if request.City == "" || len(request.City) > 100 {
+	if !validCity(request.City) {
 		return invalid("city", "City is required and must not exceed 100 characters.")
 	}
 	if !request.State.Valid() {
 		return invalid("state", "Invalid state.")
 	}
-	if request.Pincode == "" || len(request.Pincode) > 10 {
-		return invalid("pincode", "Pincode is required and must not exceed 10 characters.")
+	if err := validateGSTIN(request.GSTIN, request.State); err != nil {
+		return err
+	}
+	if !pincodePattern.MatchString(request.Pincode) {
+		return invalid("pincode", "Pincode must be a valid six-digit Indian PIN code.")
 	}
 	if !validEmail(request.Admin.Email) {
 		return invalid("admin.email", "Administrator email is invalid.")
 	}
-	if request.Admin.FullName == "" || len(request.Admin.FullName) > 255 {
+	if !validPersonName(request.Admin.FullName) {
 		return invalid("admin.full_name", "Administrator full name is required and must not exceed 255 characters.")
 	}
 	return nil
@@ -1819,6 +1817,16 @@ func mapNotFound(err error) error {
 
 func mapWriteError(err error, operation string) error {
 	var postgresError *pgconn.PgError
+	if errors.As(err, &postgresError) && postgresError.Code == "23514" {
+		switch postgresError.ConstraintName {
+		case "chk_cpos_gstin":
+			return invalid("gstin", "GSTIN must be a valid 15-character Indian GSTIN with a valid checksum.")
+		case "chk_cpos_gstin_state_matches":
+			return invalid("gstin.state_mismatch", "GSTIN state code must match the CPO registration state.")
+		case "chk_cpos_pincode_format":
+			return invalid("pincode", "Pincode must be a valid six-digit Indian PIN code.")
+		}
+	}
 	if errors.As(err, &postgresError) && postgresError.Code == "23505" {
 		switch postgresError.ConstraintName {
 		case "uq_cpos_slug_normalized":
@@ -2166,8 +2174,8 @@ func (service *Service) CreateStaff(ctx context.Context, principal auth.Principa
 		return StaffView{}, err
 	}
 	request.Email = strings.ToLower(strings.TrimSpace(request.Email))
-	request.FullName = strings.TrimSpace(request.FullName)
-	if !validEmail(request.Email) || request.FullName == "" || len(request.FullName) > 255 {
+	request.FullName = normalizeCPOText(request.FullName)
+	if !validEmail(request.Email) || !validPersonName(request.FullName) {
 		return StaffView{}, invalid("staff", "A valid email and full name are required.")
 	}
 	if request.Role != constants.CPORoleAdmin && request.Role != constants.CPORoleOperator && request.Role != constants.CPORoleViewer {

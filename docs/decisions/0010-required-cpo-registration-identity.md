@@ -1,6 +1,6 @@
 # ADR 0010: Require Complete CPO Registration Identity
 
-Status: Accepted
+Status: Accepted; extended by ADR 0015
 
 Date: 2026-08-03
 
@@ -19,8 +19,9 @@ cannot reserve a value or remove the concurrency race.
 
 - CPO creation and platform profile replacement require nonblank GSTIN,
   address, city, state, and pincode values.
-- GSTIN is trimmed, uppercased, exactly 15 alphanumeric characters, and
-  globally unique through the existing normalized PostgreSQL index.
+- GSTIN is trimmed, uppercased, structurally/checksum validated, state-matched
+  under ADR 0015, and globally unique through the existing normalized
+  PostgreSQL index.
 - Slug remains trimmed, lowercased, format-validated, and globally unique
   through the existing normalized PostgreSQL index.
 - Migration eleven makes GSTIN `NOT NULL`, removes empty-string defaults from

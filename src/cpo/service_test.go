@@ -205,7 +205,7 @@ func TestValidateCreateRequest(t *testing.T) {
 		Slug:         "example-cpo",
 		BusinessName: "Example Charging",
 		CompanyType:  constants.CPOCompanyTypeCompany,
-		GSTIN:        "19ABCDE1234F5Z6",
+		GSTIN:        "19ABCDE1234F1ZX",
 		Address:      "1 Test Road",
 		City:         "Kolkata",
 		State:        "West Bengal",
@@ -230,17 +230,52 @@ func TestValidateCreateRequest(t *testing.T) {
 		mutate func(*CreateRequest)
 		code   string
 	}{
-		{name: "GSTIN", mutate: func(request *CreateRequest) { request.GSTIN = "" }, code: "invalid_gstin"},
+		{name: "GSTIN required", mutate: func(request *CreateRequest) { request.GSTIN = "" }, code: "invalid_gstin"},
+		{name: "GSTIN checksum", mutate: func(request *CreateRequest) { request.GSTIN = "19ABCDE1234F1ZZ" }, code: "invalid_gstin"},
+		{name: "GSTIN state mismatch", mutate: func(request *CreateRequest) { request.State = constants.Maharashtra }, code: "invalid_gstin_state_mismatch"},
 		{name: "address", mutate: func(request *CreateRequest) { request.Address = "" }, code: "invalid_address"},
 		{name: "city", mutate: func(request *CreateRequest) { request.City = "" }, code: "invalid_city"},
 		{name: "state", mutate: func(request *CreateRequest) { request.State = "" }, code: "invalid_state"},
-		{name: "pincode", mutate: func(request *CreateRequest) { request.Pincode = "" }, code: "invalid_pincode"},
+		{name: "pincode", mutate: func(request *CreateRequest) { request.Pincode = "70001A" }, code: "invalid_pincode"},
+		{name: "business name", mutate: func(request *CreateRequest) { request.BusinessName = "---" }, code: "invalid_business_name"},
+		{name: "administrator name", mutate: func(request *CreateRequest) { request.Admin.FullName = "123" }, code: "invalid_admin_full_name"},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			request := valid
 			test.mutate(&request)
 			var apiErr *auth.APIError
 			if err := validateCreateRequest(request); !errors.As(err, &apiErr) || apiErr.Code != test.code {
+				t.Fatalf("got %v, want %s", err, test.code)
+			}
+		})
+	}
+}
+
+func TestGSTINChecksumAndStateValidation(t *testing.T) {
+	t.Parallel()
+
+	for _, test := range []struct {
+		name  string
+		gstin string
+		state constants.IndianState
+		code  string
+	}{
+		{name: "known valid West Bengal GSTIN", gstin: "19ABCDE1234F1ZX", state: constants.WestBengal},
+		{name: "known valid Maharashtra GSTIN", gstin: "27AAPFU0939F1ZV", state: constants.Maharashtra},
+		{name: "invalid checksum", gstin: "19ABCDE1234F1ZZ", state: constants.WestBengal, code: "invalid_gstin"},
+		{name: "state mismatch", gstin: "19ABCDE1234F1ZX", state: constants.Maharashtra, code: "invalid_gstin_state_mismatch"},
+		{name: "unsupported state code", gstin: "97ABCDE1234F1ZQ", state: constants.WestBengal, code: "invalid_gstin"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			err := validateGSTIN(test.gstin, test.state)
+			if test.code == "" {
+				if err != nil {
+					t.Fatalf("valid GSTIN was rejected: %v", err)
+				}
+				return
+			}
+			var apiErr *auth.APIError
+			if !errors.As(err, &apiErr) || apiErr.Code != test.code {
 				t.Fatalf("got %v, want %s", err, test.code)
 			}
 		})
@@ -326,7 +361,7 @@ func TestNormalizeAndValidateProfileRequest(t *testing.T) {
 	request := normalizeProfileRequest(UpdateProfileRequest{
 		BusinessName: "  Example Charging  ",
 		CompanyType:  constants.CPOCompanyTypeCompany,
-		GSTIN:        " 19abcde1234f5z6 ",
+		GSTIN:        " 19abcde1234f1zx ",
 		Address:      " 1 Test Road ",
 		City:         " Kolkata ",
 		State:        " West Bengal ",
@@ -334,7 +369,7 @@ func TestNormalizeAndValidateProfileRequest(t *testing.T) {
 	})
 	if request.BusinessName != "Example Charging" ||
 		request.City != "Kolkata" ||
-		request.GSTIN != "19ABCDE1234F5Z6" ||
+		request.GSTIN != "19ABCDE1234F1ZX" ||
 		request.Address != "1 Test Road" ||
 		request.State != "West Bengal" ||
 		request.Pincode != "700001" {
@@ -351,7 +386,7 @@ func TestNormalizeAndValidateProfileRequest(t *testing.T) {
 	valid := normalizeProfileRequest(UpdateProfileRequest{
 		BusinessName: "Example Charging",
 		CompanyType:  constants.CPOCompanyTypeCompany,
-		GSTIN:        "19ABCDE1234F5Z6",
+		GSTIN:        "19ABCDE1234F1ZX",
 		Address:      "1 Test Road",
 		City:         "Kolkata",
 		State:        "West Bengal",
@@ -362,11 +397,13 @@ func TestNormalizeAndValidateProfileRequest(t *testing.T) {
 		mutate func(*UpdateProfileRequest)
 		code   string
 	}{
-		{name: "GSTIN", mutate: func(request *UpdateProfileRequest) { request.GSTIN = "" }, code: "invalid_gstin"},
+		{name: "GSTIN required", mutate: func(request *UpdateProfileRequest) { request.GSTIN = "" }, code: "invalid_gstin"},
+		{name: "GSTIN checksum", mutate: func(request *UpdateProfileRequest) { request.GSTIN = "19ABCDE1234F1ZZ" }, code: "invalid_gstin"},
+		{name: "GSTIN state mismatch", mutate: func(request *UpdateProfileRequest) { request.State = constants.Maharashtra }, code: "invalid_gstin_state_mismatch"},
 		{name: "address", mutate: func(request *UpdateProfileRequest) { request.Address = "" }, code: "invalid_address"},
 		{name: "city", mutate: func(request *UpdateProfileRequest) { request.City = "" }, code: "invalid_city"},
 		{name: "state", mutate: func(request *UpdateProfileRequest) { request.State = "" }, code: "invalid_state"},
-		{name: "pincode", mutate: func(request *UpdateProfileRequest) { request.Pincode = "" }, code: "invalid_pincode"},
+		{name: "pincode", mutate: func(request *UpdateProfileRequest) { request.Pincode = "70001A" }, code: "invalid_pincode"},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			candidate := valid
@@ -478,7 +515,7 @@ func TestOrganizationViewContainsTenantSafeFields(t *testing.T) {
 		Slug:                  "example-cpo",
 		BusinessName:          "Example Charging",
 		CompanyType:           constants.CPOCompanyTypeCompany,
-		GSTIN:                 "19ABCDE1234F5Z6",
+		GSTIN:                 "19ABCDE1234F1ZX",
 		Address:               "1 Test Road",
 		City:                  "Kolkata",
 		State:                 "West Bengal",
@@ -612,6 +649,27 @@ func TestMapWriteErrorKeepsGenericFallbackForUnknownUniquenessConflict(t *testin
 	var apiErr *auth.APIError
 	if !errors.As(err, &apiErr) || apiErr.Status != 409 || apiErr.Code != "cpo_conflict" {
 		t.Fatalf("got error %v, want 409 cpo_conflict", err)
+	}
+}
+
+func TestMapWriteErrorExplainsCPOIdentityChecks(t *testing.T) {
+	t.Parallel()
+
+	for _, test := range []struct {
+		constraint string
+		code       string
+	}{
+		{constraint: "chk_cpos_gstin", code: "invalid_gstin"},
+		{constraint: "chk_cpos_gstin_state_matches", code: "invalid_gstin_state_mismatch"},
+		{constraint: "chk_cpos_pincode_format", code: "invalid_pincode"},
+	} {
+		t.Run(test.constraint, func(t *testing.T) {
+			err := mapWriteError(&pgconn.PgError{Code: "23514", ConstraintName: test.constraint}, "test write")
+			var apiErr *auth.APIError
+			if !errors.As(err, &apiErr) || apiErr.Status != 400 || apiErr.Code != test.code {
+				t.Fatalf("got error %v, want 400 %s", err, test.code)
+			}
+		})
 	}
 }
 

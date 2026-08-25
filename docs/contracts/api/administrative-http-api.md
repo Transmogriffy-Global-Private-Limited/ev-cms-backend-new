@@ -1409,9 +1409,15 @@ Errors:
 - `503 mail_unavailable`;
 - `500 internal_error`.
 
-The slug and GSTIN are enforced by normalized PostgreSQL unique indexes. The
-creation transaction is authoritative even if an earlier availability lookup
-reported that a slug was free.
+The slug and GSTIN are enforced by normalized PostgreSQL unique indexes. GSTIN
+must also pass the Indian structure and checksum rules, and its two-digit state
+code must match the supplied CPO registration state; pincode must be a six-digit
+Indian PIN code. PostgreSQL repeats those GSTIN/state/PIN invariants for direct
+writes. Global GSTIN uniqueness already makes any `(GSTIN, business name)` pair
+unique, so no redundant compound index exists. Legal business-name ownership is
+not asserted without an authorized GST registry integration. The creation
+transaction is authoritative even if an earlier availability lookup reported
+that a slug was free.
 
 ### 8.2 `GET /api/v1/platform/cpos/slug-availability?slug={candidate}`
 
@@ -1522,10 +1528,11 @@ identity, lifecycle, app identity, memberships, and tenant data.
 }
 ```
 
-All seven fields shown above are required. GSTIN is normalized uppercase and
-must remain globally unique. GSTIN, address, city, state, and pincode cannot be
-null, blank, or omitted. The request cannot mutate slug, status, app ID, CPO
-ID, or audit metadata.
+All seven fields shown above are required. GSTIN is normalized uppercase, must
+pass its Indian checksum, and must remain globally unique with a state code that
+matches `state`; pincode must be a six-digit Indian PIN code. GSTIN, address,
+city, state, and pincode cannot be null, blank, or omitted. The request cannot
+mutate slug, status, app ID, CPO ID, or audit metadata.
 
 The transaction updates the CPO, writes `CPO_PROFILE_UPDATED` audit evidence,
 and emits `platform.cpo.profile_updated`. `200 OK` returns the updated CPO.

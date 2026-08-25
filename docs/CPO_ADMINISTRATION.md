@@ -139,8 +139,15 @@ primary-admin delivery status to distinguish `SENT` from pending or failed
 delivery. Mail being disabled fails the command before anything is created.
 
 Slug, business name, company type, GSTIN, address, city, state, pincode, and
-both administrator fields are mandatory. The server normalizes slug lowercase
-and GSTIN uppercase. Normalized slug and GSTIN values are globally unique.
+both administrator fields are mandatory. The server normalizes slug lowercase,
+GSTIN uppercase, and human text to one space between words. A GSTIN must match
+the Indian structural form and checksum; its two-digit state code must match
+the selected CPO registration state. PIN codes are six-digit Indian PIN codes.
+Business names and addresses must contain a letter or digit; city and
+administrator names must contain a letter. Normalized slug and GSTIN values are
+globally unique. GSTIN uniqueness already makes a `(GSTIN, business name)` pair
+unique, so no redundant compound key is maintained. The system does not claim
+to verify legal-name ownership without an authorized GST registry integration.
 
 ## Detail and Business Profile
 
@@ -161,9 +168,10 @@ and GSTIN uppercase. Normalized slug and GSTIN values are globally unique.
 ```
 
 Every field shown above is required. GSTIN, address, city, state, and pincode
-cannot be null, blank, or omitted; GSTIN remains normalized and globally
-unique. The immutable CPO ID, slug, app ID, and lifecycle state cannot be
-changed here.
+cannot be null, blank, or omitted; GSTIN remains checksum-valid, state-matched,
+normalized, and globally unique, while pincode remains a six-digit Indian PIN
+code. The immutable CPO ID, slug, app ID, and lifecycle state cannot be changed
+here.
 
 ## Lifecycle
 

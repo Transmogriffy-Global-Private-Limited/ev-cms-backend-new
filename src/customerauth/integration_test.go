@@ -16,6 +16,7 @@ import (
 	cmsmail "github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/mail"
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/models"
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/security"
+	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/testsupport"
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 )
@@ -632,7 +633,7 @@ func createActiveTestCPO(t *testing.T, database *gorm.DB) models.CPO {
 	cpo := models.CPO{
 		ID: uuid.New(), Slug: "signup-" + suffix, BusinessName: "Signup Test CPO",
 		CompanyType: constants.CPOCompanyTypeCompany, Status: constants.CPOStatusActive,
-		GSTIN: suffix[:15], Address: "1 Test Road", City: "Kolkata",
+		GSTIN: testsupport.ValidGSTIN("19"), Address: "1 Test Road", City: "Kolkata",
 		State: "West Bengal", Pincode: "700001",
 		StatusReason: "Customer authentication fixture", StatusChangedAt: now,
 		AppID: "cpo_dummy_" + suffix, AppIDMode: constants.CPOAppIDModeDummy,

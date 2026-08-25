@@ -252,7 +252,20 @@ Migration eleven strengthens the platform-owned CPO registration record:
 
 The migration performs a preflight and stops if any existing CPO lacks these
 values. It deliberately does not invent a GSTIN or address. Operators must
-correct incomplete records from an authoritative source before applying it.
+  correct incomplete records from an authoritative source before applying it.
+
+Migration fifty-three strengthens the same durable legal-identity boundary:
+
+- GSTIN must satisfy the Indian structural format and checksum;
+- its two-digit GST registration state code must match `cpos.state`;
+- `pincode` must be a six-digit Indian PIN code; and
+- the preflight rejects existing malformed identity rows rather than inventing
+  tax or address values.
+
+`uq_cpos_gstin_normalized` remains the sole authoritative normalized GSTIN
+uniqueness index. A `(gstin, business_name)` unique index would be redundant;
+the database has no GST legal-name registry and therefore does not claim to
+verify business-name ownership.
 
 ## Customer Signup
 

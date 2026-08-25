@@ -1,5 +1,23 @@
 # AI Changelog
 
+## 2026-08-25 - CPO GSTIN legal-identity validation
+
+- CPO provisioning/profile replacement now verifies Indian GSTIN structure and
+  checksum, enforces GSTIN state-code alignment with the CPO registration
+  state, requires six-digit Indian PIN codes, and normalizes meaningful
+  CPO/admin text. Initial, replacement-primary, and tenant staff administrator
+  names use the same validation.
+- Added migration 53 as the PostgreSQL backstop for GSTIN checksum/state and
+  PIN invariants. It fails closed if pre-existing records are malformed and
+  deliberately adds no redundant `(gstin, business_name)` index: normalized
+  GSTIN is already globally unique. The platform does not claim legal-name
+  ownership validation without an authorized GST registry integration.
+
+Verification: focused CPO tests, documentation/OpenAPI validation, route
+parity, `go test ./...`, `go vet ./...`, and `git diff --check` pass. The
+PostgreSQL migration/direct-write tests remain unrun because
+`TEST_DATABASE_URL` is unset.
+
 ## 2026-08-25 - Expired subscription customer-command admission
 
 - Extended the existing audited SuperAdmin renewal command so it can reactivate

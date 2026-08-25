@@ -3,7 +3,6 @@ package subscriptions
 import (
 	"context"
 	"os"
-	"strings"
 	"testing"
 	"time"
 
@@ -11,6 +10,7 @@ import (
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/auth"
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/constants"
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/models"
+	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/testsupport"
 	"github.com/google/uuid"
 )
 
@@ -34,7 +34,7 @@ func TestManualSubscriptionLifecycleWithPostgreSQL(t *testing.T) {
 	if err := gormDB.Create(&actor).Error; err != nil {
 		t.Fatalf("create actor: %v", err)
 	}
-	cpo := models.CPO{ID: uuid.New(), Slug: "test-" + uuid.NewString()[:8], BusinessName: "Subscription Test CPO", CompanyType: constants.CPOCompanyTypeCompany, GSTIN: "27" + strings.ToUpper(strings.ReplaceAll(uuid.NewString(), "-", "")[:10]) + "1Z5", Address: "1 Test Road", City: "Kolkata", State: "West Bengal", Pincode: "700001", Status: constants.CPOStatusActive, StatusReason: "Integration test", StatusChangedAt: now, AppID: "cpo_dummy_" + uuid.NewString(), AppIDMode: constants.CPOAppIDModeDummy, AppIDUpdatedAt: now, CreatedAt: now, UpdatedAt: now}
+	cpo := models.CPO{ID: uuid.New(), Slug: "test-" + uuid.NewString()[:8], BusinessName: "Subscription Test CPO", CompanyType: constants.CPOCompanyTypeCompany, GSTIN: testsupport.ValidGSTIN("19"), Address: "1 Test Road", City: "Kolkata", State: "West Bengal", Pincode: "700001", Status: constants.CPOStatusActive, StatusReason: "Integration test", StatusChangedAt: now, AppID: "cpo_dummy_" + uuid.NewString(), AppIDMode: constants.CPOAppIDModeDummy, AppIDUpdatedAt: now, CreatedAt: now, UpdatedAt: now}
 	if err := gormDB.Create(&cpo).Error; err != nil {
 		t.Fatalf("create CPO: %v", err)
 	}

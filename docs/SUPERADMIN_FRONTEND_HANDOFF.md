@@ -1029,10 +1029,11 @@ Normalization/validation:
 - slug is trimmed/lowercased, max 80, and uses single-hyphen-separated words;
 - business name is required, max 255;
 - company type is `INDIVIDUAL` or `COMPANY`;
-- GSTIN is required, uppercased, exactly 15 alphanumeric characters, and
-  globally unique after normalization;
-- address, city, state, and pincode are all required after trimming; their
-  maxima are 5000/100/100/10;
+- GSTIN is required, uppercased, structurally valid with a valid Indian GSTIN
+  checksum, globally unique after normalization, and its state code must match
+  the selected registration state;
+- address, city, state, and pincode are all required after trimming; pincode is
+  exactly six digits, and the text maxima are 5000/100/100;
 - admin email is normalized lowercase, valid, max 320;
 - admin full name is required, max 255;
 - status and app-ID fields are server-owned and must not be sent.
@@ -1082,7 +1083,9 @@ Profile update is replacement-style:
 ```
 
 Critical FE rule: every field shown is required. GSTIN, address, city, state,
-and pincode cannot be null, blank, or omitted. Build the request from the
+and pincode cannot be null, blank, or omitted. Validate the GSTIN checksum and
+state-code/state match before submit when practical, but always render the
+server's field-specific error because it is authoritative. Build the request from the
 complete form snapshot, not only dirty fields. The endpoint cannot change
 slug, ID, lifecycle, app ID, membership, or tenant data.
 
