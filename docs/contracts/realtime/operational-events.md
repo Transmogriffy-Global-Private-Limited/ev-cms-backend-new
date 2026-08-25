@@ -54,7 +54,11 @@ receive their tenant's safe records; a customer receives its own records plus
 safe charger/connector availability changes for the tenant. Current event
 types are `charging.command_changed`, `charger.live_state_changed`,
 `connector.live_state_changed`, `charging.session_changed`, and
-`charging.meter_changed`.
+`charging.meter_changed`, plus `charging.telemetry_changed`. The latter is
+emitted only after a newer accepted `transaction.soc` projection and uses the
+same materialized-session resource identity and REST recovery path, so a
+SoC-only update invalidates the live detail without depending on
+`meter_sequence`.
 
 ## Producer, Deduplication, and Recovery
 

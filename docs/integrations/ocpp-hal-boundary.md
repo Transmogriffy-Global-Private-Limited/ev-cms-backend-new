@@ -90,6 +90,24 @@ mutation, while non-mutating exact-command lookup remains correlation-free.
 
 ## HAL command-response contract
 
+## Optional charger SoC telemetry
+
+HAL may send additive `transaction.soc` immutable facts for valid OCPP 1.6
+`SoC` MeterValues evidence. The payload contains canonical decimal-string
+`soc_percent` in the inclusive `0`–`100` range, its `soc_observed_at`, and an
+independent increasing `soc_sequence`, together with existing transaction,
+start-intent, charger, and connector identities. SoC-only facts are valid and
+do not contain invented energy; energy-only `transaction.meter` facts do not
+repeat cached SoC.
+
+CMS stores the first accepted SoC once and advances latest SoC only with a
+newer SoC sequence and non-regressive observation time. It preserves that last
+observation after completion. Missing SoC remains NULL/unknown: it is never
+derived from energy, battery capacity, completion, or a default of zero. Live
+SoC freshness uses the established MeterValues stale horizon but is computed
+independently from energy-meter freshness; an offline/stale parent connection
+leaves retained SoC historical rather than fresh.
+
 CMS accepts a successful HAL start, stop, or exact-command lookup only when it
 contains a `command` object with exact snake_case `hal_command_id`,
 `cms_command_id`, `kind`, `state`, `hal_transaction_id`,

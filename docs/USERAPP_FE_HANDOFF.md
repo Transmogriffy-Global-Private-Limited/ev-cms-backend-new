@@ -738,7 +738,11 @@ the same paired `before`/`before_id` cursor convention as wallet history:
 default `limit=25`, maximum `100`, and both cursor fields are required together.
 On `has_more=true`, send both `next_before` and `next_before_id` unchanged.
 
-Each history card already contains the CMS session UUID, state, start/end
+Each history card also exposes optional `initial_soc_percent`,
+`final_soc_percent`, and `soc_observed_at` when charger-provided OCPP SoC was
+observed. `final_soc_percent` means the last observed charger value, not a
+guaranteed stop-time reading. A missing field is unknown—never render it as
+`0%` or estimate it from consumed energy. Each history card already contains the CMS session UUID, state, start/end
 times when known, committed consumed Wh, final `total_kwh` and `total_amount`
 only after `COMPLETED`, currency, settlement status, public charger ID/name,
 optional hub identity/name/address, and connector ID/number/type. Active and
@@ -782,7 +786,10 @@ charger, or component:
 5. Refetch the authoritative REST resource: for
    `resource_type=CHARGING_SESSION`, `resource_id` is the actual materialized
    CMS session UUID and is valid in `GET /charging-sessions/{resource_id}`.
-   `charging.meter_changed` and `charging.session_changed` use this relation.
+   `charging.meter_changed`, `charging.telemetry_changed`, and
+   `charging.session_changed` use this relation. Detail returns optional
+   `soc_percent` and `soc_observed_at` plus independent `soc_freshness`; never
+   treat fresh energy as fresh SoC.
    Refresh the appropriate charger detail/list after safe charger/connector
    availability events.
 6. On network close, token refresh, tab resume, or cursor-expiry recovery,

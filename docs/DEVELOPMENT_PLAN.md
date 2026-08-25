@@ -115,6 +115,12 @@ Active work:
 
 Current implementation state:
 
+- Optional charger-provided SoC telemetry is deployed: HAL `transaction.soc`
+  facts now project nullable first/latest SoC, observation time, and an
+  independent sequence into charging sessions. Customer detail/history and
+  operational invalidation expose observed SoC without estimating it. Migration
+  48 is applied; disposable CMS/HAL/cpconsole acceptance remains pending.
+
 - Charging lifecycle repair is deployed: migration 45 gives connector occupancy to an
   unmaterialized start intent before materialization and to a single active,
   stop-pending, or reconciliation-required session afterwards. Completion

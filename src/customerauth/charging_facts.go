@@ -42,6 +42,8 @@ func (service *Service) ApplyHALFactProjection(tx *gorm.DB, envelope halops.Fact
 		emit, err = service.applyStartedFact(tx, payload)
 	case "transaction.meter":
 		err = service.applyMeterFact(tx, payload)
+	case "transaction.soc":
+		err = service.applySoCFact(tx, payload)
 	case "transaction.completed":
 		err = service.applyCompletedFact(tx, payload)
 	default:
@@ -104,13 +106,13 @@ func (service *Service) emitOperationalFact(tx *gorm.DB, factType string, payloa
 			return err
 		}
 		input.Type, input.ResourceType, input.ResourceID = "connector.live_state_changed", "CONNECTOR", connectorID.String()
-	case "transaction.started", "transaction.meter", "transaction.completed":
+	case "transaction.started", "transaction.meter", "transaction.soc", "transaction.completed":
 		intentID, ok := factID(payload, "cms_start_intent_id")
 		if !ok {
 			return nil
 		}
 		var session models.ChargingSession
-		if err := tx.Select("id", "cpo_id", "customer_id", "meter_sequence").First(&session, "start_intent_id = ?", intentID).Error; err != nil {
+		if err := tx.Select("id", "cpo_id", "customer_id", "meter_sequence", "soc_sequence").First(&session, "start_intent_id = ?", intentID).Error; err != nil {
 			return err
 		}
 		var emit bool
@@ -145,6 +147,12 @@ func chargingSessionOperationalEvent(factType string, session models.ChargingSes
 			return operationalrealtime.Input{}, false
 		}
 		input.Type = "charging.meter_changed"
+	case "transaction.soc":
+		sequence, ok := factInt(payload, "soc_sequence")
+		if !ok || session.SoCSequence != sequence {
+			return operationalrealtime.Input{}, false
+		}
+		input.Type = "charging.telemetry_changed"
 	default:
 		return operationalrealtime.Input{}, false
 	}
@@ -437,6 +445,44 @@ func (service *Service) applyMeterFact(tx *gorm.DB, p models.JSONB) error {
 	}
 	return tx.Model(&session).Updates(map[string]any{"latest_meter_wh": meter, "meter_observed_at": observed, "meter_sequence": sequence, "updated_at": service.now()}).Error
 }
+
+// applySoCFact deliberately has no energy requirements. The new immutable
+// fact represents only a valid charger-observed SoC transition, with its own
+// ordering stream, so missing SoC never clears state and a stale SoC cannot
+// suppress an independently valid meter update.
+func (service *Service) applySoCFact(tx *gorm.DB, p models.JSONB) error {
+	halTx, ok := factID(p, "hal_transaction_id")
+	if !ok {
+		return invalidFact()
+	}
+	sequence, ok := factInt(p, "soc_sequence")
+	if !ok || sequence < 1 {
+		return invalidFact()
+	}
+	soc, ok := factSoC(p, "soc_percent")
+	if !ok {
+		return invalidFact()
+	}
+	observed, ok := factTime(p, "soc_observed_at")
+	if !ok {
+		return invalidFact()
+	}
+	var session models.ChargingSession
+	if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&session, "hal_transaction_id = ?", halTx).Error; err != nil {
+		return invalidFact()
+	}
+	// A SoC fact accepted by HAL before completion can be delivered after the
+	// completion fact. Preserve that real historical observation; HAL refuses
+	// fresh SoC after completion, so this does not reopen a transaction.
+	if sequence <= session.SoCSequence || (session.SoCObservedAt != nil && !observed.After(*session.SoCObservedAt)) {
+		return nil
+	}
+	updates := map[string]any{"latest_soc_percent": soc, "soc_observed_at": observed, "soc_sequence": sequence, "updated_at": service.now()}
+	if session.InitialSoCPercent == nil {
+		updates["initial_soc_percent"] = soc
+	}
+	return tx.Model(&session).Updates(updates).Error
+}
 func (service *Service) applyCompletedFact(tx *gorm.DB, p models.JSONB) error {
 	halTx, ok := factID(p, "hal_transaction_id")
 	if !ok {
@@ -604,6 +650,17 @@ func factInt(p models.JSONB, key string) (int64, bool) {
 		return 0, false
 	}
 	return int64(v), true
+}
+func factSoC(p models.JSONB, key string) (decimal.Decimal, bool) {
+	raw, ok := p[key].(string)
+	if !ok || strings.TrimSpace(raw) == "" {
+		return decimal.Zero, false
+	}
+	value, err := decimal.NewFromString(raw)
+	if err != nil || value.IsNegative() || value.GreaterThan(decimal.NewFromInt(100)) || value.Exponent() < -3 {
+		return decimal.Zero, false
+	}
+	return value, true
 }
 func factTime(p models.JSONB, key string) (time.Time, bool) {
 	v, ok := p[key].(string)

@@ -54,6 +54,9 @@ type ChargingSessionView struct {
 	ConsumedWh           *int64                        `json:"consumed_wh,omitempty"`
 	MeterObservedAt      *time.Time                    `json:"meter_observed_at,omitempty"`
 	MeterFreshness       string                        `json:"meter_freshness"`
+	SoCPercent           *string                       `json:"soc_percent,omitempty"`
+	SoCObservedAt        *time.Time                    `json:"soc_observed_at,omitempty"`
+	SoCFreshness         string                        `json:"soc_freshness"`
 	ConnectionState      string                        `json:"connection_state"`
 	ConnectionObservedAt *time.Time                    `json:"connection_observed_at,omitempty"`
 	ConnectorOCPPStatus  *string                       `json:"connector_ocpp_status,omitempty"`
@@ -91,17 +94,20 @@ type ChargingSessionHistoryResponse struct {
 }
 
 type ChargingSessionHistoryView struct {
-	ID               uuid.UUID                    `json:"id"`
-	State            string                       `json:"state"`
-	StartedAt        time.Time                    `json:"started_at"`
-	CompletedAt      *time.Time                   `json:"completed_at,omitempty"`
-	ConsumedWh       *int64                       `json:"consumed_wh,omitempty"`
-	TotalKWh         *string                      `json:"total_kwh,omitempty"`
-	TotalAmount      *string                      `json:"total_amount,omitempty"`
-	Currency         string                       `json:"currency"`
-	SettlementStatus string                       `json:"settlement_status"`
-	Charger          ChargingSessionChargerView   `json:"charger"`
-	Connector        ChargingSessionConnectorView `json:"connector"`
+	ID                uuid.UUID                    `json:"id"`
+	State             string                       `json:"state"`
+	StartedAt         time.Time                    `json:"started_at"`
+	CompletedAt       *time.Time                   `json:"completed_at,omitempty"`
+	ConsumedWh        *int64                       `json:"consumed_wh,omitempty"`
+	TotalKWh          *string                      `json:"total_kwh,omitempty"`
+	TotalAmount       *string                      `json:"total_amount,omitempty"`
+	Currency          string                       `json:"currency"`
+	SettlementStatus  string                       `json:"settlement_status"`
+	InitialSoCPercent *string                      `json:"initial_soc_percent,omitempty"`
+	FinalSoCPercent   *string                      `json:"final_soc_percent,omitempty"`
+	SoCObservedAt     *time.Time                   `json:"soc_observed_at,omitempty"`
+	Charger           ChargingSessionChargerView   `json:"charger"`
+	Connector         ChargingSessionConnectorView `json:"connector"`
 }
 
 type ChargingSessionChargerView struct {
@@ -850,15 +856,18 @@ func (service *Service) GetChargingSession(ctx context.Context, principal Princi
 
 func customerChargingSessionHistoryView(session models.ChargingSession) ChargingSessionHistoryView {
 	view := ChargingSessionHistoryView{
-		ID:               session.ID,
-		State:            string(session.Status),
-		StartedAt:        session.StartTime,
-		CompletedAt:      session.EndTime,
-		ConsumedWh:       customerChargingSessionConsumedWh(session),
-		Currency:         session.Currency,
-		SettlementStatus: session.SettlementStatus,
-		Charger:          customerChargingSessionChargerView(session.Charger),
-		Connector:        customerChargingSessionConnectorView(session.Connector),
+		ID:                session.ID,
+		State:             string(session.Status),
+		StartedAt:         session.StartTime,
+		CompletedAt:       session.EndTime,
+		ConsumedWh:        customerChargingSessionConsumedWh(session),
+		Currency:          session.Currency,
+		SettlementStatus:  session.SettlementStatus,
+		InitialSoCPercent: decimalPointerString(session.InitialSoCPercent),
+		FinalSoCPercent:   decimalPointerString(session.LatestSoCPercent),
+		SoCObservedAt:     session.SoCObservedAt,
+		Charger:           customerChargingSessionChargerView(session.Charger),
+		Connector:         customerChargingSessionConnectorView(session.Connector),
 	}
 	if session.EndTime != nil {
 		totalKWh := session.TotalKWh.StringFixed(3)
@@ -878,6 +887,9 @@ func customerChargingSessionDetailView(session models.ChargingSession, intent mo
 		ConsumedWh:           liveState.ConsumedWh,
 		MeterObservedAt:      liveState.MeterObservedAt,
 		MeterFreshness:       liveState.MeterFreshness,
+		SoCPercent:           decimalPointerString(liveState.LatestSoCPercent),
+		SoCObservedAt:        liveState.SoCObservedAt,
+		SoCFreshness:         liveState.SoCFreshness,
 		ConnectionState:      chargerState.ConnectionState,
 		ConnectionObservedAt: chargerState.ConnectionObservedAt,
 		ConnectorOCPPStatus:  connectorState.LastOCPPStatus,
@@ -902,6 +914,14 @@ func customerChargingSessionDetailView(session models.ChargingSession, intent mo
 		view.TotalKWh, view.TotalAmount = &totalKWh, &totalAmount
 	}
 	return view
+}
+
+func decimalPointerString(value *decimal.Decimal) *string {
+	if value == nil {
+		return nil
+	}
+	text := value.String()
+	return &text
 }
 
 func customerChargingSessionConsumedWh(session models.ChargingSession) *int64 {

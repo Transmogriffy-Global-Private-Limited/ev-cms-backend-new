@@ -12,6 +12,7 @@ import (
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/constants"
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/models"
 	"github.com/google/uuid"
+	"github.com/shopspring/decimal"
 	"gorm.io/gorm"
 )
 
@@ -80,16 +81,20 @@ type ChargerDetail struct {
 }
 
 type SessionState struct {
-	SessionID       uuid.UUID  `json:"session_id"`
-	CPOID           uuid.UUID  `json:"cpo_id"`
-	CustomerID      uuid.UUID  `json:"-"`
-	State           string     `json:"state"`
-	StartedAt       time.Time  `json:"started_at"`
-	LatestMeterWh   *int64     `json:"latest_meter_wh,omitempty"`
-	ConsumedWh      *int64     `json:"consumed_wh,omitempty"`
-	MeterObservedAt *time.Time `json:"meter_observed_at,omitempty"`
-	MeterFreshness  string     `json:"meter_freshness"`
-	CompletedAt     *time.Time `json:"completed_at,omitempty"`
+	SessionID         uuid.UUID        `json:"session_id"`
+	CPOID             uuid.UUID        `json:"cpo_id"`
+	CustomerID        uuid.UUID        `json:"-"`
+	State             string           `json:"state"`
+	StartedAt         time.Time        `json:"started_at"`
+	LatestMeterWh     *int64           `json:"latest_meter_wh,omitempty"`
+	ConsumedWh        *int64           `json:"consumed_wh,omitempty"`
+	MeterObservedAt   *time.Time       `json:"meter_observed_at,omitempty"`
+	MeterFreshness    string           `json:"meter_freshness"`
+	InitialSoCPercent *decimal.Decimal `json:"initial_soc_percent,omitempty"`
+	LatestSoCPercent  *decimal.Decimal `json:"soc_percent,omitempty"`
+	SoCObservedAt     *time.Time       `json:"soc_observed_at,omitempty"`
+	SoCFreshness      string           `json:"soc_freshness"`
+	CompletedAt       *time.Time       `json:"completed_at,omitempty"`
 }
 
 type FleetState struct {
@@ -265,13 +270,18 @@ func (service *Service) GetSession(ctx context.Context, cpoID, sessionID uuid.UU
 	if err := service.database.WithContext(ctx).First(&session, "id = ? AND cpo_id = ?", sessionID, cpoID).Error; err != nil {
 		return SessionState{}, err
 	}
-	state := SessionState{SessionID: session.ID, CPOID: session.CPOID, CustomerID: session.CustomerID, State: string(session.Status), StartedAt: session.StartTime, LatestMeterWh: session.LatestMeterWh, MeterObservedAt: session.MeterObservedAt, MeterFreshness: FreshnessUnknown, CompletedAt: session.EndTime}
+	state := SessionState{SessionID: session.ID, CPOID: session.CPOID, CustomerID: session.CustomerID, State: string(session.Status), StartedAt: session.StartTime, LatestMeterWh: session.LatestMeterWh, MeterObservedAt: session.MeterObservedAt, MeterFreshness: FreshnessUnknown, InitialSoCPercent: session.InitialSoCPercent, LatestSoCPercent: session.LatestSoCPercent, SoCObservedAt: session.SoCObservedAt, SoCFreshness: FreshnessUnknown, CompletedAt: session.EndTime}
 	if session.LatestMeterWh != nil && *session.LatestMeterWh >= session.MeterStartWh {
 		consumed := *session.LatestMeterWh - session.MeterStartWh
 		state.ConsumedWh = &consumed
 	}
 	if session.MeterObservedAt != nil {
 		state.MeterFreshness = service.meterFreshness(*session.MeterObservedAt)
+	}
+	// SoC intentionally reuses the MeterValues stale horizon, while retaining
+	// a separate observed timestamp and freshness result.
+	if session.SoCObservedAt != nil {
+		state.SoCFreshness = service.meterFreshness(*session.SoCObservedAt)
 	}
 	if session.Status == constants.SessionStatusActive || session.Status == constants.SessionStatusStopPending || session.Status == constants.SessionStatusReconciliationRequired {
 		charger, err := service.GetCharger(ctx, cpoID, session.ChargerID)
@@ -280,6 +290,9 @@ func (service *Service) GetSession(ctx context.Context, cpoID, sessionID uuid.UU
 		}
 		if charger.ConnectionState != "ONLINE" || charger.ConnectionFreshness != FreshnessFresh {
 			state.MeterFreshness = FreshnessStale
+			if state.LatestSoCPercent != nil {
+				state.SoCFreshness = FreshnessStale
+			}
 		}
 	}
 	return state, nil

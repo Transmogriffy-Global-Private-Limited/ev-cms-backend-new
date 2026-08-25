@@ -401,6 +401,50 @@ func TestChargingSessionOperationalEventUsesMaterializedSessionID(t *testing.T) 
 	if _, ok := chargingSessionOperationalEvent("transaction.meter", session, models.JSONB{"meter_sequence": float64(6)}); ok {
 		t.Fatal("stale meter sequence emitted an invalidation")
 	}
+	session.SoCSequence = 4
+	socEvent, ok := chargingSessionOperationalEvent("transaction.soc", session, models.JSONB{"soc_sequence": float64(4)})
+	if !ok || socEvent.Type != "charging.telemetry_changed" || socEvent.ResourceID != sessionID.String() {
+		t.Fatalf("SoC event did not invalidate its materialized session: %+v", socEvent)
+	}
+	if _, ok := chargingSessionOperationalEvent("transaction.soc", session, models.JSONB{"soc_sequence": float64(3)}); ok {
+		t.Fatal("stale SoC sequence emitted an invalidation")
+	}
+}
+
+func TestSoCFactValidationAndCustomerProjectionsNeverFabricateZero(t *testing.T) {
+	t.Parallel()
+	for _, test := range []struct {
+		payload models.JSONB
+		valid   bool
+	}{
+		{payload: models.JSONB{"soc_percent": "0"}, valid: true},
+		{payload: models.JSONB{"soc_percent": "100"}, valid: true},
+		{payload: models.JSONB{"soc_percent": "67.125"}, valid: true},
+		{payload: models.JSONB{"soc_percent": "-1"}},
+		{payload: models.JSONB{"soc_percent": "100.001"}},
+		{payload: models.JSONB{"soc_percent": "banana"}},
+		{payload: models.JSONB{"soc_percent": float64(67)}},
+	} {
+		_, ok := factSoC(test.payload, "soc_percent")
+		if ok != test.valid {
+			t.Fatalf("payload=%#v valid=%t", test.payload, ok)
+		}
+	}
+	observed := time.Date(2026, 8, 25, 12, 0, 0, 0, time.UTC)
+	initial, latest := decimal.RequireFromString("35"), decimal.RequireFromString("63.5")
+	session := models.ChargingSession{ID: uuid.New(), StartTime: observed.Add(-time.Hour), InitialSoCPercent: &initial, LatestSoCPercent: &latest, SoCObservedAt: &observed}
+	history := customerChargingSessionHistoryView(session)
+	if history.InitialSoCPercent == nil || *history.InitialSoCPercent != "35" || history.FinalSoCPercent == nil || *history.FinalSoCPercent != "63.5" || history.SoCObservedAt == nil || !history.SoCObservedAt.Equal(observed) {
+		t.Fatalf("history lost observed SoC: %+v", history)
+	}
+	detail := customerChargingSessionDetailView(session, models.ChargingStartIntent{ID: uuid.New()}, liveops.SessionState{LatestSoCPercent: &latest, SoCObservedAt: &observed, SoCFreshness: liveops.FreshnessFresh}, liveops.ChargerState{}, liveops.ConnectorState{})
+	if detail.SoCPercent == nil || *detail.SoCPercent != "63.5" || detail.SoCFreshness != liveops.FreshnessFresh {
+		t.Fatalf("detail=%+v", detail)
+	}
+	unknown := customerChargingSessionHistoryView(models.ChargingSession{ID: uuid.New(), StartTime: observed})
+	if unknown.InitialSoCPercent != nil || unknown.FinalSoCPercent != nil || unknown.SoCObservedAt != nil {
+		t.Fatalf("unknown SoC became known: %+v", unknown)
+	}
 }
 
 func TestChargingConnectorAllowsNewStartOnlyWhenFreshOnlineAndOCPPAllowsIt(t *testing.T) {
