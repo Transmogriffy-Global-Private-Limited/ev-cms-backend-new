@@ -2,6 +2,16 @@
 
 ## Current State
 
+### 2026-08-25 — CPO customer total-usage projection repair in source
+
+- Source now maps the CPO customer list/detail energy aggregate alias
+  `total_usage_kwh` explicitly. Completed/reconciliation session energy already
+  persisted in `charging_sessions.total_kwh` will therefore populate
+  `total_usage_kwh` consistently with `session_count`; no schema or data change
+  is required.
+- This repair has not yet been deployed or checked against the reported CPO
+  customer response.
+
 ### 2026-08-25 — CPO charging-session charger projection repair rehost verified
 
 - Source now protects CPO charging-session history and live-session reads from

@@ -122,8 +122,17 @@ Establish reusable CMS capabilities over HAL-derived operational truth and expos
   direct session charger from the connector's CPO-owned charger in one bounded
   query, retain no-fabrication behavior when both relations are absent, and
   verify the actual deployed response after publication.
+- 2026-08-25 customer-usage repair: the customer aggregate SQL aliases
+  `total_usage_kwh`, but GORM inferred the acronym field as `total_usage_k_wh`.
+  Explicitly map both list and detail aggregate targets; verify existing
+  completed-session totals return without a data rewrite.
 
 ## Verification
+
+- 2026-08-25 customer-usage aggregate repair: focused CPO aggregate and
+  route/OpenAPI checks, `scripts/verify-docs.ps1`, `go test ./...`, `go vet
+  ./...`, and `git diff --check` pass. The existing CPO customer list/detail
+  response requires deployment and a live recheck.
 
 - 2026-08-25 charger-relation fallback repair: focused CPO regression and
   route/OpenAPI checks, `go test ./...`, `go vet ./...`, and `git diff --check`

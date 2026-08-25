@@ -3,6 +3,7 @@ package cpo
 import (
 	"encoding/json"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -11,6 +12,7 @@ import (
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/models"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
+	"gorm.io/gorm/schema"
 )
 
 func TestCPOTransactionProjectionUsesJoinedHumanAndProtocolIdentity(t *testing.T) {
@@ -123,5 +125,23 @@ func TestSessionChargerFallbackUsesTenantResolvedConnectorCharger(t *testing.T) 
 	assignSessionChargerFallback(&missing, map[uuid.UUID]models.Charger{})
 	if missing.Charger.ID != uuid.Nil {
 		t.Fatalf("missing charger must not be fabricated: %+v", missing.Charger)
+	}
+}
+
+func TestCustomerUsageAggregateUsesCanonicalKWhAlias(t *testing.T) {
+	t.Parallel()
+
+	for _, target := range []any{&CustomerAggregates{}, &customerAggregateResult{}} {
+		parsed, err := schema.Parse(target, &sync.Map{}, schema.NamingStrategy{})
+		if err != nil {
+			t.Fatalf("parse aggregate %T: %v", target, err)
+		}
+		field := parsed.LookUpField("TotalUsageKWh")
+		if field == nil {
+			t.Fatalf("aggregate %T has no TotalUsageKWh field", target)
+		}
+		if field.DBName != "total_usage_kwh" {
+			t.Fatalf("aggregate %T maps TotalUsageKWh to %q, want total_usage_kwh", target, field.DBName)
+		}
 	}
 }

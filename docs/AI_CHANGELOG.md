@@ -1,5 +1,20 @@
 # AI Changelog
 
+## 2026-08-25 - Fix CPO customer total-usage aggregate mapping
+
+- Corrected both CPO customer usage aggregate scan targets to map
+  `TotalUsageKWh` explicitly to the SQL alias `total_usage_kwh`. GORM had
+  inferred `total_usage_k_wh`, so the same queries correctly populated
+  `session_count` but silently serialized zero usage despite completed sessions
+  with nonzero `charging_sessions.total_kwh`.
+- The list and single-customer read now share the canonical alias mapping; no
+  migration or data repair is required because the energy is already stored in
+  the migration-owned `total_kwh` column.
+
+Verification: focused CPO aggregate and route/OpenAPI checks,
+`scripts/verify-docs.ps1`, `go test ./...`, `go vet ./...`, and
+`git diff --check` pass. Deployment confirmation remains pending this repair.
+
 ## 2026-08-25 - Harden CPO charging-session charger relation fallback
 
 - Hardened the CPO historical charging-session and live-session reads against

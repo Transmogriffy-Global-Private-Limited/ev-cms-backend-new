@@ -5345,9 +5345,15 @@ func (service *Service) ListCustomers(
 }
 
 type CustomerAggregates struct {
-	TotalUsageKWh decimal.Decimal
-	SessionCount  int64
-	WalletBalance decimal.Decimal
+	TotalUsageKWh decimal.Decimal `gorm:"column:total_usage_kwh"`
+	SessionCount  int64           `gorm:"column:session_count"`
+	WalletBalance decimal.Decimal `gorm:"column:wallet_balance"`
+}
+
+type customerAggregateResult struct {
+	CustomerID    uuid.UUID       `gorm:"column:customer_id"`
+	TotalUsageKWh decimal.Decimal `gorm:"column:total_usage_kwh"`
+	SessionCount  int64           `gorm:"column:session_count"`
 }
 
 func (service *Service) GetCustomer(
@@ -5397,12 +5403,6 @@ func (service *Service) getCustomerAggregates(ctx context.Context, customerID uu
 }
 
 func (service *Service) getCustomerAggregatesByCPO(ctx context.Context, cpoID uuid.UUID) (map[uuid.UUID]CustomerAggregates, error) {
-	type CustomerAggregateResult struct {
-		CustomerID    uuid.UUID
-		TotalUsageKWh decimal.Decimal
-		SessionCount  int64
-	}
-
 	var customers []models.Customer
 	if err := service.database.WithContext(ctx).Model(&models.Customer{}).Where("cpo_id = ?", cpoID).Find(&customers).Error; err != nil {
 		return nil, err
@@ -5413,7 +5413,7 @@ func (service *Service) getCustomerAggregatesByCPO(ctx context.Context, cpoID uu
 		customerIDs[i] = c.ID
 	}
 
-	var sessionAggregates []CustomerAggregateResult
+	var sessionAggregates []customerAggregateResult
 	if len(customerIDs) > 0 {
 		err := service.database.WithContext(ctx).Model(&models.ChargingSession{}).
 			Select("customer_id, COALESCE(SUM(total_kwh), 0) as total_usage_kwh, COUNT(*) as session_count").
