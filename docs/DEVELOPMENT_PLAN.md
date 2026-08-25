@@ -117,6 +117,12 @@ Active work:
 
 Current implementation state:
 
+- The CPO live-session snapshot, filtered durable replay, and SSE invalidation
+  routes are rehosted in runtime revision `aa44e4b` with migrations 49–53
+  applied. The service is enabled behind Caddy, public readiness and docs
+  routes pass, and the live OpenAPI contract contains 209 operations. No new
+  migration was required.
+
 - Optional charger-provided SoC telemetry is deployed: HAL `transaction.soc`
   facts now project nullable first/latest SoC, observation time, and an
   independent sequence into charging sessions. Customer detail/history and
@@ -127,7 +133,7 @@ Current implementation state:
   projections, active-session live kWh overlays, and the SuperAdmin CPO
   customer-intelligence route. Session reads also hydrate an incomplete charger
   relation through the connector-owned relation. These changes require no
-  additional migration; runtime revision `162b3be` is active with migrations
+  additional migration; runtime revision `aa44e4b` is active with migrations
   45-53 applied. Migration 53 preserves three existing legacy CPO legal-
   identity rows with `NOT VALID` database checks while enforcing new and
   updated rows; the authoritative correction and later constraint validation
@@ -165,8 +171,9 @@ Current implementation state:
   is still required before the work item can close.
 - CMS source and the development deployment contain the first client, durable records, shared fact receiver,
   customer polling/start/stop routes, reusable operational projections,
-  scoped operational-event replay/SSE, and a 189-operation OpenAPI surface.
-  Runtime revision `c6b79d4` is active.
+  scoped operational-event replay/SSE, and the CPO live-session snapshot,
+  filtered replay, and SSE routes. Runtime revision `aa44e4b` is active with a
+  209-operation OpenAPI surface.
   The HAL runtime GORM models explicitly map to the singular migration tables
   `hal_charger_runtime` and `hal_connector_runtime`.
   The HAL v1 provider is

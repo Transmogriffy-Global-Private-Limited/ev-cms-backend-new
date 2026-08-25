@@ -121,11 +121,14 @@ Establish reusable CMS capabilities over HAL-derived operational truth and expos
 ## Verification
 
 - 2026-08-25 live-session/admission slice: focused customerauth, CPO, liveops,
-  operational-event, and route/OpenAPI checks pass; `scripts/verify-docs.ps1`,
-  `go test ./...`, `go vet ./...`, and `git diff --check` pass. The admission
-  regression is database-free and proves a current ACTIVE renewal takes
-  precedence over an expired historical row. No migration, database mutation,
-  deployment, or live-session hardware acceptance occurred.
+  operational-event, and route/OpenAPI checks pass; `go test ./...`, `go vet
+  ./...`, and `git diff --check` pass. Runtime revision `aa44e4b` was rebuilt
+  and rehosted without a migration or database mutation. Live/readiness,
+  Swagger, Caddy, expected unauthenticated live-session access, 209-operation
+  OpenAPI, and post-rehost logs were verified. The admission regression is
+  database-free and proves a current ACTIVE renewal takes precedence over an
+  expired historical row. `pwsh` and `TEST_DATABASE_URL` remain unavailable;
+  live-session hardware acceptance is not claimed.
 
 - Focused HAL client, customer charging, halops, and liveops tests pass.
   Disposable PostgreSQL migration/occupancy coverage is present but skipped

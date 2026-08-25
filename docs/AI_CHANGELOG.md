@@ -17,9 +17,13 @@
   elapsed subscription retains the existing narrow start/recharge block.
 
 Verification: focused customerauth, CPO, liveops, operational-event, and
-route/OpenAPI checks, `scripts/verify-docs.ps1`, `go test ./...`, `go vet
-./...`, and `git diff --check` pass. No migration, database mutation,
-deployment, or live-service action occurred.
+route/OpenAPI checks, `go test ./...`, `go vet ./...`, and `git diff --check`
+pass. Runtime revision `aa44e4b` was rebuilt and rehosted with no migration or
+database mutation. The service is enabled and healthy; loopback/public health,
+readiness, Swagger, raw OpenAPI, expected unauthenticated live-session access,
+209-operation count, Caddy validation, binary hashes, and post-rehost logs were
+verified. `pwsh` is unavailable on this VPS, so the PowerShell documentation
+verifier was not rerun here.
 
 ## 2026-08-25 - Preserve legacy CPO identity rows during migration
 

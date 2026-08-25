@@ -2,7 +2,7 @@
 
 ## Current State
 
-### 2026-08-25 — CPO live-session projection and renewed-admission repair in source
+### 2026-08-25 — CPO live-session operations rehost verified
 
 - Source now exposes a CPO ADMIN/app-ID-scoped ongoing-session snapshot at
   `/api/v1/cpo/operations/live-sessions`, plus filtered durable replay and SSE
@@ -15,8 +15,12 @@
   current subscription precedence over terminal subscription history. A prior
   expired row therefore cannot keep a newly renewed active CPO blocked; an
   expired current subscription still blocks only new customer paid commands.
-- These are source changes only. No migration, database mutation, deployment,
-  or live-service verification has been performed for this slice.
+- Runtime revision `aa44e4b` is active behind Caddy with binary SHA-256
+  `b8bbf2453a1f84ffef0d38855b0406a73be1ecca6ee590f6a4727811af8ebe32`.
+  The service is enabled and running, migrations remain through 53, the live
+  session route returns the expected unauthenticated 401, and loopback/public
+  live/readiness, Swagger, raw OpenAPI, and Caddy checks pass. The source
+  OpenAPI serves 209 operations. No database mutation was required.
 
 ### 2026-08-25 — CPO legal-identity migration and rehost verified
 
