@@ -141,24 +141,32 @@ func (r *repository) ListChargersByHub(ctx context.Context, cpoID, hubID uuid.UU
 
 type ChargerTransaction struct {
 	models.ChargingSession
-	PaymentStatus      constants.FinancialStatus
-	ChargerName        string
-	HubName            string
-	TariffPricePerUnit decimal.Decimal
-	CPOBusinessName    string
-	ChargerHostName    string
-	ChargerHostPhoneNo string
-	CustomerFullName   string
-	CustomerEmail      string
-	CustomerPhone      *string
+	PaymentStatus       constants.FinancialStatus `gorm:"column:payment_status"`
+	ChargerCode         string                    `gorm:"column:charger_code"`
+	ChargerOCPPIdentity string                    `gorm:"column:charger_ocpp_identity"`
+	ChargerName         string                    `gorm:"column:charger_name"`
+	HubID               *uuid.UUID                `gorm:"column:hub_id"`
+	HubName             string                    `gorm:"column:hub_name"`
+	HubAddress          string                    `gorm:"column:hub_address"`
+	ConnectorNumber     *int                      `gorm:"column:connector_number"`
+	ConnectorType       string                    `gorm:"column:connector_type"`
+	TariffPricePerUnit  decimal.Decimal           `gorm:"column:tariff_price_per_unit"`
+	CPOBusinessName     string                    `gorm:"column:cpo_business_name"`
+	ChargerHostName     string                    `gorm:"column:charger_host_name"`
+	ChargerHostPhoneNo  string                    `gorm:"column:charger_host_phone_no"`
+	CustomerFullName    string                    `gorm:"column:customer_full_name"`
+	CustomerEmail       string                    `gorm:"column:customer_email"`
+	CustomerPhone       *string                   `gorm:"column:customer_phone"`
 }
 
 func (r *repository) ListChargerTransactions(ctx context.Context, cpoID uuid.UUID, query ChargerTransactionListQuery) ([]ChargerTransaction, error) {
 	var transactions []ChargerTransaction
 	db := r.db.WithContext(ctx).Model(&models.ChargingSession{}).
 		Joins("LEFT JOIN wallet_transactions ON wallet_transactions.session_id = charging_sessions.id").
-		Joins("LEFT JOIN chargers ON chargers.id = charging_sessions.charger_id").
-		Joins("LEFT JOIN hubs ON hubs.id = chargers.hub_id").
+		Joins("LEFT JOIN connectors AS session_connectors ON session_connectors.id = charging_sessions.connector_id").
+		Joins("LEFT JOIN chargers AS session_chargers ON session_chargers.id = charging_sessions.charger_id").
+		Joins("LEFT JOIN chargers AS connector_chargers ON connector_chargers.id = session_connectors.charger_id").
+		Joins("LEFT JOIN hubs ON hubs.id = COALESCE(session_chargers.hub_id, connector_chargers.hub_id)").
 		Joins("LEFT JOIN tariffs ON tariffs.id = charging_sessions.tariff_id").
 		Joins("LEFT JOIN cpos ON cpos.id = charging_sessions.cpo_id").
 		Joins("LEFT JOIN customers ON customers.id = charging_sessions.customer_id").
@@ -186,12 +194,18 @@ func (r *repository) ListChargerTransactions(ctx context.Context, cpoID uuid.UUI
 	err := db.Select(
 		"charging_sessions.*",
 		"wallet_transactions.status as payment_status",
-		"chargers.charger_name",
+		"COALESCE(session_chargers.charger_id, connector_chargers.charger_id) as charger_code",
+		"COALESCE(session_chargers.ocpp_identity, connector_chargers.ocpp_identity) as charger_ocpp_identity",
+		"COALESCE(session_chargers.charger_name, connector_chargers.charger_name) as charger_name",
+		"hubs.id as hub_id",
 		"hubs.name as hub_name",
+		"hubs.address as hub_address",
+		"session_connectors.connector_number",
+		"session_connectors.connector_type",
 		"tariffs.price_per_unit as tariff_price_per_unit",
 		"cpos.business_name as cpo_business_name",
-		"chargers.charger_host_name",
-		"chargers.charger_host_phone_no",
+		"COALESCE(session_chargers.charger_host_name, connector_chargers.charger_host_name) as charger_host_name",
+		"COALESCE(session_chargers.charger_host_phone_no, connector_chargers.charger_host_phone_no) as charger_host_phone_no",
 		"customers.full_name as customer_full_name",
 		"customers.email as customer_email",
 		"customers.phone as customer_phone",

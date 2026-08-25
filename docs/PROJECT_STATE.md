@@ -2,6 +2,32 @@
 
 ## Current State
 
+### 2026-08-25 — CPO staff authority and human-readable charging projections in source
+
+- Additive migrations 49 and 50 define per-membership CPO permission overrides
+  and snapshot multi-CPO announcement targeting. They are source changes only;
+  no database migration was applied in this slice.
+- CPO staff can be listed, created, updated, activated, suspended, and revoked
+  through ADMIN-protected routes. Non-ADMIN memberships can authenticate when
+  active; the catalog and override evaluator are source-controlled, with
+  explicit DENY precedence.
+- CPO customer lists always serialize `total_usage_kwh`. Charging-session and
+  charger-transaction projections now include stable CMS, HAL/OCPP, human
+  charger/hub, connector, payment, settlement, and reconciliation fields.
+- Platform announcements accept multiple CPO targets and snapshot both targets
+  and recipients at publish time. The existing encrypted mail outbox now
+  rejects unknown templates and SMTP emits text plus safe HTML alternatives.
+- The `subscription-lifecycle` worker is current-worker observed like the
+  other CMS workers. It records 7/3/1-day thresholds exactly once and expires
+  elapsed manual subscription periods without changing CPO lifecycle status.
+- Source-controlled mail layouts are embedded from `src/mail/templates/` and
+  produce text plus HTML alternatives. CPO support tickets/messages are durable
+  tenant-scoped records; CPO routes cannot read another CPO's tickets while
+  platform routes provide the status/response control plane.
+- Focused auth/CPO/SuperAdmin/mail tests, docs validation, OpenAPI route parity,
+  `go test ./...`, and `go vet ./...` pass. Disposable PostgreSQL migration and
+  lifecycle verification remain unrun because `TEST_DATABASE_URL` was not set.
+
 ### 2026-08-25 — Optional OCPP SoC telemetry source change
 
 - CMS accepts the additive immutable HAL `transaction.soc` fact and stores

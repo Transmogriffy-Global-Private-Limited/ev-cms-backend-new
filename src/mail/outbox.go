@@ -96,6 +96,10 @@ func (outbox *Outbox) EnqueueMessageWithContext(
 
 func validateMessagePayload(template string, payload MessagePayload) error {
 	switch template {
+	case "LOGIN_OTP", "CUSTOMER_LOGIN_OTP", "CUSTOMER_SIGNUP_OTP":
+		if strings.TrimSpace(payload.Code) == "" || payload.ExpiresAt.IsZero() {
+			return fmt.Errorf("validate %s mail payload: code and expiry are required", template)
+		}
 	case "PASSWORD_RESET_OTP", "CUSTOMER_PASSWORD_RESET_OTP":
 		if _, err := uuid.Parse(strings.TrimSpace(payload.ChallengeID)); err != nil {
 			return fmt.Errorf("validate %s mail payload: recovery challenge ID is required", template)
@@ -111,6 +115,14 @@ func validateMessagePayload(template string, payload MessagePayload) error {
 		if strings.TrimSpace(payload.TemporaryPassword) == "" {
 			return errors.New("validate PLATFORM_ADMIN_INVITE mail payload: temporary password is required")
 		}
+	case "CPO_MEMBERSHIP_ASSIGNED", "CPO_ONBOARDING_RESENT":
+		if strings.TrimSpace(payload.CPOName) == "" || strings.TrimSpace(payload.CPOID) == "" || strings.TrimSpace(payload.CPOAppID) == "" {
+			return fmt.Errorf("validate %s mail payload: CPO name, ID, and app ID are required", template)
+		}
+	case "PASSWORD_CHANGE_REMINDER", "PLATFORM_ADMIN_GRANTED":
+		return nil
+	default:
+		return fmt.Errorf("validate mail payload: unknown template %q", template)
 	}
 	return nil
 }

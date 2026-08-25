@@ -493,6 +493,14 @@ func RegisterCPORoutes(
 	group.GET("/operations/events", handler.listOperationalEvents)
 	group.GET("/operations/realtime/stream", handler.operationalStream)
 	group.GET("/users/:user_id", handler.getUser)
+	group.GET("/permissions/catalog", handler.permissionCatalog)
+	group.GET("/staff", handler.listStaff)
+	group.POST("/staff", handler.createStaff)
+	group.GET("/staff/:membership_id", handler.getStaff)
+	group.PATCH("/staff/:membership_id", handler.updateStaff)
+	group.POST("/staff/:membership_id/activate", handler.activateStaff)
+	group.POST("/staff/:membership_id/suspend", handler.suspendStaff)
+	group.POST("/staff/:membership_id/revoke", handler.revokeStaff)
 	group.POST("/chargers", handler.createCharger)
 	group.GET("/chargers", handler.listChargers)
 	group.GET("/chargers/:charger_id", handler.getCharger)
@@ -560,6 +568,112 @@ func RegisterCPORoutes(
 	group.GET("/charger-transactions", handler.listChargerTransactions)
 	group.GET("/wallet-transactions", handler.listWalletTransactions)
 
+}
+
+func (handler *Handler) permissionCatalog(ctx *gin.Context) {
+	principal, _ := auth.CurrentPrincipal(ctx)
+	record, err := handler.service.PermissionCatalog(principal)
+	if err != nil {
+		writeError(ctx, err)
+		return
+	}
+	ctx.JSON(http.StatusOK, record)
+}
+
+func (handler *Handler) listStaff(ctx *gin.Context) {
+	principal, _ := auth.CurrentPrincipal(ctx)
+	record, err := handler.service.ListStaff(ctx.Request.Context(), principal)
+	if err != nil {
+		writeError(ctx, err)
+		return
+	}
+	ctx.JSON(http.StatusOK, record)
+}
+
+func (handler *Handler) createStaff(ctx *gin.Context) {
+	principal, _ := auth.CurrentPrincipal(ctx)
+	var request CreateStaffRequest
+	if err := decodeJSON(ctx, &request); err != nil {
+		writeError(ctx, invalid("request", "The request body is invalid."))
+		return
+	}
+	record, err := handler.service.CreateStaff(ctx.Request.Context(), principal, request)
+	if err != nil {
+		writeError(ctx, err)
+		return
+	}
+	ctx.JSON(http.StatusCreated, record)
+}
+
+func (handler *Handler) getStaff(ctx *gin.Context) {
+	principal, _ := auth.CurrentPrincipal(ctx)
+	membershipID, ok := parseMembershipID(ctx)
+	if !ok {
+		return
+	}
+	record, err := handler.service.GetStaff(ctx.Request.Context(), principal, membershipID)
+	if err != nil {
+		writeError(ctx, err)
+		return
+	}
+	ctx.JSON(http.StatusOK, record)
+}
+
+func (handler *Handler) updateStaff(ctx *gin.Context) {
+	principal, _ := auth.CurrentPrincipal(ctx)
+	membershipID, ok := parseMembershipID(ctx)
+	if !ok {
+		return
+	}
+	var request UpdateStaffRequest
+	if err := decodeJSON(ctx, &request); err != nil {
+		writeError(ctx, invalid("request", "The request body is invalid."))
+		return
+	}
+	record, err := handler.service.UpdateStaff(ctx.Request.Context(), principal, membershipID, request)
+	if err != nil {
+		writeError(ctx, err)
+		return
+	}
+	ctx.JSON(http.StatusOK, record)
+}
+
+func (handler *Handler) activateStaff(ctx *gin.Context) {
+	handler.transitionStaff(ctx, constants.MembershipStatusActive)
+}
+func (handler *Handler) suspendStaff(ctx *gin.Context) {
+	handler.transitionStaff(ctx, constants.MembershipStatusSuspended)
+}
+func (handler *Handler) revokeStaff(ctx *gin.Context) {
+	handler.transitionStaff(ctx, constants.MembershipStatusRevoked)
+}
+
+func (handler *Handler) transitionStaff(ctx *gin.Context, status constants.MembershipStatus) {
+	principal, _ := auth.CurrentPrincipal(ctx)
+	membershipID, ok := parseMembershipID(ctx)
+	if !ok {
+		return
+	}
+	var request StaffLifecycleRequest
+	if err := decodeJSON(ctx, &request); err != nil {
+		writeError(ctx, invalid("request", "The request body is invalid."))
+		return
+	}
+	record, err := handler.service.TransitionStaff(ctx.Request.Context(), principal, membershipID, status, request.Reason)
+	if err != nil {
+		writeError(ctx, err)
+		return
+	}
+	ctx.JSON(http.StatusOK, record)
+}
+
+func parseMembershipID(ctx *gin.Context) (uuid.UUID, bool) {
+	id, err := uuid.Parse(ctx.Param("membership_id"))
+	if err != nil || id == uuid.Nil {
+		writeError(ctx, invalid("membership_id", "Membership ID is invalid."))
+		return uuid.Nil, false
+	}
+	return id, true
 }
 
 func (handler *Handler) listChargingSessions(ctx *gin.Context) {

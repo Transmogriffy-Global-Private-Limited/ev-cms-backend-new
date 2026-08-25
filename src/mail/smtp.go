@@ -73,14 +73,12 @@ func (sender *SMTPSender) SendMessage(
 	if name == "" {
 		name = "there"
 	}
-	message.SetBodyString(
-		gomail.TypeTextPlain,
-		fmt.Sprintf(
-			"Hi %s,\n\n%s\n\nIf you did not expect this message, contact your administrator.",
-			name,
-			body,
-		),
-	)
+	textBody, htmlBody, err := renderMessageTemplates(name, body)
+	if err != nil {
+		return err
+	}
+	message.SetBodyString(gomail.TypeTextPlain, textBody)
+	message.AddAlternativeString(gomail.TypeTextHTML, htmlBody)
 	if err := sender.client.DialAndSendWithContext(ctx, message); err != nil {
 		return fmt.Errorf("send SMTP message: %w", err)
 	}
@@ -94,6 +92,13 @@ func renderMessageContent(template string, payload MessagePayload) (string, stri
 	subject := "Your TransEV CMS verification code"
 	body := ""
 	switch template {
+	case "LOGIN_OTP":
+		subject = "Your TransEV CMS sign-in code"
+		body = fmt.Sprintf(
+			"Use %s to sign in to your TransEV CMS account. It expires at %s.",
+			payload.Code,
+			payload.ExpiresAt.UTC().Format("02 Jan 2006 15:04 UTC"),
+		)
 	case "CUSTOMER_LOGIN_OTP":
 		subject = "Your charging app sign-in code"
 		body = fmt.Sprintf(
@@ -162,11 +167,7 @@ func renderMessageContent(template string, payload MessagePayload) (string, stri
 		subject = "Change your temporary TransEV CMS password"
 		body = "Your account is still using its temporary password. Change it now from the authenticated password-change screen before using tenant operations."
 	default:
-		body = fmt.Sprintf(
-			"Use %s to sign in. It expires at %s.",
-			payload.Code,
-			payload.ExpiresAt.UTC().Format("02 Jan 2006 15:04 UTC"),
-		)
+		return "", "", fmt.Errorf("render mail template: unknown template %q", template)
 	}
 	return subject, body, nil
 }

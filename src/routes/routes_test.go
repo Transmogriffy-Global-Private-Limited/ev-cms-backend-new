@@ -25,6 +25,7 @@ import (
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/security"
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/subscriptions"
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/superadmin"
+	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/support"
 	"github.com/getkin/kin-openapi/openapi3"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -346,6 +347,7 @@ func newCredentialRouteTestRouterWithLog(
 		integrations.NewService(nil, credentialBox),
 		platformops.NewService(nil, config.Platform{}),
 		subscriptions.NewService(nil, nil),
+		support.NewService(nil),
 		true,
 		true,
 		requestLogWriter,
@@ -565,7 +567,7 @@ func TestHealthRoutes(t *testing.T) {
 
 			recorder := httptest.NewRecorder()
 			request := httptest.NewRequest(http.MethodGet, test.path, nil)
-			New(test.pinger, nil, nil, nil, nil, nil, nil, false, false, io.Discard, false).
+			New(test.pinger, nil, nil, nil, nil, nil, nil, nil, false, false, io.Discard, false).
 				ServeHTTP(recorder, request)
 
 			if recorder.Code != test.wantStatus {
@@ -578,7 +580,7 @@ func TestHealthRoutes(t *testing.T) {
 func TestAPIDocumentationRoutesCanBeDisabled(t *testing.T) {
 	t.Parallel()
 
-	router := New(pingerStub{}, nil, nil, nil, nil, nil, nil, false, false, io.Discard, false)
+	router := New(pingerStub{}, nil, nil, nil, nil, nil, nil, nil, false, false, io.Discard, false)
 	for _, path := range []string{"/docs", "/docs/", "/openapi.yaml"} {
 		recorder := httptest.NewRecorder()
 		request := httptest.NewRequest(http.MethodGet, path, nil)

@@ -23,11 +23,12 @@ func (service *Service) CreateAnnouncement(ctx context.Context, principal auth.P
 	if audience != "PLATFORM" && audience != "CPO" {
 		return AnnouncementView{}, invalid("audience", "Audience must be PLATFORM or CPO.")
 	}
-	if audience == "PLATFORM" && request.CPOID != nil {
-		return AnnouncementView{}, invalid("cpo_id", "cpo_id is not allowed for PLATFORM audience.")
+	cpoIDs := uniqueAnnouncementCPOIDs(request.CPOID, request.CPOIDs)
+	if audience == "PLATFORM" && len(cpoIDs) != 0 {
+		return AnnouncementView{}, invalid("cpo_ids", "CPO targets are not allowed for PLATFORM audience.")
 	}
-	if audience == "CPO" && request.CPOID == nil {
-		return AnnouncementView{}, invalid("cpo_id", "cpo_id is required for CPO audience.")
+	if audience == "CPO" && len(cpoIDs) == 0 {
+		return AnnouncementView{}, invalid("cpo_ids", "At least one CPO target is required for CPO audience.")
 	}
 	title := strings.TrimSpace(request.Title)
 	body := strings.TrimSpace(request.Body)
@@ -43,49 +44,75 @@ func (service *Service) CreateAnnouncement(ctx context.Context, principal auth.P
 	var view AnnouncementView
 	err := service.database.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		now := service.now()
-		if request.CPOID != nil {
+		if len(cpoIDs) > 0 {
 			var count int64
-			if err := tx.Model(&models.CPO{}).Where("id = ?", *request.CPOID).Count(&count).Error; err != nil {
+			if err := tx.Model(&models.CPO{}).Where("id IN ?", cpoIDs).Count(&count).Error; err != nil {
 				return err
 			}
-			if count != 1 {
-				return &auth.APIError{Status: http.StatusNotFound, Code: "cpo_not_found", Message: "The CPO was not found."}
+			if count != int64(len(cpoIDs)) {
+				return &auth.APIError{Status: http.StatusNotFound, Code: "cpo_not_found", Message: "One or more CPO targets were not found."}
 			}
 		}
-		record := models.PlatformAnnouncement{ID: uuid.New(), Audience: audience, CPOID: request.CPOID, Title: title, Body: body, CreatedByUserID: principal.UserID, CreatedAt: now, ExpiresAt: request.ExpiresAt}
+		var legacyCPOID *uuid.UUID
+		if len(cpoIDs) == 1 {
+			legacyCPOID = &cpoIDs[0]
+		}
+		record := models.PlatformAnnouncement{ID: uuid.New(), Audience: audience, CPOID: legacyCPOID, Title: title, Body: body, CreatedByUserID: principal.UserID, CreatedAt: now, ExpiresAt: request.ExpiresAt}
 		if err := tx.Create(&record).Error; err != nil {
 			return fmt.Errorf("create announcement: %w", err)
 		}
-		var recipientIDs []uuid.UUID
+		if len(cpoIDs) > 0 {
+			targets := make([]models.PlatformAnnouncementCPO, 0, len(cpoIDs))
+			for _, cpoID := range cpoIDs {
+				targets = append(targets, models.PlatformAnnouncementCPO{AnnouncementID: record.ID, CPOID: cpoID, CreatedAt: now})
+			}
+			if err := tx.Create(&targets).Error; err != nil {
+				return fmt.Errorf("snapshot announcement CPO targets: %w", err)
+			}
+		}
+		type recipient struct {
+			UserID uuid.UUID
+			CPOID  *uuid.UUID
+		}
+		recipients := make([]recipient, 0)
 		if audience == "PLATFORM" {
+			var recipientIDs []uuid.UUID
 			if err := tx.Model(&models.PlatformAdmin{}).Where("platform_admins.is_active = true").Joins("JOIN users ON users.id = platform_admins.user_id").Where("users.is_active = true").Pluck("platform_admins.user_id", &recipientIDs).Error; err != nil {
 				return err
 			}
+			for _, recipientID := range recipientIDs {
+				recipients = append(recipients, recipient{UserID: recipientID})
+			}
 		} else {
-			if err := tx.Model(&models.CPOMembership{}).Where("cpo_id = ? AND role = ? AND status = ?", *request.CPOID, constants.CPORoleAdmin, constants.MembershipStatusActive).Joins("JOIN users ON users.id = cpo_memberships.user_id").Where("users.is_active = true").Pluck("cpo_memberships.user_id", &recipientIDs).Error; err != nil {
-				return err
+			for _, cpoID := range cpoIDs {
+				var recipientIDs []uuid.UUID
+				if err := tx.Model(&models.CPOMembership{}).Where("cpo_id = ? AND status = ?", cpoID, constants.MembershipStatusActive).Joins("JOIN users ON users.id = cpo_memberships.user_id").Where("users.is_active = true").Pluck("cpo_memberships.user_id", &recipientIDs).Error; err != nil {
+					return err
+				}
+				for _, recipientID := range recipientIDs {
+					target := cpoID
+					recipients = append(recipients, recipient{UserID: recipientID, CPOID: &target})
+				}
 			}
 		}
-		notifications := make([]models.PlatformNotification, 0, len(recipientIDs))
-		for _, recipientID := range recipientIDs {
-			notifications = append(notifications, models.PlatformNotification{ID: uuid.New(), AnnouncementID: record.ID, RecipientUserID: recipientID, CPOID: request.CPOID, CreatedAt: now})
+		notifications := make([]models.PlatformNotification, 0, len(recipients))
+		for _, recipient := range recipients {
+			notifications = append(notifications, models.PlatformNotification{ID: uuid.New(), AnnouncementID: record.ID, RecipientUserID: recipient.UserID, CPOID: recipient.CPOID, CreatedAt: now})
 		}
 		if len(notifications) > 0 {
 			if err := tx.Create(&notifications).Error; err != nil {
 				return fmt.Errorf("create announcement notifications: %w", err)
 			}
 		}
-		data := models.JSONB{"audience": audience, "recipient_count": len(recipientIDs)}
-		if request.CPOID != nil {
-			data["cpo_id"] = request.CPOID.String()
-		}
+		data := models.JSONB{"audience": audience, "recipient_count": len(recipients), "cpo_count": len(cpoIDs)}
 		if err := service.audit(tx, principal.UserID, "PLATFORM_ANNOUNCEMENT_CREATED", "PLATFORM_ANNOUNCEMENT", &record.ID, data, now); err != nil {
 			return err
 		}
 		if err := service.emit(tx, principal.UserID, "platform.announcement.created", "PLATFORM_ANNOUNCEMENT", record.ID, data); err != nil {
 			return err
 		}
-		view = viewAnnouncement(record, int64(len(recipientIDs)))
+		view = viewAnnouncement(record, int64(len(recipients)))
+		view.CPOIDs = append([]uuid.UUID(nil), cpoIDs...)
 		return nil
 	})
 	return view, err
@@ -121,7 +148,12 @@ func (service *Service) ListAnnouncements(ctx context.Context, principal auth.Pr
 		if err := service.database.WithContext(ctx).Model(&models.PlatformNotification{}).Where("announcement_id = ?", record.ID).Count(&count).Error; err != nil {
 			return AnnouncementPage{}, err
 		}
-		views = append(views, viewAnnouncement(record, count))
+		view := viewAnnouncement(record, count)
+		view.CPOIDs, err = service.announcementCPOIDs(ctx, record.ID)
+		if err != nil {
+			return AnnouncementPage{}, err
+		}
+		views = append(views, view)
 	}
 	var next *time.Time
 	var nextID *uuid.UUID
@@ -130,6 +162,34 @@ func (service *Service) ListAnnouncements(ctx context.Context, principal auth.Pr
 		nextID = &views[len(views)-1].ID
 	}
 	return AnnouncementPage{Announcements: views, NextBefore: next, NextBeforeID: nextID, HasMore: hasMore}, nil
+}
+
+func uniqueAnnouncementCPOIDs(legacy *uuid.UUID, values []uuid.UUID) []uuid.UUID {
+	seen := map[uuid.UUID]struct{}{}
+	result := make([]uuid.UUID, 0, len(values)+1)
+	add := func(id uuid.UUID) {
+		if id != uuid.Nil {
+			if _, exists := seen[id]; !exists {
+				seen[id] = struct{}{}
+				result = append(result, id)
+			}
+		}
+	}
+	if legacy != nil {
+		add(*legacy)
+	}
+	for _, id := range values {
+		add(id)
+	}
+	return result
+}
+
+func (service *Service) announcementCPOIDs(ctx context.Context, announcementID uuid.UUID) ([]uuid.UUID, error) {
+	var ids []uuid.UUID
+	if err := service.database.WithContext(ctx).Model(&models.PlatformAnnouncementCPO{}).Where("announcement_id = ?", announcementID).Order("cpo_id ASC").Pluck("cpo_id", &ids).Error; err != nil {
+		return nil, fmt.Errorf("list announcement CPO targets: %w", err)
+	}
+	return ids, nil
 }
 
 func (service *Service) ListNotifications(ctx context.Context, principal auth.Principal, query PageQuery, unreadOnly bool) (NotificationPage, error) {

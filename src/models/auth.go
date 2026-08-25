@@ -84,6 +84,37 @@ type PlatformAnnouncement struct {
 	Notifications   []PlatformNotification `gorm:"foreignKey:AnnouncementID" json:"-"`
 }
 
+// PlatformAnnouncementCPO preserves the selected CPO audience at publish
+// time. Membership recipients are also snapshotted in PlatformNotification.
+type PlatformAnnouncementCPO struct {
+	AnnouncementID uuid.UUID `gorm:"type:uuid;primaryKey" json:"announcement_id"`
+	CPOID          uuid.UUID `gorm:"type:uuid;primaryKey;index" json:"cpo_id"`
+	CreatedAt      time.Time `gorm:"not null" json:"created_at"`
+}
+
+// SupportTicket is a tenant-scoped conversation between CPO staff and the
+// platform. The CPO owns visibility of its own tickets; platform staff own the
+// administrative status transition.
+type SupportTicket struct {
+	ID              uuid.UUID  `gorm:"type:uuid;primaryKey;default:gen_random_uuid()" json:"id"`
+	CPOID           uuid.UUID  `gorm:"type:uuid;not null;index" json:"cpo_id"`
+	Subject         string     `gorm:"type:varchar(200);not null" json:"subject"`
+	Status          string     `gorm:"type:varchar(20);not null;default:'OPEN';index" json:"status"`
+	CreatedByUserID uuid.UUID  `gorm:"type:uuid;not null" json:"created_by_user_id"`
+	ClosedAt        *time.Time `gorm:"type:timestamptz" json:"closed_at,omitempty"`
+	CreatedAt       time.Time  `gorm:"not null" json:"created_at"`
+	UpdatedAt       time.Time  `gorm:"not null" json:"updated_at"`
+}
+
+type SupportTicketMessage struct {
+	ID           uuid.UUID `gorm:"type:uuid;primaryKey;default:gen_random_uuid()" json:"id"`
+	TicketID     uuid.UUID `gorm:"type:uuid;not null;index" json:"ticket_id"`
+	AuthorUserID uuid.UUID `gorm:"type:uuid;not null" json:"author_user_id"`
+	AuthorScope  string    `gorm:"type:varchar(20);not null" json:"author_scope"`
+	Body         string    `gorm:"type:text;not null" json:"body"`
+	CreatedAt    time.Time `gorm:"not null" json:"created_at"`
+}
+
 type PlatformNotification struct {
 	ID              uuid.UUID  `gorm:"type:uuid;primaryKey;default:gen_random_uuid()" json:"id"`
 	AnnouncementID  uuid.UUID  `gorm:"type:uuid;not null;uniqueIndex:uq_platform_notification_recipient,priority:1" json:"announcement_id"`

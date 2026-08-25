@@ -1,5 +1,27 @@
 # AI Changelog
 
+## 2026-08-25 - CPO staff authority, announcement targeting, and charging projections
+
+- Added the source-controlled CPO permission catalog, durable normalized
+  membership ALLOW/DENY override mapping, non-primary staff lifecycle APIs, and
+  active non-ADMIN CPO session validation. Primary-admin replacement remains a
+  separate protected workflow.
+- Added multi-CPO announcement target/recipient snapshots, fail-closed mail
+  template validation, and multipart text/HTML SMTP delivery without replacing
+  the encrypted outbox.
+- Added the observed `subscription-lifecycle` worker and additive lifecycle
+  evidence mapping. It emits exactly-once durable 7/3/1-day threshold records
+  and an atomic system expiry transition without suspending a CPO.
+- Added source-controlled embedded mail layouts under `src/mail/templates/`
+  and durable CPO/platform support ticket and reply surfaces.
+- Enriched CPO customer, charging-session, and charger-transaction responses
+  with total usage, human-readable charger/hub/connector details, explicit
+  CMS/HAL/OCPP identifiers, and settlement/reconciliation status.
+
+Verification: focused package tests, `./scripts/verify-docs.ps1`, OpenAPI route
+parity, `go test ./...`, and `go vet ./...` pass. Database migration and
+lifecycle behavior remain unverified without a disposable `TEST_DATABASE_URL`.
+
 ## 2026-08-25 - CPO session relation fallback deployment
 
 - Session list/detail reads now preload connector-owned charger relations and

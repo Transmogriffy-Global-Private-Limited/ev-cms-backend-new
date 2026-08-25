@@ -212,6 +212,54 @@ type CPOUserView struct {
 	UpdatedAt        time.Time                   `json:"updated_at"`
 }
 
+type MembershipPermissionOverrideRequest struct {
+	Permission string `json:"permission"`
+	Effect     string `json:"effect"`
+}
+
+type MembershipPermissionOverrideView struct {
+	Permission string `json:"permission"`
+	Effect     string `json:"effect"`
+}
+
+type StaffView struct {
+	MembershipID   uuid.UUID                          `json:"membership_id"`
+	User           CPOUserView                        `json:"user"`
+	IsPrimaryAdmin bool                               `json:"is_primary_admin"`
+	Overrides      []MembershipPermissionOverrideView `json:"overrides"`
+}
+
+type StaffListResponse struct {
+	Staff []StaffView `json:"staff"`
+}
+
+type CreateStaffRequest struct {
+	Email     string                                `json:"email"`
+	FullName  string                                `json:"full_name"`
+	Role      constants.CPORole                     `json:"role"`
+	Overrides []MembershipPermissionOverrideRequest `json:"overrides"`
+}
+
+type UpdateStaffRequest struct {
+	Role      *constants.CPORole                     `json:"role,omitempty"`
+	Overrides *[]MembershipPermissionOverrideRequest `json:"overrides,omitempty"`
+}
+
+type StaffLifecycleRequest struct {
+	Reason string `json:"reason"`
+}
+
+type PermissionCatalogResponse struct {
+	Permissions []PermissionDefinitionView `json:"permissions"`
+}
+
+type PermissionDefinitionView struct {
+	Key         string `json:"key"`
+	Module      string `json:"module"`
+	Name        string `json:"name"`
+	Description string `json:"description"`
+}
+
 // OrganizationView is the tenant-safe, read-only projection of the CPO record.
 // It intentionally omits platform actor IDs and the privileged lifecycle reason.
 type OrganizationView struct {
@@ -435,7 +483,7 @@ type CPOAdminCustomerView struct {
 	IsVerified        bool                     `json:"is_verified"`
 	LastLoginAt       *time.Time               `json:"last_login_at,omitempty"`
 	UsergroupAssigned bool                     `json:"usergroup_assigned"`
-	TotalUsage        decimal.Decimal          `json:"total_usage_kwh,omitempty"`
+	TotalUsage        decimal.Decimal          `json:"total_usage_kwh"`
 	NoOfSessions      int64                    `json:"session_count,omitempty"`
 	DriverWallet      decimal.Decimal          `json:"wallet_balance,omitempty"`
 	CreatedAt         time.Time                `json:"created_at"`
@@ -694,6 +742,7 @@ type ChargingSessionChargerView struct {
 	Name         string     `json:"name"`
 	HubID        *uuid.UUID `json:"hub_id,omitempty"`
 	HubName      *string    `json:"hub_name,omitempty"`
+	HubAddress   *string    `json:"hub_address,omitempty"`
 	MaxPowerKW   float64    `json:"max_power_kw"`
 	Vendor       string     `json:"vendor"`
 	Model        string     `json:"model"`
@@ -742,19 +791,33 @@ type ChargingSessionListQuery struct {
 }
 
 type ChargerTransactionView struct {
-	TransactionID   string                    `json:"transaction_id"`
-	PaymentStatus   constants.FinancialStatus `json:"payment_status"`
-	BilledAmount    decimal.Decimal           `json:"billed_amount"`
-	ChargerID       string                    `json:"charger_id"`
-	Duration        string                    `json:"duration"`
-	Hub             string                    `json:"hub"`
-	Tariff          decimal.Decimal           `json:"tariff"`
-	UsageKWh        decimal.Decimal           `json:"usage_kwh"`
-	Owner           string                    `json:"owner"`
-	HostDetails     HostDetailsView           `json:"host_details"`
-	CustomerDetails CustomerDetailsView       `json:"customer_details"`
-	Timestamp       time.Time                 `json:"timestamp"`
-	Reason          *string                   `json:"reason,omitempty"`
+	// TransactionID is retained for compatibility and is the CMS session ID.
+	// Explicit session/OCPP identities remove that historical ambiguity.
+	TransactionID          string                    `json:"transaction_id"`
+	SessionID              uuid.UUID                 `json:"session_id"`
+	OCPPTransactionID      int64                     `json:"ocpp_transaction_id"`
+	HALTransactionID       *uuid.UUID                `json:"hal_transaction_id,omitempty"`
+	PaymentStatus          constants.FinancialStatus `json:"payment_status"`
+	BilledAmount           decimal.Decimal           `json:"billed_amount"`
+	ChargerID              string                    `json:"charger_id"`
+	OCPPIdentity           string                    `json:"ocpp_identity"`
+	ChargerName            string                    `json:"charger_name"`
+	Duration               string                    `json:"duration"`
+	HubID                  *uuid.UUID                `json:"hub_id,omitempty"`
+	Hub                    string                    `json:"hub"`
+	HubAddress             string                    `json:"hub_address"`
+	ConnectorNumber        *int                      `json:"connector_number,omitempty"`
+	ConnectorType          string                    `json:"connector_type"`
+	Tariff                 decimal.Decimal           `json:"tariff"`
+	UsageKWh               decimal.Decimal           `json:"usage_kwh"`
+	Owner                  string                    `json:"owner"`
+	HostDetails            HostDetailsView           `json:"host_details"`
+	CustomerDetails        CustomerDetailsView       `json:"customer_details"`
+	Timestamp              time.Time                 `json:"timestamp"`
+	Reason                 *string                   `json:"reason,omitempty"`
+	SessionStatus          constants.SessionStatus   `json:"session_status"`
+	SettlementStatus       string                    `json:"settlement_status"`
+	ReconciliationRequired bool                      `json:"reconciliation_required"`
 }
 
 type HostDetailsView struct {

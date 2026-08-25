@@ -570,10 +570,9 @@ func (service *Service) resolveLoginScopeTx(
 	if err := tx.
 		Joins("JOIN cpos ON cpos.id = cpo_memberships.cpo_id").
 		Where(
-			"cpo_memberships.user_id = ? AND cpo_memberships.cpo_id = ? AND cpo_memberships.role = ? AND cpo_memberships.status = ? AND cpos.status = ?",
+			"cpo_memberships.user_id = ? AND cpo_memberships.cpo_id = ? AND cpo_memberships.status = ? AND cpos.status = ?",
 			userID,
 			*cpoID,
-			constants.CPORoleAdmin,
 			constants.MembershipStatusActive,
 			constants.CPOStatusActive,
 		).

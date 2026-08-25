@@ -1,5 +1,27 @@
 # Administrative HTTP API: Complete Developer Contract
 
+## CPO staff authority and charging records
+
+`GET /api/v1/cpo/customers` always includes `total_usage_kwh`, including zero.
+`GET /api/v1/cpo/charging-sessions` and `/charger-transactions` identify the
+CMS session separately from optional HAL/OCPP protocol identities, and include
+the human-readable charger code, charger OCPP identity/name, hub name/address,
+connector, payment/settlement, and reconciliation state needed for CPO support.
+
+CPO ADMINs use `/api/v1/cpo/permissions/catalog` and `/api/v1/cpo/staff` to
+inspect the source-controlled permission catalog and manage non-primary staff.
+An override has exactly one `ALLOW` or `DENY` effect; `DENY` wins over the role
+default. Suspending or revoking a membership revokes its CPO sessions. Primary
+administrator changes remain under the platform primary-admin flow so an ADMIN
+cannot accidentally remove the tenant's recovery authority.
+
+Support tickets are durable tenant conversations. CPO staff use
+`/api/v1/cpo/support` and can only read or reply to their own CPO's tickets;
+the platform uses `/api/v1/platform/support/tickets` for global support review,
+replies, and status changes. Mail layouts are source-controlled under
+`src/mail/templates/`; the encrypted outbox remains the authoritative delivery
+queue and message payload store.
+
 ## CMS HAL Operational Projections
 
 Live operational REST snapshots are derived solely from committed CMS HAL

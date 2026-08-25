@@ -16,6 +16,7 @@ import (
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/platformops"
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/subscriptions"
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/superadmin"
+	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/support"
 	"github.com/gin-gonic/gin"
 )
 
@@ -31,6 +32,7 @@ func New(
 	integrationService *integrations.Service,
 	platformService *platformops.Service,
 	subscriptionService *subscriptions.Service,
+	supportService *support.Service,
 	corsAllowAll bool,
 	apiDocsEnabled bool,
 	requestLogWriter io.Writer,
@@ -119,6 +121,10 @@ func New(
 		superadmin.RegisterCPONotificationRoutes(
 			router.Group("/api/v1/cpo"), authService, superadminServices[0],
 		)
+	}
+	if authService != nil && supportService != nil {
+		support.RegisterCPORoutes(router.Group("/api/v1/cpo/support"), authService, supportService)
+		support.RegisterPlatformRoutes(router.Group("/api/v1/platform/support/tickets"), authService, supportService)
 	}
 	return router
 }

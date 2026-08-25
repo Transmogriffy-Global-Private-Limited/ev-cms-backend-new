@@ -18,6 +18,7 @@ import (
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/auth"
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/commercial"
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/constants"
+	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/cpopermissions"
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/halops"
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/liveops"
 	cmsmail "github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/mail"
@@ -299,15 +300,24 @@ func toChargerTransactionView(transaction ChargerTransaction) ChargerTransaction
 	}
 
 	return ChargerTransactionView{
-		TransactionID: transaction.ID.String(),
-		PaymentStatus: transaction.PaymentStatus,
-		BilledAmount:  transaction.TotalAmount,
-		ChargerID:     transaction.Charger.ChargerID,
-		Duration:      duration,
-		Hub:           transaction.HubName,
-		Tariff:        transaction.TariffPricePerUnit,
-		UsageKWh:      transaction.TotalKWh,
-		Owner:         transaction.CPOBusinessName,
+		TransactionID:     transaction.ID.String(),
+		SessionID:         transaction.ID,
+		OCPPTransactionID: transaction.TransactionID,
+		HALTransactionID:  transaction.HALTransactionID,
+		PaymentStatus:     transaction.PaymentStatus,
+		BilledAmount:      transaction.TotalAmount,
+		ChargerID:         transaction.ChargerCode,
+		OCPPIdentity:      transaction.ChargerOCPPIdentity,
+		ChargerName:       transaction.ChargerName,
+		Duration:          duration,
+		HubID:             transaction.HubID,
+		Hub:               transaction.HubName,
+		HubAddress:        transaction.HubAddress,
+		ConnectorNumber:   transaction.ConnectorNumber,
+		ConnectorType:     transaction.ConnectorType,
+		Tariff:            transaction.TariffPricePerUnit,
+		UsageKWh:          transaction.TotalKWh,
+		Owner:             transaction.CPOBusinessName,
 		HostDetails: HostDetailsView{
 			Name:  transaction.ChargerHostName,
 			Phone: transaction.ChargerHostPhoneNo,
@@ -317,8 +327,11 @@ func toChargerTransactionView(transaction ChargerTransaction) ChargerTransaction
 			Email: transaction.CustomerEmail,
 			Phone: transaction.CustomerPhone,
 		},
-		Timestamp: transaction.CreatedAt,
-		Reason:    transaction.StopReason,
+		Timestamp:              transaction.CreatedAt,
+		Reason:                 transaction.StopReason,
+		SessionStatus:          transaction.Status,
+		SettlementStatus:       transaction.SettlementStatus,
+		ReconciliationRequired: transaction.Status == constants.SessionStatusReconciliationRequired || transaction.SettlementStatus == "RECONCILIATION_REQUIRED",
 	}
 }
 
@@ -365,6 +378,7 @@ func toChargingSessionView(session models.ChargingSession) ChargingSessionView {
 		}
 		if session.Charger.Hub != nil {
 			charger.HubName = &session.Charger.Hub.Name
+			charger.HubAddress = &session.Charger.Hub.Address
 		}
 		view.Charger = charger
 	}
@@ -2094,6 +2108,285 @@ func (service *Service) GetUser(
 	}
 
 	return cpoUserView(user, cpoID, membership), nil
+}
+
+func (service *Service) PermissionCatalog(
+	principal auth.Principal,
+) (PermissionCatalogResponse, error) {
+	if err := requireCPOAdminAccess(principal); err != nil {
+		return PermissionCatalogResponse{}, err
+	}
+	catalog := cpopermissions.Catalog()
+	response := PermissionCatalogResponse{Permissions: make([]PermissionDefinitionView, 0, len(catalog))}
+	for _, permission := range catalog {
+		response.Permissions = append(response.Permissions, PermissionDefinitionView{
+			Key: permission.Key, Module: permission.Module, Name: permission.Name, Description: permission.Description,
+		})
+	}
+	return response, nil
+}
+
+func (service *Service) ListStaff(ctx context.Context, principal auth.Principal) (StaffListResponse, error) {
+	if err := requireCPOAdminAccess(principal); err != nil {
+		return StaffListResponse{}, err
+	}
+	cpoID := *principal.CPOID
+	var memberships []models.CPOMembership
+	if err := service.database.WithContext(ctx).
+		Preload("User").
+		Where("cpo_id = ?", cpoID).
+		Order("is_primary_admin DESC, created_at ASC, id ASC").
+		Find(&memberships).Error; err != nil {
+		return StaffListResponse{}, fmt.Errorf("list CPO staff: %w", err)
+	}
+	return service.staffViews(ctx, cpoID, memberships)
+}
+
+func (service *Service) GetStaff(ctx context.Context, principal auth.Principal, membershipID uuid.UUID) (StaffView, error) {
+	if err := requireCPOAdminAccess(principal); err != nil {
+		return StaffView{}, err
+	}
+	var membership models.CPOMembership
+	if err := service.database.WithContext(ctx).Preload("User").
+		Where("id = ? AND cpo_id = ?", membershipID, *principal.CPOID).First(&membership).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return StaffView{}, &auth.APIError{Status: http.StatusNotFound, Code: "staff_not_found", Message: "The staff membership was not found."}
+		}
+		return StaffView{}, fmt.Errorf("load CPO staff membership: %w", err)
+	}
+	response, err := service.staffViews(ctx, *principal.CPOID, []models.CPOMembership{membership})
+	if err != nil {
+		return StaffView{}, err
+	}
+	return response.Staff[0], nil
+}
+
+func (service *Service) CreateStaff(ctx context.Context, principal auth.Principal, request CreateStaffRequest) (StaffView, error) {
+	if err := requireCPOAdminAccess(principal); err != nil {
+		return StaffView{}, err
+	}
+	request.Email = strings.ToLower(strings.TrimSpace(request.Email))
+	request.FullName = strings.TrimSpace(request.FullName)
+	if !validEmail(request.Email) || request.FullName == "" || len(request.FullName) > 255 {
+		return StaffView{}, invalid("staff", "A valid email and full name are required.")
+	}
+	if request.Role != constants.CPORoleAdmin && request.Role != constants.CPORoleOperator && request.Role != constants.CPORoleViewer {
+		return StaffView{}, invalid("role", "Staff role must be ADMIN, OPERATOR, or VIEWER.")
+	}
+	if err := validatePermissionOverrides(request.Overrides); err != nil {
+		return StaffView{}, err
+	}
+	cpoID := *principal.CPOID
+	var membership models.CPOMembership
+	err := service.database.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Exec("SELECT pg_advisory_xact_lock(hashtextextended(?, 0))", "cpo-staff:"+cpoID.String()+":"+request.Email).Error; err != nil {
+			return fmt.Errorf("serialize CPO staff invite: %w", err)
+		}
+		var cpoRecord models.CPO
+		if err := tx.First(&cpoRecord, "id = ?", cpoID).Error; err != nil {
+			return mapNotFound(err)
+		}
+		var user models.User
+		created := false
+		temporaryPassword := ""
+		result := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("lower(btrim(email)) = ?", request.Email).First(&user)
+		switch {
+		case result.Error == nil:
+			if !user.IsActive {
+				return &auth.APIError{Status: http.StatusConflict, Code: "staff_identity_inactive", Message: "The staff identity exists but is inactive."}
+			}
+		case errors.Is(result.Error, gorm.ErrRecordNotFound):
+			var err error
+			temporaryPassword, err = generateTemporaryPassword()
+			if err != nil {
+				return err
+			}
+			hash, err := security.HashPassword(temporaryPassword)
+			if err != nil {
+				return fmt.Errorf("hash staff temporary password: %w", err)
+			}
+			now := service.now()
+			user = models.User{ID: uuid.New(), Email: request.Email, PasswordHash: hash, FullName: request.FullName, IsActive: true, MustChangePassword: true, PasswordChangedAt: now, CreatedAt: now, UpdatedAt: now}
+			if err := tx.Create(&user).Error; err != nil {
+				return mapWriteError(err, "create staff identity")
+			}
+			created = true
+		default:
+			return fmt.Errorf("find staff identity: %w", result.Error)
+		}
+		var count int64
+		if err := tx.Model(&models.CPOMembership{}).Where("cpo_id = ? AND user_id = ?", cpoID, user.ID).Count(&count).Error; err != nil {
+			return err
+		}
+		if count != 0 {
+			return &auth.APIError{Status: http.StatusConflict, Code: "staff_membership_exists", Message: "The user already has a membership for this CPO."}
+		}
+		now := service.now()
+		membership = models.CPOMembership{ID: uuid.New(), CPOID: cpoID, UserID: user.ID, Role: request.Role, Status: constants.MembershipStatusActive, CreatedAt: now, UpdatedAt: now, User: user}
+		if err := tx.Create(&membership).Error; err != nil {
+			return mapWriteError(err, "create staff membership")
+		}
+		if err := replacePermissionOverrides(tx, membership.ID, principal.UserID, request.Overrides, now); err != nil {
+			return err
+		}
+		template := "CPO_MEMBERSHIP_ASSIGNED"
+		payload := cmsmail.MessagePayload{RecipientName: user.FullName, CPOName: cpoRecord.BusinessName, CPOID: cpoID.String(), CPOAppID: cpoRecord.AppID}
+		if created {
+			template = "CPO_ADMIN_WELCOME"
+			payload.TemporaryPassword = temporaryPassword
+		}
+		if err := service.outbox.EnqueueMessageWithContext(tx, user.Email, template, payload, cmsmail.MessageContext{CPOID: &cpoID, UserID: &user.ID}); err != nil {
+			return err
+		}
+		return writeAudit(tx, principal.UserID, cpoID, "CPO_STAFF_CREATED", models.JSONB{"membership_id": membership.ID, "role": request.Role, "identity_created": created}, now)
+	})
+	if err != nil {
+		return StaffView{}, err
+	}
+	return service.GetStaff(ctx, principal, membership.ID)
+}
+
+func (service *Service) UpdateStaff(ctx context.Context, principal auth.Principal, membershipID uuid.UUID, request UpdateStaffRequest) (StaffView, error) {
+	if err := requireCPOAdminAccess(principal); err != nil {
+		return StaffView{}, err
+	}
+	if request.Role == nil && request.Overrides == nil {
+		return StaffView{}, invalid("staff", "At least one staff field must be supplied.")
+	}
+	if request.Role != nil && (*request.Role != constants.CPORoleAdmin && *request.Role != constants.CPORoleOperator && *request.Role != constants.CPORoleViewer) {
+		return StaffView{}, invalid("role", "Staff role must be ADMIN, OPERATOR, or VIEWER.")
+	}
+	if request.Overrides != nil {
+		if err := validatePermissionOverrides(*request.Overrides); err != nil {
+			return StaffView{}, err
+		}
+	}
+	cpoID := *principal.CPOID
+	err := service.database.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var membership models.CPOMembership
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("id = ? AND cpo_id = ?", membershipID, cpoID).First(&membership).Error; err != nil {
+			return mapStaffNotFound(err)
+		}
+		if membership.IsPrimaryAdmin {
+			return &auth.APIError{Status: http.StatusConflict, Code: "primary_admin_protected", Message: "Use the primary administrator workflow to change the primary administrator."}
+		}
+		now := service.now()
+		updates := map[string]any{"updated_at": now}
+		if request.Role != nil {
+			updates["role"] = *request.Role
+		}
+		if err := tx.Model(&models.CPOMembership{}).Where("id = ?", membership.ID).Updates(updates).Error; err != nil {
+			return mapWriteError(err, "update staff membership")
+		}
+		if request.Overrides != nil {
+			if err := replacePermissionOverrides(tx, membership.ID, principal.UserID, *request.Overrides, now); err != nil {
+				return err
+			}
+		}
+		return writeAudit(tx, principal.UserID, cpoID, "CPO_STAFF_UPDATED", models.JSONB{"membership_id": membership.ID}, now)
+	})
+	if err != nil {
+		return StaffView{}, err
+	}
+	return service.GetStaff(ctx, principal, membershipID)
+}
+
+func (service *Service) TransitionStaff(ctx context.Context, principal auth.Principal, membershipID uuid.UUID, status constants.MembershipStatus, reason string) (StaffView, error) {
+	if err := requireCPOAdminAccess(principal); err != nil {
+		return StaffView{}, err
+	}
+	if status != constants.MembershipStatusActive && status != constants.MembershipStatusSuspended && status != constants.MembershipStatusRevoked {
+		return StaffView{}, invalid("status", "Staff status is invalid.")
+	}
+	if err := validateReason(strings.TrimSpace(reason)); err != nil {
+		return StaffView{}, err
+	}
+	cpoID := *principal.CPOID
+	err := service.database.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var membership models.CPOMembership
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("id = ? AND cpo_id = ?", membershipID, cpoID).First(&membership).Error; err != nil {
+			return mapStaffNotFound(err)
+		}
+		if membership.IsPrimaryAdmin {
+			return &auth.APIError{Status: http.StatusConflict, Code: "primary_admin_protected", Message: "The primary administrator cannot be suspended or revoked."}
+		}
+		now := service.now()
+		if err := tx.Model(&models.CPOMembership{}).Where("id = ?", membership.ID).Updates(map[string]any{"status": status, "updated_at": now}).Error; err != nil {
+			return mapWriteError(err, "transition staff membership")
+		}
+		if status != constants.MembershipStatusActive {
+			scope := constants.AuthScopeCPO
+			if _, err := revokeCPOSessions(tx, cpoID, &scope, "CPO_STAFF_"+string(status), now, &membership.UserID); err != nil {
+				return err
+			}
+		}
+		return writeAudit(tx, principal.UserID, cpoID, "CPO_STAFF_"+string(status), models.JSONB{"membership_id": membership.ID, "reason": strings.TrimSpace(reason)}, now)
+	})
+	if err != nil {
+		return StaffView{}, err
+	}
+	return service.GetStaff(ctx, principal, membershipID)
+}
+
+func (service *Service) staffViews(ctx context.Context, cpoID uuid.UUID, memberships []models.CPOMembership) (StaffListResponse, error) {
+	ids := make([]uuid.UUID, 0, len(memberships))
+	for _, membership := range memberships {
+		ids = append(ids, membership.ID)
+	}
+	var overrides []models.CPOMembershipPermissionOverride
+	if len(ids) > 0 {
+		if err := service.database.WithContext(ctx).Where("membership_id IN ?", ids).Order("permission ASC").Find(&overrides).Error; err != nil {
+			return StaffListResponse{}, fmt.Errorf("list staff permission overrides: %w", err)
+		}
+	}
+	byMembership := map[uuid.UUID][]MembershipPermissionOverrideView{}
+	for _, override := range overrides {
+		byMembership[override.MembershipID] = append(byMembership[override.MembershipID], MembershipPermissionOverrideView{Permission: override.Permission, Effect: override.Effect})
+	}
+	response := StaffListResponse{Staff: make([]StaffView, 0, len(memberships))}
+	for _, membership := range memberships {
+		response.Staff = append(response.Staff, StaffView{MembershipID: membership.ID, User: cpoUserView(membership.User, cpoID, membership), IsPrimaryAdmin: membership.IsPrimaryAdmin, Overrides: byMembership[membership.ID]})
+	}
+	return response, nil
+}
+
+func validatePermissionOverrides(overrides []MembershipPermissionOverrideRequest) error {
+	seen := map[string]struct{}{}
+	for _, override := range overrides {
+		override.Permission = strings.TrimSpace(override.Permission)
+		override.Effect = strings.ToUpper(strings.TrimSpace(override.Effect))
+		if !cpopermissions.Known(override.Permission) || (override.Effect != "ALLOW" && override.Effect != "DENY") {
+			return invalid("overrides", "Each override must use a known permission and ALLOW or DENY effect.")
+		}
+		if _, exists := seen[override.Permission]; exists {
+			return invalid("overrides", "Each permission may be overridden once.")
+		}
+		seen[override.Permission] = struct{}{}
+	}
+	return nil
+}
+
+func replacePermissionOverrides(tx *gorm.DB, membershipID, actorID uuid.UUID, overrides []MembershipPermissionOverrideRequest, now time.Time) error {
+	if err := tx.Where("membership_id = ?", membershipID).Delete(&models.CPOMembershipPermissionOverride{}).Error; err != nil {
+		return fmt.Errorf("clear staff permission overrides: %w", err)
+	}
+	rows := make([]models.CPOMembershipPermissionOverride, 0, len(overrides))
+	for _, override := range overrides {
+		rows = append(rows, models.CPOMembershipPermissionOverride{ID: uuid.New(), MembershipID: membershipID, Permission: strings.TrimSpace(override.Permission), Effect: strings.ToUpper(strings.TrimSpace(override.Effect)), CreatedBy: actorID, CreatedAt: now, UpdatedAt: now})
+	}
+	if len(rows) > 0 {
+		if err := tx.Create(&rows).Error; err != nil {
+			return mapWriteError(err, "create staff permission overrides")
+		}
+	}
+	return nil
+}
+
+func mapStaffNotFound(err error) error {
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return &auth.APIError{Status: http.StatusNotFound, Code: "staff_not_found", Message: "The staff membership was not found."}
+	}
+	return fmt.Errorf("load staff membership: %w", err)
 }
 
 func (service *Service) GetOrganization(

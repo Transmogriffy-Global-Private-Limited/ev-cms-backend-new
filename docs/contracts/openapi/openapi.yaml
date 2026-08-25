@@ -60,6 +60,158 @@ tags:
     description: Authenticated OCPP HAL fact receiver. Not callable with a customer or staff bearer.
 
 paths:
+  /api/v1/cpo/support:
+    get:
+      tags: [CPO Operations - Account & Notifications]
+      operationId: listCPOSupportTickets
+      summary: List this CPO's support tickets
+      security: [{BearerAuth: []}, {CPOAppID: []}]
+      responses: {"200": {description: Tickets., content: {application/json: {schema: {type: array, items: {$ref: "#/components/schemas/SupportTicket"}}}}}}
+    post:
+      tags: [CPO Operations - Account & Notifications]
+      operationId: createCPOSupportTicket
+      summary: Open a CPO support ticket
+      security: [{BearerAuth: []}, {CPOAppID: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/CreateSupportTicketRequest"}}}}
+      responses: {"201": {description: Created ticket., content: {application/json: {schema: {$ref: "#/components/schemas/SupportTicket"}}}}}
+  /api/v1/cpo/support/{ticket_id}:
+    get:
+      tags: [CPO Operations - Account & Notifications]
+      operationId: getCPOSupportTicket
+      summary: Get one CPO support ticket
+      security: [{BearerAuth: []}, {CPOAppID: []}]
+      parameters: [{$ref: "#/components/parameters/SupportTicketID"}]
+      responses: {"200": {description: Ticket., content: {application/json: {schema: {$ref: "#/components/schemas/SupportTicket"}}}}}
+  /api/v1/cpo/support/{ticket_id}/replies:
+    post:
+      tags: [CPO Operations - Account & Notifications]
+      operationId: replyToCPOSupportTicket
+      summary: Reply to a CPO support ticket
+      security: [{BearerAuth: []}, {CPOAppID: []}]
+      parameters: [{$ref: "#/components/parameters/SupportTicketID"}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/SupportReplyRequest"}}}}
+      responses: {"200": {description: Updated ticket., content: {application/json: {schema: {$ref: "#/components/schemas/SupportTicket"}}}}}
+  /api/v1/platform/support/tickets:
+    get:
+      tags: [Superadmin - Governance]
+      operationId: listPlatformSupportTickets
+      summary: List all tenant support tickets
+      security: [{BearerAuth: []}]
+      responses: {"200": {description: Tickets., content: {application/json: {schema: {type: array, items: {$ref: "#/components/schemas/SupportTicket"}}}}}}
+  /api/v1/platform/support/tickets/{ticket_id}:
+    get:
+      tags: [Superadmin - Governance]
+      operationId: getPlatformSupportTicket
+      summary: Get one support ticket
+      security: [{BearerAuth: []}]
+      parameters: [{$ref: "#/components/parameters/SupportTicketID"}]
+      responses: {"200": {description: Ticket., content: {application/json: {schema: {$ref: "#/components/schemas/SupportTicket"}}}}}
+  /api/v1/platform/support/tickets/{ticket_id}/replies:
+    post:
+      tags: [Superadmin - Governance]
+      operationId: replyToPlatformSupportTicket
+      summary: Reply as platform staff
+      security: [{BearerAuth: []}]
+      parameters: [{$ref: "#/components/parameters/SupportTicketID"}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/SupportReplyRequest"}}}}
+      responses: {"200": {description: Updated ticket., content: {application/json: {schema: {$ref: "#/components/schemas/SupportTicket"}}}}}
+  /api/v1/platform/support/tickets/{ticket_id}/status:
+    patch:
+      tags: [Superadmin - Governance]
+      operationId: updatePlatformSupportTicketStatus
+      summary: Set platform-owned support ticket status
+      security: [{BearerAuth: []}]
+      parameters: [{$ref: "#/components/parameters/SupportTicketID"}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/SupportTicketStatusRequest"}}}}
+      responses: {"200": {description: Updated ticket., content: {application/json: {schema: {$ref: "#/components/schemas/SupportTicket"}}}}}
+
+  /api/v1/cpo/permissions/catalog:
+    get:
+      tags: [CPO Operations - Account & Notifications]
+      operationId: listCPOPermissionCatalog
+      summary: List the source-controlled CPO permission catalog
+      security: [{BearerAuth: []}, {CPOAppID: []}]
+      responses:
+        "200": {description: Known permission definitions., content: {application/json: {schema: {$ref: "#/components/schemas/PermissionCatalogResponse"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/CPOBusinessForbidden"}
+  /api/v1/cpo/staff:
+    get:
+      tags: [CPO Operations - Account & Notifications]
+      operationId: listCPOStaff
+      summary: List CPO staff memberships and overrides
+      security: [{BearerAuth: []}, {CPOAppID: []}]
+      responses:
+        "200": {description: CPO staff., content: {application/json: {schema: {$ref: "#/components/schemas/StaffListResponse"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/CPOBusinessForbidden"}
+    post:
+      tags: [CPO Operations - Account & Notifications]
+      operationId: createCPOStaff
+      summary: Create a non-primary CPO staff membership
+      security: [{BearerAuth: []}, {CPOAppID: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/CreateStaffRequest"}}}}
+      responses:
+        "201": {description: Created staff membership., content: {application/json: {schema: {$ref: "#/components/schemas/Staff"}}}}
+        "400": {$ref: "#/components/responses/InvalidRequest"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/CPOBusinessForbidden"}
+        "409": {$ref: "#/components/responses/Conflict"}
+  /api/v1/cpo/staff/{membership_id}:
+    get:
+      tags: [CPO Operations - Account & Notifications]
+      operationId: getCPOStaff
+      summary: Get one CPO staff membership
+      security: [{BearerAuth: []}, {CPOAppID: []}]
+      parameters: [{$ref: "#/components/parameters/MembershipID"}]
+      responses:
+        "200": {description: CPO staff membership., content: {application/json: {schema: {$ref: "#/components/schemas/Staff"}}}}
+        "400": {$ref: "#/components/responses/InvalidRequest"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/CPOBusinessForbidden"}
+        "404": {description: "`staff_not_found`"}
+    patch:
+      tags: [CPO Operations - Account & Notifications]
+      operationId: updateCPOStaff
+      summary: Update a non-primary staff role or override set
+      security: [{BearerAuth: []}, {CPOAppID: []}]
+      parameters: [{$ref: "#/components/parameters/MembershipID"}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/UpdateStaffRequest"}}}}
+      responses:
+        "200": {description: Updated staff membership., content: {application/json: {schema: {$ref: "#/components/schemas/Staff"}}}}
+        "400": {$ref: "#/components/responses/InvalidRequest"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/CPOBusinessForbidden"}
+        "404": {description: "`staff_not_found`"}
+        "409": {$ref: "#/components/responses/Conflict"}
+  /api/v1/cpo/staff/{membership_id}/activate:
+    post:
+      tags: [CPO Operations - Account & Notifications]
+      operationId: activateCPOStaff
+      summary: Activate a non-primary staff membership
+      security: [{BearerAuth: []}, {CPOAppID: []}]
+      parameters: [{$ref: "#/components/parameters/MembershipID"}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/ReasonRequest"}}}}
+      responses: {"200": {description: Updated staff membership., content: {application/json: {schema: {$ref: "#/components/schemas/Staff"}}}}, "400": {$ref: "#/components/responses/InvalidRequest"}, "401": {$ref: "#/components/responses/Unauthorized"}, "403": {$ref: "#/components/responses/CPOBusinessForbidden"}, "404": {description: "`staff_not_found`"}, "409": {$ref: "#/components/responses/Conflict"}}
+  /api/v1/cpo/staff/{membership_id}/suspend:
+    post:
+      tags: [CPO Operations - Account & Notifications]
+      operationId: suspendCPOStaff
+      summary: Suspend a non-primary staff membership and revoke its CPO sessions
+      security: [{BearerAuth: []}, {CPOAppID: []}]
+      parameters: [{$ref: "#/components/parameters/MembershipID"}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/ReasonRequest"}}}}
+      responses: {"200": {description: Updated staff membership., content: {application/json: {schema: {$ref: "#/components/schemas/Staff"}}}}, "400": {$ref: "#/components/responses/InvalidRequest"}, "401": {$ref: "#/components/responses/Unauthorized"}, "403": {$ref: "#/components/responses/CPOBusinessForbidden"}, "404": {description: "`staff_not_found`"}, "409": {$ref: "#/components/responses/Conflict"}}
+  /api/v1/cpo/staff/{membership_id}/revoke:
+    post:
+      tags: [CPO Operations - Account & Notifications]
+      operationId: revokeCPOStaff
+      summary: Revoke a non-primary staff membership and its CPO sessions
+      security: [{BearerAuth: []}, {CPOAppID: []}]
+      parameters: [{$ref: "#/components/parameters/MembershipID"}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/ReasonRequest"}}}}
+      responses: {"200": {description: Updated staff membership., content: {application/json: {schema: {$ref: "#/components/schemas/Staff"}}}}, "400": {$ref: "#/components/responses/InvalidRequest"}, "401": {$ref: "#/components/responses/Unauthorized"}, "403": {$ref: "#/components/responses/CPOBusinessForbidden"}, "404": {description: "`staff_not_found`"}, "409": {$ref: "#/components/responses/Conflict"}}
+
   /api/v1/cpo/charging-sessions:
     get:
       tags: [CPO Operations - Charging Sessions]
@@ -6151,6 +6303,21 @@ components:
         type: string
         minLength: 1
         maxLength: 120
+    MembershipID:
+      name: membership_id
+      in: path
+      required: true
+      description: Non-zero CPO membership UUID.
+      schema:
+        type: string
+        format: uuid
+    SupportTicketID:
+      name: ticket_id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
     CPOID:
       name: cpo_id
       in: path
@@ -7991,6 +8158,7 @@ components:
         - status
         - is_verified
         - usergroup_assigned
+        - total_usage_kwh
         - created_at
         - updated_at
       properties:
@@ -8465,6 +8633,96 @@ components:
           enum: [ACTIVE, SUSPENDED, REVOKED]
         created_at: {type: string, format: date-time}
         updated_at: {type: string, format: date-time}
+
+    PermissionDefinition:
+      type: object
+      additionalProperties: false
+      required: [key, module, name, description]
+      properties:
+        key: {type: string}
+        module: {type: string}
+        name: {type: string}
+        description: {type: string}
+    SupportTicketMessage:
+      type: object
+      properties:
+        id: {type: string, format: uuid}
+        ticket_id: {type: string, format: uuid}
+        author_user_id: {type: string, format: uuid}
+        author_scope: {type: string, enum: [CPO, PLATFORM]}
+        body: {type: string}
+        created_at: {type: string, format: date-time}
+    SupportTicket:
+      type: object
+      properties:
+        id: {type: string, format: uuid}
+        cpo_id: {type: string, format: uuid}
+        subject: {type: string}
+        status: {type: string, enum: [OPEN, PENDING, RESOLVED, CLOSED]}
+        created_by_user_id: {type: string, format: uuid}
+        closed_at: {type: string, format: date-time}
+        created_at: {type: string, format: date-time}
+        updated_at: {type: string, format: date-time}
+        messages: {type: array, items: {$ref: "#/components/schemas/SupportTicketMessage"}}
+    CreateSupportTicketRequest:
+      type: object
+      required: [subject, body]
+      properties:
+        subject: {type: string, maxLength: 200}
+        body: {type: string, maxLength: 10000}
+    SupportReplyRequest:
+      type: object
+      required: [body]
+      properties:
+        body: {type: string, maxLength: 10000}
+    SupportTicketStatusRequest:
+      type: object
+      required: [status]
+      properties:
+        status: {type: string, enum: [OPEN, PENDING, RESOLVED, CLOSED]}
+    PermissionCatalogResponse:
+      type: object
+      additionalProperties: false
+      required: [permissions]
+      properties:
+        permissions: {type: array, items: {$ref: "#/components/schemas/PermissionDefinition"}}
+    MembershipPermissionOverride:
+      type: object
+      additionalProperties: false
+      required: [permission, effect]
+      properties:
+        permission: {type: string}
+        effect: {type: string, enum: [ALLOW, DENY]}
+    Staff:
+      type: object
+      additionalProperties: false
+      required: [membership_id, user, is_primary_admin, overrides]
+      properties:
+        membership_id: {type: string, format: uuid}
+        user: {$ref: "#/components/schemas/CPOUser"}
+        is_primary_admin: {type: boolean}
+        overrides: {type: array, items: {$ref: "#/components/schemas/MembershipPermissionOverride"}}
+    StaffListResponse:
+      type: object
+      additionalProperties: false
+      required: [staff]
+      properties:
+        staff: {type: array, items: {$ref: "#/components/schemas/Staff"}}
+    CreateStaffRequest:
+      type: object
+      additionalProperties: false
+      required: [email, full_name, role]
+      properties:
+        email: {type: string, format: email}
+        full_name: {type: string, maxLength: 255}
+        role: {type: string, enum: [ADMIN, OPERATOR, VIEWER]}
+        overrides: {type: array, items: {$ref: "#/components/schemas/MembershipPermissionOverride"}}
+    UpdateStaffRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        role: {type: string, enum: [ADMIN, OPERATOR, VIEWER]}
+        overrides: {type: array, items: {$ref: "#/components/schemas/MembershipPermissionOverride"}}
 
     CPOOrganization:
       type: object
@@ -9808,6 +10066,17 @@ components:
         transaction_id:
           type: string
           format: uuid
+          description: Backward-compatible CMS session ID; use session_id explicitly in new clients.
+        session_id:
+          type: string
+          format: uuid
+        ocpp_transaction_id:
+          type: integer
+          format: int64
+        hal_transaction_id:
+          type: string
+          format: uuid
+          nullable: true
         payment_status:
           $ref: "#/components/schemas/FinancialStatus"
         billed_amount:
@@ -9815,9 +10084,25 @@ components:
           format: decimal
         charger_id:
           type: string
+          description: Human-readable CPO charger code.
+        ocpp_identity:
+          type: string
+        charger_name:
+          type: string
         duration:
           type: string
         hub:
+          type: string
+        hub_id:
+          type: string
+          format: uuid
+          nullable: true
+        hub_address:
+          type: string
+        connector_number:
+          type: integer
+          nullable: true
+        connector_type:
           type: string
         tariff:
           type: string
@@ -9836,11 +10121,22 @@ components:
           format: date-time
         reason:
           type: string
+          nullable: true
+        session_status:
+          $ref: "#/components/schemas/SessionStatus"
+        settlement_status:
+          type: string
+        reconciliation_required:
+          type: boolean
       required:
         - transaction_id
+        - session_id
+        - ocpp_transaction_id
         - payment_status
         - billed_amount
         - charger_id
+        - ocpp_identity
+        - charger_name
         - duration
         - hub
         - tariff
@@ -9849,6 +10145,9 @@ components:
         - host_details
         - customer_details
         - timestamp
+        - session_status
+        - settlement_status
+        - reconciliation_required
 
     HostDetailsView:
       type: object
@@ -9970,30 +10269,70 @@ components:
     ChargingSessionCustomerView:
       type: object
       properties:
+        id:
+          type: string
+          format: uuid
         name:
           type: string
         email:
           type: string
           format: email
+        phone:
+          type: string
+          nullable: true
       required:
+        - id
         - name
         - email
     ChargingSessionChargerView:
       type: object
       properties:
+        id:
+          type: string
+          format: uuid
+        charger_id:
+          type: string
+        ocpp_identity:
+          type: string
         name:
           type: string
+        hub_id:
+          type: string
+          format: uuid
+          nullable: true
         hub_name:
           type: string
           nullable: true
+        hub_address:
+          type: string
+          nullable: true
+        max_power_kw:
+          type: number
+          format: double
+        vendor:
+          type: string
+        model:
+          type: string
       required:
+        - id
+        - charger_id
+        - ocpp_identity
         - name
     ChargingSessionConnectorView:
       type: object
       properties:
+        id:
+          type: string
+          format: uuid
         number:
           type: integer
+        connector_type:
+          type: string
+        connector_total_capacity:
+          type: number
+          format: double
       required:
+        - id
         - number
     ChargingSessionView:
       type: object

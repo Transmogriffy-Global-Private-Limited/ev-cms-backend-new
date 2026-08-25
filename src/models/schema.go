@@ -130,6 +130,20 @@ type CPOMembership struct {
 	UpdatedAt      time.Time                  `gorm:"not null" json:"updated_at"`
 }
 
+// CPOMembershipPermissionOverride is a narrow, auditable exception to the
+// source-controlled role defaults.  DENY always wins over an ALLOW or role
+// default so removing access is immediate and deterministic.
+type CPOMembershipPermissionOverride struct {
+	ID           uuid.UUID     `gorm:"type:uuid;primaryKey;default:gen_random_uuid()" json:"id"`
+	MembershipID uuid.UUID     `gorm:"type:uuid;not null;uniqueIndex:uq_cpo_membership_permission_override,priority:1;index" json:"membership_id"`
+	Membership   CPOMembership `gorm:"foreignKey:MembershipID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE" json:"-"`
+	Permission   string        `gorm:"type:varchar(100);not null;uniqueIndex:uq_cpo_membership_permission_override,priority:2" json:"permission"`
+	Effect       string        `gorm:"type:varchar(10);not null" json:"effect"`
+	CreatedBy    uuid.UUID     `gorm:"type:uuid;not null" json:"created_by"`
+	CreatedAt    time.Time     `gorm:"not null" json:"created_at"`
+	UpdatedAt    time.Time     `gorm:"not null" json:"updated_at"`
+}
+
 type UserGroup struct {
 	ID           uuid.UUID `gorm:"type:uuid;primaryKey;default:gen_random_uuid()" json:"id"`
 	CPOID        uuid.UUID `gorm:"type:uuid;not null;index" json:"cpo_id"`

@@ -26,6 +26,7 @@ import (
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/security"
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/subscriptions"
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/superadmin"
+	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/support"
 	"github.com/google/uuid"
 )
 
@@ -101,9 +102,11 @@ func run() error {
 	halReconcilerInstanceKey := processInstanceKey + ":hal-reconciler"
 	operationalRetentionInstanceKey := processInstanceKey + ":operational-retention"
 	mailOutboxInstanceKey := processInstanceKey + ":mail-outbox"
+	subscriptionLifecycleInstanceKey := processInstanceKey + ":subscription-lifecycle"
 	platformService := platformops.NewService(gormDB, cfg.Platform)
 	superadminService := superadmin.NewService(gormDB, platformService, outbox, cfg.Mail.Enabled)
 	subscriptionService := subscriptions.NewService(gormDB, platformService)
+	supportService := support.NewService(gormDB)
 	halOperations := halops.New(gormDB, cfg.HAL)
 	platformService.WithHALFactRequeuer(halOperations)
 	liveOperations := liveops.New(gormDB, cfg.HAL)
@@ -113,6 +116,7 @@ func run() error {
 		{Name: "hal-reconciler", InstanceKey: halReconcilerInstanceKey, Required: true, Enabled: halOperations.Available()},
 		{Name: "operational-retention", InstanceKey: operationalRetentionInstanceKey, Required: false, Enabled: true},
 		{Name: "mail-outbox", InstanceKey: mailOutboxInstanceKey, Required: true, Enabled: cfg.Mail.Enabled},
+		{Name: "subscription-lifecycle", InstanceKey: subscriptionLifecycleInstanceKey, Required: true, Enabled: true},
 	})
 	halOperations.WithWorkerObserver(platformService, "hal-reconciler", halReconcilerInstanceKey)
 	operationalEvents.WithWorkerObserver(platformService, "operational-retention", operationalRetentionInstanceKey)
@@ -146,6 +150,7 @@ func run() error {
 		go halOperations.RunReconciler(ctx, time.Minute)
 	}
 	go operationalEvents.RunRetention(ctx, cfg.Platform.MaintenanceEvery)
+	go subscriptionService.RunLifecycle(ctx, cfg.Platform.MaintenanceEvery, platformService, subscriptionLifecycleInstanceKey)
 
 	if cfg.Mail.Enabled {
 		sender, err := cmsmail.NewSMTPSender(cfg.Mail)
@@ -176,6 +181,7 @@ func run() error {
 			integrationService,
 			platformService,
 			subscriptionService,
+			supportService,
 			cfg.CORSAllowAll,
 			cfg.APIDocsEnabled,
 			os.Stdout,

@@ -134,23 +134,25 @@ type MailRetentionResponse struct {
 }
 
 type AnnouncementRequest struct {
-	Audience  string     `json:"audience"`
-	CPOID     *uuid.UUID `json:"cpo_id,omitempty"`
-	Title     string     `json:"title"`
-	Body      string     `json:"body"`
-	ExpiresAt *time.Time `json:"expires_at,omitempty"`
+	Audience  string      `json:"audience"`
+	CPOID     *uuid.UUID  `json:"cpo_id,omitempty"`
+	CPOIDs    []uuid.UUID `json:"cpo_ids,omitempty"`
+	Title     string      `json:"title"`
+	Body      string      `json:"body"`
+	ExpiresAt *time.Time  `json:"expires_at,omitempty"`
 }
 
 type AnnouncementView struct {
-	ID              uuid.UUID  `json:"id"`
-	Audience        string     `json:"audience"`
-	CPOID           *uuid.UUID `json:"cpo_id,omitempty"`
-	Title           string     `json:"title"`
-	Body            string     `json:"body"`
-	CreatedByUserID uuid.UUID  `json:"created_by_user_id"`
-	CreatedAt       time.Time  `json:"created_at"`
-	ExpiresAt       *time.Time `json:"expires_at,omitempty"`
-	RecipientCount  int64      `json:"recipient_count"`
+	ID              uuid.UUID   `json:"id"`
+	Audience        string      `json:"audience"`
+	CPOID           *uuid.UUID  `json:"cpo_id,omitempty"`
+	CPOIDs          []uuid.UUID `json:"cpo_ids,omitempty"`
+	Title           string      `json:"title"`
+	Body            string      `json:"body"`
+	CreatedByUserID uuid.UUID   `json:"created_by_user_id"`
+	CreatedAt       time.Time   `json:"created_at"`
+	ExpiresAt       *time.Time  `json:"expires_at,omitempty"`
+	RecipientCount  int64       `json:"recipient_count"`
 }
 
 type AnnouncementPage struct {
@@ -205,9 +207,9 @@ type CPOAssetsOverview struct {
 }
 
 type CPOWithAssets struct {
-	ID           uuid.UUID   `json:"id"`
-	BusinessName string      `json:"business_name"`
-	Hubs         []HubInfo   `json:"hubs"`
+	ID           uuid.UUID     `json:"id"`
+	BusinessName string        `json:"business_name"`
+	Hubs         []HubInfo     `json:"hubs"`
 	Chargers     []ChargerInfo `json:"chargers"`
 }
 

@@ -24,8 +24,8 @@ and financial operations without accessing another CPO's data.
 - Gin HTTP API
 - GORM for application persistence
 - Explicit versioned SQL migrations
-- ADMIN-only callable CPO authority initially, with dormant fixed-role enum
-  capacity for a later staff-management design
+- Source-controlled CPO permission catalog with role defaults and narrowly
+  auditable per-membership ALLOW/DENY overrides; DENY takes precedence
 - Loopback-only local development listener by default
 
 ## Permanent Engineering Invariants
@@ -39,6 +39,8 @@ and financial operations without accessing another CPO's data.
 - Money will use an exact representation and energy used for billing will use
   integer Wh.
 - The CMS never invents or replaces a HAL-issued OCPP transaction identifier.
+- CPO transaction/session reads retain CMS session identity while exposing HAL
+  and OCPP identifiers only as explicitly labeled protocol evidence.
 - Runtime worker reporting distinguishes a logical worker role from its
   ephemeral process instance. The status API projects one authoritative current
   instance per logical worker; durable historical rows are not current health.
@@ -170,7 +172,7 @@ Current implementation state:
 - The current deployed release also exposes tenant-scoped CPO charging-session
   list/detail reads with bounded keyset pagination and validated lifecycle
   filters. Revision `c6b79d4` is active with migrations 40-46 applied; the live
-  OpenAPI contract contains 189 operations. The CPO wallet transaction read is
+  OpenAPI contract contains 206 operations. The CPO wallet transaction read is
   tenant-scoped, newest-first, and cursor-paginated.
 - The current deployed release also includes optional committed live charger
   projections on CPO charger list/detail responses. Revision `a5d1af4` is

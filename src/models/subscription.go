@@ -74,6 +74,17 @@ type CPOSubscriptionHistory struct {
 	CreatedAt             time.Time  `gorm:"not null" json:"created_at"`
 }
 
+// CPOSubscriptionLifecycleEvent records an exactly-once lifecycle warning or
+// expiry transition produced by the CMS scheduler. It is durable evidence,
+// not a replacement for the manual subscription history.
+type CPOSubscriptionLifecycleEvent struct {
+	ID             uuid.UUID `gorm:"type:uuid;primaryKey;default:gen_random_uuid()" json:"id"`
+	SubscriptionID uuid.UUID `gorm:"type:uuid;not null;uniqueIndex:uq_cpo_subscription_lifecycle_event,priority:1;index" json:"subscription_id"`
+	Kind           string    `gorm:"type:varchar(30);not null;uniqueIndex:uq_cpo_subscription_lifecycle_event,priority:2" json:"kind"`
+	EffectiveAt    time.Time `gorm:"not null" json:"effective_at"`
+	CreatedAt      time.Time `gorm:"not null" json:"created_at"`
+}
+
 // TableName preserves the singular table created by the subscription
 // migrations. GORM's default pluralization would query the nonexistent
 // cpo_subscription_histories table.
