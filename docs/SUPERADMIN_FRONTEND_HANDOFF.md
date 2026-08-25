@@ -1303,8 +1303,11 @@ read-only; they do not expose worker start/stop/retry controls.
 ## Manual Subscription Workflows
 
 Manual subscription operations require `PLATFORM` authority and are separate
-from CPO access. A subscription status never activates, suspends, or otherwise
-authorizes a CPO; use the CPO lifecycle endpoints for access control.
+from CPO administrative access. A subscription status never activates,
+suspends, or otherwise authorizes a CPO administrator; use the CPO lifecycle
+endpoints for that control. Expiry does block only new customer charging starts
+and wallet recharge-order creation for the CPO; stop, reconciliation,
+settlement, customer reads, and pre-expiry recharge verification continue.
 
 ### Plan catalog
 
@@ -1339,9 +1342,12 @@ issue/change-plan selection but preserves historical reads.
 ### CPO subscription lifecycle
 
 `POST /api/v1/platform/cpos/{cpo_id}/subscription` issues a current
-subscription from a published `plan_version_id`. `renew` records a new period,
-`change-plan` immediately selects another published version, and the explicit
-transition commands move the current record through the supported states:
+subscription from a published `plan_version_id`. `renew` records a new period
+and reactivates the same `EXPIRED` record after manual payment confirmation;
+an expired renewal starts at the command time rather than backdating into an
+already elapsed period. `change-plan` immediately selects another published
+version, and the explicit transition commands move the current record through
+the supported states:
 
 | Command | Supported behavior |
 | --- | --- |

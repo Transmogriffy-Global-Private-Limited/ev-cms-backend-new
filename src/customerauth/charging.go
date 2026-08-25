@@ -219,9 +219,6 @@ func existingChargingStartResponse(intent models.ChargingStartIntent) ChargingSt
 }
 
 func (service *Service) StartCharging(ctx context.Context, principal Principal, request ChargingStartRequest, correlationID string) (ChargingStartResponse, error) {
-	if service.hal == nil || !service.hal.Available() {
-		return ChargingStartResponse{}, &APIError{http.StatusServiceUnavailable, "hal_unavailable", "Charging is temporarily unavailable."}
-	}
 	charger, err := service.loadPublishedCustomerCharger(ctx, principal, request.ChargerID)
 	if err != nil {
 		return ChargingStartResponse{}, err
@@ -248,6 +245,12 @@ func (service *Service) StartCharging(ctx context.Context, principal Principal, 
 			return existingChargingStartResponse(existing), nil
 		}
 		return ChargingStartResponse{}, connectorNotAvailableForCharging()
+	}
+	if err := service.requireCustomerCommercialAdmission(ctx, principal.CPOID, service.now()); err != nil {
+		return ChargingStartResponse{}, err
+	}
+	if service.hal == nil || !service.hal.Available() {
+		return ChargingStartResponse{}, &APIError{http.StatusServiceUnavailable, "hal_unavailable", "Charging is temporarily unavailable."}
 	}
 	liveConnector, err := service.live.GetConnector(ctx, principal.CPOID, requestedConnector.ID)
 	if err != nil {
@@ -286,6 +289,9 @@ func (service *Service) StartCharging(ctx context.Context, principal Principal, 
 		}
 		if cpo.Status != constants.CPOStatusActive {
 			return &APIError{http.StatusForbidden, "cpo_not_active", "Charging is not available for this provider."}
+		}
+		if err := requireCustomerCommercialAdmission(tx, principal.CPOID, service.now()); err != nil {
+			return err
 		}
 		var connector models.Connector
 		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&connector, "id = ? AND cpo_id = ? AND charger_id = ?", request.ConnectorID, principal.CPOID, charger.ID).Error; err != nil {

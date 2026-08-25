@@ -87,11 +87,14 @@ protocol responsibilities.
   durable truth. Consumers must retain the documented REST catch-up/recovery path.
 - `docs/contracts/internal/http-request-logging.md` owns the safe JSON log
   schema, request ID, proxy trust, developer logging rules, and exclusions.
-- CPO activation/suspension is a manual SuperAdmin decision. Manual
-  subscription plans and CPO subscription records never grant or revoke CPO
-  access. Do not add feature keys or entitlement overrides without an approved
-  module catalog and enforcement design. Platform invoices, payments, checkout,
-  webhooks, and automatic subscription lifecycle require a new explicit
+- CPO activation/suspension is a manual SuperAdmin decision. Subscription
+  status never grants or revokes CPO administrative access. A CPO subscription
+  that is explicitly `EXPIRED` or has reached `current_period_ends_at` blocks
+  only new customer charging starts and new customer wallet-recharge orders;
+  keep stop, reconciliation, settlement, read, and pre-expiry payment
+  verification paths available. Do not add feature keys or entitlement
+  overrides without an approved module catalog and enforcement design. Platform
+  invoices, payments, checkout, and provider webhooks require a new explicit
   decision beyond ADR 0012.
 - Preserve transaction boundaries, database constraints, idempotency, and
   durable outbox semantics. New asynchronous or cross-service behaviour must

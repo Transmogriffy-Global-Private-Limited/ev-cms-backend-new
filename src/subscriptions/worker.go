@@ -15,8 +15,8 @@ import (
 const lifecycleWorkerName = "subscription-lifecycle"
 
 // RunLifecycle records each warning threshold once and expires elapsed periods.
-// It deliberately never changes CPO lifecycle status: subscription commercial
-// truth and tenant access remain separate policy decisions.
+// It deliberately never changes CPO lifecycle status: CPO administrative
+// access remains separate from customer-command commercial admission.
 func (service *Service) RunLifecycle(ctx context.Context, interval time.Duration, observer WorkerObserver, instanceKey string) {
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()

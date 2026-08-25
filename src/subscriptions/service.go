@@ -300,15 +300,12 @@ func (service *Service) Renew(ctx context.Context, principal auth.Principal, cpo
 	if start.After(service.now()) {
 		return SubscriptionView{}, invalid("starts_at", "starts_at cannot be in the future.")
 	}
-	return service.mutate(ctx, principal, cpoID, request.Reason, request.IdempotencyKey, "RENEW", func(record *models.CPOSubscription, tx *gorm.DB, now time.Time) (string, error) {
+	return service.mutateForStatuses(ctx, principal, cpoID, request.Reason, request.IdempotencyKey, "RENEW", append(append([]string{}, currentStatuses...), "EXPIRED"), func(record *models.CPOSubscription, tx *gorm.DB, now time.Time) (string, error) {
 		var version models.SubscriptionPlanVersion
 		if err := tx.First(&version, "id = ?", record.PlanVersionID).Error; err != nil {
 			return "", err
 		}
-		record.CurrentPeriodStartsAt, record.CurrentPeriodEndsAt = start, addPeriod(start, version)
-		if record.Status == "TRIAL" {
-			record.Status, record.TrialEndsAt = "ACTIVE", nil
-		}
+		renewSubscriptionPeriod(record, start, now, version)
 		return "platform.subscription.renewed", nil
 	})
 }
@@ -399,6 +396,10 @@ func (service *Service) Cancel(ctx context.Context, principal auth.Principal, cp
 type mutation func(*models.CPOSubscription, *gorm.DB, time.Time) (string, error)
 
 func (service *Service) mutate(ctx context.Context, principal auth.Principal, cpoID uuid.UUID, reason, key, operation string, change mutation) (SubscriptionView, error) {
+	return service.mutateForStatuses(ctx, principal, cpoID, reason, key, operation, currentStatuses, change)
+}
+
+func (service *Service) mutateForStatuses(ctx context.Context, principal auth.Principal, cpoID uuid.UUID, reason, key, operation string, statuses []string, change mutation) (SubscriptionView, error) {
 	if err := requirePlatform(principal); err != nil {
 		return SubscriptionView{}, err
 	}
@@ -415,7 +416,7 @@ func (service *Service) mutate(ctx context.Context, principal auth.Principal, cp
 			record = existing
 			return nil
 		}
-		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("cpo_id = ? AND status IN ?", cpoID, currentStatuses).First(&record).Error; err != nil {
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("cpo_id = ? AND status IN ?", cpoID, statuses).Order("current_period_ends_at DESC, updated_at DESC").First(&record).Error; err != nil {
 			return notFound("subscription_not_found", "CPO has no current subscription.", err)
 		}
 		previousStatus, previousVersion := record.Status, record.PlanVersionID
@@ -505,6 +506,22 @@ func addPeriod(start time.Time, version models.SubscriptionPlanVersion) time.Tim
 		return start.AddDate(version.IntervalCount, 0, 0)
 	}
 	return start.AddDate(0, version.IntervalCount, 0)
+}
+
+func renewSubscriptionPeriod(record *models.CPOSubscription, requestedStart, now time.Time, version models.SubscriptionPlanVersion) {
+	effectiveStart := requestedStart
+	if record.Status == "EXPIRED" {
+		// An expired period cannot be backdated into another elapsed period.
+		// Renewal is the audited manual reactivation after repayment.
+		if effectiveStart.Before(now) {
+			effectiveStart = now
+		}
+		record.Status, record.EndedAt, record.TrialEndsAt = "ACTIVE", nil, nil
+	}
+	record.CurrentPeriodStartsAt, record.CurrentPeriodEndsAt = effectiveStart, addPeriod(effectiveStart, version)
+	if record.Status == "TRIAL" {
+		record.Status, record.TrialEndsAt = "ACTIVE", nil
+	}
 }
 func validActionFields(reason, key string) bool {
 	return reason != "" && len(reason) <= 500 && key != "" && len(key) <= 120

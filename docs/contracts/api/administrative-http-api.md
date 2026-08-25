@@ -891,7 +891,10 @@ returns `409 recharge_order_pending` rather than creating an uncontrolled
 duplicate provider order.
 
 The operation stores a non-secret provider order snapshot and provider
-metadata. It does not credit the wallet.
+metadata. It does not credit the wallet. If this CPO has an explicit expired
+subscription, or its current subscription period has already elapsed, a new
+order returns `403 cpo_subscription_expired`. A checkout order created before
+expiry remains verifiable so a captured payment is never stranded.
 
 ### 4.32 `POST /api/v1/app/wallet/recharge/verify`
 
@@ -3128,9 +3131,11 @@ returns `503 hal_unavailable`; other HAL failures return
 ## 12. Manual CPO Platform Access
 
 Subscription management is documented separately in
-`docs/contracts/api/manual-subscriptions.md`. It is a manual platform
-management record and never changes CPO access automatically. A platform
-superadmin grants or removes CPO access directly:
+`docs/contracts/api/manual-subscriptions.md`. It never changes CPO
+administrative access automatically. An expired subscription does block only
+new customer charging starts and new customer recharge-order creation; stop,
+reconciliation, settlement, and existing payment verification remain allowed.
+A platform superadmin grants or removes CPO administrative access directly:
 
 ```text
 POST /api/v1/platform/cpos/{cpo_id}/activate
@@ -3160,9 +3165,11 @@ GET /api/v1/platform/cpos/{cpo_id}/subscription/history
 They are described completely by
 `docs/contracts/api/manual-subscriptions.md` and the canonical OpenAPI schema.
 All writes are audited and idempotency-keyed manual commands. The API manages
-records only: it has no payment provider, invoice/payment flow, webhook,
-automatic renewal or expiry, scheduled transition, subscription email, or CPO
-authorization effect.
+records only: it has no platform payment provider, invoice/payment flow,
+webhook, automatic renewal, scheduled transition, subscription email, or CPO
+administrative-authorization effect. The observed lifecycle worker expires
+elapsed periods; `renew` reactivates the expired record after manual payment
+confirmation and restores new customer starts/recharge-order creation.
 Feature keys and entitlement overrides are deliberately not exposed until a
 future module catalog defines their server-side enforcement.
 

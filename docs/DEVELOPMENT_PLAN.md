@@ -888,7 +888,7 @@ Architecture decision:
 
 ### Feature: Manual platform subscriptions
 
-Status: In Progress
+Status: Implemented
 
 Phase: Phase 2: Authentication and CPO administration
 
@@ -906,15 +906,17 @@ Enables:
 Objective:
 
 Restore the subscription infrastructure as an explicit superadmin-operated
-system while retaining the retirement of platform billing and all automatic
-provider/lifecycle behavior.
+system while retaining the retirement of platform billing. The observed
+lifecycle worker expires elapsed periods, and that commercial fact narrowly
+blocks only new customer charging starts and wallet recharge orders until a
+SuperAdmin records renewal.
 
 Non-goals:
 
-- CPO access control based on subscription status or dates
+- CPO administrative access control based on subscription status or dates
 - Invoice, payment, checkout, collection, webhook, or provider integration
 - Scheduled plan changes, period-end cancellation, automatic renewal, trial
-  completion, expiry, or subscription email
+  completion, or subscription email
 - Feature keys, entitlement overrides, or feature enforcement before a module
   catalog and server-side gates are approved
 
@@ -925,6 +927,7 @@ Detailed plan:
 Architecture decision:
 
 - `docs/decisions/0012-manual-platform-subscriptions-without-provider.md`
+- `docs/decisions/0014-subscription-expiry-customer-command-admission.md`
 
 ### Feature: CPO administrator and initial network configuration
 

@@ -126,6 +126,9 @@ func (service *Service) CreateWalletRechargeOrder(
 	if !errors.Is(result.Error, gorm.ErrRecordNotFound) {
 		return CustomerRechargeOrderResponse{}, fmt.Errorf("find wallet recharge order: %w", result.Error)
 	}
+	if err := service.requireCustomerCommercialAdmission(ctx, principal.CPOID, service.now()); err != nil {
+		return CustomerRechargeOrderResponse{}, err
+	}
 
 	if service.razorpayResolver == nil || service.razorpayFactory == nil {
 		return CustomerRechargeOrderResponse{}, &APIError{http.StatusServiceUnavailable, "payment_provider_not_configured", "Wallet recharge is temporarily unavailable."}

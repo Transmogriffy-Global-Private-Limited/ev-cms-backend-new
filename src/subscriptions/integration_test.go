@@ -96,6 +96,16 @@ func TestManualSubscriptionLifecycleWithPostgreSQL(t *testing.T) {
 	if _, err := service.Resume(ctx, principal, cpo.ID, TransitionRequest{Reason: "Manual resume", IdempotencyKey: "resume-" + uuid.NewString()}); err != nil {
 		t.Fatalf("resume: %v", err)
 	}
+	if _, err := service.Expire(ctx, principal, cpo.ID, TransitionRequest{Reason: "Manual expiry", IdempotencyKey: "expire-" + uuid.NewString()}); err != nil {
+		t.Fatalf("expire: %v", err)
+	}
+	renewedAt := now.AddDate(0, 0, 3)
+	service.now = func() time.Time { return renewedAt }
+	backdatedStart := now
+	renewed, err := service.Renew(ctx, principal, cpo.ID, RenewRequest{StartsAt: &backdatedStart, Reason: "Payment received after expiry", IdempotencyKey: "expired-renew-" + uuid.NewString()})
+	if err != nil || renewed.Subscription.Status != "ACTIVE" || !renewed.Subscription.CurrentPeriodStartsAt.Equal(renewedAt) || renewed.Subscription.EndedAt != nil {
+		t.Fatalf("renew expired subscription = %#v, %v", renewed, err)
+	}
 	if _, err := service.Cancel(ctx, principal, cpo.ID, TransitionRequest{Reason: "Manual cancellation", IdempotencyKey: "cancel-" + uuid.NewString()}); err != nil {
 		t.Fatalf("cancel: %v", err)
 	}

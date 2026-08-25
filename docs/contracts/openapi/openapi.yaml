@@ -1392,7 +1392,10 @@ paths:
         amount. The server resolves encrypted CPO credentials internally,
         stores the provider order snapshot, and returns only the public key ID
         needed by the frontend checkout. The Idempotency-Key must be reused
-        for a retried request with the same amount.
+        for a retried request with the same amount. An expired CPO
+        subscription, including a current period that has elapsed before the
+        lifecycle worker projects `EXPIRED`, rejects only a new order. A
+        pre-expiry order remains verifiable.
       security:
         - BearerAuth: []
       parameters:
@@ -1418,7 +1421,7 @@ paths:
               schema: {$ref: "#/components/schemas/ErrorEnvelope"}
         "401": {$ref: "#/components/responses/Unauthorized"}
         "403":
-          description: "`cpo_app_id_mismatch` or wrong session plane."
+          description: "`cpo_app_id_mismatch`, wrong session plane, or `cpo_subscription_expired` when a new recharge order is commercially blocked."
           content:
             application/json:
               schema: {$ref: "#/components/schemas/ErrorEnvelope"}
@@ -5981,7 +5984,7 @@ paths:
       tags: [Superadmin - Manual Subscriptions]
       operationId: issueCPOSubscription
       summary: Manually issue a subscription from a published plan version
-      description: This is a platform-superadmin command, not payment-provider fulfillment. It records a period but does not automatically renew, activate, expire, or alter CPO access.
+      description: This is a platform-superadmin command, not payment-provider fulfillment. It records a period and does not automatically renew, activate, or alter CPO administrative access. The lifecycle worker expires elapsed periods, which narrowly gates new customer starts and recharge orders.
       security: [{BearerAuth: []}]
       parameters: [{$ref: "#/components/parameters/CPOID"}]
       requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/IssueSubscriptionRequest"}}}}
@@ -5999,7 +6002,7 @@ paths:
       tags: [Superadmin - Manual Subscriptions]
       operationId: renewCPOSubscription
       summary: Manually record the next subscription period
-      description: There is no automatic renewal. This command recalculates the period from the recorded plan terms; it does not reactivate a paused or past-due subscription.
+      description: This command recalculates the period from the recorded plan terms. It renews a current subscription and also reactivates an `EXPIRED` record after manual payment confirmation; an expired record cannot be backdated into another elapsed period. It does not reactivate a paused or past-due subscription.
       security: [{BearerAuth: []}]
       parameters: [{$ref: "#/components/parameters/CPOID"}]
       requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/RenewSubscriptionRequest"}}}}
@@ -6080,7 +6083,7 @@ paths:
       tags: [Superadmin - Manual Subscriptions]
       operationId: cancelCPOSubscription
       summary: Manually cancel a subscription immediately
-      description: Cancellation-at-period-end is intentionally unsupported because no automatic lifecycle worker exists.
+      description: Cancellation-at-period-end is intentionally unsupported. The lifecycle worker only records elapsed-period expiry; it never performs scheduled cancellation.
       security: [{BearerAuth: []}]
       parameters: [{$ref: "#/components/parameters/CPOID"}]
       requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/SubscriptionTransitionRequest"}}}}
@@ -6120,7 +6123,7 @@ paths:
       tags: [App Charging]
       operationId: startCustomerCharging
       summary: Create a durable charging start intent
-      description: Creates the CMS tariff/tax snapshot, affordability reservation, one-use credential, and durable HAL command identity only after exact charger/connector mapping synchronization succeeds. A new start is admitted only when the committed CMS live-operations projection reports the requested connector as `AVAILABLE` and `FRESH`; `409 connector_not_available` is expected when that projection or a competing active intent prevents admission. After the CPO minimum-balance check, tariff/GST affordability and the HAL Wh limit use `wallet balance - CPO wallet buffer`; `409 wallet_minimum_balance_not_met` means the balance is below the configured minimum, while `409 insufficient_wallet_balance` means no positive affordable session remains. A same-customer retry of an existing active intent returns that intent before the live admission check. `RECONCILIATION_REQUIRED` means an invoked HAL start command has an unresolved delivery outcome; an exact command lookup that returns 404 terminalizes that start, releases its held reservation, and permits a fresh retry. `202` is not proof that charging started; only a later HAL `transaction.started` fact materializes a session.
+      description: Creates the CMS tariff/tax snapshot, affordability reservation, one-use credential, and durable HAL command identity only after exact charger/connector mapping synchronization succeeds. A new start is commercially blocked with `403 cpo_subscription_expired` when the CPO subscription is explicitly expired or its current period has elapsed. A same-customer retry of an existing active intent remains readable. A new start is admitted only when the committed CMS live-operations projection reports the requested connector as `AVAILABLE` and `FRESH`; `409 connector_not_available` is expected when that projection or a competing active intent prevents admission. After the CPO minimum-balance check, tariff/GST affordability and the HAL Wh limit use `wallet balance - CPO wallet buffer`; `409 wallet_minimum_balance_not_met` means the balance is below the configured minimum, while `409 insufficient_wallet_balance` means no positive affordable session remains. `RECONCILIATION_REQUIRED` means an invoked HAL start command has an unresolved delivery outcome; an exact command lookup that returns 404 terminalizes that start, releases its held reservation, and permits a fresh retry. `202` is not proof that charging started; only a later HAL `transaction.started` fact materializes a session.
       security: [{BearerAuth: []}]
       parameters: [{$ref: "#/components/parameters/CPOAppIDHeader"}]
       requestBody:
@@ -6132,7 +6135,7 @@ paths:
         "202": {description: Durable start intent accepted for delivery or reconciliation, content: {application/json: {schema: {$ref: "#/components/schemas/ChargingStartResponse"}}}}
         "400": {$ref: "#/components/responses/InvalidRequest"}
         "401": {$ref: "#/components/responses/Unauthorized"}
-        "403": {$ref: "#/components/responses/Forbidden"}
+        "403": {description: "`cpo_app_id_mismatch`, wrong session plane, or `cpo_subscription_expired` for a new start.", content: {application/json: {schema: {$ref: "#/components/schemas/ErrorEnvelope"}}}}
         "404": {description: Customer charger or connector was not found.}
         "409": {description: "`connector_not_available`, `wallet_minimum_balance_not_met`, or `insufficient_wallet_balance` prevents a new start; an active intent can also own the connector.", content: {application/json: {schema: {$ref: "#/components/schemas/ErrorEnvelope"}}}}
         "503": {description: "`hal_unavailable` or `charger_mapping_unavailable`: HAL or the required exact charger mapping is temporarily unavailable; no active start intent is created for a preflight mapping failure.", content: {application/json: {schema: {$ref: "#/components/schemas/ErrorEnvelope"}}}}

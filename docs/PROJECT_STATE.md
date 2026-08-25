@@ -20,6 +20,11 @@
 - The `subscription-lifecycle` worker is current-worker observed like the
   other CMS workers. It records 7/3/1-day thresholds exactly once and expires
   elapsed manual subscription periods without changing CPO lifecycle status.
+  Expiry (or an elapsed period before worker projection) blocks only new
+  customer starts and new wallet recharge orders. SuperAdmins renew the same
+  expired record through the existing audited/idempotent renewal command;
+  customer stop, reconciliation, settlement, read, and pre-expiry recharge
+  verification remain available.
 - Source-controlled mail layouts are embedded from `src/mail/templates/` and
   produce text plus HTML alternatives. CPO support tickets/messages are durable
   tenant-scoped records; CPO routes cannot read another CPO's tickets while

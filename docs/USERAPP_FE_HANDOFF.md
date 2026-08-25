@@ -448,9 +448,9 @@ alter the separate customer-selected time-bounded-session cutoff workflow.
 | `GET /chargers/{charger_id}/price` | Yes | `200 CustomerPriceResponse` | Resolve the current informational charger price. |
 | `GET /wallet` | Yes | `200 CustomerWalletResponse` | Read current balance, usable balance, CPO minimum/buffer, and threshold recharge shortfall. |
 | `GET /wallet/transactions` | Yes | `200 CustomerWalletTransactionList` | Read bounded ledger history with the same current wallet-policy projection. |
-| `POST /wallet/recharge/orders` | Yes | `201 CustomerRechargeOrder` | Create an idempotent Razorpay checkout order. |
+| `POST /wallet/recharge/orders` | Yes | `201 CustomerRechargeOrder` | Create an idempotent Razorpay checkout order; an expired CPO subscription returns `403 cpo_subscription_expired`. |
 | `POST /wallet/recharge/verify` | Yes | `200 CustomerRechargeOrder` | Verify a captured Razorpay payment and credit the wallet once. |
-| `POST /charging-sessions` | Yes | `202 ChargingStartResponse` | Admit only a fresh `AVAILABLE` connector, then persist a customer-owned start intent, commercial hold, and HAL command request; it is not an active session. |
+| `POST /charging-sessions` | Yes | `202 ChargingStartResponse` | Admit only a fresh `AVAILABLE` connector for a non-expired CPO subscription, then persist a customer-owned start intent, commercial hold, and HAL command request; it is not an active session. |
 | `GET /charging-start-intents/{start_intent_id}` | Yes | `200 ChargingStartResponse` | Poll owned start progress and its materialized `session_id` when actual charging begins. |
 | `GET /charging-sessions` | Yes | `200 ChargingSessionHistoryResponse` | List this customer's actual materialized sessions with bounded history-card data. |
 | `GET /charging-sessions/{session_id}` | Yes | `200 ChargingSessionResponse` | Read owned durable active/completed session, exact projected meter, connection, connector, and freshness fields. |
@@ -622,6 +622,12 @@ checkout SDK while the order is `PAYMENT_PENDING`; an idempotent replay of an
 already `PAID` order can omit `provider_key_id`. The frontend must never
 receive or store the CPO key secret.
 
+If the CPO subscription is explicitly `EXPIRED`, or its recorded current
+period has elapsed, creating a new recharge order returns
+`403 cpo_subscription_expired`. Render a commercial-unavailable state and do
+not retry automatically. Continue `/wallet/recharge/verify` for an order
+created before expiry so a captured payment is credited instead of stranded.
+
 After checkout succeeds, send the provider-returned order ID, payment ID, and
 signature to `POST /wallet/recharge/verify`. The backend verifies the signature,
 fetches the payment through Razorpay, requires captured status and exact order
@@ -683,6 +689,12 @@ the affordable amount, derives `energy_limit_wh` and a current
 `ACCEPTED_FOR_DELIVERY`, `PROTOCOL_ACKNOWLEDGED`, `ACTUALLY_STARTED`,
 `REJECTED`, `EXPIRED`, or `RECONCILIATION_REQUIRED`. Treat all but
 `ACTUALLY_STARTED` as start-progress, not a charging session.
+
+For a new start, an explicitly expired CPO subscription or an elapsed current
+subscription period returns `403 cpo_subscription_expired`; disable the Start
+control and present a provider-subscription-unavailable state. Existing active
+start-intent replay remains readable, and this restriction never blocks
+`POST /charging-sessions/{session_id}/stop` for an already active session.
 
 `RECONCILIATION_REQUIRED` means the original HAL request was invoked but its
 delivery outcome is unknown; keep polling that same intent and do not issue a

@@ -35,8 +35,9 @@ type SubscriptionPlanVersion struct {
 	UpdatedAt       time.Time  `gorm:"not null" json:"updated_at"`
 }
 
-// CPOSubscription represents a manually issued subscription period. Its dates
-// are records; no background worker changes this state automatically.
+// CPOSubscription represents a manually issued subscription period. The
+// lifecycle worker marks an elapsed period EXPIRED; that commercial state gates
+// only new customer-paid commands, never CPO administrative access.
 type CPOSubscription struct {
 	ID                      uuid.UUID  `gorm:"type:uuid;primaryKey;default:gen_random_uuid()" json:"id"`
 	CPOID                   uuid.UUID  `gorm:"type:uuid;not null;index" json:"cpo_id"`

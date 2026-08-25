@@ -1,5 +1,21 @@
 # AI Changelog
 
+## 2026-08-25 - Expired subscription customer-command admission
+
+- Extended the existing audited SuperAdmin renewal command so it can reactivate
+  an `EXPIRED` CPO subscription after manual payment confirmation. The renewed
+  period starts at the renewal time if a supplied start would already be in the
+  past.
+- An explicitly expired or elapsed current CPO subscription now rejects only
+  new User App charging starts and new Razorpay recharge-order creation with
+  `403 cpo_subscription_expired`. Start replay, remote stop, HAL fact/recovery,
+  settlement, customer reads, and verification of an existing recharge order
+  remain available; an absent subscription record retains legacy behaviour.
+
+Verification: focused customer-auth/subscription tests, documentation/OpenAPI
+validation, route parity, `go test ./...`, and `go vet ./...` pass. Disposable
+PostgreSQL lifecycle/admission tests remain skipped without `TEST_DATABASE_URL`.
+
 ## 2026-08-25 - CPO staff authority, announcement targeting, and charging projections
 
 - Added the source-controlled CPO permission catalog, durable normalized

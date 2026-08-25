@@ -8,16 +8,28 @@ and a human-readable `reason`; retry the same command with the same key.
 
 ## Lifecycle Authority
 
-`cpos.status` controls CPO access independently. Subscription dates and states
-do not automatically activate, suspend, expire, cancel, renew, or otherwise
-authorize a CPO. No provider, checkout, invoice, payment, webhook, mail, or
-worker participates in this API.
+`cpos.status` controls CPO administrative access independently. Subscription
+dates and states do not activate, suspend, cancel, renew, or otherwise
+authorize a CPO administrator. The lifecycle worker records an elapsed current
+period as `EXPIRED`; a SuperAdmin can then renew that same record after manual
+payment confirmation.
+
+An expired subscription has one deliberately narrow User App effect: it blocks
+new `POST /api/v1/app/charging-sessions` and new
+`POST /api/v1/app/wallet/recharge/orders` commands for that CPO. The command
+gate is time-based, so it begins at `current_period_ends_at` even before the
+worker has written `EXPIRED`. It does not block CPO administration, customer
+reads, a retry that only returns an existing start intent, customer remote
+stop, HAL fact delivery/reconciliation, charging settlement, or verification
+of a recharge order created before expiry. CPOs with no subscription record
+retain the legacy behaviour; absence is not interpreted as expiry.
 
 `billing_interval` and `interval_count` describe the period recorded by manual
-issue, renew, and immediate plan-change commands. Passing `trial_ends_at` or
-`current_period_ends_at` does nothing. A superadmin must invoke `activate`,
-`renew`, `pause`, `resume`, `mark-past-due`, `expire`, or `cancel` explicitly.
-Scheduled changes and cancellation at period end are unsupported.
+issue, renew, and immediate plan-change commands. An elapsed
+`current_period_ends_at` is processed by the observed lifecycle worker. A
+superadmin uses `renew` with a reason and new idempotency key to reactivate an
+`EXPIRED` record; an attempted backdated reactivation starts at the renewal
+time instead. Scheduled changes and cancellation at period end are unsupported.
 
 ## Operations
 
@@ -33,9 +45,10 @@ subscription reads. A current CPO subscription has status `TRIAL`, `ACTIVE`,
 history. One current subscription is enforced per CPO by PostgreSQL.
 
 Feature keys and entitlement overrides are intentionally absent. The current
-whole-CPO service control remains the independent `cpos.status` lifecycle. A
-future module catalog needs explicit server-side gates before feature-level
-subscription terms can be introduced.
+whole-CPO administrative control remains the independent `cpos.status`
+lifecycle. The narrow customer command gate above is not a general entitlement
+framework; a future module catalog needs explicit server-side gates before
+feature-level subscription terms can be introduced.
 
 ## Durable Side Effects and Recovery
 
