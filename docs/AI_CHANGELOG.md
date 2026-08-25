@@ -1,5 +1,26 @@
 # AI Changelog
 
+## 2026-08-25 - CPO and SuperAdmin frontend contract reconciliation
+
+- Added a complete CPO frontend integration handoff covering administrative
+  authentication, trusted app-ID tenancy, every routed CPO UI area, commercial
+  and network invariants, CPO staff-permission limits, operational replay/SSE
+  recovery, and tenant-safe error behavior.
+- Added an explicit SuperAdmin/CPO frontend boundary and manually reviewed
+  matrix for all 65 current platform APIs plus the 12 shared administrative
+  auth APIs. The matrix records actual server authority and FE risk treatment:
+  every platform API is still enforced by `PLATFORM`, not a newly invented
+  granular permission.
+- Reconciled authentication and SuperAdmin handoff prose with current source:
+  core CPO administration/integration routes require ADMIN, while CPO support
+  and notifications accept an active CPO membership plus the verified app ID.
+
+Verification: manual OpenAPI/matrix inventory comparison confirms all 65
+platform plus 12 shared administrative-auth operations exactly once;
+`./scripts/verify-docs.ps1`, focused OpenAPI/runtime route parity,
+`go test ./...`, `go vet ./...`, and `git diff --check` pass. No database,
+deployment, or live-service action occurred.
+
 ## 2026-08-25 - CPO GSTIN legal-identity validation
 
 - CPO provisioning/profile replacement now verifies Indian GSTIN structure and

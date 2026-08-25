@@ -951,14 +951,17 @@ Enables:
 
 Objective:
 
-Reconcile the contributed CPO implementation into a correct ADMIN-only surface
-for administrator identity profile, a read-only tenant organization projection,
+Provide a correct ADMIN-led core CPO administration surface for administrator
+identity profile, a read-only tenant organization projection, staff lifecycle,
 hubs, chargers/connectors, GST, and tariffs without adding tenant-side
 organization mutation or implying HAL integration.
 
 Scope:
 
-- ADMIN-only CPO authentication and authorization
+- Active CPO staff membership authentication; ADMIN enforcement for core CPO
+  administration and provider-integration routes
+- CPO staff lifecycle and source-controlled catalog/override data without
+  frontend-only authorization
 - CPO administrator identity profile read/update
 - Session-bound, read-only CPO organization details
 - Tenant-scoped network and pricing create/read/update operations
@@ -972,7 +975,7 @@ Scope:
 Non-goals:
 
 - App-user/customer changes
-- Staff invitation, role management, or callable non-ADMIN roles
+- Callable non-ADMIN core administration or provider-integration roles
 - Tenant-side CPO organization mutation
 - Complete CRUD for every table
 - HAL handshake, live charger status, commands, callbacks, or tenant realtime
@@ -984,6 +987,9 @@ Detailed plan:
 Agent handoff:
 
 - `docs/CPO_BACKEND_AGENT_HANDOFF.md`
+- `docs/CPO_FRONTEND_INTEGRATION_HANDOFF.md`
+- `docs/SUPERADMIN_CPO_FRONTEND_BOUNDARY.md`
+- `docs/contracts/api/superadmin-permission-matrix.md`
 
 Architecture decision:
 
@@ -1309,8 +1315,9 @@ Deferred verification decision:
   manual subscription records never control tenant authorization.
 - HAL v1 is consumed through `integrations/ocpp-hal-boundary.md`; do not extend
   the provider contract without a separate approved contract change.
-- `OWNER`, `OPERATOR`, and `VIEWER` are dormant schema capacity only. Their
-  authorization semantics require a future approved staff-management plan.
+- `OWNER`, `OPERATOR`, and `VIEWER` have staff-role catalog/override data, but
+  no current core administration or provider-integration route-level capability
+  enforcement. That expansion still requires an approved backend contract.
 
 ## Verification Strategy
 

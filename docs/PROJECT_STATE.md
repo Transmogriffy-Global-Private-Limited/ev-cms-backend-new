@@ -2,6 +2,22 @@
 
 ## Current State
 
+### 2026-08-25 — CPO and SuperAdmin frontend contracts reconciled in source
+
+- `CPO_FRONTEND_INTEGRATION_HANDOFF.md` now provides the browser-facing CPO
+  causal model: trusted scope/app-ID bootstrap, complete routed API inventory,
+  commercial/network invariants, permission-editor limits, operational
+  replay/SSE recovery, and tenant-safe error handling.
+- `SUPERADMIN_CPO_FRONTEND_BOUNDARY.md` separates the two frontend planes, and
+  `contracts/api/superadmin-permission-matrix.md` manually classifies all 65
+  current `/api/v1/platform/*` operations plus the 12 shared administrative
+  auth operations. Every platform operation remains enforced by the single
+  server-side `PLATFORM` authority; classification is not new granular RBAC.
+- Current source also distinguishes core CPO ADMIN/integration routes from the
+  tenant-scoped support and notification endpoints, which accept any active
+  CPO membership with the verified app ID. No route, database, deployment, or
+  live service was changed by this documentation slice.
+
 ### 2026-08-25 — CPO staff authority and human-readable charging projections in source
 
 - CPO create/profile writes now normalize human text, require meaningful CPO
@@ -701,8 +717,9 @@ provides:
 - global identities;
 - separate platform-superadmin records;
 - CPO tenant organizations;
-- CPO membership persistence with ADMIN as the only callable tenant authority;
-  OWNER, OPERATOR, and VIEWER remain dormant future-compatible enum values;
+- CPO membership persistence with active staff-role identity; core CPO
+  administration/provider-integration authority remains ADMIN while support
+  and notifications use their own active-membership boundary;
 - tenant-scoped, credential-owning customer accounts;
 - user settings and tenant customer groups;
 - hubs, chargers, connectors, favorites, and group access links;
@@ -1316,9 +1333,10 @@ The full mapping from the supplied schema is recorded in `docs/SCHEMA.md`.
 
 The same administrative identity may belong to multiple CPOs as staff. App
 customers are separate: the same email can register independently under
-multiple CPOs, with independent password/profile/session state. Only ADMIN
-membership is currently accepted for CPO staff sessions; other stored role
-values are dormant.
+multiple CPOs, with independent password/profile/session state. An active CPO
+staff membership can establish a CPO session. Core CPO administration and
+provider-integration routes currently require ADMIN; support and notification
+routes use their explicitly scoped active-membership boundary.
 
 An administrative session selects exactly one platform or CPO scope. Protected
 requests revalidate the durable session and current authority. Tenant context

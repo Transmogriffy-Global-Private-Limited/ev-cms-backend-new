@@ -24,8 +24,12 @@ surface. When exact schema detail is needed, use these sources in order:
 2. this handoff — canonical SuperAdmin frontend workflow and client guidance;
 3. `contracts/api/administrative-http-api.md` — exhaustive shared endpoint
    semantics;
-4. `CPO_ADMINISTRATION.md` — focused CPO-screen behavior;
-5. `contracts/realtime/platform-events.md` — replay, SSE, ordering, and
+4. `contracts/api/superadmin-permission-matrix.md` — manually reviewed
+   authority/risk classification for every SuperAdmin API;
+5. `SUPERADMIN_CPO_FRONTEND_BOUNDARY.md` — explicit platform-versus-CPO UI
+   boundary;
+6. `CPO_ADMINISTRATION.md` — focused CPO-screen behavior;
+7. `contracts/realtime/platform-events.md` — replay, SSE, ordering, and
    recovery semantics.
 
 Do not infer an endpoint from a database table, Go model, old CMS route, plan,
@@ -33,30 +37,29 @@ or mockup. Only routed operations in OpenAPI are callable.
 
 ## Integration Snapshot
 
-This handoff was reconciled on 2026-08-04 against the current source tree and
-the development deployment.
+This handoff was reconciled on 2026-08-25 against the current source tree and
+OpenAPI contract. It does not assert which source revision is deployed; verify
+the active deployment independently before enabling an environment.
 
 - Development origin: `https://dev-evcmsnew.transev.site`
 - Local default origin: `http://127.0.0.1:8080`
 - API prefix: `/api/v1`
 - Interactive contract: `/docs/`
 - Raw OpenAPI: `/openapi.yaml`
-- Current source-tree backend contract: 113 HTTP operations across every persona
-- Operations used by the SuperAdmin application: 66 API operations
+- Current source-tree backend contract: 206 HTTP operations across every persona
+- Operations used by the SuperAdmin application: 77 API operations
   - 12 shared administrative-authentication operations;
-  - 12 platform CPO-control operations;
-  - 4 platform operations/realtime queries;
-  - 21 platform governance, security, mail, communication, and status
-    operations;
-  - 17 manual subscription operations.
+  - 65 `PLATFORM` operations, manually classified in
+    `contracts/api/superadmin-permission-matrix.md`, including 17 manual
+    subscription operations.
 
-The CPO application also has two notification operations under its own
-authenticated `ADMIN` session and verified `X-CPO-App-ID` header.
+The CPO application has its own support and notification operations under an
+active CPO session and verified `X-CPO-App-ID` header; that is not a platform
+authority path.
 
-The development origin serves the deployed 129-operation OpenAPI document from
-revision `c33da86` with migration twenty-two. The manual subscription API is
-platform-superadmin-only, excludes feature-key entitlements, and does not
-activate provider billing or automatic lifecycle behavior.
+The manual subscription API is platform-superadmin-only, excludes feature-key
+entitlements, and does not activate provider billing or automatic lifecycle
+behavior.
 
 Configure the origin in the frontend environment. Do not hardcode it in API
 modules:
@@ -97,6 +100,9 @@ approved origin policy and HTTPS.
 | Generic mail operations | Ready | Safe metadata list/detail, retry/cancel, metrics, stale-job reconciliation, and reasoned 30-day-minimum retention |
 | Notifications/announcements | Ready | Immutable PLATFORM/CPO audience snapshots, durable recipient rows, platform and CPO list/read APIs |
 | Platform overview aggregates | Ready | Bounded CPO/access/session/mail/worker counts and service/database/worker status |
+| CPO operational projection and customer intelligence | Ready | Bounded platform views; neither grants CPO impersonation nor secret access |
+| Tenant support queue and HAL fact requeue | Ready | Support is a controlled conversation surface; requeue requires exact-fact confirmation |
+| Manual API authority classification | Ready | All platform routes remain server-enforced as `PLATFORM`; the matrix categories are FE risk groupings, not granular RBAC |
 | Manual subscriptions | Ready | Plans, issue/renew/status, and history; no feature keys, provider, or automatic lifecycle |
 | Platform billing | Intentionally unsupported | No invoice, payment, checkout, or webhook APIs |
 | Tenant business data or secret access | Forbidden boundary | A SuperAdmin is not a CPO ADMIN and cannot impersonate one |
@@ -178,7 +184,8 @@ Add a subscription-management area only for platform superadmins, following
 checkout, webhook, automatic-renewal, scheduled-change, or provider UI:
 those routes do not exist. Platform-admin management, generic mail jobs,
 announcements, notifications, and bounded overview/status are available in the
-deployed 129-operation development origin described below.
+current source contract. Verify the deployed revision and live OpenAPI before
+enabling those screens in a specific environment.
 
 ## HTTP Conventions
 
@@ -267,11 +274,12 @@ the bearer session. CPO notification list/read requires the verified
 `X-CPO-App-ID` header and derives the tenant from the CPO session. Overview and
 status are bounded aggregates, not tenant business-data exports.
 
-These SuperAdmin routes are present in current source and the deployed
-113-operation OpenAPI. The CPO ADMIN-only charger hub-assignment operation is
-not callable by SuperAdmin. Migration fifteen
-and the CPO user point-lookup are live; the lookup remains a tenant CPO ADMIN
-operation and is not callable by SuperAdmin.
+These SuperAdmin routes are present in the current 206-operation source OpenAPI.
+The complete manual API-by-API authority and risk classification is
+`contracts/api/superadmin-permission-matrix.md`. The CPO ADMIN-only charger
+hub-assignment operation is not callable by SuperAdmin. The CPO user
+point-lookup remains a tenant CPO ADMIN operation and is not callable by
+SuperAdmin.
 
 ## TypeScript Contract
 

@@ -15,6 +15,9 @@ This directory is the durable project memory for the EV CMS backend.
 | Detailed authentication API semantics | `AUTHENTICATION.md` |
 | Detailed platform CPO API semantics | `CPO_ADMINISTRATION.md` |
 | Complete SuperAdmin frontend integration handoff | `SUPERADMIN_FRONTEND_HANDOFF.md` |
+| Complete CPO frontend integration handoff | `CPO_FRONTEND_INTEGRATION_HANDOFF.md` |
+| SuperAdmin versus CPO frontend authority boundary | `SUPERADMIN_CPO_FRONTEND_BOUNDARY.md` |
+| Manual classification of every SuperAdmin API authority/risk | `contracts/api/superadmin-permission-matrix.md` |
 | Manual platform subscription semantics | `contracts/api/manual-subscriptions.md` |
 | CPO backend AI-agent orientation and execution | `CPO_BACKEND_AGENT_HANDOFF.md` |
 | CPO frontend tariff and Hub GST integration | `CPO_FRONTEND_TARIFF_GST_HANDOFF.md` |
@@ -48,6 +51,11 @@ auth/control-plane handoff, including manual CPO activation and suspension.
 `SUPERADMIN_FRONTEND_HANDOFF.md` turns the implemented platform subset into a
 screen, state-machine, TypeScript, realtime, error, security, and verification
 handoff while explicitly recording blocked and unimplemented FE behavior.
+`CPO_FRONTEND_INTEGRATION_HANDOFF.md` is the equivalent complete CPO browser
+handoff; `SUPERADMIN_CPO_FRONTEND_BOUNDARY.md` prevents cross-plane client
+reuse, and `contracts/api/superadmin-permission-matrix.md` makes the current
+single-gate platform authorization and per-operation frontend risk grouping
+explicit.
 `contracts/openapi/openapi.yaml` is the machine-readable contract
 embedded into the service. The app serves it at `/openapi.yaml` and serves
 self-contained Swagger UI at `/docs/` only when `API_DOCS_ENABLED=true`.

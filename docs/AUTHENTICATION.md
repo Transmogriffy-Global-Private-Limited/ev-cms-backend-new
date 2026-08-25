@@ -13,9 +13,10 @@ This API authenticates administrative identities in one of two explicit
 scopes:
 
 - `PLATFORM`: requires a `platform_admins` record and has no CPO context.
-- `CPO`: currently requires an active `ADMIN` membership in an active CPO. The
-  verified session carries the CPO ID and ADMIN role. Other persisted fixed-role
-  values are dormant until a future staff-management contract activates them.
+- `CPO`: requires an active membership in an active CPO. Core CPO administration
+  and provider-integration routes additionally require `ADMIN`; support and
+  CPO-notification routes use the active CPO membership and app-ID boundary.
+  The verified session carries the server-derived CPO ID and membership role.
 
 Every administrative login requires password plus email OTP. A client cannot
 choose tenant authority through a header: protected code reads user ID, session
@@ -354,8 +355,9 @@ not authentication, and never chooses the tenant.
 ## CPO Integration Credentials
 
 Only a CPO `ADMIN` session may use these endpoints. `OWNER`, `OPERATOR`, and
-`VIEWER` remain dormant schema values for a future staff-management feature and
-cannot currently establish callable CPO authority. Platform
+`VIEWER` are active staff-role data with catalog/override semantics, but the
+current integration routes do not yet enforce those catalog capabilities and
+may not be presented as browser-callable integration roles. Platform
 superadmins deliberately have no route to tenant secret plaintext.
 
 Every request in this section also requires:
