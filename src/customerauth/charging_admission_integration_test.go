@@ -166,7 +166,6 @@ func TestChargingStartAdmissionWithPostgreSQL(t *testing.T) {
 	if err := gormDB.Model(&models.Connector{}).Where("id = ?", policyConnector.ID).Update("connector_total_capacity", 100).Error; err != nil {
 		t.Fatalf("raise connector capacity for wallet-policy affordability: %v", err)
 	}
-	policyConnector.ConnectorTotalCapacity = 100
 	setChargingAdmissionProjection(t, gormDB, fixture, policyConnector.ID, "ONLINE", "Available", time.Now().UTC())
 	policyStart, err := service.StartCharging(ctx, fixture.firstPrincipal, ChargingStartRequest{ChargerID: fixture.charger.ChargerID, ConnectorID: policyConnector.ID}, "admission-wallet-policy")
 	if err != nil {
