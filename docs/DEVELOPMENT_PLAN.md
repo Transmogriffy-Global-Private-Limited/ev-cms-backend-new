@@ -123,8 +123,10 @@ Current implementation state:
 
 - The current deployment also exposes enriched CPO charging-session list/detail
   projections, active-session live kWh overlays, and the SuperAdmin CPO
-  customer-intelligence route. These changes require no additional migration;
-  runtime revision `0a465be` is active with migrations 45-48 applied.
+  customer-intelligence route. Session reads also hydrate an incomplete charger
+  relation through the connector-owned relation. These changes require no
+  additional migration; runtime revision `fb058fa` is active with migrations
+  45-48 applied.
 
 - Charging lifecycle repair is deployed: migration 45 gives connector occupancy to an
   unmaterialized start intent before materialization and to a single active,

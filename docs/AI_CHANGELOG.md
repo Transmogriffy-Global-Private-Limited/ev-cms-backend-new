@@ -1,5 +1,16 @@
 # AI Changelog
 
+## 2026-08-25 - CPO session relation fallback deployment
+
+- Session list/detail reads now preload connector-owned charger relations and
+  safely hydrate the charger projection when the direct session relation is
+  incomplete; no database migration was required.
+
+Verification: focused OpenAPI route parity, full Go tests, vet, diff checks,
+local/public readiness, Swagger, OpenAPI, Caddy validation, and the
+post-rehost journal scan passed. `pwsh` is unavailable for `verify-docs.ps1`;
+disposable PostgreSQL and physical HAL acceptance remain unrun.
+
 ## 2026-08-25 - CPO session projections and customer intelligence deployment
 
 - Deployed enriched CPO charging-session list/detail projections with stable

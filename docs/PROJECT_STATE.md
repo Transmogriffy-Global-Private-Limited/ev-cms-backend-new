@@ -12,16 +12,18 @@
   `soc_freshness`; customer and CPO history expose first/last observed values.
   A SoC-only accepted fact emits `charging.telemetry_changed` for REST refresh.
 - Additive migration 48 is applied in the development deployment. Runtime
-  revision `0a465be` is active with binary SHA-256
-  `a7f2977c175cf15677473ec25d18f6988b1ca53e56e86994681187ead07d7205`; its
+  revision `fb058fa` is active with binary SHA-256
+  `c27702c4a79c5a7189af51f4a74b95fdb6910aa00806cbb4edad3a4976446a01`; its
   pre-migration database backup is retained under `/root/evcmsnew-backups/`.
   Focused source tests, full Go tests, vet, and route/OpenAPI verification pass.
   Physical cpconsole acceptance and disposable PostgreSQL lifecycle tests
   remain unverified without a disposable topology.
 - The deployed CPO session reads now include stable customer, charger, hub, and
   connector identity/details and overlay live consumed kWh for active sessions.
-  SuperAdmins can use the customer-intelligence route for CPO-level customer
-  metrics and top-customer summaries; these changes require no new migration.
+  Incomplete session relations fall back through connector-owned charger
+  hydration. SuperAdmins can use the customer-intelligence route for CPO-level
+  customer metrics and top-customer summaries; these changes require no new
+  migration.
 
 ### 2026-08-21 — Real-hardware CMS/HAL hardening in source
 

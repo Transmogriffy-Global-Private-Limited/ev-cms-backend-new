@@ -29,9 +29,9 @@ that setting; it must not be used until the OCPP host is explicitly configured
 with TLS/WebSocket support.
 
 The active deployment was updated on August 25, 2026 to runtime source revision
-`0a465be`. It has migrations one through forty-eight and the current
+`fb058fa`. It has migrations one through forty-eight and the current
 189-operation API. The binary SHA-256 is
-`a7f2977c175cf15677473ec25d18f6988b1ca53e56e86994681187ead07d7205`. Migrations 45 through 48 are applied with their pre-migration backups retained under `/root/evcmsnew-backups/`. Migration 48 adds the durable initial/latest charger SoC telemetry fields and ordering constraints used by the CMS and User App charging-session projections. The latest release also exposes enriched CPO charging-session projections, active-session live kWh overlays, and the SuperAdmin CPO customer-intelligence route; no new migration was required for those changes. The CPO wallet transaction read is deployed without a new
+`c27702c4a79c5a7189af51f4a74b95fdb6910aa00806cbb4edad3a4976446a01`. Migrations 45 through 48 are applied with their pre-migration backups retained under `/root/evcmsnew-backups/`. Migration 48 adds the durable initial/latest charger SoC telemetry fields and ordering constraints used by the CMS and User App charging-session projections. The latest release also exposes enriched CPO charging-session projections, active-session live kWh overlays, connector→charger fallback hydration for incomplete session relations, and the SuperAdmin CPO customer-intelligence route; no new migration was required for those changes. The CPO wallet transaction read is deployed without a new
 migration. Migration 44 enables temporal tariff fallback and its
 database guards. The two requested hubs were removed with their hub tariffs and
 links; five downstream chargers/connectors were retained as unassigned,
