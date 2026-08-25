@@ -70,10 +70,18 @@ func (r *repository) GetChargingSession(ctx context.Context, cpoID, sessionID uu
 		Preload("Charger").
 		Preload("Charger.Hub").
 		Preload("Connector").
+		Preload("Connector.Charger").     // new
+		Preload("Connector.Charger.Hub"). // new
 		Where("cpo_id = ? AND id = ?", cpoID, sessionID).
 		First(&session).Error
 	if err != nil {
 		return nil, err
+	}
+
+	// Fallback: if session.Charger is empty but connector has a charger, use it.
+	if session.Charger.ID == uuid.Nil && session.Connector.Charger.ID != uuid.Nil {
+		session.Charger = session.Connector.Charger
+		session.ChargerID = session.Connector.Charger.ID
 	}
 	return &session, nil
 }
@@ -85,6 +93,8 @@ func (r *repository) ListChargingSessions(ctx context.Context, cpoID uuid.UUID, 
 		Preload("Charger").
 		Preload("Charger.Hub").
 		Preload("Connector").
+		Preload("Connector.Charger").     // new
+		Preload("Connector.Charger.Hub"). // new
 		Where("cpo_id = ?", cpoID)
 
 	if query.Status != nil {
@@ -107,7 +117,18 @@ func (r *repository) ListChargingSessions(ctx context.Context, cpoID uuid.UUID, 
 		db = db.Limit(query.Limit + 1)
 	}
 	err := db.Order("created_at DESC, id DESC").Find(&sessions).Error
-	return sessions, err
+	if err != nil {
+		return nil, err
+	}
+
+	// For each session, fallback to connector's charger if needed.
+	for i := range sessions {
+		if sessions[i].Charger.ID == uuid.Nil && sessions[i].Connector.Charger.ID != uuid.Nil {
+			sessions[i].Charger = sessions[i].Connector.Charger
+			sessions[i].ChargerID = sessions[i].Connector.Charger.ID
+		}
+	}
+	return sessions, nil
 }
 
 func (r *repository) ListChargersByHub(ctx context.Context, cpoID, hubID uuid.UUID) ([]models.Charger, error) {
