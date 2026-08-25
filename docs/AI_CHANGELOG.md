@@ -9,9 +9,11 @@
   operational invalidation now expose actual optional SoC. SoC freshness is
   independent from energy-meter freshness; missing telemetry remains unknown.
 
-Verification: focused CMS packages, model mapping checks, OpenAPI route parity,
-and documentation verification are run in this source slice. Disposable
-PostgreSQL and HAL/cpconsole acceptance remain unrun.
+Verification: focused CMS packages, full Go tests, vet, OpenAPI route parity,
+diff checks, migration 48 application, local/public readiness, Swagger,
+OpenAPI, Caddy validation, and the post-rehost journal scan passed. Disposable
+PostgreSQL lifecycle and HAL/cpconsole acceptance remain unrun; `pwsh` is not
+available for `verify-docs.ps1` on this host.
 
 ## 2026-08-21 - Real-hardware CMS/HAL correlation and start-admission hardening
 

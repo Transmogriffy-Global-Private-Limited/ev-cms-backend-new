@@ -28,10 +28,10 @@ development host it is set in the ignored service environment to
 that setting; it must not be used until the OCPP host is explicitly configured
 with TLS/WebSocket support.
 
-The active deployment was updated on August 21, 2026 to runtime source revision
-`dfecf3f`. It has migrations one through forty-six and the current
+The active deployment was updated on August 25, 2026 to runtime source revision
+`a59fb70`. It has migrations one through forty-eight and the current
 189-operation API. The binary SHA-256 is
-`1c4732668ed3f5de697051c44fc015376d5f142551d63e2cf0dc91d6e18b8a59`. Migrations 45 and 46 are applied with their pre-migration backups retained. The CPO wallet transaction read is deployed without a new
+`8671c513f892ae33cb6bf1bd5e3cc8871e0737efb8d666658d10f41b8b89d8d0`. Migrations 45 through 48 are applied with their pre-migration backups retained under `/root/evcmsnew-backups/`. Migration 48 adds the durable initial/latest charger SoC telemetry fields and ordering constraints used by the CMS and User App charging-session projections. The CPO wallet transaction read is deployed without a new
 migration. Migration 44 enables temporal tariff fallback and its
 database guards. The two requested hubs were removed with their hub tariffs and
 links; five downstream chargers/connectors were retained as unassigned,
@@ -145,7 +145,7 @@ The deployment copies `.env.example` to `.env`, then overrides:
 - five independently generated 32-byte base64 cryptographic keys.
 
 `DATABASE_URL` and `SMTP_PASSWORD` contain deployment secrets only in the
-ignored environment file. The service is enabled and active, all forty-six forward
+ignored environment file. The service is enabled and active, all forty-eight forward
 migrations are recorded, and startup idempotently retained the configured
 platform superadmin.
 

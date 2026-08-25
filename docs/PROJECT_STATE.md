@@ -11,9 +11,13 @@
 - Customer live detail has `soc_percent`, `soc_observed_at`, and independent
   `soc_freshness`; customer and CPO history expose first/last observed values.
   A SoC-only accepted fact emits `charging.telemetry_changed` for REST refresh.
-- Additive migration 48 is unrun. Focused source tests and documentation/route
-  contract verification are recorded separately; PostgreSQL and physical
-  cpconsole acceptance remain unverified without a disposable topology.
+- Additive migration 48 is applied in the development deployment. Runtime
+  revision `a59fb70` is active with binary SHA-256
+  `8671c513f892ae33cb6bf1bd5e3cc8871e0737efb8d666658d10f41b8b89d8d0`; its
+  pre-migration database backup is retained under `/root/evcmsnew-backups/`.
+  Focused source tests, full Go tests, vet, and route/OpenAPI verification pass.
+  Physical cpconsole acceptance and disposable PostgreSQL lifecycle tests
+  remain unverified without a disposable topology.
 
 ### 2026-08-21 — Real-hardware CMS/HAL hardening in source
 
