@@ -2,13 +2,16 @@
 
 ## Current State
 
-### 2026-08-25 — CPO live-session display-context source correction
+### 2026-08-25 — CPO live-session display-context rehost verified
 
 - Source live-session rows now include `duration_seconds` at the response
   `as_of`, CPO-visible `customer_name`, and canonical CMS `connector_id`.
   Customer identifiers/contact details and commercial fields remain excluded.
-- Focused and full source verification pass. This correction is not deployed or
-  runtime-verified yet and requires no migration or database mutation.
+- Runtime revision `e6c0ebb` is active behind Caddy with binary SHA-256
+  `52cdb19f91e5ea3403417dba82ebcc2a795793ff71ee73ae1bcfd8ea20d41acf`.
+  No migration or database mutation was required. Service readiness, public
+  routing, protected live-session routes, Swagger/OpenAPI, Caddy, and
+  post-rehost startup checks passed; the prior binary is retained for rollback.
 
 ### 2026-08-25 — CPO analytics period filters rehost verified
 

@@ -12,9 +12,13 @@
   from the connector's physical number.
 
 Verification: focused CPO projection/SSE tests, documentation verification,
-OpenAPI/runtime route parity, `go test -p 1 ./...`, `go vet -p 1 ./...`, and
-`git diff --check` pass. No migration, database mutation, deployment, or
-hardware verification was performed.
+OpenAPI/runtime route parity, `go test ./...`, `go vet ./...`, and
+`git diff --check` pass. Runtime revision `e6c0ebb` was rebuilt and rehosted
+without a migration or database mutation. The enriched snapshot fields,
+service readiness, public routing, Swagger/OpenAPI, Caddy, binary identity,
+and post-rehost startup checks passed. The prior binary is retained for
+rollback. `pwsh` is unavailable on this VPS, so the PowerShell documentation
+verifier was not rerun here.
 
 ## 2026-08-25 - Add CPO analytics period filters
 

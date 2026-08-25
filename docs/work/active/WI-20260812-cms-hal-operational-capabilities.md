@@ -136,9 +136,11 @@ Establish reusable CMS capabilities over HAL-derived operational truth and expos
 ## Verification
 
 - 2026-08-25 live-session display-context correction: focused CPO projection/
-  SSE tests, the PowerShell documentation verifier, route/OpenAPI parity, and
-  `go test -p 1 ./...`, `go vet -p 1 ./...`, and `git diff --check` pass. No
-  migration, database mutation, or runtime claim is involved.
+  SSE and route/OpenAPI checks, full Go tests, vet, and `git diff --check` pass.
+  Runtime revision `e6c0ebb` was rebuilt and rehosted without a migration or
+  database mutation. Readiness, protected live-session access, Swagger, Caddy,
+  binary identity, and post-rehost checks passed. `pwsh` and
+  `TEST_DATABASE_URL` remain unavailable.
 
 - 2026-08-25 CPO analytics period-filter merge: focused CPO analytics and
   route/OpenAPI checks, full Go tests, vet, `git diff --check`, readiness,

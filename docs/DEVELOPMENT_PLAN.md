@@ -117,6 +117,12 @@ Active work:
 
 Current implementation state:
 
+- CPO live-session snapshots now include duration, display customer name, and
+  canonical connector UUID in runtime revision `e6c0ebb`, with migrations
+  49–53 still applied. No migration or data repair was required; public
+  readiness, protected live-session access, and the 210-operation contract
+  pass.
+
 - CPO analytics period/date filters are rehosted in runtime revision `f432f45`
   with migrations 49–53 still applied. The OpenAPI contract documents the
   optional query parameters and 400 response; no migration or data repair was
@@ -139,7 +145,7 @@ Current implementation state:
   projections, active-session live kWh overlays, and the SuperAdmin CPO
   customer-intelligence route. Session reads also hydrate an incomplete charger
   relation through the connector-owned relation. These changes require no
-  additional migration; runtime revision `f432f45` is active with migrations
+  additional migration; runtime revision `e6c0ebb` is active with migrations
   45-53 applied. Migration 53 preserves three existing legacy CPO legal-
   identity rows with `NOT VALID` database checks while enforcing new and
   updated rows; the authoritative correction and later constraint validation
@@ -178,7 +184,7 @@ Current implementation state:
 - CMS source and the development deployment contain the first client, durable records, shared fact receiver,
   customer polling/start/stop routes, reusable operational projections,
   scoped operational-event replay/SSE, and the CPO live-session full-snapshot
-  SSE/recovery routes. Runtime revision `d3ac043` is active with a 210-operation
+  SSE/recovery routes. Runtime revision `e6c0ebb` is active with a 210-operation
   OpenAPI surface.
   The HAL runtime GORM models explicitly map to the singular migration tables
   `hal_charger_runtime` and `hal_connector_runtime`.
