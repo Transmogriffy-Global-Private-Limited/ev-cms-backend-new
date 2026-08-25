@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/constants"
+	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/liveops"
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/models"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
@@ -60,5 +61,46 @@ func TestCPOCustomerUsageAlwaysSerializes(t *testing.T) {
 	encoded, err := json.Marshal(view)
 	if err != nil || !strings.Contains(string(encoded), `"total_usage_kwh":"0"`) {
 		t.Fatalf("zero usage JSON=%s err=%v", encoded, err)
+	}
+}
+
+func TestLiveChargingSessionProjectionContainsOnlyOperationalContext(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, time.August, 25, 12, 0, 0, 0, time.UTC)
+	meter, consumed := int64(50120), int64(120)
+	soc := decimal.RequireFromString("63.5")
+	session := models.ChargingSession{
+		ID:        uuid.New(),
+		Status:    constants.SessionStatusActive,
+		StartTime: now,
+		Charger: models.Charger{
+			ChargerID:   "cp0001",
+			ChargerName: "Main forecourt DC charger",
+			Hub:         &models.Hub{Name: "Salt Lake Hub"},
+		},
+		Connector: models.Connector{ConnectorNumber: 2},
+	}
+	view := toLiveChargingSessionView(session, liveops.SessionState{
+		LatestMeterWh:    &meter,
+		ConsumedWh:       &consumed,
+		MeterObservedAt:  &now,
+		MeterFreshness:   liveops.FreshnessFresh,
+		LatestSoCPercent: &soc,
+		SoCObservedAt:    &now,
+		SoCFreshness:     liveops.FreshnessFresh,
+	})
+
+	if view.ChargerID != "cp0001" || view.ChargerName != "Main forecourt DC charger" || view.HubName == nil || *view.HubName != "Salt Lake Hub" || view.ConnectorNumber != 2 || view.LatestMeterWh == nil || *view.LatestMeterWh != meter || view.ConsumedWh == nil || *view.ConsumedWh != consumed || view.SoCPercent == nil || !view.SoCPercent.Equal(soc) {
+		t.Fatalf("live session operational projection=%+v", view)
+	}
+	encoded, err := json.Marshal(view)
+	if err != nil {
+		t.Fatalf("marshal live session view: %v", err)
+	}
+	for _, forbidden := range []string{"customer", "wallet", "tariff", "total_amount", "total_kwh"} {
+		if strings.Contains(string(encoded), forbidden) {
+			t.Fatalf("live session projection leaked %q: %s", forbidden, encoded)
+		}
 	}
 }

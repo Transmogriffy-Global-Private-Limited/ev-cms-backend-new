@@ -175,7 +175,7 @@ Current implementation state:
 - The current deployed release also exposes tenant-scoped CPO charging-session
   list/detail reads with bounded keyset pagination and validated lifecycle
   filters. Revision `c6b79d4` is active with migrations 40-46 applied; the live
-  OpenAPI contract contains 206 operations. The CPO wallet transaction read is
+  OpenAPI contract contains 209 operations. The CPO wallet transaction read is
   tenant-scoped, newest-first, and cursor-paginated.
 - The current deployed release also includes optional committed live charger
   projections on CPO charger list/detail responses. Revision `a5d1af4` is
@@ -1043,6 +1043,12 @@ Active feature:
 
 Current implementation slice:
 
+- CPO ADMIN live-session operations: bounded CMS-only current-session snapshot,
+  filtered `CHARGING_SESSION` replay/SSE, explicit REST recovery, and
+  heartbeat-time bearer/role/app-ID revalidation. Subscription admission also
+  now prioritizes the one current subscription over older terminal history so a
+  successful renewal clears the User App commercial block. Focused and broad
+  source verification are required; no deployment is implied.
 - Completed source hardening: one-current authentication challenges are
   serialized by their identity owner and backed by partial unique indexes;
   administrative current-password changes lock before authorization; readiness

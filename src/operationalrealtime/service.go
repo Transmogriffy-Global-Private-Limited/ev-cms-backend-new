@@ -72,6 +72,14 @@ type Page struct {
 	HasMore    bool                      `json:"has_more"`
 }
 
+const chargingSessionResourceType = "CHARGING_SESSION"
+
+var chargingSessionEventTypes = []string{
+	"charging.session_changed",
+	"charging.meter_changed",
+	"charging.telemetry_changed",
+}
+
 func (service *Service) Emit(tx *gorm.DB, input Input) (models.OperationalEvent, error) {
 	if tx == nil || input.CPOID == uuid.Nil || input.Type == "" || input.ResourceType == "" || input.ResourceID == "" {
 		return models.OperationalEvent{}, fmt.Errorf("operational event requires transaction, scope, type and resource")
@@ -89,10 +97,18 @@ func (service *Service) Emit(tx *gorm.DB, input Input) (models.OperationalEvent,
 }
 
 func (service *Service) ListCPO(ctx context.Context, cpoID uuid.UUID, after int64, limit int) (Page, error) {
-	return service.list(ctx, cpoID, nil, after, limit)
+	return service.list(ctx, cpoID, nil, after, limit, "", nil)
 }
+
+// ListCPOChargingSessionEvents is the recoverable event feed for the live
+// session projection. The event log remains the cursor authority; the live
+// session REST snapshot remains the state authority.
+func (service *Service) ListCPOChargingSessionEvents(ctx context.Context, cpoID uuid.UUID, after int64, limit int) (Page, error) {
+	return service.list(ctx, cpoID, nil, after, limit, chargingSessionResourceType, chargingSessionEventTypes)
+}
+
 func (service *Service) ListCustomer(ctx context.Context, cpoID, customerID uuid.UUID, after int64, limit int) (Page, error) {
-	return service.list(ctx, cpoID, &customerID, after, limit)
+	return service.list(ctx, cpoID, &customerID, after, limit, "", nil)
 }
 func (service *Service) ListPlatform(ctx context.Context, cpoID *uuid.UUID, after int64, limit int) (Page, error) {
 	if after < 0 {
@@ -118,7 +134,7 @@ func (service *Service) ListPlatform(ctx context.Context, cpoID *uuid.UUID, afte
 	}
 	return page, nil
 }
-func (service *Service) list(ctx context.Context, cpoID uuid.UUID, customerID *uuid.UUID, after int64, limit int) (Page, error) {
+func (service *Service) list(ctx context.Context, cpoID uuid.UUID, customerID *uuid.UUID, after int64, limit int, resourceType string, eventTypes []string) (Page, error) {
 	if after < 0 {
 		return Page{}, fmt.Errorf("event cursor must be nonnegative")
 	}
@@ -130,6 +146,12 @@ func (service *Service) list(ctx context.Context, cpoID uuid.UUID, customerID *u
 	query := service.database.WithContext(ctx).Where("cpo_id = ? AND id > ? AND expires_at > ?", cpoID, after, now)
 	if customerID != nil {
 		query = query.Where("customer_id IS NULL OR customer_id = ?", *customerID)
+	}
+	if resourceType != "" {
+		query = query.Where("resource_type = ?", resourceType)
+	}
+	if len(eventTypes) > 0 {
+		query = query.Where("event_type IN ?", eventTypes)
 	}
 	if err := query.Order("id ASC").Limit(limit + 1).Find(&records).Error; err != nil {
 		return Page{}, fmt.Errorf("list operational events: %w", err)

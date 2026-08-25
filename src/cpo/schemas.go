@@ -690,6 +690,40 @@ type FleetOperationsResponse struct {
 	Fleet liveops.FleetState `json:"fleet"`
 }
 
+type LiveChargingSessionListQuery struct {
+	AfterStartedAt *time.Time
+	AfterID        *uuid.UUID
+	Limit          int
+}
+
+// LiveChargingSessionView deliberately contains only the context needed to
+// operate a charger and the committed live telemetry. Financial, customer, and
+// historical session fields belong to the separate charging-session read.
+type LiveChargingSessionView struct {
+	SessionID       uuid.UUID               `json:"session_id"`
+	Status          constants.SessionStatus `json:"status"`
+	StartedAt       time.Time               `json:"started_at"`
+	ChargerID       string                  `json:"charger_id"`
+	ChargerName     string                  `json:"charger_name"`
+	HubName         *string                 `json:"hub_name,omitempty"`
+	ConnectorNumber int                     `json:"connector_number"`
+	LatestMeterWh   *int64                  `json:"latest_meter_wh,omitempty"`
+	ConsumedWh      *int64                  `json:"consumed_wh,omitempty"`
+	MeterObservedAt *time.Time              `json:"meter_observed_at,omitempty"`
+	MeterFreshness  string                  `json:"meter_freshness"`
+	SoCPercent      *decimal.Decimal        `json:"soc_percent,omitempty"`
+	SoCObservedAt   *time.Time              `json:"soc_observed_at,omitempty"`
+	SoCFreshness    string                  `json:"soc_freshness"`
+}
+
+type LiveChargingSessionListResponse struct {
+	Sessions           []LiveChargingSessionView `json:"sessions"`
+	NextAfterStartedAt *time.Time                `json:"next_after_started_at,omitempty"`
+	NextAfterID        *uuid.UUID                `json:"next_after_id,omitempty"`
+	HasMore            bool                      `json:"has_more"`
+	AsOf               time.Time                 `json:"as_of"`
+}
+
 // UpdateChargerCustomerVisibilityRequest defines the payload for updating
 // a charger's customer visibility.
 type UpdateChargerCustomerVisibilityRequest struct {

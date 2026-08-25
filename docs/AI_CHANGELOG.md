@@ -1,5 +1,26 @@
 # AI Changelog
 
+## 2026-08-25 - CPO live-session operations and renewed subscription admission
+
+- Added CPO ADMIN/app-ID-scoped `GET /api/v1/cpo/operations/live-sessions` for
+  the bounded CMS-projected ongoing-session table, with human-readable
+  charger/hub/connector context and independent committed meter/SoC freshness.
+  It returns only `ACTIVE`, `STOP_PENDING`, and `RECONCILIATION_REQUIRED`
+  sessions and deliberately excludes customer, wallet, tariff, amount, and
+  settlement data.
+- Added dedicated retained replay and SSE routes filtered to
+  `CHARGING_SESSION` invalidations. SSE revalidates bearer session, ADMIN role,
+  and app ID at heartbeat; REST remains the authoritative recovery snapshot.
+- Corrected customer commercial admission to prefer the PostgreSQL-enforced
+  current subscription over terminal history. An older expired row can no
+  longer strand a User App after its CPO is renewed; a current expired or
+  elapsed subscription retains the existing narrow start/recharge block.
+
+Verification: focused customerauth, CPO, liveops, operational-event, and
+route/OpenAPI checks, `scripts/verify-docs.ps1`, `go test ./...`, `go vet
+./...`, and `git diff --check` pass. No migration, database mutation,
+deployment, or live-service action occurred.
+
 ## 2026-08-25 - Preserve legacy CPO identity rows during migration
 
 - Changed unapplied migration 53 to install GSTIN, GSTIN-state, and PIN checks

@@ -298,6 +298,60 @@ func (service *Service) GetSession(ctx context.Context, cpoID, sessionID uuid.UU
 	return state, nil
 }
 
+// GetSessions reads a bounded set of materialized session projections without
+// fan-out. It never calls HAL. Meter and SoC freshness remain independent, but
+// both are made stale when current charger-connection evidence is not fresh.
+func (service *Service) GetSessions(ctx context.Context, cpoID uuid.UUID, sessionIDs []uuid.UUID) (map[uuid.UUID]SessionState, error) {
+	result := make(map[uuid.UUID]SessionState, len(sessionIDs))
+	sessionIDs = uniqueIDs(sessionIDs)
+	if len(sessionIDs) == 0 {
+		return result, nil
+	}
+
+	var sessions []models.ChargingSession
+	if err := service.database.WithContext(ctx).Where("cpo_id = ? AND id IN ?", cpoID, sessionIDs).Find(&sessions).Error; err != nil {
+		return nil, fmt.Errorf("load live sessions: %w", err)
+	}
+	chargerIDs := make([]uuid.UUID, 0, len(sessions))
+	for _, session := range sessions {
+		chargerIDs = append(chargerIDs, session.ChargerID)
+	}
+	var runtimes []models.HALChargerRuntime
+	if len(chargerIDs) > 0 {
+		if err := service.database.WithContext(ctx).Where("cpo_id = ? AND cms_charger_id IN ?", cpoID, uniqueIDs(chargerIDs)).Find(&runtimes).Error; err != nil {
+			return nil, fmt.Errorf("load live session charger runtimes: %w", err)
+		}
+	}
+	runtimeByChargerID := make(map[uuid.UUID]models.HALChargerRuntime, len(runtimes))
+	for _, runtime := range runtimes {
+		runtimeByChargerID[runtime.CMSChargerID] = runtime
+	}
+	for _, session := range sessions {
+		state := SessionState{SessionID: session.ID, CPOID: session.CPOID, CustomerID: session.CustomerID, State: string(session.Status), StartedAt: session.StartTime, LatestMeterWh: session.LatestMeterWh, MeterObservedAt: session.MeterObservedAt, MeterFreshness: FreshnessUnknown, InitialSoCPercent: session.InitialSoCPercent, LatestSoCPercent: session.LatestSoCPercent, SoCObservedAt: session.SoCObservedAt, SoCFreshness: FreshnessUnknown, CompletedAt: session.EndTime}
+		if session.LatestMeterWh != nil && *session.LatestMeterWh >= session.MeterStartWh {
+			consumed := *session.LatestMeterWh - session.MeterStartWh
+			state.ConsumedWh = &consumed
+		}
+		if session.MeterObservedAt != nil {
+			state.MeterFreshness = service.meterFreshness(*session.MeterObservedAt)
+		}
+		if session.SoCObservedAt != nil {
+			state.SoCFreshness = service.meterFreshness(*session.SoCObservedAt)
+		}
+		if session.Status == constants.SessionStatusActive || session.Status == constants.SessionStatusStopPending || session.Status == constants.SessionStatusReconciliationRequired {
+			runtime, ok := runtimeByChargerID[session.ChargerID]
+			if !ok || runtime.ConnectionState != "ONLINE" || service.connectionFreshness(runtime.ObservedAt) != FreshnessFresh {
+				state.MeterFreshness = FreshnessStale
+				if state.LatestSoCPercent != nil {
+					state.SoCFreshness = FreshnessStale
+				}
+			}
+		}
+		result[session.ID] = state
+	}
+	return result, nil
+}
+
 func (service *Service) GetFleet(ctx context.Context, cpoID uuid.UUID) (FleetState, error) {
 	state := FleetState{CPOID: cpoID}
 	if err := service.database.WithContext(ctx).Model(&models.Charger{}).Where("cpo_id = ?", cpoID).Count(&state.TotalChargers).Error; err != nil {

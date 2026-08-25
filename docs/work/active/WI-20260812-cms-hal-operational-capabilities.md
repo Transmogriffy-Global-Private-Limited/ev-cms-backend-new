@@ -4,7 +4,7 @@ Status: In Progress
 Owner: Codex
 Collaborators: Anubhab Dey (CMS/HAL boundary owner)
 Started: 2026-08-12
-Last updated: 2026-08-20
+Last updated: 2026-08-25
 
 Development-plan reference: `docs/DEVELOPMENT_PLAN.md` — Charging lifecycle and HAL integration
 Detailed-plan reference: `docs/integrations/ocpp-hal-boundary.md`
@@ -105,8 +105,27 @@ Establish reusable CMS capabilities over HAL-derived operational truth and expos
   maps to the migration-owned `charging_sessions.total_kwh` column. GORM's
   inferred `total_k_wh` caused the observed PostgreSQL `42703`; no migration,
   live database mutation, or deployment is part of this correction.
+- 2026-08-25 active slice: add a CPO ADMIN-only live-session REST snapshot and
+  filtered durable replay/SSE path. It must return only materialized ongoing
+  session live stats from committed CMS projections, preserve meter/SoC
+  freshness, filter the durable event log to `CHARGING_SESSION` invalidations,
+  revalidate the session during SSE heartbeats, and retain REST recovery after
+  reconnect. No live route may synchronously call HAL or expose customer,
+  wallet, tariff, or provider-secret data.
+- 2026-08-25 admission repair: current commercial admission must prefer the
+  PostgreSQL-enforced current subscription over terminal history, so an old
+  expired record cannot strand a User App after a later active renewal. Keep
+  the existing narrow gate: only new customer charging starts and recharge
+  order creation are blocked by current expired/elapsed state.
 
 ## Verification
+
+- 2026-08-25 live-session/admission slice: focused customerauth, CPO, liveops,
+  operational-event, and route/OpenAPI checks pass; `scripts/verify-docs.ps1`,
+  `go test ./...`, `go vet ./...`, and `git diff --check` pass. The admission
+  regression is database-free and proves a current ACTIVE renewal takes
+  precedence over an expired historical row. No migration, database mutation,
+  deployment, or live-session hardware acceptance occurred.
 
 - Focused HAL client, customer charging, halops, and liveops tests pass.
   Disposable PostgreSQL migration/occupancy coverage is present but skipped

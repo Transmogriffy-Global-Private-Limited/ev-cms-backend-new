@@ -2,6 +2,22 @@
 
 ## Current State
 
+### 2026-08-25 — CPO live-session projection and renewed-admission repair in source
+
+- Source now exposes a CPO ADMIN/app-ID-scoped ongoing-session snapshot at
+  `/api/v1/cpo/operations/live-sessions`, plus filtered durable replay and SSE
+  companions. The snapshot contains only materialized `ACTIVE`,
+  `STOP_PENDING`, and `RECONCILIATION_REQUIRED` sessions with human-readable
+  charger/hub context and committed meter/SoC freshness; it never calls HAL or
+  exposes customer, wallet, tariff, or settlement data. REST remains the
+  recovery authority after a retained `CHARGING_SESSION` invalidation.
+- Customer charging/recharge admission now gives the one PostgreSQL-enforced
+  current subscription precedence over terminal subscription history. A prior
+  expired row therefore cannot keep a newly renewed active CPO blocked; an
+  expired current subscription still blocks only new customer paid commands.
+- These are source changes only. No migration, database mutation, deployment,
+  or live-service verification has been performed for this slice.
+
 ### 2026-08-25 — CPO legal-identity migration and rehost verified
 
 - Migration 53 is applied in the development deployment together with

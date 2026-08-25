@@ -16,6 +16,7 @@ type Repository interface {
 	ListWalletTransactions(ctx context.Context, cpoID uuid.UUID, query WalletTransactionListQuery) ([]WalletTransactionDetail, error)
 	GetChargingSession(ctx context.Context, cpoID, sessionID uuid.UUID) (*models.ChargingSession, error)
 	ListChargingSessions(ctx context.Context, cpoID uuid.UUID, query ChargingSessionListQuery) ([]models.ChargingSession, error)
+	ListLiveChargingSessions(ctx context.Context, cpoID uuid.UUID, query LiveChargingSessionListQuery) ([]models.ChargingSession, error)
 	ListChargerTransactions(ctx context.Context, cpoID uuid.UUID, query ChargerTransactionListQuery) ([]ChargerTransaction, error)
 	ListChargersByHub(ctx context.Context, cpoID, hubID uuid.UUID) ([]models.Charger, error)
 }
@@ -122,6 +123,41 @@ func (r *repository) ListChargingSessions(ctx context.Context, cpoID uuid.UUID, 
 	}
 
 	// For each session, fallback to connector's charger if needed.
+	for i := range sessions {
+		if sessions[i].Charger.ID == uuid.Nil && sessions[i].Connector.Charger.ID != uuid.Nil {
+			sessions[i].Charger = sessions[i].Connector.Charger
+			sessions[i].ChargerID = sessions[i].Connector.Charger.ID
+		}
+	}
+	return sessions, nil
+}
+
+func (r *repository) ListLiveChargingSessions(ctx context.Context, cpoID uuid.UUID, query LiveChargingSessionListQuery) ([]models.ChargingSession, error) {
+	var sessions []models.ChargingSession
+	db := r.db.WithContext(ctx).
+		Preload("Charger").
+		Preload("Charger.Hub").
+		Preload("Connector").
+		Preload("Connector.Charger").
+		Preload("Connector.Charger.Hub").
+		Where("cpo_id = ? AND status IN ?", cpoID, []constants.SessionStatus{
+			constants.SessionStatusActive,
+			constants.SessionStatusStopPending,
+			constants.SessionStatusReconciliationRequired,
+		})
+	if query.AfterStartedAt != nil {
+		if query.AfterID != nil {
+			db = db.Where("(start_time, id) > (?, ?)", *query.AfterStartedAt, *query.AfterID)
+		} else {
+			db = db.Where("start_time > ?", *query.AfterStartedAt)
+		}
+	}
+	if query.Limit > 0 {
+		db = db.Limit(query.Limit + 1)
+	}
+	if err := db.Order("start_time ASC, id ASC").Find(&sessions).Error; err != nil {
+		return nil, err
+	}
 	for i := range sessions {
 		if sessions[i].Charger.ID == uuid.Nil && sessions[i].Connector.Charger.ID != uuid.Nil {
 			sessions[i].Charger = sessions[i].Connector.Charger

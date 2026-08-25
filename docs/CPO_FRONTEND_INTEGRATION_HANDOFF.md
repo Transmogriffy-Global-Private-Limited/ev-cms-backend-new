@@ -109,7 +109,7 @@ OpenAPI document owns field schemas.
 | Settings and invoice logo | `GET`, `POST`, `PUT /cpo/settings`; `GET /cpo/settings/invoice-logo` | POST and PUT are replacement/upsert forms. Refresh settings after either. |
 | Customers | `GET /cpo/customers`; `GET /cpo/customers/{customer_id}` | Customer and usage data are read-only CPO projections. Do not expose customer authentication/wallet mutation controls here. |
 | Charging/reporting | `GET /cpo/charging-sessions`; `GET /cpo/charging-sessions/{session_id}`; `GET /cpo/charger-transactions`; `GET /cpo/wallet-transactions` | Use cursor fields unchanged. Show CMS/HAL/OCPP identifiers and reconciliation/settlement state as distinct facts; never infer a missing session from charger live state. |
-| Operational projection and realtime | `GET /cpo/operations/fleet`; `GET /cpo/operations/chargers/{charger_id}`; `GET /cpo/operations/events`; `GET /cpo/operations/realtime/stream` | Use replay before SSE, dedupe by event ID, and refresh REST resources after an event. See `CPO_OPERATIONS_LIVE_FE_HANDOFF.md`. |
+| Operational projection and realtime | `GET /cpo/operations/fleet`; `GET /cpo/operations/chargers/{charger_id}`; `GET /cpo/operations/events`; `GET /cpo/operations/realtime/stream`; `GET /cpo/operations/live-sessions` with its `/events` and `/realtime/stream` companions | Use the live-session filtered replay/SSE only for the ongoing-session table. Replay before SSE, dedupe by event ID, and refresh REST resources after an event. See `CPO_OPERATIONS_LIVE_FE_HANDOFF.md`. |
 | Provider integrations | `GET /cpo/integrations`; `GET`, `PUT`, `DELETE /cpo/integrations/{provider}` | PUT submits credentials for encryption but returns metadata only. Never display, log, or expect provider secret plaintext. |
 | Support | `GET`, `POST /cpo/support`; `GET /cpo/support/{ticket_id}`; `POST /cpo/support/{ticket_id}/replies` | Any active CPO membership with the app ID may use this tenant-scoped conversation boundary; re-fetch ticket after a reply. |
 | CPO notifications | `GET /cpo/notifications`; `POST /cpo/notifications/{notification_id}/read` | Any active CPO membership with the app ID may use these personal notifications. Poll/refetch after relevant platform actions; there is no notification SSE stream. |
@@ -134,7 +134,9 @@ OpenAPI document owns field schemas.
 
 For operational views, do the following in order:
 
-1. Fetch the authoritative REST snapshot for the visible fleet/charger.
+1. Fetch the authoritative REST snapshot for the visible fleet/charger or
+   ongoing-session table. The live-session table intentionally contains only
+   materialized ongoing sessions and display-safe live telemetry.
 2. Replay `GET /cpo/operations/events?after_id=<saved>` until `has_more=false`.
 3. Connect to `/cpo/operations/realtime/stream` with `fetch` streaming, not
    native `EventSource`, because both required headers must be sent.
@@ -144,6 +146,13 @@ For operational views, do the following in order:
    token rotation, or tab resume, replay again before reconnecting.
 6. If the server returns `realtime_cursor_expired`, discard that cursor, reload
    the visible authoritative snapshots, then reconnect without it.
+
+Use the general operations replay/SSE pair for fleet and charger views. For the
+ongoing-session table, keep a separate cursor and use only
+`/cpo/operations/live-sessions/events` plus
+`/cpo/operations/live-sessions/realtime/stream`; those events are filtered to
+`CHARGING_SESSION` resources and each one requires a refresh of
+`/cpo/operations/live-sessions`.
 
 HAL owns physical connection/OCPP truth; CMS owns the durable projection. A
 fresh-looking client must not invent live certainty if the response is `STALE`,

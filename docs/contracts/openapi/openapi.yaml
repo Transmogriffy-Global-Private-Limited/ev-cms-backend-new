@@ -3930,6 +3930,7 @@ paths:
       operationId: getCPOFleetOperations
       summary: Read the current CMS-projected operational fleet summary
       description: Reads durable CMS runtime projections only; it never synchronously calls HAL.
+      security: [{BearerAuth: [], CPOAppID: []}]
       parameters:
         - $ref: "#/components/parameters/CPOAppIDHeader"
       responses:
@@ -3944,6 +3945,7 @@ paths:
       operationId: getCPOOperationalCharger
       summary: Read administrative inventory with CMS-projected live state
       description: Administrative state and HAL-derived runtime state remain separate. REST is the recovery authority.
+      security: [{BearerAuth: [], CPOAppID: []}]
       parameters:
         - $ref: "#/components/parameters/CPOAppIDHeader"
         - $ref: "#/components/parameters/ChargerPublicID"
@@ -3961,6 +3963,7 @@ paths:
       operationId: listCPOOperationalEvents
       summary: Recover the tenant's retained operational events
       description: CPO ADMIN-only cursor recovery for committed runtime projection notifications. REST fleet and charger projections remain authoritative.
+      security: [{BearerAuth: [], CPOAppID: []}]
       parameters:
         - $ref: "#/components/parameters/CPOAppIDHeader"
         - $ref: "#/components/parameters/AfterID"
@@ -3978,12 +3981,67 @@ paths:
       operationId: streamCPOOperationalEvents
       summary: Stream the tenant's retained operational events using SSE
       description: CPO ADMIN-only SSE. The server revalidates the bearer session on heartbeats; clients deduplicate by event ID and use REST cursor recovery after reconnect.
+      security: [{BearerAuth: [], CPOAppID: []}]
       parameters:
         - $ref: "#/components/parameters/CPOAppIDHeader"
         - $ref: "#/components/parameters/AfterID"
         - $ref: "#/components/parameters/Limit"
       responses:
         "200": {description: text/event-stream of OperationalEvent records.}
+        "400": {$ref: "#/components/responses/InvalidRequest"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/CPOBusinessForbidden"}
+
+  /api/v1/cpo/operations/live-sessions:
+    get:
+      tags: [CPO Operations - Live]
+      operationId: listCPOLiveChargingSessions
+      summary: List materialized ongoing sessions with current operational telemetry
+      description: CPO ADMIN-only CMS projection. Returns only ACTIVE, STOP_PENDING, and RECONCILIATION_REQUIRED sessions in start-time cursor order. It exposes human-readable charger and hub context plus committed meter/SoC values and freshness; it never calls HAL and does not expose customer, wallet, tariff, or settlement data.
+      security: [{BearerAuth: [], CPOAppID: []}]
+      parameters:
+        - $ref: "#/components/parameters/CPOAppIDHeader"
+        - $ref: "#/components/parameters/LiveSessionLimit"
+        - $ref: "#/components/parameters/LiveSessionAfterStartedAt"
+        - $ref: "#/components/parameters/LiveSessionAfterID"
+      responses:
+        "200": {description: Current materialized ongoing sessions, content: {application/json: {schema: {$ref: "#/components/schemas/LiveChargingSessionListResponse"}}}}
+        "400": {$ref: "#/components/responses/InvalidRequest"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/CPOBusinessForbidden"}
+        "500": {$ref: "#/components/responses/InternalError"}
+
+  /api/v1/cpo/operations/live-sessions/events:
+    get:
+      tags: [CPO Operations - Live]
+      operationId: listCPOLiveChargingSessionEvents
+      summary: Recover retained live-session invalidation events
+      description: CPO ADMIN-only durable replay filtered to CHARGING_SESSION events. Refetch the live-session REST snapshot after each event; event payload is not the authoritative session state.
+      security: [{BearerAuth: [], CPOAppID: []}]
+      parameters:
+        - $ref: "#/components/parameters/CPOAppIDHeader"
+        - $ref: "#/components/parameters/AfterID"
+        - $ref: "#/components/parameters/Limit"
+      responses:
+        "200": {description: Ordered retained live-session invalidations, content: {application/json: {schema: {$ref: "#/components/schemas/OperationalEventPage"}}}}
+        "400": {$ref: "#/components/responses/InvalidRequest"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/CPOBusinessForbidden"}
+        "500": {$ref: "#/components/responses/InternalError"}
+
+  /api/v1/cpo/operations/live-sessions/realtime/stream:
+    get:
+      tags: [CPO Operations - Live]
+      operationId: streamCPOLiveChargingSessionEvents
+      summary: Stream live-session invalidation events using SSE
+      description: CPO ADMIN-only SSE filtered to CHARGING_SESSION events. The server revalidates the bearer session, ADMIN role, and current app ID on heartbeats. Clients deduplicate by event ID and replay the filtered REST cursor after reconnect.
+      security: [{BearerAuth: [], CPOAppID: []}]
+      parameters:
+        - $ref: "#/components/parameters/CPOAppIDHeader"
+        - $ref: "#/components/parameters/AfterID"
+        - $ref: "#/components/parameters/Limit"
+      responses:
+        "200": {description: text/event-stream of live-session OperationalEvent records.}
         "400": {$ref: "#/components/responses/InvalidRequest"}
         "401": {$ref: "#/components/responses/Unauthorized"}
         "403": {$ref: "#/components/responses/CPOBusinessForbidden"}
@@ -6465,6 +6523,32 @@ components:
         minimum: 1
         maximum: 200
         default: 50
+    LiveSessionLimit:
+      name: limit
+      in: query
+      required: false
+      description: Page size for the current live-session snapshot; defaults to 100.
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 200
+        default: 100
+    LiveSessionAfterStartedAt:
+      name: after_started_at
+      in: query
+      required: false
+      description: Exclusive RFC3339 start-time cursor. Supply with after_id from the previous page.
+      schema:
+        type: string
+        format: date-time
+    LiveSessionAfterID:
+      name: after_id
+      in: query
+      required: false
+      description: Exclusive UUID tie-breaker. Requires after_started_at.
+      schema:
+        type: string
+        format: uuid
 
   responses:
     InvalidRequest:
@@ -8479,6 +8563,40 @@ components:
           items: {$ref: "#/components/schemas/OperationalEvent"}
         next_cursor: {type: integer, format: int64, minimum: 0}
         has_more: {type: boolean}
+
+    LiveChargingSessionView:
+      type: object
+      additionalProperties: false
+      required: [session_id, status, started_at, charger_id, charger_name, connector_number, meter_freshness, soc_freshness]
+      properties:
+        session_id: {type: string, format: uuid}
+        status: {type: string, enum: [ACTIVE, STOP_PENDING, RECONCILIATION_REQUIRED]}
+        started_at: {type: string, format: date-time}
+        charger_id: {type: string, description: Human-facing CMS charger ID.}
+        charger_name: {type: string, description: Human-facing CPO charger name.}
+        hub_name: {type: string, nullable: true}
+        connector_number: {type: integer, minimum: 1}
+        latest_meter_wh: {type: integer, format: int64}
+        consumed_wh: {type: integer, format: int64, minimum: 0}
+        meter_observed_at: {type: string, format: date-time}
+        meter_freshness: {type: string, enum: [FRESH, STALE, UNKNOWN]}
+        soc_percent: {type: string, pattern: "^[0-9]+(?:\\.[0-9]{1,3})?$", description: Optional actual OCPP-observed state of charge; never estimated.}
+        soc_observed_at: {type: string, format: date-time}
+        soc_freshness: {type: string, enum: [FRESH, STALE, UNKNOWN]}
+
+    LiveChargingSessionListResponse:
+      type: object
+      additionalProperties: false
+      required: [sessions, has_more, as_of]
+      properties:
+        sessions:
+          type: array
+          maxItems: 200
+          items: {$ref: "#/components/schemas/LiveChargingSessionView"}
+        next_after_started_at: {type: string, format: date-time}
+        next_after_id: {type: string, format: uuid}
+        has_more: {type: boolean}
+        as_of: {type: string, format: date-time, description: CMS time at which this snapshot was assembled.}
 
     AuditRecord:
       type: object

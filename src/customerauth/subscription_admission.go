@@ -2,6 +2,7 @@ package customerauth
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"time"
@@ -22,19 +23,54 @@ func (service *Service) requireCustomerCommercialAdmission(ctx context.Context, 
 }
 
 func requireCustomerCommercialAdmission(query *gorm.DB, cpoID uuid.UUID, now time.Time) error {
-	var subscriptions []models.CPOSubscription
-	if err := query.
-		Where("cpo_id = ? AND (status = ? OR (status IN ? AND current_period_ends_at <= ?))", cpoID, "EXPIRED", customerCommandCurrentSubscriptionStatuses, now).
-		Order("current_period_ends_at DESC, updated_at DESC").
-		Find(&subscriptions).Error; err != nil {
-		return fmt.Errorf("load CPO subscription admission state: %w", err)
+	// A CPO can have terminal historical rows beside its one current row. An old
+	// EXPIRED row must not override a later ACTIVE renewal, so current state has
+	// precedence over terminal history for commercial admission.
+	var current models.CPOSubscription
+	result := query.
+		Where("cpo_id = ? AND status IN ?", cpoID, customerCommandCurrentSubscriptionStatuses).
+		Order("current_period_ends_at DESC, updated_at DESC, id DESC").
+		First(&current)
+	if result.Error != nil && !errors.Is(result.Error, gorm.ErrRecordNotFound) {
+		return fmt.Errorf("load current CPO subscription admission state: %w", result.Error)
 	}
-	for _, subscription := range subscriptions {
-		if subscriptionBlocksCustomerCommands(subscription, now) {
-			return &APIError{http.StatusForbidden, "cpo_subscription_expired", "New charging and wallet recharge requests are unavailable until this charging provider renews its subscription."}
+	if result.Error == nil {
+		if !customerSubscriptionAdmissionBlocked(&current, nil, now) {
+			return nil
 		}
+		return customerSubscriptionExpiredError()
+	}
+
+	var expired models.CPOSubscription
+	result = query.
+		Where("cpo_id = ? AND status = ?", cpoID, "EXPIRED").
+		Order("updated_at DESC, id DESC").
+		First(&expired)
+	if result.Error != nil && !errors.Is(result.Error, gorm.ErrRecordNotFound) {
+		return fmt.Errorf("load expired CPO subscription admission state: %w", result.Error)
+	}
+	if customerSubscriptionAdmissionBlocked(nil, subscriptionPointer(result, expired), now) {
+		return customerSubscriptionExpiredError()
 	}
 	return nil
+}
+
+func customerSubscriptionAdmissionBlocked(current, expired *models.CPOSubscription, now time.Time) bool {
+	if current != nil {
+		return subscriptionBlocksCustomerCommands(*current, now)
+	}
+	return expired != nil && subscriptionBlocksCustomerCommands(*expired, now)
+}
+
+func customerSubscriptionExpiredError() error {
+	return &APIError{http.StatusForbidden, "cpo_subscription_expired", "New charging and wallet recharge requests are unavailable until this charging provider renews its subscription."}
+}
+
+func subscriptionPointer(result *gorm.DB, subscription models.CPOSubscription) *models.CPOSubscription {
+	if result.Error != nil {
+		return nil
+	}
+	return &subscription
 }
 
 func subscriptionBlocksCustomerCommands(subscription models.CPOSubscription, now time.Time) bool {
