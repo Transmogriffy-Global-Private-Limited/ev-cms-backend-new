@@ -11,8 +11,15 @@
   limit x tariff regression cases. Final settlement remains actual frozen-term
   billing; the existing one-time metered buffer is only an overshoot margin.
 
-Verification: focused customer-auth admission matrix passes. PostgreSQL
-migration and live CMS/HAL/charger acceptance are intentionally unrun.
+Verification: focused customer-auth admission matrix, route/OpenAPI parity,
+full `go test ./...`, `go vet ./...`, and `git diff --check` pass. Migration 55
+was applied after a transactional dry-run and a database backup at
+`/root/evcmsnew-backups/devevcmsnew-before-000055-20260826-150844.dump`.
+Runtime revision `e8ff810` was rebuilt and rehosted; the enabled service,
+loopback/public readiness, Swagger/OpenAPI (211 operations), Caddy
+configuration, binary identity, and post-rehost startup logs pass. No physical
+charger acceptance is claimed. `pwsh` and `TEST_DATABASE_URL` are unavailable
+on this VPS.
 
 ## 2026-08-26 - Add customer-selected charging execution limits
 

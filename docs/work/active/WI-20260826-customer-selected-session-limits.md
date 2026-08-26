@@ -1,6 +1,6 @@
 # WI-20260826-customer-selected-session-limits
 
-Status: In Progress
+Status: Implemented
 Owner: Codex
 Collaborators: Anubhab Dey (product and CMS/HAL boundary owner)
 Started: 2026-08-26
@@ -61,21 +61,22 @@ vertical as the only execution path.
 ## Data and migration impact
 
 - Additive CMS migration 55 records per-threshold provenance and backfills
-  prior migration-54 rows conservatively. It is source-only and must not be
-  applied by this work item.
+  prior migration-54 rows conservatively. It is applied in `devevcmsnewdb`
+  after a transactional dry-run and a retained pre-change dump.
 
 ## Current state
 
-- Existing tariffs bill by energy, time, or fixed session. The User App could
-  not select a limit: it supplied only charger and connector, while CMS always
-  derived a one-hour duration and an energy guard from wallet/capacity.
+- Existing tariffs bill by energy, time, or fixed session. The User App now
+  supplies an optional customer limit while CMS independently derives the
+  wallet-safe billed-dimension guard.
 
 ## Verification
 
 - Focused tests, route/OpenAPI parity, full `go test ./...`, `go vet ./...`,
-  and `git diff --check` pass. The binary was rebuilt and rehosted as runtime
-  revision `a085f29`; service/readiness, public routing, Swagger/OpenAPI,
-  Caddy, and post-rehost startup checks pass. Physical charger and disposable
+  and `git diff --check` pass. Migration 55 was applied after a transactional
+  dry-run and backup. The binary was rebuilt and rehosted as runtime revision
+  `e8ff810`; service/readiness, public routing, Swagger/OpenAPI, Caddy, and
+  post-rehost startup checks pass. Physical charger and disposable
   PostgreSQL/dual-service acceptance remain pending.
 
 ## Handoff

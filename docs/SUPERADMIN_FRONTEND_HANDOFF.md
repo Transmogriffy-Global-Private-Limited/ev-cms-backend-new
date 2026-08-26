@@ -277,7 +277,7 @@ the bearer session. CPO notification list/read requires the verified
 `X-CPO-App-ID` header and derives the tenant from the CPO session. Overview and
 status are bounded aggregates, not tenant business-data exports.
 
-These SuperAdmin routes are present in the current 210-operation source OpenAPI.
+These SuperAdmin routes are present in the current 211-operation source OpenAPI.
 The complete manual API-by-API authority and risk classification is
 `contracts/api/superadmin-permission-matrix.md`. The CPO ADMIN-only charger
 hub-assignment operation is not callable by SuperAdmin. The CPO user
