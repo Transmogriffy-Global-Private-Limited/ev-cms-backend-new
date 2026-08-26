@@ -125,6 +125,13 @@ Approved current slice:
 
 Current implementation state:
 
+- Customer-selected charging limits are now deployed through the existing
+  start-intent/wallet-hold/HAL lifecycle. Migration 54 is applied; runtime
+  revision `a085f29` is active with the 210-operation API. Readiness, public
+  routing, Swagger/OpenAPI, Caddy, and post-rehost startup checks pass. The
+  pre-migration database dump is retained; physical charger acceptance and
+  disposable PostgreSQL coverage remain pending.
+
 - The existing platform support desk now has a complete SuperAdmin workflow
   handoff. It makes the durable CPO-to-platform conversation boundary, full
   thread/list ordering, reply/status semantics, retries, privacy, and absent
@@ -160,8 +167,8 @@ Current implementation state:
   projections, active-session live kWh overlays, and the SuperAdmin CPO
   customer-intelligence route. Session reads also hydrate an incomplete charger
   relation through the connector-owned relation. These changes require no
-  additional migration; runtime revision `e6c0ebb` is active with migrations
-  45-53 applied. Migration 53 preserves three existing legacy CPO legal-
+  additional migration; runtime revision `a085f29` is active with migrations
+  45-54 applied. Migration 53 preserves three existing legacy CPO legal-
   identity rows with `NOT VALID` database checks while enforcing new and
   updated rows; the authoritative correction and later constraint validation
   remain a follow-up operation.

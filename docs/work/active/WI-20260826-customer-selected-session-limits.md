@@ -1,6 +1,6 @@
 # WI-20260826-customer-selected-session-limits
 
-Status: In Progress
+Status: Implemented
 Owner: Codex
 Collaborators: Anubhab Dey (product and CMS/HAL boundary owner)
 Started: 2026-08-26
@@ -59,7 +59,9 @@ vertical as the only execution path.
 
 ## Data and migration impact
 
-- Additive CMS and HAL migrations preserve existing starts as `AUTO`.
+- Additive CMS migration 54 preserves existing starts as `AUTO`; it is applied
+  in `devevcmsnewdb` after a transactional dry-run and a retained pre-change
+  dump at `/root/evcmsnew-backups/devevcmsnew-before-000054-20260826-111224.dump`.
 
 ## Current state
 
@@ -69,9 +71,11 @@ vertical as the only execution path.
 
 ## Verification
 
-- Pending focused unit/contract tests, both Go suites, document verification,
-  diff checks, and disposable PostgreSQL/dual-service acceptance where
-  available.
+- Focused tests, route/OpenAPI parity, full `go test ./...`, `go vet ./...`,
+  and `git diff --check` pass. The binary was rebuilt and rehosted as runtime
+  revision `a085f29`; service/readiness, public routing, Swagger/OpenAPI,
+  Caddy, and post-rehost startup checks pass. Physical charger and disposable
+  PostgreSQL/dual-service acceptance remain pending.
 
 ## Handoff
 
@@ -81,4 +85,4 @@ vertical as the only execution path.
 
 ## Completion
 
-In progress.
+Implemented; hardware/disposable-database acceptance remains pending.

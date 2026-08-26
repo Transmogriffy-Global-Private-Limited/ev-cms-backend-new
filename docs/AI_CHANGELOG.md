@@ -12,7 +12,13 @@
   and targeted admission tests.
 
 Verification: focused customer-auth, HAL client/ops, model, and OpenAPI route
-tests pass. No database migration, deployment, or live charger run occurred.
+tests, full `go test ./...`, `go vet ./...`, and `git diff --check` pass.
+Migration 54 was applied after a transactional dry-run and a database backup at
+`/root/evcmsnew-backups/devevcmsnew-before-000054-20260826-111224.dump`.
+Runtime revision `a085f29` was rebuilt and rehosted; the enabled service,
+loopback/public readiness, Swagger/OpenAPI, Caddy configuration, binary
+identity, and post-rehost startup logs pass. No physical charger acceptance is
+claimed. `pwsh` and `TEST_DATABASE_URL` are unavailable on this VPS.
 
 ## 2026-08-26 - Document the complete SuperAdmin support desk
 

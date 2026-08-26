@@ -28,10 +28,10 @@ development host it is set in the ignored service environment to
 that setting; it must not be used until the OCPP host is explicitly configured
 with TLS/WebSocket support.
 
-The active deployment was updated on August 25, 2026 to runtime source revision
-`e6c0ebbc6da83af7ab4673136273cc1eaab8d0a7` (`e6c0ebb`). It has migrations one
-through fifty-three and the current 210-operation API. The binary SHA-256 is
-`52cdb19f91e5ea3403417dba82ebcc2a795793ff71ee73ae1bcfd8ea20d41acf`.
+The active deployment was updated on August 26, 2026 to runtime source revision
+`a085f294906cc4fe9cfc6dfeb04e99cc90fac61b` (`a085f29`). It has migrations one
+through fifty-four and the current 210-operation API. The binary SHA-256 is
+`ff6341384fc85c11191c709edc8fdba6f3f27207d0a2af4bb36069636544e9e5`.
 The pre-migration binary and database dump for migrations 49 through 53 are
 retained under `/root/evcmsnew-backups/` and
 `builds/evcmsnew.pre-162b3be-20260825-135452` and the newer
@@ -40,7 +40,12 @@ retained under `/root/evcmsnew-backups/` and
 `builds/evcmsnew.pre-849d80b-20260825-153252` and the newer
 `builds/evcmsnew.pre-d3ac043-20260825-160754` and the newer
 `builds/evcmsnew.pre-f432f45-20260825-162920` and the newer
-`builds/evcmsnew.pre-e6c0ebb-20260825-164521`. Migration 53 installs GSTIN,
+`builds/evcmsnew.pre-e6c0ebb-20260825-164521` and the newer
+`builds/evcmsnew.pre-a085f29-20260826-111224`. Migration 54 adds customer-selected
+charging-limit metadata and validation to charging start intents; its pre-change
+database dump is retained at
+`/root/evcmsnew-backups/devevcmsnew-before-000054-20260826-111224.dump`.
+Migration 53 installs GSTIN,
 GSTIN-state, and PIN checks as `NOT VALID`, preserving three existing legacy
 CPO rows while enforcing the rules for new and updated rows. Migrations 45
 through 48 remain applied with their earlier backups retained. Migration 48
@@ -164,7 +169,7 @@ The deployment copies `.env.example` to `.env`, then overrides:
 - five independently generated 32-byte base64 cryptographic keys.
 
 `DATABASE_URL` and `SMTP_PASSWORD` contain deployment secrets only in the
-ignored environment file. The service is enabled and active, all fifty-three forward
+ignored environment file. The service is enabled and active, all fifty-four forward
 migrations are recorded, and startup idempotently retained the configured
 platform superadmin.
 

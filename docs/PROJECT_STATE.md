@@ -12,8 +12,14 @@
   energy/deadline bounds. Metered holds include the configured wallet buffer,
   intentionally covering bounded meter/RemoteStop overshoot.
 - CMS sends this metadata through the established authenticated HAL start
-  command. Source checks pass; no migration, deployment, or live charging run
-  occurred in this slice.
+  command. Migration 54 is applied in `devevcmsnewdb`; runtime revision
+  `a085f29` is active behind Caddy with binary SHA-256
+  `ff6341384fc85c11191c709edc8fdba6f3f27207d0a2af4bb36069636544e9e5`.
+  Service readiness, public routing, Swagger/OpenAPI, Caddy validation, and
+  post-rehost startup checks pass. The pre-migration database dump is retained
+  at `/root/evcmsnew-backups/devevcmsnew-before-000054-20260826-111224.dump`.
+  No physical charger acceptance is claimed; disposable PostgreSQL and
+  `pwsh` documentation verification remain unavailable on this VPS.
 
 ### 2026-08-26 - SuperAdmin support-desk documentation reconciled
 
