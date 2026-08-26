@@ -2,6 +2,19 @@
 
 ## Current State
 
+### 2026-08-26 - Customer-selected and wallet-derived charging limits
+
+- Customer starts now use one durable admission path for AUTO, ENERGY, TIME,
+  and MONEY execution limits. Omitted limits derive a metered threshold from
+  usable wallet balance without a one-hour default; tariff billing semantics
+  remain independent.
+- The persisted intent carries the requested classification/value and effective
+  energy/deadline bounds. Metered holds include the configured wallet buffer,
+  intentionally covering bounded meter/RemoteStop overshoot.
+- CMS sends this metadata through the established authenticated HAL start
+  command. Source checks pass; no migration, deployment, or live charging run
+  occurred in this slice.
+
 ### 2026-08-26 - SuperAdmin support-desk documentation reconciled
 
 - The existing durable support-ticket API now has a complete SuperAdmin

@@ -385,6 +385,8 @@ type ChargingStartIntent struct {
 	CommandExpiresAt      time.Time                   `gorm:"type:timestamptz;not null" json:"command_expires_at"`
 	EnergyLimitWh         int64                       `gorm:"type:bigint;not null" json:"energy_limit_wh"`
 	MaxDurationSeconds    int64                       `gorm:"type:bigint;not null" json:"max_duration_seconds"`
+	LimitType             constants.ChargingLimitType `gorm:"type:varchar(16);not null;default:'AUTO'" json:"limit_type"`
+	RequestedLimitValue   *decimal.Decimal            `gorm:"type:numeric(14,3)" json:"requested_limit_value,omitempty"`
 	TariffSnapshot        JSONB                       `gorm:"type:jsonb;not null" json:"tariff_snapshot"`
 	TaxSnapshot           JSONB                       `gorm:"type:jsonb;not null" json:"tax_snapshot"`
 	MaterializedSessionID *uuid.UUID                  `gorm:"type:uuid;uniqueIndex" json:"materialized_session_id,omitempty"`

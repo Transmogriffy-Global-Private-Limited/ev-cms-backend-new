@@ -96,6 +96,7 @@ type StartCommand struct {
 	IDTag               string    `json:"id_tag"`
 	CredentialExpiresAt time.Time `json:"credential_expires_at"`
 	CommandExpiresAt    time.Time `json:"command_expires_at"`
+	LimitType           string    `json:"limit_type"`
 	EnergyLimitWh       int64     `json:"energy_limit_wh"`
 	MaxDurationSeconds  int64     `json:"max_duration_seconds"`
 }

@@ -114,6 +114,14 @@ Current phase:
 Active work:
 
 - `docs/work/active/WI-20260812-cms-hal-operational-capabilities.md`.
+- `docs/work/active/WI-20260826-customer-selected-session-limits.md`.
+
+Approved current slice:
+
+- Extend the existing customer start-intent, wallet-hold, HAL command, and
+  charger-fact lifecycle with one optional customer-selected energy, time, or
+  money limit. Tariff billing basis remains independent from the selected stop
+  limit; no parallel charging flow is permitted.
 
 Current implementation state:
 

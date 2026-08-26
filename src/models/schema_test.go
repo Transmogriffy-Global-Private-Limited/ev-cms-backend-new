@@ -150,6 +150,8 @@ func TestGORMColumnMappingsMatchMigration(t *testing.T) {
 		{model: &ChargingSession{}, field: "SoCObservedAt", database: "soc_observed_at"},
 		{model: &ChargingSession{}, field: "SoCSequence", database: "soc_sequence"},
 		{model: &ChargingSession{}, field: "TotalKWh", database: "total_kwh"},
+		{model: &ChargingStartIntent{}, field: "LimitType", database: "limit_type"},
+		{model: &ChargingStartIntent{}, field: "RequestedLimitValue", database: "requested_limit_value"},
 		{model: &HALCommandRecord{}, field: "CMSCommandID", database: "cms_command_id"},
 		{model: &HALCommandRecord{}, field: "HALCommandID", database: "hal_command_id"},
 		{model: &HALFactReceipt{}, field: "FactID", database: "fact_id"},

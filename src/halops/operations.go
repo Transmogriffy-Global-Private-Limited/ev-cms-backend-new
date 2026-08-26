@@ -162,6 +162,7 @@ type StartRequest struct {
 	Credential          string
 	CredentialExpiresAt time.Time
 	CommandExpiresAt    time.Time
+	LimitType           string
 	EnergyLimitWh       int64
 	MaxDurationSeconds  int64
 }
@@ -240,7 +241,7 @@ func (service *Service) RequestStart(ctx context.Context, request StartRequest, 
 	if !service.Available() {
 		return Command{}, halclient.ErrUnavailable
 	}
-	command, err := service.client.Start(ctx, halclient.StartCommand{CMSCommandID: request.CMSCommandID, CMSStartIntentID: request.CMSStartIntentID, CPOID: request.CPOID, CustomerID: request.CustomerID, CMSChargerID: request.CMSChargerID, CMSConnectorID: request.CMSConnectorID, ChargerOCPPIdentity: request.ChargerOCPPIdentity, OCPPConnectorNumber: request.OCPPConnectorNumber, IDTag: request.Credential, CredentialExpiresAt: request.CredentialExpiresAt, CommandExpiresAt: request.CommandExpiresAt, EnergyLimitWh: request.EnergyLimitWh, MaxDurationSeconds: request.MaxDurationSeconds}, correlationID)
+	command, err := service.client.Start(ctx, halclient.StartCommand{CMSCommandID: request.CMSCommandID, CMSStartIntentID: request.CMSStartIntentID, CPOID: request.CPOID, CustomerID: request.CustomerID, CMSChargerID: request.CMSChargerID, CMSConnectorID: request.CMSConnectorID, ChargerOCPPIdentity: request.ChargerOCPPIdentity, OCPPConnectorNumber: request.OCPPConnectorNumber, IDTag: request.Credential, CredentialExpiresAt: request.CredentialExpiresAt, CommandExpiresAt: request.CommandExpiresAt, LimitType: request.LimitType, EnergyLimitWh: request.EnergyLimitWh, MaxDurationSeconds: request.MaxDurationSeconds}, correlationID)
 	return fromWireCommand(command), err
 }
 

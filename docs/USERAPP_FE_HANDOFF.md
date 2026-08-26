@@ -677,15 +677,36 @@ payment commitment. HAL is not called.
 ### 5.4 Charging lifecycle, history, and receipt detail
 
 `POST /charging-sessions` accepts `{"charger_id":"a1b2c3","connector_id":"uuid"}`
-and returns `202 ChargingStartResponse`. For a **new** start, the CMS first
+or an optional execution limit, for example:
+
+```json
+{"charger_id":"a1b2c3","connector_id":"uuid","limit":{"type":"MONEY","amount":"250.00"}}
+```
+
+`ENERGY` uses `energy_kwh` (up to three decimals), `TIME` uses whole
+`duration_minutes`, and `MONEY` uses a two-decimal tariff-currency `amount`.
+Exactly one matching value is required. This does not alter the tariff:
+ENERGY is supported by energy tariffs, TIME by time tariffs, and MONEY by
+either metered tariff. Fixed per-session tariffs accept the omitted AUTO path.
+The response carries `limit` with the durable type, requested value/unit, and
+effective `energy_limit_wh` / `max_duration_seconds`; zero means that
+enforcement dimension is absent.
+
+With no optional limit, CMS derives the effective threshold from the usable
+wallet balance—there is no invented one-hour default. CMS holds the nominal
+metered charge plus the CPO wallet buffer. That buffer deliberately covers
+bounded MeterValues/RemoteStop interval overshoot; a MONEY selection is not an
+exact final-settlement guarantee.
+
+The endpoint returns `202 ChargingStartResponse`. For a **new** start, the CMS first
 requires its committed connector live projection to be `availability=AVAILABLE`
 and `freshness=FRESH`, then validates the authenticated customer, active CPO,
 published active charger/connector, tariff, wallet, and one pending intent per
 connector. It first requires exact charger/connector mapping synchronization;
 `503 charger_mapping_unavailable` means this prerequisite failed before any
 customer start intent or hold was created. It then freezes tariff/tax, holds
-the affordable amount, derives `energy_limit_wh` and a current
-`max_duration_seconds`, and requests HAL delivery. The response status may be `REQUESTED`,
+the durable hold, derives the selected or wallet-backed effective limit, and
+requests HAL delivery through the existing command. The response status may be `REQUESTED`,
 `ACCEPTED_FOR_DELIVERY`, `PROTOCOL_ACKNOWLEDGED`, `ACTUALLY_STARTED`,
 `REJECTED`, `EXPIRED`, or `RECONCILIATION_REQUIRED`. Treat all but
 `ACTUALLY_STARTED` as start-progress, not a charging session.

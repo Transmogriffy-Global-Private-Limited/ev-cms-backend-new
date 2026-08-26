@@ -33,7 +33,7 @@ func TestAffordableChargingLimitUsesExactIntegerWh(t *testing.T) {
 	}
 }
 
-func TestFreeChargingStillRequiresPhysicalEnergyBound(t *testing.T) {
+func TestFreeEnergyTariffDoesNotInventAnEnergyLimit(t *testing.T) {
 	t.Parallel()
 	zero := decimal.Zero
 	tariffType, priceType, units := energyTariffMetadata()
@@ -41,12 +41,8 @@ func TestFreeChargingStillRequiresPhysicalEnergyBound(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, limit, err := affordableChargingLimit(decimal.NewFromInt(1), pricing, models.GST{SGSTRate: &zero, CGSTRate: &zero, IGSTRate: &zero}, models.Connector{ConnectorTotalCapacity: 7.4})
-	if err != nil || limit != 7400 {
-		t.Fatalf("free limit=%d err=%v, want 7400 Wh", limit, err)
-	}
-	if _, _, err := affordableChargingLimit(decimal.NewFromInt(1), pricing, models.GST{SGSTRate: &zero, CGSTRate: &zero, IGSTRate: &zero}, models.Connector{}); err == nil {
-		t.Fatal("free charging without a physical capacity must fail")
+	if _, _, err := affordableChargingLimit(decimal.NewFromInt(1), pricing, models.GST{SGSTRate: &zero, CGSTRate: &zero, IGSTRate: &zero}, models.Connector{}); !errors.Is(err, errChargingLimitUnsupported) {
+		t.Fatalf("free tariff err=%v, want unsupported explicit budget limit", err)
 	}
 }
 
@@ -81,6 +77,72 @@ func TestUsableWalletBalanceEnforcesCPOThresholdAndBuffer(t *testing.T) {
 	zeroDefault, err := usableWalletBalance(decimal.NewFromInt(1), models.Settings{})
 	if err != nil || !zeroDefault.Equal(decimal.NewFromInt(1)) {
 		t.Fatalf("zero-default usable balance=%s err=%v, want 1", zeroDefault, err)
+	}
+}
+
+func TestCustomerSelectedChargingLimitsUseTheExistingAdmissionInputs(t *testing.T) {
+	t.Parallel()
+	zero := decimal.Zero
+	gst := models.GST{SGSTRate: &zero, CGSTRate: &zero, IGSTRate: &zero}
+	energyTariff, energyPriceType, energyUnits := energyTariffMetadata()
+	energyPricing, err := tariffPricingFromTariff(models.Tariff{PricePerUnit: decimal.NewFromInt(10), TariffType: &energyTariff, PriceType: &energyPriceType, Units: &energyUnits})
+	if err != nil {
+		t.Fatal(err)
+	}
+	requestedEnergy := decimal.RequireFromString("3.250")
+	energySelection, err := parseChargingLimit(&ChargingLimitRequest{Type: constants.ChargingLimitTypeEnergy, EnergyKWh: &requestedEnergy})
+	if err != nil {
+		t.Fatal(err)
+	}
+	energyLimit, err := deriveChargingLimit(decimal.NewFromInt(100), energyPricing, gst, models.Connector{}, models.Settings{WalletBufferMinBalance: 5}, energySelection)
+	if err != nil || energyLimit.EnergyLimitWh != 3250 || energyLimit.MaxDurationSeconds != 0 || !energyLimit.HoldAmount.Equal(decimal.RequireFromString("37.50")) {
+		t.Fatalf("energy limit=%+v err=%v, want 3250 Wh, no duration and 32.50+5 hold", energyLimit, err)
+	}
+
+	money := decimal.NewFromInt(25)
+	moneySelection, err := parseChargingLimit(&ChargingLimitRequest{Type: constants.ChargingLimitTypeMoney, Amount: &money})
+	if err != nil {
+		t.Fatal(err)
+	}
+	moneyLimit, err := deriveChargingLimit(decimal.NewFromInt(100), energyPricing, gst, models.Connector{}, models.Settings{WalletBufferMinBalance: 5}, moneySelection)
+	if err != nil || moneyLimit.Type != constants.ChargingLimitTypeMoney || moneyLimit.EnergyLimitWh != 2500 || moneyLimit.MaxDurationSeconds != 0 || !moneyLimit.HoldAmount.Equal(decimal.NewFromInt(30)) {
+		t.Fatalf("money-energy limit=%+v err=%v, want 2500 Wh and 25+5 hold", moneyLimit, err)
+	}
+
+	timeTariff := constants.TariffTypeFixed
+	timePriceType := constants.PriceTypeTime
+	timeUnits := constants.UnitMinutes
+	timePricing, err := tariffPricingFromTariff(models.Tariff{PricePerUnit: decimal.NewFromInt(2), TariffType: &timeTariff, PriceType: &timePriceType, Units: &timeUnits})
+	if err != nil {
+		t.Fatal(err)
+	}
+	minutes := int64(45)
+	timeSelection, err := parseChargingLimit(&ChargingLimitRequest{Type: constants.ChargingLimitTypeTime, DurationMinutes: &minutes})
+	if err != nil {
+		t.Fatal(err)
+	}
+	timeLimit, err := deriveChargingLimit(decimal.NewFromInt(100), timePricing, gst, models.Connector{}, models.Settings{WalletBufferMinBalance: 5}, timeSelection)
+	if err != nil || timeLimit.EnergyLimitWh != 0 || timeLimit.MaxDurationSeconds != 2700 || !timeLimit.HoldAmount.Equal(decimal.NewFromInt(95)) {
+		t.Fatalf("time limit=%+v err=%v, want 2700 seconds and 90+5 hold", timeLimit, err)
+	}
+	if _, err := deriveChargingLimit(decimal.NewFromInt(100), timePricing, gst, models.Connector{}, models.Settings{}, energySelection); !errors.Is(err, errChargingLimitUnsupported) {
+		t.Fatalf("energy limit on time tariff err=%v, want incompatible limit", err)
+	}
+}
+
+func TestDefaultTimeChargingUsesTheUsableWalletInsteadOfOneHour(t *testing.T) {
+	t.Parallel()
+	zero := decimal.Zero
+	tariffType := constants.TariffTypeFixed
+	priceType := constants.PriceTypeTime
+	units := constants.UnitMinutes
+	pricing, err := tariffPricingFromTariff(models.Tariff{PricePerUnit: decimal.NewFromInt(2), TariffType: &tariffType, PriceType: &priceType, Units: &units})
+	if err != nil {
+		t.Fatal(err)
+	}
+	limit, err := deriveChargingLimit(decimal.NewFromInt(200), pricing, models.GST{SGSTRate: &zero, CGSTRate: &zero, IGSTRate: &zero}, models.Connector{}, models.Settings{}, chargingLimitSelection{Type: constants.ChargingLimitTypeAuto})
+	if err != nil || limit.MaxDurationSeconds != 6000 || !limit.HoldAmount.Equal(decimal.NewFromInt(200)) {
+		t.Fatalf("default time limit=%+v err=%v, want 6000 seconds backed by the usable balance", limit, err)
 	}
 }
 
@@ -145,8 +207,8 @@ func TestTariffPricingCalculatesEachSupportedBasisAndLegacySnapshots(t *testing.
 	if amount, err := sessionPricing.amountWithGST(0, startedAt, startedAt, gst); err != nil || !amount.Equal(decimal.RequireFromString("25.50")) {
 		t.Fatalf("session amount=%s err=%v, want 25.50", amount, err)
 	}
-	if hold, _, err := affordableChargingLimit(decimal.NewFromInt(200), timePricing, gst, models.Connector{ConnectorTotalCapacity: 7.4}); err != nil || !hold.Equal(decimal.NewFromInt(120)) {
-		t.Fatalf("time hold=%s err=%v, want 120.00", hold, err)
+	if hold, _, err := affordableChargingLimit(decimal.NewFromInt(200), timePricing, gst, models.Connector{ConnectorTotalCapacity: 7.4}); err != nil || !hold.Equal(decimal.NewFromInt(200)) {
+		t.Fatalf("time hold=%s err=%v, want 200.00 from the usable wallet budget", hold, err)
 	}
 	if hold, _, err := affordableChargingLimit(decimal.NewFromInt(30), sessionPricing, gst, models.Connector{ConnectorTotalCapacity: 7.4}); err != nil || !hold.Equal(decimal.RequireFromString("25.50")) {
 		t.Fatalf("session hold=%s err=%v, want 25.50", hold, err)

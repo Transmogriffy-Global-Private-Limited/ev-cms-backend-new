@@ -1,5 +1,19 @@
 # AI Changelog
 
+## 2026-08-26 - Add customer-selected charging execution limits
+
+- Added optional ENERGY, TIME, and MONEY start limits to the existing customer
+  start-intent/wallet-hold/HAL-command path. AUTO now derives only the
+  applicable wallet-backed threshold; it no longer invents a one-hour limit.
+- Persisted immutable selection metadata and added migration 054. Metered
+  holds reserve the configured wallet buffer so normal meter/stop interval
+  overshoot is covered before settlement's existing conservative guard.
+- Updated the CMS-to-HAL request, OpenAPI, User App handoff, model mapping,
+  and targeted admission tests.
+
+Verification: focused customer-auth, HAL client/ops, model, and OpenAPI route
+tests pass. No database migration, deployment, or live charger run occurred.
+
 ## 2026-08-26 - Document the complete SuperAdmin support desk
 
 - Added the canonical SuperAdmin support-desk workflow covering actor scope,
