@@ -571,6 +571,7 @@ func RegisterCPORoutes(
 	group.GET("/charging-sessions/:session_id", handler.getChargingSession)
 	group.GET("/charger-transactions", handler.listChargerTransactions)
 	group.GET("/wallet-transactions", handler.listWalletTransactions)
+	group.GET("/customers/:customer_id/wallet-transactions", handler.listCustomerWalletTransactions)
 
 }
 
@@ -2976,12 +2977,66 @@ func (handler *Handler) updateChargerCustomerVisibility(ctx *gin.Context) {
 // @Security BearerAuth
 // @Security CPOAppID
 // @Router /cpo/wallet-transactions [get]
+// listWalletTransactions – returns wallet transactions for all customers,
+// optionally filtered by customer_id query parameter.
+// @Summary List wallet transactions
+// @Description Returns a paginated list of wallet transactions for all customers of the authenticated CPO.
+// @Tags CPO Operations - Charging Sessions
+// @Produce json
+// @Param limit query int false "Number of records to return (1-200, default 50)"
+// @Param before query string false "RFC3339 timestamp for keyset pagination"
+// @Param before_id query string false "UUID tie‑breaker for pagination"
+// @Param customer_id query string false "Filter by customer UUID"
+// @Success 200 {object} WalletTransactionListResponse "Successfully retrieved wallet transactions"
+// @Failure 400 {object} auth.APIError "Invalid parameters"
+// @Failure 401 {object} auth.APIError "Unauthorized"
+// @Failure 403 {object} auth.APIError "Forbidden"
+// @Security BearerAuth
+// @Security CPOAppID
+// @Router /cpo/wallet-transactions [get]
 func (handler *Handler) listWalletTransactions(ctx *gin.Context) {
 	principal, _ := auth.CurrentPrincipal(ctx)
 	query, ok := parseWalletTransactionListQuery(ctx)
 	if !ok {
 		return
 	}
+	records, err := handler.service.ListWalletTransactions(ctx.Request.Context(), principal, query)
+	if err != nil {
+		writeError(ctx, err)
+		return
+	}
+	ctx.JSON(http.StatusOK, records)
+}
+
+// listCustomerWalletTransactions – returns wallet transactions for a single,
+// specific customer (identified by the path parameter).
+// @Summary List wallet transactions for a specific customer
+// @Description Returns a paginated list of wallet transactions for a specific customer of the authenticated CPO.
+// @Tags CPO Operations - Charging Sessions
+// @Produce json
+// @Param customer_id path string true "Customer ID"
+// @Param limit query int false "Number of records to return (1-200, default 50)"
+// @Param before query string false "RFC3339 timestamp for keyset pagination"
+// @Param before_id query string false "UUID tie‑breaker for pagination"
+// @Success 200 {object} WalletTransactionListResponse "Successfully retrieved wallet transactions"
+// @Failure 400 {object} auth.APIError "Invalid parameters"
+// @Failure 401 {object} auth.APIError "Unauthorized"
+// @Failure 403 {object} auth.APIError "Forbidden"
+// @Security BearerAuth
+// @Security CPOAppID
+// @Router /cpo/customers/{customer_id}/wallet-transactions [get]
+func (handler *Handler) listCustomerWalletTransactions(ctx *gin.Context) {
+	principal, _ := auth.CurrentPrincipal(ctx)
+	customerID, ok := parseCustomerID(ctx)
+	if !ok {
+		return
+	}
+	query, ok := parseWalletTransactionListQuery(ctx)
+	if !ok {
+		return
+	}
+	// Force the customer filter to the one from the path
+	query.CustomerID = &customerID
 	records, err := handler.service.ListWalletTransactions(ctx.Request.Context(), principal, query)
 	if err != nil {
 		writeError(ctx, err)

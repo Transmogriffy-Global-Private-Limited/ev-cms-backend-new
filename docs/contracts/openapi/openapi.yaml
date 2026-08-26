@@ -363,6 +363,41 @@ paths:
           $ref: "#/components/responses/CPOBusinessForbidden"
         "500":
           $ref: "#/components/responses/InternalError"
+  /api/v1/cpo/customers/{customer_id}/wallet-transactions:
+    get:
+      tags: [CPO Operations - Charging Sessions]
+      operationId: listCPOCustomerWalletTransactions
+      summary: List wallet transactions for a specific customer
+      description: Returns a paginated list of wallet transactions for a given customer of the authenticated CPO, ordered by newest first.
+      security:
+        - BearerAuth: []
+        - CPOAppID: []
+      parameters:
+        - $ref: "#/components/parameters/CustomerID"
+        - $ref: "#/components/parameters/ListLimit"
+        - $ref: "#/components/parameters/ListBefore"
+        - $ref: "#/components/parameters/ListBeforeID"
+      responses:
+        "200":
+          description: A list of wallet transactions for the customer.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WalletTransactionListResponse"
+        "400":
+          $ref: "#/components/responses/InvalidRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/CPOBusinessForbidden"
+        "404":
+          description: "`customer_not_found`"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "500":
+          $ref: "#/components/responses/InternalError"
   /health/live:
     get:
       tags: [Health]
