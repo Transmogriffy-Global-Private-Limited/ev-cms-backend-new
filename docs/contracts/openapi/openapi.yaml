@@ -9833,13 +9833,15 @@ components:
     ChargingLimitView:
       type: object
       additionalProperties: false
-      required: [type, energy_limit_wh, max_duration_seconds]
+      required: [type, energy_limit_wh, energy_limit_source, max_duration_seconds, duration_limit_source]
       properties:
         type: {type: string, enum: [AUTO, ENERGY, TIME, MONEY]}
         requested_value: {type: string}
         requested_unit: {type: string, enum: [kwh, minutes, currency]}
         energy_limit_wh: {type: integer, format: int64, minimum: 0}
+        energy_limit_source: {type: string, enum: [NONE, CUSTOMER_ENERGY, CUSTOMER_TIME, CUSTOMER_MONEY, WALLET], description: "Provenance of the effective energy boundary; NONE only when energy_limit_wh is zero."}
         max_duration_seconds: {type: integer, format: int64, minimum: 0}
+        duration_limit_source: {type: string, enum: [NONE, CUSTOMER_ENERGY, CUSTOMER_TIME, CUSTOMER_MONEY, WALLET], description: "Provenance of the effective duration boundary; NONE only when max_duration_seconds is zero."}
 
     ChargingStartResponse:
       type: object

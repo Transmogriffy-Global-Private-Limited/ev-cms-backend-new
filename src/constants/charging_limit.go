@@ -21,3 +21,25 @@ func (value ChargingLimitType) Valid() bool {
 		return false
 	}
 }
+
+// ChargingLimitSource identifies why an effective physical threshold exists.
+// It is intentionally separate from ChargingLimitType, which records only the
+// customer's original selection.
+type ChargingLimitSource string
+
+const (
+	ChargingLimitSourceNone           ChargingLimitSource = "NONE"
+	ChargingLimitSourceCustomerEnergy ChargingLimitSource = "CUSTOMER_ENERGY"
+	ChargingLimitSourceCustomerTime   ChargingLimitSource = "CUSTOMER_TIME"
+	ChargingLimitSourceCustomerMoney  ChargingLimitSource = "CUSTOMER_MONEY"
+	ChargingLimitSourceWallet         ChargingLimitSource = "WALLET"
+)
+
+func (value ChargingLimitSource) Valid() bool {
+	switch value {
+	case ChargingLimitSourceNone, ChargingLimitSourceCustomerEnergy, ChargingLimitSourceCustomerTime, ChargingLimitSourceCustomerMoney, ChargingLimitSourceWallet:
+		return true
+	default:
+		return false
+	}
+}

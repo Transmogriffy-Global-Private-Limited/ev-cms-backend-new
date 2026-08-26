@@ -2,6 +2,17 @@
 
 ## Current State
 
+### 2026-08-26 - Independent charging-limit provenance (source-only)
+
+- Customer execution intent is now independent from tariff billing dimension.
+  CMS can send simultaneous energy and duration thresholds when a customer
+  bound and the tariff-dimension wallet guard differ; every AUTO/ENERGY/TIME/
+  MONEY selection is valid for energy, time, and session tariffs.
+- Migration 055 adds durable source fields for each effective threshold. It is
+  additive and unrun in this source-only slice. CMS final settlement remains
+  based on actual evidence and frozen tariff/tax snapshots; the wallet buffer
+  remains a one-time finite metered-stop margin, not a bill cap.
+
 ### 2026-08-26 - Customer-selected and wallet-derived charging limits
 
 - Customer starts now use one durable admission path for AUTO, ENERGY, TIME,

@@ -98,7 +98,9 @@ type StartCommand struct {
 	CommandExpiresAt    time.Time `json:"command_expires_at"`
 	LimitType           string    `json:"limit_type"`
 	EnergyLimitWh       int64     `json:"energy_limit_wh"`
+	EnergyLimitSource   string    `json:"energy_limit_source"`
 	MaxDurationSeconds  int64     `json:"max_duration_seconds"`
+	DurationLimitSource string    `json:"duration_limit_source"`
 }
 
 type StopCommand struct {

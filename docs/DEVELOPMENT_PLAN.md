@@ -125,12 +125,12 @@ Approved current slice:
 
 Current implementation state:
 
-- Customer-selected charging limits are now deployed through the existing
-  start-intent/wallet-hold/HAL lifecycle. Migration 54 is applied; runtime
-  revision `a085f29` is active with the 210-operation API. Readiness, public
-  routing, Swagger/OpenAPI, Caddy, and post-rehost startup checks pass. The
-  pre-migration database dump is retained; physical charger acceptance and
-  disposable PostgreSQL coverage remain pending.
+- Customer-selected charging limits are being refactored through the existing
+  start-intent/wallet-hold/HAL lifecycle so customer intent and wallet safety
+  retain independent threshold provenance. Migration 055 is additive and
+  source-only; runtime/deployment claims from the prior migration-54 slice do
+  not cover this new contract. Physical charger and disposable PostgreSQL
+  coverage remain pending.
 
 - The existing platform support desk now has a complete SuperAdmin workflow
   handoff. It makes the durable CPO-to-platform conversation boundary, full

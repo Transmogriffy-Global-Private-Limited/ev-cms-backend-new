@@ -1,6 +1,6 @@
 # WI-20260826-customer-selected-session-limits
 
-Status: Implemented
+Status: In Progress
 Owner: Codex
 Collaborators: Anubhab Dey (product and CMS/HAL boundary owner)
 Started: 2026-08-26
@@ -20,12 +20,13 @@ vertical as the only execution path.
 ## Scope
 
 - Add one optional, mutually exclusive customer start-limit request object.
-- Persist the chosen limit and the effective HAL Wh/time limits on the existing
-  start intent; expose them in customer start-progress and session reads.
+- Persist immutable customer intent separately from each effective HAL Wh/time
+  threshold and its provenance; expose both in customer start-progress and
+  session reads.
 - Derive the existing HAL limits and wallet hold without creating a second
   command, worker, or source of truth.
-- Extend the HAL v1 contract/store only as needed to retain the source limit
-  type through automatic stop evidence.
+- Extend the HAL v1 contract/store only as needed to retain independent
+  threshold provenance through automatic stop evidence.
 - Update migrations, OpenAPI, integration/frontend documentation, focused
   tests, and both repositories' project memory.
 
@@ -59,9 +60,9 @@ vertical as the only execution path.
 
 ## Data and migration impact
 
-- Additive CMS migration 54 preserves existing starts as `AUTO`; it is applied
-  in `devevcmsnewdb` after a transactional dry-run and a retained pre-change
-  dump at `/root/evcmsnew-backups/devevcmsnew-before-000054-20260826-111224.dump`.
+- Additive CMS migration 55 records per-threshold provenance and backfills
+  prior migration-54 rows conservatively. It is source-only and must not be
+  applied by this work item.
 
 ## Current state
 

@@ -90,6 +90,26 @@ mutation, while non-mutating exact-command lookup remains correlation-free.
 
 ## HAL command-response contract
 
+## Independent customer limits and wallet safety
+
+The customer-selected `AUTO`, `ENERGY`, `TIME`, or `MONEY` classification is
+immutable intent, not HAL's stop cause and not tariff semantics. CMS separately
+derives a wallet-safety bound only in the tariff billing dimension: Wh for an
+energy tariff, seconds for a time tariff, and a fixed admission-only charge for
+a session tariff. It never predicts energy from duration, duration from energy,
+or either from charger capacity.
+
+The authenticated start command may therefore carry both
+`energy_limit_wh`/`energy_limit_source` and
+`max_duration_seconds`/`duration_limit_source`. Each source is `NONE`,
+`CUSTOMER_ENERGY`, `CUSTOMER_TIME`, `CUSTOMER_MONEY`, or `WALLET`. HAL persists
+these facts without interpreting tariff, GST, wallet, buffer, or final billing.
+Its meter/deadline stop workflow reports `ENERGY_LIMIT`, `TIME_LIMIT`,
+`MONEY_LIMIT`, or `WALLET_LIMIT` from the specific threshold source. Final CMS
+settlement remains based on actual completion evidence and the frozen tariff
+and tax snapshots; a finite wallet buffer is held once for metered-stop
+overshoot and never changes final price calculation.
+
 ## Optional charger SoC telemetry
 
 HAL may send additive `transaction.soc` immutable facts for valid OCPP 1.6

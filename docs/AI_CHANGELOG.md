@@ -1,5 +1,19 @@
 # AI Changelog
 
+## 2026-08-26 - Separate customer execution limits from wallet safety
+
+- Refactored the existing customer start path so customer ENERGY, TIME, and
+  MONEY intent is not rejected merely because it differs from the tariff
+  billing dimension. The tariff calculator independently supplies only the
+  wallet-safe billed-dimension bound; no charger-power conversion is used.
+- Added durable energy/duration provenance, CMS migration 055, HAL request
+  fields, OpenAPI, user-app and integration contracts, and all 12 customer
+  limit x tariff regression cases. Final settlement remains actual frozen-term
+  billing; the existing one-time metered buffer is only an overshoot margin.
+
+Verification: focused customer-auth admission matrix passes. PostgreSQL
+migration and live CMS/HAL/charger acceptance are intentionally unrun.
+
 ## 2026-08-26 - Add customer-selected charging execution limits
 
 - Added optional ENERGY, TIME, and MONEY start limits to the existing customer
