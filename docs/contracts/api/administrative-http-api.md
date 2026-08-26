@@ -18,7 +18,10 @@ cannot accidentally remove the tenant's recovery authority.
 Support tickets are durable tenant conversations. CPO staff use
 `/api/v1/cpo/support` and can only read or reply to their own CPO's tickets;
 the platform uses `/api/v1/platform/support/tickets` for global support review,
-replies, and status changes. Mail layouts are source-controlled under
+replies, and status changes. The complete platform workflow, lifecycle,
+privacy, retry, and unsupported-feature contract is
+[`../../guides/workflows/superadmin-support-tickets.md`](../../guides/workflows/superadmin-support-tickets.md).
+Mail layouts are source-controlled under
 `src/mail/templates/`; the encrypted outbox remains the authoritative delivery
 queue and message payload store.
 

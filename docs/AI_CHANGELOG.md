@@ -1,5 +1,23 @@
 # AI Changelog
 
+## 2026-08-26 - Document the complete SuperAdmin support desk
+
+- Added the canonical SuperAdmin support-desk workflow covering actor scope,
+  ticket/message persistence and ordering, exact reply/status behavior,
+  request/response examples, errors, ambiguous-write recovery, privacy, and
+  all currently unsupported support features. Linked it from the SuperAdmin
+  handoff, control-plane concept, shared administrative contract, and docs
+  index.
+- Corrected the CPO support OpenAPI security requirements from an accidental
+  bearer-or-app-ID declaration to the runtime-required bearer-and-app-ID
+  declaration. Tightened the support schemas with required response fields and
+  actual request length constraints. No routes, database state, or runtime
+  behavior changed.
+
+Verification: `scripts/verify-docs.ps1`, focused OpenAPI/runtime route parity,
+serial `go test -p 1 ./...`, serial `go vet -p 1 ./...`, and `git diff --check`
+pass. No deployment or live database action occurred.
+
 ## 2026-08-25 - Add CPO live-session display context
 
 - Added `duration_seconds`, `customer_name`, and `connector_id` to each CPO

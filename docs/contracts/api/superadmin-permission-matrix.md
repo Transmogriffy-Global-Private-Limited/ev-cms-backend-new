@@ -16,6 +16,12 @@ The 12 shared `/api/v1/auth/*` operations are included because they are needed
 by the SuperAdmin client. Public recovery starts remain generic and do not
 grant platform authority by themselves.
 
+The complete support-desk lifecycle, full-thread response behavior, retry and
+privacy rules, and intentionally unsupported support features are in
+[`../../guides/workflows/superadmin-support-tickets.md`](../../guides/workflows/superadmin-support-tickets.md).
+The four support rows below remain this document's manual authority/risk
+classification.
+
 | API | Enforced authority | Classification | FE rule |
 | --- | --- | --- | --- |
 | `POST /api/v1/auth/login` | Public administrative login start; request must use `scope: PLATFORM` | Authentication | Start OTP only; do not disclose identity existence. |

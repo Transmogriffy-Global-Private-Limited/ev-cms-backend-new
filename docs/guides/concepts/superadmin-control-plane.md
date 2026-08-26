@@ -65,6 +65,8 @@ The current platform-management surface includes:
   retention without decrypted payload access;
 - platform-wide and CPO-targeted announcements with immutable audience
   snapshots and durable recipient notifications;
+- durable cross-CPO support-ticket observation, reply, and explicit lifecycle
+  status changes without tenant impersonation; and
 - platform and CPO notification listing/read state, plus bounded overview and
   service-status queries.
 
@@ -104,7 +106,10 @@ recovered by reloading authoritative REST state.
 - Tenant context comes from a verified CPO session, never from a client-chosen
   tenant header.
 - A superadmin cannot resolve CPO Razorpay secret plaintext.
-- Support or impersonation access is not implemented.
+- Tenant impersonation and general support access are not implemented. The
+  deliberately narrow durable support-conversation workflow is documented in
+  `../workflows/superadmin-support-tickets.md`; it does not grant access to
+  tenant business operations or secrets.
 - CPO access changes must remain explicit, reasoned where the endpoint contract
   requires it, and auditable.
 

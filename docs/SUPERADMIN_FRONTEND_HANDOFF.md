@@ -24,12 +24,14 @@ surface. When exact schema detail is needed, use these sources in order:
 2. this handoff — canonical SuperAdmin frontend workflow and client guidance;
 3. `contracts/api/administrative-http-api.md` — exhaustive shared endpoint
    semantics;
-4. `contracts/api/superadmin-permission-matrix.md` — manually reviewed
+4. `guides/workflows/superadmin-support-tickets.md` — complete SuperAdmin
+   support-desk lifecycle, REST, recovery, privacy, and known-limit workflow;
+5. `contracts/api/superadmin-permission-matrix.md` — manually reviewed
    authority/risk classification for every SuperAdmin API;
-5. `SUPERADMIN_CPO_FRONTEND_BOUNDARY.md` — explicit platform-versus-CPO UI
+6. `SUPERADMIN_CPO_FRONTEND_BOUNDARY.md` — explicit platform-versus-CPO UI
    boundary;
-6. `CPO_ADMINISTRATION.md` — focused CPO-screen behavior;
-7. `contracts/realtime/platform-events.md` — replay, SSE, ordering, and
+7. `CPO_ADMINISTRATION.md` — focused CPO-screen behavior;
+8. `contracts/realtime/platform-events.md` — replay, SSE, ordering, and
    recovery semantics.
 
 Do not infer an endpoint from a database table, Go model, old CMS route, plan,
@@ -53,9 +55,10 @@ the active deployment independently before enabling an environment.
     `contracts/api/superadmin-permission-matrix.md`, including 17 manual
     subscription operations.
 
-The CPO application has its own support and notification operations under an
-active CPO session and verified `X-CPO-App-ID` header; that is not a platform
-authority path.
+The CPO application has its own ticket-creation/read/reply support operations
+under an active CPO session and verified `X-CPO-App-ID` header; they are not a
+platform authority path. The platform-only queue/reply/status workflow is
+specified in `guides/workflows/superadmin-support-tickets.md`.
 
 The manual subscription API is platform-superadmin-only, excludes feature-key
 entitlements, and does not activate provider billing or automatic lifecycle
@@ -101,7 +104,7 @@ approved origin policy and HTTPS.
 | Notifications/announcements | Ready | Immutable PLATFORM/CPO audience snapshots, durable recipient rows, platform and CPO list/read APIs |
 | Platform overview aggregates | Ready | Bounded CPO/access/session/mail/worker counts and service/database/worker status |
 | CPO operational projection and customer intelligence | Ready | Bounded platform views; neither grants CPO impersonation nor secret access |
-| Tenant support queue and HAL fact requeue | Ready | Support is a controlled conversation surface; requeue requires exact-fact confirmation |
+| Tenant support queue and HAL fact requeue | Ready | Support is a controlled conversation surface; use the complete support-desk workflow, while requeue requires exact-fact confirmation |
 | Manual API authority classification | Ready | All platform routes remain server-enforced as `PLATFORM`; the matrix categories are FE risk groupings, not granular RBAC |
 | Manual subscriptions | Ready | Plans, issue/renew/status, and history; no feature keys, provider, or automatic lifecycle |
 | Platform billing | Intentionally unsupported | No invoice, payment, checkout, or webhook APIs |
@@ -755,6 +758,22 @@ password, OTP, token, decrypted mail payload, or stored mail error text.
 | `POST /api/v1/platform/notifications/{notification_id}/read` | `204` | Mark only the current recipient's notification as read |
 | `GET /api/v1/platform/overview` | `200 PlatformOverview` | Bounded aggregate dashboard, not a tenant-data export |
 | `GET /api/v1/platform/status` | `200 PlatformStatus` | Service/database/worker status display only |
+
+### Support desk
+
+All support operations require a `PLATFORM` bearer session and never a CPO app
+ID. The queue returns full CPO conversations rather than a tenant-impersonation
+view. Use the complete lifecycle, error/recovery, privacy, and current-limit
+rules in `guides/workflows/superadmin-support-tickets.md`; in particular,
+`PENDING` does not identify the party expected to reply, and a later reopen
+does not clear a previous `closed_at` timestamp.
+
+| Method and path | Success | Primary FE purpose |
+| --- | --- | --- |
+| `GET /api/v1/platform/support/tickets` | `200 SupportTicket[]` | Load every visible CPO conversation, newest ticket update first, with full message threads |
+| `GET /api/v1/platform/support/tickets/{ticket_id}` | `200 SupportTicket` | Refresh one complete conversation |
+| `POST /api/v1/platform/support/tickets/{ticket_id}/replies` | `200 SupportTicket` | Append one durable platform reply and set `PENDING`; no idempotency key exists |
+| `PATCH /api/v1/platform/support/tickets/{ticket_id}/status` | `200 SupportTicket` | Set `OPEN`, `PENDING`, `RESOLVED`, or `CLOSED`; confirm this durable workflow action |
 
 ### Manual subscription management
 
@@ -1738,7 +1757,9 @@ The FE should raise, not paper over, these gaps:
    notification surface remains pending because no disposable test database is
    configured.
 2. There is no generated frontend SDK or committed generated types.
-3. There is no SuperAdmin tenant impersonation/support-access workflow.
+3. There is no SuperAdmin tenant impersonation workflow. The deliberately
+   limited cross-CPO support conversation workflow is documented separately in
+   `guides/workflows/superadmin-support-tickets.md`.
 4. Manual subscription plans, CPO subscriptions, and history are platform-only.
    Feature keys/entitlements, platform invoices, payments, checkout,
    webhooks, and automatic lifecycle behavior remain intentionally unsupported.

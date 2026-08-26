@@ -2,6 +2,22 @@
 
 ## Current State
 
+### 2026-08-26 - SuperAdmin support-desk documentation reconciled
+
+- The existing durable support-ticket API now has a complete SuperAdmin
+  workflow guide covering platform/CPO authority, persistence/order, actual
+  reply/status semantics, recovery, privacy, and explicit product limits. It
+  is linked from the documentation index, SuperAdmin handoff, control-plane
+  concept, shared HTTP contract, and permission matrix.
+- The source behavior is unchanged. OpenAPI now accurately requires both the
+  CPO bearer session and `X-CPO-App-ID` for CPO support operations, matching
+  runtime middleware; platform support remains `PLATFORM` bearer-only. No
+  migration, data mutation, deployment, or live-environment verification is
+  claimed by this documentation slice.
+- Local documentation verification, focused OpenAPI/runtime route parity,
+  serial `go test -p 1 ./...`, and serial `go vet -p 1 ./...` passed. The
+  documentation-only slice does not establish a deployed support-desk state.
+
 ### 2026-08-25 — CPO live-session display-context rehost verified
 
 - Source live-session rows now include `duration_seconds` at the response

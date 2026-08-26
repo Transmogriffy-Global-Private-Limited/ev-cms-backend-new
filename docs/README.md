@@ -15,6 +15,7 @@ This directory is the durable project memory for the EV CMS backend.
 | Detailed authentication API semantics | `AUTHENTICATION.md` |
 | Detailed platform CPO API semantics | `CPO_ADMINISTRATION.md` |
 | Complete SuperAdmin frontend integration handoff | `SUPERADMIN_FRONTEND_HANDOFF.md` |
+| Complete SuperAdmin support-desk workflow and frontend contract | `guides/workflows/superadmin-support-tickets.md` |
 | Complete CPO frontend integration handoff | `CPO_FRONTEND_INTEGRATION_HANDOFF.md` |
 | SuperAdmin versus CPO frontend authority boundary | `SUPERADMIN_CPO_FRONTEND_BOUNDARY.md` |
 | Manual classification of every SuperAdmin API authority/risk | `contracts/api/superadmin-permission-matrix.md` |
@@ -51,6 +52,9 @@ auth/control-plane handoff, including manual CPO activation and suspension.
 `SUPERADMIN_FRONTEND_HANDOFF.md` turns the implemented platform subset into a
 screen, state-machine, TypeScript, realtime, error, security, and verification
 handoff while explicitly recording blocked and unimplemented FE behavior.
+`guides/workflows/superadmin-support-tickets.md` is the canonical detailed
+SuperAdmin support-desk lifecycle, REST, recovery, privacy, and known-limits
+handoff; it must be used with the OpenAPI contract and permission matrix.
 `CPO_FRONTEND_INTEGRATION_HANDOFF.md` is the equivalent complete CPO browser
 handoff; `SUPERADMIN_CPO_FRONTEND_BOUNDARY.md` prevents cross-plane client
 reuse, and `contracts/api/superadmin-permission-matrix.md` makes the current

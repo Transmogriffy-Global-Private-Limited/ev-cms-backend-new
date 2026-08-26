@@ -65,13 +65,13 @@ paths:
       tags: [CPO Operations - Account & Notifications]
       operationId: listCPOSupportTickets
       summary: List this CPO's support tickets
-      security: [{BearerAuth: []}, {CPOAppID: []}]
+      security: [{BearerAuth: [], CPOAppID: []}]
       responses: {"200": {description: Tickets., content: {application/json: {schema: {type: array, items: {$ref: "#/components/schemas/SupportTicket"}}}}}}
     post:
       tags: [CPO Operations - Account & Notifications]
       operationId: createCPOSupportTicket
       summary: Open a CPO support ticket
-      security: [{BearerAuth: []}, {CPOAppID: []}]
+      security: [{BearerAuth: [], CPOAppID: []}]
       requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/CreateSupportTicketRequest"}}}}
       responses: {"201": {description: Created ticket., content: {application/json: {schema: {$ref: "#/components/schemas/SupportTicket"}}}}}
   /api/v1/cpo/support/{ticket_id}:
@@ -79,7 +79,7 @@ paths:
       tags: [CPO Operations - Account & Notifications]
       operationId: getCPOSupportTicket
       summary: Get one CPO support ticket
-      security: [{BearerAuth: []}, {CPOAppID: []}]
+      security: [{BearerAuth: [], CPOAppID: []}]
       parameters: [{$ref: "#/components/parameters/SupportTicketID"}]
       responses: {"200": {description: Ticket., content: {application/json: {schema: {$ref: "#/components/schemas/SupportTicket"}}}}}
   /api/v1/cpo/support/{ticket_id}/replies:
@@ -87,7 +87,7 @@ paths:
       tags: [CPO Operations - Account & Notifications]
       operationId: replyToCPOSupportTicket
       summary: Reply to a CPO support ticket
-      security: [{BearerAuth: []}, {CPOAppID: []}]
+      security: [{BearerAuth: [], CPOAppID: []}]
       parameters: [{$ref: "#/components/parameters/SupportTicketID"}]
       requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/SupportReplyRequest"}}}}
       responses: {"200": {description: Updated ticket., content: {application/json: {schema: {$ref: "#/components/schemas/SupportTicket"}}}}}
@@ -8817,6 +8817,8 @@ components:
         description: {type: string}
     SupportTicketMessage:
       type: object
+      additionalProperties: false
+      required: [id, ticket_id, author_user_id, author_scope, body, created_at]
       properties:
         id: {type: string, format: uuid}
         ticket_id: {type: string, format: uuid}
@@ -8826,13 +8828,15 @@ components:
         created_at: {type: string, format: date-time}
     SupportTicket:
       type: object
+      additionalProperties: false
+      required: [id, cpo_id, subject, status, created_by_user_id, created_at, updated_at, messages]
       properties:
         id: {type: string, format: uuid}
         cpo_id: {type: string, format: uuid}
         subject: {type: string}
         status: {type: string, enum: [OPEN, PENDING, RESOLVED, CLOSED]}
         created_by_user_id: {type: string, format: uuid}
-        closed_at: {type: string, format: date-time}
+        closed_at: {type: string, format: date-time, nullable: true}
         created_at: {type: string, format: date-time}
         updated_at: {type: string, format: date-time}
         messages: {type: array, items: {$ref: "#/components/schemas/SupportTicketMessage"}}
@@ -8840,13 +8844,13 @@ components:
       type: object
       required: [subject, body]
       properties:
-        subject: {type: string, maxLength: 200}
-        body: {type: string, maxLength: 10000}
+        subject: {type: string, minLength: 1, maxLength: 200, description: Trimmed text; whitespace-only input is invalid.}
+        body: {type: string, minLength: 1, maxLength: 10000, description: Trimmed text; whitespace-only input is invalid.}
     SupportReplyRequest:
       type: object
       required: [body]
       properties:
-        body: {type: string, maxLength: 10000}
+        body: {type: string, minLength: 1, maxLength: 10000, description: Trimmed text; whitespace-only input is invalid.}
     SupportTicketStatusRequest:
       type: object
       required: [status]

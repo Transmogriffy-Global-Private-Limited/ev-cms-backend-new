@@ -117,6 +117,13 @@ Active work:
 
 Current implementation state:
 
+- The existing platform support desk now has a complete SuperAdmin workflow
+  handoff. It makes the durable CPO-to-platform conversation boundary, full
+  thread/list ordering, reply/status semantics, retries, privacy, and absent
+  product features explicit; the OpenAPI contract now correctly declares that
+  CPO support needs both its bearer and app-ID credentials. This is a
+  documentation/contract correction only, with no runtime or data change.
+
 - CPO live-session snapshots now include duration, display customer name, and
   canonical connector UUID in runtime revision `e6c0ebb`, with migrations
   49–53 still applied. No migration or data repair was required; public
