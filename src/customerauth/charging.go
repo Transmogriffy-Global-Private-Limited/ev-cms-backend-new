@@ -57,11 +57,13 @@ type ChargingLimitRequest struct {
 }
 
 type ChargingLimitView struct {
-	Type               constants.ChargingLimitType `json:"type"`
-	RequestedValue     *string                     `json:"requested_value,omitempty"`
-	RequestedUnit      *string                     `json:"requested_unit,omitempty"`
-	EnergyLimitWh      int64                       `json:"energy_limit_wh"`
-	MaxDurationSeconds int64                       `json:"max_duration_seconds"`
+	Type                constants.ChargingLimitType   `json:"type"`
+	RequestedValue      *string                       `json:"requested_value,omitempty"`
+	RequestedUnit       *string                       `json:"requested_unit,omitempty"`
+	EnergyLimitWh       int64                         `json:"energy_limit_wh"`
+	EnergyLimitSource   constants.ChargingLimitSource `json:"energy_limit_source"`
+	MaxDurationSeconds  int64                         `json:"max_duration_seconds"`
+	DurationLimitSource constants.ChargingLimitSource `json:"duration_limit_source"`
 }
 type ChargingStopRequest struct {
 	Reason string `json:"reason"`
@@ -252,7 +254,7 @@ func chargingStartResponse(intent models.ChargingStartIntent) ChargingStartRespo
 }
 
 func chargingLimitView(intent models.ChargingStartIntent) ChargingLimitView {
-	view := ChargingLimitView{Type: intent.LimitType, EnergyLimitWh: intent.EnergyLimitWh, MaxDurationSeconds: intent.MaxDurationSeconds}
+	view := ChargingLimitView{Type: intent.LimitType, EnergyLimitWh: intent.EnergyLimitWh, EnergyLimitSource: compatibleEnergyLimitSource(intent), MaxDurationSeconds: intent.MaxDurationSeconds, DurationLimitSource: compatibleDurationLimitSource(intent)}
 	if !view.Type.Valid() {
 		view.Type = constants.ChargingLimitTypeAuto
 	}
@@ -273,6 +275,47 @@ func chargingLimitView(intent models.ChargingStartIntent) ChargingLimitView {
 		view.RequestedUnit = &unit
 	}
 	return view
+}
+
+// Compatibility is intentionally narrow: the first charging-limit release
+// used AUTO only for wallet-derived bounds and matching explicit dimensions
+// only for customer bounds. New rows persist the source directly.
+func compatibleEnergyLimitSource(intent models.ChargingStartIntent) constants.ChargingLimitSource {
+	if intent.EnergyLimitWh == 0 {
+		return constants.ChargingLimitSourceNone
+	}
+	if intent.EnergyLimitSource.Valid() && intent.EnergyLimitSource != constants.ChargingLimitSourceNone {
+		return intent.EnergyLimitSource
+	}
+	switch intent.LimitType {
+	case constants.ChargingLimitTypeEnergy:
+		return constants.ChargingLimitSourceCustomerEnergy
+	case constants.ChargingLimitTypeMoney:
+		return constants.ChargingLimitSourceCustomerMoney
+	case constants.ChargingLimitTypeAuto:
+		return constants.ChargingLimitSourceWallet
+	default:
+		return constants.ChargingLimitSourceNone
+	}
+}
+
+func compatibleDurationLimitSource(intent models.ChargingStartIntent) constants.ChargingLimitSource {
+	if intent.MaxDurationSeconds == 0 {
+		return constants.ChargingLimitSourceNone
+	}
+	if intent.DurationLimitSource.Valid() && intent.DurationLimitSource != constants.ChargingLimitSourceNone {
+		return intent.DurationLimitSource
+	}
+	switch intent.LimitType {
+	case constants.ChargingLimitTypeTime:
+		return constants.ChargingLimitSourceCustomerTime
+	case constants.ChargingLimitTypeMoney:
+		return constants.ChargingLimitSourceCustomerMoney
+	case constants.ChargingLimitTypeAuto:
+		return constants.ChargingLimitSourceWallet
+	default:
+		return constants.ChargingLimitSourceNone
+	}
 }
 
 func (service *Service) StartCharging(ctx context.Context, principal Principal, request ChargingStartRequest, correlationID string) (ChargingStartResponse, error) {
@@ -424,7 +467,7 @@ func (service *Service) StartCharging(ctx context.Context, principal Principal, 
 			}
 			return &APIError{http.StatusConflict, "insufficient_wallet_balance", "The wallet balance is insufficient for charging."}
 		}
-		intent = models.ChargingStartIntent{ID: intentID, CPOID: principal.CPOID, CustomerID: principal.CustomerID, ChargerID: charger.ID, ConnectorID: connector.ID, WalletID: wallet.ID, TariffID: tariff.ID, Status: constants.StartIntentStatusRequested, CredentialHash: hash, CredentialExpiresAt: now.Add(chargingCredentialLifetime), CommandExpiresAt: now.Add(chargingCommandLifetime), LimitType: effectiveLimit.Type, RequestedLimitValue: effectiveLimit.RequestedValue, EnergyLimitWh: effectiveLimit.EnergyLimitWh, MaxDurationSeconds: effectiveLimit.MaxDurationSeconds, TariffSnapshot: pricing.snapshot(tariff), TaxSnapshot: taxSnapshot(*charger.HubID, gst), CreatedAt: now, UpdatedAt: now}
+		intent = models.ChargingStartIntent{ID: intentID, CPOID: principal.CPOID, CustomerID: principal.CustomerID, ChargerID: charger.ID, ConnectorID: connector.ID, WalletID: wallet.ID, TariffID: tariff.ID, Status: constants.StartIntentStatusRequested, CredentialHash: hash, CredentialExpiresAt: now.Add(chargingCredentialLifetime), CommandExpiresAt: now.Add(chargingCommandLifetime), LimitType: effectiveLimit.Type, RequestedLimitValue: effectiveLimit.RequestedValue, EnergyLimitWh: effectiveLimit.EnergyLimitWh, EnergyLimitSource: effectiveLimit.EnergyLimitSource, MaxDurationSeconds: effectiveLimit.MaxDurationSeconds, DurationLimitSource: effectiveLimit.DurationLimitSource, TariffSnapshot: pricing.snapshot(tariff), TaxSnapshot: taxSnapshot(*charger.HubID, gst), CreatedAt: now, UpdatedAt: now}
 		if err := tx.Create(&intent).Error; err != nil {
 			return err
 		}
@@ -459,7 +502,7 @@ func (service *Service) StartCharging(ctx context.Context, principal Principal, 
 		}
 		return ChargingStartResponse{}, chargerMappingUnavailable()
 	}
-	command, err := service.hal.RequestStart(ctx, halops.StartRequest{CMSCommandID: commandID, CMSStartIntentID: intentID, CPOID: principal.CPOID, CustomerID: principal.CustomerID, CMSChargerID: charger.ID, CMSConnectorID: request.ConnectorID, ChargerOCPPIdentity: charger.OCPPIdentity, OCPPConnectorNumber: requestConnectorNumber(mapping, request.ConnectorID), Credential: credential, CredentialExpiresAt: intent.CredentialExpiresAt, CommandExpiresAt: intent.CommandExpiresAt, LimitType: string(intent.LimitType), EnergyLimitWh: intent.EnergyLimitWh, MaxDurationSeconds: intent.MaxDurationSeconds}, correlationID)
+	command, err := service.hal.RequestStart(ctx, halops.StartRequest{CMSCommandID: commandID, CMSStartIntentID: intentID, CPOID: principal.CPOID, CustomerID: principal.CustomerID, CMSChargerID: charger.ID, CMSConnectorID: request.ConnectorID, ChargerOCPPIdentity: charger.OCPPIdentity, OCPPConnectorNumber: requestConnectorNumber(mapping, request.ConnectorID), Credential: credential, CredentialExpiresAt: intent.CredentialExpiresAt, CommandExpiresAt: intent.CommandExpiresAt, LimitType: string(intent.LimitType), EnergyLimitWh: intent.EnergyLimitWh, EnergyLimitSource: string(intent.EnergyLimitSource), MaxDurationSeconds: intent.MaxDurationSeconds, DurationLimitSource: string(intent.DurationLimitSource)}, correlationID)
 	if err != nil {
 		if recordErr := service.markHALStartCommandFailure(ctx, commandID, err); recordErr != nil {
 			return ChargingStartResponse{}, fmt.Errorf("record uncertain HAL start delivery: %w", recordErr)
@@ -578,11 +621,13 @@ type chargingLimitSelection struct {
 }
 
 type effectiveChargingLimit struct {
-	Type               constants.ChargingLimitType
-	RequestedValue     *decimal.Decimal
-	EnergyLimitWh      int64
-	MaxDurationSeconds int64
-	HoldAmount         decimal.Decimal
+	Type                constants.ChargingLimitType
+	RequestedValue      *decimal.Decimal
+	EnergyLimitWh       int64
+	EnergyLimitSource   constants.ChargingLimitSource
+	MaxDurationSeconds  int64
+	DurationLimitSource constants.ChargingLimitSource
+	HoldAmount          decimal.Decimal
 }
 
 // parseChargingLimit keeps the public request deliberately small: a caller may
@@ -636,84 +681,94 @@ func parseChargingLimit(request *ChargingLimitRequest) (chargingLimitSelection, 
 	}
 }
 
-// deriveChargingLimit is the single admission path for omitted/default and
-// explicitly selected limits. Its persisted result is sent through the same
-// HAL start command and later used by the existing meter/deadline stop paths.
-func deriveChargingLimit(balance decimal.Decimal, pricing tariffPricing, gst models.GST, connector models.Connector, settings models.Settings, selection chargingLimitSelection) (effectiveChargingLimit, error) {
+// deriveChargingLimit combines two independent constraint systems. Customer
+// intent contributes a physical boundary in its own requested dimension;
+// wallet safety contributes a tariff-billed-dimension boundary. No path
+// estimates energy from time or time from energy.
+func deriveChargingLimit(balance decimal.Decimal, pricing tariffPricing, gst models.GST, _ models.Connector, settings models.Settings, selection chargingLimitSelection) (effectiveChargingLimit, error) {
 	if balance.LessThanOrEqual(decimal.Zero) {
 		return effectiveChargingLimit{}, errChargingLimitUnaffordable
 	}
-	if selection.Type == constants.ChargingLimitTypeAuto {
-		switch pricing.priceType {
-		case constants.PriceTypeEnergy:
-			energyLimitWh, reserved, err := budgetedEnergyLimit(balance, pricing, gst)
-			if err != nil {
-				return effectiveChargingLimit{}, errChargingLimitUnaffordable
-			}
-			return effectiveChargingLimit{Type: selection.Type, EnergyLimitWh: energyLimitWh, HoldAmount: chargingHoldAmount(reserved, pricing, settings)}, nil
-		case constants.PriceTypeTime:
-			duration, reserved, err := budgetedDuration(balance, pricing, gst)
-			if err != nil {
-				return effectiveChargingLimit{}, errChargingLimitUnaffordable
-			}
-			return effectiveChargingLimit{Type: selection.Type, MaxDurationSeconds: duration, HoldAmount: chargingHoldAmount(reserved, pricing, settings)}, nil
-		case constants.PriceTypeSession:
-			reserved, err := pricing.amountWithGST(0, time.Time{}, time.Time{}, gst)
-			if err != nil || reserved.GreaterThan(balance) {
-				return effectiveChargingLimit{}, errChargingLimitUnaffordable
-			}
-			return effectiveChargingLimit{Type: selection.Type, HoldAmount: chargingHoldAmount(reserved, pricing, settings)}, nil
-		default:
-			return effectiveChargingLimit{}, errChargingLimitUnsupported
-		}
+	walletBound, err := pricing.AffordableBound(balance, gst)
+	if err != nil {
+		return effectiveChargingLimit{}, err
 	}
-	if selection.RequestedValue == nil {
-		return effectiveChargingLimit{}, errChargingLimitInvalid
+	result := effectiveChargingLimit{Type: selection.Type, RequestedValue: selection.RequestedValue, EnergyLimitSource: constants.ChargingLimitSourceNone, DurationLimitSource: constants.ChargingLimitSourceNone}
+	if walletBound.Kind == tariffAffordableEnergy {
+		result.EnergyLimitWh, result.EnergyLimitSource = walletBound.EnergyLimitWh, constants.ChargingLimitSourceWallet
+	}
+	if walletBound.Kind == tariffAffordableTime {
+		result.MaxDurationSeconds, result.DurationLimitSource = walletBound.DurationSeconds, constants.ChargingLimitSourceWallet
 	}
 
+	if selection.Type != constants.ChargingLimitTypeAuto && selection.RequestedValue == nil {
+		return effectiveChargingLimit{}, errChargingLimitInvalid
+	}
 	switch selection.Type {
+	case constants.ChargingLimitTypeAuto:
 	case constants.ChargingLimitTypeEnergy:
-		if pricing.priceType != constants.PriceTypeEnergy {
-			return effectiveChargingLimit{}, errChargingLimitUnsupported
-		}
-		energyLimitWh := selection.RequestedValue.Mul(decimal.NewFromInt(1000)).IntPart()
-		reserved, err := pricing.amountWithGST(energyLimitWh, time.Time{}, time.Time{}, gst)
-		if err != nil || reserved.GreaterThan(balance) {
-			return effectiveChargingLimit{}, errChargingLimitUnaffordable
-		}
-		return effectiveChargingLimit{Type: selection.Type, RequestedValue: selection.RequestedValue, EnergyLimitWh: energyLimitWh, HoldAmount: chargingHoldAmount(reserved, pricing, settings)}, nil
+		applyEnergyConstraint(&result, selection.RequestedValue.Mul(decimal.NewFromInt(1000)).IntPart(), constants.ChargingLimitSourceCustomerEnergy)
 	case constants.ChargingLimitTypeTime:
-		if pricing.priceType != constants.PriceTypeTime {
-			return effectiveChargingLimit{}, errChargingLimitUnsupported
-		}
-		duration := selection.RequestedValue.IntPart() * 60
-		reserved, err := pricing.amountWithGST(0, time.Time{}, time.Time{}.Add(time.Duration(duration)*time.Second), gst)
-		if err != nil || reserved.GreaterThan(balance) {
-			return effectiveChargingLimit{}, errChargingLimitUnaffordable
-		}
-		return effectiveChargingLimit{Type: selection.Type, RequestedValue: selection.RequestedValue, MaxDurationSeconds: duration, HoldAmount: chargingHoldAmount(reserved, pricing, settings)}, nil
+		applyDurationConstraint(&result, selection.RequestedValue.IntPart()*60, constants.ChargingLimitSourceCustomerTime)
 	case constants.ChargingLimitTypeMoney:
 		if selection.RequestedValue.GreaterThan(balance) {
 			return effectiveChargingLimit{}, errChargingLimitUnaffordable
 		}
-		switch pricing.priceType {
-		case constants.PriceTypeEnergy:
-			energyLimitWh, reserved, err := budgetedEnergyLimit(*selection.RequestedValue, pricing, gst)
-			if err != nil {
-				return effectiveChargingLimit{}, err
-			}
-			return effectiveChargingLimit{Type: selection.Type, RequestedValue: selection.RequestedValue, EnergyLimitWh: energyLimitWh, HoldAmount: chargingHoldAmount(reserved, pricing, settings)}, nil
-		case constants.PriceTypeTime:
-			duration, reserved, err := budgetedDuration(*selection.RequestedValue, pricing, gst)
-			if err != nil {
-				return effectiveChargingLimit{}, err
-			}
-			return effectiveChargingLimit{Type: selection.Type, RequestedValue: selection.RequestedValue, MaxDurationSeconds: duration, HoldAmount: chargingHoldAmount(reserved, pricing, settings)}, nil
-		default:
+		customerBound, err := pricing.AffordableBound(*selection.RequestedValue, gst)
+		if err != nil {
+			return effectiveChargingLimit{}, err
+		}
+		switch customerBound.Kind {
+		case tariffAffordableEnergy:
+			applyEnergyConstraint(&result, customerBound.EnergyLimitWh, constants.ChargingLimitSourceCustomerMoney)
+		case tariffAffordableTime:
+			applyDurationConstraint(&result, customerBound.DurationSeconds, constants.ChargingLimitSourceCustomerMoney)
+		case tariffAffordableFixed:
+			// Fixed session price is discrete: customer money is an admission
+			// ceiling, not a continuously enforceable physical threshold.
+		case tariffAffordableNone:
 			return effectiveChargingLimit{}, errChargingLimitUnsupported
 		}
 	default:
 		return effectiveChargingLimit{}, errChargingLimitInvalid
+	}
+
+	// The hold protects the maximum tariff-billed cost that is known without
+	// cross-dimensional prediction. It may shrink only when a customer boundary
+	// is tighter in that exact same billed dimension.
+	nominal := walletBound.Amount
+	switch pricing.priceType {
+	case constants.PriceTypeEnergy:
+		if result.EnergyLimitSource != constants.ChargingLimitSourceWallet && result.EnergyLimitWh > 0 {
+			nominal, err = pricing.amountWithGST(result.EnergyLimitWh, time.Time{}, time.Time{}, gst)
+		}
+	case constants.PriceTypeTime:
+		if result.DurationLimitSource != constants.ChargingLimitSourceWallet && result.MaxDurationSeconds > 0 {
+			nominal, err = pricing.amountWithGST(0, time.Time{}, time.Time{}.Add(time.Duration(result.MaxDurationSeconds)*time.Second), gst)
+		}
+	}
+	if err != nil || nominal.GreaterThan(balance) {
+		return effectiveChargingLimit{}, errChargingLimitUnaffordable
+	}
+	result.HoldAmount = chargingHoldAmount(nominal, pricing, settings)
+	return result, nil
+}
+
+func applyEnergyConstraint(result *effectiveChargingLimit, value int64, source constants.ChargingLimitSource) {
+	if value <= 0 || (result.EnergyLimitWh > 0 && result.EnergyLimitWh < value) {
+		return
+	}
+	if result.EnergyLimitWh == 0 || value < result.EnergyLimitWh || result.EnergyLimitSource == constants.ChargingLimitSourceWallet {
+		result.EnergyLimitWh, result.EnergyLimitSource = value, source
+	}
+}
+
+func applyDurationConstraint(result *effectiveChargingLimit, value int64, source constants.ChargingLimitSource) {
+	if value <= 0 || (result.MaxDurationSeconds > 0 && result.MaxDurationSeconds < value) {
+		return
+	}
+	if result.MaxDurationSeconds == 0 || value < result.MaxDurationSeconds || result.DurationLimitSource == constants.ChargingLimitSourceWallet {
+		result.MaxDurationSeconds, result.DurationLimitSource = value, source
 	}
 }
 
@@ -729,44 +784,25 @@ func chargingHoldAmount(nominal decimal.Decimal, pricing tariffPricing, settings
 }
 
 func budgetedEnergyLimit(budget decimal.Decimal, pricing tariffPricing, gst models.GST) (int64, decimal.Decimal, error) {
-	if pricing.pricePerUnit.IsZero() {
-		return 0, decimal.Zero, errChargingLimitUnsupported
-	}
-	multiplier, err := gstMultiplier(gst)
+	bound, err := pricing.AffordableBound(budget, gst)
 	if err != nil {
 		return 0, decimal.Zero, err
 	}
-	limitWh := budget.Div(pricing.pricePerUnit.Mul(multiplier)).Mul(decimal.NewFromInt(1000)).Floor().IntPart()
-	for limitWh > 0 {
-		amount, err := pricing.amountWithGST(limitWh, time.Time{}, time.Time{}, gst)
-		if err == nil && !amount.GreaterThan(budget) {
-			return limitWh, amount, nil
-		}
-		limitWh--
+	if bound.Kind != tariffAffordableEnergy {
+		return 0, decimal.Zero, errChargingLimitUnsupported
 	}
-	return 0, decimal.Zero, errChargingLimitUnaffordable
+	return bound.EnergyLimitWh, bound.Amount, nil
 }
 
 func budgetedDuration(budget decimal.Decimal, pricing tariffPricing, gst models.GST) (int64, decimal.Decimal, error) {
-	if pricing.pricePerUnit.IsZero() {
-		return 0, decimal.Zero, errChargingLimitUnsupported
-	}
-	multiplier, err := gstMultiplier(gst)
+	bound, err := pricing.AffordableBound(budget, gst)
 	if err != nil {
 		return 0, decimal.Zero, err
 	}
-	duration := budget.Div(pricing.pricePerUnit.Mul(multiplier)).Mul(decimal.NewFromInt(60)).Floor().IntPart()
-	if duration > maxChargingDurationMinutes*60 {
-		duration = maxChargingDurationMinutes * 60
+	if bound.Kind != tariffAffordableTime {
+		return 0, decimal.Zero, errChargingLimitUnsupported
 	}
-	for duration > 0 {
-		amount, err := pricing.amountWithGST(0, time.Time{}, time.Time{}.Add(time.Duration(duration)*time.Second), gst)
-		if err == nil && !amount.GreaterThan(budget) {
-			return duration, amount, nil
-		}
-		duration--
-	}
-	return 0, decimal.Zero, errChargingLimitUnaffordable
+	return bound.DurationSeconds, bound.Amount, nil
 }
 
 // affordableChargingLimit remains the shared affordability helper for tests
@@ -776,22 +812,14 @@ func affordableChargingLimit(balance decimal.Decimal, pricing tariffPricing, gst
 	if balance.LessThanOrEqual(decimal.Zero) {
 		return decimal.Zero, 0, errChargingLimitUnaffordable
 	}
-	switch pricing.priceType {
-	case constants.PriceTypeEnergy:
-		limitWh, amount, err := budgetedEnergyLimit(balance, pricing, gst)
-		return amount, limitWh, err
-	case constants.PriceTypeTime:
-		_, amount, err := budgetedDuration(balance, pricing, gst)
-		return amount, 0, err
-	case constants.PriceTypeSession:
-		amount, err := pricing.amountWithGST(0, time.Time{}, time.Time{}, gst)
-		if err != nil || amount.GreaterThan(balance) {
-			return decimal.Zero, 0, errChargingLimitUnaffordable
-		}
-		return amount, 0, nil
-	default:
-		return decimal.Zero, 0, errUnsupportedTariffSemantics
+	bound, err := pricing.AffordableBound(balance, gst)
+	if err != nil {
+		return decimal.Zero, 0, err
 	}
+	if bound.Kind == tariffAffordableNone {
+		return decimal.Zero, 0, errChargingLimitUnsupported
+	}
+	return bound.Amount, bound.EnergyLimitWh, nil
 }
 
 func taxSnapshot(hubID uuid.UUID, gst models.GST) models.JSONB {

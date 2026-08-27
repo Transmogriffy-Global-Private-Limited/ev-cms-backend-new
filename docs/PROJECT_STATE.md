@@ -2,6 +2,24 @@
 
 ## Current State
 
+### 2026-08-26 - Independent charging-limit provenance deployed
+
+- Customer execution intent is now independent from tariff billing dimension.
+  CMS can send simultaneous energy and duration thresholds when a customer
+  bound and the tariff-dimension wallet guard differ; every AUTO/ENERGY/TIME/
+  MONEY selection is valid for energy, time, and session tariffs.
+- Migration 055 adds durable source fields for each effective threshold and is
+  applied in `devevcmsnewdb`. CMS final settlement remains based on actual
+  evidence and frozen tariff/tax snapshots; the wallet buffer remains a
+  one-time finite metered-stop margin, not a bill cap.
+- Runtime revision `e8ff810` is active behind Caddy with binary SHA-256
+  `c1576ffb163b474ea3e3e984174ba6b02648607a7951917513bbb159e78021ba`.
+  Service readiness, public routing, Swagger/OpenAPI, Caddy validation, and
+  post-rehost startup checks pass. The pre-migration database dump is retained
+  at `/root/evcmsnew-backups/devevcmsnew-before-000055-20260826-150844.dump`.
+  No physical charger acceptance is claimed; disposable PostgreSQL and `pwsh`
+  documentation verification remain unavailable on this VPS.
+
 ### 2026-08-26 - Customer-selected and wallet-derived charging limits
 
 - Customer starts now use one durable admission path for AUTO, ENERGY, TIME,

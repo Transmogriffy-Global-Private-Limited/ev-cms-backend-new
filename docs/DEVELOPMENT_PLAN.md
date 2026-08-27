@@ -125,12 +125,12 @@ Approved current slice:
 
 Current implementation state:
 
-- Customer-selected charging limits are now deployed through the existing
-  start-intent/wallet-hold/HAL lifecycle. Migration 54 is applied; runtime
-  revision `a085f29` is active with the 210-operation API. Readiness, public
-  routing, Swagger/OpenAPI, Caddy, and post-rehost startup checks pass. The
-  pre-migration database dump is retained; physical charger acceptance and
-  disposable PostgreSQL coverage remain pending.
+- Customer-selected charging limits now retain independent threshold
+  provenance through the existing start-intent/wallet-hold/HAL lifecycle.
+  Migration 055 is applied; runtime revision `e8ff810` is active with the
+  211-operation API. Readiness, public routing, Swagger/OpenAPI, Caddy, and
+  post-rehost startup checks pass. Physical charger and disposable PostgreSQL
+  coverage remain pending.
 
 - The existing platform support desk now has a complete SuperAdmin workflow
   handoff. It makes the durable CPO-to-platform conversation boundary, full
@@ -1090,9 +1090,8 @@ Current implementation slice:
   CPO-safe row carries `duration_seconds` at `as_of`, `customer_name`, and CMS
   `connector_id` alongside charger/hub/live telemetry. The explicit
   `/live-sessions/snapshot` JSON endpoint keeps recovery/keyset pagination;
-  filtered event replay is advanced reconciliation only. The source contract
-  has 210 operations and requires focused/broad source verification; no
-  deployment is implied.
+  filtered event replay is advanced reconciliation only. The deployed contract
+  has 211 operations; focused/broad source verification and live readiness pass.
 - Completed source hardening: one-current authentication challenges are
   serialized by their identity owner and backed by partial unique indexes;
   administrative current-password changes lock before authorization; readiness

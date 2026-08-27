@@ -685,18 +685,38 @@ or an optional execution limit, for example:
 
 `ENERGY` uses `energy_kwh` (up to three decimals), `TIME` uses whole
 `duration_minutes`, and `MONEY` uses a two-decimal tariff-currency `amount`.
-Exactly one matching value is required. This does not alter the tariff:
-ENERGY is supported by energy tariffs, TIME by time tariffs, and MONEY by
-either metered tariff. Fixed per-session tariffs accept the omitted AUTO path.
-The response carries `limit` with the durable type, requested value/unit, and
-effective `energy_limit_wh` / `max_duration_seconds`; zero means that
-enforcement dimension is absent.
+Exactly one matching value is required. Customer execution intent never alters
+the tariff or has to match its billing dimension: all ENERGY, TIME, and MONEY
+selections are valid for energy, time, and fixed-session tariffs. A fixed
+session tariff treats MONEY as an admission ceiling only, because it has no
+continuous physical amount threshold. The response carries the durable
+customer `type`/requested value and two independent effective bounds:
+`energy_limit_wh` with `energy_limit_source`, and
+`max_duration_seconds` with `duration_limit_source`. Source is one of
+`CUSTOMER_ENERGY`, `CUSTOMER_TIME`, `CUSTOMER_MONEY`, `WALLET`, or `NONE`.
+Zero means that enforcement dimension is absent.
 
-With no optional limit, CMS derives the effective threshold from the usable
-wallet balance—there is no invented one-hour default. CMS holds the nominal
-metered charge plus the CPO wallet buffer. That buffer deliberately covers
-bounded MeterValues/RemoteStop interval overshoot; a MONEY selection is not an
-exact final-settlement guarantee.
+| Customer limit | Energy tariff | Time tariff | Session tariff |
+| --- | --- | --- | --- |
+| AUTO | wallet Wh | wallet duration | fixed-charge admission only |
+| ENERGY | customer Wh (tighter than wallet Wh) | customer Wh + wallet duration | customer Wh |
+| TIME | wallet Wh + customer duration | customer duration (tighter than wallet duration) | customer duration |
+| MONEY | customer-money Wh | customer-money duration | fixed-charge admission only |
+
+When two bounds exist in one dimension CMS sends the tighter one and records
+the truthful source. The table is an execution-boundary matrix, not a billing
+conversion table: the final amount always follows the selected frozen tariff.
+
+CMS independently derives wallet safety in the tariff billing dimension only:
+energy tariff to Wh, time tariff to duration, and session tariff to its fixed
+admission charge. It never estimates energy from time or vice versa using
+charger power. A cross-dimensional customer limit therefore produces both
+constraints when the wallet has a finite metered bound (for example, customer
+ENERGY plus wallet duration on a time tariff). CMS holds the known metered
+charge plus the CPO wallet buffer exactly once. The buffer deliberately covers
+bounded MeterValues/RemoteStop interval overshoot; it is not a bill cap and a
+MONEY selection is not an exact final-settlement guarantee. Final billing still
+uses actual energy/time and the frozen tariff and tax snapshots.
 
 The endpoint returns `202 ChargingStartResponse`. For a **new** start, the CMS first
 requires its committed connector live projection to be `availability=AVAILABLE`

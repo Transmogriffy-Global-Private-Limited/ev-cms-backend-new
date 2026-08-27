@@ -20,12 +20,13 @@ vertical as the only execution path.
 ## Scope
 
 - Add one optional, mutually exclusive customer start-limit request object.
-- Persist the chosen limit and the effective HAL Wh/time limits on the existing
-  start intent; expose them in customer start-progress and session reads.
+- Persist immutable customer intent separately from each effective HAL Wh/time
+  threshold and its provenance; expose both in customer start-progress and
+  session reads.
 - Derive the existing HAL limits and wallet hold without creating a second
   command, worker, or source of truth.
-- Extend the HAL v1 contract/store only as needed to retain the source limit
-  type through automatic stop evidence.
+- Extend the HAL v1 contract/store only as needed to retain independent
+  threshold provenance through automatic stop evidence.
 - Update migrations, OpenAPI, integration/frontend documentation, focused
   tests, and both repositories' project memory.
 
@@ -59,22 +60,23 @@ vertical as the only execution path.
 
 ## Data and migration impact
 
-- Additive CMS migration 54 preserves existing starts as `AUTO`; it is applied
-  in `devevcmsnewdb` after a transactional dry-run and a retained pre-change
-  dump at `/root/evcmsnew-backups/devevcmsnew-before-000054-20260826-111224.dump`.
+- Additive CMS migration 55 records per-threshold provenance and backfills
+  prior migration-54 rows conservatively. It is applied in `devevcmsnewdb`
+  after a transactional dry-run and a retained pre-change dump.
 
 ## Current state
 
-- Existing tariffs bill by energy, time, or fixed session. The User App could
-  not select a limit: it supplied only charger and connector, while CMS always
-  derived a one-hour duration and an energy guard from wallet/capacity.
+- Existing tariffs bill by energy, time, or fixed session. The User App now
+  supplies an optional customer limit while CMS independently derives the
+  wallet-safe billed-dimension guard.
 
 ## Verification
 
 - Focused tests, route/OpenAPI parity, full `go test ./...`, `go vet ./...`,
-  and `git diff --check` pass. The binary was rebuilt and rehosted as runtime
-  revision `a085f29`; service/readiness, public routing, Swagger/OpenAPI,
-  Caddy, and post-rehost startup checks pass. Physical charger and disposable
+  and `git diff --check` pass. Migration 55 was applied after a transactional
+  dry-run and backup. The binary was rebuilt and rehosted as runtime revision
+  `e8ff810`; service/readiness, public routing, Swagger/OpenAPI, Caddy, and
+  post-rehost startup checks pass. Physical charger and disposable
   PostgreSQL/dual-service acceptance remain pending.
 
 ## Handoff

@@ -24,6 +24,26 @@ type tariffPricing struct {
 	legacyPerWh  bool
 }
 
+type tariffAffordableBoundKind string
+
+const (
+	tariffAffordableEnergy tariffAffordableBoundKind = "ENERGY_BOUND"
+	tariffAffordableTime   tariffAffordableBoundKind = "TIME_BOUND"
+	tariffAffordableFixed  tariffAffordableBoundKind = "FIXED_CHARGE"
+	tariffAffordableNone   tariffAffordableBoundKind = "NONE"
+)
+
+// tariffAffordableBound is the tariff-owned inversion of the same immutable
+// pricing calculation used at settlement. It deliberately exposes only the
+// tariff's billed dimension: admission must never predict kWh from time or
+// time from kWh using charger power.
+type tariffAffordableBound struct {
+	Kind            tariffAffordableBoundKind
+	EnergyLimitWh   int64
+	DurationSeconds int64
+	Amount          decimal.Decimal
+}
+
 func tariffPricingFromTariff(tariff models.Tariff) (tariffPricing, error) {
 	if !constants.SupportedChargingTariff(tariff.TariffType, tariff.PriceType, tariff.Units) {
 		return tariffPricing{}, errUnsupportedTariffSemantics
@@ -101,6 +121,63 @@ func (pricing tariffPricing) amountWithGST(consumedWh int64, startedAt, stoppedA
 		return decimal.Zero, err
 	}
 	return applyGST(baseAmount, gst)
+}
+
+func (pricing tariffPricing) AffordableBound(budget decimal.Decimal, gst models.GST) (tariffAffordableBound, error) {
+	if budget.LessThan(decimal.Zero) {
+		return tariffAffordableBound{}, errUnsupportedTariffSemantics
+	}
+	switch pricing.priceType {
+	case constants.PriceTypeEnergy:
+		if pricing.pricePerUnit.IsZero() {
+			return tariffAffordableBound{Kind: tariffAffordableNone}, nil
+		}
+		multiplier, err := gstMultiplier(gst)
+		if err != nil {
+			return tariffAffordableBound{}, err
+		}
+		limitWh := budget.Div(pricing.pricePerUnit.Mul(multiplier)).Mul(decimal.NewFromInt(1000)).Floor().IntPart()
+		for limitWh > 0 {
+			amount, err := pricing.amountWithGST(limitWh, time.Time{}, time.Time{}, gst)
+			if err == nil && !amount.GreaterThan(budget) {
+				return tariffAffordableBound{Kind: tariffAffordableEnergy, EnergyLimitWh: limitWh, Amount: amount}, nil
+			}
+			limitWh--
+		}
+		return tariffAffordableBound{}, errChargingLimitUnaffordable
+	case constants.PriceTypeTime:
+		if pricing.pricePerUnit.IsZero() {
+			return tariffAffordableBound{Kind: tariffAffordableNone}, nil
+		}
+		multiplier, err := gstMultiplier(gst)
+		if err != nil {
+			return tariffAffordableBound{}, err
+		}
+		duration := budget.Div(pricing.pricePerUnit.Mul(multiplier)).Mul(decimal.NewFromInt(60)).Floor().IntPart()
+		maxSeconds := int64((time.Duration(1<<63 - 1)) / time.Second)
+		if duration > maxSeconds {
+			duration = maxSeconds
+		}
+		for duration > 0 {
+			amount, err := pricing.amountWithGST(0, time.Time{}, time.Time{}.Add(time.Duration(duration)*time.Second), gst)
+			if err == nil && !amount.GreaterThan(budget) {
+				return tariffAffordableBound{Kind: tariffAffordableTime, DurationSeconds: duration, Amount: amount}, nil
+			}
+			duration--
+		}
+		return tariffAffordableBound{}, errChargingLimitUnaffordable
+	case constants.PriceTypeSession:
+		amount, err := pricing.amountWithGST(0, time.Time{}, time.Time{}, gst)
+		if err != nil {
+			return tariffAffordableBound{}, err
+		}
+		if amount.GreaterThan(budget) {
+			return tariffAffordableBound{}, errChargingLimitUnaffordable
+		}
+		return tariffAffordableBound{Kind: tariffAffordableFixed, Amount: amount}, nil
+	default:
+		return tariffAffordableBound{}, errUnsupportedTariffSemantics
+	}
 }
 
 func (pricing tariffPricing) snapshot(tariff models.Tariff) models.JSONB {

@@ -125,8 +125,69 @@ func TestCustomerSelectedChargingLimitsUseTheExistingAdmissionInputs(t *testing.
 	if err != nil || timeLimit.EnergyLimitWh != 0 || timeLimit.MaxDurationSeconds != 2700 || !timeLimit.HoldAmount.Equal(decimal.NewFromInt(95)) {
 		t.Fatalf("time limit=%+v err=%v, want 2700 seconds and 90+5 hold", timeLimit, err)
 	}
-	if _, err := deriveChargingLimit(decimal.NewFromInt(100), timePricing, gst, models.Connector{}, models.Settings{}, energySelection); !errors.Is(err, errChargingLimitUnsupported) {
-		t.Fatalf("energy limit on time tariff err=%v, want incompatible limit", err)
+	crossDimension, err := deriveChargingLimit(decimal.NewFromInt(100), timePricing, gst, models.Connector{}, models.Settings{}, energySelection)
+	if err != nil || crossDimension.EnergyLimitWh != 3250 || crossDimension.EnergyLimitSource != constants.ChargingLimitSourceCustomerEnergy || crossDimension.MaxDurationSeconds != 3000 || crossDimension.DurationLimitSource != constants.ChargingLimitSourceWallet || !crossDimension.HoldAmount.Equal(decimal.NewFromInt(100)) {
+		t.Fatalf("energy customer/time tariff=%+v err=%v, want independent customer energy plus wallet duration", crossDimension, err)
+	}
+}
+
+func TestChargingLimitTariffMatrixKeepsCustomerAndWalletConstraintsIndependent(t *testing.T) {
+	t.Parallel()
+	zero := decimal.Zero
+	gst := models.GST{SGSTRate: &zero, CGSTRate: &zero, IGSTRate: &zero}
+	energyType, energyPrice, energyUnits := energyTariffMetadata()
+	energy, err := tariffPricingFromTariff(models.Tariff{PricePerUnit: decimal.NewFromInt(10), TariffType: &energyType, PriceType: &energyPrice, Units: &energyUnits})
+	if err != nil {
+		t.Fatal(err)
+	}
+	fixed := constants.TariffTypeFixed
+	timeType, timeUnits := constants.PriceTypeTime, constants.UnitMinutes
+	timePricing, err := tariffPricingFromTariff(models.Tariff{PricePerUnit: decimal.NewFromInt(2), TariffType: &fixed, PriceType: &timeType, Units: &timeUnits})
+	if err != nil {
+		t.Fatal(err)
+	}
+	sessionType := constants.PriceTypeSession
+	session, err := tariffPricingFromTariff(models.Tariff{PricePerUnit: decimal.NewFromInt(25), TariffType: &fixed, PriceType: &sessionType})
+	if err != nil {
+		t.Fatal(err)
+	}
+	energyValue, timeValue, moneyValue := decimal.NewFromInt(5), decimal.NewFromInt(20), decimal.NewFromInt(60)
+	selections := []chargingLimitSelection{
+		{Type: constants.ChargingLimitTypeAuto},
+		{Type: constants.ChargingLimitTypeEnergy, RequestedValue: &energyValue},
+		{Type: constants.ChargingLimitTypeTime, RequestedValue: &timeValue},
+		{Type: constants.ChargingLimitTypeMoney, RequestedValue: &moneyValue},
+	}
+	tests := []struct {
+		name           string
+		tariff         tariffPricing
+		selection      chargingLimitSelection
+		energySource   constants.ChargingLimitSource
+		durationSource constants.ChargingLimitSource
+	}{
+		{"auto energy", energy, selections[0], constants.ChargingLimitSourceWallet, constants.ChargingLimitSourceNone},
+		{"auto time", timePricing, selections[0], constants.ChargingLimitSourceNone, constants.ChargingLimitSourceWallet},
+		{"auto session", session, selections[0], constants.ChargingLimitSourceNone, constants.ChargingLimitSourceNone},
+		{"energy energy", energy, selections[1], constants.ChargingLimitSourceCustomerEnergy, constants.ChargingLimitSourceNone},
+		{"energy time", timePricing, selections[1], constants.ChargingLimitSourceCustomerEnergy, constants.ChargingLimitSourceWallet},
+		{"energy session", session, selections[1], constants.ChargingLimitSourceCustomerEnergy, constants.ChargingLimitSourceNone},
+		{"time energy", energy, selections[2], constants.ChargingLimitSourceWallet, constants.ChargingLimitSourceCustomerTime},
+		{"time time", timePricing, selections[2], constants.ChargingLimitSourceNone, constants.ChargingLimitSourceCustomerTime},
+		{"time session", session, selections[2], constants.ChargingLimitSourceNone, constants.ChargingLimitSourceCustomerTime},
+		{"money energy", energy, selections[3], constants.ChargingLimitSourceCustomerMoney, constants.ChargingLimitSourceNone},
+		{"money time", timePricing, selections[3], constants.ChargingLimitSourceNone, constants.ChargingLimitSourceCustomerMoney},
+		{"money session", session, selections[3], constants.ChargingLimitSourceNone, constants.ChargingLimitSourceNone},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			limit, err := deriveChargingLimit(decimal.NewFromInt(100), test.tariff, gst, models.Connector{}, models.Settings{}, test.selection)
+			if err != nil {
+				t.Fatalf("unexpectedly rejected: %v", err)
+			}
+			if limit.EnergyLimitSource != test.energySource || limit.DurationLimitSource != test.durationSource {
+				t.Fatalf("sources=(%s,%s), want (%s,%s)", limit.EnergyLimitSource, limit.DurationLimitSource, test.energySource, test.durationSource)
+			}
+		})
 	}
 }
 

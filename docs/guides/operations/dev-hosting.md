@@ -29,9 +29,9 @@ that setting; it must not be used until the OCPP host is explicitly configured
 with TLS/WebSocket support.
 
 The active deployment was updated on August 26, 2026 to runtime source revision
-`a085f294906cc4fe9cfc6dfeb04e99cc90fac61b` (`a085f29`). It has migrations one
-through fifty-four and the current 210-operation API. The binary SHA-256 is
-`ff6341384fc85c11191c709edc8fdba6f3f27207d0a2af4bb36069636544e9e5`.
+`e8ff810e49c9564b25aef581ab87d051024ca77e` (`e8ff810`). It has migrations one
+through fifty-five and the current 211-operation API. The binary SHA-256 is
+`c1576ffb163b474ea3e3e984174ba6b02648607a7951917513bbb159e78021ba`.
 The pre-migration binary and database dump for migrations 49 through 53 are
 retained under `/root/evcmsnew-backups/` and
 `builds/evcmsnew.pre-162b3be-20260825-135452` and the newer
@@ -41,10 +41,12 @@ retained under `/root/evcmsnew-backups/` and
 `builds/evcmsnew.pre-d3ac043-20260825-160754` and the newer
 `builds/evcmsnew.pre-f432f45-20260825-162920` and the newer
 `builds/evcmsnew.pre-e6c0ebb-20260825-164521` and the newer
-`builds/evcmsnew.pre-a085f29-20260826-111224`. Migration 54 adds customer-selected
-charging-limit metadata and validation to charging start intents; its pre-change
-database dump is retained at
-`/root/evcmsnew-backups/devevcmsnew-before-000054-20260826-111224.dump`.
+`builds/evcmsnew.pre-a085f29-20260826-111224` and
+`builds/evcmsnew.pre-e8ff810-20260826-150844`. Migration 54 adds
+customer-selected charging-limit metadata and validation to charging start
+intents; migration 55 adds independent threshold provenance. The pre-change
+database dump for migration 55 is retained at
+`/root/evcmsnew-backups/devevcmsnew-before-000055-20260826-150844.dump`.
 Migration 53 installs GSTIN,
 GSTIN-state, and PIN checks as `NOT VALID`, preserving three existing legacy
 CPO rows while enforcing the rules for new and updated rows. Migrations 45
@@ -169,7 +171,7 @@ The deployment copies `.env.example` to `.env`, then overrides:
 - five independently generated 32-byte base64 cryptographic keys.
 
 `DATABASE_URL` and `SMTP_PASSWORD` contain deployment secrets only in the
-ignored environment file. The service is enabled and active, all fifty-four forward
+ignored environment file. The service is enabled and active, all fifty-five forward
 migrations are recorded, and startup idempotently retained the configured
 platform superadmin.
 
@@ -230,7 +232,7 @@ content exclusions are defined in
 `docs/contracts/internal/http-request-logging.md`. Long-lived SSE requests are
 recorded when they disconnect. A recovered panic first emits a correlated safe
 JSON stack diagnostic without Gin's request dump or the panic value. The
-currently deployed `ebb57fb` binary includes this logger.
+currently deployed `e8ff810` binary includes this logger.
 
 The platform realtime SSE route is long-lived. If a browser holds that stream
 during a rehost, the application may log `shut down HTTP server: context

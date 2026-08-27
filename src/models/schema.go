@@ -372,27 +372,29 @@ type ChargingSession struct {
 // made before a command crosses the service boundary. It is not OCPP start
 // truth and cannot materialize a session by itself.
 type ChargingStartIntent struct {
-	ID                    uuid.UUID                   `gorm:"type:uuid;primaryKey" json:"id"`
-	CPOID                 uuid.UUID                   `gorm:"type:uuid;not null;index" json:"cpo_id"`
-	CustomerID            uuid.UUID                   `gorm:"type:uuid;not null;index" json:"customer_id"`
-	ChargerID             uuid.UUID                   `gorm:"type:uuid;not null;index" json:"charger_id"`
-	ConnectorID           uuid.UUID                   `gorm:"type:uuid;not null;index" json:"connector_id"`
-	WalletID              uuid.UUID                   `gorm:"type:uuid;not null;index" json:"wallet_id"`
-	TariffID              uuid.UUID                   `gorm:"type:uuid;not null;index" json:"tariff_id"`
-	Status                constants.StartIntentStatus `gorm:"type:varchar(32);not null;index" json:"status"`
-	CredentialHash        string                      `gorm:"type:char(64);not null;uniqueIndex" json:"-"`
-	CredentialExpiresAt   time.Time                   `gorm:"type:timestamptz;not null" json:"credential_expires_at"`
-	CommandExpiresAt      time.Time                   `gorm:"type:timestamptz;not null" json:"command_expires_at"`
-	EnergyLimitWh         int64                       `gorm:"type:bigint;not null" json:"energy_limit_wh"`
-	MaxDurationSeconds    int64                       `gorm:"type:bigint;not null" json:"max_duration_seconds"`
-	LimitType             constants.ChargingLimitType `gorm:"type:varchar(16);not null;default:'AUTO'" json:"limit_type"`
-	RequestedLimitValue   *decimal.Decimal            `gorm:"type:numeric(14,3)" json:"requested_limit_value,omitempty"`
-	TariffSnapshot        JSONB                       `gorm:"type:jsonb;not null" json:"tariff_snapshot"`
-	TaxSnapshot           JSONB                       `gorm:"type:jsonb;not null" json:"tax_snapshot"`
-	MaterializedSessionID *uuid.UUID                  `gorm:"type:uuid;uniqueIndex" json:"materialized_session_id,omitempty"`
-	HALCommandID          *uuid.UUID                  `gorm:"type:uuid" json:"hal_command_id,omitempty"`
-	CreatedAt             time.Time                   `gorm:"not null" json:"created_at"`
-	UpdatedAt             time.Time                   `gorm:"not null" json:"updated_at"`
+	ID                    uuid.UUID                     `gorm:"type:uuid;primaryKey" json:"id"`
+	CPOID                 uuid.UUID                     `gorm:"type:uuid;not null;index" json:"cpo_id"`
+	CustomerID            uuid.UUID                     `gorm:"type:uuid;not null;index" json:"customer_id"`
+	ChargerID             uuid.UUID                     `gorm:"type:uuid;not null;index" json:"charger_id"`
+	ConnectorID           uuid.UUID                     `gorm:"type:uuid;not null;index" json:"connector_id"`
+	WalletID              uuid.UUID                     `gorm:"type:uuid;not null;index" json:"wallet_id"`
+	TariffID              uuid.UUID                     `gorm:"type:uuid;not null;index" json:"tariff_id"`
+	Status                constants.StartIntentStatus   `gorm:"type:varchar(32);not null;index" json:"status"`
+	CredentialHash        string                        `gorm:"type:char(64);not null;uniqueIndex" json:"-"`
+	CredentialExpiresAt   time.Time                     `gorm:"type:timestamptz;not null" json:"credential_expires_at"`
+	CommandExpiresAt      time.Time                     `gorm:"type:timestamptz;not null" json:"command_expires_at"`
+	EnergyLimitWh         int64                         `gorm:"type:bigint;not null" json:"energy_limit_wh"`
+	EnergyLimitSource     constants.ChargingLimitSource `gorm:"type:varchar(32);not null;default:'NONE'" json:"energy_limit_source"`
+	MaxDurationSeconds    int64                         `gorm:"type:bigint;not null" json:"max_duration_seconds"`
+	DurationLimitSource   constants.ChargingLimitSource `gorm:"type:varchar(32);not null;default:'NONE'" json:"duration_limit_source"`
+	LimitType             constants.ChargingLimitType   `gorm:"type:varchar(16);not null;default:'AUTO'" json:"limit_type"`
+	RequestedLimitValue   *decimal.Decimal              `gorm:"type:numeric(14,3)" json:"requested_limit_value,omitempty"`
+	TariffSnapshot        JSONB                         `gorm:"type:jsonb;not null" json:"tariff_snapshot"`
+	TaxSnapshot           JSONB                         `gorm:"type:jsonb;not null" json:"tax_snapshot"`
+	MaterializedSessionID *uuid.UUID                    `gorm:"type:uuid;uniqueIndex" json:"materialized_session_id,omitempty"`
+	HALCommandID          *uuid.UUID                    `gorm:"type:uuid" json:"hal_command_id,omitempty"`
+	CreatedAt             time.Time                     `gorm:"not null" json:"created_at"`
+	UpdatedAt             time.Time                     `gorm:"not null" json:"updated_at"`
 }
 
 type WalletHold struct {
