@@ -5393,26 +5393,33 @@ func (service *Service) GetCustomer(
 }
 
 func (service *Service) getCustomerAggregates(ctx context.Context, customerID uuid.UUID) (*CustomerAggregates, error) {
-	var aggregates CustomerAggregates
-
+	var sessionAgg struct {
+		TotalUsageKWh decimal.Decimal
+		SessionCount  int64
+	}
 	err := service.database.WithContext(ctx).Model(&models.ChargingSession{}).
 		Select("COALESCE(SUM(total_kwh), 0) as total_usage_kwh, COUNT(*) as session_count").
-		Where("customer_id = ? AND status IN (?, ?)", customerID, constants.SessionStatusCompleted, constants.SessionStatusReconciliationRequired).
-		Scan(&aggregates).Error
+		Where("customer_id = ? AND status IN (?, ?)", customerID,
+			constants.SessionStatusCompleted, constants.SessionStatusReconciliationRequired).
+		Scan(&sessionAgg).Error
 	if err != nil {
 		return nil, err
 	}
 
+	var walletBalance decimal.Decimal
 	err = service.database.WithContext(ctx).Model(&models.Wallet{}).
-		Select("balance as wallet_balance").
+		Select("COALESCE(balance, 0) as balance").
 		Where("customer_id = ?", customerID).
-		Scan(&aggregates).Error
-
-	if err != nil {
+		Scan(&walletBalance).Error
+	if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, err
 	}
 
-	return &aggregates, nil
+	return &CustomerAggregates{
+		TotalUsageKWh: sessionAgg.TotalUsageKWh,
+		SessionCount:  sessionAgg.SessionCount,
+		WalletBalance: walletBalance,
+	}, nil
 }
 
 func (service *Service) getCustomerAggregatesByCPO(ctx context.Context, cpoID uuid.UUID) (map[uuid.UUID]CustomerAggregates, error) {
