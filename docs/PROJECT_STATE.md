@@ -2,6 +2,19 @@
 
 ## Current State
 
+### 2026-08-28 - CPO live-session OCPP transaction identity deployed
+
+- CPO live-session snapshots and SSE payloads now expose the durable OCPP
+  transaction identifier as `ocpp_transaction_id`, alongside the existing
+  CMS session and charger context. The OpenAPI contract and focused projection
+  tests match the runtime response. No migration or data repair was required.
+- Runtime revision `632ec13d359bafc355d961aa9ff925fa089ac6ac` is active behind
+  Caddy with binary SHA-256
+  `5595f05de08736f7e7b7e509b9092fe16592e3eda0308f500614b4eb46b33b47`.
+  Service/readiness, public routing, Swagger/OpenAPI (213 operations), Caddy,
+  and post-rehost startup checks pass. The prior binary is retained at
+  `builds/evcmsnew.pre-deployed-d635446-20260828-164259` for rollback.
+
 ### 2026-08-28 - Live charging financial and usage projections deployed
 
 - Customer session detail, CPO customer reads, and CPO live-session snapshots

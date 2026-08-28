@@ -125,6 +125,12 @@ Approved current slice:
 
 Current implementation state:
 
+- CPO live-session snapshots and SSE payloads now expose
+  `ocpp_transaction_id` from the durable transaction projection. Runtime
+  revision `632ec13` is deployed without a migration; service/readiness,
+  public routing, Swagger/OpenAPI (213 operations), Caddy, and post-rehost
+  checks pass.
+
 - Live charging financial and usage projections are deployed in runtime
   revision `d635446`. Customer and CPO reads use the shared immutable
   tariff/tax snapshot evaluator; projected amounts remain distinct from final

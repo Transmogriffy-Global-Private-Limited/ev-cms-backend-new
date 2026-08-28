@@ -1,5 +1,21 @@
 # AI Changelog
 
+## 2026-08-28 - Deploy CPO live-session OCPP transaction identity
+
+- Rebuilt and rehosted source revision `632ec13`, which exposes the durable
+  OCPP transaction identifier as `ocpp_transaction_id` in CPO live-session
+  snapshots and SSE payloads. No database migration was pending or required.
+- Retained the previously active binary at
+  `builds/evcmsnew.pre-deployed-d635446-20260828-164259` for rollback.
+
+Verification: service active with zero restarts, loopback and public live/readiness
+checks pass, public OpenAPI contains `ocpp_transaction_id`, Swagger UI responds,
+Caddy configuration validates, and post-rehost logs show successful startup.
+Focused projection and OpenAPI route-parity tests plus the previously completed
+full Go tests and vet passed. `pwsh` is unavailable on this VPS, so the
+PowerShell documentation verifier was not run; physical charger and SMTP
+delivery acceptance remain unclaimed.
+
 ## 2026-08-28 - Add live charging financial and usage projections
 
 - Added one shared snapshot-pricing evaluator for current accrued amounts,
