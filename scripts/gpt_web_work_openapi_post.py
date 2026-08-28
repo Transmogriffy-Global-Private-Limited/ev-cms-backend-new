@@ -1,4 +1,5 @@
 from pathlib import Path
+import re
 
 path = Path("docs/contracts/openapi/openapi.yaml")
 text = path.read_text()
@@ -6,9 +7,9 @@ anchor = "\n    ChargingSessionView:\n"
 start = text.find(anchor)
 if start < 0:
     raise SystemExit("ChargingSessionView schema not found")
-next_schema = text.find("\n    ", start + len(anchor))
-if next_schema < 0:
-    next_schema = len(text)
+body_start = start + len(anchor)
+match = re.search(r"\n    [A-Za-z][A-Za-z0-9_]*:\n", text[body_start:])
+next_schema = body_start + match.start() if match else len(text)
 section = text[start:next_schema]
 if "projected_amount:" in section:
     raise SystemExit("ChargingSessionView already has projected_amount unexpectedly")
