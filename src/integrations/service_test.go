@@ -19,7 +19,7 @@ func TestMaskedKeyID(t *testing.T) {
 	}
 }
 
-func TestCPOCredentialServiceRejectsNonAdministrativePrincipal(t *testing.T) {
+func TestCPOCredentialScopeGuardAcceptsCPOPrincipal(t *testing.T) {
 	t.Parallel()
 
 	cpoID := uuid.New()
@@ -30,7 +30,7 @@ func TestCPOCredentialServiceRejectsNonAdministrativePrincipal(t *testing.T) {
 		CPOID:  &cpoID,
 		Role:   &operator,
 	})
-	if err == nil {
-		t.Fatal("operator was allowed to manage integration credentials")
+	if err != nil {
+		t.Fatalf("CPO scope was rejected before permission evaluation: %v", err)
 	}
 }

@@ -11,6 +11,7 @@ import (
 
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/auth"
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/constants"
+	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/cpopermissions"
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/models"
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/security"
 	"github.com/google/uuid"
@@ -50,7 +51,7 @@ func (service *Service) List(
 	ctx context.Context,
 	principal auth.Principal,
 ) ([]IntegrationView, error) {
-	cpoID, err := requireCPOPrincipal(principal)
+	cpoID, err := service.requirePermission(ctx, principal, cpopermissions.SettingsRead)
 	if err != nil {
 		return nil, err
 	}
@@ -73,7 +74,7 @@ func (service *Service) Get(
 	principal auth.Principal,
 	provider string,
 ) (IntegrationView, error) {
-	cpoID, err := requireCPOPrincipal(principal)
+	cpoID, err := service.requirePermission(ctx, principal, cpopermissions.SettingsRead)
 	if err != nil {
 		return IntegrationView{}, err
 	}
@@ -102,7 +103,7 @@ func (service *Service) PutRazorpay(
 	provider string,
 	credentials RazorpayCredentials,
 ) (IntegrationView, error) {
-	cpoID, err := requireCPOPrincipal(principal)
+	cpoID, err := service.requirePermission(ctx, principal, cpopermissions.SettingsManage)
 	if err != nil {
 		return IntegrationView{}, err
 	}
@@ -183,7 +184,7 @@ func (service *Service) Delete(
 	principal auth.Principal,
 	provider string,
 ) error {
-	cpoID, err := requireCPOPrincipal(principal)
+	cpoID, err := service.requirePermission(ctx, principal, cpopermissions.SettingsManage)
 	if err != nil {
 		return err
 	}
@@ -256,16 +257,25 @@ func (service *Service) ResolveRazorpay(
 }
 
 func requireCPOPrincipal(principal auth.Principal) (uuid.UUID, error) {
-	if principal.Scope != constants.AuthScopeCPO ||
-		principal.CPOID == nil ||
-		principal.Role == nil ||
-		*principal.Role != constants.CPORoleAdmin {
+	if principal.Scope != constants.AuthScopeCPO || principal.CPOID == nil {
 		return uuid.Nil, &auth.APIError{
 			Status: http.StatusForbidden, Code: "forbidden",
 			Message: "CPO administrator access is required.",
 		}
 	}
 	return *principal.CPOID, nil
+}
+
+func (service *Service) requirePermission(ctx context.Context, principal auth.Principal, permission string) (uuid.UUID, error) {
+	cpoID, err := requireCPOPrincipal(principal)
+	if err != nil {
+		return uuid.Nil, err
+	}
+	_, allowed, err := auth.EvaluateCPOPermission(ctx, service.database, principal, permission)
+	if err != nil || !allowed {
+		return uuid.Nil, &auth.APIError{Status: http.StatusForbidden, Code: "forbidden", Message: "You do not have access to this operation."}
+	}
+	return cpoID, nil
 }
 
 func validateProvider(provider string) (string, error) {

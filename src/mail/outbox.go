@@ -27,6 +27,9 @@ type MessagePayload struct {
 	CPOName           string    `json:"cpo_name,omitempty"`
 	CPOID             string    `json:"cpo_id,omitempty"`
 	CPOAppID          string    `json:"cpo_app_id,omitempty"`
+	Role              string    `json:"role,omitempty"`
+	ActionURL         string    `json:"action_url,omitempty"`
+	PlanName          string    `json:"plan_name,omitempty"`
 }
 
 type MessageContext struct {
@@ -107,7 +110,7 @@ func validateMessagePayload(template string, payload MessagePayload) error {
 		if strings.TrimSpace(payload.Code) == "" || payload.ExpiresAt.IsZero() {
 			return fmt.Errorf("validate %s mail payload: reset code and expiry are required", template)
 		}
-	case "CPO_ADMIN_WELCOME":
+	case "CPO_ADMIN_WELCOME", "CPO_STAFF_NEW_IDENTITY":
 		if strings.TrimSpace(payload.TemporaryPassword) == "" {
 			return errors.New("validate CPO_ADMIN_WELCOME mail payload: temporary password is required")
 		}
@@ -115,12 +118,16 @@ func validateMessagePayload(template string, payload MessagePayload) error {
 		if strings.TrimSpace(payload.TemporaryPassword) == "" {
 			return errors.New("validate PLATFORM_ADMIN_INVITE mail payload: temporary password is required")
 		}
-	case "CPO_MEMBERSHIP_ASSIGNED", "CPO_ONBOARDING_RESENT":
-		if strings.TrimSpace(payload.CPOName) == "" || strings.TrimSpace(payload.CPOID) == "" || strings.TrimSpace(payload.CPOAppID) == "" {
-			return fmt.Errorf("validate %s mail payload: CPO name, ID, and app ID are required", template)
+	case "CPO_MEMBERSHIP_ASSIGNED", "CPO_ONBOARDING_RESENT", "CPO_STAFF_EXISTING_IDENTITY", "CPO_STAFF_ROLE_CHANGED", "CPO_STAFF_SUSPENDED", "CPO_STAFF_REACTIVATED", "CPO_STAFF_REVOKED":
+		if strings.TrimSpace(payload.CPOName) == "" {
+			return fmt.Errorf("validate %s mail payload: CPO name is required", template)
 		}
 	case "PASSWORD_CHANGE_REMINDER", "PLATFORM_ADMIN_GRANTED":
 		return nil
+	case "CPO_SUBSCRIPTION_EXPIRY_WARNING", "CPO_SUBSCRIPTION_EXPIRED":
+		if strings.TrimSpace(payload.CPOName) == "" || payload.ExpiresAt.IsZero() {
+			return fmt.Errorf("validate %s mail payload: CPO name and expiry are required", template)
+		}
 	default:
 		return fmt.Errorf("validate mail payload: unknown template %q", template)
 	}

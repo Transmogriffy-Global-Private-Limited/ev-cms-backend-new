@@ -105,7 +105,7 @@ func run() error {
 	subscriptionLifecycleInstanceKey := processInstanceKey + ":subscription-lifecycle"
 	platformService := platformops.NewService(gormDB, cfg.Platform)
 	superadminService := superadmin.NewService(gormDB, platformService, outbox, cfg.Mail.Enabled)
-	subscriptionService := subscriptions.NewService(gormDB, platformService)
+	subscriptionService := subscriptions.NewService(gormDB, platformService).WithOutbox(outbox)
 	supportService := support.NewService(gormDB)
 	halOperations := halops.New(gormDB, cfg.HAL)
 	platformService.WithHALFactRequeuer(halOperations)

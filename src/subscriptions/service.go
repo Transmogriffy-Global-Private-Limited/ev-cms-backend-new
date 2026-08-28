@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/auth"
+	cmsmail "github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/mail"
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/models"
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/platformops"
 	"github.com/google/uuid"
@@ -29,7 +30,13 @@ var currentStatuses = []string{"TRIAL", "ACTIVE", "PAUSED", "PAST_DUE"}
 type Service struct {
 	database *gorm.DB
 	events   *platformops.Service
+	outbox   *cmsmail.Outbox
 	now      func() time.Time
+}
+
+func (service *Service) WithOutbox(outbox *cmsmail.Outbox) *Service {
+	service.outbox = outbox
+	return service
 }
 
 func NewService(database *gorm.DB, events *platformops.Service) *Service {

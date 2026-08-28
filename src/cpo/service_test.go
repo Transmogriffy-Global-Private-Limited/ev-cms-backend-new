@@ -478,7 +478,7 @@ func TestCPORecoveryOperationsRequirePlatformBeforeDatabaseAccess(t *testing.T) 
 	}
 }
 
-func TestTenantOperationsCurrentlyRequireAdmin(t *testing.T) {
+func TestTenantServiceGuardOnlyChecksTrustedCPOContext(t *testing.T) {
 	t.Parallel()
 
 	cpoID := uuid.New()
@@ -491,16 +491,14 @@ func TestTenantOperationsCurrentlyRequireAdmin(t *testing.T) {
 		}
 	}
 
-	if err := requireCPOAdminAccess(principal(constants.CPORoleAdmin)); err != nil {
-		t.Fatalf("administrator access was rejected: %v", err)
-	}
 	for _, role := range []constants.CPORole{
+		constants.CPORoleAdmin,
 		constants.CPORoleOwner,
 		constants.CPORoleOperator,
 		constants.CPORoleViewer,
 	} {
-		if err := requireCPOAdminAccess(principal(role)); err == nil {
-			t.Fatalf("dormant %s role was allowed to use CPO operations", role)
+		if err := requireCPOAdminAccess(principal(role)); err != nil {
+			t.Fatalf("CPO context for %s was rejected: %v", role, err)
 		}
 	}
 }

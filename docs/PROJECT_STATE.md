@@ -2,6 +2,24 @@
 
 ## Current State
 
+### 2026-08-28 - Support core completed in the uncommitted worktree
+
+- Migration 057 converts historical ticket `PENDING` state to `IN_PROGRESS`,
+  adds immutable ticket events, and preserves ticket/message state as the
+  durable authority. Platform status changes are graph-validated and locked;
+  CPO replies reopen resolved/closed tickets with a separate truthful status
+  event and clear `closed_at`.
+- Support queues are bounded summary pages with timestamp-plus-ID cursors,
+  tenant/status/search filters, last-message metadata, and no thread bodies.
+  Detail returns the ticket, ordered messages, and lifecycle history. Replies
+  have durable per-ticket idempotency keys and lock the current row before any
+  mutation. Request bodies are bounded, one-object, unknown-field-rejecting
+  JSON.
+- Source OpenAPI and the SuperAdmin support workflow guide describe the new
+  contract. This state is not deployed and no migration was applied. Focused
+  support/OpenAPI checks passed; the PostgreSQL lifecycle/concurrency test is
+  gated on an explicitly selected disposable `TEST_DATABASE_URL`.
+
 ### 2026-08-26 - Independent charging-limit provenance deployed
 
 - Customer execution intent is now independent from tariff billing dimension.

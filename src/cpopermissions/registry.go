@@ -1,25 +1,35 @@
-// Package cpopermissions defines the stable, source-controlled capability
-// catalog used by CPO membership authorization.  Keys are deliberately not
-// tenant-configurable: a database row may grant or deny a known capability but
-// cannot create a new authorization surface.
+// Package cpopermissions defines the source-controlled CPO capability catalog.
+// Membership rows may grant or deny a key from this catalog, but cannot invent
+// an authorization surface.
 package cpopermissions
 
-import "github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/constants"
+import (
+	"sort"
+
+	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/constants"
+)
 
 const (
-	OrganizationRead   = "organization.read"
-	OrganizationManage = "organization.manage"
-	NetworkRead        = "network.read"
-	NetworkManage      = "network.manage"
-	CommercialRead     = "commercial.read"
-	CommercialManage   = "commercial.manage"
-	OperationsRead     = "operations.read"
-	OperationsManage   = "operations.manage"
-	CustomersRead      = "customers.read"
-	StaffRead          = "staff.read"
-	StaffManage        = "staff.manage"
-	SupportRead        = "support.read"
-	SupportManage      = "support.manage"
+	OrganizationRead       = "organization.read"
+	OrganizationManage     = "organization.manage"
+	StaffRead              = "staff.read"
+	StaffManage            = "staff.manage"
+	StaffPermissionsManage = "staff.permissions.manage"
+	HubsRead               = "hubs.read"
+	HubsManage             = "hubs.manage"
+	ChargersRead           = "chargers.read"
+	ChargersManage         = "chargers.manage"
+	ChargersOperations     = "chargers.operations"
+	TariffsRead            = "tariffs.read"
+	TariffsManage          = "tariffs.manage"
+	CustomersRead          = "customers.read"
+	ChargingSessionsRead   = "charging_sessions.read"
+	AnalyticsRead          = "analytics.read"
+	SupportRead            = "support.read"
+	SupportCreate          = "support.create"
+	SupportReply           = "support.reply"
+	SettingsRead           = "settings.read"
+	SettingsManage         = "settings.manage"
 )
 
 type Definition struct {
@@ -31,18 +41,47 @@ type Definition struct {
 
 var catalog = []Definition{
 	{OrganizationRead, "organization", "View organization", "View the CPO organization and subscription."},
-	{OrganizationManage, "organization", "Manage organization", "Change CPO organization settings."},
-	{NetworkRead, "network", "View network", "View hubs, chargers, connectors, and status."},
-	{NetworkManage, "network", "Manage network", "Create or change hubs, chargers, connectors, and status."},
-	{CommercialRead, "commercial", "View commercial data", "View tariffs, GST, wallets, and charging transactions."},
-	{CommercialManage, "commercial", "Manage commercial data", "Change tariffs, GST, user groups, and commercial settings."},
-	{OperationsRead, "operations", "View operations", "View fleet operations, sessions, and operational events."},
-	{OperationsManage, "operations", "Manage operations", "Issue authorized operational commands."},
-	{CustomersRead, "customers", "View customers", "View CPO-local customer information and usage."},
-	{StaffRead, "staff", "View staff", "View CPO staff memberships and effective permissions."},
-	{StaffManage, "staff", "Manage staff", "Invite, update, suspend, revoke, and configure CPO staff."},
-	{SupportRead, "support", "View support", "View CPO support tickets."},
-	{SupportManage, "support", "Manage support", "Create and reply to CPO support tickets."},
+	{OrganizationManage, "organization", "Manage organization", "Change the CPO administrative profile."},
+	{StaffRead, "staff", "View staff", "View active and historical CPO staff memberships."},
+	{StaffManage, "staff", "Manage staff", "Invite, update, suspend, activate, or revoke CPO staff."},
+	{StaffPermissionsManage, "staff", "Manage staff permissions", "Change roles and explicit permission overrides within the caller's delegation authority."},
+	{HubsRead, "hubs", "View hubs", "View CPO hubs and their assignments."},
+	{HubsManage, "hubs", "Manage hubs", "Create or change CPO hubs, assignments, visibility, and GST linkage."},
+	{ChargersRead, "chargers", "View chargers", "View CPO chargers, connectors, images, and status."},
+	{ChargersManage, "chargers", "Manage chargers", "Create or change CPO chargers and their configuration."},
+	{ChargersOperations, "chargers", "Operate chargers", "Access live operational charger and fleet evidence; command routes require this capability when introduced."},
+	{TariffsRead, "tariffs", "View tariffs", "View tariffs, GST, user groups, and commercial configuration."},
+	{TariffsManage, "tariffs", "Manage tariffs", "Change tariffs, GST, and customer-group commercial configuration."},
+	{CustomersRead, "customers", "View customers", "View CPO-local customers, wallets, and customer transaction history."},
+	{ChargingSessionsRead, "charging_sessions", "View charging sessions", "View CPO charging-session and charger-transaction projections."},
+	{AnalyticsRead, "analytics", "View analytics", "View CPO analytics and summarized operational reporting."},
+	{SupportRead, "support", "View support", "View the CPO's support queue and ticket history."},
+	{SupportCreate, "support", "Create support tickets", "Open a new support ticket for the CPO."},
+	{SupportReply, "support", "Reply to support tickets", "Reply to an existing CPO support ticket."},
+	{SettingsRead, "settings", "View settings", "View CPO settings and invoice branding."},
+	{SettingsManage, "settings", "Manage settings", "Change CPO settings and invoice branding."},
+}
+
+var roleDefaults = map[constants.CPORole][]string{
+	constants.CPORoleOwner: allKeys(),
+	constants.CPORoleAdmin: allKeys(),
+	constants.CPORoleOperator: {
+		OrganizationRead, HubsRead, HubsManage, ChargersRead, ChargersManage,
+		ChargersOperations, TariffsRead, CustomersRead, ChargingSessionsRead,
+		AnalyticsRead, SupportRead, SupportCreate, SupportReply, SettingsRead,
+	},
+	constants.CPORoleViewer: {
+		OrganizationRead, HubsRead, ChargersRead, TariffsRead, CustomersRead,
+		ChargingSessionsRead, AnalyticsRead, SupportRead, SettingsRead,
+	},
+}
+
+func allKeys() []string {
+	keys := make([]string, 0, len(catalog))
+	for _, definition := range catalog {
+		keys = append(keys, definition.Key)
+	}
+	return keys
 }
 
 func Catalog() []Definition {
@@ -60,21 +99,46 @@ func Known(key string) bool {
 	return false
 }
 
+// RoleDefaults returns a copy so callers cannot mutate source-controlled role
+// policy. Roles are explicit bundles; no role has wildcard evaluator behavior.
+func RoleDefaults(role constants.CPORole) []string {
+	result := append([]string(nil), roleDefaults[role]...)
+	sort.Strings(result)
+	return result
+}
+
 func RoleAllows(role constants.CPORole, key string) bool {
-	switch role {
-	case constants.CPORoleOwner, constants.CPORoleAdmin:
-		return Known(key)
-	case constants.CPORoleOperator:
-		switch key {
-		case OrganizationRead, NetworkRead, NetworkManage, CommercialRead,
-			OperationsRead, OperationsManage, CustomersRead, SupportRead, SupportManage:
-			return true
-		}
-	case constants.CPORoleViewer:
-		switch key {
-		case OrganizationRead, NetworkRead, CommercialRead, OperationsRead, CustomersRead, SupportRead:
+	for _, allowed := range roleDefaults[role] {
+		if allowed == key {
 			return true
 		}
 	}
 	return false
+}
+
+// Effective applies the one canonical override ordering: DENY, then ALLOW,
+// then the explicit role bundle. Inputs are copied and normalized by callers.
+func Effective(role constants.CPORole, allow, deny []string) []string {
+	effective := make(map[string]bool)
+	for _, key := range roleDefaults[role] {
+		effective[key] = true
+	}
+	denied := make(map[string]bool, len(deny))
+	for _, key := range deny {
+		if Known(key) {
+			denied[key] = true
+			delete(effective, key)
+		}
+	}
+	for _, key := range allow {
+		if Known(key) && !denied[key] {
+			effective[key] = true
+		}
+	}
+	result := make([]string, 0, len(effective))
+	for key := range effective {
+		result = append(result, key)
+	}
+	sort.Strings(result)
+	return result
 }

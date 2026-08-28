@@ -136,7 +136,17 @@ func validTestConfig() Config {
 			MailOutbox:        Encryption{KeyID: "v1", Key: []byte(strings.Repeat("m", 32))},
 		},
 		Mail: Mail{
-			UseTLS: true, WorkerPoll: time.Second, SendTimeout: 5 * time.Second,
+			UseTLS: true, WorkerPoll: time.Second, SendTimeout: 5 * time.Second, DisplayLocation: time.UTC,
+		},
+		Frontend: FrontendLinks{
+			AdminLoginVerifyTemplate:      "https://cms.example.invalid/auth/verify#challenge_id={challenge_id}",
+			AdminPasswordResetTemplate:    "https://cms.example.invalid/auth/reset-password#challenge_id={challenge_id}",
+			CustomerLoginVerifyTemplate:   "https://app.example.invalid/auth/verify#challenge_id={challenge_id}",
+			CustomerSignupVerifyTemplate:  "https://app.example.invalid/auth/verify-signup#challenge_id={challenge_id}",
+			CustomerPasswordResetTemplate: "https://app.example.invalid/auth/reset-password#challenge_id={challenge_id}",
+			CPOOnboardingTemplate:         "https://cms.example.invalid/login#cpo_id={cpo_id}",
+			CPOSupportTicketTemplate:      "https://cms.example.invalid/support/tickets/{ticket_id}",
+			CPOSubscriptionURL:            "https://cms.example.invalid/subscription",
 		},
 		Platform: Platform{
 			EventRetention:    7 * 24 * time.Hour,

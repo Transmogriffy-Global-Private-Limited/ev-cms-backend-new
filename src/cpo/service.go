@@ -630,13 +630,14 @@ func (service *Service) Create(
 			if err := service.outbox.EnqueueMessageWithContext(
 				tx,
 				admin.Email,
-				"CPO_ADMIN_WELCOME",
+				"CPO_STAFF_NEW_IDENTITY",
 				cmsmail.MessagePayload{
 					RecipientName:     admin.FullName,
 					TemporaryPassword: temporaryPassword,
 					CPOName:           cpoRecord.BusinessName,
 					CPOID:             cpoRecord.ID.String(),
 					CPOAppID:          cpoRecord.AppID,
+					Role:              string(constants.CPORoleAdmin),
 				},
 				cmsmail.MessageContext{
 					CPOID:  &cpoRecord.ID,
@@ -666,12 +667,13 @@ func (service *Service) Create(
 			if err := service.outbox.EnqueueMessageWithContext(
 				tx,
 				admin.Email,
-				"CPO_MEMBERSHIP_ASSIGNED",
+				"CPO_STAFF_EXISTING_IDENTITY",
 				cmsmail.MessagePayload{
 					RecipientName: admin.FullName,
 					CPOName:       cpoRecord.BusinessName,
 					CPOID:         cpoRecord.ID.String(),
 					CPOAppID:      cpoRecord.AppID,
+					Role:          string(constants.CPORoleAdmin),
 				},
 				cmsmail.MessageContext{
 					CPOID:  &cpoRecord.ID,
@@ -1229,15 +1231,16 @@ func (service *Service) SetPrimaryAdmin(
 			}
 		}
 
-		template := "CPO_MEMBERSHIP_ASSIGNED"
+		template := "CPO_STAFF_EXISTING_IDENTITY"
 		payload := cmsmail.MessagePayload{
 			RecipientName: targetUser.FullName,
 			CPOName:       cpoRecord.BusinessName,
 			CPOID:         cpoRecord.ID.String(),
 			CPOAppID:      cpoRecord.AppID,
+			Role:          string(role),
 		}
 		if identityCreated {
-			template = "CPO_ADMIN_WELCOME"
+			template = "CPO_STAFF_NEW_IDENTITY"
 			payload.TemporaryPassword = temporaryPassword
 		}
 		if samePrimary {
@@ -2211,6 +2214,21 @@ func (service *Service) PermissionCatalog(
 	return response, nil
 }
 
+// AccessMe reports the active membership and exact access inputs used by the
+// shared evaluator. It gives the frontend a durable recovery snapshot instead
+// of requiring it to reproduce backend role rules.
+func (service *Service) AccessMe(ctx context.Context, principal auth.Principal) (CPOAccessMeResponse, error) {
+	access, err := auth.EvaluateCPOAccess(ctx, service.database, principal)
+	if err != nil {
+		return CPOAccessMeResponse{}, &auth.APIError{Status: http.StatusForbidden, Code: "forbidden", Message: "An active CPO membership is required."}
+	}
+	return CPOAccessMeResponse{
+		MembershipID: access.Membership.ID, Role: access.Membership.Role,
+		MembershipStatus: access.Membership.Status, IsPrimaryAdmin: access.Membership.IsPrimaryAdmin,
+		RoleDefaults: access.RoleDefaults, Allow: access.Allow, Deny: access.Deny, Effective: access.Effective,
+	}, nil
+}
+
 func (service *Service) ListStaff(ctx context.Context, principal auth.Principal) (StaffListResponse, error) {
 	if err := requireCPOAdminAccess(principal); err != nil {
 		return StaffListResponse{}, err
@@ -2259,6 +2277,9 @@ func (service *Service) CreateStaff(ctx context.Context, principal auth.Principa
 		return StaffView{}, invalid("role", "Staff role must be ADMIN, OPERATOR, or VIEWER.")
 	}
 	if err := validatePermissionOverrides(request.Overrides); err != nil {
+		return StaffView{}, err
+	}
+	if err := service.requireDelegation(ctx, principal, request.Role, request.Overrides); err != nil {
 		return StaffView{}, err
 	}
 	cpoID := *principal.CPOID
@@ -2314,10 +2335,10 @@ func (service *Service) CreateStaff(ctx context.Context, principal auth.Principa
 		if err := replacePermissionOverrides(tx, membership.ID, principal.UserID, request.Overrides, now); err != nil {
 			return err
 		}
-		template := "CPO_MEMBERSHIP_ASSIGNED"
-		payload := cmsmail.MessagePayload{RecipientName: user.FullName, CPOName: cpoRecord.BusinessName, CPOID: cpoID.String(), CPOAppID: cpoRecord.AppID}
+		template := "CPO_STAFF_EXISTING_IDENTITY"
+		payload := cmsmail.MessagePayload{RecipientName: user.FullName, CPOName: cpoRecord.BusinessName, CPOID: cpoID.String(), CPOAppID: cpoRecord.AppID, Role: string(request.Role)}
 		if created {
-			template = "CPO_ADMIN_WELCOME"
+			template = "CPO_STAFF_NEW_IDENTITY"
 			payload.TemporaryPassword = temporaryPassword
 		}
 		if err := service.outbox.EnqueueMessageWithContext(tx, user.Email, template, payload, cmsmail.MessageContext{CPOID: &cpoID, UserID: &user.ID}); err != nil {
@@ -2355,6 +2376,29 @@ func (service *Service) UpdateStaff(ctx context.Context, principal auth.Principa
 		if membership.IsPrimaryAdmin {
 			return &auth.APIError{Status: http.StatusConflict, Code: "primary_admin_protected", Message: "Use the primary administrator workflow to change the primary administrator."}
 		}
+		if membership.UserID == principal.UserID {
+			return &auth.APIError{Status: http.StatusConflict, Code: "staff_self_lockout_protected", Message: "Use another authorized staff member to change your own role or permissions."}
+		}
+		candidateRole := membership.Role
+		if request.Role != nil {
+			candidateRole = *request.Role
+		}
+		candidateOverrides := make([]MembershipPermissionOverrideRequest, 0)
+		if request.Overrides != nil {
+			candidateOverrides = *request.Overrides
+		} else {
+			var current []models.CPOMembershipPermissionOverride
+			if err := tx.Where("membership_id = ?", membership.ID).Find(&current).Error; err != nil {
+				return err
+			}
+			for _, override := range current {
+				candidateOverrides = append(candidateOverrides, MembershipPermissionOverrideRequest{Permission: override.Permission, Effect: override.Effect})
+			}
+		}
+		if err := service.requireDelegationWithDatabase(ctx, tx, principal, candidateRole, candidateOverrides); err != nil {
+			return err
+		}
+		previousRole := membership.Role
 		now := service.now()
 		updates := map[string]any{"updated_at": now}
 		if request.Role != nil {
@@ -2368,12 +2412,54 @@ func (service *Service) UpdateStaff(ctx context.Context, principal auth.Principa
 				return err
 			}
 		}
+		if request.Role != nil && previousRole != *request.Role {
+			var user models.User
+			var cpoRecord models.CPO
+			if err := tx.First(&user, "id = ?", membership.UserID).Error; err != nil {
+				return err
+			}
+			if err := tx.First(&cpoRecord, "id = ?", cpoID).Error; err != nil {
+				return err
+			}
+			if err := service.outbox.EnqueueMessageWithContext(tx, user.Email, "CPO_STAFF_ROLE_CHANGED", cmsmail.MessagePayload{RecipientName: user.FullName, CPOName: cpoRecord.BusinessName, Role: string(*request.Role)}, cmsmail.MessageContext{CPOID: &cpoID, UserID: &user.ID}); err != nil {
+				return err
+			}
+		}
 		return writeAudit(tx, principal.UserID, cpoID, "CPO_STAFF_UPDATED", models.JSONB{"membership_id": membership.ID}, now)
 	})
 	if err != nil {
 		return StaffView{}, err
 	}
 	return service.GetStaff(ctx, principal, membershipID)
+}
+
+func (service *Service) requireDelegation(ctx context.Context, principal auth.Principal, role constants.CPORole, overrides []MembershipPermissionOverrideRequest) error {
+	return service.requireDelegationWithDatabase(ctx, service.database, principal, role, overrides)
+}
+
+// requireDelegation prevents a member from creating authority they do not
+// currently possess. Removing authority remains possible, while primary-admin
+// safety is enforced at the membership mutation boundary.
+func (service *Service) requireDelegationWithDatabase(ctx context.Context, database *gorm.DB, principal auth.Principal, role constants.CPORole, overrides []MembershipPermissionOverrideRequest) error {
+	access, err := auth.EvaluateCPOAccess(ctx, database, principal)
+	if err != nil {
+		return &auth.APIError{Status: http.StatusForbidden, Code: "forbidden", Message: "An active CPO membership is required."}
+	}
+	has := make(map[string]bool, len(access.Effective))
+	for _, permission := range access.Effective {
+		has[permission] = true
+	}
+	for _, permission := range cpopermissions.RoleDefaults(role) {
+		if !has[permission] {
+			return &auth.APIError{Status: http.StatusForbidden, Code: "permission_delegation_denied", Message: "You cannot delegate a role capability you do not currently possess."}
+		}
+	}
+	for _, override := range overrides {
+		if strings.EqualFold(strings.TrimSpace(override.Effect), "ALLOW") && !has[strings.TrimSpace(override.Permission)] {
+			return &auth.APIError{Status: http.StatusForbidden, Code: "permission_delegation_denied", Message: "You cannot grant a capability you do not currently possess."}
+		}
+	}
+	return nil
 }
 
 func (service *Service) TransitionStaff(ctx context.Context, principal auth.Principal, membershipID uuid.UUID, status constants.MembershipStatus, reason string) (StaffView, error) {
@@ -2405,6 +2491,24 @@ func (service *Service) TransitionStaff(ctx context.Context, principal auth.Prin
 				return err
 			}
 		}
+		var user models.User
+		var cpoRecord models.CPO
+		if err := tx.First(&user, "id = ?", membership.UserID).Error; err != nil {
+			return err
+		}
+		if err := tx.First(&cpoRecord, "id = ?", cpoID).Error; err != nil {
+			return err
+		}
+		template := "CPO_STAFF_REACTIVATED"
+		if status == constants.MembershipStatusSuspended {
+			template = "CPO_STAFF_SUSPENDED"
+		}
+		if status == constants.MembershipStatusRevoked {
+			template = "CPO_STAFF_REVOKED"
+		}
+		if err := service.outbox.EnqueueMessageWithContext(tx, user.Email, template, cmsmail.MessagePayload{RecipientName: user.FullName, CPOName: cpoRecord.BusinessName, Role: string(membership.Role)}, cmsmail.MessageContext{CPOID: &cpoID, UserID: &user.ID}); err != nil {
+			return err
+		}
 		return writeAudit(tx, principal.UserID, cpoID, "CPO_STAFF_"+string(status), models.JSONB{"membership_id": membership.ID, "reason": strings.TrimSpace(reason)}, now)
 	})
 	if err != nil {
@@ -2430,7 +2534,17 @@ func (service *Service) staffViews(ctx context.Context, cpoID uuid.UUID, members
 	}
 	response := StaffListResponse{Staff: make([]StaffView, 0, len(memberships))}
 	for _, membership := range memberships {
-		response.Staff = append(response.Staff, StaffView{MembershipID: membership.ID, User: cpoUserView(membership.User, cpoID, membership), IsPrimaryAdmin: membership.IsPrimaryAdmin, Overrides: byMembership[membership.ID]})
+		view := StaffView{MembershipID: membership.ID, User: cpoUserView(membership.User, cpoID, membership), IsPrimaryAdmin: membership.IsPrimaryAdmin, MembershipStatus: membership.Status, RoleDefaults: cpopermissions.RoleDefaults(membership.Role), Overrides: byMembership[membership.ID]}
+		allow, deny := make([]string, 0), make([]string, 0)
+		for _, override := range view.Overrides {
+			if override.Effect == "ALLOW" {
+				allow = append(allow, override.Permission)
+			} else if override.Effect == "DENY" {
+				deny = append(deny, override.Permission)
+			}
+		}
+		view.Effective = cpopermissions.Effective(membership.Role, allow, deny)
+		response.Staff = append(response.Staff, view)
 	}
 	return response, nil
 }
@@ -4534,21 +4648,11 @@ func requireCPOAdminAccess(principal auth.Principal) error {
 			Message: "CPO tenant context is required.",
 		}
 	}
-	if principal.Role == nil {
-		return &auth.APIError{
-			Status:  http.StatusForbidden,
-			Code:    "forbidden",
-			Message: "CPO role is required.",
-		}
-	}
-	if *principal.Role == constants.CPORoleAdmin {
-		return nil
-	}
-	return &auth.APIError{
-		Status:  http.StatusForbidden,
-		Code:    "forbidden",
-		Message: "CPO administrator access is required.",
-	}
+	// Capability middleware has already loaded the current active membership
+	// from PostgreSQL. This legacy service guard remains a tenant-scope defense
+	// for direct callers, but must not reintroduce an ADMIN-only bypass over the
+	// route's precise capability decision.
+	return nil
 }
 
 func generateUniqueChargerIDTx(tx *gorm.DB) (string, error) {

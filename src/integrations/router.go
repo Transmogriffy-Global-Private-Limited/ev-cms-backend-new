@@ -7,7 +7,7 @@ import (
 	"net/http"
 
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/auth"
-	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/constants"
+	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/cpopermissions"
 	cmsmiddleware "github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/middleware"
 	"github.com/gin-gonic/gin"
 )
@@ -22,7 +22,7 @@ func RegisterRoutes(group *gin.RouterGroup, authService *auth.Service, service *
 		noStore,
 		authService.Authenticate(),
 		auth.RequireCPOAppID(),
-		auth.RequireCPORoles(constants.CPORoleAdmin),
+		auth.RequireCPOPermission(service.database, cpopermissions.SettingsManage),
 	)
 	group.GET("", handler.list)
 	group.GET("/:provider", handler.get)

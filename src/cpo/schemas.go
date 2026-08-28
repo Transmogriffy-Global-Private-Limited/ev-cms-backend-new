@@ -223,10 +223,13 @@ type MembershipPermissionOverrideView struct {
 }
 
 type StaffView struct {
-	MembershipID   uuid.UUID                          `json:"membership_id"`
-	User           CPOUserView                        `json:"user"`
-	IsPrimaryAdmin bool                               `json:"is_primary_admin"`
-	Overrides      []MembershipPermissionOverrideView `json:"overrides"`
+	MembershipID     uuid.UUID                          `json:"membership_id"`
+	User             CPOUserView                        `json:"user"`
+	IsPrimaryAdmin   bool                               `json:"is_primary_admin"`
+	MembershipStatus constants.MembershipStatus         `json:"membership_status"`
+	RoleDefaults     []string                           `json:"role_defaults"`
+	Overrides        []MembershipPermissionOverrideView `json:"overrides"`
+	Effective        []string                           `json:"effective_permissions"`
 }
 
 type StaffListResponse struct {
@@ -251,6 +254,17 @@ type StaffLifecycleRequest struct {
 
 type PermissionCatalogResponse struct {
 	Permissions []PermissionDefinitionView `json:"permissions"`
+}
+
+type CPOAccessMeResponse struct {
+	MembershipID     uuid.UUID                  `json:"membership_id"`
+	Role             constants.CPORole          `json:"role"`
+	MembershipStatus constants.MembershipStatus `json:"membership_status"`
+	IsPrimaryAdmin   bool                       `json:"is_primary_admin"`
+	RoleDefaults     []string                   `json:"role_defaults"`
+	Allow            []string                   `json:"allow"`
+	Deny             []string                   `json:"deny"`
+	Effective        []string                   `json:"effective"`
 }
 
 type PermissionDefinitionView struct {

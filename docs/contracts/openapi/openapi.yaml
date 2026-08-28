@@ -64,16 +64,22 @@ paths:
     get:
       tags: [CPO Operations - Account & Notifications]
       operationId: listCPOSupportTickets
-      summary: List this CPO's support tickets
+      summary: List bounded support queue summaries for this CPO
       security: [{BearerAuth: [], CPOAppID: []}]
-      responses: {"200": {description: Tickets., content: {application/json: {schema: {type: array, items: {$ref: "#/components/schemas/SupportTicket"}}}}}}
+      parameters:
+        - {$ref: "#/components/parameters/SupportListLimit"}
+        - {$ref: "#/components/parameters/SupportListBefore"}
+        - {$ref: "#/components/parameters/SupportListBeforeID"}
+        - {$ref: "#/components/parameters/SupportListStatus"}
+        - {$ref: "#/components/parameters/SupportListSearch"}
+      responses: {"200": {description: Bounded ticket summaries; message bodies require the detail endpoint., content: {application/json: {schema: {$ref: "#/components/schemas/SupportTicketListPage"}}}}}
     post:
       tags: [CPO Operations - Account & Notifications]
       operationId: createCPOSupportTicket
       summary: Open a CPO support ticket
       security: [{BearerAuth: [], CPOAppID: []}]
       requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/CreateSupportTicketRequest"}}}}
-      responses: {"201": {description: Created ticket., content: {application/json: {schema: {$ref: "#/components/schemas/SupportTicket"}}}}}
+      responses: {"201": {description: Created ticket with initial message and immutable history., content: {application/json: {schema: {$ref: "#/components/schemas/SupportTicketDetail"}}}}}
   /api/v1/cpo/support/{ticket_id}:
     get:
       tags: [CPO Operations - Account & Notifications]
@@ -81,7 +87,7 @@ paths:
       summary: Get one CPO support ticket
       security: [{BearerAuth: [], CPOAppID: []}]
       parameters: [{$ref: "#/components/parameters/SupportTicketID"}]
-      responses: {"200": {description: Ticket., content: {application/json: {schema: {$ref: "#/components/schemas/SupportTicket"}}}}}
+      responses: {"200": {description: "Ticket, messages, and immutable lifecycle history.", content: {application/json: {schema: {$ref: "#/components/schemas/SupportTicketDetail"}}}}}
   /api/v1/cpo/support/{ticket_id}/replies:
     post:
       tags: [CPO Operations - Account & Notifications]
@@ -90,14 +96,21 @@ paths:
       security: [{BearerAuth: [], CPOAppID: []}]
       parameters: [{$ref: "#/components/parameters/SupportTicketID"}]
       requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/SupportReplyRequest"}}}}
-      responses: {"200": {description: Updated ticket., content: {application/json: {schema: {$ref: "#/components/schemas/SupportTicket"}}}}}
+      responses: {"200": {description: Updated ticket with messages and history. Reusing idempotency_key does not add another reply., content: {application/json: {schema: {$ref: "#/components/schemas/SupportTicketDetail"}}}}}
   /api/v1/platform/support/tickets:
     get:
       tags: [Superadmin - Governance]
       operationId: listPlatformSupportTickets
-      summary: List all tenant support tickets
+      summary: List bounded support queue summaries across tenants
       security: [{BearerAuth: []}]
-      responses: {"200": {description: Tickets., content: {application/json: {schema: {type: array, items: {$ref: "#/components/schemas/SupportTicket"}}}}}}
+      parameters:
+        - {$ref: "#/components/parameters/SupportListLimit"}
+        - {$ref: "#/components/parameters/SupportListBefore"}
+        - {$ref: "#/components/parameters/SupportListBeforeID"}
+        - {$ref: "#/components/parameters/SupportListStatus"}
+        - {$ref: "#/components/parameters/SupportListCPOID"}
+        - {$ref: "#/components/parameters/SupportListSearch"}
+      responses: {"200": {description: Bounded ticket summaries; message bodies require the detail endpoint., content: {application/json: {schema: {$ref: "#/components/schemas/SupportTicketListPage"}}}}}
   /api/v1/platform/support/tickets/{ticket_id}:
     get:
       tags: [Superadmin - Governance]
@@ -105,7 +118,7 @@ paths:
       summary: Get one support ticket
       security: [{BearerAuth: []}]
       parameters: [{$ref: "#/components/parameters/SupportTicketID"}]
-      responses: {"200": {description: Ticket., content: {application/json: {schema: {$ref: "#/components/schemas/SupportTicket"}}}}}
+      responses: {"200": {description: "Ticket, messages, and immutable lifecycle history.", content: {application/json: {schema: {$ref: "#/components/schemas/SupportTicketDetail"}}}}}
   /api/v1/platform/support/tickets/{ticket_id}/replies:
     post:
       tags: [Superadmin - Governance]
@@ -114,7 +127,7 @@ paths:
       security: [{BearerAuth: []}]
       parameters: [{$ref: "#/components/parameters/SupportTicketID"}]
       requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/SupportReplyRequest"}}}}
-      responses: {"200": {description: Updated ticket., content: {application/json: {schema: {$ref: "#/components/schemas/SupportTicket"}}}}}
+      responses: {"200": {description: Updated ticket with messages and history. Reusing idempotency_key does not add another reply., content: {application/json: {schema: {$ref: "#/components/schemas/SupportTicketDetail"}}}}}
   /api/v1/platform/support/tickets/{ticket_id}/status:
     patch:
       tags: [Superadmin - Governance]
@@ -123,8 +136,30 @@ paths:
       security: [{BearerAuth: []}]
       parameters: [{$ref: "#/components/parameters/SupportTicketID"}]
       requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/SupportTicketStatusRequest"}}}}
-      responses: {"200": {description: Updated ticket., content: {application/json: {schema: {$ref: "#/components/schemas/SupportTicket"}}}}}
+      responses:
+        "200": {description: Updated ticket with immutable transition history., content: {application/json: {schema: {$ref: "#/components/schemas/SupportTicketDetail"}}}}
+        "409": {description: The requested status transition is not allowed., content: {application/json: {schema: {$ref: "#/components/schemas/ErrorEnvelope"}}}}
 
+  /api/v1/cpo/access/permissions:
+    get:
+      tags: [CPO Operations - Account & Notifications]
+      operationId: listCPOAccessPermissions
+      summary: List canonical CPO permission definitions for the active membership
+      security: [{BearerAuth: []}, {CPOAppID: []}]
+      responses:
+        "200": {description: Source-controlled permission definitions., content: {application/json: {schema: {$ref: "#/components/schemas/PermissionCatalogResponse"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/CPOBusinessForbidden"}
+  /api/v1/cpo/access/me:
+    get:
+      tags: [CPO Operations - Account & Notifications]
+      operationId: getCPOAccessMe
+      summary: Get the active CPO membership and effective permissions
+      security: [{BearerAuth: []}, {CPOAppID: []}]
+      responses:
+        "200": {description: Fresh CPO access projection., content: {application/json: {schema: {$ref: "#/components/schemas/CPOAccessMe"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/CPOBusinessForbidden"}
   /api/v1/cpo/permissions/catalog:
     get:
       tags: [CPO Operations - Account & Notifications]
@@ -6459,6 +6494,35 @@ components:
       schema:
         type: string
         format: uuid
+    SupportListLimit:
+      name: limit
+      in: query
+      description: Maximum queue summaries to return. Defaults to 20 and is capped at 100.
+      schema: {type: integer, minimum: 1, maximum: 100, default: 20}
+    SupportListBefore:
+      name: before
+      in: query
+      description: RFC3339Nano updated_at cursor from the preceding page. Must be supplied with before_id.
+      schema: {type: string, format: date-time}
+    SupportListBeforeID:
+      name: before_id
+      in: query
+      description: Ticket UUID tie-breaker from the preceding page. Must be supplied with before.
+      schema: {type: string, format: uuid}
+    SupportListStatus:
+      name: status
+      in: query
+      schema: {$ref: "#/components/schemas/SupportTicketStatus"}
+    SupportListCPOID:
+      name: cpo_id
+      in: query
+      description: Platform-only CPO UUID filter. CPO callers are always constrained to their trusted CPO scope.
+      schema: {type: string, format: uuid}
+    SupportListSearch:
+      name: q
+      in: query
+      description: Case-insensitive subject or ticket-reference search, limited to 100 characters.
+      schema: {type: string, maxLength: 100}
     CPOID:
       name: cpo_id
       in: path
@@ -8872,17 +8936,73 @@ components:
     SupportTicket:
       type: object
       additionalProperties: false
-      required: [id, cpo_id, subject, status, created_by_user_id, created_at, updated_at, messages]
+      required: [id, cpo_id, subject, status, created_by_user_id, created_at, updated_at]
       properties:
         id: {type: string, format: uuid}
         cpo_id: {type: string, format: uuid}
         subject: {type: string}
-        status: {type: string, enum: [OPEN, PENDING, RESOLVED, CLOSED]}
+        status: {$ref: "#/components/schemas/SupportTicketStatus"}
+        created_by_user_id: {type: string, format: uuid}
+        closed_at: {type: string, format: date-time, nullable: true}
+        created_at: {type: string, format: date-time}
+        updated_at: {type: string, format: date-time}
+    SupportTicketStatus:
+      type: string
+      enum: [OPEN, IN_PROGRESS, RESOLVED, CLOSED]
+      description: A ticket is OPEN, actively handled (IN_PROGRESS), RESOLVED, or administratively CLOSED.
+    SupportTicketEvent:
+      type: object
+      additionalProperties: false
+      required: [id, ticket_id, event_type, actor_scope, created_at]
+      properties:
+        id: {type: string, format: uuid}
+        ticket_id: {type: string, format: uuid}
+        event_type: {type: string, enum: [CREATED, MESSAGE_ADDED, STATUS_CHANGED]}
+        actor_scope: {type: string, enum: [CPO, PLATFORM]}
+        actor_user_id: {type: string, format: uuid, nullable: true}
+        previous_status: {allOf: [{$ref: "#/components/schemas/SupportTicketStatus"}], nullable: true}
+        next_status: {allOf: [{$ref: "#/components/schemas/SupportTicketStatus"}], nullable: true}
+        reason: {type: string, maxLength: 500, nullable: true}
+        created_at: {type: string, format: date-time}
+    SupportTicketDetail:
+      type: object
+      additionalProperties: false
+      required: [id, cpo_id, subject, status, created_by_user_id, created_at, updated_at, messages, events]
+      properties:
+        id: {type: string, format: uuid}
+        cpo_id: {type: string, format: uuid}
+        subject: {type: string}
+        status: {$ref: "#/components/schemas/SupportTicketStatus"}
         created_by_user_id: {type: string, format: uuid}
         closed_at: {type: string, format: date-time, nullable: true}
         created_at: {type: string, format: date-time}
         updated_at: {type: string, format: date-time}
         messages: {type: array, items: {$ref: "#/components/schemas/SupportTicketMessage"}}
+        events: {type: array, items: {$ref: "#/components/schemas/SupportTicketEvent"}}
+    SupportTicketSummary:
+      type: object
+      additionalProperties: false
+      required: [id, cpo_id, cpo_name, subject, status, created_at, updated_at, message_count]
+      properties:
+        id: {type: string, format: uuid}
+        cpo_id: {type: string, format: uuid}
+        cpo_name: {type: string}
+        subject: {type: string}
+        status: {$ref: "#/components/schemas/SupportTicketStatus"}
+        created_at: {type: string, format: date-time}
+        updated_at: {type: string, format: date-time}
+        message_count: {type: integer, format: int64, minimum: 0}
+        last_message_at: {type: string, format: date-time, nullable: true}
+        last_message_scope: {type: string, enum: [CPO, PLATFORM], nullable: true}
+    SupportTicketListPage:
+      type: object
+      additionalProperties: false
+      required: [tickets, has_more]
+      properties:
+        tickets: {type: array, items: {$ref: "#/components/schemas/SupportTicketSummary"}}
+        next_before: {type: string, format: date-time, nullable: true}
+        next_before_id: {type: string, format: uuid, nullable: true}
+        has_more: {type: boolean}
     CreateSupportTicketRequest:
       type: object
       required: [subject, body]
@@ -8894,17 +9014,32 @@ components:
       required: [body]
       properties:
         body: {type: string, minLength: 1, maxLength: 10000, description: Trimmed text; whitespace-only input is invalid.}
+        idempotency_key: {type: string, minLength: 1, maxLength: 120, description: Optional client-generated key. Reusing it for the same ticket returns the existing result without adding another message.}
     SupportTicketStatusRequest:
       type: object
       required: [status]
       properties:
-        status: {type: string, enum: [OPEN, PENDING, RESOLVED, CLOSED]}
+        status: {$ref: "#/components/schemas/SupportTicketStatus"}
+        reason: {type: string, maxLength: 500, description: Optional operator note retained in immutable lifecycle history.}
     PermissionCatalogResponse:
       type: object
       additionalProperties: false
       required: [permissions]
       properties:
         permissions: {type: array, items: {$ref: "#/components/schemas/PermissionDefinition"}}
+    CPOAccessMe:
+      type: object
+      additionalProperties: false
+      required: [membership_id, role, membership_status, is_primary_admin, role_defaults, allow, deny, effective]
+      properties:
+        membership_id: {type: string, format: uuid}
+        role: {type: string, enum: [OWNER, ADMIN, OPERATOR, VIEWER]}
+        membership_status: {type: string, enum: [ACTIVE, SUSPENDED, REVOKED]}
+        is_primary_admin: {type: boolean}
+        role_defaults: {type: array, items: {type: string}}
+        allow: {type: array, items: {type: string}}
+        deny: {type: array, items: {type: string}}
+        effective: {type: array, items: {type: string}}
     MembershipPermissionOverride:
       type: object
       additionalProperties: false
@@ -8915,12 +9050,15 @@ components:
     Staff:
       type: object
       additionalProperties: false
-      required: [membership_id, user, is_primary_admin, overrides]
+      required: [membership_id, user, is_primary_admin, membership_status, role_defaults, overrides, effective_permissions]
       properties:
         membership_id: {type: string, format: uuid}
         user: {$ref: "#/components/schemas/CPOUser"}
         is_primary_admin: {type: boolean}
+        membership_status: {type: string, enum: [ACTIVE, SUSPENDED, REVOKED]}
+        role_defaults: {type: array, items: {type: string}}
         overrides: {type: array, items: {$ref: "#/components/schemas/MembershipPermissionOverride"}}
+        effective_permissions: {type: array, items: {type: string}}
     StaffListResponse:
       type: object
       additionalProperties: false

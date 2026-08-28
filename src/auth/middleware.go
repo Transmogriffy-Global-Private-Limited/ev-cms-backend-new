@@ -7,9 +7,7 @@ import (
 	"strings"
 
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/constants"
-	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/cpopermissions"
 	cmsmiddleware "github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/middleware"
-	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/models"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"gorm.io/gorm"
@@ -102,54 +100,33 @@ func RequireCPORoles(allowed ...constants.CPORole) gin.HandlerFunc {
 func RequireCPOPermission(database *gorm.DB, permission string) gin.HandlerFunc {
 	return func(ctx *gin.Context) {
 		principal, ok := CurrentPrincipal(ctx)
-		if !ok || principal.Scope != constants.AuthScopeCPO ||
-			principal.CPOID == nil || principal.Role == nil ||
-			!cpopermissions.Known(permission) {
+		if !ok {
 			writeError(ctx, errForbidden)
 			ctx.Abort()
 			return
 		}
+		_, allowed, err := EvaluateCPOPermission(ctx.Request.Context(), database, principal, permission)
+		if err != nil || !allowed {
+			writeError(ctx, errForbidden)
+			ctx.Abort()
+			return
+		}
+		ctx.Next()
+	}
+}
 
-		var membership models.CPOMembership
-		if err := database.WithContext(ctx.Request.Context()).
-			Where("cpo_id = ? AND user_id = ? AND status = ?", *principal.CPOID, principal.UserID, constants.MembershipStatusActive).
-			First(&membership).Error; err != nil {
+// RequireActiveCPOMembership is for non-sensitive CPO access discovery. It
+// still reads the current membership so a stale token cannot expose tenant
+// metadata after suspension or revocation.
+func RequireActiveCPOMembership(database *gorm.DB) gin.HandlerFunc {
+	return func(ctx *gin.Context) {
+		principal, ok := CurrentPrincipal(ctx)
+		if !ok {
 			writeError(ctx, errForbidden)
 			ctx.Abort()
 			return
 		}
-		// ADMIN is the tenant's operational recovery authority. Existing and new
-		// administrators therefore receive every source-controlled capability;
-		// a stale or accidental override must never strand the administrator.
-		if membership.Role == constants.CPORoleAdmin {
-			ctx.Next()
-			return
-		}
-
-		var override models.CPOMembershipPermissionOverride
-		err := database.WithContext(ctx.Request.Context()).
-			Where("membership_id = ? AND permission = ?", membership.ID, permission).
-			First(&override).Error
-		if err == nil {
-			if override.Effect == "DENY" {
-				writeError(ctx, errForbidden)
-				ctx.Abort()
-				return
-			}
-			if override.Effect == "ALLOW" {
-				ctx.Next()
-				return
-			}
-			writeError(ctx, errForbidden)
-			ctx.Abort()
-			return
-		}
-		if err != nil && err != gorm.ErrRecordNotFound {
-			writeError(ctx, errForbidden)
-			ctx.Abort()
-			return
-		}
-		if !cpopermissions.RoleAllows(membership.Role, permission) {
+		if _, err := EvaluateCPOAccess(ctx.Request.Context(), database, principal); err != nil {
 			writeError(ctx, errForbidden)
 			ctx.Abort()
 			return

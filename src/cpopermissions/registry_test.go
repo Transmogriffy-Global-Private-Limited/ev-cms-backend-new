@@ -25,3 +25,24 @@ func TestAdminRoleIncludesEveryRegisteredCapability(t *testing.T) {
 		}
 	}
 }
+
+func TestEffectivePermissionPrecedence(t *testing.T) {
+	effective := Effective(constants.CPORoleViewer,
+		[]string{StaffManage, ChargersRead},
+		[]string{ChargersRead},
+	)
+	contains := func(key string) bool {
+		for _, candidate := range effective {
+			if candidate == key {
+				return true
+			}
+		}
+		return false
+	}
+	if !contains(StaffManage) {
+		t.Fatal("explicit ALLOW must extend a role default")
+	}
+	if contains(ChargersRead) {
+		t.Fatal("DENY must override both ALLOW and the role default")
+	}
+}

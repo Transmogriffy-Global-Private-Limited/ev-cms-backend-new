@@ -115,6 +115,7 @@ Active work:
 
 - `docs/work/active/WI-20260812-cms-hal-operational-capabilities.md`.
 - `docs/work/active/WI-20260826-customer-selected-session-limits.md`.
+- `docs/work/active/WI-20260826-cpo-access-mail-support-completeness.md`.
 
 Approved current slice:
 
@@ -124,6 +125,19 @@ Approved current slice:
   limit; no parallel charging flow is permitted.
 
 Current implementation state:
+
+- The CPO access, mail, subscription-notification, and support-product
+  completion correction is in progress under
+  `docs/plans/cpo-access-mail-support-completeness.md`. It replaces broad CPO
+  ADMIN route gating with live capability decisions; establishes semantic mail
+  templates and safe frontend links; delivers lifecycle notices through the
+  durable outbox; and turns support into a bounded, auditable workflow.
+
+- The support-core portion is complete in the current uncommitted worktree:
+  migration 057, immutable lifecycle history, guarded transitions, locked
+  idempotent replies, bounded cursor queue summaries, detail history, strict
+  request decoding, OpenAPI, and PostgreSQL-gated integration coverage. The
+  remaining approved support work is notification/mail delivery only.
 
 - Customer-selected charging limits now retain independent threshold
   provenance through the existing start-intent/wallet-hold/HAL lifecycle.

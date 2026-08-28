@@ -6,6 +6,8 @@ import (
 	"log"
 	"time"
 
+	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/constants"
+	cmsmail "github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/mail"
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/models"
 	"github.com/google/uuid"
 	"gorm.io/gorm"
@@ -74,15 +76,18 @@ func (service *Service) processSubscriptionLifecycle(ctx context.Context, subscr
 				return service.recordTransition(tx, uuid.Nil, subscription, &previous, nil, "subscription period elapsed", "system:expiry:"+subscription.ID.String(), now, "SYSTEM_EXPIRE")
 			})
 		}
-		for _, warning := range []struct {
-			kind   string
-			before time.Duration
-		}{{"EXPIRY_WARNING_1D", 24 * time.Hour}, {"EXPIRY_WARNING_3D", 3 * 24 * time.Hour}, {"EXPIRY_WARNING_7D", 7 * 24 * time.Hour}} {
-			if !now.Before(subscription.CurrentPeriodEndsAt.Add(-warning.before)) {
-				if err := service.recordLifecycleEvent(tx, subscription, warning.kind, now, nil); err != nil {
-					return err
-				}
-			}
+		remaining := subscription.CurrentPeriodEndsAt.Sub(now)
+		kind := ""
+		switch {
+		case remaining <= 24*time.Hour:
+			kind = "EXPIRY_WARNING_1D"
+		case remaining <= 3*24*time.Hour:
+			kind = "EXPIRY_WARNING_3D"
+		case remaining <= 7*24*time.Hour:
+			kind = "EXPIRY_WARNING_7D"
+		}
+		if kind != "" {
+			return service.recordLifecycleEvent(tx, subscription, kind, now, nil)
 		}
 		return nil
 	})
@@ -97,8 +102,41 @@ func (service *Service) recordLifecycleEvent(tx *gorm.DB, subscription models.CP
 	if result.RowsAffected == 0 {
 		return nil
 	}
+	if err := service.enqueueLifecycleMail(tx, subscription, kind); err != nil {
+		return err
+	}
 	if after != nil {
 		return after()
+	}
+	return nil
+}
+
+func (service *Service) enqueueLifecycleMail(tx *gorm.DB, subscription models.CPOSubscription, kind string) error {
+	if service.outbox == nil {
+		return nil
+	}
+	template := "CPO_SUBSCRIPTION_EXPIRY_WARNING"
+	if kind == "EXPIRED" {
+		template = "CPO_SUBSCRIPTION_EXPIRED"
+	}
+	var cpo models.CPO
+	if err := tx.First(&cpo, "id = ?", subscription.CPOID).Error; err != nil {
+		return err
+	}
+	type recipient struct{ Email, FullName string }
+	var recipients []recipient
+	if err := tx.Table("cpo_memberships").Select("users.email, users.full_name").Joins("JOIN users ON users.id = cpo_memberships.user_id").Where("cpo_memberships.cpo_id = ? AND cpo_memberships.status = ? AND users.is_active = ? AND (cpo_memberships.is_primary_admin = ? OR cpo_memberships.role IN ?)", subscription.CPOID, constants.MembershipStatusActive, true, true, []constants.CPORole{constants.CPORoleAdmin, constants.CPORoleOwner}).Scan(&recipients).Error; err != nil {
+		return err
+	}
+	seen := map[string]bool{}
+	for _, recipient := range recipients {
+		if seen[recipient.Email] {
+			continue
+		}
+		seen[recipient.Email] = true
+		if err := service.outbox.EnqueueMessageWithContext(tx, recipient.Email, template, cmsmail.MessagePayload{RecipientName: recipient.FullName, CPOName: cpo.BusinessName, ExpiresAt: subscription.CurrentPeriodEndsAt}, cmsmail.MessageContext{CPOID: &subscription.CPOID}); err != nil {
+			return err
+		}
 	}
 	return nil
 }

@@ -31,10 +31,24 @@ type Config struct {
 	Superadmin           Superadmin
 	Auth                 Auth
 	Mail                 Mail
+	Frontend             FrontendLinks
 	Platform             Platform
 	Credentials          Encryption
 	ChargerConnectionURL string
 	HAL                  HAL
+}
+
+// FrontendLinks is the explicit, validated browser handoff used by email. The
+// backend never treats visiting one of these URLs as an authenticated action.
+type FrontendLinks struct {
+	AdminLoginVerifyTemplate      string
+	AdminPasswordResetTemplate    string
+	CustomerLoginVerifyTemplate   string
+	CustomerSignupVerifyTemplate  string
+	CustomerPasswordResetTemplate string
+	CPOOnboardingTemplate         string
+	CPOSupportTicketTemplate      string
+	CPOSubscriptionURL            string
 }
 
 type Superadmin struct {
@@ -66,17 +80,19 @@ type Auth struct {
 }
 
 type Mail struct {
-	Enabled     bool
-	Host        string
-	Port        int
-	Username    string
-	Password    string
-	FromAddress string
-	FromName    string
-	UseTLS      bool
-	UseSSL      bool
-	WorkerPoll  time.Duration
-	SendTimeout time.Duration
+	Enabled         bool
+	Host            string
+	Port            int
+	Username        string
+	Password        string
+	FromAddress     string
+	FromName        string
+	UseTLS          bool
+	UseSSL          bool
+	WorkerPoll      time.Duration
+	SendTimeout     time.Duration
+	DisplayLocation *time.Location
+	Frontend        FrontendLinks
 }
 
 type Platform struct {
@@ -161,6 +177,16 @@ func Load() (Config, error) {
 			WorkerPoll:  durationOrDefault("MAIL_WORKER_POLL_INTERVAL", 2*time.Second),
 			SendTimeout: durationOrDefault("MAIL_SEND_TIMEOUT", 15*time.Second),
 		},
+		Frontend: FrontendLinks{
+			AdminLoginVerifyTemplate:      envOrDefault("ADMIN_LOGIN_VERIFY_URL_TEMPLATE", "https://cms.example.invalid/auth/verify#challenge_id={challenge_id}"),
+			AdminPasswordResetTemplate:    envOrDefault("ADMIN_PASSWORD_RESET_URL_TEMPLATE", "https://cms.example.invalid/auth/reset-password#challenge_id={challenge_id}"),
+			CustomerLoginVerifyTemplate:   envOrDefault("CUSTOMER_LOGIN_VERIFY_URL_TEMPLATE", "https://app.example.invalid/auth/verify#challenge_id={challenge_id}"),
+			CustomerSignupVerifyTemplate:  envOrDefault("CUSTOMER_SIGNUP_VERIFY_URL_TEMPLATE", "https://app.example.invalid/auth/verify-signup#challenge_id={challenge_id}"),
+			CustomerPasswordResetTemplate: envOrDefault("CUSTOMER_PASSWORD_RESET_URL_TEMPLATE", "https://app.example.invalid/auth/reset-password#challenge_id={challenge_id}"),
+			CPOOnboardingTemplate:         envOrDefault("CPO_ONBOARDING_URL_TEMPLATE", "https://cms.example.invalid/login#cpo_id={cpo_id}"),
+			CPOSupportTicketTemplate:      envOrDefault("CPO_SUPPORT_TICKET_URL_TEMPLATE", "https://cms.example.invalid/support/tickets/{ticket_id}"),
+			CPOSubscriptionURL:            envOrDefault("CPO_SUBSCRIPTION_URL", "https://cms.example.invalid/subscription"),
+		},
 		Platform: Platform{
 			EventRetention:    durationOrDefault("PLATFORM_EVENT_RETENTION", 7*24*time.Hour),
 			RealtimePoll:      durationOrDefault("PLATFORM_REALTIME_POLL_INTERVAL", time.Second),
@@ -180,6 +206,13 @@ func Load() (Config, error) {
 			StartReconcileAfter:  durationOrDefault("HAL_V1_START_RECONCILE_AFTER", 2*time.Minute),
 		},
 	}
+	locationName := envOrDefault("APP_DISPLAY_TIMEZONE", "Asia/Kolkata")
+	location, err := time.LoadLocation(locationName)
+	if err != nil {
+		return Config{}, fmt.Errorf("APP_DISPLAY_TIMEZONE: %w", err)
+	}
+	cfg.Mail.DisplayLocation = location
+	cfg.Mail.Frontend = cfg.Frontend
 
 	if cfg.Auth.SigningKey, err = decodeKey("JWT_SIGNING_KEY_B64", 32, false); err != nil {
 		return Config{}, err
@@ -229,6 +262,8 @@ func (cfg Config) Validate() error {
 		return errors.New("authentication attempt limits must be positive")
 	case cfg.Mail.WorkerPoll <= 0 || cfg.Mail.SendTimeout <= 0:
 		return errors.New("mail worker durations must be positive")
+	case cfg.Mail.DisplayLocation == nil:
+		return errors.New("APP_DISPLAY_TIMEZONE must resolve to an IANA location")
 	case cfg.Platform.EventRetention <= 0:
 		return errors.New("PLATFORM_EVENT_RETENTION must be positive")
 	case cfg.Platform.RealtimePoll <= 0 ||
@@ -242,6 +277,9 @@ func (cfg Config) Validate() error {
 		return errors.New("PLATFORM_MAINTENANCE_INTERVAL must be positive")
 	case cfg.Platform.WorkerStaleAfter <= cfg.Platform.MaintenanceEvery:
 		return errors.New("PLATFORM_WORKER_STALE_AFTER must be longer than PLATFORM_MAINTENANCE_INTERVAL")
+	}
+	if err := cfg.Frontend.Validate(); err != nil {
+		return err
 	}
 	if cfg.HAL.BaseURL != "" && (cfg.HAL.CMSBearerToken == "" || cfg.HAL.FactBearerToken == "") {
 		return errors.New("HAL_V1_CMS_BEARER_TOKEN and HAL_V1_CMS_FACT_BEARER_TOKEN are required when HAL_V1_BASE_URL is set")

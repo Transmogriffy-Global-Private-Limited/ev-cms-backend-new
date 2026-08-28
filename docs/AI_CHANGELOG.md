@@ -1,5 +1,20 @@
 # AI Changelog
 
+## 2026-08-28 - Complete the durable support-ticket core
+
+- Added support migration 057, immutable ticket lifecycle events, the final
+  `OPEN`/`IN_PROGRESS`/`RESOLVED`/`CLOSED` transition graph, locked status and
+  reply mutation paths, truthful CPO reopen history, and reply idempotency.
+- Replaced unbounded full-thread list responses with cursor-paginated queue
+  summaries; detail retains ordered messages and history. Added strict JSON
+  request boundaries, OpenAPI schemas/filters/conflict responses, and the
+  source support workflow contract.
+
+Verification: focused support tests and OpenAPI/runtime route parity passed;
+the PostgreSQL workflow/concurrency test is conditional on an explicitly
+selected disposable `TEST_DATABASE_URL`. No migration, deployment, SMTP, or
+other external action occurred.
+
 ## 2026-08-26 - Separate customer execution limits from wallet safety
 
 - Refactored the existing customer start path so customer ENERGY, TIME, and
