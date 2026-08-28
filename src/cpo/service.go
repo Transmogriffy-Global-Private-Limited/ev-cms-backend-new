@@ -117,7 +117,7 @@ func NewService(
 }
 
 func (service *Service) GetAnalytics(ctx context.Context, principal auth.Principal, query AnalyticsQuery) (AnalyticsResponse, error) {
-	if err := requireCPOAdminAccess(principal); err != nil {
+	if err := requireCPOContext(principal); err != nil {
 		return AnalyticsResponse{}, err
 	}
 	analytics, err := service.repository.GetAnalytics(ctx, *principal.CPOID, query)
@@ -138,7 +138,7 @@ func (service *Service) GetChargingSession(
 	principal auth.Principal,
 	sessionID uuid.UUID,
 ) (ChargingSessionView, error) {
-	if err := requireCPOAdminAccess(principal); err != nil {
+	if err := requireCPOContext(principal); err != nil {
 		return ChargingSessionView{}, err
 	}
 
@@ -178,7 +178,7 @@ func (service *Service) ListChargingSessions(
 	principal auth.Principal,
 	query ChargingSessionListQuery,
 ) (ChargingSessionListResponse, error) {
-	if err := requireCPOAdminAccess(principal); err != nil {
+	if err := requireCPOContext(principal); err != nil {
 		return ChargingSessionListResponse{}, err
 	}
 
@@ -252,7 +252,7 @@ func (service *Service) ListChargingSessions(
 }
 
 func (service *Service) ListLiveChargingSessions(ctx context.Context, principal auth.Principal, query LiveChargingSessionListQuery) (LiveChargingSessionListResponse, error) {
-	if err := requireCPOAdminAccess(principal); err != nil {
+	if err := requireCPOContext(principal); err != nil {
 		return LiveChargingSessionListResponse{}, err
 	}
 	if service.liveOperations == nil {
@@ -303,7 +303,7 @@ func (service *Service) ListChargerTransactions(
 	principal auth.Principal,
 	query ChargerTransactionListQuery,
 ) (ChargerTransactionListResponse, error) {
-	if err := requireCPOAdminAccess(principal); err != nil {
+	if err := requireCPOContext(principal); err != nil {
 		return ChargerTransactionListResponse{}, err
 	}
 
@@ -2046,7 +2046,7 @@ func (service *Service) GetAdminProfile(
 	ctx context.Context,
 	principal auth.Principal,
 ) (AdminProfileView, error) {
-	if err := requireCPOAdminAccess(principal); err != nil {
+	if err := requireCPOContext(principal); err != nil {
 		return AdminProfileView{}, err
 	}
 	var user models.User
@@ -2073,7 +2073,7 @@ func (service *Service) UpdateAdminProfile(
 	principal auth.Principal,
 	request UpdateAdminProfileRequest,
 ) (AdminProfileView, error) {
-	if err := requireCPOAdminAccess(principal); err != nil {
+	if err := requireCPOContext(principal); err != nil {
 		return AdminProfileView{}, err
 	}
 	request.FullName = trimOptionalString(request.FullName)
@@ -2194,7 +2194,7 @@ func (service *Service) GetUser(
 	principal auth.Principal,
 	userID uuid.UUID,
 ) (CPOUserView, error) {
-	if err := requireCPOAdminAccess(principal); err != nil {
+	if err := requireCPOContext(principal); err != nil {
 		return CPOUserView{}, err
 	}
 
@@ -2239,7 +2239,7 @@ func (service *Service) GetUser(
 func (service *Service) PermissionCatalog(
 	principal auth.Principal,
 ) (PermissionCatalogResponse, error) {
-	if err := requireCPOAdminAccess(principal); err != nil {
+	if err := requireCPOContext(principal); err != nil {
 		return PermissionCatalogResponse{}, err
 	}
 	catalog := cpopermissions.Catalog()
@@ -2268,7 +2268,7 @@ func (service *Service) AccessMe(ctx context.Context, principal auth.Principal) 
 }
 
 func (service *Service) ListStaff(ctx context.Context, principal auth.Principal) (StaffListResponse, error) {
-	if err := requireCPOAdminAccess(principal); err != nil {
+	if err := requireCPOContext(principal); err != nil {
 		return StaffListResponse{}, err
 	}
 	cpoID := *principal.CPOID
@@ -2284,7 +2284,7 @@ func (service *Service) ListStaff(ctx context.Context, principal auth.Principal)
 }
 
 func (service *Service) GetStaff(ctx context.Context, principal auth.Principal, membershipID uuid.UUID) (StaffView, error) {
-	if err := requireCPOAdminAccess(principal); err != nil {
+	if err := requireCPOContext(principal); err != nil {
 		return StaffView{}, err
 	}
 	var membership models.CPOMembership
@@ -2303,7 +2303,7 @@ func (service *Service) GetStaff(ctx context.Context, principal auth.Principal, 
 }
 
 func (service *Service) CreateStaff(ctx context.Context, principal auth.Principal, request CreateStaffRequest) (StaffView, error) {
-	if err := requireCPOAdminAccess(principal); err != nil {
+	if err := requireCPOContext(principal); err != nil {
 		return StaffView{}, err
 	}
 	request.Email = strings.ToLower(strings.TrimSpace(request.Email))
@@ -2395,7 +2395,7 @@ func (service *Service) CreateStaff(ctx context.Context, principal auth.Principa
 }
 
 func (service *Service) UpdateStaff(ctx context.Context, principal auth.Principal, membershipID uuid.UUID, request UpdateStaffRequest) (StaffView, error) {
-	if err := requireCPOAdminAccess(principal); err != nil {
+	if err := requireCPOContext(principal); err != nil {
 		return StaffView{}, err
 	}
 	if request.Role == nil && request.Overrides == nil {
@@ -2509,7 +2509,7 @@ func (service *Service) requireDelegationWithDatabase(ctx context.Context, datab
 }
 
 func (service *Service) TransitionStaff(ctx context.Context, principal auth.Principal, membershipID uuid.UUID, status constants.MembershipStatus, reason string) (StaffView, error) {
-	if err := requireCPOAdminAccess(principal); err != nil {
+	if err := requireCPOContext(principal); err != nil {
 		return StaffView{}, err
 	}
 	if status != constants.MembershipStatusActive && status != constants.MembershipStatusSuspended && status != constants.MembershipStatusRevoked {
@@ -2642,7 +2642,7 @@ func (service *Service) GetOrganization(
 	ctx context.Context,
 	principal auth.Principal,
 ) (OrganizationView, error) {
-	if err := requireCPOAdminAccess(principal); err != nil {
+	if err := requireCPOContext(principal); err != nil {
 		return OrganizationView{}, err
 	}
 	record, err := service.find(ctx, *principal.CPOID)
@@ -2688,7 +2688,7 @@ func (service *Service) GetSubscription(
 	ctx context.Context,
 	principal auth.Principal,
 ) (CPOSubscriptionView, error) {
-	if err := requireCPOAdminAccess(principal); err != nil {
+	if err := requireCPOContext(principal); err != nil {
 		return CPOSubscriptionView{}, err
 	}
 	cpoID := *principal.CPOID
@@ -2741,7 +2741,7 @@ func (service *Service) ListChargersByHub(
 	principal auth.Principal,
 	hubID uuid.UUID,
 ) (ChargerListResponse, error) {
-	if err := requireCPOAdminAccess(principal); err != nil {
+	if err := requireCPOContext(principal); err != nil {
 		return ChargerListResponse{}, err
 	}
 
@@ -2767,7 +2767,7 @@ func (service *Service) AssignGSTToHub(
 	hubID uuid.UUID,
 	request AssignGSTToHubRequest,
 ) (HubView, error) {
-	if err := requireCPOAdminAccess(principal); err != nil {
+	if err := requireCPOContext(principal); err != nil {
 		return HubView{}, err
 	}
 
@@ -2847,7 +2847,7 @@ func (service *Service) GetGSTForHub(
 	principal auth.Principal,
 	hubID uuid.UUID,
 ) (GSTView, error) {
-	if err := requireCPOAdminAccess(principal); err != nil {
+	if err := requireCPOContext(principal); err != nil {
 		return GSTView{}, err
 	}
 
@@ -2886,7 +2886,7 @@ func (service *Service) UpdateGSTForHub(
 	hubID uuid.UUID,
 	request AssignGSTToHubRequest,
 ) (HubView, error) {
-	if err := requireCPOAdminAccess(principal); err != nil {
+	if err := requireCPOContext(principal); err != nil {
 		return HubView{}, err
 	}
 
@@ -2966,7 +2966,7 @@ func (service *Service) UnassignGSTFromHub(
 	principal auth.Principal,
 	hubID uuid.UUID,
 ) (HubView, error) {
-	if err := requireCPOAdminAccess(principal); err != nil {
+	if err := requireCPOContext(principal); err != nil {
 		return HubView{}, err
 	}
 
@@ -3076,7 +3076,7 @@ func (service *Service) CreateCharger(
 	ctx *gin.Context,
 	principal auth.Principal,
 ) (ChargerResponse, error) {
-	if err := requireCPOAdminAccess(principal); err != nil {
+	if err := requireCPOContext(principal); err != nil {
 		return ChargerResponse{}, err
 	}
 
@@ -3248,7 +3248,7 @@ func (service *Service) CreateHubTariff(
 	hubID uuid.UUID,
 	request CreateTariffRequest,
 ) (TariffView, error) {
-	if err := requireCPOAdminAccess(principal); err != nil {
+	if err := requireCPOContext(principal); err != nil {
 		return TariffView{}, err
 	}
 
@@ -3325,7 +3325,7 @@ func (service *Service) ListHubTariffs(
 	hubID uuid.UUID,
 	query TenantListQuery,
 ) (*TariffListResponse, error) {
-	if err := requireCPOAdminAccess(principal); err != nil {
+	if err := requireCPOContext(principal); err != nil {
 		return nil, err
 	}
 	query, err := validateTenantListQuery(query)
@@ -3376,7 +3376,7 @@ func (service *Service) GetHubTariff(
 	hubID uuid.UUID,
 	tariffID uuid.UUID,
 ) (TariffView, error) {
-	if err := requireCPOAdminAccess(principal); err != nil {
+	if err := requireCPOContext(principal); err != nil {
 		return TariffView{}, err
 	}
 
@@ -3396,7 +3396,7 @@ func (service *Service) UpdateHubTariff(
 	tariffID uuid.UUID,
 	request UpdateTariffRequest,
 ) (TariffView, error) {
-	if err := requireCPOAdminAccess(principal); err != nil {
+	if err := requireCPOContext(principal); err != nil {
 		return TariffView{}, err
 	}
 
@@ -3470,7 +3470,7 @@ func (service *Service) CreateChargerTariff(
 	chargerID uuid.UUID,
 	request CreateTariffRequest,
 ) (TariffView, error) {
-	if err := requireCPOAdminAccess(principal); err != nil {
+	if err := requireCPOContext(principal); err != nil {
 		return TariffView{}, err
 	}
 
@@ -3547,7 +3547,7 @@ func (service *Service) ListChargerTariffs(
 	chargerID uuid.UUID,
 	query TenantListQuery,
 ) (*TariffListResponse, error) {
-	if err := requireCPOAdminAccess(principal); err != nil {
+	if err := requireCPOContext(principal); err != nil {
 		return nil, err
 	}
 	query, err := validateTenantListQuery(query)
@@ -3598,7 +3598,7 @@ func (service *Service) GetChargerTariff(
 	chargerID uuid.UUID,
 	tariffID uuid.UUID,
 ) (TariffView, error) {
-	if err := requireCPOAdminAccess(principal); err != nil {
+	if err := requireCPOContext(principal); err != nil {
 		return TariffView{}, err
 	}
 
@@ -3618,7 +3618,7 @@ func (service *Service) UpdateChargerTariff(
 	tariffID uuid.UUID,
 	request UpdateTariffRequest,
 ) (TariffView, error) {
-	if err := requireCPOAdminAccess(principal); err != nil {
+	if err := requireCPOContext(principal); err != nil {
 		return TariffView{}, err
 	}
 
@@ -3692,7 +3692,7 @@ func (service *Service) CreateUserGroupTariff(
 	userGroupID uuid.UUID,
 	request CreateTariffRequest,
 ) (TariffView, error) {
-	if err := requireCPOAdminAccess(principal); err != nil {
+	if err := requireCPOContext(principal); err != nil {
 		return TariffView{}, err
 	}
 
@@ -3768,7 +3768,7 @@ func (service *Service) ListUserGroupTariffs(
 	userGroupID uuid.UUID,
 	query TenantListQuery,
 ) (*TariffListResponse, error) {
-	if err := requireCPOAdminAccess(principal); err != nil {
+	if err := requireCPOContext(principal); err != nil {
 		return nil, err
 	}
 	query, err := validateTenantListQuery(query)
@@ -3819,7 +3819,7 @@ func (service *Service) GetUserGroupTariff(
 	userGroupID uuid.UUID,
 	tariffID uuid.UUID,
 ) (TariffView, error) {
-	if err := requireCPOAdminAccess(principal); err != nil {
+	if err := requireCPOContext(principal); err != nil {
 		return TariffView{}, err
 	}
 
@@ -3839,7 +3839,7 @@ func (service *Service) UpdateUserGroupTariff(
 	tariffID uuid.UUID,
 	request UpdateTariffRequest,
 ) (TariffView, error) {
-	if err := requireCPOAdminAccess(principal); err != nil {
+	if err := requireCPOContext(principal); err != nil {
 		return TariffView{}, err
 	}
 
@@ -3914,7 +3914,7 @@ func (service *Service) deleteScopedTariff(
 	assignment constants.TariffAssignmentType,
 	targetColumn, auditAction string,
 ) error {
-	if err := requireCPOAdminAccess(principal); err != nil {
+	if err := requireCPOContext(principal); err != nil {
 		return err
 	}
 	cpoID := *principal.CPOID
@@ -4030,7 +4030,7 @@ func (service *Service) GetCharger(
 	principal auth.Principal,
 	chargerID string,
 ) (ChargerResponse, error) {
-	if err := requireCPOAdminAccess(principal); err != nil {
+	if err := requireCPOContext(principal); err != nil {
 		return ChargerResponse{}, err
 	}
 
@@ -4067,7 +4067,7 @@ func (service *Service) GetCharger(
 }
 
 func (service *Service) GetOperationalCharger(ctx context.Context, principal auth.Principal, chargerID string) (OperationalChargerResponse, error) {
-	if err := requireCPOAdminAccess(principal); err != nil {
+	if err := requireCPOContext(principal); err != nil {
 		return OperationalChargerResponse{}, err
 	}
 	if service.liveOperations == nil {
@@ -4089,7 +4089,7 @@ func (service *Service) GetOperationalCharger(ctx context.Context, principal aut
 }
 
 func (service *Service) GetFleetOperations(ctx context.Context, principal auth.Principal) (FleetOperationsResponse, error) {
-	if err := requireCPOAdminAccess(principal); err != nil {
+	if err := requireCPOContext(principal); err != nil {
 		return FleetOperationsResponse{}, err
 	}
 	if service.liveOperations == nil {
@@ -4141,7 +4141,7 @@ func (service *Service) GetPlatformOperationalCharger(ctx context.Context, princ
 }
 
 func (service *Service) ListOperationalEvents(ctx context.Context, principal auth.Principal, after int64, limit int) (operationalrealtime.Page, error) {
-	if err := requireCPOAdminAccess(principal); err != nil {
+	if err := requireCPOContext(principal); err != nil {
 		return operationalrealtime.Page{}, err
 	}
 	if service.operationalEvents == nil {
@@ -4151,7 +4151,7 @@ func (service *Service) ListOperationalEvents(ctx context.Context, principal aut
 }
 
 func (service *Service) ListLiveChargingSessionEvents(ctx context.Context, principal auth.Principal, after int64, limit int) (operationalrealtime.Page, error) {
-	if err := requireCPOAdminAccess(principal); err != nil {
+	if err := requireCPOContext(principal); err != nil {
 		return operationalrealtime.Page{}, err
 	}
 	if service.operationalEvents == nil {
@@ -4161,7 +4161,7 @@ func (service *Service) ListLiveChargingSessionEvents(ctx context.Context, princ
 }
 
 func (service *Service) LatestLiveChargingSessionEventID(ctx context.Context, principal auth.Principal) (int64, error) {
-	if err := requireCPOAdminAccess(principal); err != nil {
+	if err := requireCPOContext(principal); err != nil {
 		return 0, err
 	}
 	if service.operationalEvents == nil {
@@ -4196,7 +4196,7 @@ func (service *Service) UpdateCharger(
 	principal auth.Principal,
 	chargerID string,
 ) (ChargerResponse, error) {
-	if err := requireCPOAdminAccess(principal); err != nil {
+	if err := requireCPOContext(principal); err != nil {
 		return ChargerResponse{}, err
 	}
 
@@ -4511,7 +4511,7 @@ func (service *Service) DeleteCharger(
 	principal auth.Principal,
 	chargerID string,
 ) error {
-	if err := requireCPOAdminAccess(principal); err != nil {
+	if err := requireCPOContext(principal); err != nil {
 		return err
 	}
 
@@ -4683,7 +4683,7 @@ func validateUpdateChargerRequest(request UpdateChargerRequest) error {
 	return nil
 }
 
-func requireCPOAdminAccess(principal auth.Principal) error {
+func requireCPOContext(principal auth.Principal) error {
 	if principal.Scope != constants.AuthScopeCPO {
 		return &auth.APIError{
 			Status:  http.StatusForbidden,
@@ -4899,7 +4899,7 @@ func (service *Service) ListChargers(
 	principal auth.Principal,
 	query TenantListQuery,
 ) (ChargerListResponse, error) {
-	if err := requireCPOAdminAccess(principal); err != nil {
+	if err := requireCPOContext(principal); err != nil {
 		return ChargerListResponse{}, err
 	}
 	query, err := validateTenantListQuery(query)
@@ -4983,7 +4983,7 @@ func (service *Service) CreateHub(
 	principal auth.Principal,
 	request CreateHubRequest,
 ) (HubView, error) {
-	if err := requireCPOAdminAccess(principal); err != nil {
+	if err := requireCPOContext(principal); err != nil {
 		return HubView{}, err
 	}
 
@@ -5095,7 +5095,7 @@ func (service *Service) ListHubs(
 	principal auth.Principal,
 	query TenantListQuery,
 ) (HubListResponse, error) {
-	if err := requireCPOAdminAccess(principal); err != nil {
+	if err := requireCPOContext(principal); err != nil {
 		return HubListResponse{}, err
 	}
 	query, err := validateTenantListQuery(query)
@@ -5142,7 +5142,7 @@ func (service *Service) GetHub(
 	hubID uuid.UUID,
 	query TenantListQuery,
 ) (HubResponse, error) {
-	if err := requireCPOAdminAccess(principal); err != nil {
+	if err := requireCPOContext(principal); err != nil {
 		return HubResponse{}, err
 	}
 
@@ -5224,7 +5224,7 @@ func (service *Service) UpdateHub(
 	hubID uuid.UUID,
 	request UpdateHubRequest,
 ) (HubView, error) {
-	if err := requireCPOAdminAccess(principal); err != nil {
+	if err := requireCPOContext(principal); err != nil {
 		return HubView{}, err
 	}
 
@@ -5365,7 +5365,7 @@ func (service *Service) DeleteHub(
 	principal auth.Principal,
 	hubID uuid.UUID,
 ) error {
-	if err := requireCPOAdminAccess(principal); err != nil {
+	if err := requireCPOContext(principal); err != nil {
 		return err
 	}
 
@@ -5434,7 +5434,7 @@ func (service *Service) ListCustomers(
 	principal auth.Principal,
 	query CPOAdminCustomerListQuery,
 ) (CPOAdminCustomerListResponse, error) {
-	if err := requireCPOAdminAccess(principal); err != nil {
+	if err := requireCPOContext(principal); err != nil {
 		return CPOAdminCustomerListResponse{}, err
 	}
 
@@ -5540,7 +5540,7 @@ func (service *Service) GetCustomer(
 	principal auth.Principal,
 	customerID uuid.UUID,
 ) (CPOAdminCustomerView, error) {
-	if err := requireCPOAdminAccess(principal); err != nil {
+	if err := requireCPOContext(principal); err != nil {
 		return CPOAdminCustomerView{}, err
 	}
 
@@ -5685,7 +5685,7 @@ func (service *Service) AssignChargerToHub(
 	hubID uuid.UUID,
 	chargerID uuid.UUID,
 ) (ChargerResponse, error) {
-	if err := requireCPOAdminAccess(principal); err != nil {
+	if err := requireCPOContext(principal); err != nil {
 		return ChargerResponse{}, err
 	}
 	if chargerID == uuid.Nil {
@@ -6304,7 +6304,7 @@ func (service *Service) CreateGST(
 	principal auth.Principal,
 	request CreateGSTRequest,
 ) (GSTView, error) {
-	if err := requireCPOAdminAccess(principal); err != nil {
+	if err := requireCPOContext(principal); err != nil {
 		return GSTView{}, err
 	}
 
@@ -6368,7 +6368,7 @@ func (service *Service) ListGSTs(
 	principal auth.Principal,
 	query TenantListQuery,
 ) (GSTListResponse, error) {
-	if err := requireCPOAdminAccess(principal); err != nil {
+	if err := requireCPOContext(principal); err != nil {
 		return GSTListResponse{}, err
 	}
 	query, err := validateTenantListQuery(query)
@@ -6414,7 +6414,7 @@ func (service *Service) GetGST(
 	principal auth.Principal,
 	gstID uuid.UUID,
 ) (GSTView, error) {
-	if err := requireCPOAdminAccess(principal); err != nil {
+	if err := requireCPOContext(principal); err != nil {
 		return GSTView{}, err
 	}
 
@@ -6433,7 +6433,7 @@ func (service *Service) UpdateGST(
 	gstID uuid.UUID,
 	request UpdateGSTRequest,
 ) (GSTView, error) {
-	if err := requireCPOAdminAccess(principal); err != nil {
+	if err := requireCPOContext(principal); err != nil {
 		return GSTView{}, err
 	}
 
@@ -6680,7 +6680,7 @@ func (service *Service) updateChargerStatus(
 	request UpdateChargerStatusRequest,
 	correlationID string,
 ) (ChargerStatusResponse, error) {
-	if err := requireCPOAdminAccess(principal); err != nil {
+	if err := requireCPOContext(principal); err != nil {
 		return ChargerStatusResponse{}, err
 	}
 
@@ -6750,7 +6750,7 @@ func (service *Service) GetChargerStatus(
 	principal auth.Principal,
 	chargerID uuid.UUID,
 ) (ChargerStatusResponse, error) {
-	if err := requireCPOAdminAccess(principal); err != nil {
+	if err := requireCPOContext(principal); err != nil {
 		return ChargerStatusResponse{}, err
 	}
 
@@ -6775,7 +6775,7 @@ type ImageDownload struct {
 }
 
 func (service *Service) DownloadChargerImage(ctx context.Context, principal auth.Principal, chargerID string) (*ImageDownload, error) {
-	if err := requireCPOAdminAccess(principal); err != nil {
+	if err := requireCPOContext(principal); err != nil {
 		return nil, err
 	}
 
@@ -6858,7 +6858,7 @@ func (service *Service) UpdateHubCustomerVisibility(
 	hubID uuid.UUID,
 	request UpdateHubCustomerVisibilityRequest,
 ) (HubView, error) {
-	if err := requireCPOAdminAccess(principal); err != nil {
+	if err := requireCPOContext(principal); err != nil {
 		return HubView{}, err
 	}
 
@@ -6909,7 +6909,7 @@ func (service *Service) CreateUserGroup(
 	principal auth.Principal,
 	request CreateUserGroupRequest,
 ) (UserGroupView, error) {
-	if err := requireCPOAdminAccess(principal); err != nil {
+	if err := requireCPOContext(principal); err != nil {
 		return UserGroupView{}, err
 	}
 
@@ -6967,7 +6967,7 @@ func (service *Service) ListUserGroups(
 	principal auth.Principal,
 	query TenantListQuery,
 ) (UserGroupListResponse, error) {
-	if err := requireCPOAdminAccess(principal); err != nil {
+	if err := requireCPOContext(principal); err != nil {
 		return UserGroupListResponse{}, err
 	}
 	query, err := validateTenantListQuery(query)
@@ -7042,7 +7042,7 @@ func (service *Service) GetUserGroup(
 	principal auth.Principal,
 	userGroupID uuid.UUID,
 ) (UserGroupView, error) {
-	if err := requireCPOAdminAccess(principal); err != nil {
+	if err := requireCPOContext(principal); err != nil {
 		return UserGroupView{}, err
 	}
 
@@ -7073,7 +7073,7 @@ func (service *Service) UpdateUserGroup(
 	userGroupID uuid.UUID,
 	request UpdateUserGroupRequest,
 ) (UserGroupView, error) {
-	if err := requireCPOAdminAccess(principal); err != nil {
+	if err := requireCPOContext(principal); err != nil {
 		return UserGroupView{}, err
 	}
 
@@ -7151,7 +7151,7 @@ func (service *Service) DeleteUserGroup(
 	principal auth.Principal,
 	userGroupID uuid.UUID,
 ) error {
-	if err := requireCPOAdminAccess(principal); err != nil {
+	if err := requireCPOContext(principal); err != nil {
 		return err
 	}
 
@@ -7184,7 +7184,7 @@ func (service *Service) AddMemberToUserGroup(
 	userGroupID uuid.UUID,
 	request AddMemberToUserGroupRequest,
 ) error {
-	if err := requireCPOAdminAccess(principal); err != nil {
+	if err := requireCPOContext(principal); err != nil {
 		return err
 	}
 
@@ -7240,7 +7240,7 @@ func (service *Service) RemoveMemberFromUserGroup(
 	userGroupID uuid.UUID,
 	customerID uuid.UUID,
 ) error {
-	if err := requireCPOAdminAccess(principal); err != nil {
+	if err := requireCPOContext(principal); err != nil {
 		return err
 	}
 
@@ -7335,7 +7335,7 @@ func (service *Service) GetSettings(
 	ctx context.Context,
 	principal auth.Principal,
 ) (SettingsView, error) {
-	if err := requireCPOAdminAccess(principal); err != nil {
+	if err := requireCPOContext(principal); err != nil {
 		return SettingsView{}, err
 	}
 
@@ -7364,7 +7364,7 @@ func (service *Service) CreateOrUpdateSettings(
 	ctx *gin.Context,
 	principal auth.Principal,
 ) (SettingsView, error) {
-	if err := requireCPOAdminAccess(principal); err != nil {
+	if err := requireCPOContext(principal); err != nil {
 		return SettingsView{}, err
 	}
 
@@ -7472,7 +7472,7 @@ func optionalNonNegativeWholeCurrencyFormValue(ctx *gin.Context, field string) (
 
 // DownloadInvoiceLogo retrieves the invoice logo file for the authenticated CPO.
 func (service *Service) DownloadInvoiceLogo(ctx context.Context, principal auth.Principal) (*ImageDownload, error) {
-	if err := requireCPOAdminAccess(principal); err != nil {
+	if err := requireCPOContext(principal); err != nil {
 		return nil, err
 	}
 
@@ -7554,7 +7554,7 @@ func (service *Service) UpdateChargerCustomerVisibility(
 	chargerID uuid.UUID,
 	request UpdateChargerCustomerVisibilityRequest,
 ) (ChargerResponse, error) {
-	if err := requireCPOAdminAccess(principal); err != nil {
+	if err := requireCPOContext(principal); err != nil {
 		return ChargerResponse{}, err
 	}
 
@@ -7612,7 +7612,7 @@ func (service *Service) ListWalletTransactions(
 	principal auth.Principal,
 	query WalletTransactionListQuery,
 ) (WalletTransactionListResponse, error) {
-	if err := requireCPOAdminAccess(principal); err != nil {
+	if err := requireCPOContext(principal); err != nil {
 		return WalletTransactionListResponse{}, err
 	}
 

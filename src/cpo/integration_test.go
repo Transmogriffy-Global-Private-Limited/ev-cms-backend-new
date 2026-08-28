@@ -18,6 +18,7 @@ import (
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/auth"
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/config"
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/constants"
+	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/cpopermissions"
 	cmsmail "github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/mail"
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/models"
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/platformops"
@@ -29,6 +30,99 @@ import (
 	"github.com/shopspring/decimal"
 	"gorm.io/gorm"
 )
+
+func TestCPOCapabilityRoutesReachServicesWithPostgreSQL(t *testing.T) {
+	databaseURL := os.Getenv("TEST_DATABASE_URL")
+	if databaseURL == "" {
+		t.Skip("TEST_DATABASE_URL is not set")
+	}
+	ctx := context.Background()
+	gormDB, sqlDB, err := db.Open(ctx, databaseURL)
+	if err != nil {
+		t.Fatalf("open test database: %v", err)
+	}
+	defer sqlDB.Close()
+	if err := db.ApplyMigrations(ctx, sqlDB); err != nil {
+		t.Fatalf("apply migrations: %v", err)
+	}
+	now := time.Now().UTC()
+	cpoRecord := models.CPO{ID: uuid.New(), Slug: "cap-" + strings.ToLower(uuid.NewString()), BusinessName: "Capability CPO", CompanyType: constants.CPOCompanyTypeCompany, GSTIN: uniqueCPOGSTIN(), Address: "1 Test Road", City: "Kolkata", State: constants.WestBengal, Pincode: "700001", Status: constants.CPOStatusActive, StatusReason: "test", StatusChangedAt: now, AppID: "cpo_dummy_" + strings.ReplaceAll(uuid.NewString(), "-", ""), AppIDMode: constants.CPOAppIDModeDummy, AppIDUpdatedAt: now, CreatedAt: now, UpdatedAt: now}
+	if err := gormDB.Create(&cpoRecord).Error; err != nil {
+		t.Fatalf("create CPO: %v", err)
+	}
+	tokens, err := security.NewTokenManager("cap-test", "cap-test-api", time.Hour, []byte(strings.Repeat("s", 32)), []byte(strings.Repeat("e", 32)))
+	if err != nil {
+		t.Fatalf("create token manager: %v", err)
+	}
+	authService, err := auth.NewService(gormDB, config.Auth{Issuer: "cap-test", Audience: "cap-test-api", AccessTTL: time.Hour}, false, nil, tokens)
+	if err != nil {
+		t.Fatalf("create auth service: %v", err)
+	}
+	cpoService := NewService(gormDB, nil, true, "dummy.connection.url")
+	gin.SetMode(gin.TestMode)
+	router := gin.New()
+	RegisterCPORoutes(router.Group("/api/v1/cpo"), authService, cpoService)
+
+	issue := func(t *testing.T, role constants.CPORole, allow, deny []string) string {
+		t.Helper()
+		user := models.User{ID: uuid.New(), Email: uuid.NewString() + "@example.com", PasswordHash: "not-used", FullName: "Capability User", IsActive: true, IsVerified: true, PasswordChangedAt: now, CreatedAt: now, UpdatedAt: now}
+		if err := gormDB.Create(&user).Error; err != nil {
+			t.Fatalf("create user: %v", err)
+		}
+		membership := models.CPOMembership{ID: uuid.New(), CPOID: cpoRecord.ID, UserID: user.ID, Role: role, Status: constants.MembershipStatusActive, CreatedAt: now, UpdatedAt: now}
+		if err := gormDB.Create(&membership).Error; err != nil {
+			t.Fatalf("create membership: %v", err)
+		}
+		for _, permission := range allow {
+			if err := gormDB.Create(&models.CPOMembershipPermissionOverride{ID: uuid.New(), MembershipID: membership.ID, Permission: permission, Effect: "ALLOW", CreatedBy: user.ID, CreatedAt: now, UpdatedAt: now}).Error; err != nil {
+				t.Fatalf("allow %s: %v", permission, err)
+			}
+		}
+		for _, permission := range deny {
+			if err := gormDB.Create(&models.CPOMembershipPermissionOverride{ID: uuid.New(), MembershipID: membership.ID, Permission: permission, Effect: "DENY", CreatedBy: user.ID, CreatedAt: now, UpdatedAt: now}).Error; err != nil {
+				t.Fatalf("deny %s: %v", permission, err)
+			}
+		}
+		session := models.AuthSession{ID: uuid.New(), UserID: user.ID, Scope: constants.AuthScopeCPO, CPOID: &cpoRecord.ID, Role: &role, TokenVersion: 1, CreatedAt: now, LastSeenAt: now, ExpiresAt: now.Add(time.Hour)}
+		if err := gormDB.Create(&session).Error; err != nil {
+			t.Fatalf("create session: %v", err)
+		}
+		token, _, err := tokens.Issue(now, user.ID, session.ID, constants.AuthScopeCPO, &cpoRecord.ID, &role, 1)
+		if err != nil {
+			t.Fatalf("issue token: %v", err)
+		}
+		return token
+	}
+	call := func(t *testing.T, token, method, path string, body any, want int) {
+		t.Helper()
+		var requestBody *bytes.Reader
+		if body == nil {
+			requestBody = bytes.NewReader(nil)
+		} else {
+			raw, err := json.Marshal(body)
+			if err != nil {
+				t.Fatalf("marshal request: %v", err)
+			}
+			requestBody = bytes.NewReader(raw)
+		}
+		request := httptest.NewRequest(method, path, requestBody)
+		request.Header.Set("Authorization", "Bearer "+token)
+		request.Header.Set(auth.CPOAppIDHeader, cpoRecord.AppID)
+		request.Header.Set("Content-Type", "application/json")
+		recorder := httptest.NewRecorder()
+		router.ServeHTTP(recorder, request)
+		if recorder.Code != want {
+			t.Fatalf("%s %s status = %d, want %d: %s", method, path, recorder.Code, want, recorder.Body.String())
+		}
+	}
+
+	call(t, issue(t, constants.CPORoleViewer, []string{cpopermissions.HubsRead}, nil), http.MethodGet, "/api/v1/cpo/hubs?limit=10", nil, http.StatusOK)
+	latitude, longitude := 22.5726, 88.3639
+	call(t, issue(t, constants.CPORoleViewer, []string{cpopermissions.HubsManage}, nil), http.MethodPost, "/api/v1/cpo/hubs", CreateHubRequest{Name: "Allowed hub", Address: "1 Test Road", State: constants.WestBengal, Latitude: &latitude, Longitude: &longitude}, http.StatusCreated)
+	call(t, issue(t, constants.CPORoleAdmin, nil, []string{cpopermissions.HubsRead}), http.MethodGet, "/api/v1/cpo/hubs?limit=10", nil, http.StatusForbidden)
+	call(t, issue(t, constants.CPORoleOperator, nil, nil), http.MethodGet, "/api/v1/cpo/hubs?limit=10", nil, http.StatusOK)
+	call(t, issue(t, constants.CPORoleViewer, nil, nil), http.MethodPost, "/api/v1/cpo/hubs", CreateHubRequest{Name: "Denied hub", Address: "1 Test Road", State: constants.WestBengal, Latitude: &latitude, Longitude: &longitude}, http.StatusForbidden)
+}
 
 func uniqueCPOGSTIN() string {
 	return testsupport.ValidGSTIN("19")

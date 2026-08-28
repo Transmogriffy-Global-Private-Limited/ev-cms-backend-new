@@ -497,7 +497,7 @@ func TestTenantServiceGuardOnlyChecksTrustedCPOContext(t *testing.T) {
 		constants.CPORoleOperator,
 		constants.CPORoleViewer,
 	} {
-		if err := requireCPOAdminAccess(principal(role)); err != nil {
+		if err := requireCPOContext(principal(role)); err != nil {
 			t.Fatalf("CPO context for %s was rejected: %v", role, err)
 		}
 	}

@@ -2,7 +2,7 @@
 
 ## Current State
 
-### 2026-08-28 - Support core and notifications implemented, not deployed
+### 2026-08-28 - Support core and notifications published, not deployed
 
 - Migration 057 converts historical ticket `PENDING` state to `IN_PROGRESS`,
   adds immutable ticket events, and preserves ticket/message state as the
@@ -21,8 +21,9 @@
   CPO-created/replied/reopened activity emits durable platform events rather
   than guessing a platform support mailbox. Notifications expose only subject,
   status, localized time, and the configured action URL—not private message
-  bodies. Core support is on `main` at `1ebcdf6`; this notification completion
-  is uncommitted, not deployed, and requires no new migration. Focused
+  bodies. Support core and notification completion are published at
+  `256aa8975fa07dc032dd779c8eb4b0d93a3b1a73`, are not deployed, and require no
+  new migration. Focused
   support/mail checks passed; the PostgreSQL lifecycle/concurrency test is
   gated on an explicitly selected disposable `TEST_DATABASE_URL`.
 
@@ -193,10 +194,10 @@
   current `/api/v1/platform/*` operations plus the 12 shared administrative
   auth operations. Every platform operation remains enforced by the single
   server-side `PLATFORM` authority; classification is not new granular RBAC.
-- Current source also distinguishes core CPO ADMIN/integration routes from the
-  tenant-scoped support and notification endpoints, which accept any active
-  CPO membership with the verified app ID. No route, database, deployment, or
-  live service was changed by this documentation slice.
+- Current source uses capability-protected CPO routes and tenant-scoped
+  support/notification endpoints. Every CPO request retains verified app-ID
+  and active-membership enforcement; no deployment or migration was performed
+  by this source slice.
 
 ### 2026-08-25 — CPO staff authority and human-readable charging projections in source
 

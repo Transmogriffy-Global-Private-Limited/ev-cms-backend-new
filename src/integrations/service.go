@@ -260,7 +260,7 @@ func requireCPOPrincipal(principal auth.Principal) (uuid.UUID, error) {
 	if principal.Scope != constants.AuthScopeCPO || principal.CPOID == nil {
 		return uuid.Nil, &auth.APIError{
 			Status: http.StatusForbidden, Code: "forbidden",
-			Message: "CPO administrator access is required.",
+			Message: "Active CPO access is required.",
 		}
 	}
 	return *principal.CPOID, nil

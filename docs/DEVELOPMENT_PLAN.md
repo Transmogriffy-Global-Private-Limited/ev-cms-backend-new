@@ -132,8 +132,9 @@ Current implementation state:
   templates and safe frontend links; delivers lifecycle notices through the
   durable outbox; and turns support into a bounded, auditable workflow.
 
-- The support core is committed on `main` at `1ebcdf6`; its verified
-  notification completion remains in the current uncommitted worktree:
+- The support core, notification completion, and semantic mail correction are
+  published on `main` and `anubhab-work` at
+  `256aa8975fa07dc032dd779c8eb4b0d93a3b1a73`:
   migration 057, immutable lifecycle history, guarded transitions, locked
   idempotent replies, bounded cursor queue summaries, detail history, strict
   request decoding, OpenAPI, and PostgreSQL-gated integration coverage.
