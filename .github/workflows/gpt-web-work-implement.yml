@@ -1,0 +1,674 @@
+name: GPT Web Work Isolated Implementation
+
+on:
+  push:
+    branches:
+      - gpt-web-work
+    paths:
+      - .github/workflows/gpt-web-work-implement.yml
+
+permissions:
+  contents: write
+
+jobs:
+  implement:
+    if: github.ref == 'refs/heads/gpt-web-work'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: gpt-web-work
+          fetch-depth: 1
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Apply bounded projection changes
+        shell: python
+        run: |
+          from pathlib import Path
+
+          def replace_exact(path, old, new, count=1):
+              p = Path(path)
+              text = p.read_text()
+              actual = text.count(old)
+              if actual != count:
+                  raise SystemExit(f"{path}: expected {count} occurrences, found {actual}: {old[:120]!r}")
+              p.write_text(text.replace(old, new))
+
+          def replace_first_after(path, anchor, old, new):
+              p = Path(path)
+              text = p.read_text()
+              pos = text.find(anchor)
+              if pos < 0:
+                  raise SystemExit(f"{path}: anchor not found: {anchor!r}")
+              before, tail = text[:pos], text[pos:]
+              if old not in tail:
+                  raise SystemExit(f"{path}: target not found after anchor: {old[:120]!r}")
+              tail = tail.replace(old, new, 1)
+              p.write_text(before + tail)
+
+          Path("src/commercial/session_amount.go").write_text(r'''package commercial
+
+import (
+    "errors"
+    "time"
+
+    "github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/constants"
+    "github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/models"
+    "github.com/shopspring/decimal"
+)
+
+var ErrUnsupportedSessionPricing = errors.New("unsupported session pricing semantics")
+
+type sessionSnapshotPricing struct {
+    pricePerUnit decimal.Decimal
+    tariffType   constants.TariffType
+    priceType    constants.PriceType
+    units        *constants.Unit
+    legacyPerKWh bool
+    legacyPerWh  bool
+}
+
+// SessionAmountFromSnapshots calculates the amount represented by one immutable
+// charging-session tariff/tax snapshot at a specific point in the session. The
+// same function is used by final settlement and live financial projections so
+// an in-progress amount cannot silently use different pricing semantics.
+func SessionAmountFromSnapshots(tariff, tax models.JSONB, consumedWh int64, startedAt, projectedAt time.Time) (decimal.Decimal, error) {
+    pricing, err := sessionSnapshotPricingFromSnapshot(tariff)
+    if err != nil {
+        return decimal.Zero, err
+    }
+    baseAmount, err := pricing.baseAmount(consumedWh, startedAt, projectedAt)
+    if err != nil {
+        return decimal.Zero, err
+    }
+    sgst, sgstOK := sessionSnapshotDecimal(tax, "sgst_rate")
+    cgst, cgstOK := sessionSnapshotDecimal(tax, "cgst_rate")
+    igst, igstOK := sessionSnapshotDecimal(tax, "igst_rate")
+    if !sgstOK || !cgstOK || !igstOK || ValidateGSTComponents(&sgst, &cgst, &igst) != nil {
+        return decimal.Zero, ErrUnsupportedSessionPricing
+    }
+    return baseAmount.Mul(GSTMultiplier(sgst, cgst, igst)).Round(2), nil
+}
+
+func sessionSnapshotPricingFromSnapshot(snapshot models.JSONB) (sessionSnapshotPricing, error) {
+    if _, hasCanonicalPrice := snapshot["price_per_unit"]; hasCanonicalPrice {
+        price, ok := sessionSnapshotDecimal(snapshot, "price_per_unit")
+        if !ok {
+            return sessionSnapshotPricing{}, ErrUnsupportedSessionPricing
+        }
+        tariffType := constants.TariffType(sessionSnapshotString(snapshot, "tariff_type"))
+        priceType := constants.PriceType(sessionSnapshotString(snapshot, "price_type"))
+        var units *constants.Unit
+        if rawUnits := sessionSnapshotString(snapshot, "units"); rawUnits != "" {
+            value := constants.Unit(rawUnits)
+            units = &value
+        }
+        // Preserve the short-lived migration-40 per-Wh contract exactly for
+        // historical sessions instead of relabelling it as corrected per-kWh.
+        if tariffType == constants.TariffTypeFixed && priceType == constants.PriceTypeEnergy && units != nil && *units == constants.LegacyUnitWattHour {
+            return sessionSnapshotPricing{pricePerUnit: price, tariffType: tariffType, priceType: priceType, units: units, legacyPerWh: true}, nil
+        }
+        if !constants.SupportedChargingTariff(&tariffType, &priceType, units) {
+            return sessionSnapshotPricing{}, ErrUnsupportedSessionPricing
+        }
+        return sessionSnapshotPricing{pricePerUnit: price, tariffType: tariffType, priceType: priceType, units: units}, nil
+    }
+
+    // Older immutable snapshots carried an explicit per-kWh field only.
+    if price, ok := sessionSnapshotDecimal(snapshot, "price_per_kwh"); ok {
+        return sessionSnapshotPricing{pricePerUnit: price, tariffType: constants.TariffTypeFixed, priceType: constants.PriceTypeEnergy, legacyPerKWh: true}, nil
+    }
+    return sessionSnapshotPricing{}, ErrUnsupportedSessionPricing
+}
+
+func (pricing sessionSnapshotPricing) baseAmount(consumedWh int64, startedAt, projectedAt time.Time) (decimal.Decimal, error) {
+    if consumedWh < 0 || projectedAt.Before(startedAt) {
+        return decimal.Zero, ErrUnsupportedSessionPricing
+    }
+    if pricing.legacyPerKWh {
+        return pricing.pricePerUnit.Mul(decimal.NewFromInt(consumedWh)).Div(decimal.NewFromInt(1000)), nil
+    }
+    if pricing.legacyPerWh {
+        return pricing.pricePerUnit.Mul(decimal.NewFromInt(consumedWh)), nil
+    }
+    switch pricing.priceType {
+    case constants.PriceTypeEnergy:
+        return pricing.pricePerUnit.Mul(decimal.NewFromInt(consumedWh)).Div(decimal.NewFromInt(1000)), nil
+    case constants.PriceTypeTime:
+        billableMinutes := decimal.NewFromInt(projectedAt.Sub(startedAt).Nanoseconds()).Div(decimal.NewFromInt(int64(time.Minute)))
+        return pricing.pricePerUnit.Mul(billableMinutes), nil
+    case constants.PriceTypeSession:
+        return pricing.pricePerUnit, nil
+    default:
+        return decimal.Zero, ErrUnsupportedSessionPricing
+    }
+}
+
+func sessionSnapshotDecimal(snapshot models.JSONB, key string) (decimal.Decimal, bool) {
+    value, ok := snapshot[key].(string)
+    if !ok || value == "" {
+        return decimal.Zero, false
+    }
+    parsed, err := decimal.NewFromString(value)
+    return parsed, err == nil
+}
+
+func sessionSnapshotString(snapshot models.JSONB, key string) string {
+    value, _ := snapshot[key].(string)
+    return value
+}
+''')
+
+          Path("src/commercial/session_amount_test.go").write_text(r'''package commercial
+
+import (
+    "testing"
+    "time"
+
+    "github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/models"
+    "github.com/shopspring/decimal"
+)
+
+func TestSessionAmountFromSnapshotsMatchesBillingDimensions(t *testing.T) {
+    started := time.Date(2026, 8, 28, 5, 30, 0, 0, time.UTC)
+    tax := models.JSONB{"sgst_rate": "9", "cgst_rate": "9", "igst_rate": "0"}
+    tests := []struct {
+        name       string
+        tariff     models.JSONB
+        consumedWh int64
+        projected  time.Time
+        want       string
+    }{
+        {
+            name: "energy",
+            tariff: models.JSONB{"price_per_unit": "10", "tariff_type": "FIXED", "price_type": "ENERGY", "units": "KWH"},
+            consumedWh: 5000,
+            projected: started.Add(15 * time.Minute),
+            want: "59.00",
+        },
+        {
+            name: "time",
+            tariff: models.JSONB{"price_per_unit": "6", "tariff_type": "FIXED", "price_type": "TIME", "units": "MINUTE"},
+            projected: started.Add(90 * time.Second),
+            want: "10.62",
+        },
+        {
+            name: "session",
+            tariff: models.JSONB{"price_per_unit": "100", "tariff_type": "FIXED", "price_type": "SESSION"},
+            projected: started,
+            want: "118.00",
+        },
+        {
+            name: "legacy per kWh",
+            tariff: models.JSONB{"price_per_kwh": "10"},
+            consumedWh: 4500,
+            projected: started.Add(10 * time.Minute),
+            want: "53.10",
+        },
+    }
+    for _, tt := range tests {
+        t.Run(tt.name, func(t *testing.T) {
+            got, err := SessionAmountFromSnapshots(tt.tariff, tax, tt.consumedWh, started, tt.projected)
+            if err != nil {
+                t.Fatalf("SessionAmountFromSnapshots() error = %v", err)
+            }
+            want, _ := decimal.NewFromString(tt.want)
+            if !got.Equal(want) {
+                t.Fatalf("amount = %s, want %s", got, want)
+            }
+        })
+    }
+}
+''')
+
+          Path("src/cpo/live_financial_projection.go").write_text(r'''package cpo
+
+import (
+    "context"
+    "fmt"
+    "time"
+
+    "github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/auth"
+    "github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/commercial"
+    "github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/models"
+    "github.com/google/uuid"
+    "github.com/shopspring/decimal"
+)
+
+// LiveChargingSessionFinancialView extends the operational live-session view
+// with the money that the immutable session pricing currently represents. It
+// is deliberately projected, not named total_amount: final settlement remains
+// authoritative only after transaction completion.
+type LiveChargingSessionFinancialView struct {
+    LiveChargingSessionView
+    ProjectedAmount decimal.Decimal `json:"projected_amount"`
+    Currency        string          `json:"currency"`
+}
+
+type LiveChargingSessionFinancialListResponse struct {
+    Sessions           []LiveChargingSessionFinancialView `json:"sessions"`
+    NextAfterStartedAt *time.Time                         `json:"next_after_started_at,omitempty"`
+    NextAfterID        *uuid.UUID                         `json:"next_after_id,omitempty"`
+    HasMore            bool                               `json:"has_more"`
+    AsOf               time.Time                          `json:"as_of"`
+}
+
+// ListLiveChargingSessionsWithFinancialProjection preserves the existing
+// operational projection as the base and enriches it in one tenant-scoped
+// batch read. This keeps pricing out of liveops while making both snapshot and
+// SSE representations financially useful.
+func (service *Service) ListLiveChargingSessionsWithFinancialProjection(ctx context.Context, principal auth.Principal, query LiveChargingSessionListQuery) (LiveChargingSessionFinancialListResponse, error) {
+    base, err := service.ListLiveChargingSessions(ctx, principal, query)
+    if err != nil {
+        return LiveChargingSessionFinancialListResponse{}, err
+    }
+    response := LiveChargingSessionFinancialListResponse{
+        Sessions:           make([]LiveChargingSessionFinancialView, 0, len(base.Sessions)),
+        NextAfterStartedAt: base.NextAfterStartedAt,
+        NextAfterID:        base.NextAfterID,
+        HasMore:            base.HasMore,
+        AsOf:               base.AsOf,
+    }
+    if len(base.Sessions) == 0 {
+        return response, nil
+    }
+    if principal.CPOID == nil {
+        return LiveChargingSessionFinancialListResponse{}, fmt.Errorf("CPO context disappeared during live-session projection")
+    }
+
+    ids := make([]uuid.UUID, 0, len(base.Sessions))
+    for _, session := range base.Sessions {
+        ids = append(ids, session.SessionID)
+    }
+    var sources []models.ChargingSession
+    if err := service.database.WithContext(ctx).
+        Select("id", "cpo_id", "tariff_snapshot", "tax_snapshot", "currency", "start_time", "meter_start_wh", "latest_meter_wh").
+        Where("cpo_id = ? AND id IN ?", *principal.CPOID, ids).
+        Find(&sources).Error; err != nil {
+        return LiveChargingSessionFinancialListResponse{}, fmt.Errorf("load live-session financial sources: %w", err)
+    }
+    sourceByID := make(map[uuid.UUID]models.ChargingSession, len(sources))
+    for _, source := range sources {
+        sourceByID[source.ID] = source
+    }
+    for _, view := range base.Sessions {
+        source, ok := sourceByID[view.SessionID]
+        if !ok {
+            return LiveChargingSessionFinancialListResponse{}, fmt.Errorf("live-session financial source disappeared during read")
+        }
+        projected, err := projectLiveChargingSessionFinancial(view, source, base.AsOf)
+        if err != nil {
+            return LiveChargingSessionFinancialListResponse{}, fmt.Errorf("project live-session amount: %w", err)
+        }
+        response.Sessions = append(response.Sessions, projected)
+    }
+    return response, nil
+}
+
+func projectLiveChargingSessionFinancial(view LiveChargingSessionView, source models.ChargingSession, asOf time.Time) (LiveChargingSessionFinancialView, error) {
+    consumedWh := int64(0)
+    if view.ConsumedWh != nil {
+        consumedWh = *view.ConsumedWh
+    } else if source.LatestMeterWh != nil && *source.LatestMeterWh >= source.MeterStartWh {
+        consumedWh = *source.LatestMeterWh - source.MeterStartWh
+    }
+    amount, err := commercial.SessionAmountFromSnapshots(source.TariffSnapshot, source.TaxSnapshot, consumedWh, source.StartTime, asOf)
+    if err != nil {
+        return LiveChargingSessionFinancialView{}, err
+    }
+    return LiveChargingSessionFinancialView{LiveChargingSessionView: view, ProjectedAmount: amount, Currency: source.Currency}, nil
+}
+''')
+
+          Path("src/cpo/live_financial_projection_test.go").write_text(r'''package cpo
+
+import (
+    "encoding/json"
+    "strings"
+    "testing"
+    "time"
+
+    "github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/models"
+    "github.com/google/uuid"
+)
+
+func TestLiveChargingSessionFinancialProjectionUsesImmutableSnapshots(t *testing.T) {
+    started := time.Date(2026, 8, 28, 5, 30, 0, 0, time.UTC)
+    consumed := int64(4500)
+    view := LiveChargingSessionView{SessionID: uuid.New(), StartedAt: started, ConsumedWh: &consumed}
+    source := models.ChargingSession{
+        ID: view.SessionID, StartTime: started, MeterStartWh: 100000, Currency: "INR",
+        TariffSnapshot: models.JSONB{"price_per_unit": "10", "tariff_type": "FIXED", "price_type": "ENERGY", "units": "KWH"},
+        TaxSnapshot: models.JSONB{"sgst_rate": "9", "cgst_rate": "9", "igst_rate": "0"},
+    }
+    got, err := projectLiveChargingSessionFinancial(view, source, started.Add(10*time.Minute))
+    if err != nil {
+        t.Fatalf("projection error = %v", err)
+    }
+    if got.ProjectedAmount.StringFixed(2) != "53.10" || got.Currency != "INR" {
+        t.Fatalf("projection = %s %s, want 53.10 INR", got.ProjectedAmount, got.Currency)
+    }
+    encoded, err := json.Marshal(got)
+    if err != nil {
+        t.Fatal(err)
+    }
+    text := string(encoded)
+    if !strings.Contains(text, `"projected_amount":"53.1"`) || !strings.Contains(text, `"currency":"INR"`) {
+        t.Fatalf("JSON missing financial projection: %s", text)
+    }
+}
+''')
+
+          Path("src/cpo/customer_usage_projection.go").write_text(r'''package cpo
+
+import (
+    "context"
+    "fmt"
+
+    "github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/auth"
+    "github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/constants"
+    "github.com/google/uuid"
+    "github.com/shopspring/decimal"
+)
+
+type customerUsageProjection struct {
+    CustomerID    uuid.UUID       `gorm:"column:customer_id"`
+    TotalUsageKWh decimal.Decimal `gorm:"column:total_usage_kwh"`
+    SessionCount  int64           `gorm:"column:session_count"`
+}
+
+// GetCustomerWithCurrentUsage replaces the historical-only aggregate with a
+// single current projection: finalized sessions contribute total_kwh, while an
+// unfinished session contributes its latest persisted meter delta. This makes
+// total_usage_kwh truthful while a customer is actively charging.
+func (service *Service) GetCustomerWithCurrentUsage(ctx context.Context, principal auth.Principal, customerID uuid.UUID) (CPOAdminCustomerView, error) {
+    view, err := service.GetCustomer(ctx, principal, customerID)
+    if err != nil {
+        return CPOAdminCustomerView{}, err
+    }
+    if principal.CPOID == nil {
+        return CPOAdminCustomerView{}, fmt.Errorf("CPO context disappeared during customer usage projection")
+    }
+    summaries, err := service.customerUsageProjections(ctx, *principal.CPOID, []uuid.UUID{customerID})
+    if err != nil {
+        return CPOAdminCustomerView{}, err
+    }
+    view.TotalUsage = decimal.Zero
+    view.NoOfSessions = 0
+    if summary, ok := summaries[customerID]; ok {
+        view.TotalUsage = summary.TotalUsageKWh
+        view.NoOfSessions = summary.SessionCount
+    }
+    return view, nil
+}
+
+func (service *Service) ListCustomersWithCurrentUsage(ctx context.Context, principal auth.Principal, query CPOAdminCustomerListQuery) (CPOAdminCustomerListResponse, error) {
+    response, err := service.ListCustomers(ctx, principal, query)
+    if err != nil {
+        return CPOAdminCustomerListResponse{}, err
+    }
+    if len(response.Customers) == 0 {
+        return response, nil
+    }
+    if principal.CPOID == nil {
+        return CPOAdminCustomerListResponse{}, fmt.Errorf("CPO context disappeared during customer usage projection")
+    }
+    ids := make([]uuid.UUID, 0, len(response.Customers))
+    for _, customer := range response.Customers {
+        ids = append(ids, customer.ID)
+    }
+    summaries, err := service.customerUsageProjections(ctx, *principal.CPOID, ids)
+    if err != nil {
+        return CPOAdminCustomerListResponse{}, err
+    }
+    for i := range response.Customers {
+        response.Customers[i].TotalUsage = decimal.Zero
+        response.Customers[i].NoOfSessions = 0
+        if summary, ok := summaries[response.Customers[i].ID]; ok {
+            response.Customers[i].TotalUsage = summary.TotalUsageKWh
+            response.Customers[i].NoOfSessions = summary.SessionCount
+        }
+    }
+    return response, nil
+}
+
+func (service *Service) customerUsageProjections(ctx context.Context, cpoID uuid.UUID, customerIDs []uuid.UUID) (map[uuid.UUID]customerUsageProjection, error) {
+    result := make(map[uuid.UUID]customerUsageProjection, len(customerIDs))
+    if len(customerIDs) == 0 {
+        return result, nil
+    }
+    query := `
+SELECT
+    customer_id,
+    COALESCE(SUM(CASE
+        WHEN end_time IS NULL AND status IN (?, ?, ?) THEN
+            GREATEST(COALESCE(latest_meter_wh, meter_start_wh) - meter_start_wh, 0)::numeric / 1000
+        WHEN status IN (?, ?) THEN total_kwh
+        ELSE 0
+    END), 0) AS total_usage_kwh,
+    COALESCE(SUM(CASE WHEN status IN (?, ?, ?, ?) THEN 1 ELSE 0 END), 0)::bigint AS session_count
+FROM charging_sessions
+WHERE cpo_id = ? AND customer_id IN ?
+GROUP BY customer_id`
+    var rows []customerUsageProjection
+    if err := service.database.WithContext(ctx).Raw(
+        query,
+        constants.SessionStatusActive,
+        constants.SessionStatusStopPending,
+        constants.SessionStatusReconciliationRequired,
+        constants.SessionStatusCompleted,
+        constants.SessionStatusReconciliationRequired,
+        constants.SessionStatusActive,
+        constants.SessionStatusStopPending,
+        constants.SessionStatusCompleted,
+        constants.SessionStatusReconciliationRequired,
+        cpoID,
+        customerIDs,
+    ).Scan(&rows).Error; err != nil {
+        return nil, fmt.Errorf("project customer usage: %w", err)
+    }
+    for _, row := range rows {
+        result[row.CustomerID] = row
+    }
+    return result, nil
+}
+''')
+
+          Path("src/customerauth/live_financial_projection.go").write_text(r'''package customerauth
+
+import (
+    "context"
+    "fmt"
+    "time"
+
+    "github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/commercial"
+    "github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/models"
+    "github.com/google/uuid"
+)
+
+// ChargingSessionFinancialProjectionView keeps final total_amount distinct from
+// an in-progress amount. ProjectedAmount is omitted once final settlement has
+// been persisted because TotalAmount then becomes authoritative.
+type ChargingSessionFinancialProjectionView struct {
+    ChargingSessionView
+    ProjectedAmount *string `json:"projected_amount,omitempty"`
+}
+
+func (service *Service) GetChargingSessionWithFinancialProjection(ctx context.Context, principal Principal, sessionID uuid.UUID) (ChargingSessionFinancialProjectionView, error) {
+    base, err := service.GetChargingSession(ctx, principal, sessionID)
+    if err != nil {
+        return ChargingSessionFinancialProjectionView{}, err
+    }
+    var source models.ChargingSession
+    if err := service.database.WithContext(ctx).
+        Select("id", "cpo_id", "customer_id", "tariff_snapshot", "tax_snapshot", "currency", "start_time", "end_time", "meter_start_wh", "latest_meter_wh").
+        First(&source, "id = ? AND cpo_id = ? AND customer_id = ?", sessionID, principal.CPOID, principal.CustomerID).Error; err != nil {
+        return ChargingSessionFinancialProjectionView{}, fmt.Errorf("load charging-session financial source: %w", err)
+    }
+    result := ChargingSessionFinancialProjectionView{ChargingSessionView: base}
+    if source.EndTime != nil {
+        return result, nil
+    }
+
+    consumedWh := int64(0)
+    if base.ConsumedWh != nil {
+        consumedWh = *base.ConsumedWh
+    } else if source.LatestMeterWh != nil && *source.LatestMeterWh >= source.MeterStartWh {
+        consumedWh = *source.LatestMeterWh - source.MeterStartWh
+    }
+    projectedAt := service.now()
+    if base.CompletedAt != nil && base.CompletedAt.Before(projectedAt) {
+        projectedAt = *base.CompletedAt
+    }
+    if projectedAt.Before(source.StartTime) {
+        projectedAt = source.StartTime
+    }
+    amount, err := commercial.SessionAmountFromSnapshots(source.TariffSnapshot, source.TaxSnapshot, consumedWh, source.StartTime, projectedAt)
+    if err != nil {
+        return ChargingSessionFinancialProjectionView{}, fmt.Errorf("project charging-session amount: %w", err)
+    }
+    value := amount.StringFixed(2)
+    result.ProjectedAmount = &value
+    return result, nil
+}
+
+// Keep time imported explicitly in this projection file's contract surface:
+// projectedAt is an instant, never a meter-derived duration estimate.
+var _ time.Time
+''')
+
+          Path("src/customerauth/live_financial_projection_test.go").write_text(r'''package customerauth
+
+import (
+    "encoding/json"
+    "strings"
+    "testing"
+)
+
+func TestChargingSessionFinancialProjectionJSONSeparatesProjectedAndFinalAmounts(t *testing.T) {
+    amount := "12.34"
+    projected := ChargingSessionFinancialProjectionView{
+        ChargingSessionView: ChargingSessionView{Currency: "INR"},
+        ProjectedAmount: &amount,
+    }
+    encoded, err := json.Marshal(projected)
+    if err != nil {
+        t.Fatal(err)
+    }
+    text := string(encoded)
+    if !strings.Contains(text, `"projected_amount":"12.34"`) {
+        t.Fatalf("projected amount missing from JSON: %s", text)
+    }
+    if strings.Contains(text, `"total_amount"`) {
+        t.Fatalf("zero-value final amount should remain omitted in base view: %s", text)
+    }
+}
+''')
+
+          # Final settlement delegates to the same immutable snapshot calculator.
+          replace_exact(
+              "src/customerauth/charging_facts.go",
+              '"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/constants"',
+              '"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/commercial"\n\t"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/constants"',
+          )
+          replace_exact(
+              "src/customerauth/charging_facts.go",
+              '''func chargingAmount(tariff, tax models.JSONB, consumedWh int64, startedAt, stoppedAt time.Time) (decimal.Decimal, error) {
+\tpricing, err := tariffPricingFromSnapshot(tariff)
+\tif err != nil {
+\t\treturn decimal.Zero, err
+\t}
+\treturn pricing.amountWithTaxSnapshot(consumedWh, startedAt, stoppedAt, tax)
+}''',
+              '''func chargingAmount(tariff, tax models.JSONB, consumedWh int64, startedAt, stoppedAt time.Time) (decimal.Decimal, error) {
+\treturn commercial.SessionAmountFromSnapshots(tariff, tax, consumedWh, startedAt, stoppedAt)
+}''',
+          )
+
+          # Route the CPO snapshot + both SSE refresh paths through the financial projection.
+          replace_exact(
+              "src/cpo/router.go",
+              "handler.service.ListLiveChargingSessions(ctx.Request.Context(), principal, query)",
+              "handler.service.ListLiveChargingSessionsWithFinancialProjection(ctx.Request.Context(), principal, query)",
+              count=3,
+          )
+          replace_exact(
+              "src/cpo/router.go",
+              "handler.service.ListCustomers(ctx.Request.Context(), principal, query)",
+              "handler.service.ListCustomersWithCurrentUsage(ctx.Request.Context(), principal, query)",
+          )
+          replace_exact(
+              "src/cpo/router.go",
+              "handler.service.GetCustomer(ctx.Request.Context(), principal, customerID)",
+              "handler.service.GetCustomerWithCurrentUsage(ctx.Request.Context(), principal, customerID)",
+          )
+          replace_exact(
+              "src/cpo/router.go",
+              "func writeLiveSessionSnapshot(writer io.Writer, eventType string, eventID int64, snapshot LiveChargingSessionListResponse) error",
+              "func writeLiveSessionSnapshot(writer io.Writer, eventType string, eventID int64, snapshot any) error",
+          )
+
+          replace_exact(
+              "src/customerauth/router.go",
+              "handler.service.GetChargingSession(ctx.Request.Context(), principal, id)",
+              "handler.service.GetChargingSessionWithFinancialProjection(ctx.Request.Context(), principal, id)",
+          )
+
+          # Canonical OpenAPI: CPO live sessions always expose projected amount + currency.
+          openapi = "docs/contracts/openapi/openapi.yaml"
+          replace_first_after(
+              openapi,
+              "\n    LiveChargingSessionView:\n",
+              "required: [session_id, status, started_at, duration_seconds, customer_name, charger_id, charger_name, connector_id, connector_number, meter_freshness, soc_freshness]",
+              "required: [session_id, status, started_at, duration_seconds, customer_name, charger_id, charger_name, connector_id, connector_number, meter_freshness, soc_freshness, projected_amount, currency]",
+          )
+          replace_first_after(
+              openapi,
+              "\n    LiveChargingSessionView:\n",
+              '''        consumed_wh: {type: integer, format: int64, minimum: 0}
+        meter_observed_at: {type: string, format: date-time}''',
+              '''        consumed_wh: {type: integer, format: int64, minimum: 0}
+        projected_amount: {$ref: "#/components/schemas/ExactDecimal", description: "Current accrued charge projected from the session's immutable tariff/tax snapshots; this is not final settlement."}
+        currency: {type: string, pattern: "^[A-Z]{3}$"}
+        meter_observed_at: {type: string, format: date-time}''',
+          )
+          replace_first_after(
+              openapi,
+              "\n    ChargingSessionView:\n",
+              '''        total_amount: {type: string, pattern: "^[0-9]+(?:\\\\.[0-9]{1,2})?$", description: Present only after a completed session has final persisted settlement.}
+        currency: {type: string, pattern: "^[A-Z]{3}$"}''',
+              '''        total_amount: {type: string, pattern: "^[0-9]+(?:\\\\.[0-9]{1,2})?$", description: Present only after a completed session has final persisted settlement.}
+        projected_amount: {type: string, pattern: "^[0-9]+(?:\\\\.[0-9]{1,2})?$", description: "Present while final settlement is not yet persisted; current accrued charge from immutable tariff/tax snapshots, not a settled amount."}
+        currency: {type: string, pattern: "^[A-Z]{3}$"}''',
+          )
+
+          # The workflow is only an isolated transport for this branch-local change.
+          Path(".github/workflows/gpt-web-work-implement.yml").unlink()
+      - name: Format
+        run: gofmt -w src/commercial/session_amount.go src/commercial/session_amount_test.go src/cpo/live_financial_projection.go src/cpo/live_financial_projection_test.go src/cpo/customer_usage_projection.go src/customerauth/live_financial_projection.go src/customerauth/live_financial_projection_test.go src/customerauth/charging_facts.go
+      - name: Focused tests
+        run: go test -count=1 ./src/commercial ./src/cpo ./src/customerauth
+      - name: Full tests
+        run: go test ./...
+      - name: Vet
+        run: go vet ./...
+      - name: Build
+        run: go build ./...
+      - name: OpenAPI runtime route contract
+        run: go test ./src/routes -run TestOpenAPIContractMatchesRuntimeRoutesAndServesUI -count=1
+      - name: Documentation verification
+        shell: pwsh
+        run: ./scripts/verify-docs.ps1
+      - name: Diff check
+        run: git diff --check
+      - name: Commit only to isolated branch
+        run: |
+          test "${GITHUB_REF}" = "refs/heads/gpt-web-work"
+          git config user.name "GPT Web Work"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git diff --cached --stat
+          git commit -m "feat: project live charging money and current usage"
+          git push origin HEAD:gpt-web-work
