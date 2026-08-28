@@ -27,7 +27,9 @@ jobs:
           cache: true
 
       - name: Apply bounded source changes
-        run: python3 scripts/gpt_web_work_apply.py
+        run: |
+          python3 scripts/gpt_web_work_fix.py
+          python3 scripts/gpt_web_work_apply.py
 
       - name: Format changed Go source
         run: |
