@@ -29,9 +29,9 @@ that setting; it must not be used until the OCPP host is explicitly configured
 with TLS/WebSocket support.
 
 The active deployment was updated on August 28, 2026 to runtime source revision
-`342d65ad675dd358786967849cdb0d9a2fef568a` (`342d65a`). It has migrations one
+`b6b723d4242c1740fea34403dae0a31a1a8536f0` (`b6b723d`). It has migrations one
 through fifty-seven and the current 213-operation API. The binary SHA-256 is
-`1d29512c02ab32adf12387f5b97a452d6b9fa38e90d29354e2c3a8ae7272cf22`.
+`92cadd70b9b18106ddf416b3ee06a752ac2c0fc706576fe4e37c6099186decbd`.
 The pre-migration binary and database dump for migrations 49 through 53 are
 retained under `/root/evcmsnew-backups/` and
 `builds/evcmsnew.pre-162b3be-20260825-135452` and the newer
@@ -44,7 +44,8 @@ retained under `/root/evcmsnew-backups/` and
 `builds/evcmsnew.pre-a085f29-20260826-111224` and
 `builds/evcmsnew.pre-e8ff810-20260826-150844` and the newer
 `builds/evcmsnew.pre-265eba6-20260828-103844` and
-`builds/evcmsnew.pre-342d65a-20260828-104113`. Migration 54 adds
+`builds/evcmsnew.pre-342d65a-20260828-104113` and the newer
+`builds/evcmsnew.pre-b6b723d-20260828-111541`. Migration 54 adds
 customer-selected charging-limit metadata and validation to charging start
 intents; migration 55 adds independent threshold provenance. The pre-change
 database dump for migration 55 is retained at
@@ -237,7 +238,7 @@ content exclusions are defined in
 `docs/contracts/internal/http-request-logging.md`. Long-lived SSE requests are
 recorded when they disconnect. A recovered panic first emits a correlated safe
 JSON stack diagnostic without Gin's request dump or the panic value. The
-currently deployed `e8ff810` binary includes this logger.
+currently deployed `b6b723d` binary includes this logger.
 
 The platform realtime SSE route is long-lived. If a browser holds that stream
 during a rehost, the application may log `shut down HTTP server: context

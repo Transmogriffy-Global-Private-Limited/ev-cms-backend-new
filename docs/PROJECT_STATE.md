@@ -2,6 +2,18 @@
 
 ## Current State
 
+### 2026-08-28 - CPO customer aggregate wallet reads deployed
+
+- CPO customer aggregates now load session usage/counts and wallet balance in
+  separate queries, so missing wallet rows and zero-session customers return
+  stable zero values without masking either aggregate. No migration or data
+  repair was required.
+- Runtime revision `b6b723d` is active behind Caddy with binary SHA-256
+  `92cadd70b9b18106ddf416b3ee06a752ac2c0fc706576fe4e37c6099186decbd`.
+  Service/readiness, public routing, Swagger/OpenAPI (213 operations), Caddy,
+  and post-rehost startup checks pass. The prior binary is retained for
+  rollback.
+
 ### 2026-08-28 - Support core and notifications deployed
 
 - Migration 057 converts historical ticket `PENDING` state to `IN_PROGRESS`,
@@ -23,8 +35,8 @@
   status, localized time, and the configured action URL—not private message
   bodies. Support core and notification completion are published at
   `256aa8975fa07dc032dd779c8eb4b0d93a3b1a73` and migration 56/57 are applied.
-  Runtime revision `342d65a` is active behind Caddy with binary SHA-256
-  `1d29512c02ab32adf12387f5b97a452d6b9fa38e90d29354e2c3a8ae7272cf22`.
+  Runtime revision `b6b723d` is active behind Caddy with binary SHA-256
+  `92cadd70b9b18106ddf416b3ee06a752ac2c0fc706576fe4e37c6099186decbd`.
   Service/readiness, public routing, Swagger/OpenAPI (213 operations), Caddy,
   and post-rehost startup checks pass. The migration ordering correction for
   existing `PENDING` tickets was applied before migration 57. SMTP delivery,

@@ -125,6 +125,12 @@ Approved current slice:
 
 Current implementation state:
 
+- The CPO customer aggregate wallet read is deployed in runtime revision
+  `b6b723d`. Session usage/count and wallet balance are loaded independently,
+  preserving stable zero values for missing rows; no migration or data repair
+  was required. Readiness, public routing, Swagger/OpenAPI (213 operations),
+  Caddy, and post-rehost checks pass.
+
 - The CPO access, mail, subscription-notification, and support-product
   completion correction is implemented under
   `docs/plans/cpo-access-mail-support-completeness.md`. It replaces broad CPO
@@ -141,7 +147,7 @@ Current implementation state:
   Ticket creation, platform replies, and platform resolved/closed/reopened
   mutations now atomically queue privacy-safe mail intent; CPO activity is
   published through the durable platform-event stream and SMTP remains
-  asynchronous. Migrations 56 and 57 are applied; runtime revision `342d65a`
+  asynchronous. Migrations 56 and 57 are applied; runtime revision `b6b723d`
   is active with the 213-operation API. Readiness, public routing, Swagger,
   Caddy, and post-rehost startup checks pass.
 

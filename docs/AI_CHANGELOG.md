@@ -1,5 +1,18 @@
 # AI Changelog
 
+## 2026-08-28 - Fix CPO customer aggregate wallet reads
+
+- Split the customer aggregate query into independent session and wallet
+  reads, preserving zero-valued usage/session totals while reliably returning a
+  customer's wallet balance when no wallet row exists.
+
+Verification: focused CPO aggregate tests, full `go test ./...`, `go vet
+./...`, and `git diff --check` pass. Runtime revision `b6b723d` was rebuilt and
+rehosted without a migration; service/readiness, public routing,
+Swagger/OpenAPI (213 operations), Caddy, binary identity, and post-rehost logs
+pass. `pwsh`, `TEST_DATABASE_URL`, and physical charger acceptance remain
+unavailable/unclaimed.
+
 ## 2026-08-28 - Complete the durable support-ticket core
 
 - Added support migration 057, immutable ticket lifecycle events, the final
