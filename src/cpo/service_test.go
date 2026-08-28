@@ -503,6 +503,15 @@ func TestTenantServiceGuardOnlyChecksTrustedCPOContext(t *testing.T) {
 	}
 }
 
+func TestAdminProfileViewReturnsActualMembershipRole(t *testing.T) {
+	t.Parallel()
+	user := models.User{ID: uuid.New(), Email: "viewer@example.com", FullName: "Viewer"}
+	view := adminProfileView(user, uuid.New(), constants.CPORoleViewer)
+	if view.Role != constants.CPORoleViewer {
+		t.Fatalf("profile role = %q, want VIEWER", view.Role)
+	}
+}
+
 func TestOrganizationViewContainsTenantSafeFields(t *testing.T) {
 	t.Parallel()
 

@@ -396,8 +396,8 @@ export interface CpoSlugAvailability {
 export interface OnboardingDelivery {
   job_id: UUID;
   template:
-    | "CPO_ADMIN_WELCOME"
-    | "CPO_MEMBERSHIP_ASSIGNED"
+    | "CPO_STAFF_NEW_IDENTITY"
+    | "CPO_STAFF_EXISTING_IDENTITY"
     | "CPO_ONBOARDING_RESENT";
   status: MailStatus;
   attempts: number;

@@ -106,7 +106,7 @@ func run() error {
 	platformService := platformops.NewService(gormDB, cfg.Platform)
 	superadminService := superadmin.NewService(gormDB, platformService, outbox, cfg.Mail.Enabled)
 	subscriptionService := subscriptions.NewService(gormDB, platformService).WithOutbox(outbox)
-	supportService := support.NewService(gormDB)
+	supportService := support.NewService(gormDB).WithNotificationDelivery(outbox, platformService, cfg.Frontend)
 	halOperations := halops.New(gormDB, cfg.HAL)
 	platformService.WithHALFactRequeuer(halOperations)
 	liveOperations := liveops.New(gormDB, cfg.HAL)
@@ -121,6 +121,7 @@ func run() error {
 	halOperations.WithWorkerObserver(platformService, "hal-reconciler", halReconcilerInstanceKey)
 	operationalEvents.WithWorkerObserver(platformService, "operational-retention", operationalRetentionInstanceKey)
 	cpoService := cpo.NewService(gormDB, outbox, cfg.Mail.Enabled, cfg.ChargerConnectionURL).
+		WithFrontendLinks(cfg.Frontend).
 		WithPlatformEvents(platformService).
 		WithOperationalCapabilities(halOperations, liveOperations).
 		WithOperationalEvents(operationalEvents)

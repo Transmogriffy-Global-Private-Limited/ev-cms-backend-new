@@ -72,9 +72,10 @@ duplicates.
 | Template | Producer | Contains sensitive plaintext before encryption |
 |---|---|---|
 | `LOGIN_OTP` | Administrative login | OTP and expiry |
-| `PASSWORD_RESET_OTP` | Password recovery | Recovery ID, OTP, and expiry |
-| `CPO_ADMIN_WELCOME` | New first-admin onboarding | Generated temporary password, CPO/app IDs |
-| `CPO_MEMBERSHIP_ASSIGNED` | Existing-identity onboarding | CPO/app IDs |
+| `PASSWORD_RESET_OTP` | Password recovery | Recovery challenge context, OTP, and expiry; challenge context is link-only |
+| `CPO_STAFF_NEW_IDENTITY` | New CPO/staff onboarding | Generated temporary password and configured frontend onboarding action |
+| `CPO_STAFF_EXISTING_IDENTITY` | Existing-identity CPO/staff onboarding | Actual role and configured frontend onboarding action |
+| `CPO_ONBOARDING_RESENT` | CPO/staff access resend | Existing-credential procedure and configured frontend onboarding action |
 | `PASSWORD_CHANGE_REMINDER` | Login while temporary password remains | No credential |
 | `CUSTOMER_SIGNUP_OTP` | Customer signup | OTP and expiry |
 | `CUSTOMER_LOGIN_OTP` | Customer login | OTP and expiry |
@@ -82,8 +83,9 @@ duplicates.
 | `PLATFORM_ADMIN_INVITE` | New platform-administrator authority | Generated temporary password |
 | `PLATFORM_ADMIN_GRANTED` | Existing identity granted authority | No credential |
 
-The SMTP sender renders plain-text email. Templates are code-owned; callers
-provide structured payloads rather than arbitrary subject/body HTML.
+The SMTP sender renders source-controlled semantic plain-text and HTML Go
+templates. Callers provide structured payloads rather than arbitrary
+subject/body HTML.
 Credential-bearing templates fail before enqueue and again before SMTP send if
 required values are absent: reset mail requires recovery ID/code/expiry, and a
 new-admin welcome requires the generated temporary password.

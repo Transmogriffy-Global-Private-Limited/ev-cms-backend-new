@@ -1,6 +1,6 @@
 # WI-20260826-cpo-access-mail-support-completeness
 
-Status: In Progress
+Status: Verified (uncommitted)
 Owner: Codex
 Collaborators: None
 Started: 2026-08-26
@@ -56,27 +56,35 @@ and make CPO-to-platform support a bounded, auditable workflow.
 
 ## Current state
 
-- The core support workflow is implemented but remains uncommitted: migration
-  000057 replaces `PENDING`, adds immutable lifecycle events, and enforces
-  locked status/reply mutations. Queue list is cursor-paginated and summary
-  only; detail returns messages plus history; replies are durably idempotent.
-- Support mail/notification delivery is intentionally not implemented yet. It
-  must consume committed support facts without coupling state transitions to
-  SMTP.
+- Support core is committed on `main` at `1ebcdf6`: migration 000057 replaces
+  `PENDING`, adds immutable lifecycle events, and enforces locked
+  status/reply mutations. Queue list is cursor-paginated and summary only;
+  detail returns messages plus history; replies are durably idempotent.
+- The current uncommitted slice adds transactionally coherent encrypted mail
+  intents for ticket creation, platform replies, and platform
+  resolved/closed/reopened transitions. CPO activity emits durable platform
+  events instead of guessing a platform support email recipient. The mail
+  worker remains the only SMTP delivery owner.
 
 ## Verification
 
 - Focused permission, mail, subscription, support, OpenAPI, and migration tests.
 - `go test ./...`, `go vet ./...`, `go build ./...`, docs verification where
   PowerShell is available, and `git diff --check`.
+- Support notification completion: `go test ./src/support ./src/mail -count=1`,
+  `./scripts/verify-docs.ps1`, `go test ./...`, `go vet ./...`, `go build ./...`,
+  and `git diff --check` passed on 2026-08-28. PostgreSQL-backed mutation and
+  concurrency coverage remains gated by an unset disposable `TEST_DATABASE_URL`.
 
 ## Handoff
 
-- Preserve the current uncommitted worktree. The next support-only slice is
-  notification/mail delivery; do not redesign the finished core status, list,
-  detail, lock, or idempotency behavior.
+- All scoped implementation and source verification is complete. A future
+  publication step may stage this explicit worktree, commit it, and push only
+  with fresh human authorization; it must not deploy, apply migrations, or
+  contact SMTP as part of publication.
 
 ## Completion
 
-- Support core implemented. The whole work item remains in progress because
-  support notification/mail delivery and final reconciliation remain.
+- Complete. The work item is archived because its implementation, contracts,
+  documentation, and source verification are reconciled. No deployment,
+  migration execution, SMTP contact, commit, or push occurred in this slice.

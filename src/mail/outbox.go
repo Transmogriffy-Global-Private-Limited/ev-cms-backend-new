@@ -30,6 +30,9 @@ type MessagePayload struct {
 	Role              string    `json:"role,omitempty"`
 	ActionURL         string    `json:"action_url,omitempty"`
 	PlanName          string    `json:"plan_name,omitempty"`
+	SupportSubject    string    `json:"support_subject,omitempty"`
+	SupportStatus     string    `json:"support_status,omitempty"`
+	OccurredAt        time.Time `json:"occurred_at,omitempty"`
 }
 
 type MessageContext struct {
@@ -110,23 +113,35 @@ func validateMessagePayload(template string, payload MessagePayload) error {
 		if strings.TrimSpace(payload.Code) == "" || payload.ExpiresAt.IsZero() {
 			return fmt.Errorf("validate %s mail payload: reset code and expiry are required", template)
 		}
-	case "CPO_ADMIN_WELCOME", "CPO_STAFF_NEW_IDENTITY":
+	case "CPO_ADMIN_WELCOME":
 		if strings.TrimSpace(payload.TemporaryPassword) == "" {
 			return errors.New("validate CPO_ADMIN_WELCOME mail payload: temporary password is required")
+		}
+	case "CPO_STAFF_NEW_IDENTITY":
+		if strings.TrimSpace(payload.TemporaryPassword) == "" || strings.TrimSpace(payload.CPOName) == "" || strings.TrimSpace(payload.Role) == "" || strings.TrimSpace(payload.ActionURL) == "" {
+			return errors.New("validate CPO_STAFF_NEW_IDENTITY mail payload: temporary password, CPO name, role, and action URL are required")
 		}
 	case "PLATFORM_ADMIN_INVITE":
 		if strings.TrimSpace(payload.TemporaryPassword) == "" {
 			return errors.New("validate PLATFORM_ADMIN_INVITE mail payload: temporary password is required")
 		}
-	case "CPO_MEMBERSHIP_ASSIGNED", "CPO_ONBOARDING_RESENT", "CPO_STAFF_EXISTING_IDENTITY", "CPO_STAFF_ROLE_CHANGED", "CPO_STAFF_SUSPENDED", "CPO_STAFF_REACTIVATED", "CPO_STAFF_REVOKED":
+	case "CPO_MEMBERSHIP_ASSIGNED":
 		if strings.TrimSpace(payload.CPOName) == "" {
 			return fmt.Errorf("validate %s mail payload: CPO name is required", template)
+		}
+	case "CPO_ONBOARDING_RESENT", "CPO_STAFF_EXISTING_IDENTITY", "CPO_STAFF_ROLE_CHANGED", "CPO_STAFF_SUSPENDED", "CPO_STAFF_REACTIVATED", "CPO_STAFF_REVOKED":
+		if strings.TrimSpace(payload.CPOName) == "" || strings.TrimSpace(payload.ActionURL) == "" {
+			return fmt.Errorf("validate %s mail payload: CPO name and action URL are required", template)
 		}
 	case "PASSWORD_CHANGE_REMINDER", "PLATFORM_ADMIN_GRANTED":
 		return nil
 	case "CPO_SUBSCRIPTION_EXPIRY_WARNING", "CPO_SUBSCRIPTION_EXPIRED":
 		if strings.TrimSpace(payload.CPOName) == "" || payload.ExpiresAt.IsZero() {
 			return fmt.Errorf("validate %s mail payload: CPO name and expiry are required", template)
+		}
+	case "CPO_SUPPORT_TICKET_CREATED", "CPO_SUPPORT_TICKET_PLATFORM_REPLY", "CPO_SUPPORT_TICKET_RESOLVED", "CPO_SUPPORT_TICKET_CLOSED", "CPO_SUPPORT_TICKET_REOPENED":
+		if strings.TrimSpace(payload.CPOName) == "" || strings.TrimSpace(payload.SupportSubject) == "" || strings.TrimSpace(payload.SupportStatus) == "" || payload.OccurredAt.IsZero() || strings.TrimSpace(payload.ActionURL) == "" {
+			return fmt.Errorf("validate %s mail payload: CPO name, subject, status, time, and action URL are required", template)
 		}
 	default:
 		return fmt.Errorf("validate mail payload: unknown template %q", template)

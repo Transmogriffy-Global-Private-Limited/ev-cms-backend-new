@@ -13,8 +13,9 @@ Supported templates and payload fields:
 |---|---|
 | `LOGIN_OTP` | recipient name, code, expiry |
 | `PASSWORD_RESET_OTP` | recipient name, recovery challenge ID, code, expiry |
-| `CPO_ADMIN_WELCOME` | recipient name, temporary password, CPO name, CPO ID, app ID |
-| `CPO_MEMBERSHIP_ASSIGNED` | recipient name, CPO name, CPO ID, app ID |
+| `CPO_STAFF_NEW_IDENTITY` | recipient name, temporary password, CPO name, actual role, onboarding action URL |
+| `CPO_STAFF_EXISTING_IDENTITY` | recipient name, CPO name, actual role, onboarding action URL |
+| `CPO_ONBOARDING_RESENT` | recipient name, CPO name, onboarding action URL |
 | `PASSWORD_CHANGE_REMINDER` | recipient name |
 | `CUSTOMER_SIGNUP_OTP` | recipient name, code, expiry |
 | `CUSTOMER_LOGIN_OTP` | recipient name, code, expiry |
@@ -33,9 +34,11 @@ plaintext.
 
 Credential-bearing payloads fail closed before enqueue and are validated again
 before SMTP rendering. Administrative/customer reset mail requires a parseable
-recovery challenge ID plus code and expiry. `CPO_ADMIN_WELCOME` requires the
-generated temporary password. Missing required credentials therefore roll back
-the producing transaction instead of committing an unusable message.
+recovery challenge ID plus code and expiry; the ID is carried only in the
+configured frontend action URL. New staff identity mail requires the generated
+temporary password and onboarding action URL. Missing required credentials or
+the action URL therefore roll back the producing transaction instead of
+committing an unusable message.
 
 OTP producers must call the canonical enqueue operation with the complete
 `MessagePayload`. There is intentionally no OTP-only mapper that can reconstruct

@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"html"
 	"strings"
 
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/config"
@@ -59,7 +58,16 @@ func (sender *SMTPSender) SendMessage(
 	template string,
 	payload MessagePayload,
 ) error {
-	subject, textBody, htmlBody, err := renderSemanticMessage(template, payload, sender.mailConfig)
+	var subject, textBody, htmlBody string
+	var err error
+	if isLegacyTemplate(template) {
+		subject, textBody, err = renderMessageContent(template, payload)
+		if err == nil {
+			textBody, htmlBody, err = renderMessageTemplates(payload.RecipientName, textBody)
+		}
+	} else {
+		subject, textBody, htmlBody, err = renderSemanticMessage(template, payload, sender.mailConfig)
+	}
 	if err != nil {
 		return err
 	}
@@ -178,6 +186,7 @@ func renderSemanticMessage(template string, payload MessagePayload, cfg config.M
 		name = "there"
 	}
 	expires := payload.ExpiresAt.In(cfg.DisplayLocation).Format("02 Jan 2006, 3:04 PM MST")
+	occurred := payload.OccurredAt.In(cfg.DisplayLocation).Format("02 Jan 2006, 3:04 PM MST")
 	link := payload.ActionURL
 	if link == "" && payload.ChallengeID != "" {
 		var err error
@@ -197,55 +206,24 @@ func renderSemanticMessage(template string, payload MessagePayload, cfg config.M
 			return "", "", "", err
 		}
 	}
-	var subject, text string
-	switch template {
-	case "LOGIN_OTP":
-		subject = "Your TransEV CMS sign-in code"
-		text = fmt.Sprintf("Hi %s,\n\nUse this sign-in code: %s\nIt expires %s. Do not share it. If this was not you, secure your account.\n\n%s", name, payload.Code, expires, link)
-	case "PASSWORD_RESET_OTP":
-		subject = "Reset your TransEV CMS password"
-		text = fmt.Sprintf("Hi %s,\n\nA password reset was requested. Your verification code is: %s\nIt expires %s. Receiving this email has not changed your password.\n\nReset password: %s", name, payload.Code, expires, link)
-	case "CUSTOMER_LOGIN_OTP":
-		subject = "Your charging app sign-in code"
-		text = fmt.Sprintf("Hi %s,\n\nUse this sign-in code: %s\nIt expires %s. Do not share it.\n\n%s", name, payload.Code, expires, link)
-	case "CUSTOMER_SIGNUP_OTP":
-		subject = "Verify your charging account"
-		text = fmt.Sprintf("Hi %s,\n\nUse this verification code: %s\nIt expires %s.\n\n%s", name, payload.Code, expires, link)
-	case "CUSTOMER_PASSWORD_RESET_OTP":
-		subject = "Reset your charging account password"
-		text = fmt.Sprintf("Hi %s,\n\nYour password-reset code is: %s\nIt expires %s. Receiving this email has not changed your password.\n\nReset password: %s", name, payload.Code, expires, link)
-	case "CPO_STAFF_NEW_IDENTITY", "CPO_ADMIN_WELCOME":
-		subject = "Your CPO access"
-		text = fmt.Sprintf("Hi %s,\n\nYou have been added to %s as %s. Sign in using the temporary password below, then change it before using CPO operations.\n\nTemporary password: %s\n\n%s", name, payload.CPOName, roleName(payload.Role), payload.TemporaryPassword, payload.ActionURL)
-	case "CPO_STAFF_EXISTING_IDENTITY", "CPO_MEMBERSHIP_ASSIGNED":
-		subject = "You have CPO access"
-		text = fmt.Sprintf("Hi %s,\n\nYou have been added to %s as %s. Use your existing TransEV credentials to sign in.\n\n%s", name, payload.CPOName, roleName(payload.Role), payload.ActionURL)
-	case "CPO_ONBOARDING_RESENT":
-		subject = "Your CPO access reminder"
-		text = fmt.Sprintf("Hi %s,\n\nUse your existing TransEV credentials to access %s. Passwords are never resent; use password recovery if needed.\n\n%s", name, payload.CPOName, payload.ActionURL)
-	case "CPO_STAFF_ROLE_CHANGED":
-		subject = "Your CPO role has changed"
-		text = fmt.Sprintf("Hi %s,\n\nYour role for %s is now %s. Use your existing TransEV credentials to sign in.\n\n%s", name, payload.CPOName, roleName(payload.Role), payload.ActionURL)
-	case "CPO_STAFF_SUSPENDED":
-		subject = "Your CPO access has been suspended"
-		text = fmt.Sprintf("Hi %s,\n\nYour access to %s has been suspended. Your TransEV account has not been deleted.\n\n%s", name, payload.CPOName, payload.ActionURL)
-	case "CPO_STAFF_REACTIVATED":
-		subject = "Your CPO access has been restored"
-		text = fmt.Sprintf("Hi %s,\n\nYour access to %s has been restored. Use your existing TransEV credentials to sign in.\n\n%s", name, payload.CPOName, payload.ActionURL)
-	case "CPO_STAFF_REVOKED":
-		subject = "Your CPO access has been removed"
-		text = fmt.Sprintf("Hi %s,\n\nYour access to %s has been removed. This does not delete your TransEV account.\n\n%s", name, payload.CPOName, payload.ActionURL)
-	case "CPO_SUBSCRIPTION_EXPIRY_WARNING":
-		subject = "Your CPO subscription is ending soon"
-		text = fmt.Sprintf("Hi %s,\n\n%s subscription ends on %s. Review renewal with your platform administrator.\n\n%s", name, payload.CPOName, expires, cfg.Frontend.CPOSubscriptionURL)
-	case "CPO_SUBSCRIPTION_EXPIRED":
-		subject = "Your CPO subscription has expired"
-		text = fmt.Sprintf("Hi %s,\n\n%s subscription expired on %s. New customer charging starts and recharge orders remain unavailable until a platform administrator renews the subscription.\n\n%s", name, payload.CPOName, expires, cfg.Frontend.CPOSubscriptionURL)
-	default:
-		return "", "", "", fmt.Errorf("render semantic mail template: unknown template %q", template)
+	if link == "" && (template == "CPO_SUBSCRIPTION_EXPIRY_WARNING" || template == "CPO_SUBSCRIPTION_EXPIRED") {
+		link = cfg.Frontend.CPOSubscriptionURL
 	}
-	htmlBody := "<html><body><pre>" + html.EscapeString(text) + "</pre></body></html>"
-	return subject, text, htmlBody, nil
+	return renderSemanticTemplates(template, semanticMessage{
+		RecipientName: name, Code: payload.Code, ExpiresAt: expires, OccurredAt: occurred,
+		TemporaryPassword: payload.TemporaryPassword, CPOName: payload.CPOName,
+		Role: roleName(payload.Role), ActionURL: link, SupportSubject: payload.SupportSubject,
+		SupportStatus: payload.SupportStatus,
+	})
+}
+
+func isLegacyTemplate(template string) bool {
+	switch template {
+	case "CPO_ADMIN_WELCOME", "CPO_MEMBERSHIP_ASSIGNED", "PLATFORM_ADMIN_INVITE", "PLATFORM_ADMIN_GRANTED", "PASSWORD_CHANGE_REMINDER":
+		return true
+	default:
+		return false
+	}
 }
 
 func roleName(role string) string {

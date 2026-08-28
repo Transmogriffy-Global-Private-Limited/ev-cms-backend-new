@@ -2,6 +2,7 @@ package support
 
 import (
 	"context"
+	"encoding/json"
 	"os"
 	"strings"
 	"sync"
@@ -10,8 +11,12 @@ import (
 
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/db"
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/auth"
+	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/config"
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/constants"
+	cmsmail "github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/mail"
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/models"
+	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/platformops"
+	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/security"
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/testsupport"
 	"github.com/google/uuid"
 	"gorm.io/gorm"
@@ -36,12 +41,29 @@ func TestSupportWorkflowWithPostgreSQL(t *testing.T) {
 	}
 
 	now := time.Now().UTC().Truncate(time.Microsecond)
-	service := NewService(gormDB)
+	mailBox, err := security.NewSecretBox("support-test", []byte("0123456789abcdef0123456789abcdef"))
+	if err != nil {
+		t.Fatalf("create mail encryption box: %v", err)
+	}
+	service := NewService(gormDB).WithNotificationDelivery(
+		cmsmail.NewOutbox(mailBox),
+		platformops.NewService(gormDB, config.Platform{EventRetention: time.Hour}),
+		config.FrontendLinks{CPOSupportTicketTemplate: "https://cms.example.invalid/support/tickets/{ticket_id}"},
+	)
 	service.now = func() time.Time { return now }
 	platformUser := supportUser(t, gormDB, now)
 	platform := auth.Principal{UserID: platformUser.ID, Scope: constants.AuthScopePlatform}
 	first, firstCPOID := supportCPOPrincipal(t, gormDB, now, "first")
 	second, _ := supportCPOPrincipal(t, gormDB, now, "second")
+	eligibleAdmin := supportUser(t, gormDB, now)
+	supportMembership(t, gormDB, firstCPOID, eligibleAdmin.ID, constants.MembershipStatusActive, now)
+	suspendedAdmin := supportUser(t, gormDB, now)
+	supportMembership(t, gormDB, firstCPOID, suspendedAdmin.ID, constants.MembershipStatusSuspended, now)
+	inactiveAdmin := supportUser(t, gormDB, now)
+	if err := gormDB.Model(&models.User{}).Where("id = ?", inactiveAdmin.ID).Update("is_active", false).Error; err != nil {
+		t.Fatalf("deactivate support recipient: %v", err)
+	}
+	supportMembership(t, gormDB, firstCPOID, inactiveAdmin.ID, constants.MembershipStatusActive, now)
 
 	created, err := service.Create(ctx, first, CreateRequest{Subject: "First connector", Body: "The first connector needs review."})
 	if err != nil {
@@ -49,6 +71,16 @@ func TestSupportWorkflowWithPostgreSQL(t *testing.T) {
 	}
 	if created.Status != "OPEN" || len(created.Messages) != 1 || len(created.Events) != 1 || created.Events[0].EventType != "CREATED" {
 		t.Fatalf("created detail = %#v", created)
+	}
+	if countSupportMailJobs(t, gormDB, "CPO_SUPPORT_TICKET_CREATED") != 2 {
+		t.Fatal("ticket creation did not enqueue exactly the eligible CPO confirmations")
+	}
+	createdRecipients := supportMailRecipients(t, gormDB, "CPO_SUPPORT_TICKET_CREATED")
+	if !createdRecipients[eligibleAdmin.Email] || createdRecipients[suspendedAdmin.Email] || createdRecipients[inactiveAdmin.Email] {
+		t.Fatalf("support confirmation recipients were not safely filtered: %#v", createdRecipients)
+	}
+	if countSupportPlatformEvents(t, gormDB, "support.ticket.created") != 1 {
+		t.Fatal("ticket creation did not publish the durable platform support event")
 	}
 
 	if _, err := service.SetStatus(ctx, platform, created.ID, StatusRequest{Status: "IN_PROGRESS", Reason: "Assigned for review"}); err != nil {
@@ -66,6 +98,9 @@ func TestSupportWorkflowWithPostgreSQL(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CPO reopen reply: %v", err)
 	}
+	if countSupportPlatformEvents(t, gormDB, "support.ticket.cpo_replied") != 1 || countSupportPlatformEvents(t, gormDB, "support.ticket.reopened") != 1 {
+		t.Fatal("CPO reply/reopen did not publish durable platform activity")
+	}
 	if reopened.Status != "OPEN" || reopened.ClosedAt != nil || !hasSupportEvent(reopened.Events, "MESSAGE_ADDED", nil, nil) || !hasSupportEvent(reopened.Events, "STATUS_CHANGED", stringPointer("RESOLVED"), stringPointer("OPEN")) {
 		t.Fatalf("reopened detail did not contain message and truthful status history: %#v", reopened)
 	}
@@ -77,6 +112,34 @@ func TestSupportWorkflowWithPostgreSQL(t *testing.T) {
 		t.Fatalf("closed ticket reopen = %#v, %v", closedReopened, err)
 	}
 
+	if _, err := service.Reply(ctx, platform, created.ID, ReplyRequest{Body: "A private platform response that must not leak by email.", IdempotencyKey: "platform-" + uuid.NewString()}); err != nil {
+		t.Fatalf("platform reply: %v", err)
+	}
+	if countSupportMailJobs(t, gormDB, "CPO_SUPPORT_TICKET_PLATFORM_REPLY") != 2 {
+		t.Fatal("platform reply did not enqueue exactly the eligible CPO notifications")
+	}
+	if payload := latestSupportMailPayload(t, gormDB, mailBox, "CPO_SUPPORT_TICKET_PLATFORM_REPLY"); strings.Contains(string(payload), "A private platform response") {
+		t.Fatalf("platform reply body leaked into mail payload: %s", payload)
+	}
+	if payload := latestSupportMailPayload(t, gormDB, mailBox, "CPO_SUPPORT_TICKET_CREATED"); !strings.Contains(string(payload), "https://cms.example.invalid/support/tickets/"+created.ID.String()) {
+		t.Fatalf("ticket mail action URL did not carry ticket context: %s", payload)
+	}
+
+	if _, err := service.SetStatus(ctx, platform, created.ID, StatusRequest{Status: "RESOLVED", Reason: "Resolved notification coverage"}); err != nil {
+		t.Fatalf("OPEN -> RESOLVED: %v", err)
+	}
+	if _, err := service.SetStatus(ctx, platform, created.ID, StatusRequest{Status: "OPEN", Reason: "Reopened notification coverage"}); err != nil {
+		t.Fatalf("RESOLVED -> OPEN: %v", err)
+	}
+	if _, err := service.SetStatus(ctx, platform, created.ID, StatusRequest{Status: "CLOSED", Reason: "Closed notification coverage"}); err != nil {
+		t.Fatalf("OPEN -> CLOSED notification: %v", err)
+	}
+	for _, template := range []string{"CPO_SUPPORT_TICKET_RESOLVED", "CPO_SUPPORT_TICKET_REOPENED", "CPO_SUPPORT_TICKET_CLOSED"} {
+		if countSupportMailJobs(t, gormDB, template) == 0 {
+			t.Fatalf("%s notification was not queued", template)
+		}
+	}
+
 	key := "reply-" + uuid.NewString()
 	if _, err := service.Reply(ctx, first, created.ID, ReplyRequest{Body: "Retry-safe message.", IdempotencyKey: key}); err != nil {
 		t.Fatalf("first idempotent reply: %v", err)
@@ -84,6 +147,9 @@ func TestSupportWorkflowWithPostgreSQL(t *testing.T) {
 	replayed, err := service.Reply(ctx, first, created.ID, ReplyRequest{Body: "Retry-safe message.", IdempotencyKey: key})
 	if err != nil || countSupportMessages(replayed.Messages, "Retry-safe message.") != 1 {
 		t.Fatalf("replayed reply duplicated message: %#v, %v", replayed, err)
+	}
+	if countSupportPlatformEvents(t, gormDB, "support.ticket.cpo_replied") != 3 {
+		t.Fatal("idempotent retry duplicated the CPO platform notification intent")
 	}
 
 	concurrentKey := "concurrent-" + uuid.NewString()
@@ -134,6 +200,50 @@ func TestSupportWorkflowWithPostgreSQL(t *testing.T) {
 	if err != nil || len(filtered.Tickets) != 1 || filtered.Tickets[0].ID != created.ID {
 		t.Fatalf("filtered support list = %#v, %v", filtered, err)
 	}
+
+	var beforeFailedIntent int64
+	if err := gormDB.Model(&models.SupportTicket{}).Where("cpo_id = ?", firstCPOID).Count(&beforeFailedIntent).Error; err != nil {
+		t.Fatalf("count tickets before failed mail intent: %v", err)
+	}
+	brokenDelivery := NewService(gormDB).WithNotificationDelivery(
+		cmsmail.NewOutbox(mailBox),
+		platformops.NewService(gormDB, config.Platform{EventRetention: time.Hour}),
+		config.FrontendLinks{CPOSupportTicketTemplate: "https://cms.example.invalid/support/tickets"},
+	)
+	brokenDelivery.now = func() time.Time { return now }
+	if _, err := brokenDelivery.Create(ctx, first, CreateRequest{Subject: "Must roll back", Body: "The outbox action-link validation fails."}); err == nil {
+		t.Fatal("ticket creation unexpectedly committed without a valid mail action URL")
+	}
+	var afterFailedIntent int64
+	if err := gormDB.Model(&models.SupportTicket{}).Where("cpo_id = ?", firstCPOID).Count(&afterFailedIntent).Error; err != nil {
+		t.Fatalf("count tickets after failed mail intent: %v", err)
+	}
+	if afterFailedIntent != beforeFailedIntent {
+		t.Fatalf("ticket mutation committed without its required mail intent: before=%d after=%d", beforeFailedIntent, afterFailedIntent)
+	}
+}
+
+func TestReplyRequiresIdempotencyKey(t *testing.T) {
+	t.Parallel()
+	service := NewService(nil)
+	principal := auth.Principal{Scope: constants.AuthScopePlatform, UserID: uuid.New()}
+	_, err := service.Reply(context.Background(), principal, uuid.New(), ReplyRequest{Body: "Retry-safe reply"})
+	if err == nil || !strings.Contains(err.Error(), "invalid_request") {
+		t.Fatalf("reply without idempotency key error = %v, want invalid request", err)
+	}
+}
+
+func TestDeduplicateSupportRecipients(t *testing.T) {
+	t.Parallel()
+	recipients := deduplicateRecipients([]supportRecipient{
+		{Email: "Admin@example.test", FullName: "First"},
+		{Email: " admin@example.test ", FullName: "Duplicate"},
+		{Email: "", FullName: "Blank"},
+		{Email: "owner@example.test", FullName: "Owner"},
+	})
+	if len(recipients) != 2 || recipients[0].Email != "admin@example.test" || recipients[1].Email != "owner@example.test" {
+		t.Fatalf("deduplicated recipients = %#v", recipients)
+	}
 }
 
 func supportUser(t *testing.T, database *gorm.DB, now time.Time) models.User {
@@ -158,6 +268,15 @@ func supportCPOPrincipal(t *testing.T, database *gorm.DB, now time.Time, label s
 		t.Fatalf("create support membership: %v", err)
 	}
 	return auth.Principal{UserID: user.ID, Scope: constants.AuthScopeCPO, CPOID: &cpo.ID, Role: &role}, cpo.ID
+}
+
+func supportMembership(t *testing.T, database *gorm.DB, cpoID, userID uuid.UUID, status constants.MembershipStatus, now time.Time) {
+	t.Helper()
+	role := constants.CPORoleAdmin
+	membership := models.CPOMembership{ID: uuid.New(), CPOID: cpoID, UserID: userID, Role: role, Status: status, CreatedAt: now, UpdatedAt: now}
+	if err := database.Create(&membership).Error; err != nil {
+		t.Fatalf("create support recipient membership: %v", err)
+	}
 }
 
 func hasSupportEvent(events []models.SupportTicketEvent, typ string, previous, next *string) bool {
@@ -186,4 +305,55 @@ func countSupportMessages(messages []models.SupportTicketMessage, body string) i
 		}
 	}
 	return count
+}
+
+func countSupportMailJobs(t *testing.T, database *gorm.DB, template string) int64 {
+	t.Helper()
+	var count int64
+	if err := database.Model(&models.MailOutbox{}).Where("template = ?", template).Count(&count).Error; err != nil {
+		t.Fatalf("count %s mail jobs: %v", template, err)
+	}
+	return count
+}
+
+func countSupportPlatformEvents(t *testing.T, database *gorm.DB, eventType string) int64 {
+	t.Helper()
+	var count int64
+	if err := database.Model(&models.PlatformEvent{}).Where("event_type = ?", eventType).Count(&count).Error; err != nil {
+		t.Fatalf("count %s platform events: %v", eventType, err)
+	}
+	return count
+}
+
+func latestSupportMailPayload(t *testing.T, database *gorm.DB, box *security.SecretBox, template string) []byte {
+	t.Helper()
+	var job models.MailOutbox
+	if err := database.Where("template = ?", template).Order("created_at DESC, id DESC").First(&job).Error; err != nil {
+		t.Fatalf("load %s mail job: %v", template, err)
+	}
+	payload, err := box.Open(job.PayloadCiphertext, []byte("ev-cms-mail:"+job.Template+":"+strings.ToLower(strings.TrimSpace(job.ToEmail))))
+	if err != nil {
+		t.Fatalf("decrypt %s mail job: %v", template, err)
+	}
+	var decoded cmsmail.MessagePayload
+	if err := json.Unmarshal(payload, &decoded); err != nil {
+		t.Fatalf("decode %s mail payload: %v", template, err)
+	}
+	if decoded.SupportSubject == "" || decoded.ActionURL == "" {
+		t.Fatalf("incomplete %s mail payload: %#v", template, decoded)
+	}
+	return payload
+}
+
+func supportMailRecipients(t *testing.T, database *gorm.DB, template string) map[string]bool {
+	t.Helper()
+	var jobs []models.MailOutbox
+	if err := database.Where("template = ?", template).Find(&jobs).Error; err != nil {
+		t.Fatalf("load %s mail recipients: %v", template, err)
+	}
+	recipients := make(map[string]bool, len(jobs))
+	for _, job := range jobs {
+		recipients[job.ToEmail] = true
+	}
+	return recipients
 }

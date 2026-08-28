@@ -3446,3 +3446,19 @@ Verification:
   `schema_migrations`.
 - The loopback-only disposable PostgreSQL instance was stopped and its local
   test directory was removed.
+## 2026-08-28 - Support notification delivery
+
+- Completed support notification delivery without changing the core support
+  state machine: ticket creation, platform replies, and platform
+  resolved/closed/reopened transitions now enqueue encrypted CPO mail intents
+  in the same transaction as the authoritative ticket mutation.
+- Mail carries only localized status/subject context and the configured support
+  action link; it does not include a private message body or require a user to
+  handle a ticket UUID outside that link. Active eligible CPO recipients are
+  derived/deduplicated from current memberships.
+- CPO-created/replied/reopened support activity now uses the existing durable
+  platform-event mechanism. No platform support email address was invented.
+
+Verification: focused `src/support` and `src/mail` tests pass. Repository-wide
+verification is recorded with this implementation slice; disposable PostgreSQL
+coverage remains conditional on `TEST_DATABASE_URL`.

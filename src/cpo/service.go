@@ -17,6 +17,7 @@ import (
 
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/auth"
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/commercial"
+	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/config"
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/constants"
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/cpopermissions"
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/halops"
@@ -64,6 +65,7 @@ type Service struct {
 	halOperations        *halops.Service
 	liveOperations       *liveops.Service
 	operationalEvents    *operationalrealtime.Service
+	frontend             config.FrontendLinks
 	repository           Repository
 }
 
@@ -74,6 +76,11 @@ type sessionRevocationCounts struct {
 
 func (service *Service) WithPlatformEvents(events *platformops.Service) *Service {
 	service.events = events
+	return service
+}
+
+func (service *Service) WithFrontendLinks(frontend config.FrontendLinks) *Service {
+	service.frontend = frontend
 	return service
 }
 
@@ -103,6 +110,9 @@ func NewService(
 		mailEnabled:          mailEnabled,
 		now:                  func() time.Time { return time.Now().UTC() },
 		chargerConnectionURL: chargerConnectionURL,
+		frontend: config.FrontendLinks{
+			CPOOnboardingTemplate: "https://cms.example.invalid/login#cpo_id={cpo_id}",
+		},
 	}
 }
 
@@ -627,6 +637,10 @@ func (service *Service) Create(
 				return mapWriteError(err, "create initial CPO administrator")
 			}
 			identityCreated = true
+			actionURL, err := service.cpoOnboardingActionURL(cpoRecord.ID)
+			if err != nil {
+				return err
+			}
 			if err := service.outbox.EnqueueMessageWithContext(
 				tx,
 				admin.Email,
@@ -638,6 +652,7 @@ func (service *Service) Create(
 					CPOID:             cpoRecord.ID.String(),
 					CPOAppID:          cpoRecord.AppID,
 					Role:              string(constants.CPORoleAdmin),
+					ActionURL:         actionURL,
 				},
 				cmsmail.MessageContext{
 					CPOID:  &cpoRecord.ID,
@@ -664,6 +679,10 @@ func (service *Service) Create(
 			return mapWriteError(err, "create initial CPO administrator membership")
 		}
 		if !identityCreated {
+			actionURL, err := service.cpoOnboardingActionURL(cpoRecord.ID)
+			if err != nil {
+				return err
+			}
 			if err := service.outbox.EnqueueMessageWithContext(
 				tx,
 				admin.Email,
@@ -674,6 +693,7 @@ func (service *Service) Create(
 					CPOID:         cpoRecord.ID.String(),
 					CPOAppID:      cpoRecord.AppID,
 					Role:          string(constants.CPORoleAdmin),
+					ActionURL:     actionURL,
 				},
 				cmsmail.MessageContext{
 					CPOID:  &cpoRecord.ID,
@@ -1232,12 +1252,17 @@ func (service *Service) SetPrimaryAdmin(
 		}
 
 		template := "CPO_STAFF_EXISTING_IDENTITY"
+		actionURL, err := service.cpoOnboardingActionURL(cpoID)
+		if err != nil {
+			return err
+		}
 		payload := cmsmail.MessagePayload{
 			RecipientName: targetUser.FullName,
 			CPOName:       cpoRecord.BusinessName,
 			CPOID:         cpoRecord.ID.String(),
 			CPOAppID:      cpoRecord.AppID,
 			Role:          string(role),
+			ActionURL:     actionURL,
 		}
 		if identityCreated {
 			template = "CPO_STAFF_NEW_IDENTITY"
@@ -1337,6 +1362,10 @@ func (service *Service) ResendPrimaryAdminOnboarding(
 				Message: "The primary administrator must be active before onboarding can be resent.",
 			}
 		}
+		actionURL, err := service.cpoOnboardingActionURL(cpoID)
+		if err != nil {
+			return err
+		}
 		if err := service.outbox.EnqueueMessageWithContext(
 			tx,
 			user.Email,
@@ -1346,6 +1375,7 @@ func (service *Service) ResendPrimaryAdminOnboarding(
 				CPOName:       cpoRecord.BusinessName,
 				CPOID:         cpoRecord.ID.String(),
 				CPOAppID:      cpoRecord.AppID,
+				ActionURL:     actionURL,
 			},
 			cmsmail.MessageContext{
 				CPOID:  &cpoID,
@@ -1595,8 +1625,8 @@ func (service *Service) primaryAdminView(
 			cpoID,
 			user.ID,
 			[]string{
-				"CPO_ADMIN_WELCOME",
-				"CPO_MEMBERSHIP_ASSIGNED",
+				"CPO_STAFF_NEW_IDENTITY",
+				"CPO_STAFF_EXISTING_IDENTITY",
 				"CPO_ONBOARDING_RESENT",
 			},
 		).
@@ -2031,7 +2061,11 @@ func (service *Service) GetAdminProfile(
 		}
 		return AdminProfileView{}, fmt.Errorf("load CPO administrator profile: %w", err)
 	}
-	return adminProfileView(user, *principal.CPOID), nil
+	access, err := auth.EvaluateCPOAccess(ctx, service.database, principal)
+	if err != nil {
+		return AdminProfileView{}, forbiddenCPOAccess()
+	}
+	return adminProfileView(user, *principal.CPOID, access.Membership.Role), nil
 }
 
 func (service *Service) UpdateAdminProfile(
@@ -2111,17 +2145,21 @@ func (service *Service) UpdateAdminProfile(
 		}
 		return AdminProfileView{}, err
 	}
-	return adminProfileView(user, cpoID), nil
+	access, err := auth.EvaluateCPOAccess(ctx, service.database, principal)
+	if err != nil {
+		return AdminProfileView{}, forbiddenCPOAccess()
+	}
+	return adminProfileView(user, cpoID, access.Membership.Role), nil
 }
 
-func adminProfileView(user models.User, cpoID uuid.UUID) AdminProfileView {
+func adminProfileView(user models.User, cpoID uuid.UUID, role constants.CPORole) AdminProfileView {
 	return AdminProfileView{
 		UserID:     user.ID,
 		CPOID:      cpoID,
 		Email:      user.Email,
 		FullName:   user.FullName,
 		Phone:      user.Phone,
-		Role:       constants.CPORoleAdmin,
+		Role:       role,
 		IsVerified: user.IsVerified,
 		CreatedAt:  user.CreatedAt,
 		UpdatedAt:  user.UpdatedAt,
@@ -2336,7 +2374,11 @@ func (service *Service) CreateStaff(ctx context.Context, principal auth.Principa
 			return err
 		}
 		template := "CPO_STAFF_EXISTING_IDENTITY"
-		payload := cmsmail.MessagePayload{RecipientName: user.FullName, CPOName: cpoRecord.BusinessName, CPOID: cpoID.String(), CPOAppID: cpoRecord.AppID, Role: string(request.Role)}
+		actionURL, err := service.cpoOnboardingActionURL(cpoID)
+		if err != nil {
+			return err
+		}
+		payload := cmsmail.MessagePayload{RecipientName: user.FullName, CPOName: cpoRecord.BusinessName, CPOID: cpoID.String(), CPOAppID: cpoRecord.AppID, Role: string(request.Role), ActionURL: actionURL}
 		if created {
 			template = "CPO_STAFF_NEW_IDENTITY"
 			payload.TemporaryPassword = temporaryPassword
@@ -2421,7 +2463,11 @@ func (service *Service) UpdateStaff(ctx context.Context, principal auth.Principa
 			if err := tx.First(&cpoRecord, "id = ?", cpoID).Error; err != nil {
 				return err
 			}
-			if err := service.outbox.EnqueueMessageWithContext(tx, user.Email, "CPO_STAFF_ROLE_CHANGED", cmsmail.MessagePayload{RecipientName: user.FullName, CPOName: cpoRecord.BusinessName, Role: string(*request.Role)}, cmsmail.MessageContext{CPOID: &cpoID, UserID: &user.ID}); err != nil {
+			actionURL, err := service.cpoOnboardingActionURL(cpoID)
+			if err != nil {
+				return err
+			}
+			if err := service.outbox.EnqueueMessageWithContext(tx, user.Email, "CPO_STAFF_ROLE_CHANGED", cmsmail.MessagePayload{RecipientName: user.FullName, CPOName: cpoRecord.BusinessName, Role: string(*request.Role), ActionURL: actionURL}, cmsmail.MessageContext{CPOID: &cpoID, UserID: &user.ID}); err != nil {
 				return err
 			}
 		}
@@ -2506,7 +2552,11 @@ func (service *Service) TransitionStaff(ctx context.Context, principal auth.Prin
 		if status == constants.MembershipStatusRevoked {
 			template = "CPO_STAFF_REVOKED"
 		}
-		if err := service.outbox.EnqueueMessageWithContext(tx, user.Email, template, cmsmail.MessagePayload{RecipientName: user.FullName, CPOName: cpoRecord.BusinessName, Role: string(membership.Role)}, cmsmail.MessageContext{CPOID: &cpoID, UserID: &user.ID}); err != nil {
+		actionURL, err := service.cpoOnboardingActionURL(cpoID)
+		if err != nil {
+			return err
+		}
+		if err := service.outbox.EnqueueMessageWithContext(tx, user.Email, template, cmsmail.MessagePayload{RecipientName: user.FullName, CPOName: cpoRecord.BusinessName, Role: string(membership.Role), ActionURL: actionURL}, cmsmail.MessageContext{CPOID: &cpoID, UserID: &user.ID}); err != nil {
 			return err
 		}
 		return writeAudit(tx, principal.UserID, cpoID, "CPO_STAFF_"+string(status), models.JSONB{"membership_id": membership.ID, "reason": strings.TrimSpace(reason)}, now)
@@ -4653,6 +4703,18 @@ func requireCPOAdminAccess(principal auth.Principal) error {
 	// for direct callers, but must not reintroduce an ADMIN-only bypass over the
 	// route's precise capability decision.
 	return nil
+}
+
+func forbiddenCPOAccess() error {
+	return &auth.APIError{Status: http.StatusForbidden, Code: "forbidden", Message: "An active CPO membership is required."}
+}
+
+func (service *Service) cpoOnboardingActionURL(cpoID uuid.UUID) (string, error) {
+	actionURL, err := config.BuildActionURL(service.frontend.CPOOnboardingTemplate, map[string]string{"cpo_id": cpoID.String()}, "cpo_id")
+	if err != nil {
+		return "", fmt.Errorf("build CPO onboarding action URL: %w", err)
+	}
+	return actionURL, nil
 }
 
 func generateUniqueChargerIDTx(tx *gorm.DB) (string, error) {

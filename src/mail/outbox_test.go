@@ -97,3 +97,15 @@ func TestValidateMessagePayloadAcceptsCompletePasswordRecoveryMail(t *testing.T)
 		}
 	}
 }
+
+func TestValidateSemanticCPOOnboardingRequiresActionURL(t *testing.T) {
+	t.Parallel()
+	payload := MessagePayload{RecipientName: "Operator", CPOName: "Example CPO", Role: "OPERATOR", TemporaryPassword: "temporary"}
+	if err := validateMessagePayload("CPO_STAFF_NEW_IDENTITY", payload); err == nil || !strings.Contains(err.Error(), "action URL") {
+		t.Fatalf("new staff without frontend action URL = %v", err)
+	}
+	payload.ActionURL = "https://cms.example/login#cpo_id=opaque"
+	if err := validateMessagePayload("CPO_STAFF_NEW_IDENTITY", payload); err != nil {
+		t.Fatalf("new staff with frontend action URL: %v", err)
+	}
+}

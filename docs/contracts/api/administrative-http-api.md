@@ -1639,7 +1639,7 @@ Purpose: provide the safe state needed by the Superadmin recovery UI.
   "must_change_password": true,
   "latest_onboarding_delivery": {
     "job_id": "4ccb8733-b2e5-4f35-9953-f0e5f32176f2",
-    "template": "CPO_ADMIN_WELCOME",
+    "template": "CPO_STAFF_NEW_IDENTITY",
     "status": "PENDING",
     "attempts": 0,
     "created_at": "2026-07-31T09:00:00Z",

@@ -9,21 +9,34 @@ import (
 	"time"
 
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/auth"
+	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/config"
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/constants"
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/cpopermissions"
+	cmsmail "github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/mail"
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/models"
+	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/platformops"
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
 
 type Service struct {
-	database *gorm.DB
-	now      func() time.Time
+	database       *gorm.DB
+	now            func() time.Time
+	outbox         *cmsmail.Outbox
+	platformEvents *platformops.Service
+	frontend       config.FrontendLinks
 }
 
 func NewService(database *gorm.DB) *Service {
 	return &Service{database: database, now: func() time.Time { return time.Now().UTC() }}
+}
+
+func (service *Service) WithNotificationDelivery(outbox *cmsmail.Outbox, platformEvents *platformops.Service, frontend config.FrontendLinks) *Service {
+	service.outbox = outbox
+	service.platformEvents = platformEvents
+	service.frontend = frontend
+	return service
 }
 
 type CreateRequest struct {
@@ -89,7 +102,11 @@ func (service *Service) Create(ctx context.Context, principal auth.Principal, re
 		if err := tx.Create(&models.SupportTicketMessage{ID: uuid.New(), TicketID: ticket.ID, AuthorUserID: principal.UserID, AuthorScope: "CPO", Body: request.Body, CreatedAt: now}).Error; err != nil {
 			return err
 		}
-		return event(tx, ticket.ID, "CREATED", "CPO", &principal.UserID, nil, nil, "", "", now)
+		event, err := recordEvent(tx, ticket.ID, "CREATED", "CPO", &principal.UserID, nil, nil, "", "", now)
+		if err != nil {
+			return err
+		}
+		return service.notifyTicketCreated(tx, ticket, event)
 	})
 	if err != nil {
 		return TicketView{}, fmt.Errorf("create support ticket: %w", err)
@@ -201,7 +218,7 @@ func (service *Service) Reply(ctx context.Context, principal auth.Principal, tic
 	}
 	request.Body = strings.TrimSpace(request.Body)
 	request.IdempotencyKey = strings.TrimSpace(request.IdempotencyKey)
-	if request.Body == "" || len(request.Body) > 10000 || len(request.IdempotencyKey) > 120 {
+	if request.Body == "" || len(request.Body) > 10000 || request.IdempotencyKey == "" || len(request.IdempotencyKey) > 120 {
 		return TicketView{}, invalid()
 	}
 	scope := string(principal.Scope)
@@ -241,11 +258,30 @@ func (service *Service) Reply(ctx context.Context, principal auth.Principal, tic
 		if err := tx.Model(&models.SupportTicket{}).Where("id = ?", locked.ID).Updates(updates).Error; err != nil {
 			return err
 		}
-		if err := event(tx, locked.ID, "MESSAGE_ADDED", scope, &principal.UserID, nil, nil, "", request.IdempotencyKey, now); err != nil {
+		locked.Status = next
+		if next != "CLOSED" {
+			locked.ClosedAt = nil
+		}
+		messageEvent, err := recordEvent(tx, locked.ID, "MESSAGE_ADDED", scope, &principal.UserID, nil, nil, "", request.IdempotencyKey, now)
+		if err != nil {
+			return err
+		}
+		if principal.Scope == constants.AuthScopeCPO {
+			if err := service.emitPlatformTicketActivity(tx, "support.ticket.cpo_replied", locked, messageEvent); err != nil {
+				return err
+			}
+		} else if err := service.notifyCPO(tx, locked, messageEvent, "CPO_SUPPORT_TICKET_PLATFORM_REPLY"); err != nil {
 			return err
 		}
 		if next != previous {
-			return event(tx, locked.ID, "STATUS_CHANGED", scope, &principal.UserID, &previous, &next, "", "", now)
+			statusEvent, err := recordEvent(tx, locked.ID, "STATUS_CHANGED", scope, &principal.UserID, &previous, &next, "", "", now)
+			if err != nil {
+				return err
+			}
+			if principal.Scope == constants.AuthScopeCPO {
+				return service.emitPlatformTicketActivity(tx, "support.ticket.reopened", locked, statusEvent)
+			}
+			return service.notifyCPO(tx, locked, statusEvent, "CPO_SUPPORT_TICKET_REOPENED")
 		}
 		return nil
 	}); err != nil {
@@ -290,7 +326,26 @@ func (service *Service) SetStatus(ctx context.Context, principal auth.Principal,
 		if err := tx.Model(&ticket).Updates(updates).Error; err != nil {
 			return err
 		}
-		return event(tx, ticket.ID, "STATUS_CHANGED", "PLATFORM", &principal.UserID, &previous, &status, request.Reason, "", now)
+		ticket.Status = status
+		if status == "CLOSED" {
+			ticket.ClosedAt = &now
+		} else {
+			ticket.ClosedAt = nil
+		}
+		event, err := recordEvent(tx, ticket.ID, "STATUS_CHANGED", "PLATFORM", &principal.UserID, &previous, &status, request.Reason, "", now)
+		if err != nil {
+			return err
+		}
+		switch status {
+		case "RESOLVED":
+			return service.notifyCPO(tx, ticket, event, "CPO_SUPPORT_TICKET_RESOLVED")
+		case "CLOSED":
+			return service.notifyCPO(tx, ticket, event, "CPO_SUPPORT_TICKET_CLOSED")
+		case "OPEN":
+			return service.notifyCPO(tx, ticket, event, "CPO_SUPPORT_TICKET_REOPENED")
+		default:
+			return nil
+		}
 	}); err != nil {
 		return TicketView{}, err
 	}
@@ -339,7 +394,7 @@ func isStatus(status string) bool {
 	return status == "OPEN" || status == "IN_PROGRESS" || status == "RESOLVED" || status == "CLOSED"
 }
 
-func event(tx *gorm.DB, ticketID uuid.UUID, typ, scope string, actor *uuid.UUID, previous, next *string, reason, key string, now time.Time) error {
+func recordEvent(tx *gorm.DB, ticketID uuid.UUID, typ, scope string, actor *uuid.UUID, previous, next *string, reason, key string, now time.Time) (models.SupportTicketEvent, error) {
 	var r *string
 	if reason != "" {
 		r = &reason
@@ -348,7 +403,127 @@ func event(tx *gorm.DB, ticketID uuid.UUID, typ, scope string, actor *uuid.UUID,
 	if key != "" {
 		k = &key
 	}
-	return tx.Create(&models.SupportTicketEvent{ID: uuid.New(), TicketID: ticketID, EventType: typ, ActorScope: scope, ActorUserID: actor, PreviousStatus: previous, NextStatus: next, Reason: r, IdempotencyKey: k, CreatedAt: now}).Error
+	record := models.SupportTicketEvent{ID: uuid.New(), TicketID: ticketID, EventType: typ, ActorScope: scope, ActorUserID: actor, PreviousStatus: previous, NextStatus: next, Reason: r, IdempotencyKey: k, CreatedAt: now}
+	if err := tx.Create(&record).Error; err != nil {
+		return models.SupportTicketEvent{}, err
+	}
+	return record, nil
+}
+
+type supportRecipient struct {
+	UserID   uuid.UUID
+	Email    string
+	FullName string
+}
+
+func (service *Service) notifyTicketCreated(tx *gorm.DB, ticket models.SupportTicket, event models.SupportTicketEvent) error {
+	if err := service.notifyCPO(tx, ticket, event, "CPO_SUPPORT_TICKET_CREATED", event.ActorUserID); err != nil {
+		return err
+	}
+	return service.emitPlatformTicketActivity(tx, "support.ticket.created", ticket, event)
+}
+
+// notifyCPO records an encrypted mail intent in the caller's transaction. The
+// support event and the intent therefore commit together or both roll back.
+func (service *Service) notifyCPO(tx *gorm.DB, ticket models.SupportTicket, event models.SupportTicketEvent, template string, includeUser ...*uuid.UUID) error {
+	if service.outbox == nil {
+		return nil
+	}
+	var include *uuid.UUID
+	if len(includeUser) > 0 {
+		include = includeUser[0]
+	}
+	recipients, err := service.cpoRecipients(tx, ticket.CPOID, include)
+	if err != nil {
+		return err
+	}
+	if len(recipients) == 0 {
+		return nil
+	}
+	var cpo models.CPO
+	if err := tx.First(&cpo, "id = ?", ticket.CPOID).Error; err != nil {
+		return fmt.Errorf("load support ticket CPO: %w", err)
+	}
+	actionURL, err := config.BuildActionURL(service.frontend.CPOSupportTicketTemplate, map[string]string{"ticket_id": ticket.ID.String()}, "ticket_id")
+	if err != nil {
+		return fmt.Errorf("build support ticket action URL: %w", err)
+	}
+	for _, recipient := range recipients {
+		if err := service.outbox.EnqueueMessageWithContext(tx, recipient.Email, template, cmsmail.MessagePayload{
+			RecipientName:  recipient.FullName,
+			CPOName:        cpo.BusinessName,
+			SupportSubject: ticket.Subject,
+			SupportStatus:  ticket.Status,
+			OccurredAt:     event.CreatedAt,
+			ActionURL:      actionURL,
+		}, cmsmail.MessageContext{CPOID: &ticket.CPOID, UserID: &recipient.UserID}); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (service *Service) cpoRecipients(tx *gorm.DB, cpoID uuid.UUID, includeUser *uuid.UUID) ([]supportRecipient, error) {
+	// Routine ticket notifications go only to active CPO administrators. The
+	// creator is also included for a creation confirmation, even if that user
+	// has a narrower support-create capability.
+	query := tx.Table("cpo_memberships").
+		Select("cpo_memberships.user_id, users.email, users.full_name").
+		Joins("JOIN users ON users.id = cpo_memberships.user_id").
+		Where("cpo_memberships.cpo_id = ? AND cpo_memberships.status = ? AND users.is_active = ?", cpoID, constants.MembershipStatusActive, true)
+	if includeUser == nil {
+		query = query.Where("(cpo_memberships.is_primary_admin = ? OR cpo_memberships.role IN ?)", true, []constants.CPORole{constants.CPORoleAdmin, constants.CPORoleOwner})
+	} else {
+		query = query.Where("(cpo_memberships.user_id = ? OR cpo_memberships.is_primary_admin = ? OR cpo_memberships.role IN ?)", *includeUser, true, []constants.CPORole{constants.CPORoleAdmin, constants.CPORoleOwner})
+	}
+	var loaded []supportRecipient
+	if err := query.Scan(&loaded).Error; err != nil {
+		return nil, fmt.Errorf("load support ticket notification recipients: %w", err)
+	}
+	return deduplicateRecipients(loaded), nil
+}
+
+func deduplicateRecipients(recipients []supportRecipient) []supportRecipient {
+	seen := make(map[string]struct{}, len(recipients))
+	result := make([]supportRecipient, 0, len(recipients))
+	for _, recipient := range recipients {
+		email := strings.ToLower(strings.TrimSpace(recipient.Email))
+		if email == "" {
+			continue
+		}
+		if _, exists := seen[email]; exists {
+			continue
+		}
+		seen[email] = struct{}{}
+		recipient.Email = email
+		result = append(result, recipient)
+	}
+	return result
+}
+
+func (service *Service) emitPlatformTicketActivity(tx *gorm.DB, typ string, ticket models.SupportTicket, event models.SupportTicketEvent) error {
+	if service.platformEvents == nil {
+		return nil
+	}
+	resourceID := ticket.ID.String()
+	_, err := service.platformEvents.Emit(tx, platformops.EventInput{
+		Type:         typ,
+		ActorUserID:  event.ActorUserID,
+		ResourceType: "SUPPORT_TICKET",
+		ResourceID:   &resourceID,
+		// Do not publish a private ticket-message body onto the platform event
+		// stream. The authorized ticket-detail API remains the message source.
+		Data: models.JSONB{
+			"cpo_id":      ticket.CPOID.String(),
+			"subject":     ticket.Subject,
+			"status":      ticket.Status,
+			"occurred_at": event.CreatedAt.UTC().Format(time.RFC3339Nano),
+		},
+	})
+	if err != nil {
+		return fmt.Errorf("emit support ticket platform activity: %w", err)
+	}
+	return nil
 }
 func requireCPO(p auth.Principal) error {
 	if p.Scope != constants.AuthScopeCPO || p.CPOID == nil || p.Role == nil {

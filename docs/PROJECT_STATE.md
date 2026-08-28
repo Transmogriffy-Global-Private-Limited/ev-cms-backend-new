@@ -2,7 +2,7 @@
 
 ## Current State
 
-### 2026-08-28 - Support core completed in the uncommitted worktree
+### 2026-08-28 - Support core and notifications implemented, not deployed
 
 - Migration 057 converts historical ticket `PENDING` state to `IN_PROGRESS`,
   adds immutable ticket events, and preserves ticket/message state as the
@@ -16,8 +16,14 @@
   mutation. Request bodies are bounded, one-object, unknown-field-rejecting
   JSON.
 - Source OpenAPI and the SuperAdmin support workflow guide describe the new
-  contract. This state is not deployed and no migration was applied. Focused
-  support/OpenAPI checks passed; the PostgreSQL lifecycle/concurrency test is
+  contract. Ticket creation, platform replies, and platform
+  resolved/closed/reopened transitions queue encrypted CPO notices atomically;
+  CPO-created/replied/reopened activity emits durable platform events rather
+  than guessing a platform support mailbox. Notifications expose only subject,
+  status, localized time, and the configured action URL—not private message
+  bodies. Core support is on `main` at `1ebcdf6`; this notification completion
+  is uncommitted, not deployed, and requires no new migration. Focused
+  support/mail checks passed; the PostgreSQL lifecycle/concurrency test is
   gated on an explicitly selected disposable `TEST_DATABASE_URL`.
 
 ### 2026-08-26 - Independent charging-limit provenance deployed
@@ -226,7 +232,11 @@
 - Source-controlled mail layouts are embedded from `src/mail/templates/` and
   produce text plus HTML alternatives. CPO support tickets/messages are durable
   tenant-scoped records; CPO routes cannot read another CPO's tickets while
-  platform routes provide the status/response control plane.
+  platform routes provide the status/response control plane. Ticket creation,
+  platform replies, and platform resolved/closed/reopened transitions enqueue
+  privacy-safe CPO notification intents atomically with their support mutation;
+  CPO-originated activity is retained in the platform event stream without a
+  hard-coded platform support mailbox.
 - Focused auth/CPO/SuperAdmin/mail tests, docs validation, OpenAPI route parity,
   `go test ./...`, and `go vet ./...` pass. Disposable PostgreSQL migration and
   lifecycle verification remain unrun because `TEST_DATABASE_URL` was not set.

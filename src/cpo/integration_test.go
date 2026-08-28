@@ -216,7 +216,7 @@ func TestCPOProvisioningAndFirstAdminLifecycleWithPostgreSQL(t *testing.T) {
 		gormDB,
 		mailBox,
 		adminEmail,
-		"CPO_ADMIN_WELCOME",
+		"CPO_STAFF_NEW_IDENTITY",
 	)
 	if welcome.TemporaryPassword == "" ||
 		welcome.CPOID != created.CPO.ID.String() ||
@@ -924,7 +924,7 @@ func TestCPOSuperadminDependencyLifecycleWithPostgreSQL(t *testing.T) {
 		gormDB,
 		mailBox,
 		newAdminEmail,
-		"CPO_ADMIN_WELCOME",
+		"CPO_STAFF_NEW_IDENTITY",
 	)
 	if replacementWelcome.TemporaryPassword == "" {
 		t.Fatal("new replacement identity did not receive a temporary password")

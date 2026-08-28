@@ -46,3 +46,30 @@ func TestEffectivePermissionPrecedence(t *testing.T) {
 		t.Fatal("DENY must override both ALLOW and the role default")
 	}
 }
+
+func TestCapabilityOverridesCoverReadAndManageRoles(t *testing.T) {
+	contains := func(values []string, key string) bool {
+		for _, value := range values {
+			if value == key {
+				return true
+			}
+		}
+		return false
+	}
+	operatorRead := Effective(constants.CPORoleOperator, nil, nil)
+	if !contains(operatorRead, ChargersRead) {
+		t.Fatal("operator role default must retain a real read capability")
+	}
+	viewerManage := Effective(constants.CPORoleViewer, []string{HubsManage}, nil)
+	if !contains(viewerManage, HubsManage) {
+		t.Fatal("explicit ALLOW must let viewer use a real manage capability")
+	}
+	adminDenied := Effective(constants.CPORoleAdmin, nil, []string{HubsManage})
+	if contains(adminDenied, HubsManage) {
+		t.Fatal("explicit DENY must remove an administrator manage capability")
+	}
+	viewerDefault := Effective(constants.CPORoleViewer, nil, nil)
+	if contains(viewerDefault, HubsManage) {
+		t.Fatal("viewer without an explicit capability must not gain manage authority")
+	}
+}

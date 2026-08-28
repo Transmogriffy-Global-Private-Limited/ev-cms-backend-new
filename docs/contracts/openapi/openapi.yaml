@@ -8514,8 +8514,8 @@ components:
         template:
           type: string
           enum:
-            - CPO_ADMIN_WELCOME
-            - CPO_MEMBERSHIP_ASSIGNED
+            - CPO_STAFF_NEW_IDENTITY
+            - CPO_STAFF_EXISTING_IDENTITY
             - CPO_ONBOARDING_RESENT
         status:
           type: string
@@ -9011,10 +9011,10 @@ components:
         body: {type: string, minLength: 1, maxLength: 10000, description: Trimmed text; whitespace-only input is invalid.}
     SupportReplyRequest:
       type: object
-      required: [body]
+      required: [body, idempotency_key]
       properties:
         body: {type: string, minLength: 1, maxLength: 10000, description: Trimmed text; whitespace-only input is invalid.}
-        idempotency_key: {type: string, minLength: 1, maxLength: 120, description: Optional client-generated key. Reusing it for the same ticket returns the existing result without adding another message.}
+        idempotency_key: {type: string, minLength: 1, maxLength: 120, description: Required client-generated key. Reusing it for the same ticket returns the existing result without adding another message.}
     SupportTicketStatusRequest:
       type: object
       required: [status]

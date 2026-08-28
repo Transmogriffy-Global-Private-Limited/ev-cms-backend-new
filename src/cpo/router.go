@@ -19,6 +19,7 @@ import (
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/operationalrealtime"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"gorm.io/gorm"
 )
 
 type Handler struct {
@@ -1075,7 +1076,7 @@ func (handler *Handler) operationalStream(ctx *gin.Context) {
 		return handler.service.ListOperationalEvents(ctx.Request.Context(), principal, after, limit)
 	}, func() bool {
 		refreshed, err := handler.authService.ValidateAccess(ctx.Request.Context(), token)
-		return err == nil && cpoStreamStillAuthorized(refreshed, *principal.CPOID, appID)
+		return err == nil && cpoStreamStillAuthorized(ctx.Request.Context(), handler.service.database, refreshed, *principal.CPOID, appID, cpopermissions.ChargersOperations)
 	})
 }
 
@@ -1140,7 +1141,7 @@ func (handler *Handler) liveChargingSessionsStream(ctx *gin.Context) {
 			ctx.Writer.Flush()
 		case <-heartbeatTicker.C:
 			refreshed, err := handler.authService.ValidateAccess(ctx.Request.Context(), token)
-			if err != nil || !cpoStreamStillAuthorized(refreshed, *principal.CPOID, appID) {
+			if err != nil || !cpoStreamStillAuthorized(ctx.Request.Context(), handler.service.database, refreshed, *principal.CPOID, appID, cpopermissions.ChargersOperations) {
 				return
 			}
 			if _, err := fmt.Fprintf(ctx.Writer, ": heartbeat %s\n\n", time.Now().UTC().Format(time.RFC3339)); err != nil {
@@ -1172,11 +1173,12 @@ func writeLiveSessionSnapshot(writer io.Writer, eventType string, eventID int64,
 	return err
 }
 
-func cpoStreamStillAuthorized(principal auth.Principal, cpoID uuid.UUID, appID string) bool {
-	return principal.Scope == constants.AuthScopeCPO &&
-		principal.CPOID != nil && *principal.CPOID == cpoID &&
-		principal.Role != nil && *principal.Role == constants.CPORoleAdmin &&
-		principal.CPOAppID != nil && *principal.CPOAppID == appID
+func cpoStreamStillAuthorized(ctx context.Context, database *gorm.DB, principal auth.Principal, cpoID uuid.UUID, appID, permission string) bool {
+	if principal.Scope != constants.AuthScopeCPO || principal.CPOID == nil || *principal.CPOID != cpoID || principal.CPOAppID == nil || *principal.CPOAppID != appID {
+		return false
+	}
+	_, allowed, err := auth.EvaluateCPOPermission(ctx, database, principal, permission)
+	return err == nil && allowed
 }
 
 func (handler *Handler) platformOperationalStream(ctx *gin.Context) {

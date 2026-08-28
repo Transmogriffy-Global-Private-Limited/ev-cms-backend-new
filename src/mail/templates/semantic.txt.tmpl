@@ -1,0 +1,121 @@
+{{define "LOGIN_OTP"}}Hi {{.RecipientName}},
+
+Use this sign-in code: {{.Code}}
+It expires {{.ExpiresAt}}. Do not share it.
+
+Continue sign-in: {{.ActionURL}}
+{{end}}
+{{define "PASSWORD_RESET_OTP"}}Hi {{.RecipientName}},
+
+A password reset was requested. Your verification code is: {{.Code}}
+It expires {{.ExpiresAt}}. Receiving this email has not changed your password.
+
+Reset password: {{.ActionURL}}
+{{end}}
+{{define "CUSTOMER_LOGIN_OTP"}}Hi {{.RecipientName}},
+
+Use this sign-in code: {{.Code}}
+It expires {{.ExpiresAt}}. Do not share it.
+
+Continue sign-in: {{.ActionURL}}
+{{end}}
+{{define "CUSTOMER_SIGNUP_OTP"}}Hi {{.RecipientName}},
+
+Use this verification code: {{.Code}}
+It expires {{.ExpiresAt}}.
+
+Verify account: {{.ActionURL}}
+{{end}}
+{{define "CUSTOMER_PASSWORD_RESET_OTP"}}Hi {{.RecipientName}},
+
+Your password-reset code is: {{.Code}}
+It expires {{.ExpiresAt}}. Receiving this email has not changed your password.
+
+Reset password: {{.ActionURL}}
+{{end}}
+{{define "CPO_STAFF_NEW_IDENTITY"}}Hi {{.RecipientName}},
+
+You have been added to {{.CPOName}} as {{.Role}}. Sign in using the temporary password below, then change it before using CPO operations.
+
+Temporary password: {{.TemporaryPassword}}
+
+Open CPO access: {{.ActionURL}}
+{{end}}
+{{define "CPO_STAFF_EXISTING_IDENTITY"}}Hi {{.RecipientName}},
+
+You have been added to {{.CPOName}} as {{.Role}}. Use your existing TransEV credentials to sign in.
+
+Open CPO access: {{.ActionURL}}
+{{end}}
+{{define "CPO_ONBOARDING_RESENT"}}Hi {{.RecipientName}},
+
+Use your existing TransEV credentials to access {{.CPOName}}. Passwords are never resent; use password recovery if needed.
+
+Open CPO access: {{.ActionURL}}
+{{end}}
+{{define "CPO_STAFF_ROLE_CHANGED"}}Hi {{.RecipientName}},
+
+Your role for {{.CPOName}} is now {{.Role}}. Use your existing TransEV credentials to sign in.
+
+Open CPO access: {{.ActionURL}}
+{{end}}
+{{define "CPO_STAFF_SUSPENDED"}}Hi {{.RecipientName}},
+
+Your access to {{.CPOName}} has been suspended. This affects only this CPO membership.
+
+Open CPO access: {{.ActionURL}}
+{{end}}
+{{define "CPO_STAFF_REACTIVATED"}}Hi {{.RecipientName}},
+
+Your access to {{.CPOName}} has been restored. Use your existing TransEV credentials to sign in.
+
+Open CPO access: {{.ActionURL}}
+{{end}}
+{{define "CPO_STAFF_REVOKED"}}Hi {{.RecipientName}},
+
+Your access to {{.CPOName}} has been removed. This affects only this CPO membership.
+
+Open CPO access: {{.ActionURL}}
+{{end}}
+{{define "CPO_SUBSCRIPTION_EXPIRY_WARNING"}}Hi {{.RecipientName}},
+
+{{.CPOName}} subscription ends on {{.ExpiresAt}}. Review renewal with your platform administrator.
+
+Review subscription: {{.ActionURL}}
+{{end}}
+{{define "CPO_SUBSCRIPTION_EXPIRED"}}Hi {{.RecipientName}},
+
+{{.CPOName}} subscription expired on {{.ExpiresAt}}. New customer charging starts and recharge orders remain unavailable until a platform administrator renews the subscription.
+
+Review subscription: {{.ActionURL}}
+{{end}}
+{{define "CPO_SUPPORT_TICKET_CREATED"}}Hi {{.RecipientName}},
+
+{{.CPOName}} received your support ticket, “{{.SupportSubject}}”. Its current status is {{.SupportStatus}} as of {{.OccurredAt}}.
+
+View support ticket: {{.ActionURL}}
+{{end}}
+{{define "CPO_SUPPORT_TICKET_PLATFORM_REPLY"}}Hi {{.RecipientName}},
+
+The platform replied to “{{.SupportSubject}}”. Its current status is {{.SupportStatus}} as of {{.OccurredAt}}. Open the support ticket to read the reply.
+
+View support ticket: {{.ActionURL}}
+{{end}}
+{{define "CPO_SUPPORT_TICKET_RESOLVED"}}Hi {{.RecipientName}},
+
+“{{.SupportSubject}}” was marked RESOLVED at {{.OccurredAt}}. Its current status is {{.SupportStatus}}.
+
+View support ticket: {{.ActionURL}}
+{{end}}
+{{define "CPO_SUPPORT_TICKET_CLOSED"}}Hi {{.RecipientName}},
+
+“{{.SupportSubject}}” was marked CLOSED at {{.OccurredAt}}. Its current status is {{.SupportStatus}}.
+
+View support ticket: {{.ActionURL}}
+{{end}}
+{{define "CPO_SUPPORT_TICKET_REOPENED"}}Hi {{.RecipientName}},
+
+“{{.SupportSubject}}” was reopened at {{.OccurredAt}}. Its current status is {{.SupportStatus}}.
+
+View support ticket: {{.ActionURL}}
+{{end}}

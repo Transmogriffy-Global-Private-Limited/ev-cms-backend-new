@@ -3,9 +3,10 @@
 ## Purpose and authority
 
 The support desk is the durable, tenant-scoped conversation surface between CPO
-staff and Platform SuperAdmins. PostgreSQL ticket, message, and lifecycle-event
-rows are authoritative. This core workflow has no support SSE, email, webhook,
-or platform-notification delivery.
+staff and Platform SuperAdmins. PostgreSQL ticket, message, lifecycle-event,
+and transactionally queued notification intent rows are authoritative. Email
+delivery is asynchronous: it never determines whether a support mutation
+succeeds.
 
 The machine-readable HTTP contract is
 [`../../contracts/openapi/openapi.yaml`](../../contracts/openapi/openapi.yaml).
@@ -57,6 +58,39 @@ transition clears it. A CPO reply to `RESOLVED` or `CLOSED` automatically
 reopens to `OPEN`, clears `closed_at`, and records both `MESSAGE_ADDED` and a
 separate `STATUS_CHANGED` event. A platform reply does not change status.
 
+## Notification delivery
+
+The support service records mail intent in the existing encrypted durable
+outbox inside the same transaction as the ticket mutation. A failed intent
+write rolls back the mutation; an SMTP failure occurs later in the worker and
+does not falsify the committed support state. Reply idempotency keys and the
+locked ticket row ensure a replay cannot create a second message, event,
+platform notification, or mail intent. Repeating an already-current status is
+also side-effect free.
+
+| Committed fact | CPO mail template | Additional delivery |
+| --- | --- | --- |
+| CPO creates a ticket | `CPO_SUPPORT_TICKET_CREATED` confirmation | Durable `support.ticket.created` platform event |
+| Platform replies | `CPO_SUPPORT_TICKET_PLATFORM_REPLY` | None |
+| Platform marks `RESOLVED` | `CPO_SUPPORT_TICKET_RESOLVED` | None |
+| Platform marks `CLOSED` | `CPO_SUPPORT_TICKET_CLOSED` | None |
+| Platform reopens to `OPEN` | `CPO_SUPPORT_TICKET_REOPENED` | None |
+| CPO replies, including automatic reopen | No self-mail | Durable `support.ticket.cpo_replied`; automatic reopen also emits `support.ticket.reopened` |
+
+Mail recipients are derived from the ticket's CPO at mutation time: only an
+active global user with an `ACTIVE` membership is eligible. Routine notices go
+to the CPO primary administrator and active `ADMIN`/`OWNER` memberships; a
+ticket-created confirmation also includes its active CPO creator. Recipient
+addresses are normalized and deduplicated. Suspended, revoked, or inactive
+identities are excluded.
+
+Every mail carries only the CPO name, ticket subject, current status, localized
+event time, and the configured `CPO_SUPPORT_TICKET` action URL. The link carries
+ticket context; the email does not print ticket UUIDs as a procedure. Private
+message bodies are absent from both email payloads and platform-event data.
+There is intentionally no hard-coded platform support mailbox: CPO-to-platform
+activity uses the existing durable platform-event stream instead.
+
 ## HTTP contract
 
 All request JSON must be exactly one object no larger than 32 KiB. Unknown
@@ -100,7 +134,7 @@ callers can never expand trusted tenant scope using that query parameter.
 and lifecycle `events`. Cross-CPO detail remains `404 support_ticket_not_found`.
 
 `POST /api/v1/.../support/{ticket_id}/replies` accepts a trimmed 1–10,000-byte
-`body` and optional trimmed `idempotency_key` (maximum 120 bytes). Reusing a
+`body` and required trimmed `idempotency_key` (maximum 120 bytes). Reusing a
 key for the same ticket returns current detail without another reply. The
 durable event-key constraint and ticket row lock protect concurrent retries.
 
@@ -120,10 +154,10 @@ ambiguous status request, refresh detail before making another deliberate call.
 | Wrong authority/capability | `403 forbidden` | Treat as an authorization boundary. |
 | Persistence failure | `500 internal_error` | Keep user draft and refresh durable detail. |
 
-There is no support mail, notification, assignment, priority, attachment,
-rich text, deletion, bulk update, platform-created ticket, or realtime feed in
-this slice. Future delivery must consume committed support facts and must not
-make lifecycle truth depend on SMTP or another notification channel.
+There is no support assignment, priority, attachment, rich text, deletion,
+bulk update, platform-created ticket, or CPO support realtime feed in this
+slice. Support email is a notification, not a durable message transport;
+authorized detail remains the recovery path.
 
 ## Verification
 
