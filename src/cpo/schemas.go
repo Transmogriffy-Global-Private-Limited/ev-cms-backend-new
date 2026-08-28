@@ -715,23 +715,24 @@ type LiveChargingSessionListQuery struct {
 // tenant customer's display name, but no customer identifier or contact data;
 // financial and historical session fields belong to the separate session read.
 type LiveChargingSessionView struct {
-	SessionID       uuid.UUID               `json:"session_id"`
-	Status          constants.SessionStatus `json:"status"`
-	StartedAt       time.Time               `json:"started_at"`
-	DurationSeconds int64                   `json:"duration_seconds"`
-	CustomerName    string                  `json:"customer_name"`
-	ChargerID       string                  `json:"charger_id"`
-	ChargerName     string                  `json:"charger_name"`
-	HubName         *string                 `json:"hub_name,omitempty"`
-	ConnectorID     uuid.UUID               `json:"connector_id"`
-	ConnectorNumber int                     `json:"connector_number"`
-	LatestMeterWh   *int64                  `json:"latest_meter_wh,omitempty"`
-	ConsumedWh      *int64                  `json:"consumed_wh,omitempty"`
-	MeterObservedAt *time.Time              `json:"meter_observed_at,omitempty"`
-	MeterFreshness  string                  `json:"meter_freshness"`
-	SoCPercent      *decimal.Decimal        `json:"soc_percent,omitempty"`
-	SoCObservedAt   *time.Time              `json:"soc_observed_at,omitempty"`
-	SoCFreshness    string                  `json:"soc_freshness"`
+	SessionID         uuid.UUID               `json:"session_id"`
+	OCPPTransactionID int64                   `json:"ocpp_transaction_id"`
+	Status            constants.SessionStatus `json:"status"`
+	StartedAt         time.Time               `json:"started_at"`
+	DurationSeconds   int64                   `json:"duration_seconds"`
+	CustomerName      string                  `json:"customer_name"`
+	ChargerID         string                  `json:"charger_id"`
+	ChargerName       string                  `json:"charger_name"`
+	HubName           *string                 `json:"hub_name,omitempty"`
+	ConnectorID       uuid.UUID               `json:"connector_id"`
+	ConnectorNumber   int                     `json:"connector_number"`
+	LatestMeterWh     *int64                  `json:"latest_meter_wh,omitempty"`
+	ConsumedWh        *int64                  `json:"consumed_wh,omitempty"`
+	MeterObservedAt   *time.Time              `json:"meter_observed_at,omitempty"`
+	MeterFreshness    string                  `json:"meter_freshness"`
+	SoCPercent        *decimal.Decimal        `json:"soc_percent,omitempty"`
+	SoCObservedAt     *time.Time              `json:"soc_observed_at,omitempty"`
+	SoCFreshness      string                  `json:"soc_freshness"`
 }
 
 type LiveChargingSessionListResponse struct {

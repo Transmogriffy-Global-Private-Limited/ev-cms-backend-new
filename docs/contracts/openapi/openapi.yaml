@@ -8719,9 +8719,10 @@ components:
     LiveChargingSessionView:
       type: object
       additionalProperties: false
-      required: [session_id, status, started_at, duration_seconds, customer_name, charger_id, charger_name, connector_id, connector_number, meter_freshness, soc_freshness, projected_amount, currency]
+      required: [session_id, ocpp_transaction_id, status, started_at, duration_seconds, customer_name, charger_id, charger_name, connector_id, connector_number, meter_freshness, soc_freshness, projected_amount, currency]
       properties:
         session_id: {type: string, format: uuid}
+        ocpp_transaction_id: {type: integer, format: int64}
         status: {type: string, enum: [ACTIVE, STOP_PENDING, RECONCILIATION_REQUIRED]}
         started_at: {type: string, format: date-time}
         duration_seconds: {type: integer, format: int64, minimum: 0, description: Elapsed whole seconds from started_at to the response as_of timestamp.}

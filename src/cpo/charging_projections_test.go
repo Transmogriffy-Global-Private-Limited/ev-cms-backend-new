@@ -74,10 +74,11 @@ func TestLiveChargingSessionProjectionContainsOnlyOperationalContext(t *testing.
 	meter, consumed := int64(50120), int64(120)
 	soc := decimal.RequireFromString("63.5")
 	session := models.ChargingSession{
-		ID:        uuid.New(),
-		Status:    constants.SessionStatusActive,
-		StartTime: now,
-		Customer:  models.Customer{FullName: "Chitradeep Ghosh"},
+		ID:            uuid.New(),
+		TransactionID: 654321,
+		Status:        constants.SessionStatusActive,
+		StartTime:     now,
+		Customer:      models.Customer{FullName: "Chitradeep Ghosh"},
 		Charger: models.Charger{
 			ChargerID:   "cp0001",
 			ChargerName: "Main forecourt DC charger",
@@ -95,7 +96,7 @@ func TestLiveChargingSessionProjectionContainsOnlyOperationalContext(t *testing.
 		SoCFreshness:     liveops.FreshnessFresh,
 	}, now.Add(92*time.Second))
 
-	if view.DurationSeconds != 92 || view.CustomerName != "Chitradeep Ghosh" || view.ChargerID != "cp0001" || view.ChargerName != "Main forecourt DC charger" || view.HubName == nil || *view.HubName != "Salt Lake Hub" || view.ConnectorID != session.Connector.ID || view.ConnectorNumber != 2 || view.LatestMeterWh == nil || *view.LatestMeterWh != meter || view.ConsumedWh == nil || *view.ConsumedWh != consumed || view.SoCPercent == nil || !view.SoCPercent.Equal(soc) {
+	if view.OCPPTransactionID != 654321 || view.DurationSeconds != 92 || view.CustomerName != "Chitradeep Ghosh" || view.ChargerID != "cp0001" || view.ChargerName != "Main forecourt DC charger" || view.HubName == nil || *view.HubName != "Salt Lake Hub" || view.ConnectorID != session.Connector.ID || view.ConnectorNumber != 2 || view.LatestMeterWh == nil || *view.LatestMeterWh != meter || view.ConsumedWh == nil || *view.ConsumedWh != consumed || view.SoCPercent == nil || !view.SoCPercent.Equal(soc) {
 		t.Fatalf("live session operational projection=%+v", view)
 	}
 	encoded, err := json.Marshal(view)
@@ -114,7 +115,7 @@ func TestLiveChargingSessionSnapshotSSEContainsTheFullOperationalProjection(t *t
 
 	snapshot := LiveChargingSessionListResponse{
 		Sessions: []LiveChargingSessionView{{
-			SessionID: uuid.New(), CustomerName: "Chitradeep Ghosh", ChargerID: "cp0001", ChargerName: "Main forecourt DC charger",
+			SessionID: uuid.New(), OCPPTransactionID: 654321, CustomerName: "Chitradeep Ghosh", ChargerID: "cp0001", ChargerName: "Main forecourt DC charger",
 			ConnectorID: uuid.New(), DurationSeconds: 92, Status: constants.SessionStatusActive,
 		}},
 		AsOf: time.Date(2026, time.August, 25, 12, 0, 0, 0, time.UTC),
@@ -125,7 +126,7 @@ func TestLiveChargingSessionSnapshotSSEContainsTheFullOperationalProjection(t *t
 	}
 
 	frame := output.String()
-	for _, expected := range []string{"id: 17\n", "event: live_sessions\n", `"sessions":[`, `"duration_seconds":92`, `"customer_name":"Chitradeep Ghosh"`, `"charger_id":"cp0001"`, `"connector_id":`, `"as_of":"2026-08-25T12:00:00Z"`} {
+	for _, expected := range []string{"id: 17\n", "event: live_sessions\n", `"sessions":[`, `"ocpp_transaction_id":654321`, `"duration_seconds":92`, `"customer_name":"Chitradeep Ghosh"`, `"charger_id":"cp0001"`, `"connector_id":`, `"as_of":"2026-08-25T12:00:00Z"`} {
 		if !strings.Contains(frame, expected) {
 			t.Fatalf("SSE frame %q missing %q", frame, expected)
 		}
