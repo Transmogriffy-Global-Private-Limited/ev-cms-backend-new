@@ -125,6 +125,13 @@ Approved current slice:
 
 Current implementation state:
 
+- Live charging financial and usage projections are deployed in runtime
+  revision `d635446`. Customer and CPO reads use the shared immutable
+  tariff/tax snapshot evaluator; projected amounts remain distinct from final
+  settlement totals. No migration or data repair was required. Readiness,
+  public routing, Swagger/OpenAPI (213 operations), Caddy, and post-rehost
+  checks pass.
+
 - The CPO customer aggregate wallet read is deployed in runtime revision
   `b6b723d`. Session usage/count and wallet balance are loaded independently,
   preserving stable zero values for missing rows; no migration or data repair

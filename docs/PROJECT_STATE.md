@@ -2,6 +2,20 @@
 
 ## Current State
 
+### 2026-08-28 - Live charging financial and usage projections deployed
+
+- Customer session detail, CPO customer reads, and CPO live-session snapshots
+  now expose current accrued usage/amount projections from immutable tariff and
+  tax snapshots. Projected amounts remain separate from final settlement
+  totals, and all reads remain tenant/customer scoped. No migration or data
+  repair was required.
+- Runtime revision `d63544641e257436d988a415ae069a7d8baeeb2f` is active behind
+  Caddy with binary SHA-256
+  `bab0d777d3d0e2f467ba4cdbf939a8913b43bf18ae4f4cf813fb550d640cc338`.
+  Service/readiness, public routing, Swagger/OpenAPI (213 operations), Caddy,
+  and post-rehost startup checks pass. The prior binary is retained for
+  rollback.
+
 ### 2026-08-28 - CPO customer aggregate wallet reads deployed
 
 - CPO customer aggregates now load session usage/counts and wallet balance in

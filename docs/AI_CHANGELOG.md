@@ -1,5 +1,22 @@
 # AI Changelog
 
+## 2026-08-28 - Add live charging financial and usage projections
+
+- Added one shared snapshot-pricing evaluator for current accrued amounts,
+  tenant-scoped CPO customer usage projections, and customer/CPO live-session
+  financial projections. Projected amounts remain distinct from final
+  settlement totals and use persisted tariff/tax snapshots.
+- Extended the existing customer session, CPO customer, and CPO live-session
+  contracts and OpenAPI schemas without adding a migration or a second source
+  of truth.
+
+Verification: focused projection and commercial tests, the OpenAPI route-parity
+test, full `go test ./...`, `go vet ./...`, and `git diff --check` pass. Runtime
+revision `d635446` was rebuilt and rehosted without a migration; service/readiness,
+public routing, Swagger/OpenAPI (213 operations), Caddy, binary identity, and
+post-rehost logs pass. Physical charger, SMTP delivery, disposable PostgreSQL,
+and `pwsh` documentation verification are not claimed or unavailable.
+
 ## 2026-08-28 - Fix CPO customer aggregate wallet reads
 
 - Split the customer aggregate query into independent session and wallet
