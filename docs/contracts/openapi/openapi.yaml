@@ -8719,7 +8719,7 @@ components:
     LiveChargingSessionView:
       type: object
       additionalProperties: false
-      required: [session_id, status, started_at, duration_seconds, customer_name, charger_id, charger_name, connector_id, connector_number, meter_freshness, soc_freshness]
+      required: [session_id, status, started_at, duration_seconds, customer_name, charger_id, charger_name, connector_id, connector_number, meter_freshness, soc_freshness, projected_amount, currency]
       properties:
         session_id: {type: string, format: uuid}
         status: {type: string, enum: [ACTIVE, STOP_PENDING, RECONCILIATION_REQUIRED]}
@@ -8733,6 +8733,12 @@ components:
         connector_number: {type: integer, minimum: 1}
         latest_meter_wh: {type: integer, format: int64}
         consumed_wh: {type: integer, format: int64, minimum: 0}
+        projected_amount:
+          $ref: "#/components/schemas/ExactDecimal"
+          description: Current accrued charge projected from the immutable session tariff and tax snapshots; not final settlement.
+        currency:
+          type: string
+          pattern: "^[A-Z]{3}$"
         meter_observed_at: {type: string, format: date-time}
         meter_freshness: {type: string, enum: [FRESH, STALE, UNKNOWN]}
         soc_percent: {type: string, pattern: "^[0-9]+(?:\\.[0-9]{1,3})?$", description: Optional actual OCPP-observed state of charge; never estimated.}
@@ -10743,6 +10749,9 @@ components:
         total_kwh:
           type: string
         total_amount:
+        projected_amount:
+          $ref: "#/components/schemas/ExactDecimal"
+          description: Present while settlement is not yet final; current accrued charge projected from the immutable tariff and tax snapshots.
           type: string
         currency:
           type: string

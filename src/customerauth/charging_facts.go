@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/commercial"
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/constants"
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/halops"
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/models"
@@ -615,11 +616,13 @@ func (service *Service) ReconcileCompletedSettlements(ctx context.Context, limit
 }
 
 func chargingAmount(tariff, tax models.JSONB, consumedWh int64, startedAt, stoppedAt time.Time) (decimal.Decimal, error) {
-	pricing, err := tariffPricingFromSnapshot(tariff)
-	if err != nil {
-		return decimal.Zero, err
-	}
-	return pricing.amountWithTaxSnapshot(consumedWh, startedAt, stoppedAt, tax)
+	return commercial.SessionAmountFromSnapshots(
+		tariff,
+		tax,
+		consumedWh,
+		startedAt,
+		stoppedAt,
+	)
 }
 func factID(p models.JSONB, key string) (uuid.UUID, bool) {
 	v, ok := p[key].(string)

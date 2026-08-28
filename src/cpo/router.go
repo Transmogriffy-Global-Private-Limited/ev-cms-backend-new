@@ -736,7 +736,7 @@ func (handler *Handler) listLiveChargingSessions(ctx *gin.Context) {
 	if !ok {
 		return
 	}
-	records, err := handler.service.ListLiveChargingSessions(ctx.Request.Context(), principal, query)
+	records, err := handler.service.ListLiveChargingSessionsWithFinancialProjection(ctx.Request.Context(), principal, query)
 	if err != nil {
 		writeError(ctx, err)
 		return
@@ -1096,7 +1096,7 @@ func (handler *Handler) liveChargingSessionsStream(ctx *gin.Context) {
 	// A live-session SSE connection is a full, replaceable CMS projection, not
 	// an invalidation feed that asks the client to reconstruct operational state.
 	// The durable event log is used only to notice committed projection changes.
-	snapshot, err := handler.service.ListLiveChargingSessions(ctx.Request.Context(), principal, query)
+	snapshot, err := handler.service.ListLiveChargingSessionsWithFinancialProjection(ctx.Request.Context(), principal, query)
 	if err != nil {
 		writeError(ctx, err)
 		return
@@ -1131,7 +1131,7 @@ func (handler *Handler) liveChargingSessionsStream(ctx *gin.Context) {
 				continue
 			}
 			cursor = page.NextCursor
-			snapshot, err := handler.service.ListLiveChargingSessions(ctx.Request.Context(), principal, query)
+			snapshot, err := handler.service.ListLiveChargingSessionsWithFinancialProjection(ctx.Request.Context(), principal, query)
 			if err != nil {
 				continue
 			}
@@ -1164,7 +1164,7 @@ func parseLiveChargingSessionStreamQuery(ctx *gin.Context) (LiveChargingSessionL
 	return query, true
 }
 
-func writeLiveSessionSnapshot(writer io.Writer, eventType string, eventID int64, snapshot LiveChargingSessionListResponse) error {
+func writeLiveSessionSnapshot(writer io.Writer, eventType string, eventID int64, snapshot any) error {
 	payload, err := json.Marshal(snapshot)
 	if err != nil {
 		return err
@@ -2157,7 +2157,7 @@ func (handler *Handler) listCustomers(ctx *gin.Context) {
 		return
 	}
 
-	records, err := handler.service.ListCustomers(ctx.Request.Context(), principal, query)
+	records, err := handler.service.ListCustomersWithCurrentUsage(ctx.Request.Context(), principal, query)
 	if err != nil {
 		writeError(ctx, err)
 		return
@@ -2187,7 +2187,7 @@ func (handler *Handler) getCustomer(ctx *gin.Context) {
 		return
 	}
 
-	record, err := handler.service.GetCustomer(ctx.Request.Context(), principal, customerID)
+	record, err := handler.service.GetCustomerWithCurrentUsage(ctx.Request.Context(), principal, customerID)
 	if err != nil {
 		writeError(ctx, err)
 		return

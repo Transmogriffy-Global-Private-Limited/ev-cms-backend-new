@@ -161,7 +161,7 @@ func (handler *Handler) getChargingSession(ctx *gin.Context) {
 		writeError(ctx, &APIError{http.StatusBadRequest, "invalid_session_id", "The charging session ID is invalid."})
 		return
 	}
-	response, err := handler.service.GetChargingSession(ctx.Request.Context(), principal, id)
+	response, err := handler.service.GetChargingSessionWithFinancialProjection(ctx.Request.Context(), principal, id)
 	if err != nil {
 		writeError(ctx, err)
 		return
