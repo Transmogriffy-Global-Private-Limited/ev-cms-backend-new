@@ -29,7 +29,9 @@ jobs:
       - name: Apply bounded source changes
         run: |
           python3 scripts/gpt_web_work_fix.py
+          python3 scripts/gpt_web_work_structural_fix.py
           python3 scripts/gpt_web_work_apply.py
+          python3 scripts/gpt_web_work_openapi_post.py
 
       - name: Format changed Go source
         run: |
