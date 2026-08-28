@@ -28,10 +28,10 @@ development host it is set in the ignored service environment to
 that setting; it must not be used until the OCPP host is explicitly configured
 with TLS/WebSocket support.
 
-The active deployment was updated on August 26, 2026 to runtime source revision
-`e8ff810e49c9564b25aef581ab87d051024ca77e` (`e8ff810`). It has migrations one
-through fifty-five and the current 211-operation API. The binary SHA-256 is
-`c1576ffb163b474ea3e3e984174ba6b02648607a7951917513bbb159e78021ba`.
+The active deployment was updated on August 28, 2026 to runtime source revision
+`342d65ad675dd358786967849cdb0d9a2fef568a` (`342d65a`). It has migrations one
+through fifty-seven and the current 213-operation API. The binary SHA-256 is
+`1d29512c02ab32adf12387f5b97a452d6b9fa38e90d29354e2c3a8ae7272cf22`.
 The pre-migration binary and database dump for migrations 49 through 53 are
 retained under `/root/evcmsnew-backups/` and
 `builds/evcmsnew.pre-162b3be-20260825-135452` and the newer
@@ -42,11 +42,16 @@ retained under `/root/evcmsnew-backups/` and
 `builds/evcmsnew.pre-f432f45-20260825-162920` and the newer
 `builds/evcmsnew.pre-e6c0ebb-20260825-164521` and the newer
 `builds/evcmsnew.pre-a085f29-20260826-111224` and
-`builds/evcmsnew.pre-e8ff810-20260826-150844`. Migration 54 adds
+`builds/evcmsnew.pre-e8ff810-20260826-150844` and the newer
+`builds/evcmsnew.pre-265eba6-20260828-103844` and
+`builds/evcmsnew.pre-342d65a-20260828-104113`. Migration 54 adds
 customer-selected charging-limit metadata and validation to charging start
 intents; migration 55 adds independent threshold provenance. The pre-change
 database dump for migration 55 is retained at
 `/root/evcmsnew-backups/devevcmsnew-before-000055-20260826-150844.dump`.
+Migrations 56 and 57 expand the CPO permission catalog and add support-ticket
+lifecycle events; the pre-change database dump for both is retained at
+`/root/evcmsnew-backups/devevcmsnew-before-000056-000057-20260828-103844.dump`.
 Migration 53 installs GSTIN,
 GSTIN-state, and PIN checks as `NOT VALID`, preserving three existing legacy
 CPO rows while enforcing the rules for new and updated rows. Migrations 45

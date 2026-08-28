@@ -141,7 +141,9 @@ Current implementation state:
   Ticket creation, platform replies, and platform resolved/closed/reopened
   mutations now atomically queue privacy-safe mail intent; CPO activity is
   published through the durable platform-event stream and SMTP remains
-  asynchronous.
+  asynchronous. Migrations 56 and 57 are applied; runtime revision `342d65a`
+  is active with the 213-operation API. Readiness, public routing, Swagger,
+  Caddy, and post-rehost startup checks pass.
 
 - Customer-selected charging limits now retain independent threshold
   provenance through the existing start-intent/wallet-hold/HAL lifecycle.

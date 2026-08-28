@@ -10,10 +10,16 @@
   request boundaries, OpenAPI schemas/filters/conflict responses, and the
   source support workflow contract.
 
-Verification: focused support tests and OpenAPI/runtime route parity passed;
-the PostgreSQL workflow/concurrency test is conditional on an explicitly
-selected disposable `TEST_DATABASE_URL`. No migration, deployment, SMTP, or
-other external action occurred.
+Verification: focused support/mail/auth/permission tests, OpenAPI/runtime route
+parity, full `go test ./...`, `go vet ./...`, and `git diff --check` passed.
+Migrations 56 and 57 were applied after a transactional dry-run and a database
+backup at `/root/evcmsnew-backups/devevcmsnew-before-000056-000057-20260828-103844.dump`.
+The migration ordering defect that rejected existing `PENDING` tickets was
+corrected before application. Runtime revision `342d65a` was rebuilt and
+rehosted; service/readiness, public routing, Swagger/OpenAPI (213 operations),
+Caddy, binary identity, and post-rehost logs pass. SMTP delivery and physical
+charger acceptance are not claimed. `pwsh` and `TEST_DATABASE_URL` are
+unavailable on this VPS.
 
 ## 2026-08-26 - Separate customer execution limits from wallet safety
 

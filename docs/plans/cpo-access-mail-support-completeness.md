@@ -1,6 +1,6 @@
 # CPO Access, Mail, Subscription, and Support Completion Plan
 
-Status: Implemented and Verified (uncommitted)
+Status: Implemented and Verified; deployed in runtime revision `342d65a`
 
 ## Objective
 

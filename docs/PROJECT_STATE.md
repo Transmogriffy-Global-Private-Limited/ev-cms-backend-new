@@ -2,7 +2,7 @@
 
 ## Current State
 
-### 2026-08-28 - Support core and notifications published, not deployed
+### 2026-08-28 - Support core and notifications deployed
 
 - Migration 057 converts historical ticket `PENDING` state to `IN_PROGRESS`,
   adds immutable ticket events, and preserves ticket/message state as the
@@ -22,10 +22,14 @@
   than guessing a platform support mailbox. Notifications expose only subject,
   status, localized time, and the configured action URL—not private message
   bodies. Support core and notification completion are published at
-  `256aa8975fa07dc032dd779c8eb4b0d93a3b1a73`, are not deployed, and require no
-  new migration. Focused
-  support/mail checks passed; the PostgreSQL lifecycle/concurrency test is
-  gated on an explicitly selected disposable `TEST_DATABASE_URL`.
+  `256aa8975fa07dc032dd779c8eb4b0d93a3b1a73` and migration 56/57 are applied.
+  Runtime revision `342d65a` is active behind Caddy with binary SHA-256
+  `1d29512c02ab32adf12387f5b97a452d6b9fa38e90d29354e2c3a8ae7272cf22`.
+  Service/readiness, public routing, Swagger/OpenAPI (213 operations), Caddy,
+  and post-rehost startup checks pass. The migration ordering correction for
+  existing `PENDING` tickets was applied before migration 57. SMTP delivery,
+  physical charger acceptance, and disposable PostgreSQL lifecycle coverage
+  are not claimed; `pwsh` and `TEST_DATABASE_URL` are unavailable on this VPS.
 
 ### 2026-08-26 - Independent charging-limit provenance deployed
 
