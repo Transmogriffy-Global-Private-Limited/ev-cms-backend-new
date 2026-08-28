@@ -1,5 +1,5 @@
-UPDATE support_tickets SET status = 'IN_PROGRESS' WHERE status = 'PENDING';
 ALTER TABLE support_tickets DROP CONSTRAINT IF EXISTS chk_support_tickets_status;
+UPDATE support_tickets SET status = 'IN_PROGRESS' WHERE status = 'PENDING';
 ALTER TABLE support_tickets ADD CONSTRAINT chk_support_tickets_status CHECK (status IN ('OPEN','IN_PROGRESS','RESOLVED','CLOSED'));
 CREATE TABLE support_ticket_events (
  id uuid PRIMARY KEY DEFAULT gen_random_uuid(), ticket_id uuid NOT NULL REFERENCES support_tickets(id) ON DELETE CASCADE,
