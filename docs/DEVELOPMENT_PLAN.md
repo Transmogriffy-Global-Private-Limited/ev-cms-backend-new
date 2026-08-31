@@ -126,12 +126,18 @@ Approved current slice:
 
 Current implementation state:
 
-- User App realtime projection correction is in progress under
+- User App realtime projection correction is source-verified under
   `docs/work/active/WI-20260831-userapp-realtime-projections.md`: preserve the
   generic retained operational-event feed for compatibility while adding
   complete customer live-session and selected-charger SSE projections. The
   slice also corrects the CPO live-session watermark-before-snapshot ordering.
   No migration, deployment, or direct database change is part of this work.
+
+- CPO live-session snapshots and SSE payloads now expose
+  `ocpp_transaction_id` from the durable transaction projection. Runtime
+   revision `632ec13` is deployed without a migration; service/readiness,
+   public routing, Swagger/OpenAPI (213 operations), Caddy, and post-rehost
+   checks pass.
 
 - Live charging financial and usage projections are deployed in runtime
   revision `d635446`. Customer and CPO reads use the shared immutable

@@ -29,9 +29,9 @@ that setting; it must not be used until the OCPP host is explicitly configured
 with TLS/WebSocket support.
 
 The active deployment was updated on August 28, 2026 to runtime source revision
-`d63544641e257436d988a415ae069a7d8baeeb2f` (`d635446`). It has migrations one
+`632ec13d359bafc355d961aa9ff925fa089ac6ac` (`632ec13`). It has migrations one
 through fifty-seven and the current 213-operation API. The binary SHA-256 is
-`bab0d777d3d0e2f467ba4cdbf939a8913b43bf18ae4f4cf813fb550d640cc338`.
+`5595f05de08736f7e7b7e509b9092fe16592e3eda0308f500614b4eb46b33b47`.
 The pre-migration binary and database dump for migrations 49 through 53 are
 retained under `/root/evcmsnew-backups/` and
 `builds/evcmsnew.pre-162b3be-20260825-135452` and the newer
@@ -46,7 +46,10 @@ retained under `/root/evcmsnew-backups/` and
 `builds/evcmsnew.pre-265eba6-20260828-103844` and
 `builds/evcmsnew.pre-342d65a-20260828-104113` and the newer
 `builds/evcmsnew.pre-b6b723d-20260828-111541` and the newer
-`builds/evcmsnew.pre-d635446-20260828-142326`. The intermediate pre-contract-fix
+`builds/evcmsnew.pre-d635446-20260828-142326`. The prior active binary for this
+rehost is additionally retained at
+`builds/evcmsnew.pre-deployed-d635446-20260828-164259` (SHA-256
+`bab0d777d3d0e2f467ba4cdbf939a8913b43bf18ae4f4cf813fb550d640cc338`). The intermediate pre-contract-fix
 binary is retained at `builds/evcmsnew.pre-openapi-fix-20260828-142638`.
 Migration 54 adds
 customer-selected charging-limit metadata and validation to charging start
