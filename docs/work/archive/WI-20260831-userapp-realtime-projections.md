@@ -1,6 +1,6 @@
 # WI-20260831-userapp-realtime-projections
 
-Status: Verified (awaiting review/publication)
+Status: Verified and deployed
 Owner: Codex
 Collaborators: Anubhab Dey
 Started: 2026-08-31
@@ -88,6 +88,7 @@ the existing retained operational-event feed for compatibility.
 ## Completion
 
 - Source implementation, contracts, documentation, and local verification are
-  complete. No migration, deployment, restart, direct database mutation,
-  commit, merge, or push was performed. Retain this work item in `active/`
-  until review/publication changes its coordination state.
+  complete. The work is included in runtime revision `320d489` and was
+  rehosted after migration 058. The work item is archived after publication;
+  PostgreSQL-gated lifecycle cases remain deferred without a disposable
+  `TEST_DATABASE_URL`.

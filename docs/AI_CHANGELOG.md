@@ -1,5 +1,24 @@
 # AI Changelog
 
+## 2026-08-31 - Deploy User App realtime and mail-outbox reconciliation
+
+- Applied migration 058 after a mode-0600 database backup, rebuilt source
+  revision `320d489`, and rehosted the development CMS. The release includes
+  authenticated User App full-state realtime projections, CPO stream ordering,
+  and the reconciled durable mail-template catalogue.
+- Retained the previous binary at
+  `builds/evcmsnew.pre-deployed-632ec13-20260831-141003` and the pre-migration
+  dump at `/root/evcmsnew-backups/devevcmsnew-before-000058-20260831-140835.dump`.
+
+Verification: migration state and the `NOT VALID` mail constraint were checked;
+the service is active with zero restarts; loopback/public live and readiness,
+OpenAPI (217 operations), Swagger UI, Caddy validation, and post-rehost logs
+pass. Focused route, realtime, mail, support, and migration tests plus the
+previously completed broad Go tests/vet/build passed. `pwsh` and a disposable
+`TEST_DATABASE_URL` are unavailable, so the documentation PowerShell verifier
+and PostgreSQL-gated integration tests were not run; physical charger and SMTP
+delivery acceptance remain unclaimed.
+
 ## 2026-08-31 - Reconcile the durable mail-outbox template catalogue in source
 
 - Added forward migration 058 to replace the stale `mail_outbox` template
@@ -12,10 +31,10 @@
   transaction.
 
 Verification: source-focused mail, support, and migration tests plus broad Go
-verification are recorded with this slice. PostgreSQL integration coverage is
-skipped unless an explicitly selected disposable `TEST_DATABASE_URL` is
-provided. No migration was applied, and nothing was deployed, restarted,
-committed, pushed, or sent through SMTP.
+verification are recorded with this slice. PostgreSQL integration coverage
+remains separately gated unless an explicitly selected disposable
+`TEST_DATABASE_URL` is provided. Migration 058 is now applied on the
+development database and the release is deployed in the entry above.
 
 ## 2026-08-31 - Correct User App realtime state delivery in source
 
@@ -33,9 +52,10 @@ committed, pushed, or sent through SMTP.
 Verification: focused customer-auth, liveops, operational-realtime, CPO, and
 route tests; documentation verification; OpenAPI/runtime route parity; full
 `go test ./...`; `go vet ./...`; `go build ./...`; and `git diff --check`
-passed. PostgreSQL-gated lifecycle cases were not run because this source-only
-work did not configure `TEST_DATABASE_URL`. No migration, deployment, restart,
-SMTP action, or database mutation was performed.
+passed. PostgreSQL-gated lifecycle cases remain unrun because
+`TEST_DATABASE_URL` is not configured. The source is now included in the
+deployed release recorded above; no physical charger or SMTP acceptance is
+claimed.
 
 ## 2026-08-28 - Deploy CPO live-session OCPP transaction identity
 

@@ -115,7 +115,6 @@ Active work:
 
 - `docs/work/active/WI-20260812-cms-hal-operational-capabilities.md`.
 - `docs/work/active/WI-20260826-customer-selected-session-limits.md`.
-- `docs/work/active/WI-20260831-userapp-realtime-projections.md`.
 
 Approved current slice:
 
@@ -126,23 +125,23 @@ Approved current slice:
 
 Current implementation state:
 
-- Mail-outbox template-catalogue correction is source-complete under
-  `docs/work/archive/WI-20260831-mail-outbox-template-catalog.md`. It is a
-  source/schema compatibility repair for future mail writes, not a deployment
-  claim: migration 058 remains unapplied until an authorized database migration
-  workflow is performed.
+- Mail-outbox template-catalogue correction is deployed under
+  `docs/work/archive/WI-20260831-mail-outbox-template-catalog.md`. Migration
+  058 is applied on the development database with historical rows preserved by
+  its `NOT VALID` constraint.
 
-- User App realtime projection correction is source-verified under
-  `docs/work/active/WI-20260831-userapp-realtime-projections.md`: preserve the
+- User App realtime projection correction is deployed under
+  `docs/work/archive/WI-20260831-userapp-realtime-projections.md`: preserve the
   generic retained operational-event feed for compatibility while adding
   complete customer live-session and selected-charger SSE projections. The
   slice also corrects the CPO live-session watermark-before-snapshot ordering.
-  No migration, deployment, or direct database change is part of this work.
+  Migration 058 and runtime deployment are recorded in the current project
+  state; no direct data repair was required.
 
 - CPO live-session snapshots and SSE payloads now expose
   `ocpp_transaction_id` from the durable transaction projection. Runtime
-   revision `632ec13` is deployed without a migration; service/readiness,
-   public routing, Swagger/OpenAPI (213 operations), Caddy, and post-rehost
+  revision `320d489` is deployed with migration 058; service/readiness,
+  public routing, Swagger/OpenAPI (217 operations), Caddy, and post-rehost
    checks pass.
 
 - Live charging financial and usage projections are deployed in runtime

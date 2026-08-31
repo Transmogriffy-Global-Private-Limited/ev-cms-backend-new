@@ -2,6 +2,21 @@
 
 ## Current State
 
+### 2026-08-31 - User App realtime and mail-outbox reconciliation deployed
+
+- The authenticated User App full-state live-session and selected-charger
+  availability projections, CPO live-session watermark ordering, and the
+  reconciled mail-outbox template catalogue are active in the development
+  deployment. Migration 058 is applied with its historical-row-preserving
+  `NOT VALID` constraint; no data repair was required.
+- Runtime revision `320d489` is active behind Caddy with binary SHA-256
+  `37e6397a939ca16b8fb903147b5d7ee80e2f8e1ffa4c21acee448e66af4b413a`.
+  Service/readiness, public routing, Swagger/OpenAPI (217 operations), Caddy,
+  migration state, and post-rehost startup checks pass. The prior binary and
+  pre-migration dump are retained at
+  `builds/evcmsnew.pre-deployed-632ec13-20260831-141003` and
+  `/root/evcmsnew-backups/devevcmsnew-before-000058-20260831-140835.dump`.
+
 ### 2026-08-31 - Mail-outbox template catalogue source correction
 
 - Source now has a single 24-name durable mail-template catalogue shared by
@@ -11,9 +26,9 @@
   notifications.
 - The replacement CHECK is `NOT VALID` only so preexisting historical rows are
   preserved rather than deleted or rewritten; PostgreSQL still enforces the
-  current catalogue on every new or updated row. This source change has not
-  been deployed, applied to any database, or verified against PostgreSQL
-  without an explicitly selected disposable `TEST_DATABASE_URL`.
+  current catalogue on every new or updated row. Migration 058 is applied on
+  the development database; PostgreSQL integration tests remain separately
+  gated on an explicitly selected disposable `TEST_DATABASE_URL`.
 
 ### 2026-08-31 - User App full-state realtime projections source-verified
 
@@ -30,8 +45,8 @@
   materialized sessions, and all emitted updates replace the full current
   projection.
 - The existing CPO live-session stream now uses the same watermark-before-
-  snapshot safety ordering. No migration, deployment, runtime restart, or
-  database mutation is claimed for this source-verified worktree change.
+  snapshot safety ordering. This source change is included in the active
+  `320d489` deployment recorded above.
 
 ### 2026-08-28 - CPO live-session OCPP transaction identity deployed
 
