@@ -1,5 +1,22 @@
 # AI Changelog
 
+## 2026-08-31 - Reconcile the durable mail-outbox template catalogue in source
+
+- Added forward migration 058 to replace the stale `mail_outbox` template
+  CHECK with the 24 templates that current source validation and rendering
+  support. The migration preserves preexisting historical rows without deleting
+  or rewriting them, while PostgreSQL rejects unsupported new/updated rows.
+- Added one explicit Go catalogue, validation/renderer alignment tests, a
+  PostgreSQL-gated constraint regression, and support status rollback coverage
+  so required support mail intent cannot be silently lost from the business
+  transaction.
+
+Verification: source-focused mail, support, and migration tests plus broad Go
+verification are recorded with this slice. PostgreSQL integration coverage is
+skipped unless an explicitly selected disposable `TEST_DATABASE_URL` is
+provided. No migration was applied, and nothing was deployed, restarted,
+committed, pushed, or sent through SMTP.
+
 ## 2026-08-31 - Correct User App realtime state delivery in source
 
 - Added complete authenticated User App SSE projections for the current

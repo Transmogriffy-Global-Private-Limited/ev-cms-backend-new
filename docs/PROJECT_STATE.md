@@ -2,6 +2,19 @@
 
 ## Current State
 
+### 2026-08-31 - Mail-outbox template catalogue source correction
+
+- Source now has a single 24-name durable mail-template catalogue shared by
+  outbox validation and renderer compatibility checks. Forward migration 058
+  replaces the stale `mail_outbox` template CHECK for future writes, including
+  the support-ticket lifecycle templates required by transactional status
+  notifications.
+- The replacement CHECK is `NOT VALID` only so preexisting historical rows are
+  preserved rather than deleted or rewritten; PostgreSQL still enforces the
+  current catalogue on every new or updated row. This source change has not
+  been deployed, applied to any database, or verified against PostgreSQL
+  without an explicitly selected disposable `TEST_DATABASE_URL`.
+
 ### 2026-08-31 - User App full-state realtime projections source-verified
 
 - Source now adds authenticated User App full-state SSE for the current

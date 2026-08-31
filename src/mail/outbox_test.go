@@ -4,6 +4,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/google/uuid"
 )
 
 func TestRetryDelayIsBounded(t *testing.T) {
@@ -107,5 +109,38 @@ func TestValidateSemanticCPOOnboardingRequiresActionURL(t *testing.T) {
 	payload.ActionURL = "https://cms.example/login#cpo_id=opaque"
 	if err := validateMessagePayload("CPO_STAFF_NEW_IDENTITY", payload); err != nil {
 		t.Fatalf("new staff with frontend action URL: %v", err)
+	}
+}
+
+func TestDurableTemplateCatalogueHasValidationForEveryTemplate(t *testing.T) {
+	t.Parallel()
+
+	templateNames := SupportedDurableTemplateNames()
+	if len(templateNames) != len(durableTemplateNames) {
+		t.Fatalf("durable template catalogue contains duplicate names: %#v", templateNames)
+	}
+
+	payload := MessagePayload{
+		RecipientName:     "Recipient",
+		Code:              "123456",
+		ChallengeID:       uuid.NewString(),
+		ExpiresAt:         time.Date(2026, time.August, 31, 12, 0, 0, 0, time.UTC),
+		OccurredAt:        time.Date(2026, time.August, 31, 12, 0, 0, 0, time.UTC),
+		TemporaryPassword: "temporary-password",
+		CPOName:           "Example CPO",
+		Role:              "OPERATOR",
+		ActionURL:         "https://cms.example.invalid/login#context=opaque",
+		SupportSubject:    "Connector status",
+		SupportStatus:     "OPEN",
+	}
+	for _, template := range templateNames {
+		t.Run(template, func(t *testing.T) {
+			if err := validateMessagePayload(template, payload); err != nil {
+				t.Fatalf("validate supported template: %v", err)
+			}
+		})
+	}
+	if err := validateMessagePayload("UNSUPPORTED_TEMPLATE", payload); err == nil || !strings.Contains(err.Error(), "unknown template") {
+		t.Fatalf("unknown template validation error = %v", err)
 	}
 }

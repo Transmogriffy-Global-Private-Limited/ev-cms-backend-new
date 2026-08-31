@@ -126,6 +126,12 @@ Approved current slice:
 
 Current implementation state:
 
+- Mail-outbox template-catalogue correction is source-complete under
+  `docs/work/archive/WI-20260831-mail-outbox-template-catalog.md`. It is a
+  source/schema compatibility repair for future mail writes, not a deployment
+  claim: migration 058 remains unapplied until an authorized database migration
+  workflow is performed.
+
 - User App realtime projection correction is source-verified under
   `docs/work/active/WI-20260831-userapp-realtime-projections.md`: preserve the
   generic retained operational-event feed for compatibility while adding

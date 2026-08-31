@@ -111,6 +111,64 @@ func TestEverySemanticTemplateHasSubjectTextAndHTML(t *testing.T) {
 	}
 }
 
+func TestDurableTemplateCatalogueMatchesCurrentRenderers(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, time.August, 28, 10, 45, 0, 0, time.UTC)
+	payload := MessagePayload{
+		RecipientName:     "Recipient",
+		Code:              "123456",
+		ChallengeID:       "5cef4c95-a1da-448e-bd7c-19d570cd4497",
+		ExpiresAt:         now,
+		OccurredAt:        now,
+		TemporaryPassword: "temporary-password",
+		CPOName:           "Example CPO",
+		CPOID:             "opaque-cpo",
+		CPOAppID:          "opaque-app",
+		Role:              "OPERATOR",
+		ActionURL:         "https://cms.example.invalid/login#context=opaque",
+		SupportSubject:    "Connector status",
+		SupportStatus:     "OPEN",
+	}
+	cfg := config.Mail{DisplayLocation: time.UTC, Frontend: config.FrontendLinks{
+		AdminLoginVerifyTemplate:      "https://cms.example.invalid/login#challenge_id={challenge_id}",
+		AdminPasswordResetTemplate:    "https://cms.example.invalid/reset#challenge_id={challenge_id}",
+		CustomerLoginVerifyTemplate:   "https://app.example.invalid/login#challenge_id={challenge_id}",
+		CustomerSignupVerifyTemplate:  "https://app.example.invalid/signup#challenge_id={challenge_id}",
+		CustomerPasswordResetTemplate: "https://app.example.invalid/reset#challenge_id={challenge_id}",
+		CPOSubscriptionURL:            "https://cms.example.invalid/subscription",
+	}}
+
+	for _, template := range SupportedDurableTemplateNames() {
+		t.Run(template, func(t *testing.T) {
+			var subject, text, html string
+			var err error
+			if isLegacyTemplate(template) {
+				subject, text, err = renderMessageContent(template, payload)
+				if err == nil {
+					text, html, err = renderMessageTemplates(payload.RecipientName, text)
+				}
+			} else {
+				subject, text, html, err = renderSemanticMessage(template, payload, cfg)
+			}
+			if err != nil || strings.TrimSpace(subject) == "" || strings.TrimSpace(text) == "" || strings.TrimSpace(html) == "" {
+				t.Fatalf("render durable template = subject %q text %q html %q err %v", subject, text, html, err)
+			}
+		})
+	}
+
+	for template := range semanticSubjects {
+		if !isSupportedDurableTemplate(template) {
+			t.Fatalf("semantic renderer template %q is missing from durable catalogue", template)
+		}
+	}
+	for template := range legacyTemplateNames {
+		if !isSupportedDurableTemplate(template) {
+			t.Fatalf("legacy renderer template %q is missing from durable catalogue", template)
+		}
+	}
+}
+
 func TestRenderNewCPOAdminWelcomeIncludesTemporaryPassword(t *testing.T) {
 	t.Parallel()
 
