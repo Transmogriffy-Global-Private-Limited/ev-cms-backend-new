@@ -2,6 +2,24 @@
 
 ## Current State
 
+### 2026-08-31 - User App full-state realtime projections source-verified
+
+- Source now adds authenticated User App full-state SSE for the current
+  customer live-session collection and one selected customer-visible charger's
+  availability. The legacy retained operational-event REST/SSE feed remains
+  available for compatibility but is no longer the state contract for these
+  two views.
+- Both new streams establish a committed event watermark before reading their
+  initial CMS projection, react to durable session/charger/connector wake-up
+  facts, and periodically reproject after access revalidation so freshness and
+  time-priced projected amounts cannot remain stale without another HAL fact.
+  They never synchronously call HAL. A customer can receive multiple concurrent
+  materialized sessions, and all emitted updates replace the full current
+  projection.
+- The existing CPO live-session stream now uses the same watermark-before-
+  snapshot safety ordering. No migration, deployment, runtime restart, or
+  database mutation is claimed for this source-verified worktree change.
+
 ### 2026-08-28 - Live charging financial and usage projections deployed
 
 - Customer session detail, CPO customer reads, and CPO live-session snapshots

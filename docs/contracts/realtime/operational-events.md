@@ -22,7 +22,9 @@ emitted as misleading invalidations.
 | CPO ADMIN | `GET /api/v1/cpo/operations/events` | `GET /api/v1/cpo/operations/realtime/stream` | Authenticated tenant and matching `X-CPO-App-ID` |
 | CPO ADMIN live-session table | `GET /api/v1/cpo/operations/live-sessions/snapshot` | `GET /api/v1/cpo/operations/live-sessions` | Authenticated CPO ADMIN and matching app ID; full initial/replacement `LiveChargingSessionListResponse` snapshots only |
 | Platform | `GET /api/v1/platform/cpos/{cpo_id}/operations/events` | `GET /api/v1/platform/cpos/{cpo_id}/operations/realtime/stream` | `PLATFORM`, selected existing CPO, observation only |
-| User App | `GET /api/v1/app/operations/events` | `GET /api/v1/app/operations/realtime/stream` | Authenticated CPO-local customer and matching app ID |
+| User App legacy/general feed | `GET /api/v1/app/operations/events` | `GET /api/v1/app/operations/realtime/stream` | Authenticated CPO-local customer and matching app ID; retained invalidation/cursor compatibility only |
+| User App live-session collection | `GET /api/v1/app/operations/live-sessions/snapshot` | `GET /api/v1/app/operations/live-sessions` | Authenticated customer/app scope; full initial/replacement `CustomerLiveChargingSessionListResponse` only |
+| User App selected charger | Existing `GET /api/v1/app/chargers/{charger_id}` | `GET /api/v1/app/operations/charger-availability?charger_id={public_id}` | Authenticated customer/app scope and current charger visibility; full initial/replacement `CustomerCharger` only |
 
 REST accepts `after_id` and optional `limit` (1–500; default 100). SSE accepts
 the same cursor or `Last-Event-ID` when the query parameter is absent. Records
@@ -37,11 +39,13 @@ each heartbeat. A revoked, expired, scope-changed, or CPO-mismatched session
 causes stream closure.
 
 The primary CPO live-session stream deliberately does not expose the durable
-event log to the frontend. It first reads the current CMS snapshot, establishes
-the latest committed `CHARGING_SESSION` event watermark, and sends `event:
-snapshot`. Later committed `charging.session_changed`, `charging.meter_changed`,
-or `charging.telemetry_changed` records cause one `event: live_sessions`
-replacement snapshot. The data in both frames is the full
+event log to the frontend. It establishes the latest committed
+`CHARGING_SESSION` event watermark **before** reading the current CMS snapshot,
+then sends `event: snapshot`. Later committed `charging.session_changed`,
+`charging.meter_changed`, or `charging.telemetry_changed` records cause one
+`event: live_sessions` replacement snapshot. A post-watermark commit may cause
+a redundant projection refresh; it cannot be skipped between snapshot and
+event consumption. The data in both frames is the full
 `LiveChargingSessionListResponse`, including removal after completion. A
 reconnect always gets a current snapshot; JSON recovery and keyset pagination
 use `/api/v1/cpo/operations/live-sessions/snapshot`. The retained
@@ -49,6 +53,21 @@ use `/api/v1/cpo/operations/live-sessions/snapshot`. The retained
 required for the normal UI. The deprecated `/live-sessions/realtime/stream`
 route is a compatibility alias. Both SSE aliases recheck CPO ADMIN and
 `X-CPO-App-ID` at each heartbeat.
+
+The two dedicated User App streams likewise keep operational events internal:
+events only wake a committed CMS re-projection and are never sent as their
+browser state. `live-sessions` uses a customer-scoped collection: its snapshot
+and replacement frames contain all current owned materialized sessions, and a
+customer can validly have more than one. Its wake-up filter includes owned
+session facts plus tenant-shared charger/connector facts for the collection's
+current resources. `charger-availability` is scoped to one already authorized
+public charger ID and includes the complete current `CustomerCharger` object;
+its wake-ups are only that charger and its connectors. Both streams establish a
+watermark before their initial snapshot, revalidate on heartbeat, and
+periodically reproject so time-derived freshness and time-priced financial
+state cannot remain stale when no fact arrives. Reconnect begins with current
+state rather than event replay. The generic User App feed remains unchanged
+for compatibility.
 
 ## Event Shape
 

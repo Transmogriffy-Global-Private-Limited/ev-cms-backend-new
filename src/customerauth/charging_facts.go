@@ -387,6 +387,17 @@ func startEvidenceFromFact(p models.JSONB) (halops.StartEvidence, error) {
 }
 
 func (service *Service) emitStartedOperationalEvent(tx *gorm.DB, session models.ChargingSession) error {
+	return service.emitChargingSessionChanged(tx, session)
+}
+
+// emitChargingSessionChanged is the transactionally coupled wake-up for CMS
+// mutations that affect a customer live-session projection without waiting for
+// a later HAL fact. The event is never browser state; it only prompts a full
+// replacement projection after commit.
+func (service *Service) emitChargingSessionChanged(tx *gorm.DB, session models.ChargingSession) error {
+	if service.operationalEvents == nil {
+		return nil
+	}
 	_, err := service.operationalEvents.Emit(tx, operationalrealtime.Input{CPOID: session.CPOID, CustomerID: &session.CustomerID, Type: "charging.session_changed", ResourceType: "CHARGING_SESSION", ResourceID: session.ID.String(), Data: models.JSONB{}})
 	return err
 }

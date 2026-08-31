@@ -138,6 +138,29 @@ func TestLiveChargingSessionSnapshotSSEContainsTheFullOperationalProjection(t *t
 	}
 }
 
+func TestCPOLiveSessionSnapshotFingerprintIgnoresAsOfButRetainsProjectionState(t *testing.T) {
+	t.Parallel()
+	snapshot := LiveChargingSessionFinancialListResponse{
+		Sessions: []LiveChargingSessionFinancialView{{LiveChargingSessionView: LiveChargingSessionView{SessionID: uuid.New(), Status: constants.SessionStatusActive}, ProjectedAmount: decimal.RequireFromString("12.50"), Currency: "INR"}},
+		AsOf:     time.Date(2026, time.August, 25, 12, 0, 0, 0, time.UTC),
+	}
+	first, err := cpoLiveSessionSnapshotFingerprint(snapshot)
+	if err != nil {
+		t.Fatalf("fingerprint: %v", err)
+	}
+	later := snapshot
+	later.AsOf = later.AsOf.Add(time.Minute)
+	second, err := cpoLiveSessionSnapshotFingerprint(later)
+	if err != nil || !bytes.Equal(first, second) {
+		t.Fatalf("as_of-only refresh changed CPO fingerprint: %v", err)
+	}
+	later.Sessions[0].ProjectedAmount = decimal.RequireFromString("13.00")
+	third, err := cpoLiveSessionSnapshotFingerprint(later)
+	if err != nil || bytes.Equal(first, third) {
+		t.Fatalf("client-visible projected amount did not change CPO fingerprint: %v", err)
+	}
+}
+
 func TestSessionChargerFallbackUsesTenantResolvedConnectorCharger(t *testing.T) {
 	t.Parallel()
 

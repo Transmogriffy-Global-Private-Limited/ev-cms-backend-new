@@ -980,7 +980,15 @@ func (service *Service) StopCharging(ctx context.Context, principal Principal, s
 		if err := tx.Create(&models.HALCommandRecord{CMSCommandID: commandID, CPOID: principal.CPOID, Kind: "STOP", ChargingSessionID: &sessionID, State: "PERSISTED", CommandExpiresAt: expires, CreatedAt: service.now(), UpdatedAt: service.now()}).Error; err != nil {
 			return err
 		}
-		return tx.Model(&models.ChargingSession{}).Where("id = ? AND status = ?", sessionID, constants.SessionStatusActive).Updates(map[string]any{"status": constants.SessionStatusStopPending, "updated_at": service.now()}).Error
+		update := tx.Model(&models.ChargingSession{}).Where("id = ? AND status = ?", sessionID, constants.SessionStatusActive).Updates(map[string]any{"status": constants.SessionStatusStopPending, "updated_at": service.now()})
+		if update.Error != nil {
+			return update.Error
+		}
+		if update.RowsAffected != 1 {
+			return &APIError{http.StatusConflict, "session_not_stoppable", "The charging session is not active."}
+		}
+		session.Status = constants.SessionStatusStopPending
+		return service.emitChargingSessionChanged(tx, session)
 	}); err != nil {
 		return err
 	}

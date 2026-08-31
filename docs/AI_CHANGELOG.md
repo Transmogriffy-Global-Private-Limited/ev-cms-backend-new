@@ -1,5 +1,25 @@
 # AI Changelog
 
+## 2026-08-31 - Correct User App realtime state delivery in source
+
+- Added complete authenticated User App SSE projections for the current
+  customer live-session collection and one customer-visible charger's current
+  availability. Both reuse existing customer-safe CMS projections and batch
+  `liveops` reads; the durable operational-event table only wakes a replacement
+  projection and is not delivered as browser state.
+- Added transactional wake-up publication for the CMS-owned customer
+  `ACTIVE -> STOP_PENDING` transition, bounded heartbeat reprojection for
+  time-derived state, customer/app/visibility revalidation, and OpenAPI/User
+  App/realtime contract updates. Corrected CPO live-session SSE to establish
+  its event watermark before reading the initial snapshot.
+
+Verification: focused customer-auth, liveops, operational-realtime, CPO, and
+route tests; documentation verification; OpenAPI/runtime route parity; full
+`go test ./...`; `go vet ./...`; `go build ./...`; and `git diff --check`
+passed. PostgreSQL-gated lifecycle cases were not run because this source-only
+work did not configure `TEST_DATABASE_URL`. No migration, deployment, restart,
+SMTP action, or database mutation was performed.
+
 ## 2026-08-28 - Add live charging financial and usage projections
 
 - Added one shared snapshot-pricing evaluator for current accrued amounts,

@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/commercial"
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/models"
 	"github.com/google/uuid"
 )
@@ -65,39 +64,18 @@ func (service *Service) GetChargingSessionWithFinancialProjection(
 		return result, nil
 	}
 
-	consumedWh := int64(0)
-
-	if base.ConsumedWh != nil {
-		consumedWh = *base.ConsumedWh
-	} else if source.LatestMeterWh != nil &&
-		*source.LatestMeterWh >= source.MeterStartWh {
-		consumedWh = *source.LatestMeterWh - source.MeterStartWh
-	}
-
 	projectedAt := service.now()
 
 	if base.CompletedAt != nil && base.CompletedAt.Before(projectedAt) {
 		projectedAt = *base.CompletedAt
 	}
 
-	if projectedAt.Before(source.StartTime) {
-		projectedAt = source.StartTime
-	}
-
-	amount, err := commercial.SessionAmountFromSnapshots(
-		source.TariffSnapshot,
-		source.TaxSnapshot,
-		consumedWh,
-		source.StartTime,
-		projectedAt,
-	)
+	amount, err := customerChargingSessionProjectedAmount(base, source, projectedAt)
 	if err != nil {
 		return ChargingSessionFinancialProjectionView{},
 			fmt.Errorf("project charging-session amount: %w", err)
 	}
-
-	value := amount.StringFixed(2)
-	result.ProjectedAmount = &value
+	result.ProjectedAmount = &amount
 
 	return result, nil
 }

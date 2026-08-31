@@ -6408,6 +6408,67 @@ paths:
         "401": {$ref: "#/components/responses/Unauthorized"}
         "403": {$ref: "#/components/responses/Forbidden"}
 
+  /api/v1/app/operations/live-sessions:
+    get:
+      tags: [App Charging]
+      operationId: streamCustomerLiveChargingSessions
+      summary: Stream the authenticated customer's complete current live-session collection
+      description: Authenticated fetch streaming with Bearer and X-CPO-App-ID headers. The initial `snapshot` and every later `live_sessions` frame contain a complete replaceable CustomerLiveChargingSessionListResponse, including immutable-snapshot projected amounts. One customer may have multiple concurrent materialized sessions. The browser must replace its collection directly and must not refetch REST after a frame. The server revalidates access and periodically reprojects time-derived freshness and time-priced amounts; reconnect always begins with a current snapshot.
+      security: [{BearerAuth: []}]
+      parameters: [{$ref: "#/components/parameters/CPOAppIDHeader"}]
+      responses:
+        "200": {description: "text/event-stream frames named `snapshot` and `live_sessions`; each data value is CustomerLiveChargingSessionListResponse.", content: {text/event-stream: {schema: {type: string}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "503": {$ref: "#/components/responses/InternalError"}
+
+  /api/v1/app/operations/live-sessions/snapshot:
+    get:
+      tags: [App Charging]
+      operationId: getCustomerLiveChargingSessionsSnapshot
+      summary: Read the authenticated customer's complete current live-session collection
+      description: REST snapshot equivalent of the User App live-session SSE projection. It contains only materialized ACTIVE, STOP_PENDING, or still-open RECONCILIATION_REQUIRED sessions owned by the authenticated customer.
+      security: [{BearerAuth: []}]
+      parameters: [{$ref: "#/components/parameters/CPOAppIDHeader"}]
+      responses:
+        "200": {description: Complete current customer live-session collection, content: {application/json: {schema: {$ref: "#/components/schemas/CustomerLiveChargingSessionListResponse"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+
+  /api/v1/app/operations/live-sessions/realtime/stream:
+    get:
+      tags: [App Charging]
+      operationId: streamCustomerLiveChargingSessionsLegacy
+      summary: Legacy alias for the customer live-session projection stream
+      description: Deprecated compatibility alias for `/api/v1/app/operations/live-sessions`. It emits the same complete `snapshot` and `live_sessions` replacement frames.
+      deprecated: true
+      security: [{BearerAuth: []}]
+      parameters: [{$ref: "#/components/parameters/CPOAppIDHeader"}]
+      responses:
+        "200": {description: "text/event-stream frames named `snapshot` and `live_sessions`; each data value is CustomerLiveChargingSessionListResponse.", content: {text/event-stream: {schema: {type: string}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+
+  /api/v1/app/operations/charger-availability:
+    get:
+      tags: [App Charging]
+      operationId: streamCustomerChargerAvailability
+      summary: Stream one customer-visible charger's complete availability projection
+      description: Authenticated fetch streaming with Bearer and X-CPO-App-ID headers. `charger_id` is the same public charger ID accepted by GET /api/v1/app/chargers/{charger_id}, never a CMS UUID. The initial `snapshot` and every later `charger_availability` frame are complete replaceable CustomerCharger objects, including every connector and favorite/static fields. The browser replaces its selected-charger state directly and does not refetch REST after a frame. The server periodically reprojects connection freshness and closes the stream if access or charger visibility no longer holds.
+      security: [{BearerAuth: []}]
+      parameters:
+        - {$ref: "#/components/parameters/CPOAppIDHeader"}
+        - name: charger_id
+          in: query
+          required: true
+          schema: {type: string, pattern: "^[a-z0-9]{6}$"}
+      responses:
+        "200": {description: "text/event-stream frames named `snapshot` and `charger_availability`; each data value is CustomerCharger.", content: {text/event-stream: {schema: {type: string}}}}
+        "400": {$ref: "#/components/responses/InvalidRequest"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {description: Charger not found or not customer-visible.}
+
   /v1/hal-facts:
     post:
       tags: [HAL Service Integration]
@@ -10056,7 +10117,7 @@ components:
       properties:
         id: {type: string, format: uuid}
         start_intent_id: {type: string, format: uuid}
-        state: {type: string, enum: [START_PENDING, ACTIVE, STOP_PENDING, COMPLETED, FAILED]}
+        state: {type: string, enum: [START_PENDING, ACTIVE, STOP_PENDING, RECONCILIATION_REQUIRED, COMPLETED, FAILED]}
         start_progress: {type: string, enum: [REQUESTED, ACCEPTED_FOR_DELIVERY, PROTOCOL_ACKNOWLEDGED, ACTUALLY_STARTED, REJECTED, EXPIRED, RECONCILIATION_REQUIRED]}
         stop_progress: {type: string}
         latest_meter_wh: {type: integer, format: int64}
@@ -10087,6 +10148,20 @@ components:
         tax: {$ref: "#/components/schemas/ChargingSessionTax"}
         financial: {$ref: "#/components/schemas/ChargingSessionFinancial"}
 
+    CustomerLiveChargingSessionListResponse:
+      type: object
+      additionalProperties: false
+      required: [sessions, as_of]
+      properties:
+        sessions:
+          type: array
+          description: Complete replaceable collection of this authenticated customer's currently operational materialized sessions. Each unfinished session has projected_amount calculated from its immutable tariff and tax snapshots at this response's common as_of time.
+          items: {$ref: "#/components/schemas/ChargingSessionResponse"}
+        as_of:
+          type: string
+          format: date-time
+          description: One CMS timestamp shared by all time-derived projected amounts in this collection frame.
+
     ChargingSessionHistoryResponse:
       type: object
       additionalProperties: false
@@ -10105,7 +10180,7 @@ components:
       required: [id, state, started_at, currency, settlement_status, charger, connector]
       properties:
         id: {type: string, format: uuid}
-        state: {type: string, enum: [START_PENDING, ACTIVE, STOP_PENDING, COMPLETED, FAILED]}
+        state: {type: string, enum: [START_PENDING, ACTIVE, STOP_PENDING, RECONCILIATION_REQUIRED, COMPLETED, FAILED]}
         started_at: {type: string, format: date-time}
         completed_at: {type: string, format: date-time}
         consumed_wh: {type: integer, format: int64, minimum: 0}

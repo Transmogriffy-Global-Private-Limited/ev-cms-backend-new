@@ -1,6 +1,7 @@
 package cpo
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -1093,6 +1094,14 @@ func (handler *Handler) liveChargingSessionsStream(ctx *gin.Context) {
 	}
 	appID := ctx.GetHeader(auth.CPOAppIDHeader)
 
+	// Establish the watermark before reading state. A commit after this point
+	// can cause a harmless redundant projection refresh, but cannot be skipped
+	// between the initial snapshot and the first event query.
+	cursor, err := handler.service.LatestLiveChargingSessionEventID(ctx.Request.Context(), principal)
+	if err != nil {
+		writeError(ctx, err)
+		return
+	}
 	// A live-session SSE connection is a full, replaceable CMS projection, not
 	// an invalidation feed that asks the client to reconstruct operational state.
 	// The durable event log is used only to notice committed projection changes.
@@ -1101,7 +1110,7 @@ func (handler *Handler) liveChargingSessionsStream(ctx *gin.Context) {
 		writeError(ctx, err)
 		return
 	}
-	cursor, err := handler.service.LatestLiveChargingSessionEventID(ctx.Request.Context(), principal)
+	lastFingerprint, err := cpoLiveSessionSnapshotFingerprint(snapshot)
 	if err != nil {
 		writeError(ctx, err)
 		return
@@ -1131,17 +1140,17 @@ func (handler *Handler) liveChargingSessionsStream(ctx *gin.Context) {
 				continue
 			}
 			cursor = page.NextCursor
-			snapshot, err := handler.service.ListLiveChargingSessionsWithFinancialProjection(ctx.Request.Context(), principal, query)
+			snapshot, lastFingerprint, err = handler.refreshCPOLiveSessionSnapshot(ctx, principal, query, cursor, snapshot, lastFingerprint)
 			if err != nil {
-				continue
-			}
-			if err := writeLiveSessionSnapshot(ctx.Writer, "live_sessions", cursor, snapshot); err != nil {
 				return
 			}
-			ctx.Writer.Flush()
 		case <-heartbeatTicker.C:
 			refreshed, err := handler.authService.ValidateAccess(ctx.Request.Context(), token)
 			if err != nil || !cpoStreamStillAuthorized(ctx.Request.Context(), handler.service.database, refreshed, *principal.CPOID, appID, cpopermissions.ChargersOperations) {
+				return
+			}
+			snapshot, lastFingerprint, err = handler.refreshCPOLiveSessionSnapshot(ctx, principal, query, cursor, snapshot, lastFingerprint)
+			if err != nil {
 				return
 			}
 			if _, err := fmt.Fprintf(ctx.Writer, ": heartbeat %s\n\n", time.Now().UTC().Format(time.RFC3339)); err != nil {
@@ -1150,6 +1159,30 @@ func (handler *Handler) liveChargingSessionsStream(ctx *gin.Context) {
 			ctx.Writer.Flush()
 		}
 	}
+}
+
+func (handler *Handler) refreshCPOLiveSessionSnapshot(ctx *gin.Context, principal auth.Principal, query LiveChargingSessionListQuery, cursor int64, previous LiveChargingSessionFinancialListResponse, previousFingerprint []byte) (LiveChargingSessionFinancialListResponse, []byte, error) {
+	next, err := handler.service.ListLiveChargingSessionsWithFinancialProjection(ctx.Request.Context(), principal, query)
+	if err != nil {
+		return previous, previousFingerprint, err
+	}
+	fingerprint, err := cpoLiveSessionSnapshotFingerprint(next)
+	if err != nil {
+		return previous, previousFingerprint, err
+	}
+	if bytes.Equal(previousFingerprint, fingerprint) {
+		return next, fingerprint, nil
+	}
+	if err := writeLiveSessionSnapshot(ctx.Writer, "live_sessions", cursor, next); err != nil {
+		return previous, previousFingerprint, err
+	}
+	ctx.Writer.Flush()
+	return next, fingerprint, nil
+}
+
+func cpoLiveSessionSnapshotFingerprint(snapshot LiveChargingSessionFinancialListResponse) ([]byte, error) {
+	snapshot.AsOf = time.Time{}
+	return json.Marshal(snapshot)
 }
 
 func parseLiveChargingSessionStreamQuery(ctx *gin.Context) (LiveChargingSessionListQuery, bool) {

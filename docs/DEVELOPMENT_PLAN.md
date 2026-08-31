@@ -115,6 +115,7 @@ Active work:
 
 - `docs/work/active/WI-20260812-cms-hal-operational-capabilities.md`.
 - `docs/work/active/WI-20260826-customer-selected-session-limits.md`.
+- `docs/work/active/WI-20260831-userapp-realtime-projections.md`.
 
 Approved current slice:
 
@@ -124,6 +125,13 @@ Approved current slice:
   limit; no parallel charging flow is permitted.
 
 Current implementation state:
+
+- User App realtime projection correction is in progress under
+  `docs/work/active/WI-20260831-userapp-realtime-projections.md`: preserve the
+  generic retained operational-event feed for compatibility while adding
+  complete customer live-session and selected-charger SSE projections. The
+  slice also corrects the CPO live-session watermark-before-snapshot ordering.
+  No migration, deployment, or direct database change is part of this work.
 
 - Live charging financial and usage projections are deployed in runtime
   revision `d635446`. Customer and CPO reads use the shared immutable

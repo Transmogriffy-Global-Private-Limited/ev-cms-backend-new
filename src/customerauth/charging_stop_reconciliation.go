@@ -35,7 +35,14 @@ func (service *Service) ReconcileStopCommand(ctx context.Context, commandID uuid
 		if command.State == "OCPP_REJECTED" {
 			state = constants.SessionStatusActive
 		}
-		return tx.Model(&session).Updates(map[string]any{"status": state, "updated_at": service.now()}).Error
+		if session.Status == state {
+			return nil
+		}
+		if err := tx.Model(&session).Updates(map[string]any{"status": state, "updated_at": service.now()}).Error; err != nil {
+			return err
+		}
+		session.Status = state
+		return service.emitChargingSessionChanged(tx, session)
 	})
 }
 
@@ -62,6 +69,13 @@ func (service *Service) ReconcileConfirmedAbsentStopCommand(ctx context.Context,
 		if session.EndTime != nil || session.Status == constants.SessionStatusCompleted {
 			return nil
 		}
-		return tx.Model(&session).Updates(map[string]any{"status": constants.SessionStatusActive, "updated_at": now}).Error
+		if session.Status == constants.SessionStatusActive {
+			return nil
+		}
+		if err := tx.Model(&session).Updates(map[string]any{"status": constants.SessionStatusActive, "updated_at": now}).Error; err != nil {
+			return err
+		}
+		session.Status = constants.SessionStatusActive
+		return service.emitChargingSessionChanged(tx, session)
 	})
 }

@@ -457,6 +457,10 @@ alter the separate customer-selected time-bounded-session cutoff workflow.
 | `POST /charging-sessions/{session_id}/stop` | Yes | `202` | Persist/request an owned stop; actual charger completion remains asynchronous. |
 | `GET /operations/events` | Yes | `200 OperationalEventPage` | Recover retained, scoped charging/availability invalidations. |
 | `GET /operations/realtime/stream` | Yes | `200 text/event-stream` | One long-lived authenticated SSE invalidation stream for the app shell. |
+| `GET /operations/live-sessions` | Yes | `200 text/event-stream` | Primary full-state stream for this customer's complete current live-session collection. |
+| `GET /operations/live-sessions/snapshot` | Yes | `200 CustomerLiveChargingSessionListResponse` | JSON read/recovery surface with the same complete live-session projection. |
+| `GET /operations/live-sessions/realtime/stream` | Yes | `200 text/event-stream` | Deprecated alias of the primary live-session stream. |
+| `GET /operations/charger-availability?charger_id={public_id}` | Yes | `200 text/event-stream` | Full-state stream for one customer-visible charger's current connector availability. |
 | `GET /auth/sessions` | Yes | `200 SessionList` | List this account's active sessions. |
 | `DELETE /auth/sessions/{session_id}` | Yes | `204` | Revoke one owned session. |
 | `POST /auth/logout` | Yes | `204` | Revoke current session. |
@@ -815,7 +819,7 @@ connector fields can be `UNKNOWN`, while durable session/receipt data remains
 available. When settlement is consistently linked, `financial` contains only
 the payment ID, wallet debit ID, amount, currency, method, and status.
 
-### 5.5 Operational Event Recovery and SSE
+### 5.5 Operational Event Recovery and Full-State SSE
 
 SSE is one ordinary HTTP `GET` whose response stays open. The server writes
 `text/event-stream` frames over time instead of completing a JSON response, so
@@ -823,8 +827,13 @@ browser DevTools correctly shows the request as **Pending** while it is healthy.
 It is not a WebSocket, not a polling loop, and not a second source of charger
 or billing truth.
 
-Use one stream owned by the authenticated app shell—not one per screen, card,
-charger, or component:
+`GET /operations/events` and `GET /operations/realtime/stream` remain the
+legacy/general retained-event feed. Use them only where the app shell needs
+generic durable invalidation/replay behavior. They are not the state contract
+for the two dedicated operational views below.
+
+For that legacy feed, use one stream owned by the authenticated app shell—not
+one per screen, card, charger, or component:
 
 1. Bootstrap durable REST state (`/me`, discovery, active/detail/history as
    needed) and restore the last processed event ID from durable client storage.
@@ -856,8 +865,58 @@ and `X-Accel-Buffering: no`; it sends comment heartbeats and revalidates the
 customer bearer session at each heartbeat. A revoked, expired, CPO-mismatched,
 or app-ID-mismatched session is closed. Both REST replay and SSE include only
 customer-specific charging events plus safe CPO-wide charger/connector
-availability events. Do not open ten per-charger streams or poll ten chargers;
-one stream plus targeted REST refetch is the supported recovery design.
+availability events.
+
+#### Current live sessions: replace the whole collection
+
+Open `GET /operations/live-sessions` using authenticated `fetch()` streaming
+with `Authorization` and `X-CPO-App-ID`; native `EventSource` cannot send those
+headers. The first frame is `event: snapshot`. Later frames are
+`event: live_sessions`. Every frame's data is a complete
+`CustomerLiveChargingSessionListResponse`:
+
+```ts
+type CustomerLiveChargingSessionListResponse = {
+  sessions: ChargingSessionResponse[];
+  as_of: string;
+};
+```
+
+Apply it directly: `state.liveSessions = frame.data.sessions`. Do not merge
+meter patches, replay the operational-event log, or refetch per-session REST.
+The collection can validly contain zero, one, or multiple concurrent sessions
+owned by the same customer. It contains only materialized `ACTIVE`,
+`STOP_PENDING`, and still-open `RECONCILIATION_REQUIRED` sessions; completed
+sessions disappear from the next frame. Each unfinished session's
+`projected_amount` is calculated by CMS from its immutable tariff/tax snapshots
+using the frame-wide `as_of`; it is not final `total_amount`.
+
+Reconnect without a historical cursor: every new connection begins with the
+current full snapshot. The server also reprojections on heartbeats so meter,
+connection, and connector freshness can age, and time-priced projected amounts
+can advance even when no new HAL fact arrives. The matching JSON read is
+`GET /operations/live-sessions/snapshot`. The `/realtime/stream` alias is
+deprecated and has exactly the same frames.
+
+#### Selected charger availability: replace the whole charger object
+
+When a charger detail screen is active, open one additional stream for that
+screen only:
+
+```text
+GET /operations/charger-availability?charger_id=8d2bd0
+```
+
+`charger_id` is the same public lowercase ID accepted by `GET /chargers/{id}`;
+never send the internal UUID. The initial event is `snapshot`; later changes
+are `charger_availability`. Every data value is the complete existing
+`CustomerCharger` object, including static safe fields, `is_favorite`, parent
+availability/freshness, and every connector. Apply it directly:
+`state.selectedCharger = frame.data`. Do not invent browser availability rules
+or refetch REST after a frame. Connection/connector freshness is periodically
+reprojected, and the stream closes if the token, app scope, or customer
+visibility of the charger is no longer valid. A clean close does not reveal
+whether a now-hidden charger exists.
 
 ### 5.6 Deferred physical acceptance
 
