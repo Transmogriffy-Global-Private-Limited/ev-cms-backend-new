@@ -142,7 +142,7 @@ func (service *Service) GetChargingSession(
 		return ChargingSessionView{}, err
 	}
 
-	// Repository already preloads Customer, Charger, Charger.Hub, Connector
+	// Repository already preloads Customer, Charger, Charger.Hub, Connector, Tariff
 	session, err := service.repository.GetChargingSession(ctx, *principal.CPOID, sessionID)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -155,7 +155,19 @@ func (service *Service) GetChargingSession(
 		return ChargingSessionView{}, fmt.Errorf("load charging session: %w", err)
 	}
 
-	view := toChargingSessionView(*session)
+	// --- Fetch StartIntent if it exists ---
+	var intent *models.ChargingStartIntent
+	if session.StartIntentID != nil {
+		err = service.database.WithContext(ctx).
+			Where("id = ?", *session.StartIntentID).
+			First(&intent).Error
+		if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+			return ChargingSessionView{}, fmt.Errorf("load start intent: %w", err)
+		}
+	}
+
+	// Build view with the intent data
+	view := toChargingSessionView(*session, intent)
 
 	// Overlay live kWh for active sessions
 	if service.liveOperations != nil {
@@ -202,10 +214,39 @@ func (service *Service) ListChargingSessions(
 		sessions = sessions[:query.Limit]
 	}
 
-	// Build base views
+	// --- Collect all non‑nil StartIntentIDs ---
+	intentIDs := []uuid.UUID{}
+	for _, s := range sessions {
+		if s.StartIntentID != nil {
+			intentIDs = append(intentIDs, *s.StartIntentID)
+		}
+	}
+
+	// --- Fetch all intents in one query ---
+	intentsMap := map[uuid.UUID]models.ChargingStartIntent{}
+	if len(intentIDs) > 0 {
+		var intents []models.ChargingStartIntent
+		err := service.database.WithContext(ctx).
+			Where("id IN ?", intentIDs).
+			Find(&intents).Error
+		if err != nil {
+			return ChargingSessionListResponse{}, fmt.Errorf("load start intents: %w", err)
+		}
+		for _, i := range intents {
+			intentsMap[i.ID] = i
+		}
+	}
+
+	// Build base views with intent data
 	result := make([]ChargingSessionView, 0, len(sessions))
-	for _, session := range sessions {
-		view := toChargingSessionView(session)
+	for _, s := range sessions {
+		var intent *models.ChargingStartIntent
+		if s.StartIntentID != nil {
+			if i, ok := intentsMap[*s.StartIntentID]; ok {
+				intent = &i
+			}
+		}
+		view := toChargingSessionView(s, intent)
 		result = append(result, view)
 	}
 
@@ -388,8 +429,7 @@ func toChargerTransactionView(transaction ChargerTransaction) ChargerTransaction
 		ReconciliationRequired: transaction.Status == constants.SessionStatusReconciliationRequired || transaction.SettlementStatus == "RECONCILIATION_REQUIRED",
 	}
 }
-
-func toChargingSessionView(session models.ChargingSession) ChargingSessionView {
+func toChargingSessionView(session models.ChargingSession, intent *models.ChargingStartIntent) ChargingSessionView {
 	view := ChargingSessionView{
 		ID:                session.ID,
 		TransactionID:     session.TransactionID,
@@ -450,10 +490,29 @@ func toChargingSessionView(session models.ChargingSession) ChargingSessionView {
 	}
 
 	// --- Tariff information ---
-	if session.Tariff.ID != uuid.Nil {
+	// 1) Try to read from the historical TariffSnapshot first
+	var snapshot struct {
+		PricePerUnit decimal.Decimal `json:"price_per_unit"`
+		Units        *constants.Unit `json:"units,omitempty"`
+	}
+	if len(session.TariffSnapshot) > 0 {
+		// Convert JSONB (map) to JSON bytes for unmarshaling
+		if data, err := json.Marshal(session.TariffSnapshot); err == nil {
+			if err := json.Unmarshal(data, &snapshot); err == nil && !snapshot.PricePerUnit.IsZero() {
+				view.PricePerUnit = snapshot.PricePerUnit
+				view.Unit = snapshot.Units
+			}
+		}
+	}
+
+	// 2) Fallback to live tariff if snapshot is missing or price is zero
+	if view.PricePerUnit.IsZero() && session.Tariff.ID != uuid.Nil {
 		view.PricePerUnit = session.Tariff.PricePerUnit
-		view.Unit = session.Tariff.Units // may be nil
-	} else {
+		view.Unit = session.Tariff.Units
+	}
+
+	// 3) If still zero, set defaults
+	if view.PricePerUnit.IsZero() {
 		view.PricePerUnit = decimal.Zero
 		view.Unit = nil
 	}
@@ -481,8 +540,16 @@ func toChargingSessionView(session models.ChargingSession) ChargingSessionView {
 		}
 	}
 
-	// --- Energy limit (requires StartIntent preload – left as nil for now) ---
-	// view.EnergyLimit = &session.StartIntent.EnergyLimitWh  (if StartIntent is loaded)
+	// --- Start criteria and requested limit from StartIntent ---
+	if intent != nil {
+		view.StartCriteria = string(intent.LimitType)
+		view.RequestedLimitValue = intent.RequestedLimitValue
+		// EnergyLimit is already set from session, but if you want to use the intent's value:
+		// view.EnergyLimit = &intent.EnergyLimitWh
+	} else {
+		view.StartCriteria = ""
+		view.RequestedLimitValue = nil
+	}
 
 	return view
 }
