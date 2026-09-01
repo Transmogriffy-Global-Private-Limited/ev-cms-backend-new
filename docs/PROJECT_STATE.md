@@ -2,7 +2,21 @@
 
 ## Current State
 
-### 2026-09-01 - CPO capability authority coherence source-verified
+### 2026-09-01 - CPO capability authority coherence deployed
+
+- CPO endpoint authority now comes from the documented capability evaluated
+  against the active membership and matching app ID. Explicit `DENY` overrides
+  role defaults; support, integration, cache-control, session-revocation, and
+  OpenAPI security behavior are aligned with that authority. No migration or
+  data repair was required.
+- Runtime revision `bc1fbe7` is active behind Caddy with binary SHA-256
+  `dbbc77ff75ca46ed95fa1f3a774bbcabcfe3fad52157f386decf39e46100668`.
+  Service/readiness, public routing, Swagger/OpenAPI (217 operations), Caddy,
+  and post-rehost startup checks pass. Migration 058 remains applied. The
+  prior binary is retained at
+  `builds/evcmsnew.pre-deployed-320d489-20260901-095905`.
+
+### 2026-09-01 - CPO capability authority coherence implementation details
 
 - CPO endpoint authority is the documented capability evaluated against the
   current active membership and matching app ID; roles are source-controlled
@@ -15,8 +29,8 @@
   SSE streams re-evaluate their capability at heartbeat.
 - OpenAPI now represents CPO Bearer authentication and `X-CPO-App-ID` as a
   single AND requirement, including hub-GST and user-group membership routes.
-  This is source-only status: no migration was added or applied and no service
-  was deployed by this change.
+  This behavior is included in the active `bc1fbe7` deployment recorded above;
+  no migration or data repair was required.
 
 ### 2026-08-31 - User App realtime and mail-outbox reconciliation deployed
 

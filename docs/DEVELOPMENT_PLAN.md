@@ -1137,14 +1137,15 @@ Active feature:
 
 Current implementation slice:
 
-- Completed source-only CPO UAC authority coherence: protected CPO routes use
+- Completed and deployed CPO UAC authority coherence: protected CPO routes use
   their documented capabilities with active-membership/app-ID context, not a
   hard-coded ADMIN role. The slice distinguishes ordinary permission denial
   from evaluator infrastructure failure, aligns support and integrations,
   revokes only matching CPO sessions on an actual role change, preserves fresh
-  SSE authorization, and verifies OpenAPI Bearer+App-ID AND semantics. Broad
-  local Go verification and documentation/OpenAPI checks pass; PostgreSQL-gated
-  lifecycle cases remain deferred without `TEST_DATABASE_URL`.
+  SSE authorization, and verifies OpenAPI Bearer+App-ID AND semantics. Runtime
+  revision `bc1fbe7` is active with migration 058, 217 OpenAPI operations, and
+  verified readiness/public routing; PostgreSQL-gated lifecycle cases remain
+  deferred without `TEST_DATABASE_URL`.
 - CPO `chargers.operations` live-session operations: `GET /operations/live-sessions` is the
   full-snapshot SSE (initial `snapshot`, then replacement `live_sessions`
   frames) so the FE never reconstructs session state from invalidations. Each

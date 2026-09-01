@@ -28,11 +28,10 @@ development host it is set in the ignored service environment to
 that setting; it must not be used until the OCPP host is explicitly configured
 with TLS/WebSocket support.
 
-The active deployment was updated on August 31, 2026 to runtime source revision
-`320d489` (User App realtime projections and mail-outbox catalogue
-reconciliation). It has migrations one through fifty-eight and the current
-217-operation API. The binary SHA-256 is
-`37e6397a939ca16b8fb903147b5d7ee80e2f8e1ffa4c21acee448e66af4b413a`.
+The active deployment was updated on September 1, 2026 to runtime source
+revision `bc1fbe7` (CPO capability-authority coherence). It has migrations one
+through fifty-eight and the current 217-operation API. The binary SHA-256 is
+`dbbc77ff75ca46ed95fa1f3a774bbcabcfe3fad52157f386decf39e46100668`.
 The pre-migration binary and database dump for migrations 49 through 53 are
 retained under `/root/evcmsnew-backups/` and
 `builds/evcmsnew.pre-162b3be-20260825-135452` and the newer
@@ -57,6 +56,10 @@ The immediately preceding deployed binary is retained at
 `5595f05de08736f7e7b7e509b9092fe16592e3eda0308f500614b4eb46b33b47`), and the
 pre-migration-058 database dump is
 `/root/evcmsnew-backups/devevcmsnew-before-000058-20260831-140835.dump`.
+The immediately preceding binary for this rehost is additionally retained at
+`builds/evcmsnew.pre-deployed-320d489-20260901-095905` (SHA-256
+`37e6397a939ca16b8fb903147b5d7ee80e2f8e1ffa4c21acee448e66af4b413a`). No new
+migration was required for the capability-authority release.
 Migration 58 reconciles the mail-outbox template catalogue with the
 application-supported templates using a `NOT VALID` check so historical rows
 remain untouched.
@@ -253,7 +256,7 @@ content exclusions are defined in
 `docs/contracts/internal/http-request-logging.md`. Long-lived SSE requests are
 recorded when they disconnect. A recovered panic first emits a correlated safe
 JSON stack diagnostic without Gin's request dump or the panic value. The
-currently deployed `320d489` binary includes this logger.
+currently deployed `bc1fbe7` binary includes this logger.
 
 The platform realtime SSE route is long-lived. If a browser holds that stream
 during a rehost, the application may log `shut down HTTP server: context

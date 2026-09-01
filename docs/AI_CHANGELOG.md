@@ -1,5 +1,22 @@
 # AI Changelog
 
+## 2026-09-01 - Deploy CPO capability-authority coherence
+
+- Rebuilt and rehosted source revision `bc1fbe7`. The release aligns CPO
+  capability evaluation, support and integration permission boundaries,
+  protected-response cache control, role-change session revocation, and the
+  OpenAPI Bearer-plus-App-ID contract. No migration or data repair was needed.
+- Retained the previous active binary at
+  `builds/evcmsnew.pre-deployed-320d489-20260901-095905` for rollback.
+
+Verification: focused authorization, CPO, integrations, middleware, support,
+routes, and database tests; OpenAPI route parity; full `go test ./...`; `go vet
+./...`; successful build; loopback/public live and readiness; Swagger/OpenAPI
+(217 operations); Caddy validation; migration state; and post-rehost logs all
+pass. `pwsh` and a disposable `TEST_DATABASE_URL` remain unavailable, so the
+PowerShell documentation verifier and PostgreSQL-gated integration tests were
+not run. Physical charger and SMTP delivery acceptance remain unclaimed.
+
 ## 2026-09-01 - Complete CPO capability-authority coherence in source
 
 - Made the documented CPO capability, evaluated against active membership and
@@ -25,9 +42,9 @@
 Verification: focused auth/permission/middleware/CPO/support/integrations tests,
 OpenAPI/runtime route regressions, documentation verification, `go test ./...`,
 `go vet ./...`, `go build ./...`, and `git diff --check` pass locally.
-PostgreSQL-backed lifecycle cases are skipped because no disposable
-`TEST_DATABASE_URL` is configured. No migration, database mutation, deployment,
-commit, or push occurred.
+PostgreSQL-backed lifecycle cases remain skipped because no disposable
+`TEST_DATABASE_URL` is configured. The source is included in the deployed
+release recorded above; no physical charger or SMTP acceptance is claimed.
 
 ## 2026-08-31 - Deploy User App realtime and mail-outbox reconciliation
 
