@@ -346,6 +346,7 @@ type ChargingSession struct {
 	ID                 uuid.UUID               `gorm:"type:uuid;primaryKey;default:gen_random_uuid()" json:"id"`
 	CPOID              uuid.UUID               `gorm:"type:uuid;not null;index" json:"cpo_id"`
 	StartIntentID      *uuid.UUID              `gorm:"type:uuid;uniqueIndex" json:"start_intent_id,omitempty"`
+	StartIntent        *ChargingStartIntent    `gorm:"foreignKey:StartIntentID;references:ID" json:"-"`
 	TraceID            *uuid.UUID              `gorm:"type:uuid;uniqueIndex" json:"trace_id,omitempty"`
 	HALTransactionID   *uuid.UUID              `gorm:"type:uuid;uniqueIndex" json:"hal_transaction_id,omitempty"`
 	TransactionID      int64                   `gorm:"type:bigint;not null;index" json:"transaction_id"`

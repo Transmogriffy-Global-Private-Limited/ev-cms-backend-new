@@ -1,5 +1,20 @@
 # AI Changelog
 
+## 2026-09-01 - Reconcile CPO historical charging-session commercial projection
+
+- Semantically integrated the two reviewed `abhranil_ev_cms_backend_new`
+  session-projection commits onto current main without merging their older
+  branch wholesale. CPO list/detail responses now expose frozen tariff
+  price/unit, GST components, and optional actual customer start criteria/value.
+- Session-time tariff/tax snapshots are display authority; mutable tariff and
+  hub GST data are legacy-only fallbacks. Start-intent hydration is CPO-scoped
+  and repository-owned, so list reads avoid N+1 service queries. No commercial
+  calculation, migration, deployment, or database mutation changed.
+
+Verification: focused CPO projection and OpenAPI/runtime tests plus the docs
+verifier pass locally. PostgreSQL-gated integration cases remain skipped
+without `TEST_DATABASE_URL`.
+
 ## 2026-09-01 - Deploy charging transaction diagnostic trace
 
 - Added additive CMS migration 000059, opaque pre-command trace correlation,

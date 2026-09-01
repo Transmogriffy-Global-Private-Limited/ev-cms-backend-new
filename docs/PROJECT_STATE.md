@@ -2,6 +2,20 @@
 
 ## Current State
 
+### 2026-09-01 - CPO historical charging-session commercial projection source reconciliation
+
+- Current source extends CPO charging-session list/detail views with frozen
+  `price_per_unit`, optional tariff `unit`, SGST/CGST/IGST percentages, and
+  optional customer `start_criteria`/`requested_limit_value` from the durable
+  start intent. It does not change price calculation, tariff writes, GST
+  writes, charging control, or session authority.
+- Historical tariff and tax snapshots win over current mutable tariff/hub GST
+  associations. Current entities are a legacy fallback only if the relevant
+  session snapshot is absent or unusable. Customer limit selection remains
+  independent of tariff billing dimension. No migration was added, no database
+  mutation or deployment was performed, and PostgreSQL-gated verification is
+  conditional on `TEST_DATABASE_URL`.
+
 ### 2026-09-01 - Charging transaction trace deployed
 
 - The current CMS source adds additive migration 000059 and a

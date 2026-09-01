@@ -10949,6 +10949,32 @@ components:
           type: string
           format: date-time
           nullable: true
+        price_per_unit:
+          $ref: "#/components/schemas/ExactDecimal"
+          description: Frozen session-time tariff price per billable unit. Current tariff data is only a legacy fallback when no usable snapshot exists.
+        unit:
+          type: string
+          enum: [kwh, minutes]
+          nullable: true
+          description: Frozen tariff unit when the billing dimension has one. Omitted for a per-session tariff.
+        start_criteria:
+          type: string
+          enum: [AUTO, ENERGY, TIME, MONEY]
+          nullable: true
+          description: Customer-selected charging-limit type from the durable start intent, independent of the tariff billing dimension.
+        requested_limit_value:
+          $ref: "#/components/schemas/ExactDecimal"
+          nullable: true
+          description: Customer-requested limit value for start_criteria. It is absent for legacy sessions without a start intent.
+        sgst_percent:
+          $ref: "#/components/schemas/ExactDecimal"
+          description: Frozen session-time SGST rate. Current hub GST is only a legacy fallback when the tax snapshot is unusable.
+        cgst_percent:
+          $ref: "#/components/schemas/ExactDecimal"
+          description: Frozen session-time CGST rate. Current hub GST is only a legacy fallback when the tax snapshot is unusable.
+        igst_percent:
+          $ref: "#/components/schemas/ExactDecimal"
+          description: Frozen session-time IGST rate. Current hub GST is only a legacy fallback when the tax snapshot is unusable.
         created_at:
           type: string
           format: date-time

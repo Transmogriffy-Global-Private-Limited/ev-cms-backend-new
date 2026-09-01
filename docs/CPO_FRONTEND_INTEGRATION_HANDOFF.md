@@ -107,7 +107,7 @@ schemas; `GET /cpo/access/me` is the frontend's authority snapshot.
 | User groups | `GET`, `POST /cpo/user-groups`; `GET`, `PATCH`, `DELETE /cpo/user-groups/{user_group_id}`; `POST /cpo/user-groups/{user_group_id}/members`; `DELETE /cpo/user-groups/{user_group_id}/members/{customer_id}` | Membership changes affect future tariff selection only; do not rewrite settled sessions. |
 | Settings and invoice logo | `GET`, `POST`, `PUT /cpo/settings`; `GET /cpo/settings/invoice-logo` | POST and PUT are replacement/upsert forms. Refresh settings after either. |
 | Customers | `GET /cpo/customers`; `GET /cpo/customers/{customer_id}` | Customer and usage data are read-only CPO projections. Do not expose customer authentication/wallet mutation controls here. |
-| Charging/reporting | `GET /cpo/charging-sessions`; `GET /cpo/charging-sessions/{session_id}`; `GET /cpo/charger-transactions`; `GET /cpo/wallet-transactions` | Use cursor fields unchanged. Show CMS/HAL/OCPP identifiers and reconciliation/settlement state as distinct facts; never infer a missing session from charger live state. |
+| Charging/reporting | `GET /cpo/charging-sessions`; `GET /cpo/charging-sessions/{session_id}`; `GET /cpo/charger-transactions`; `GET /cpo/wallet-transactions` | Use cursor fields unchanged. Historical session views include frozen `price_per_unit`, `unit`, GST rates, and optional customer `start_criteria`/`requested_limit_value`. Treat start criteria as independent of tariff billing dimension; never infer a missing session from charger live state. |
 | Operational projection and realtime | `GET /cpo/operations/fleet`; `GET /cpo/operations/chargers/{charger_id}`; `GET /cpo/operations/events`; `GET /cpo/operations/realtime/stream`; `GET /cpo/operations/live-sessions`; `GET /cpo/operations/live-sessions/snapshot` | The live-session primary route is full-snapshot SSE: replace the table from each frame. Each row supplies `duration_seconds` at `as_of`, `customer_name`, CMS `connector_id`, charger/hub display context, and live meter/SoC status without customer contact or billing data. It needs no event replay or per-update REST refresh. General fleet/charger streams remain invalidation-based. See `CPO_OPERATIONS_LIVE_FE_HANDOFF.md`. |
 | Provider integrations | `GET /cpo/integrations`; `GET`, `PUT`, `DELETE /cpo/integrations/{provider}` | PUT submits credentials for encryption but returns metadata only. Never display, log, or expect provider secret plaintext. |
 | Support | `GET`, `POST /cpo/support`; `GET /cpo/support/{ticket_id}`; `POST /cpo/support/{ticket_id}/replies` | `support.read` views queue/history; `support.create` opens a ticket independently; reply requires **both** `support.read` and `support.reply` because it returns the complete conversation. |
@@ -121,6 +121,11 @@ schemas; `GET /cpo/access/me` is the frontend's authority snapshot.
 - Tariff precedence is `UserGroup > Charger > Hub`; GST resolves independently
   from the selected charger's hub. Current tariff values are future commercial
   policy, while settled sessions retain snapshots.
+- For a historical charging session, render its returned tariff/GST fields as
+  session-time commercial evidence. Do not replace them with the currently
+  configured tariff or hub GST. `start_criteria` records the customer's
+  `AUTO`, `ENERGY`, `TIME`, or `MONEY` request; it does not tell the UI how the
+  tariff bills the completed session.
 - Use exact decimal strings for money, GST rates, and kWh amounts. Never add,
   compare, or round currency with binary JavaScript numbers.
 - CPO legal identity is platform-owned. A CPO UI may display GSTIN/state/PIN but

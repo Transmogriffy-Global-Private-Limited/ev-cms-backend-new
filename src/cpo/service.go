@@ -405,6 +405,13 @@ func toChargingSessionView(session models.ChargingSession) ChargingSessionView {
 		SoCObservedAt:     session.SoCObservedAt,
 		CreatedAt:         session.CreatedAt,
 	}
+	view.PricePerUnit, view.Unit = sessionTariffDisplay(session)
+	view.SGSTPercent, view.CGSTPercent, view.IGSTPercent = sessionTaxDisplay(session)
+	if session.StartIntent != nil {
+		criteria := session.StartIntent.LimitType
+		view.StartCriteria = &criteria
+		view.RequestedLimitValue = session.StartIntent.RequestedLimitValue
+	}
 
 	if session.Customer.ID != uuid.Nil {
 		view.Customer = ChargingSessionCustomerView{
@@ -447,6 +454,70 @@ func toChargingSessionView(session models.ChargingSession) ChargingSessionView {
 	}
 
 	return view
+}
+
+// sessionTariffDisplay uses the frozen session-time commercial snapshot first.
+// The mutable Tariff association is strictly a legacy fallback for sessions
+// created before a usable snapshot existed.
+func sessionTariffDisplay(session models.ChargingSession) (decimal.Decimal, *constants.Unit) {
+	if price, unit, ok := sessionSnapshotTariff(session.TariffSnapshot); ok {
+		return price, unit
+	}
+	return session.Tariff.PricePerUnit, session.Tariff.Units
+}
+
+func sessionSnapshotTariff(snapshot models.JSONB) (decimal.Decimal, *constants.Unit, bool) {
+	rawPrice, ok := snapshot["price_per_unit"].(string)
+	if !ok || rawPrice == "" {
+		return decimal.Zero, nil, false
+	}
+	price, err := decimal.NewFromString(rawPrice)
+	if err != nil {
+		return decimal.Zero, nil, false
+	}
+	unitText, _ := snapshot["units"].(string)
+	if unitText == "" {
+		return price, nil, true
+	}
+	unit := constants.Unit(unitText)
+	return price, &unit, true
+}
+
+// sessionTaxDisplay follows the same historical rule as final billing: all
+// three frozen tax components must be usable before they replace the current
+// hub GST fallback for legacy/incomplete sessions.
+func sessionTaxDisplay(session models.ChargingSession) (decimal.Decimal, decimal.Decimal, decimal.Decimal) {
+	if sgst, cgst, igst, ok := sessionSnapshotTax(session.TaxSnapshot); ok {
+		return sgst, cgst, igst
+	}
+	if session.Charger.Hub == nil || session.Charger.Hub.GST == nil {
+		return decimal.Zero, decimal.Zero, decimal.Zero
+	}
+	gst := session.Charger.Hub.GST
+	return decimalValue(gst.SGSTRate), decimalValue(gst.CGSTRate), decimalValue(gst.IGSTRate)
+}
+
+func sessionSnapshotTax(snapshot models.JSONB) (decimal.Decimal, decimal.Decimal, decimal.Decimal, bool) {
+	sgst, sgstOK := sessionSnapshotDecimal(snapshot, "sgst_rate")
+	cgst, cgstOK := sessionSnapshotDecimal(snapshot, "cgst_rate")
+	igst, igstOK := sessionSnapshotDecimal(snapshot, "igst_rate")
+	return sgst, cgst, igst, sgstOK && cgstOK && igstOK
+}
+
+func sessionSnapshotDecimal(snapshot models.JSONB, key string) (decimal.Decimal, bool) {
+	raw, ok := snapshot[key].(string)
+	if !ok || raw == "" {
+		return decimal.Zero, false
+	}
+	value, err := decimal.NewFromString(raw)
+	return value, err == nil
+}
+
+func decimalValue(value *decimal.Decimal) decimal.Decimal {
+	if value == nil {
+		return decimal.Zero
+	}
+	return *value
 }
 
 func toLiveChargingSessionView(session models.ChargingSession, live liveops.SessionState, asOf time.Time) LiveChargingSessionView {

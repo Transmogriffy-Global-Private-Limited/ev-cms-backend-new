@@ -3335,6 +3335,15 @@ charging_session_not_found`; malformed UUIDs or invalid filters return `400`,
 and unauthenticated or unauthorized callers receive the standard `401`/`403`
 errors.
 
+Each historical session includes `price_per_unit`, optional tariff `unit`, and
+`sgst_percent`, `cgst_percent`, and `igst_percent` from the immutable
+session-time tariff/tax snapshots. Current tariff and hub GST associations are
+used only as a legacy fallback when a usable snapshot is absent. It also
+returns optional `start_criteria` and `requested_limit_value` from the durable
+start intent: these describe the customer's `AUTO`, `ENERGY`, `TIME`, or
+`MONEY` limit selection and are independent of the tariff billing dimension.
+Legacy sessions without a start intent omit those two fields.
+
 ### 12.5 CPO charging diagnostic trace
 
 ```text

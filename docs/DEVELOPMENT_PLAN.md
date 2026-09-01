@@ -1133,11 +1133,17 @@ Current phase:
 
 Active feature:
 
-- First-class CMS/HAL charging transaction trace / waterfall (CMS deployed;
-  paired HAL reconciliation pending)
+- CPO historical charging-session commercial projection reconciliation from the
+  reviewed `abhranil_ev_cms_backend_new` branch.
 
 Current implementation slice:
 
+- Source-only reconciliation extends CPO session list/detail responses with
+  snapshot-first tariff price/unit and GST rates plus the durable customer
+  start-limit type/value. It uses current tariff/GST only as a legacy fallback,
+  preserves the separate tariff billing and customer limit dimensions, and
+  keeps start-intent hydration bounded and CPO-scoped. No pricing calculation,
+  migration, deployment, or data mutation is part of this slice.
 - Completed and deployed CMS slice: additive cross-stack trace evidence. CMS creates an opaque
   trace ID before command delivery, persists sanitized APP/CMS diagnostic
   evidence, exposes tenant-scoped `charging_traces.read` queries, and merges
