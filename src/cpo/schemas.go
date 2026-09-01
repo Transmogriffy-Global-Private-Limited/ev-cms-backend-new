@@ -825,6 +825,12 @@ type ChargingSessionView struct {
 	FinalSoCPercent   *decimal.Decimal             `json:"final_soc_percent,omitempty"`
 	SoCObservedAt     *time.Time                   `json:"soc_observed_at,omitempty"`
 	CreatedAt         time.Time                    `json:"created_at"`
+	PricePerUnit      decimal.Decimal              `json:"price_per_unit"`
+	Unit              *constants.Unit              `json:"unit,omitempty"`
+	SGSTPercent       decimal.Decimal              `json:"sgst_percent"`
+	CGSTPercent       decimal.Decimal              `json:"cgst_percent"`
+	IGSTPercent       decimal.Decimal              `json:"igst_percent"`
+	EnergyLimit       *int64                       `json:"energy_limit_wh,omitempty"`
 }
 
 type ChargingSessionListResponse struct {

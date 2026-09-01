@@ -406,6 +406,7 @@ func toChargingSessionView(session models.ChargingSession) ChargingSessionView {
 		CreatedAt:         session.CreatedAt,
 	}
 
+	// Customer
 	if session.Customer.ID != uuid.Nil {
 		view.Customer = ChargingSessionCustomerView{
 			ID:    session.Customer.ID,
@@ -415,6 +416,7 @@ func toChargingSessionView(session models.ChargingSession) ChargingSessionView {
 		}
 	}
 
+	// Charger
 	if session.Charger.ID != uuid.Nil {
 		charger := ChargingSessionChargerView{
 			ID:           session.Charger.ID,
@@ -437,6 +439,7 @@ func toChargingSessionView(session models.ChargingSession) ChargingSessionView {
 		view.Charger = charger
 	}
 
+	// Connector
 	if session.Connector.ID != uuid.Nil {
 		view.Connector = ChargingSessionConnectorView{
 			ID:                     session.Connector.ID,
@@ -445,6 +448,41 @@ func toChargingSessionView(session models.ChargingSession) ChargingSessionView {
 			ConnectorTotalCapacity: session.Connector.ConnectorTotalCapacity,
 		}
 	}
+
+	// --- Tariff information ---
+	if session.Tariff.ID != uuid.Nil {
+		view.PricePerUnit = session.Tariff.PricePerUnit
+		view.Unit = session.Tariff.Units // may be nil
+	} else {
+		view.PricePerUnit = decimal.Zero
+		view.Unit = nil
+	}
+
+	// --- GST rates from hub's GST profile ---
+	view.SGSTPercent = decimal.Zero
+	view.CGSTPercent = decimal.Zero
+	view.IGSTPercent = decimal.Zero
+
+	// The charger may have been hydrated via fallback; ensure Hub is loaded.
+	charger := session.Charger
+	if charger.ID == uuid.Nil && session.Connector.Charger.ID != uuid.Nil {
+		charger = session.Connector.Charger
+	}
+	if charger.Hub != nil && charger.Hub.GST != nil {
+		gst := charger.Hub.GST
+		if gst.SGSTRate != nil {
+			view.SGSTPercent = *gst.SGSTRate
+		}
+		if gst.CGSTRate != nil {
+			view.CGSTPercent = *gst.CGSTRate
+		}
+		if gst.IGSTRate != nil {
+			view.IGSTPercent = *gst.IGSTRate
+		}
+	}
+
+	// --- Energy limit (requires StartIntent preload – left as nil for now) ---
+	// view.EnergyLimit = &session.StartIntent.EnergyLimitWh  (if StartIntent is loaded)
 
 	return view
 }
