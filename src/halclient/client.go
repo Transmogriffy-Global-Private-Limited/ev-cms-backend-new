@@ -85,6 +85,7 @@ type ChargerMapping struct {
 }
 
 type StartCommand struct {
+	TraceID             uuid.UUID `json:"trace_id"`
 	CMSCommandID        uuid.UUID `json:"cms_command_id"`
 	CMSStartIntentID    uuid.UUID `json:"cms_start_intent_id"`
 	CPOID               uuid.UUID `json:"cpo_id"`
@@ -104,6 +105,7 @@ type StartCommand struct {
 }
 
 type StopCommand struct {
+	TraceID                uuid.UUID `json:"trace_id"`
 	CMSCommandID           uuid.UUID `json:"cms_command_id"`
 	CMSChargingSessionID   uuid.UUID `json:"cms_charging_session_id"`
 	CPOID                  uuid.UUID `json:"cpo_id"`
@@ -144,6 +146,63 @@ type Transaction struct {
 	OCPPTransactionID   int64     `json:"ocpp_transaction_id"`
 	ActualStartedAt     time.Time `json:"actual_started_at"`
 	MeterStartWh        int64     `json:"meter_start_wh"`
+}
+
+// Trace and TraceEvent are diagnostic evidence returned only over the
+// CMS-to-HAL bearer boundary. They are never transaction authority.
+type Trace struct {
+	TraceID              uuid.UUID  `json:"trace_id"`
+	CPOID                uuid.UUID  `json:"cpo_id"`
+	CMSStartIntentID     *uuid.UUID `json:"cms_start_intent_id,omitempty"`
+	CMSChargingSessionID *uuid.UUID `json:"cms_charging_session_id,omitempty"`
+	CMSCommandID         *uuid.UUID `json:"cms_command_id,omitempty"`
+	HALTransactionID     *uuid.UUID `json:"hal_transaction_id,omitempty"`
+	OCPPTransactionID    *int64     `json:"ocpp_transaction_id,omitempty"`
+	ChargerOCPPIdentity  string     `json:"charger_ocpp_identity"`
+	OCPPConnectorNumber  int        `json:"ocpp_connector_number"`
+	CreatedAt            time.Time  `json:"created_at"`
+}
+
+type TraceEvent struct {
+	EventID       uuid.UUID      `json:"event_id"`
+	TraceID       uuid.UUID      `json:"trace_id"`
+	Source        string         `json:"source"`
+	Target        string         `json:"target"`
+	Category      string         `json:"category"`
+	Protocol      string         `json:"protocol"`
+	Phase         string         `json:"phase"`
+	Summary       string         `json:"summary"`
+	OccurredAt    time.Time      `json:"occurred_at"`
+	RecordedAt    time.Time      `json:"recorded_at"`
+	StateBefore   string         `json:"state_before,omitempty"`
+	StateAfter    string         `json:"state_after,omitempty"`
+	CorrelationID string         `json:"correlation_id,omitempty"`
+	Data          map[string]any `json:"data,omitempty"`
+}
+
+func (client *Client) GetTrace(ctx context.Context, traceID uuid.UUID, before time.Time, beforeID uuid.UUID, limit int) (Trace, []TraceEvent, error) {
+	path := "/v1/charging-traces/" + traceID.String()
+	var root struct {
+		Trace Trace `json:"trace"`
+	}
+	if err := client.requestJSON(ctx, http.MethodGet, path, nil, &root); err != nil {
+		return Trace{}, nil, err
+	}
+	values := url.Values{}
+	if !before.IsZero() {
+		values.Set("before_occurred_at", before.UTC().Format(time.RFC3339Nano))
+		values.Set("before_event_id", beforeID.String())
+	}
+	if limit > 0 {
+		values.Set("limit", fmt.Sprintf("%d", limit))
+	}
+	var events struct {
+		Events []TraceEvent `json:"events"`
+	}
+	if err := client.requestJSON(ctx, http.MethodGet, path+"/events?"+values.Encode(), nil, &events); err != nil {
+		return Trace{}, nil, err
+	}
+	return root.Trace, events.Events, nil
 }
 
 func (client *Client) SyncMapping(ctx context.Context, mapping ChargerMapping, correlationID string) error {

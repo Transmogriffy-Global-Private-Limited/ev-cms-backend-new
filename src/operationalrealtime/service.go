@@ -23,6 +23,7 @@ import (
 type Service struct {
 	database          *gorm.DB
 	retention         time.Duration
+	traceRetention    time.Duration
 	poll              time.Duration
 	heartbeat         time.Duration
 	batchSize         int
@@ -40,7 +41,13 @@ func (service *Service) WithWorkerObserver(observer workerobs.Observer, workerNa
 }
 
 func New(database *gorm.DB, cfg config.Platform) *Service {
-	return &Service{database: database, retention: cfg.EventRetention, poll: cfg.RealtimePoll, heartbeat: cfg.RealtimeHeartbeat, batchSize: cfg.RealtimeBatchSize, now: func() time.Time { return time.Now().UTC() }}
+	traceRetention := cfg.TraceRetention
+	if traceRetention <= 0 {
+		// Keep package-level callers constructed by older tests/extensions
+		// safe while Config.Validate enforces the configured production value.
+		traceRetention = 30 * 24 * time.Hour
+	}
+	return &Service{database: database, retention: cfg.EventRetention, traceRetention: traceRetention, poll: cfg.RealtimePoll, heartbeat: cfg.RealtimeHeartbeat, batchSize: cfg.RealtimeBatchSize, now: func() time.Time { return time.Now().UTC() }}
 }
 
 // StreamTiming returns bounded polling settings shared by every scoped
@@ -317,7 +324,16 @@ func uuidStrings(ids []uuid.UUID) []string {
 	return values
 }
 func (service *Service) DeleteExpired(ctx context.Context) error {
-	return service.database.WithContext(ctx).Where("expires_at <= ?", service.now()).Delete(&models.OperationalEvent{}).Error
+	now := service.now()
+	return service.database.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Where("expires_at <= ?", now).Delete(&models.OperationalEvent{}).Error; err != nil {
+			return err
+		}
+		// Trace rows are diagnostic evidence, never charging authority. A
+		// bounded deletion keeps retention work proportional without touching
+		// sessions, facts, commands, wallets, or connector state.
+		return tx.Exec(`DELETE FROM charging_trace_events WHERE id IN (SELECT id FROM charging_trace_events WHERE recorded_at < ? ORDER BY recorded_at ASC LIMIT 500)`, now.Add(-service.traceRetention)).Error
+	})
 }
 
 // RunRetention owns expiration cleanup for the durable replay log. Failed

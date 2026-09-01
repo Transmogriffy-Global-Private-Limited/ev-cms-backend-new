@@ -3310,8 +3310,8 @@ Neither endpoint performs unbounded tenant-business aggregation.
 
 ### 12.4 CPO charging-session reads
 
-The authenticated CPO `ADMIN` can read materialized charging-session records
-for the current tenant:
+An authenticated CPO member with `charging_sessions.read` can read
+materialized charging-session records for the current tenant:
 
 ```text
 GET /api/v1/cpo/charging-sessions
@@ -3335,7 +3335,37 @@ charging_session_not_found`; malformed UUIDs or invalid filters return `400`,
 and unauthenticated or unauthorized callers receive the standard `401`/`403`
 errors.
 
-### 12.5 CPO charger transaction reads
+### 12.5 CPO charging diagnostic trace
+
+```text
+GET /api/v1/cpo/charging-sessions/{session_id}/trace
+GET /api/v1/cpo/charging-traces/{trace_id}
+```
+
+Both diagnostic routes require the CPO bearer session, matching
+`X-CPO-App-ID`, active membership, and `charging_traces.read`. The default
+role bundles grant this to `OWNER`, `ADMIN`, and `OPERATOR`; `VIEWER` is not
+granted it, and an explicit membership `DENY` always wins. The current CPO
+scope is derived server-side, so a CPO cannot retrieve another tenant's trace.
+
+The response contains an opaque `trace_id`, optionally correlated CMS session,
+HAL transaction, and OCPP transaction IDs, plus bounded sanitized evidence
+events. Those identifiers remain distinct. Events are newest-first by the
+exclusive `(occurred_at,id)` cursor; `limit` is 1–100 (default 50), and both
+`before_occurred_at` and `before_event_id` must be supplied together for the
+next page. The event lanes are `APP`, `CMS`, `HAL`, and `CHARGER`; trace rows
+are diagnostic evidence only and never determine session, connector, wallet,
+billing, settlement, or OCPP state.
+
+`cms_source` is local evidence availability. `hal_source` is independently
+`AVAILABLE`, `UNAVAILABLE`, or `NOT_REQUESTED`: a private HAL diagnostic read
+failure still returns usable CMS evidence and is not a charging failure. Event
+metadata deliberately excludes idTags, credentials, authorization material,
+customer contacts, and raw OCPP frames. `404 charging_trace_not_found` means
+the diagnostic evidence is unavailable or retained out; it does not mean the
+underlying charging session is invalid.
+
+### 12.6 CPO charger transaction reads
 
 `GET /api/v1/cpo/charger-transactions` returns a cursor-paginated transaction
 projection for the authenticated CPO member with `charging_sessions.read`. It accepts `limit` (1–200,

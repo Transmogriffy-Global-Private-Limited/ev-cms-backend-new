@@ -1,5 +1,24 @@
 # AI Changelog
 
+## 2026-09-01 - Charging transaction diagnostic trace source worktree
+
+- Added additive CMS migration 000059, opaque pre-command trace correlation,
+  append-only sanitized APP/CMS evidence, CPO `charging_traces.read`, bounded
+  trace routes, private HAL-source merge with explicit partial availability,
+  and the four-lane CPO waterfall handoff. Trace evidence is never business
+  authority and trace write/read failure never changes charging admission,
+  billing, wallet, settlement, connector, or OCPP truth.
+- Added bounded diagnostic retention only; it does not delete authoritative
+  charging state. The OpenAPI contract now has 219 operations and the docs
+  verifier enforces that count.
+
+Verification: focused trace/config/CPO/customerauth checks, full `go test
+./...`, `go vet ./...`, `go build ./...`, OpenAPI/runtime route verification,
+documentation verification, and `git diff --check` pass locally. PostgreSQL
+lifecycle tests remain skipped without `TEST_DATABASE_URL`. This is an
+source implementation; publication is authorized, but no migration was applied
+or deployment performed.
+
 ## 2026-09-01 - Deploy CPO capability-authority coherence
 
 - Rebuilt and rehosted source revision `bc1fbe7`. The release aligns CPO

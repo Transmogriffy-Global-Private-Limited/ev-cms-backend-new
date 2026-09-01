@@ -496,6 +496,7 @@ func RegisterCPORoutes(
 	tariffsManage := by(cpopermissions.TariffsManage)
 	customersRead := by(cpopermissions.CustomersRead)
 	sessionsRead := by(cpopermissions.ChargingSessionsRead)
+	tracesRead := by(cpopermissions.ChargingTracesRead)
 	analyticsRead := by(cpopermissions.AnalyticsRead)
 	operations := by(cpopermissions.ChargersOperations)
 	settingsRead := by(cpopermissions.SettingsRead)
@@ -589,10 +590,61 @@ func RegisterCPORoutes(
 	settingsRead.GET("/settings/invoice-logo", handler.getInvoiceLogo)
 	sessionsRead.GET("/charging-sessions", handler.listChargingSessions)
 	sessionsRead.GET("/charging-sessions/:session_id", handler.getChargingSession)
+	tracesRead.GET("/charging-sessions/:session_id/trace", handler.getChargingSessionTrace)
+	tracesRead.GET("/charging-traces/:trace_id", handler.getChargingTrace)
 	sessionsRead.GET("/charger-transactions", handler.listChargerTransactions)
 	customersRead.GET("/wallet-transactions", handler.listWalletTransactions)
 	customersRead.GET("/customers/:customer_id/wallet-transactions", handler.listCustomerWalletTransactions)
 
+}
+
+func (handler *Handler) getChargingSessionTrace(ctx *gin.Context) {
+	handler.getChargingTraceFor(ctx, true)
+}
+func (handler *Handler) getChargingTrace(ctx *gin.Context) { handler.getChargingTraceFor(ctx, false) }
+func (handler *Handler) getChargingTraceFor(ctx *gin.Context, bySession bool) {
+	var sessionID, traceID uuid.UUID
+	var err error
+	if bySession {
+		sessionID, err = uuid.Parse(ctx.Param("session_id"))
+	} else {
+		traceID, err = uuid.Parse(ctx.Param("trace_id"))
+	}
+	if err != nil || (bySession && sessionID == uuid.Nil) || (!bySession && traceID == uuid.Nil) {
+		writeError(ctx, &auth.APIError{Status: http.StatusBadRequest, Code: "invalid_request", Message: "A canonical UUID is required."})
+		return
+	}
+	limit := 50
+	if raw := strings.TrimSpace(ctx.Query("limit")); raw != "" {
+		parsed, parseErr := strconv.Atoi(raw)
+		if parseErr != nil || parsed < 1 || parsed > 100 {
+			writeError(ctx, &auth.APIError{Status: http.StatusBadRequest, Code: "invalid_request", Message: "Limit must be an integer between 1 and 100."})
+			return
+		}
+		limit = parsed
+	}
+	var before *time.Time
+	var beforeID *uuid.UUID
+	if raw := ctx.Query("before_occurred_at"); raw != "" {
+		parsed, parseErr := time.Parse(time.RFC3339Nano, raw)
+		cursor, uuidErr := uuid.Parse(ctx.Query("before_event_id"))
+		if parseErr != nil || uuidErr != nil || cursor == uuid.Nil {
+			writeError(ctx, &auth.APIError{Status: http.StatusBadRequest, Code: "invalid_request", Message: "A valid trace cursor is required."})
+			return
+		}
+		before = &parsed
+		beforeID = &cursor
+	} else if strings.TrimSpace(ctx.Query("before_event_id")) != "" {
+		writeError(ctx, &auth.APIError{Status: http.StatusBadRequest, Code: "invalid_request", Message: "Before occurred at is required when before event ID is supplied."})
+		return
+	}
+	principal, _ := auth.CurrentPrincipal(ctx)
+	response, err := handler.service.GetChargingTrace(ctx.Request.Context(), principal, sessionID, traceID, before, beforeID, limit)
+	if err != nil {
+		writeError(ctx, err)
+		return
+	}
+	ctx.JSON(http.StatusOK, response)
 }
 
 func (handler *Handler) permissionCatalog(ctx *gin.Context) {

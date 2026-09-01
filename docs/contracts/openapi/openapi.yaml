@@ -327,6 +327,51 @@ paths:
                 $ref: "#/components/schemas/ErrorEnvelope"
         "500":
           $ref: "#/components/responses/InternalError"
+  /api/v1/cpo/charging-sessions/{session_id}/trace:
+    get:
+      tags: [CPO Operations - Charging Sessions]
+      operationId: getCPOChargingSessionTrace
+      summary: Get diagnostic charging evidence for a session
+      description: Returns bounded, non-authoritative APP/CMS/HAL/CHARGER trace evidence. `hal_source` is `UNAVAILABLE` when the private HAL diagnostic read cannot be completed; charging truth is never inferred from this response.
+      security:
+        - BearerAuth: []
+          CPOAppID: []
+      parameters:
+        - name: session_id
+          in: path
+          required: true
+          schema: {type: string, format: uuid}
+        - $ref: "#/components/parameters/TraceLimit"
+        - $ref: "#/components/parameters/TraceBeforeOccurredAt"
+        - $ref: "#/components/parameters/TraceBeforeEventID"
+      responses:
+        "200": {description: Diagnostic trace evidence, content: {application/json: {schema: {$ref: "#/components/schemas/ChargingTraceResponse"}}}}
+        "400": {$ref: "#/components/responses/InvalidRequest"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/CPOBusinessForbidden"}
+        "404": {description: "charging_trace_not_found"}
+  /api/v1/cpo/charging-traces/{trace_id}:
+    get:
+      tags: [CPO Operations - Charging Sessions]
+      operationId: getCPOChargingTrace
+      summary: Get diagnostic charging evidence by opaque trace ID
+      security:
+        - BearerAuth: []
+          CPOAppID: []
+      parameters:
+        - name: trace_id
+          in: path
+          required: true
+          schema: {type: string, format: uuid}
+        - $ref: "#/components/parameters/TraceLimit"
+        - $ref: "#/components/parameters/TraceBeforeOccurredAt"
+        - $ref: "#/components/parameters/TraceBeforeEventID"
+      responses:
+        "200": {description: Diagnostic trace evidence, content: {application/json: {schema: {$ref: "#/components/schemas/ChargingTraceResponse"}}}}
+        "400": {$ref: "#/components/responses/InvalidRequest"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/CPOBusinessForbidden"}
+        "404": {description: "charging_trace_not_found"}
   /api/v1/cpo/charger-transactions:
     get:
       tags: [CPO Operations - Charging Sessions]
@@ -6743,6 +6788,21 @@ components:
         minimum: 1
         maximum: 200
         default: 50
+    TraceLimit:
+      name: limit
+      in: query
+      required: false
+      schema: {type: integer, minimum: 1, maximum: 100, default: 50}
+    TraceBeforeOccurredAt:
+      name: before_occurred_at
+      in: query
+      required: false
+      schema: {type: string, format: date-time}
+    TraceBeforeEventID:
+      name: before_event_id
+      in: query
+      required: false
+      schema: {type: string, format: uuid}
     LiveSessionLimit:
       name: limit
       in: query
@@ -8771,6 +8831,40 @@ components:
         resource_id: {type: string, maxLength: 255}
         data: {type: object, additionalProperties: true, description: Safe event metadata without credentials or raw HAL payloads.}
         occurred_at: {type: string, format: date-time}
+
+    ChargingTraceEvent:
+      type: object
+      additionalProperties: false
+      required: [id, trace_id, source, target, category, protocol, phase, summary, occurred_at, recorded_at, data]
+      properties:
+        id: {type: string, format: uuid}
+        trace_id: {type: string, format: uuid}
+        source: {type: string, enum: [APP, CMS, HAL, CHARGER]}
+        target: {type: string, enum: [APP, CMS, HAL, CHARGER]}
+        category: {type: string}
+        protocol: {type: string}
+        phase: {type: string, enum: [PRE_START, STARTING, CHARGING, STOPPING, POST_STOP]}
+        summary: {type: string}
+        occurred_at: {type: string, format: date-time}
+        recorded_at: {type: string, format: date-time}
+        state_before: {type: string}
+        state_after: {type: string}
+        correlation_id: {type: string, description: Opaque command/request or OCPP correlation where available; never credential material.}
+        data: {type: object, additionalProperties: true, description: Sanitized diagnostic metadata only.}
+    ChargingTraceResponse:
+      type: object
+      additionalProperties: false
+      required: [trace_id, events, cms_source, hal_source]
+      properties:
+        trace_id: {type: string, format: uuid}
+        session_id: {type: string, format: uuid}
+        hal_transaction_id: {type: string, format: uuid}
+        ocpp_transaction_id: {type: integer, format: int64}
+        events: {type: array, maxItems: 100, items: {$ref: "#/components/schemas/ChargingTraceEvent"}}
+        cms_source: {type: string, enum: [AVAILABLE]}
+        hal_source: {type: string, enum: [AVAILABLE, UNAVAILABLE, NOT_REQUESTED]}
+        next_occurred_at: {type: string, format: date-time}
+        next_event_id: {type: string, format: uuid}
 
     OperationalEventPage:
       type: object

@@ -350,6 +350,11 @@ func (service *Service) materializeAuthoritativeStart(tx *gorm.DB, evidence halo
 	if err := tx.Create(&session).Error; err != nil {
 		return nil, false, err
 	}
+	if intent.TraceID != nil {
+		// A fact must remain authoritative even when its diagnostic projection
+		// cannot be appended. The durable session is never derived from trace.
+		_ = service.recordChargingTrace(tx, *intent.TraceID, intent.CPOID, &session.ID, "HAL", "CMS", "LIFECYCLE", "FACT", "CHARGING", "HAL start fact materialized a CMS session", "", models.JSONB{"hal_transaction_id": evidence.HALTransactionID.String(), "ocpp_transaction_id": evidence.OCPPTransactionID})
+	}
 	now := service.now()
 	if err := tx.Model(&command).Updates(map[string]any{"hal_command_id": evidence.HALCommandID, "state": "MATERIALIZED", "last_error_category": "", "last_error_detail": "", "updated_at": now}).Error; err != nil {
 		return nil, false, err
@@ -410,6 +415,7 @@ func materializedChargingSession(intent models.ChargingStartIntent, ocppID int64
 		ID:               uuid.New(),
 		CPOID:            intent.CPOID,
 		StartIntentID:    &intent.ID,
+		TraceID:          intent.TraceID,
 		HALTransactionID: &halTransactionID,
 		TransactionID:    ocppID,
 		CustomerID:       intent.CustomerID,

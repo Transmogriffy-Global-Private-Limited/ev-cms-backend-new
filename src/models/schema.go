@@ -346,6 +346,7 @@ type ChargingSession struct {
 	ID                 uuid.UUID               `gorm:"type:uuid;primaryKey;default:gen_random_uuid()" json:"id"`
 	CPOID              uuid.UUID               `gorm:"type:uuid;not null;index" json:"cpo_id"`
 	StartIntentID      *uuid.UUID              `gorm:"type:uuid;uniqueIndex" json:"start_intent_id,omitempty"`
+	TraceID            *uuid.UUID              `gorm:"type:uuid;uniqueIndex" json:"trace_id,omitempty"`
 	HALTransactionID   *uuid.UUID              `gorm:"type:uuid;uniqueIndex" json:"hal_transaction_id,omitempty"`
 	TransactionID      int64                   `gorm:"type:bigint;not null;index" json:"transaction_id"`
 	CustomerID         uuid.UUID               `gorm:"type:uuid;not null;index" json:"customer_id"`
@@ -386,6 +387,7 @@ type ChargingSession struct {
 // truth and cannot materialize a session by itself.
 type ChargingStartIntent struct {
 	ID                    uuid.UUID                     `gorm:"type:uuid;primaryKey" json:"id"`
+	TraceID               *uuid.UUID                    `gorm:"type:uuid;uniqueIndex" json:"trace_id,omitempty"`
 	CPOID                 uuid.UUID                     `gorm:"type:uuid;not null;index" json:"cpo_id"`
 	CustomerID            uuid.UUID                     `gorm:"type:uuid;not null;index" json:"customer_id"`
 	ChargerID             uuid.UUID                     `gorm:"type:uuid;not null;index" json:"charger_id"`
@@ -426,6 +428,7 @@ type WalletHold struct {
 
 type HALCommandRecord struct {
 	CMSCommandID      uuid.UUID  `gorm:"type:uuid;primaryKey" json:"cms_command_id"`
+	TraceID           *uuid.UUID `gorm:"type:uuid;index" json:"trace_id,omitempty"`
 	CPOID             uuid.UUID  `gorm:"type:uuid;not null;index" json:"cpo_id"`
 	Kind              string     `gorm:"type:varchar(8);not null" json:"kind"`
 	StartIntentID     *uuid.UUID `gorm:"type:uuid;uniqueIndex" json:"start_intent_id,omitempty"`
@@ -438,6 +441,29 @@ type HALCommandRecord struct {
 	CreatedAt         time.Time  `gorm:"not null" json:"created_at"`
 	UpdatedAt         time.Time  `gorm:"not null" json:"updated_at"`
 }
+
+// ChargingTraceEvent stores immutable diagnostic evidence. It never owns
+// session, connector, billing, or command state.
+type ChargingTraceEvent struct {
+	ID            uuid.UUID  `gorm:"type:uuid;primaryKey" json:"id"`
+	TraceID       uuid.UUID  `gorm:"type:uuid;not null;index" json:"trace_id"`
+	CPOID         uuid.UUID  `gorm:"type:uuid;not null;index" json:"cpo_id"`
+	SessionID     *uuid.UUID `gorm:"type:uuid;index" json:"session_id,omitempty"`
+	Source        string     `gorm:"type:varchar(32);not null" json:"source"`
+	Target        string     `gorm:"type:varchar(32);not null" json:"target"`
+	Category      string     `gorm:"type:varchar(48);not null" json:"category"`
+	Protocol      string     `gorm:"type:varchar(24);not null" json:"protocol"`
+	Phase         string     `gorm:"type:varchar(24);not null" json:"phase"`
+	Summary       string     `gorm:"type:varchar(200);not null" json:"summary"`
+	OccurredAt    time.Time  `gorm:"type:timestamptz;not null" json:"occurred_at"`
+	RecordedAt    time.Time  `gorm:"type:timestamptz;not null" json:"recorded_at"`
+	StateBefore   string     `gorm:"type:varchar(64);not null;default:''" json:"state_before,omitempty"`
+	StateAfter    string     `gorm:"type:varchar(64);not null;default:''" json:"state_after,omitempty"`
+	CorrelationID string     `gorm:"type:varchar(128);not null;default:''" json:"correlation_id,omitempty"`
+	Data          JSONB      `gorm:"type:jsonb;not null;default:'{}'" json:"data"`
+}
+
+func (ChargingTraceEvent) TableName() string { return "charging_trace_events" }
 
 type HALFactReceipt struct {
 	FactID      uuid.UUID `gorm:"type:uuid;primaryKey" json:"fact_id"`

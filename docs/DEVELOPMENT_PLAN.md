@@ -1133,10 +1133,19 @@ Current phase:
 
 Active feature:
 
-- CMS HAL operational capability layer
+- First-class CMS/HAL charging transaction trace / waterfall
 
 Current implementation slice:
 
+- In progress: additive cross-stack trace evidence. CMS creates an opaque
+  trace ID before command delivery, persists sanitized APP/CMS diagnostic
+  evidence, exposes tenant-scoped `charging_traces.read` queries, and merges
+  the private HAL read as an explicitly partial source. HAL retains
+  connector-aware OCPP evidence under the same root (or creates a HAL-owned
+  root for a charger-initiated transaction). Trace data is never authority for
+  sessions, connector state, wallet/billing, or OCPP acknowledgement. The
+  pending source-only migrations are 000059 (CMS) and 018 (HAL); no database
+  application or deployment is part of this work item.
 - Completed and deployed CPO UAC authority coherence: protected CPO routes use
   their documented capabilities with active-membership/app-ID context, not a
   hard-coded ADMIN role. The slice distinguishes ordinary permission denial

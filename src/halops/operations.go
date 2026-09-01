@@ -151,6 +151,7 @@ type ChargerMapping struct {
 }
 
 type StartRequest struct {
+	TraceID             uuid.UUID
 	CMSCommandID        uuid.UUID
 	CMSStartIntentID    uuid.UUID
 	CPOID               uuid.UUID
@@ -170,6 +171,7 @@ type StartRequest struct {
 }
 
 type StopRequest struct {
+	TraceID                uuid.UUID
 	CMSCommandID           uuid.UUID
 	CMSChargingSessionID   uuid.UUID
 	CPOID                  uuid.UUID
@@ -193,6 +195,25 @@ type Command struct {
 	HALTransactionID  *uuid.UUID
 	OCPPTransactionID *int64
 	UpdatedAt         time.Time
+}
+
+type TraceResult struct {
+	Trace  halclient.Trace
+	Events []halclient.TraceEvent
+}
+
+// GetTrace keeps the private HAL read behind the CMS integration boundary.
+// A diagnostic read failure is intentionally returned to the caller as a
+// partial-source condition; it has no charging lifecycle side effect.
+func (service *Service) GetTrace(ctx context.Context, traceID uuid.UUID, before time.Time, beforeID uuid.UUID, limit int) (TraceResult, error) {
+	if !service.Available() {
+		return TraceResult{}, halclient.ErrUnavailable
+	}
+	trace, events, err := service.client.GetTrace(ctx, traceID, before, beforeID, limit)
+	if err != nil {
+		return TraceResult{}, err
+	}
+	return TraceResult{Trace: trace, Events: events}, nil
 }
 
 func fromWireCommand(command halclient.Command) Command {
@@ -243,7 +264,7 @@ func (service *Service) RequestStart(ctx context.Context, request StartRequest, 
 	if !service.Available() {
 		return Command{}, halclient.ErrUnavailable
 	}
-	command, err := service.client.Start(ctx, halclient.StartCommand{CMSCommandID: request.CMSCommandID, CMSStartIntentID: request.CMSStartIntentID, CPOID: request.CPOID, CustomerID: request.CustomerID, CMSChargerID: request.CMSChargerID, CMSConnectorID: request.CMSConnectorID, ChargerOCPPIdentity: request.ChargerOCPPIdentity, OCPPConnectorNumber: request.OCPPConnectorNumber, IDTag: request.Credential, CredentialExpiresAt: request.CredentialExpiresAt, CommandExpiresAt: request.CommandExpiresAt, LimitType: request.LimitType, EnergyLimitWh: request.EnergyLimitWh, EnergyLimitSource: request.EnergyLimitSource, MaxDurationSeconds: request.MaxDurationSeconds, DurationLimitSource: request.DurationLimitSource}, correlationID)
+	command, err := service.client.Start(ctx, halclient.StartCommand{TraceID: request.TraceID, CMSCommandID: request.CMSCommandID, CMSStartIntentID: request.CMSStartIntentID, CPOID: request.CPOID, CustomerID: request.CustomerID, CMSChargerID: request.CMSChargerID, CMSConnectorID: request.CMSConnectorID, ChargerOCPPIdentity: request.ChargerOCPPIdentity, OCPPConnectorNumber: request.OCPPConnectorNumber, IDTag: request.Credential, CredentialExpiresAt: request.CredentialExpiresAt, CommandExpiresAt: request.CommandExpiresAt, LimitType: request.LimitType, EnergyLimitWh: request.EnergyLimitWh, EnergyLimitSource: request.EnergyLimitSource, MaxDurationSeconds: request.MaxDurationSeconds, DurationLimitSource: request.DurationLimitSource}, correlationID)
 	return fromWireCommand(command), err
 }
 
@@ -251,7 +272,7 @@ func (service *Service) RequestStop(ctx context.Context, request StopRequest, co
 	if !service.Available() {
 		return Command{}, halclient.ErrUnavailable
 	}
-	command, err := service.client.Stop(ctx, halclient.StopCommand{CMSCommandID: request.CMSCommandID, CMSChargingSessionID: request.CMSChargingSessionID, CPOID: request.CPOID, CustomerID: request.CustomerID, CMSChargerID: request.CMSChargerID, CMSConnectorID: request.CMSConnectorID, ChargerOCPPIdentity: request.ChargerOCPPIdentity, OCPPConnectorNumber: request.OCPPConnectorNumber, HALTransactionID: request.HALTransactionID, OCPPTransactionID: request.OCPPTransactionID, RequestedStopInitiator: request.RequestedStopInitiator, RequestedStopReason: request.RequestedStopReason, CommandExpiresAt: request.CommandExpiresAt}, correlationID)
+	command, err := service.client.Stop(ctx, halclient.StopCommand{TraceID: request.TraceID, CMSCommandID: request.CMSCommandID, CMSChargingSessionID: request.CMSChargingSessionID, CPOID: request.CPOID, CustomerID: request.CustomerID, CMSChargerID: request.CMSChargerID, CMSConnectorID: request.CMSConnectorID, ChargerOCPPIdentity: request.ChargerOCPPIdentity, OCPPConnectorNumber: request.OCPPConnectorNumber, HALTransactionID: request.HALTransactionID, OCPPTransactionID: request.OCPPTransactionID, RequestedStopInitiator: request.RequestedStopInitiator, RequestedStopReason: request.RequestedStopReason, CommandExpiresAt: request.CommandExpiresAt}, correlationID)
 	return fromWireCommand(command), err
 }
 

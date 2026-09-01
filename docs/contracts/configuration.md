@@ -65,13 +65,16 @@ must be positive.
 | Variable | Default / validation |
 |---|---|
 | `PLATFORM_EVENT_RETENTION` | `168h`; positive durable event retention |
+| `PLATFORM_CHARGING_TRACE_RETENTION` | `720h`; positive retention for diagnostic charging-trace evidence only |
 | `PLATFORM_REALTIME_POLL_INTERVAL` | `1s`; positive PostgreSQL catch-up interval |
 | `PLATFORM_REALTIME_HEARTBEAT_INTERVAL` | `15s`; must exceed the polling interval |
 | `PLATFORM_REALTIME_BATCH_SIZE` | `100`; integer from 1 through 500 |
 | `PLATFORM_WORKER_STALE_AFTER` | `2m`; positive and longer than `PLATFORM_MAINTENANCE_INTERVAL` |
 | `PLATFORM_MAINTENANCE_INTERVAL` | `1m`; positive event-cleanup and maintenance heartbeat interval |
 
-The platform-maintenance worker deletes expired event rows and reports a
+The platform-maintenance worker deletes expired event rows and bounded expired
+charging-trace evidence rows. Trace cleanup never deletes or changes charging
+sessions, wallet state, commands, facts, or connector state. It reports a
 durable heartbeat. The mail worker also reports durable heartbeats when mail is
 enabled. At startup the application assigns one process-incarnation key per
 enabled worker and readiness requires that exact key to have a fresh, healthy

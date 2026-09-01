@@ -212,8 +212,8 @@ foreach ($route in $retiredRoutes) {
 }
 
 $operationCount = ([regex]::Matches($openAPI, '(?m)^\s{6}operationId:\s+')).Count
-if ($operationCount -ne 217) {
-	throw "OpenAPI contains $operationCount operations; expected 217."
+if ($operationCount -ne 219) {
+	throw "OpenAPI contains $operationCount operations; expected 219."
 }
 
 if ($openAPI.Contains('/api/v1/cpo/profile')) {

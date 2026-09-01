@@ -69,6 +69,7 @@ type ChargingStopRequest struct {
 	Reason string `json:"reason"`
 }
 type ChargingStartResponse struct {
+	TraceID       uuid.UUID                   `json:"trace_id"`
 	StartIntentID uuid.UUID                   `json:"start_intent_id"`
 	Status        constants.StartIntentStatus `json:"status"`
 	SessionID     *uuid.UUID                  `json:"session_id,omitempty"`
@@ -250,7 +251,11 @@ func existingChargingStartResponse(intent models.ChargingStartIntent) ChargingSt
 }
 
 func chargingStartResponse(intent models.ChargingStartIntent) ChargingStartResponse {
-	return ChargingStartResponse{StartIntentID: intent.ID, Status: intent.Status, SessionID: intent.MaterializedSessionID, Limit: chargingLimitView(intent)}
+	response := ChargingStartResponse{StartIntentID: intent.ID, Status: intent.Status, SessionID: intent.MaterializedSessionID, Limit: chargingLimitView(intent)}
+	if intent.TraceID != nil {
+		response.TraceID = *intent.TraceID
+	}
+	return response
 }
 
 func chargingLimitView(intent models.ChargingStartIntent) ChargingLimitView {
@@ -379,7 +384,7 @@ func (service *Service) StartCharging(ctx context.Context, principal Principal, 
 	if err != nil {
 		return ChargingStartResponse{}, fmt.Errorf("create charging credential: %w", err)
 	}
-	intentID, commandID := uuid.New(), uuid.New()
+	traceID, intentID, commandID := uuid.New(), uuid.New(), uuid.New()
 	var intent models.ChargingStartIntent
 	var mapping halops.ChargerMapping
 	err = service.database.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
@@ -467,18 +472,22 @@ func (service *Service) StartCharging(ctx context.Context, principal Principal, 
 			}
 			return &APIError{http.StatusConflict, "insufficient_wallet_balance", "The wallet balance is insufficient for charging."}
 		}
-		intent = models.ChargingStartIntent{ID: intentID, CPOID: principal.CPOID, CustomerID: principal.CustomerID, ChargerID: charger.ID, ConnectorID: connector.ID, WalletID: wallet.ID, TariffID: tariff.ID, Status: constants.StartIntentStatusRequested, CredentialHash: hash, CredentialExpiresAt: now.Add(chargingCredentialLifetime), CommandExpiresAt: now.Add(chargingCommandLifetime), LimitType: effectiveLimit.Type, RequestedLimitValue: effectiveLimit.RequestedValue, EnergyLimitWh: effectiveLimit.EnergyLimitWh, EnergyLimitSource: effectiveLimit.EnergyLimitSource, MaxDurationSeconds: effectiveLimit.MaxDurationSeconds, DurationLimitSource: effectiveLimit.DurationLimitSource, TariffSnapshot: pricing.snapshot(tariff), TaxSnapshot: taxSnapshot(*charger.HubID, gst), CreatedAt: now, UpdatedAt: now}
+		intent = models.ChargingStartIntent{ID: intentID, TraceID: &traceID, CPOID: principal.CPOID, CustomerID: principal.CustomerID, ChargerID: charger.ID, ConnectorID: connector.ID, WalletID: wallet.ID, TariffID: tariff.ID, Status: constants.StartIntentStatusRequested, CredentialHash: hash, CredentialExpiresAt: now.Add(chargingCredentialLifetime), CommandExpiresAt: now.Add(chargingCommandLifetime), LimitType: effectiveLimit.Type, RequestedLimitValue: effectiveLimit.RequestedValue, EnergyLimitWh: effectiveLimit.EnergyLimitWh, EnergyLimitSource: effectiveLimit.EnergyLimitSource, MaxDurationSeconds: effectiveLimit.MaxDurationSeconds, DurationLimitSource: effectiveLimit.DurationLimitSource, TariffSnapshot: pricing.snapshot(tariff), TaxSnapshot: taxSnapshot(*charger.HubID, gst), CreatedAt: now, UpdatedAt: now}
 		if err := tx.Create(&intent).Error; err != nil {
 			return err
 		}
+		// Trace rows are diagnostic evidence only. Their availability must not
+		// decide whether an otherwise valid charging command is accepted.
+		_ = service.recordChargingTrace(tx, traceID, principal.CPOID, nil, "APP", "CMS", "REQUEST", "HTTP", "PRE_START", "Charging start request accepted", correlationID, models.JSONB{"start_intent_id": intentID.String(), "connector_id": request.ConnectorID.String()})
 		hold := models.WalletHold{ID: uuid.New(), CPOID: principal.CPOID, WalletID: wallet.ID, StartIntentID: intent.ID, Amount: effectiveLimit.HoldAmount, Currency: tariff.Currency, Status: constants.WalletHoldStatusHeld, CreatedAt: now, UpdatedAt: now}
 		if err := tx.Create(&hold).Error; err != nil {
 			return err
 		}
-		command := models.HALCommandRecord{CMSCommandID: commandID, CPOID: principal.CPOID, Kind: "START", StartIntentID: &intentID, State: "PERSISTED", CommandExpiresAt: intent.CommandExpiresAt, CreatedAt: now, UpdatedAt: now}
+		command := models.HALCommandRecord{CMSCommandID: commandID, TraceID: &traceID, CPOID: principal.CPOID, Kind: "START", StartIntentID: &intentID, State: "PERSISTED", CommandExpiresAt: intent.CommandExpiresAt, CreatedAt: now, UpdatedAt: now}
 		if err := tx.Create(&command).Error; err != nil {
 			return err
 		}
+		_ = service.recordChargingTrace(tx, traceID, principal.CPOID, nil, "CMS", "HAL", "COMMAND", "HTTP", "STARTING", "Start command persisted", correlationID, models.JSONB{"cms_command_id": commandID.String()})
 		mapping = halops.ChargerMapping{CPOID: principal.CPOID, CMSChargerID: charger.ID, ChargerOCPPIdentity: charger.OCPPIdentity, ExpectedSerial: strings.TrimSpace(charger.SerialNumber), Enabled: true, Connectors: make([]halops.ConnectorMapping, 0, len(connectors))}
 		for _, mappedConnector := range connectors {
 			mapping.Connectors = append(mapping.Connectors, halops.ConnectorMapping{CMSConnectorID: mappedConnector.ID, OCPPConnectorNumber: mappedConnector.ConnectorNumber})
@@ -502,7 +511,7 @@ func (service *Service) StartCharging(ctx context.Context, principal Principal, 
 		}
 		return ChargingStartResponse{}, chargerMappingUnavailable()
 	}
-	command, err := service.hal.RequestStart(ctx, halops.StartRequest{CMSCommandID: commandID, CMSStartIntentID: intentID, CPOID: principal.CPOID, CustomerID: principal.CustomerID, CMSChargerID: charger.ID, CMSConnectorID: request.ConnectorID, ChargerOCPPIdentity: charger.OCPPIdentity, OCPPConnectorNumber: requestConnectorNumber(mapping, request.ConnectorID), Credential: credential, CredentialExpiresAt: intent.CredentialExpiresAt, CommandExpiresAt: intent.CommandExpiresAt, LimitType: string(intent.LimitType), EnergyLimitWh: intent.EnergyLimitWh, EnergyLimitSource: string(intent.EnergyLimitSource), MaxDurationSeconds: intent.MaxDurationSeconds, DurationLimitSource: string(intent.DurationLimitSource)}, correlationID)
+	command, err := service.hal.RequestStart(ctx, halops.StartRequest{TraceID: traceID, CMSCommandID: commandID, CMSStartIntentID: intentID, CPOID: principal.CPOID, CustomerID: principal.CustomerID, CMSChargerID: charger.ID, CMSConnectorID: request.ConnectorID, ChargerOCPPIdentity: charger.OCPPIdentity, OCPPConnectorNumber: requestConnectorNumber(mapping, request.ConnectorID), Credential: credential, CredentialExpiresAt: intent.CredentialExpiresAt, CommandExpiresAt: intent.CommandExpiresAt, LimitType: string(intent.LimitType), EnergyLimitWh: intent.EnergyLimitWh, EnergyLimitSource: string(intent.EnergyLimitSource), MaxDurationSeconds: intent.MaxDurationSeconds, DurationLimitSource: string(intent.DurationLimitSource)}, correlationID)
 	if err != nil {
 		if recordErr := service.markHALStartCommandFailure(ctx, commandID, err); recordErr != nil {
 			return ChargingStartResponse{}, fmt.Errorf("record uncertain HAL start delivery: %w", recordErr)
@@ -543,6 +552,9 @@ func (service *Service) StartCharging(ctx context.Context, principal Principal, 
 		}
 		if err := tx.Model(&persistedIntent).Updates(map[string]any{"status": status, "hal_command_id": command.HALCommandID, "updated_at": now}).Error; err != nil {
 			return err
+		}
+		if persistedIntent.TraceID != nil {
+			_ = service.recordChargingTrace(tx, *persistedIntent.TraceID, persistedIntent.CPOID, persistedIntent.MaterializedSessionID, "HAL", "CMS", "COMMAND", "HTTP", "STARTING", "HAL recorded start command outcome", correlationID, models.JSONB{"cms_command_id": commandID.String(), "hal_command_id": command.HALCommandID.String(), "state": command.State})
 		}
 		response.Status = status
 		return nil
@@ -849,13 +861,20 @@ func commandDeliveryFailureDiagnostic(cause error) (string, string) {
 func (service *Service) markHALStartCommandFailure(ctx context.Context, commandID uuid.UUID, cause error) error {
 	category, detail := commandDeliveryFailureDiagnostic(cause)
 	return service.database.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		if err := tx.Model(&models.HALCommandRecord{}).Where("cms_command_id = ?", commandID).Updates(map[string]any{
+		var command models.HALCommandRecord
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&command, "cms_command_id = ?", commandID).Error; err != nil {
+			return err
+		}
+		if err := tx.Model(&command).Updates(map[string]any{
 			"state":               "RECONCILIATION_REQUIRED",
 			"last_error_category": category,
 			"last_error_detail":   detail,
 			"updated_at":          service.now(),
 		}).Error; err != nil {
 			return err
+		}
+		if command.TraceID != nil {
+			_ = service.recordChargingTrace(tx, *command.TraceID, command.CPOID, nil, "CMS", "HAL", "FAILURE", "HTTP", "STARTING", "HAL start command requires reconciliation", "", models.JSONB{"cms_command_id": commandID.String(), "error_class": category})
 		}
 		return tx.Model(&models.ChargingStartIntent{}).Where("id = (SELECT start_intent_id FROM hal_command_records WHERE cms_command_id = ?)", commandID).Updates(map[string]any{"status": constants.StartIntentStatusReconciliation, "updated_at": service.now()}).Error
 	})
@@ -867,8 +886,15 @@ func (service *Service) markHALStartCommandFailure(ctx context.Context, commandI
 func (service *Service) markHALStopCommandFailure(ctx context.Context, commandID uuid.UUID, cause error) error {
 	category, detail := commandDeliveryFailureDiagnostic(cause)
 	return service.database.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		if err := tx.Model(&models.HALCommandRecord{}).Where("cms_command_id = ? AND kind = ?", commandID, "STOP").Updates(map[string]any{"state": "RECONCILIATION_REQUIRED", "last_error_category": category, "last_error_detail": detail, "updated_at": service.now()}).Error; err != nil {
+		var command models.HALCommandRecord
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&command, "cms_command_id = ? AND kind = ?", commandID, "STOP").Error; err != nil {
 			return err
+		}
+		if err := tx.Model(&command).Updates(map[string]any{"state": "RECONCILIATION_REQUIRED", "last_error_category": category, "last_error_detail": detail, "updated_at": service.now()}).Error; err != nil {
+			return err
+		}
+		if command.TraceID != nil {
+			_ = service.recordChargingTrace(tx, *command.TraceID, command.CPOID, command.ChargingSessionID, "CMS", "HAL", "FAILURE", "HTTP", "STOPPING", "HAL stop command requires reconciliation", "", models.JSONB{"cms_command_id": commandID.String(), "error_class": category})
 		}
 		return tx.Model(&models.ChargingSession{}).Where("id = (SELECT charging_session_id FROM hal_command_records WHERE cms_command_id = ?) AND end_time IS NULL", commandID).Updates(map[string]any{"status": constants.SessionStatusStopPending, "updated_at": service.now()}).Error
 	})
@@ -975,11 +1001,17 @@ func (service *Service) StopCharging(ctx context.Context, principal Principal, s
 		return err
 	}
 	commandID := uuid.New()
+	traceID := uuid.New()
+	if session.TraceID != nil {
+		traceID = *session.TraceID
+	}
 	expires := service.now().Add(chargingCommandLifetime)
 	if err := service.database.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		if err := tx.Create(&models.HALCommandRecord{CMSCommandID: commandID, CPOID: principal.CPOID, Kind: "STOP", ChargingSessionID: &sessionID, State: "PERSISTED", CommandExpiresAt: expires, CreatedAt: service.now(), UpdatedAt: service.now()}).Error; err != nil {
+		if err := tx.Create(&models.HALCommandRecord{CMSCommandID: commandID, TraceID: &traceID, CPOID: principal.CPOID, Kind: "STOP", ChargingSessionID: &sessionID, State: "PERSISTED", CommandExpiresAt: expires, CreatedAt: service.now(), UpdatedAt: service.now()}).Error; err != nil {
 			return err
 		}
+		_ = service.recordChargingTrace(tx, traceID, principal.CPOID, &sessionID, "APP", "CMS", "REQUEST", "HTTP", "STOPPING", "Charging stop request accepted", correlation, models.JSONB{"cms_command_id": commandID.String(), "connector_id": session.ConnectorID.String()})
+		_ = service.recordChargingTrace(tx, traceID, principal.CPOID, &sessionID, "CMS", "HAL", "COMMAND", "HTTP", "STOPPING", "Stop command persisted", correlation, models.JSONB{"cms_command_id": commandID.String()})
 		update := tx.Model(&models.ChargingSession{}).Where("id = ? AND status = ?", sessionID, constants.SessionStatusActive).Updates(map[string]any{"status": constants.SessionStatusStopPending, "updated_at": service.now()})
 		if update.Error != nil {
 			return update.Error
@@ -988,11 +1020,17 @@ func (service *Service) StopCharging(ctx context.Context, principal Principal, s
 			return &APIError{http.StatusConflict, "session_not_stoppable", "The charging session is not active."}
 		}
 		session.Status = constants.SessionStatusStopPending
+		if session.TraceID == nil {
+			if err := tx.Model(&models.ChargingSession{}).Where("id = ?", sessionID).Update("trace_id", traceID).Error; err != nil {
+				return err
+			}
+			session.TraceID = &traceID
+		}
 		return service.emitChargingSessionChanged(tx, session)
 	}); err != nil {
 		return err
 	}
-	command, err := service.hal.RequestStop(ctx, halops.StopRequest{CMSCommandID: commandID, CMSChargingSessionID: sessionID, CPOID: principal.CPOID, CustomerID: principal.CustomerID, CMSChargerID: charger.ID, CMSConnectorID: connector.ID, ChargerOCPPIdentity: charger.OCPPIdentity, OCPPConnectorNumber: connector.ConnectorNumber, HALTransactionID: *session.HALTransactionID, OCPPTransactionID: session.TransactionID, RequestedStopInitiator: "CUSTOMER", RequestedStopReason: strings.TrimSpace(request.Reason), CommandExpiresAt: expires}, correlation)
+	command, err := service.hal.RequestStop(ctx, halops.StopRequest{TraceID: traceID, CMSCommandID: commandID, CMSChargingSessionID: sessionID, CPOID: principal.CPOID, CustomerID: principal.CustomerID, CMSChargerID: charger.ID, CMSConnectorID: connector.ID, ChargerOCPPIdentity: charger.OCPPIdentity, OCPPConnectorNumber: connector.ConnectorNumber, HALTransactionID: *session.HALTransactionID, OCPPTransactionID: session.TransactionID, RequestedStopInitiator: "CUSTOMER", RequestedStopReason: strings.TrimSpace(request.Reason), CommandExpiresAt: expires}, correlation)
 	if err != nil {
 		return service.markHALStopCommandFailure(ctx, commandID, err)
 	}

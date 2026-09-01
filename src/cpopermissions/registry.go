@@ -24,6 +24,7 @@ const (
 	TariffsManage          = "tariffs.manage"
 	CustomersRead          = "customers.read"
 	ChargingSessionsRead   = "charging_sessions.read"
+	ChargingTracesRead     = "charging_traces.read"
 	AnalyticsRead          = "analytics.read"
 	SupportRead            = "support.read"
 	SupportCreate          = "support.create"
@@ -54,6 +55,7 @@ var catalog = []Definition{
 	{TariffsManage, "tariffs", "Manage tariffs", "Change tariffs, GST, and customer-group commercial configuration."},
 	{CustomersRead, "customers", "View customers", "View CPO-local customers, wallets, and customer transaction history."},
 	{ChargingSessionsRead, "charging_sessions", "View charging sessions", "View CPO charging-session and charger-transaction projections."},
+	{ChargingTracesRead, "charging_traces", "View charging traces", "View diagnostic CMS and HAL transaction evidence for a CPO charging session."},
 	{AnalyticsRead, "analytics", "View analytics", "View CPO analytics and summarized operational reporting."},
 	{SupportRead, "support", "View support", "View the CPO's support queue and ticket history."},
 	{SupportCreate, "support", "Create support tickets", "Open a new support ticket for the CPO."},
@@ -67,7 +69,7 @@ var roleDefaults = map[constants.CPORole][]string{
 	constants.CPORoleAdmin: allKeys(),
 	constants.CPORoleOperator: {
 		OrganizationRead, HubsRead, HubsManage, ChargersRead, ChargersManage,
-		ChargersOperations, TariffsRead, CustomersRead, ChargingSessionsRead,
+		ChargersOperations, TariffsRead, CustomersRead, ChargingSessionsRead, ChargingTracesRead,
 		AnalyticsRead, SupportRead, SupportCreate, SupportReply, SettingsRead,
 	},
 	constants.CPORoleViewer: {

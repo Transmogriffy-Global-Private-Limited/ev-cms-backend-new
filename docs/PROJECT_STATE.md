@@ -2,6 +2,19 @@
 
 ## Current State
 
+### 2026-09-01 - Charging transaction trace source implementation verified, not deployed
+
+- The current CMS source adds additive migration 000059 and a
+  CPO-scoped diagnostic waterfall for CMS/HAL charging evidence. CMS creates
+  opaque trace IDs before command delivery, retains only sanitized trace
+  metadata, exposes `charging_traces.read` to OWNER/ADMIN/OPERATOR defaults,
+  and merges private HAL diagnostic evidence without making it authoritative.
+- Trace retention is bounded and leaves session, wallet, settlement, command,
+  fact, and connector authorities untouched. The source contract has 219
+  OpenAPI operations and a CPO frontend handoff. No migration was applied, no
+  deployment/restart occurred, and no physical charger or PostgreSQL lifecycle
+  integration is claimed.
+
 ### 2026-09-01 - CPO capability authority coherence deployed
 
 - CPO endpoint authority now comes from the documented capability evaluated
