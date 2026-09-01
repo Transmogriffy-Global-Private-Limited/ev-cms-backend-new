@@ -4,7 +4,7 @@ Status: Verified
 Owner: Codex
 Collaborators: Abhranil Pal (source branch contribution)
 Started: 2026-09-01
-Last updated: 2026-09-01 (semantic reconciliation and local verification complete)
+Last updated: 2026-09-01 (semantic reconciliation, deployment, and verification complete)
 
 Development-plan reference: CPO reporting and session projections
 Detailed-plan reference: chronology override for `abhranil_ev_cms_backend_new`
@@ -28,7 +28,7 @@ authorization, trace, realtime, and session behaviour.
 ## Non-goals
 
 - Pricing, tariff calculation, tax calculation, charging control, migrations,
-  deployment, or database mutation.
+  or database mutation.
 
 ## Claimed surfaces
 
@@ -63,6 +63,5 @@ authorization, trace, realtime, and session behaviour.
 
 ## Completion
 
-- Semantic reconciliation and local verification are complete. Publication is
-  authorized by the follow-on branch-synchronization instruction; migration,
-  deployment, restart, and database mutation remain out of scope.
+- Semantic reconciliation, deployment, and local/public verification are
+  complete. No migration or database mutation was required.

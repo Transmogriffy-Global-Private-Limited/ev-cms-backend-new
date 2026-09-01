@@ -1138,12 +1138,13 @@ Active feature:
 
 Current implementation slice:
 
-- Source-only reconciliation extends CPO session list/detail responses with
+- Completed and deployed reconciliation extends CPO session list/detail responses with
   snapshot-first tariff price/unit and GST rates plus the durable customer
   start-limit type/value. It uses current tariff/GST only as a legacy fallback,
   preserves the separate tariff billing and customer limit dimensions, and
   keeps start-intent hydration bounded and CPO-scoped. No pricing calculation,
-  migration, deployment, or data mutation is part of this slice.
+  migration, or data mutation was required. Runtime revision `e263463` is
+  active with migration 059 and 219 OpenAPI operations.
 - Completed and deployed CMS slice: additive cross-stack trace evidence. CMS creates an opaque
   trace ID before command delivery, persists sanitized APP/CMS diagnostic
   evidence, exposes tenant-scoped `charging_traces.read` queries, and merges

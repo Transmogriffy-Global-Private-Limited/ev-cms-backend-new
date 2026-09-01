@@ -1,6 +1,6 @@
 # AI Changelog
 
-## 2026-09-01 - Reconcile CPO historical charging-session commercial projection
+## 2026-09-01 - Deploy CPO historical charging-session commercial projection
 
 - Semantically integrated the two reviewed `abhranil_ev_cms_backend_new`
   session-projection commits onto current main without merging their older
@@ -11,9 +11,19 @@
   and repository-owned, so list reads avoid N+1 service queries. No commercial
   calculation, migration, deployment, or database mutation changed.
 
-Verification: focused CPO projection and OpenAPI/runtime tests plus the docs
-verifier pass locally. PostgreSQL-gated integration cases remain skipped
-without `TEST_DATABASE_URL`.
+Rebuilt and rehosted revision `e263463`; the active binary SHA-256 is
+`0f569f47d79f22f5599dbfb2370c29312a5aa42038c5f9ecc53ef4f6ce72bb11`. The
+previous binary is retained at
+`/root/evcmsnew-backups/pre-e263463-20260901T101829Z`. No migration was
+required; migration 000059 remains current.
+
+Verification: focused CPO projection and OpenAPI/runtime tests, full `go test
+-p 1 ./...`, `go vet -p 1 ./...`, successful production build, loopback/public
+live and readiness, Swagger/OpenAPI (219 operations), Caddy validation,
+migration state, and post-rehost startup checks pass. The PowerShell
+documentation verifier and PostgreSQL-gated integration cases remain skipped
+because `pwsh` and a disposable `TEST_DATABASE_URL` are unavailable; physical
+charger and SMTP delivery acceptance remain unclaimed.
 
 ## 2026-09-01 - Deploy charging transaction diagnostic trace
 

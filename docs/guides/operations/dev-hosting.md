@@ -29,9 +29,10 @@ that setting; it must not be used until the OCPP host is explicitly configured
 with TLS/WebSocket support.
 
 The active deployment was updated on September 1, 2026 to runtime source
-revision `3037c46` (charging transaction trace). It has migrations one
-through fifty-nine and the current 219-operation API. The binary SHA-256 is
-`2f87378e9bda54d8b8db54877add2c363b8293c7fbd34766a864f9e931759da8`.
+revision `e263463` (CPO historical charging-session commercial projection). It
+has migrations one through fifty-nine and the current 219-operation API. The
+binary SHA-256 is
+`0f569f47d79f22f5599dbfb2370c29312a5aa42038c5f9ecc53ef4f6ce72bb11`.
 The pre-migration binary and database dump for migrations 49 through 53 are
 retained under `/root/evcmsnew-backups/` and
 `builds/evcmsnew.pre-162b3be-20260825-135452` and the newer
@@ -264,7 +265,7 @@ content exclusions are defined in
 `docs/contracts/internal/http-request-logging.md`. Long-lived SSE requests are
 recorded when they disconnect. A recovered panic first emits a correlated safe
 JSON stack diagnostic without Gin's request dump or the panic value. The
-currently deployed `3037c46` binary includes this logger.
+currently deployed `e263463` binary includes this logger.
 
 The platform realtime SSE route is long-lived. If a browser holds that stream
 during a rehost, the application may log `shut down HTTP server: context
