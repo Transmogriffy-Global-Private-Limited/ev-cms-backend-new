@@ -955,7 +955,8 @@ Current source implementation:
 - Governance, security, mail, announcement/notification, overview, and status
   routes are implemented and represented with the CPO user lookup in the
   124-operation source OpenAPI contract. The added CPO charger hub-assignment
-  operation is CPO ADMIN-only and does not extend SuperAdmin authority.
+  operation requires its documented CPO capability and does not extend
+  SuperAdmin authority.
 - Focused source tests, route/OpenAPI parity, documentation verification, the
   full Go suite, vet, and diff checks pass.
 
@@ -1136,7 +1137,15 @@ Active feature:
 
 Current implementation slice:
 
-- CPO ADMIN live-session operations: `GET /operations/live-sessions` is the
+- Completed source-only CPO UAC authority coherence: protected CPO routes use
+  their documented capabilities with active-membership/app-ID context, not a
+  hard-coded ADMIN role. The slice distinguishes ordinary permission denial
+  from evaluator infrastructure failure, aligns support and integrations,
+  revokes only matching CPO sessions on an actual role change, preserves fresh
+  SSE authorization, and verifies OpenAPI Bearer+App-ID AND semantics. Broad
+  local Go verification and documentation/OpenAPI checks pass; PostgreSQL-gated
+  lifecycle cases remain deferred without `TEST_DATABASE_URL`.
+- CPO `chargers.operations` live-session operations: `GET /operations/live-sessions` is the
   full-snapshot SSE (initial `snapshot`, then replacement `live_sessions`
   frames) so the FE never reconstructs session state from invalidations. Each
   CPO-safe row carries `duration_seconds` at `as_of`, `customer_name`, and CMS
@@ -1419,9 +1428,10 @@ Deferred verification decision:
   manual subscription records never control tenant authorization.
 - HAL v1 is consumed through `integrations/ocpp-hal-boundary.md`; do not extend
   the provider contract without a separate approved contract change.
-- `OWNER`, `OPERATOR`, and `VIEWER` have staff-role catalog/override data, but
-  no current core administration or provider-integration route-level capability
-  enforcement. That expansion still requires an approved backend contract.
+- CPO roles are source-controlled default permission bundles. Endpoint authority
+  is the route's documented capability, evaluated against the current active
+  membership and overrides; explicit `DENY` wins. Custom roles and hub-scoped
+  delegation remain deferred.
 
 ## Verification Strategy
 

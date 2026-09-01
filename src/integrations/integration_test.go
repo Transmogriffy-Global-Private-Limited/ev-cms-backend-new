@@ -72,6 +72,18 @@ func TestCPOIntegrationCredentialIsolationWithPostgreSQL(t *testing.T) {
 		t.Fatalf("create test CPO: %v", err)
 	}
 	role := constants.CPORoleAdmin
+	membership := models.CPOMembership{
+		ID:        uuid.New(),
+		CPOID:     cpo.ID,
+		UserID:    user.ID,
+		Role:      role,
+		Status:    constants.MembershipStatusActive,
+		CreatedAt: now,
+		UpdatedAt: now,
+	}
+	if err := gormDB.Create(&membership).Error; err != nil {
+		t.Fatalf("create active CPO membership: %v", err)
+	}
 	principal := auth.Principal{
 		UserID: user.ID,
 		Scope:  constants.AuthScopeCPO,

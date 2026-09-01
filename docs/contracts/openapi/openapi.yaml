@@ -93,6 +93,7 @@ paths:
       tags: [CPO Operations - Account & Notifications]
       operationId: replyToCPOSupportTicket
       summary: Reply to a CPO support ticket
+      description: Requires both `support.read` and `support.reply`, because the successful response contains the complete ticket conversation and lifecycle history.
       security: [{BearerAuth: [], CPOAppID: []}]
       parameters: [{$ref: "#/components/parameters/SupportTicketID"}]
       requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/SupportReplyRequest"}}}}
@@ -145,7 +146,7 @@ paths:
       tags: [CPO Operations - Account & Notifications]
       operationId: listCPOAccessPermissions
       summary: List canonical CPO permission definitions for the active membership
-      security: [{BearerAuth: []}, {CPOAppID: []}]
+      security: [{BearerAuth: [], CPOAppID: []}]
       responses:
         "200": {description: Source-controlled permission definitions., content: {application/json: {schema: {$ref: "#/components/schemas/PermissionCatalogResponse"}}}}
         "401": {$ref: "#/components/responses/Unauthorized"}
@@ -155,7 +156,7 @@ paths:
       tags: [CPO Operations - Account & Notifications]
       operationId: getCPOAccessMe
       summary: Get the active CPO membership and effective permissions
-      security: [{BearerAuth: []}, {CPOAppID: []}]
+      security: [{BearerAuth: [], CPOAppID: []}]
       responses:
         "200": {description: Fresh CPO access projection., content: {application/json: {schema: {$ref: "#/components/schemas/CPOAccessMe"}}}}
         "401": {$ref: "#/components/responses/Unauthorized"}
@@ -165,7 +166,7 @@ paths:
       tags: [CPO Operations - Account & Notifications]
       operationId: listCPOPermissionCatalog
       summary: List the source-controlled CPO permission catalog
-      security: [{BearerAuth: []}, {CPOAppID: []}]
+      security: [{BearerAuth: [], CPOAppID: []}]
       responses:
         "200": {description: Known permission definitions., content: {application/json: {schema: {$ref: "#/components/schemas/PermissionCatalogResponse"}}}}
         "401": {$ref: "#/components/responses/Unauthorized"}
@@ -175,7 +176,7 @@ paths:
       tags: [CPO Operations - Account & Notifications]
       operationId: listCPOStaff
       summary: List CPO staff memberships and overrides
-      security: [{BearerAuth: []}, {CPOAppID: []}]
+      security: [{BearerAuth: [], CPOAppID: []}]
       responses:
         "200": {description: CPO staff., content: {application/json: {schema: {$ref: "#/components/schemas/StaffListResponse"}}}}
         "401": {$ref: "#/components/responses/Unauthorized"}
@@ -184,7 +185,7 @@ paths:
       tags: [CPO Operations - Account & Notifications]
       operationId: createCPOStaff
       summary: Create a non-primary CPO staff membership
-      security: [{BearerAuth: []}, {CPOAppID: []}]
+      security: [{BearerAuth: [], CPOAppID: []}]
       requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/CreateStaffRequest"}}}}
       responses:
         "201": {description: Created staff membership., content: {application/json: {schema: {$ref: "#/components/schemas/Staff"}}}}
@@ -197,7 +198,7 @@ paths:
       tags: [CPO Operations - Account & Notifications]
       operationId: getCPOStaff
       summary: Get one CPO staff membership
-      security: [{BearerAuth: []}, {CPOAppID: []}]
+      security: [{BearerAuth: [], CPOAppID: []}]
       parameters: [{$ref: "#/components/parameters/MembershipID"}]
       responses:
         "200": {description: CPO staff membership., content: {application/json: {schema: {$ref: "#/components/schemas/Staff"}}}}
@@ -209,7 +210,7 @@ paths:
       tags: [CPO Operations - Account & Notifications]
       operationId: updateCPOStaff
       summary: Update a non-primary staff role or override set
-      security: [{BearerAuth: []}, {CPOAppID: []}]
+      security: [{BearerAuth: [], CPOAppID: []}]
       parameters: [{$ref: "#/components/parameters/MembershipID"}]
       requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/UpdateStaffRequest"}}}}
       responses:
@@ -224,7 +225,7 @@ paths:
       tags: [CPO Operations - Account & Notifications]
       operationId: activateCPOStaff
       summary: Activate a non-primary staff membership
-      security: [{BearerAuth: []}, {CPOAppID: []}]
+      security: [{BearerAuth: [], CPOAppID: []}]
       parameters: [{$ref: "#/components/parameters/MembershipID"}]
       requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/ReasonRequest"}}}}
       responses: {"200": {description: Updated staff membership., content: {application/json: {schema: {$ref: "#/components/schemas/Staff"}}}}, "400": {$ref: "#/components/responses/InvalidRequest"}, "401": {$ref: "#/components/responses/Unauthorized"}, "403": {$ref: "#/components/responses/CPOBusinessForbidden"}, "404": {description: "`staff_not_found`"}, "409": {$ref: "#/components/responses/Conflict"}}
@@ -233,7 +234,7 @@ paths:
       tags: [CPO Operations - Account & Notifications]
       operationId: suspendCPOStaff
       summary: Suspend a non-primary staff membership and revoke its CPO sessions
-      security: [{BearerAuth: []}, {CPOAppID: []}]
+      security: [{BearerAuth: [], CPOAppID: []}]
       parameters: [{$ref: "#/components/parameters/MembershipID"}]
       requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/ReasonRequest"}}}}
       responses: {"200": {description: Updated staff membership., content: {application/json: {schema: {$ref: "#/components/schemas/Staff"}}}}, "400": {$ref: "#/components/responses/InvalidRequest"}, "401": {$ref: "#/components/responses/Unauthorized"}, "403": {$ref: "#/components/responses/CPOBusinessForbidden"}, "404": {description: "`staff_not_found`"}, "409": {$ref: "#/components/responses/Conflict"}}
@@ -242,7 +243,7 @@ paths:
       tags: [CPO Operations - Account & Notifications]
       operationId: revokeCPOStaff
       summary: Revoke a non-primary staff membership and its CPO sessions
-      security: [{BearerAuth: []}, {CPOAppID: []}]
+      security: [{BearerAuth: [], CPOAppID: []}]
       parameters: [{$ref: "#/components/parameters/MembershipID"}]
       requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/ReasonRequest"}}}}
       responses: {"200": {description: Updated staff membership., content: {application/json: {schema: {$ref: "#/components/schemas/Staff"}}}}, "400": {$ref: "#/components/responses/InvalidRequest"}, "401": {$ref: "#/components/responses/Unauthorized"}, "403": {$ref: "#/components/responses/CPOBusinessForbidden"}, "404": {description: "`staff_not_found`"}, "409": {$ref: "#/components/responses/Conflict"}}
@@ -255,7 +256,7 @@ paths:
       description: Returns a paginated list of charging sessions for the authenticated CPO, ordered by newest first.
       security:
         - BearerAuth: []
-        - CPOAppID: []
+          CPOAppID: []
       parameters:
         - $ref: "#/components/parameters/ListLimit"
         - $ref: "#/components/parameters/ListBefore"
@@ -297,7 +298,7 @@ paths:
       description: Returns a single charging session by ID.
       security:
         - BearerAuth: []
-        - CPOAppID: []
+          CPOAppID: []
       parameters:
         - name: session_id
           in: path
@@ -334,7 +335,7 @@ paths:
       description: Returns a paginated list of charger transactions for the authenticated CPO, ordered by newest first.
       security:
         - BearerAuth: []
-        - CPOAppID: []
+          CPOAppID: []
       parameters:
         - $ref: "#/components/parameters/ListLimit"
         - $ref: "#/components/parameters/ListBefore"
@@ -372,7 +373,7 @@ paths:
       description: Returns a paginated list of wallet transactions for all customers of the authenticated CPO, ordered by newest first.
       security:
         - BearerAuth: []
-        - CPOAppID: []
+          CPOAppID: []
       parameters:
         - $ref: "#/components/parameters/ListLimit"
         - $ref: "#/components/parameters/ListBefore"
@@ -406,7 +407,7 @@ paths:
       description: Returns a paginated list of wallet transactions for a given customer of the authenticated CPO, ordered by newest first.
       security:
         - BearerAuth: []
-        - CPOAppID: []
+          CPOAppID: []
       parameters:
         - $ref: "#/components/parameters/CustomerID"
         - $ref: "#/components/parameters/ListLimit"
@@ -3614,7 +3615,7 @@ paths:
       description: Returns the subscription details for the authenticated CPO.
       security:
         - BearerAuth: []
-        - CPOAppID: []
+          CPOAppID: []
       responses:
         "200":
           description: The CPO's current subscription.
@@ -3650,7 +3651,7 @@ paths:
         of chargers and connectors remain unfiltered.
       security:
         - BearerAuth: []
-        - CPOAppID: []
+          CPOAppID: []
       parameters:
         - name: period
           in: query
@@ -3696,7 +3697,7 @@ paths:
       summary: List customers for the authenticated CPO
       security:
         - BearerAuth: []
-        - CPOAppID: []
+          CPOAppID: []
       parameters:
         - $ref: "#/components/parameters/CPOAppIDHeader"
         - $ref: "#/components/parameters/ListBefore"
@@ -3744,7 +3745,7 @@ paths:
       summary: Get a specific customer for the authenticated CPO
       security:
         - BearerAuth: []
-        - CPOAppID: []
+          CPOAppID: []
       parameters:
         - $ref: "#/components/parameters/CPOAppIDHeader"
         - name: customer_id
@@ -3900,7 +3901,7 @@ paths:
         tenant.
       security:
         - BearerAuth: []
-        - CPOAppID: []
+          CPOAppID: []
       responses:
         "200":
           description: Current CPO settings.
@@ -3930,7 +3931,7 @@ paths:
         Creates or updates the settings for the authenticated CPO.
       security:
         - BearerAuth: []
-        - CPOAppID: []
+          CPOAppID: []
       requestBody:
         required: true
         content:
@@ -3963,7 +3964,7 @@ paths:
         Updates the settings for the authenticated CPO.
       security:
         - BearerAuth: []
-        - CPOAppID: []
+          CPOAppID: []
       requestBody:
         required: true
         content:
@@ -3996,7 +3997,7 @@ paths:
       description: Returns the invoice logo image previously uploaded for the CPO.
       security:
         - BearerAuth: []
-        - CPOAppID: []
+          CPOAppID: []
       parameters:
         - $ref: "#/components/parameters/CPOAppIDHeader"
       responses:
@@ -4060,7 +4061,7 @@ paths:
       tags: [CPO Operations - Live]
       operationId: listCPOOperationalEvents
       summary: Recover the tenant's retained operational events
-      description: CPO ADMIN-only cursor recovery for committed runtime projection notifications. REST fleet and charger projections remain authoritative.
+      description: Requires `chargers.operations` for cursor recovery of committed runtime projection notifications. REST fleet and charger projections remain authoritative.
       security: [{BearerAuth: [], CPOAppID: []}]
       parameters:
         - $ref: "#/components/parameters/CPOAppIDHeader"
@@ -4078,7 +4079,7 @@ paths:
       tags: [CPO Operations - Live]
       operationId: streamCPOOperationalEvents
       summary: Stream the tenant's retained operational events using SSE
-      description: CPO ADMIN-only SSE. The server revalidates the bearer session on heartbeats; clients deduplicate by event ID and use REST cursor recovery after reconnect.
+      description: Requires `chargers.operations`. The server revalidates the bearer session and fresh capability on heartbeats; clients deduplicate by event ID and use REST cursor recovery after reconnect.
       security: [{BearerAuth: [], CPOAppID: []}]
       parameters:
         - $ref: "#/components/parameters/CPOAppIDHeader"
@@ -4095,7 +4096,7 @@ paths:
       tags: [CPO Operations - Live]
       operationId: streamCPOLiveChargingSessions
       summary: Stream full materialized ongoing-session snapshots using SSE
-      description: CPO ADMIN-only SSE. It immediately emits a `snapshot` frame and emits a replacement-safe `live_sessions` frame after committed CHARGING_SESSION changes. Each frame contains the complete current CMS live-session projection for the requested limit, including duration in seconds at `as_of`, the CPO-visible customer name, and CMS connector UUID, never raw event rows or HAL calls. Reconnect this route to receive a new current snapshot; use the explicit snapshot route for non-stream recovery.
+      description: Requires `chargers.operations`. It immediately emits a `snapshot` frame and emits a replacement-safe `live_sessions` frame after committed CHARGING_SESSION changes. Each frame contains the complete current CMS live-session projection for the requested limit, including duration in seconds at `as_of`, the CPO-visible customer name, and CMS connector UUID, never raw event rows or HAL calls. Reconnect this route to receive a new current snapshot; use the explicit snapshot route for non-stream recovery.
       security: [{BearerAuth: [], CPOAppID: []}]
       parameters:
         - $ref: "#/components/parameters/CPOAppIDHeader"
@@ -4112,7 +4113,7 @@ paths:
       tags: [CPO Operations - Live]
       operationId: listCPOLiveChargingSessions
       summary: List materialized ongoing sessions with current operational telemetry
-      description: CPO ADMIN-only CMS recovery snapshot. Returns only ACTIVE, STOP_PENDING, and RECONCILIATION_REQUIRED sessions in start-time cursor order. It exposes duration in seconds at `as_of`, the CPO-visible customer name, human-readable charger/hub context, CMS connector UUID, and committed meter/SoC values and freshness; it never calls HAL and does not expose customer contact data, wallet, tariff, or settlement data.
+      description: Requires `chargers.operations`. Returns only ACTIVE, STOP_PENDING, and RECONCILIATION_REQUIRED sessions in start-time cursor order. It exposes duration in seconds at `as_of`, the CPO-visible customer name, human-readable charger/hub context, CMS connector UUID, and committed meter/SoC values and freshness; it never calls HAL and does not expose customer contact data, wallet, tariff, or settlement data.
       security: [{BearerAuth: [], CPOAppID: []}]
       parameters:
         - $ref: "#/components/parameters/CPOAppIDHeader"
@@ -4131,7 +4132,7 @@ paths:
       tags: [CPO Operations - Live]
       operationId: listCPOLiveChargingSessionEvents
       summary: Recover retained live-session invalidation events
-      description: CPO ADMIN-only durable replay filtered to CHARGING_SESSION events. This is an advanced cursor/reconciliation surface; the primary live-session UI consumes the full-snapshot SSE route. Event payload is not authoritative session state.
+      description: Requires `chargers.operations` for durable replay filtered to CHARGING_SESSION events. This is an advanced cursor/reconciliation surface; the primary live-session UI consumes the full-snapshot SSE route. Event payload is not authoritative session state.
       security: [{BearerAuth: [], CPOAppID: []}]
       parameters:
         - $ref: "#/components/parameters/CPOAppIDHeader"
@@ -4764,7 +4765,7 @@ paths:
       description: Get a list of chargers for a specific hub.
       security:
         - BearerAuth: []
-        - CPOAppID: []
+          CPOAppID: []
       responses:
         "200":
           description: Successfully retrieved chargers
@@ -4848,6 +4849,7 @@ paths:
       summary: "Assign a GST profile to a hub"
       description: "Assigns an existing GST profile to a charging hub. For a same-state Hub and GST, present SGST/CGST and zero IGST are required. For different states, present IGST and zero SGST/CGST are required. The same resulting-relationship validation protects replacement and later Hub/GST mutations. Invalid combinations return invalid_gst_for_hub."
       operationId: "assign-gst-to-hub"
+      security: [{BearerAuth: [], CPOAppID: []}]
       parameters:
         - name: "hub_id"
           in: "path"
@@ -4887,6 +4889,7 @@ paths:
       summary: "Get the assigned GST profile for a hub"
       description: "Returns the GST profile currently assigned to the specified hub, if any."
       operationId: "getHubGST"
+      security: [{BearerAuth: [], CPOAppID: []}]
       parameters:
         - name: "hub_id"
           in: "path"
@@ -4923,6 +4926,7 @@ paths:
       summary: "Update the assigned GST profile for a hub"
       description: "Replaces the currently assigned GST with a new one. The new GST must belong to the same CPO and not be assigned to another hub. State-aware complete-relationship validation applies: same-state assignments require present SGST/CGST and zero IGST; different-state assignments require present IGST and zero SGST/CGST. Invalid combinations return invalid_gst_for_hub."
       operationId: "updateHubGST"
+      security: [{BearerAuth: [], CPOAppID: []}]
       parameters:
         - name: "hub_id"
           in: "path"
@@ -4971,6 +4975,7 @@ paths:
       summary: "Unassign the GST profile from a hub"
       description: "Removes the currently assigned GST profile from the hub. The hub will then have no GST assigned."
       operationId: "unassignHubGST"
+      security: [{BearerAuth: [], CPOAppID: []}]
       parameters:
         - name: "hub_id"
           in: "path"
@@ -5873,6 +5878,7 @@ paths:
       operationId: removeMemberFromUserGroup
       summary: Remove a member from a user group
       description: Removes a customer from a user group.
+      security: [{BearerAuth: [], CPOAppID: []}]
       tags:
         - CPO Operations - Pricing & Tax
       parameters:
@@ -5930,8 +5936,8 @@ paths:
       summary: List configured integration metadata
       description: |
         Returns metadata only for the authenticated CPO. Secret plaintext is
-        never returned. Requires the currently supported CPO ADMIN session, a changed initial
-        password, and the current app-ID header.
+        never returned. Requires `settings.read`, a changed initial password,
+        and the current app-ID header.
       security:
         - BearerAuth: []
           CPOAppID: []
@@ -5963,6 +5969,7 @@ paths:
       tags: [CPO Operations - Integrations]
       operationId: getCPOIntegration
       summary: Get one integration's metadata
+      description: Requires `settings.read`; secret plaintext is never returned.
       security:
         - BearerAuth: []
           CPOAppID: []
@@ -5994,7 +6001,7 @@ paths:
       description: |
         Stores one encrypted credential object for the authenticated CPO.
         Associated authenticated-encryption data binds it to CPO and provider.
-        The response and audit log contain metadata only.
+        The response and audit log contain metadata only. Requires `settings.manage`.
       security:
         - BearerAuth: []
           CPOAppID: []
@@ -6030,7 +6037,7 @@ paths:
       tags: [CPO Operations - Integrations]
       operationId: deleteCPOIntegration
       summary: Remove the CPO's provider credentials
-      description: Deletes the encrypted credential row and records a safe audit event.
+      description: Deletes the encrypted credential row and records a safe audit event. Requires `settings.manage`.
       security:
         - BearerAuth: []
           CPOAppID: []

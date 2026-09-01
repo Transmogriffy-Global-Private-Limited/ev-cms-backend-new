@@ -62,7 +62,7 @@ $cpoAgentHandoff = Get-Content -Raw -LiteralPath (
     Join-Path $repositoryRoot 'docs/CPO_BACKEND_AGENT_HANDOFF.md'
 )
 $requiredCPOAgentRules = @(
-    'Current callable CPO staff authority is `ADMIN` only.',
+    'CPO endpoint authority is the documented capability, evaluated against the',
     'The presence of a table or Go model does not mean its workflow exists.',
     '`src/cpo/repository.go` is currently an empty package file.',
     'Twenty-seven migrations are already deployment history.',

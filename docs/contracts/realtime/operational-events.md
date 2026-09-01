@@ -19,8 +19,8 @@ emitted as misleading invalidations.
 
 | Consumer | REST recovery | SSE stream | Scope |
 | --- | --- | --- | --- |
-| CPO ADMIN | `GET /api/v1/cpo/operations/events` | `GET /api/v1/cpo/operations/realtime/stream` | Authenticated tenant and matching `X-CPO-App-ID` |
-| CPO ADMIN live-session table | `GET /api/v1/cpo/operations/live-sessions/snapshot` | `GET /api/v1/cpo/operations/live-sessions` | Authenticated CPO ADMIN and matching app ID; full initial/replacement `LiveChargingSessionListResponse` snapshots only |
+| CPO `chargers.operations` | `GET /api/v1/cpo/operations/events` | `GET /api/v1/cpo/operations/realtime/stream` | Authenticated active CPO membership, matching `X-CPO-App-ID`, and fresh `chargers.operations` |
+| CPO `chargers.operations` live-session table | `GET /api/v1/cpo/operations/live-sessions/snapshot` | `GET /api/v1/cpo/operations/live-sessions` | Authenticated active CPO membership, matching app ID, and fresh `chargers.operations`; full initial/replacement `LiveChargingSessionListResponse` snapshots only |
 | Platform | `GET /api/v1/platform/cpos/{cpo_id}/operations/events` | `GET /api/v1/platform/cpos/{cpo_id}/operations/realtime/stream` | `PLATFORM`, selected existing CPO, observation only |
 | User App legacy/general feed | `GET /api/v1/app/operations/events` | `GET /api/v1/app/operations/realtime/stream` | Authenticated CPO-local customer and matching app ID; retained invalidation/cursor compatibility only |
 | User App live-session collection | `GET /api/v1/app/operations/live-sessions/snapshot` | `GET /api/v1/app/operations/live-sessions` | Authenticated customer/app scope; full initial/replacement `CustomerLiveChargingSessionListResponse` only |
@@ -51,7 +51,8 @@ reconnect always gets a current snapshot; JSON recovery and keyset pagination
 use `/api/v1/cpo/operations/live-sessions/snapshot`. The retained
 `/live-sessions/events` cursor route is advanced reconciliation tooling, not
 required for the normal UI. The deprecated `/live-sessions/realtime/stream`
-route is a compatibility alias. Both SSE aliases recheck CPO ADMIN and
+route is a compatibility alias. Both SSE aliases recheck active CPO session,
+matching app ID, and `chargers.operations` on heartbeat and
 `X-CPO-App-ID` at each heartbeat.
 
 The two dedicated User App streams likewise keep operational events internal:

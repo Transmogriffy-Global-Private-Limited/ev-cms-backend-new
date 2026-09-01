@@ -66,7 +66,7 @@ committed CMS charger/connectors and calls
 identity, static `ACTIVE`-derived `enabled`, and every connector UUID/number.
 
 ```text
-CPO ADMIN inventory mutation -> CMS transaction + PENDING mapping
+CPO `chargers.manage` inventory mutation -> CMS transaction + PENDING mapping
 -> post-commit provider mapping -> SYNCHRONIZED
                               -> RECONCILIATION_REQUIRED
 -> bounded reconciler reuses the same committed mapping
@@ -128,8 +128,8 @@ evidence is older or says `AVAILABLE`.
 
 | Actor | Route | Scope/result |
 | --- | --- | --- |
-| CPO ADMIN | `GET /api/v1/cpo/operations/fleet` | same-CPO `FleetState`: totals, online/offline/unknown, available/charging/faulted connectors, active sessions. |
-| CPO ADMIN | `GET /api/v1/cpo/operations/chargers/{charger_id}` | static CPO charger plus `ChargerDetail` connection/connector evidence. |
+| CPO `chargers.operations` | `GET /api/v1/cpo/operations/fleet` | same-CPO `FleetState`: totals, online/offline/unknown, available/charging/faulted connectors, active sessions. |
+| CPO `chargers.operations` | `GET /api/v1/cpo/operations/chargers/{charger_id}` | static CPO charger plus `ChargerDetail` connection/connector evidence. |
 | Platform | `/api/v1/platform/cpos/{cpo_id}/operations/fleet` and `/chargers/{charger_id}` | `PLATFORM` observation of an existing CPO only. |
 | Customer | `GET /api/v1/app/chargers`, hub detail, charger detail, favorites | full `CustomerCharger` projections overlay committed availability/freshness. |
 | Customer | start-intent/session reads | owner-only durable progress, meter, connection, connector and completion data. |
@@ -259,7 +259,7 @@ It returns a typed `HTTPError` for non-2xx provider response,
 | `HALFactReceipt` | fact ID primary plus immutable digest; receipt/projection transaction boundary. |
 | `OperationalEvent` / `operational_events` | increasing durable replay ID, CPO scope and optional customer scope, retention expiry. |
 
-| Concern | Platform | CPO ADMIN | User App |
+| Concern | Platform | CPO `chargers.operations` | User App |
 | --- | --- | --- | --- |
 | Live charger/connector visibility | selected CPO, observation only | own CPO operational detail/fleet | published own-CPO consumer-safe projection |
 | Active session visibility | not a command surface | aggregate only in current fleet | owner-only session detail |
@@ -307,7 +307,7 @@ client reconnects -> GET events after persisted numeric ID -> dedupe -> GET flee
 ### Future approved CPO stop pattern (documentation only)
 
 ```text
-CPO handler -> require active same-CPO ADMIN -> load exact session/charger/connector
+CPO handler -> require active same-CPO `chargers.operations` -> load exact session/charger/connector
 -> persist CMSCommandID + audit + expiry -> halops.RequestStop
 -> accepted/ambiguous response is STOP_PENDING/reconciliation only
 -> exact transaction.completed fact finalizes; no router-to-halclient shortcut
@@ -317,7 +317,7 @@ CPO handler -> require active same-CPO ADMIN -> load exact session/charger/conne
 
 | Need | Safe implementation |
 | --- | --- |
-| Add a CPO charger detail widget | authorize CPO ADMIN, call existing `GetOperationalCharger`; do not query HAL or runtime tables in the handler. |
+| Add a CPO charger detail widget | authorize `chargers.operations`, call existing `GetOperationalCharger`; do not query HAL or runtime tables in the handler. |
 | Add dashboard aggregate | extend `liveops.GetFleet` or a new bounded `liveops` read, keep CPO scope in every query, document OpenAPI and refresh event. |
 | Show connector state | consume `ChargerDetail.Connectors`; show availability/freshness, not just last OCPP status. |
 | Observe current customer energy | owner-only `GetChargingSession`, then `latest_meter_wh`, `consumed_wh`, observation and freshness; never calculate synthetic samples. |
@@ -584,7 +584,7 @@ charger UUID remains a different resource ID.
 ### 11 — Creation and mapping flow
 
 ```text
-CPO ADMIN validation -> CMS transaction: charger + connectors + PENDING mapping
+CPO `chargers.manage` validation -> CMS transaction: charger + connectors + PENDING mapping
                     -> commit -> one EnsureChargerMapping("cpo-charger-created")
                               -> SYNCHRONIZED or RECONCILIATION_REQUIRED
                               -> bounded reconciler retries committed mapping
@@ -654,7 +654,7 @@ wallet, or frontend event conclusions.
 
 ### 22 through 24 — CPO reads, commands, and SSE
 
-| CPO ADMIN route | Use |
+| CPO `chargers.operations` route | Use |
 | --- | --- |
 | `GET /api/v1/cpo/operations/fleet` | durable `FleetOperationsResponse` |
 | `GET /api/v1/cpo/operations/chargers/{charger_id}` | static `ChargerResponse` plus `ChargerDetail` |
@@ -666,7 +666,7 @@ wallet, or frontend event conclusions.
 
 Current source has no CPO start/stop/reset/unlock endpoint. Customer start and
 owner-only stop are implemented. A future CPO command needs a separate approved
-vertical slice: same-CPO ADMIN authorization, exact resource lookup, durable CMS
+vertical slice: same-CPO capability authorization, exact resource lookup, durable CMS
 command, `halops`, fact projection, REST/SSE recovery, OpenAPI, and dual-service
 verification.
 
@@ -754,7 +754,7 @@ lacks it, do not query HAL directly; extend the shared capability deliberately.
 #### 33.1 Charger registration
 
 ```text
-CPO ADMIN -> CMS validate/scope -> transaction(charger, connectors, mapping PENDING)
+CPO `chargers.manage` -> CMS validate/scope -> transaction(charger, connectors, mapping PENDING)
           -> commit -> one EnsureChargerMapping("cpo-charger-created")
 ```
 
@@ -882,7 +882,7 @@ one active/stop-pending/reconciliation-required session reserves the connector.
 #### 33.17 CPO dashboard REST
 
 ```text
-CPO ADMIN GET fleet/charger -> authorized CMS service -> liveops -> PostgreSQL
+CPO `chargers.operations` GET fleet/charger -> authorized CMS service -> liveops -> PostgreSQL
                          -> static inventory + committed runtime projection response
 ```
 

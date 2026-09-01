@@ -2064,7 +2064,7 @@ func (service *Service) GetAdminProfile(
 	}
 	access, err := auth.EvaluateCPOAccess(ctx, service.database, principal)
 	if err != nil {
-		return AdminProfileView{}, forbiddenCPOAccess()
+		return AdminProfileView{}, auth.CPOAuthorizationError(err)
 	}
 	return adminProfileView(user, *principal.CPOID, access.Membership.Role), nil
 }
@@ -2148,7 +2148,7 @@ func (service *Service) UpdateAdminProfile(
 	}
 	access, err := auth.EvaluateCPOAccess(ctx, service.database, principal)
 	if err != nil {
-		return AdminProfileView{}, forbiddenCPOAccess()
+		return AdminProfileView{}, auth.CPOAuthorizationError(err)
 	}
 	return adminProfileView(user, cpoID, access.Membership.Role), nil
 }
@@ -2259,7 +2259,7 @@ func (service *Service) PermissionCatalog(
 func (service *Service) AccessMe(ctx context.Context, principal auth.Principal) (CPOAccessMeResponse, error) {
 	access, err := auth.EvaluateCPOAccess(ctx, service.database, principal)
 	if err != nil {
-		return CPOAccessMeResponse{}, &auth.APIError{Status: http.StatusForbidden, Code: "forbidden", Message: "An active CPO membership is required."}
+		return CPOAccessMeResponse{}, auth.CPOAuthorizationError(err)
 	}
 	return CPOAccessMeResponse{
 		MembershipID: access.Membership.ID, Role: access.Membership.Role,
@@ -2456,6 +2456,10 @@ func (service *Service) UpdateStaff(ctx context.Context, principal auth.Principa
 			}
 		}
 		if request.Role != nil && previousRole != *request.Role {
+			scope := constants.AuthScopeCPO
+			if _, err := revokeCPOSessions(tx, cpoID, &scope, "CPO_STAFF_ROLE_CHANGED", now, &membership.UserID); err != nil {
+				return err
+			}
 			var user models.User
 			var cpoRecord models.CPO
 			if err := tx.First(&user, "id = ?", membership.UserID).Error; err != nil {
@@ -2490,7 +2494,7 @@ func (service *Service) requireDelegation(ctx context.Context, principal auth.Pr
 func (service *Service) requireDelegationWithDatabase(ctx context.Context, database *gorm.DB, principal auth.Principal, role constants.CPORole, overrides []MembershipPermissionOverrideRequest) error {
 	access, err := auth.EvaluateCPOAccess(ctx, database, principal)
 	if err != nil {
-		return &auth.APIError{Status: http.StatusForbidden, Code: "forbidden", Message: "An active CPO membership is required."}
+		return auth.CPOAuthorizationError(err)
 	}
 	has := make(map[string]bool, len(access.Effective))
 	for _, permission := range access.Effective {

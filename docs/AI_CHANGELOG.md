@@ -1,5 +1,34 @@
 # AI Changelog
 
+## 2026-09-01 - Complete CPO capability-authority coherence in source
+
+- Made the documented CPO capability, evaluated against active membership and
+  matching `X-CPO-App-ID`, the endpoint authority. Roles remain
+  source-controlled default bundles; explicit `DENY` wins over every default.
+  Evaluator/infrastructure failure now remains a safe `500` rather than being
+  misreported as a permission denial.
+- Corrected support create/reply ordering so create does not fail after commit
+  through an unrelated read check, and reply proves both `support.read` and
+  `support.reply` before mutation. Integration reads use `settings.read`; PUT
+  and DELETE use `settings.manage`. CPO protected responses use shared
+  `no-store` middleware.
+- A real staff role change now transactionally revokes only that member's CPO
+  administrative sessions and refresh tokens; no-op and override-only changes
+  retain sessions. CPO operational SSE streams continue to re-evaluate fresh
+  `chargers.operations` authority at heartbeat.
+- Repaired CPO OpenAPI security as one Bearer-plus-App-ID AND requirement,
+  including the previously omitted hub-GST and user-group membership deletion
+  operations, and updated the CPO contracts, frontend handoffs, project state,
+  development plan, and documentation verifier to describe capabilities as
+  endpoint authority.
+
+Verification: focused auth/permission/middleware/CPO/support/integrations tests,
+OpenAPI/runtime route regressions, documentation verification, `go test ./...`,
+`go vet ./...`, `go build ./...`, and `git diff --check` pass locally.
+PostgreSQL-backed lifecycle cases are skipped because no disposable
+`TEST_DATABASE_URL` is configured. No migration, database mutation, deployment,
+commit, or push occurred.
+
 ## 2026-08-31 - Deploy User App realtime and mail-outbox reconciliation
 
 - Applied migration 058 after a mode-0600 database backup, rebuilt source

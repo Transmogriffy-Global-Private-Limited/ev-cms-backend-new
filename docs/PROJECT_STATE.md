@@ -2,6 +2,22 @@
 
 ## Current State
 
+### 2026-09-01 - CPO capability authority coherence source-verified
+
+- CPO endpoint authority is the documented capability evaluated against the
+  current active membership and matching app ID; roles are source-controlled
+  default bundles only, and an explicit `DENY` overrides every role default.
+  Support reply requires both read and reply authority before mutation;
+  integration reads use `settings.read` while mutations use `settings.manage`.
+- A real CPO role change transactionally revokes only that user's matching CPO
+  administrative sessions and refresh tokens. Override-only edits retain
+  sessions. CPO protected responses use `Cache-Control: no-store`, and live
+  SSE streams re-evaluate their capability at heartbeat.
+- OpenAPI now represents CPO Bearer authentication and `X-CPO-App-ID` as a
+  single AND requirement, including hub-GST and user-group membership routes.
+  This is source-only status: no migration was added or applied and no service
+  was deployed by this change.
+
 ### 2026-08-31 - User App realtime and mail-outbox reconciliation deployed
 
 - The authenticated User App full-state live-session and selected-charger
@@ -992,9 +1008,9 @@ provides:
 - global identities;
 - separate platform-superadmin records;
 - CPO tenant organizations;
-- CPO membership persistence with active staff-role identity; core CPO
-  administration/provider-integration authority remains ADMIN while support
-  and notifications use their own active-membership boundary;
+- CPO membership persistence with active staff-role identity; CPO routes use
+  explicit capabilities as endpoint authority while roles supply defaults;
+  support and notifications retain their separately documented boundaries;
 - tenant-scoped, credential-owning customer accounts;
 - user settings and tenant customer groups;
 - hubs, chargers, connectors, favorites, and group access links;
@@ -1084,7 +1100,7 @@ provides:
   `PATCH /api/v1/app/profile`, with omitted-versus-null phone semantics,
   canonical user projection responses, and CPO-scoped field-name-only audit
   evidence;
-- CPO ADMIN-controlled default-false hub publication through
+- `hubs.manage`-controlled default-false hub publication through
   `customer_visible`, plus authenticated customer-safe published network
   discovery for hubs, attached chargers, and connectors; the hub
   `open_24_hours` and charger `twenty_four_seven_open_status` values are
@@ -1223,7 +1239,7 @@ operations after adding customer self-service profile editing, published
 network discovery, favorites, informational customer price reads, charger
 search and wallet reads, and Razorpay recharge order/verification; the deployed binary remains at 113 until a
 separately approved deployment. The deployed
-source includes the CPO ADMIN-only
+source includes the `hubs.manage`-protected
 `POST /api/v1/cpo/hubs/{hub_id}/chargers` hub attachment/reassignment command,
 allows an independent charger to be created without `hub_id`, and adds
 non-negative hub `sanction_load` plus the upgrade-time removal of the legacy
@@ -1249,7 +1265,7 @@ plan retains that app-only header. Customer self-service name and phone
 editing, published-station discovery, favorites, and informational tariff
 display are implemented in source; HAL-dependent charging/billing work remains
 planned.
-CPO ADMIN routes remain owned by the CPO workstream.
+CPO capability-protected routes remain owned by the CPO workstream.
 
 The CMS/HAL transport, authenticated fact receiver, durable charging intent and
 hold state, and customer charging start/stop/status routes are implemented and
@@ -1597,8 +1613,9 @@ intentionally unsupported.
 - `users` represent administrative login identities for platform and CPO staff.
 - `platform_admins` explicitly grant platform-superadmin authority.
 - `cpos` represent tenant/customer organizations.
-- `cpo_memberships` store a fixed role inside one CPO; current callable
-  authority requires `ADMIN`.
+- `cpo_memberships` store a fixed role inside one CPO; callable endpoint
+  authority is the route capability evaluated with the active membership and
+  any override.
 - `customers` are CPO-local app-user accounts and own email, password, profile,
   verification, lockout, and login timestamps.
 - Customer-auth outbox jobs are correlated to their owning CPO without

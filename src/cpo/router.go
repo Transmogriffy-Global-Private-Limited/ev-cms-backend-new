@@ -34,7 +34,7 @@ func RegisterPlatformRoutes(
 	service *Service,
 ) {
 	handler := &Handler{service: service, authService: authService}
-	group.Use(noStore, authService.Authenticate(), auth.RequirePlatform())
+	group.Use(cmsmiddleware.NoStore, authService.Authenticate(), auth.RequirePlatform())
 	group.POST("", handler.create)
 	group.GET("", handler.list)
 	group.GET("/slug-availability", handler.slugAvailability)
@@ -466,12 +466,6 @@ func writeError(ctx *gin.Context, err error) {
 	})
 }
 
-func noStore(ctx *gin.Context) {
-	ctx.Header("Cache-Control", "no-store")
-	ctx.Header("Pragma", "no-cache")
-	ctx.Next()
-}
-
 func RegisterCPORoutes(
 	group *gin.RouterGroup,
 	authService *auth.Service,
@@ -480,7 +474,7 @@ func RegisterCPORoutes(
 	handler := &Handler{service: service, authService: authService}
 
 	group.Use(
-		noStore,
+		cmsmiddleware.NoStore,
 		authService.Authenticate(),
 		auth.RequireCPOAppID(),
 	)

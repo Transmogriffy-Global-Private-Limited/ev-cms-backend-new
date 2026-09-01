@@ -38,7 +38,7 @@ protocol responsibilities.
 - `src/auth/` owns platform/CPO administrative identity, sessions, OTP, and
   credential lifecycle. `src/customerauth/` separately owns CPO-local app-user
   identity, sessions, discovery, wallet, and favourites.
-- `src/cpo/` owns CPO organization, CPO ADMIN, network, GST, and tariff
+- `src/cpo/` owns CPO organization, membership capability enforcement, network, GST, and tariff
   behaviour. `src/superadmin/`, `src/platformops/`, and `src/subscriptions/`
   own their distinct platform-control concerns. `src/integrations/` owns
   encrypted CPO integration credentials. `src/mail/` owns the durable mail
@@ -50,9 +50,10 @@ protocol responsibilities.
 - Tenant state must use a trusted CPO identifier derived server-side. Never
   trust a client-provided CPO/tenant ID without scope validation.
 - Platform SuperAdmin and CPO staff are separate authorization planes. A CPO
-  is a tenant organization, not a global role. Current callable tenant
-  administrative authority is `ADMIN`; `OWNER`, `OPERATOR`, and `VIEWER`
-  are dormant schema capacity.
+  is a tenant organization, not a global role. CPO endpoint authority is the
+  documented capability evaluated for the current active membership and its
+  overrides; roles are source-controlled default bundles and explicit `DENY`
+  wins over every role default.
 
 ## Runtime, Configuration, and Operations
 

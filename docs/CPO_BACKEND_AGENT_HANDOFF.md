@@ -70,7 +70,7 @@ There are three authentication planes:
 | Plane | Scope | Trusted tenant context | Current authority |
 | --- | --- | --- | --- |
 | Platform | `PLATFORM` | None | Explicit `platform_admins` row |
-| CPO staff | `CPO` | Session `cpo_id` | Active `ADMIN` membership only |
+| CPO staff | `CPO` | Session `cpo_id` | Active membership plus the route capability |
 | App user | `CUSTOMER` | Session `cpo_id` and `customer_id` | Active tenant customer |
 
 Never turn a customer into CPO staff. Never treat a CPO as a user role. Never
@@ -78,10 +78,13 @@ let a request body, query parameter, or arbitrary header select tenant scope.
 
 ## Permanent CPO Security Rules
 
-1. Current callable CPO staff authority is `ADMIN` only.
-2. `OWNER`, `OPERATOR`, and `VIEWER` remain dormant persisted enum values. No
-   API creates them and they grant no current login or operation authority.
-3. Staff management requires a separately approved lifecycle/capability plan.
+1. CPO endpoint authority is the documented capability, evaluated against the
+   active membership and its overrides. Roles are source-controlled defaults;
+   explicit `DENY` wins over every default.
+2. `OWNER`, `OPERATOR`, and `VIEWER` are active role-default bundles, not
+   standalone authorization decisions. Frontends use `GET /cpo/access/me`.
+3. Staff management and delegation enforce their documented capabilities and
+   retain primary-admin protections.
 4. A CPO business request requires a validated CPO bearer session and the
    current `X-CPO-App-ID`.
 5. `X-CPO-App-ID` is non-secret application identity metadata. It validates the
@@ -227,7 +230,7 @@ Current behavior:
   CPO hub list/detail projections return the stored state;
 - a hub records non-negative `sanction_load` in kW; `0` means the capacity is
   not recorded;
-- `customer_visible` is CPO ADMIN-controlled, defaults to `false`, and combines
+- `customer_visible` is controlled by `hubs.manage`, defaults to `false`, and combines
   with each charger's independent `customer_visibility` gate for every User
   App published-network surface;
 - charger creation atomically creates its initial connectors and audit record;
@@ -517,11 +520,13 @@ After authoritative workflows exist:
 - CPO audit visibility;
 - tenant-scoped event delivery, replay, deduplication, and REST recovery.
 
-### Staff management remains deferred
+### Staff management and capability authority
 
-Do not activate dormant roles until a plan covers invite/acceptance, role
-matrix, last-admin protection, removal/suspension, session revocation,
-recovery, audit, mail, frontend contracts, and migration/backfill behavior.
+Staff roles are source-controlled default capability bundles. Route authority
+is evaluated from the active membership's fresh effective permissions, so UI
+and services must not infer authority from `role == ADMIN`. Preserve
+delegation, last-primary-admin protection, suspension/revocation session
+revocation, audit, mail, and the current frontend contract.
 
 ## How to Execute an Assigned Slice
 
@@ -529,7 +534,7 @@ recovery, audit, mail, frontend contracts, and migration/backfill behavior.
 
 Example:
 
-> An authenticated CPO ADMIN can list only customers belonging to the session
+> An authenticated CPO member with `customers.read` can list only customers belonging to the session
 > CPO with bounded keyset pagination; another tenant's customer ID is never
 > disclosed.
 

@@ -12,15 +12,16 @@ import (
 
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/auth"
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/cpopermissions"
+	cmsmiddleware "github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/middleware"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 )
 
 func RegisterCPORoutes(group *gin.RouterGroup, authService *auth.Service, service *Service) {
-	group.Use(authService.Authenticate(), auth.RequireCPOAppID())
+	group.Use(cmsmiddleware.NoStore, authService.Authenticate(), auth.RequireCPOAppID())
 	read := group.Group("", auth.RequireCPOPermission(service.database, cpopermissions.SupportRead))
 	create := group.Group("", auth.RequireCPOPermission(service.database, cpopermissions.SupportCreate))
-	reply := group.Group("", auth.RequireCPOPermission(service.database, cpopermissions.SupportReply))
+	reply := group.Group("", auth.RequireCPOPermission(service.database, cpopermissions.SupportRead), auth.RequireCPOPermission(service.database, cpopermissions.SupportReply))
 	read.GET("", func(c *gin.Context) { list(c, service) })
 	create.POST("", func(c *gin.Context) {
 		var r CreateRequest
@@ -47,7 +48,7 @@ func RegisterCPORoutes(group *gin.RouterGroup, authService *auth.Service, servic
 	})
 }
 func RegisterPlatformRoutes(group *gin.RouterGroup, authService *auth.Service, service *Service) {
-	group.Use(authService.Authenticate(), auth.RequirePlatform())
+	group.Use(cmsmiddleware.NoStore, authService.Authenticate(), auth.RequirePlatform())
 	group.GET("", func(c *gin.Context) { list(c, service) })
 	group.GET("/:ticket_id", func(c *gin.Context) { get(c, service) })
 	group.POST("/:ticket_id/replies", func(c *gin.Context) {
