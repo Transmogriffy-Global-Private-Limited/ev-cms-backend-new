@@ -2,7 +2,7 @@
 
 ## Current State
 
-### 2026-09-01 - CPO historical charging-session commercial projection source reconciliation
+### 2026-09-01 - CPO historical charging-session commercial projection deployed
 
 - Current source extends CPO charging-session list/detail views with frozen
   `price_per_unit`, optional tariff `unit`, SGST/CGST/IGST percentages, and
@@ -12,9 +12,11 @@
 - Historical tariff and tax snapshots win over current mutable tariff/hub GST
   associations. Current entities are a legacy fallback only if the relevant
   session snapshot is absent or unusable. Customer limit selection remains
-  independent of tariff billing dimension. No migration was added, no database
-  mutation or deployment was performed, and PostgreSQL-gated verification is
-  conditional on `TEST_DATABASE_URL`.
+  independent of tariff billing dimension. No migration or data mutation was
+  required. Runtime revision `e263463` is active behind Caddy with binary
+  SHA-256 `0f569f47d79f22f5599dbfb2370c29312a5aa42038c5f9ecc53ef4f6ce72bb11`.
+  The prior binary is retained at
+  `/root/evcmsnew-backups/pre-e263463-20260901T101829Z`.
 
 ### 2026-09-01 - Charging transaction trace deployed
 
@@ -59,7 +61,7 @@
   SSE streams re-evaluate their capability at heartbeat.
 - OpenAPI now represents CPO Bearer authentication and `X-CPO-App-ID` as a
   single AND requirement, including hub-GST and user-group membership routes.
-  This behavior is included in the active `3037c46` deployment recorded above;
+  This behavior is included in the active `e263463` deployment recorded above;
   no migration or data repair was required.
 
 ### 2026-08-31 - User App realtime and mail-outbox reconciliation deployed
