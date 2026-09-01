@@ -272,7 +272,10 @@ func (service *Service) requirePermission(ctx context.Context, principal auth.Pr
 		return uuid.Nil, err
 	}
 	_, allowed, err := auth.EvaluateCPOPermission(ctx, service.database, principal, permission)
-	if err != nil || !allowed {
+	if err != nil {
+		return uuid.Nil, auth.CPOAuthorizationError(err)
+	}
+	if !allowed {
 		return uuid.Nil, &auth.APIError{Status: http.StatusForbidden, Code: "forbidden", Message: "You do not have access to this operation."}
 	}
 	return cpoID, nil

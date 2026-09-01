@@ -18,7 +18,10 @@ The "Live Operations" APIs do **not** make synchronous calls to the HAL or the p
 
 ## Authentication
 
-All endpoints described in this document are protected and require an authenticated CPO `ADMIN` session. Other active CPO staff memberships may authenticate for their separately supported support/notification surfaces, but they cannot call this ADMIN-gated operational surface.
+All endpoints described in this document require an authenticated active CPO
+membership, the matching `X-CPO-App-ID`, and `chargers.operations`. Roles are
+default capability bundles only; the frontend must gate this surface from
+`GET /api/v1/cpo/access/me` `effective_permissions`, not `role == ADMIN`.
 
 Every request must include two headers:
 
@@ -35,14 +38,14 @@ The following endpoints constitute the CPO Live Operations surface. They are all
 
 | Method and Path                                     | Auth      | Success                       | FE Purpose                                           |
 | :-------------------------------------------------- | :-------- | :---------------------------- | :--------------------------------------------------- |
-| `GET /api/v1/cpo/operations/fleet`                  | CPO ADMIN | `200 CpoFleetView`            | Aggregated dashboard overview of the charger fleet.  |
-| `GET /api/v1/cpo/operations/chargers/{charger_id}`  | CPO ADMIN | `200 CpoChargerWithLiveState` | Detailed administrative and live state for one charger. |
-| `GET /api/v1/cpo/operations/events`                 | CPO ADMIN | `200 CpoOperationalEventPage` | Durable event replay for catch-up and recovery.      |
-| `GET /api/v1/cpo/operations/realtime/stream`        | CPO ADMIN | `200 text/event-stream`       | Low-latency event stream for UI invalidation.        |
-| `GET /api/v1/cpo/operations/live-sessions`          | CPO ADMIN | `200 text/event-stream` | Primary full-snapshot live table: immediate `snapshot`, then `live_sessions` replacement frames. |
-| `GET /api/v1/cpo/operations/live-sessions/snapshot` | CPO ADMIN | `200 LiveChargingSessionListResponse` | JSON recovery/keyset pagination when a non-stream read is needed. |
-| `GET /api/v1/cpo/operations/live-sessions/events`   | CPO ADMIN | `200 CpoOperationalEventPage` | Advanced CHARGING_SESSION reconciliation cursor; not needed by the normal table. |
-| `GET /api/v1/cpo/operations/live-sessions/realtime/stream` | CPO ADMIN | `200 text/event-stream` | Deprecated compatibility alias for the primary full-snapshot stream. |
+| `GET /api/v1/cpo/operations/fleet`                  | `chargers.operations` | `200 CpoFleetView`            | Aggregated dashboard overview of the charger fleet.  |
+| `GET /api/v1/cpo/operations/chargers/{charger_id}`  | `chargers.operations` | `200 CpoChargerWithLiveState` | Detailed administrative and live state for one charger. |
+| `GET /api/v1/cpo/operations/events`                 | `chargers.operations` | `200 CpoOperationalEventPage` | Durable event replay for catch-up and recovery.      |
+| `GET /api/v1/cpo/operations/realtime/stream`        | `chargers.operations` | `200 text/event-stream`       | Low-latency event stream for UI invalidation.        |
+| `GET /api/v1/cpo/operations/live-sessions`          | `chargers.operations` | `200 text/event-stream` | Primary full-snapshot live table: immediate `snapshot`, then `live_sessions` replacement frames. |
+| `GET /api/v1/cpo/operations/live-sessions/snapshot` | `chargers.operations` | `200 LiveChargingSessionListResponse` | JSON recovery/keyset pagination when a non-stream read is needed. |
+| `GET /api/v1/cpo/operations/live-sessions/events`   | `chargers.operations` | `200 CpoOperationalEventPage` | Advanced CHARGING_SESSION reconciliation cursor; not needed by the normal table. |
+| `GET /api/v1/cpo/operations/live-sessions/realtime/stream` | `chargers.operations` | `200 text/event-stream` | Deprecated compatibility alias for the primary full-snapshot stream. |
 
 ## TypeScript Contract
 
@@ -268,7 +271,8 @@ table. `GET /operations/live-sessions/snapshot` is available for manual refresh
 or paginated recovery using the paired `after_started_at` + `after_id` cursor.
 `/operations/live-sessions/events` is only advanced durable reconciliation;
 the old `/realtime/stream` route is a deprecated full-stream alias. The server
-revalidates the bearer session, ADMIN role, and app ID on stream heartbeats.
+revalidates the bearer session, active membership, `chargers.operations`, and
+app ID on stream heartbeats.
 
 ## Realtime, Replay, and Recovery Workflow
 

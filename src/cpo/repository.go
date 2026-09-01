@@ -125,9 +125,12 @@ func (r *repository) GetChargingSession(ctx context.Context, cpoID, sessionID uu
 		Preload("Customer").
 		Preload("Charger").
 		Preload("Charger.Hub").
+		Preload("Charger.Hub.GST", "cpo_id = ?", cpoID).
 		Preload("Connector").
-		Preload("Connector.Charger").     // new
-		Preload("Connector.Charger.Hub"). // new
+		Preload("Connector.Charger").
+		Preload("Connector.Charger.Hub").
+		Preload("Tariff", "cpo_id = ?", cpoID).
+		Preload("StartIntent", "cpo_id = ?", cpoID).
 		Where("cpo_id = ? AND id = ?", cpoID, sessionID).
 		First(&session).Error
 	if err != nil {
@@ -147,9 +150,12 @@ func (r *repository) ListChargingSessions(ctx context.Context, cpoID uuid.UUID, 
 		Preload("Customer").
 		Preload("Charger").
 		Preload("Charger.Hub").
+		Preload("Charger.Hub.GST", "cpo_id = ?", cpoID).
 		Preload("Connector").
-		Preload("Connector.Charger").     // new
-		Preload("Connector.Charger.Hub"). // new
+		Preload("Connector.Charger").
+		Preload("Connector.Charger.Hub").
+		Preload("Tariff", "cpo_id = ?", cpoID).
+		Preload("StartIntent", "cpo_id = ?", cpoID).
 		Where("cpo_id = ?", cpoID)
 
 	if query.Status != nil {
@@ -240,6 +246,7 @@ func (r *repository) hydrateMissingSessionChargers(ctx context.Context, cpoID uu
 	var chargers []models.Charger
 	if err := r.db.WithContext(ctx).
 		Preload("Hub").
+		Preload("Hub.GST", "cpo_id = ?", cpoID).
 		Where("cpo_id = ? AND id IN ?", cpoID, chargerIDs).
 		Find(&chargers).Error; err != nil {
 		return err

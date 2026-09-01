@@ -13,10 +13,11 @@ This API authenticates administrative identities in one of two explicit
 scopes:
 
 - `PLATFORM`: requires a `platform_admins` record and has no CPO context.
-- `CPO`: requires an active membership in an active CPO. Core CPO administration
-  and provider-integration routes additionally require `ADMIN`; support and
-  CPO-notification routes use the active CPO membership and app-ID boundary.
-  The verified session carries the server-derived CPO ID and membership role.
+- `CPO`: requires an active membership in an active CPO. Each CPO business
+  route additionally evaluates its source-controlled capability against the
+  current membership and overrides; the matching app-ID header confirms the
+  session-bound CPO. The verified session carries the server-derived CPO ID and
+  membership role, but role is only a default capability bundle.
 
 Every administrative login requires password plus email OTP. A client cannot
 choose tenant authority through a header: protected code reads user ID, session

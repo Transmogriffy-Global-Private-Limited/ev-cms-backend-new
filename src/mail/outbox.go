@@ -101,6 +101,10 @@ func (outbox *Outbox) EnqueueMessageWithContext(
 }
 
 func validateMessagePayload(template string, payload MessagePayload) error {
+	if !isSupportedDurableTemplate(template) {
+		return fmt.Errorf("validate mail payload: unknown template %q", template)
+	}
+
 	switch template {
 	case "LOGIN_OTP", "CUSTOMER_LOGIN_OTP", "CUSTOMER_SIGNUP_OTP":
 		if strings.TrimSpace(payload.Code) == "" || payload.ExpiresAt.IsZero() {
@@ -144,7 +148,7 @@ func validateMessagePayload(template string, payload MessagePayload) error {
 			return fmt.Errorf("validate %s mail payload: CPO name, subject, status, time, and action URL are required", template)
 		}
 	default:
-		return fmt.Errorf("validate mail payload: unknown template %q", template)
+		return fmt.Errorf("validate mail payload: template %q has no validation rule", template)
 	}
 	return nil
 }

@@ -28,10 +28,10 @@ development host it is set in the ignored service environment to
 that setting; it must not be used until the OCPP host is explicitly configured
 with TLS/WebSocket support.
 
-The active deployment was updated on August 28, 2026 to runtime source revision
-`342d65ad675dd358786967849cdb0d9a2fef568a` (`342d65a`). It has migrations one
-through fifty-seven and the current 213-operation API. The binary SHA-256 is
-`1d29512c02ab32adf12387f5b97a452d6b9fa38e90d29354e2c3a8ae7272cf22`.
+The active deployment was updated on September 1, 2026 to runtime source
+revision `3037c46` (charging transaction trace). It has migrations one
+through fifty-nine and the current 219-operation API. The binary SHA-256 is
+`2f87378e9bda54d8b8db54877add2c363b8293c7fbd34766a864f9e931759da8`.
 The pre-migration binary and database dump for migrations 49 through 53 are
 retained under `/root/evcmsnew-backups/` and
 `builds/evcmsnew.pre-162b3be-20260825-135452` and the newer
@@ -44,7 +44,34 @@ retained under `/root/evcmsnew-backups/` and
 `builds/evcmsnew.pre-a085f29-20260826-111224` and
 `builds/evcmsnew.pre-e8ff810-20260826-150844` and the newer
 `builds/evcmsnew.pre-265eba6-20260828-103844` and
-`builds/evcmsnew.pre-342d65a-20260828-104113`. Migration 54 adds
+`builds/evcmsnew.pre-342d65a-20260828-104113` and the newer
+`builds/evcmsnew.pre-b6b723d-20260828-111541` and the newer
+`builds/evcmsnew.pre-d635446-20260828-142326`. The prior active binary for this
+rehost is additionally retained at
+`builds/evcmsnew.pre-deployed-d635446-20260828-164259` (SHA-256
+`bab0d777d3d0e2f467ba4cdbf939a8913b43bf18ae4f4cf813fb550d640cc338`). The intermediate pre-contract-fix
+binary is retained at `builds/evcmsnew.pre-openapi-fix-20260828-142638`.
+The immediately preceding deployed binary is retained at
+`builds/evcmsnew.pre-deployed-632ec13-20260831-141003` (SHA-256
+`5595f05de08736f7e7b7e509b9092fe16592e3eda0308f500614b4eb46b33b47`), and the
+pre-migration-058 database dump is
+`/root/evcmsnew-backups/devevcmsnew-before-000058-20260831-140835.dump`.
+The immediately preceding binary for this rehost is additionally retained at
+`builds/evcmsnew.pre-deployed-320d489-20260901-095905` (SHA-256
+`37e6397a939ca16b8fb903147b5d7ee80e2f8e1ffa4c21acee448e66af4b413a`). No new
+migration was required for the capability-authority release. The immediately
+preceding trace-release binary is retained at
+`/root/evcmsnew-backups/pre-3037c46-20260901T093716Z` (SHA-256
+`dbbc77ff75ca46ed95fa1f3a774bbcabcfe3fad52157f386decf39e46100668`), and the
+pre-000059 database dump is
+`/root/evcmsnew-backups/pre-000059-20260901T093435Z.dump`.
+Migration 59 adds opaque charging trace correlation and a bounded diagnostic
+trace-event table; it does not change charging, settlement, wallet, connector,
+or OCPP authority.
+Migration 58 reconciles the mail-outbox template catalogue with the
+application-supported templates using a `NOT VALID` check so historical rows
+remain untouched.
+Migration 54 adds
 customer-selected charging-limit metadata and validation to charging start
 intents; migration 55 adds independent threshold provenance. The pre-change
 database dump for migration 55 is retained at
@@ -176,7 +203,7 @@ The deployment copies `.env.example` to `.env`, then overrides:
 - five independently generated 32-byte base64 cryptographic keys.
 
 `DATABASE_URL` and `SMTP_PASSWORD` contain deployment secrets only in the
-ignored environment file. The service is enabled and active, all fifty-five forward
+ignored environment file. The service is enabled and active, all fifty-eight forward
 migrations are recorded, and startup idempotently retained the configured
 platform superadmin.
 
@@ -237,7 +264,7 @@ content exclusions are defined in
 `docs/contracts/internal/http-request-logging.md`. Long-lived SSE requests are
 recorded when they disconnect. A recovered panic first emits a correlated safe
 JSON stack diagnostic without Gin's request dump or the panic value. The
-currently deployed `e8ff810` binary includes this logger.
+currently deployed `3037c46` binary includes this logger.
 
 The platform realtime SSE route is long-lived. If a browser holds that stream
 during a rehost, the application may log `shut down HTTP server: context

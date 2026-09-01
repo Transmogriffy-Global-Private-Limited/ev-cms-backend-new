@@ -2,6 +2,151 @@
 
 ## Current State
 
+### 2026-09-01 - CPO historical charging-session commercial projection source reconciliation
+
+- Current source extends CPO charging-session list/detail views with frozen
+  `price_per_unit`, optional tariff `unit`, SGST/CGST/IGST percentages, and
+  optional customer `start_criteria`/`requested_limit_value` from the durable
+  start intent. It does not change price calculation, tariff writes, GST
+  writes, charging control, or session authority.
+- Historical tariff and tax snapshots win over current mutable tariff/hub GST
+  associations. Current entities are a legacy fallback only if the relevant
+  session snapshot is absent or unusable. Customer limit selection remains
+  independent of tariff billing dimension. No migration was added, no database
+  mutation or deployment was performed, and PostgreSQL-gated verification is
+  conditional on `TEST_DATABASE_URL`.
+
+### 2026-09-01 - Charging transaction trace deployed
+
+- The current CMS source adds additive migration 000059 and a
+  CPO-scoped diagnostic waterfall for CMS/HAL charging evidence. CMS creates
+  opaque trace IDs before command delivery, retains only sanitized trace
+  metadata, exposes `charging_traces.read` to OWNER/ADMIN/OPERATOR defaults,
+  and merges private HAL diagnostic evidence without making it authoritative.
+- Trace retention is bounded and leaves session, wallet, settlement, command,
+  fact, and connector authorities untouched. The source contract has 219
+  OpenAPI operations and a CPO frontend handoff. Migration 059 is applied and
+  the runtime is active behind Caddy at revision `3037c46` with binary SHA-256
+  `2f87378e9bda54d8b8db54877add2c363b8293c7fbd34766a864f9e931759da8`.
+  The pre-trace binary is retained at
+  `/root/evcmsnew-backups/pre-3037c46-20260901T093716Z`.
+
+### 2026-09-01 - CPO capability authority coherence deployed
+
+- CPO endpoint authority now comes from the documented capability evaluated
+  against the active membership and matching app ID. Explicit `DENY` overrides
+  role defaults; support, integration, cache-control, session-revocation, and
+  OpenAPI security behavior are aligned with that authority. No migration or
+  data repair was required.
+- Runtime revision `bc1fbe7` was active behind Caddy before the trace release
+  with binary SHA-256
+  `dbbc77ff75ca46ed95fa1f3a774bbcabcfe3fad52157f386decf39e46100668`.
+  Service/readiness, public routing, Swagger/OpenAPI, Caddy, and post-rehost
+  startup checks passed. Migration 058 remains applied. The
+  prior binary is retained at
+  `builds/evcmsnew.pre-deployed-320d489-20260901-095905`.
+
+### 2026-09-01 - CPO capability authority coherence implementation details
+
+- CPO endpoint authority is the documented capability evaluated against the
+  current active membership and matching app ID; roles are source-controlled
+  default bundles only, and an explicit `DENY` overrides every role default.
+  Support reply requires both read and reply authority before mutation;
+  integration reads use `settings.read` while mutations use `settings.manage`.
+- A real CPO role change transactionally revokes only that user's matching CPO
+  administrative sessions and refresh tokens. Override-only edits retain
+  sessions. CPO protected responses use `Cache-Control: no-store`, and live
+  SSE streams re-evaluate their capability at heartbeat.
+- OpenAPI now represents CPO Bearer authentication and `X-CPO-App-ID` as a
+  single AND requirement, including hub-GST and user-group membership routes.
+  This behavior is included in the active `3037c46` deployment recorded above;
+  no migration or data repair was required.
+
+### 2026-08-31 - User App realtime and mail-outbox reconciliation deployed
+
+- The authenticated User App full-state live-session and selected-charger
+  availability projections, CPO live-session watermark ordering, and the
+  reconciled mail-outbox template catalogue are active in the development
+  deployment. Migration 058 is applied with its historical-row-preserving
+  `NOT VALID` constraint; no data repair was required.
+- Runtime revision `320d489` is active behind Caddy with binary SHA-256
+  `37e6397a939ca16b8fb903147b5d7ee80e2f8e1ffa4c21acee448e66af4b413a`.
+  Service/readiness, public routing, Swagger/OpenAPI (217 operations), Caddy,
+  migration state, and post-rehost startup checks pass. The prior binary and
+  pre-migration dump are retained at
+  `builds/evcmsnew.pre-deployed-632ec13-20260831-141003` and
+  `/root/evcmsnew-backups/devevcmsnew-before-000058-20260831-140835.dump`.
+
+### 2026-08-31 - Mail-outbox template catalogue source correction
+
+- Source now has a single 24-name durable mail-template catalogue shared by
+  outbox validation and renderer compatibility checks. Forward migration 058
+  replaces the stale `mail_outbox` template CHECK for future writes, including
+  the support-ticket lifecycle templates required by transactional status
+  notifications.
+- The replacement CHECK is `NOT VALID` only so preexisting historical rows are
+  preserved rather than deleted or rewritten; PostgreSQL still enforces the
+  current catalogue on every new or updated row. Migration 058 is applied on
+  the development database; PostgreSQL integration tests remain separately
+  gated on an explicitly selected disposable `TEST_DATABASE_URL`.
+
+### 2026-08-31 - User App full-state realtime projections source-verified
+
+- Source now adds authenticated User App full-state SSE for the current
+  customer live-session collection and one selected customer-visible charger's
+  availability. The legacy retained operational-event REST/SSE feed remains
+  available for compatibility but is no longer the state contract for these
+  two views.
+- Both new streams establish a committed event watermark before reading their
+  initial CMS projection, react to durable session/charger/connector wake-up
+  facts, and periodically reproject after access revalidation so freshness and
+  time-priced projected amounts cannot remain stale without another HAL fact.
+  They never synchronously call HAL. A customer can receive multiple concurrent
+  materialized sessions, and all emitted updates replace the full current
+  projection.
+- The existing CPO live-session stream now uses the same watermark-before-
+  snapshot safety ordering. This source change is included in the active
+  `320d489` deployment recorded above.
+
+### 2026-08-28 - CPO live-session OCPP transaction identity deployed
+
+- CPO live-session snapshots and SSE payloads now expose the durable OCPP
+  transaction identifier as `ocpp_transaction_id`, alongside the existing
+  CMS session and charger context. The OpenAPI contract and focused projection
+  tests match the runtime response. No migration or data repair was required.
+- Runtime revision `632ec13d359bafc355d961aa9ff925fa089ac6ac` is active behind
+  Caddy with binary SHA-256
+  `5595f05de08736f7e7b7e509b9092fe16592e3eda0308f500614b4eb46b33b47`.
+   Service/readiness, public routing, Swagger/OpenAPI (213 operations), Caddy,
+   and post-rehost startup checks pass. The prior binary is retained at
+   `builds/evcmsnew.pre-deployed-d635446-20260828-164259` for rollback.
+
+### 2026-08-28 - Live charging financial and usage projections deployed
+
+- Customer session detail, CPO customer reads, and CPO live-session snapshots
+  now expose current accrued usage/amount projections from immutable tariff and
+  tax snapshots. Projected amounts remain separate from final settlement
+  totals, and all reads remain tenant/customer scoped. No migration or data
+  repair was required.
+- Runtime revision `d63544641e257436d988a415ae069a7d8baeeb2f` is active behind
+  Caddy with binary SHA-256
+  `bab0d777d3d0e2f467ba4cdbf939a8913b43bf18ae4f4cf813fb550d640cc338`.
+  Service/readiness, public routing, Swagger/OpenAPI (213 operations), Caddy,
+  and post-rehost startup checks pass. The prior binary is retained for
+  rollback.
+
+### 2026-08-28 - CPO customer aggregate wallet reads deployed
+
+- CPO customer aggregates now load session usage/counts and wallet balance in
+  separate queries, so missing wallet rows and zero-session customers return
+  stable zero values without masking either aggregate. No migration or data
+  repair was required.
+- Runtime revision `b6b723d` is active behind Caddy with binary SHA-256
+  `92cadd70b9b18106ddf416b3ee06a752ac2c0fc706576fe4e37c6099186decbd`.
+  Service/readiness, public routing, Swagger/OpenAPI (213 operations), Caddy,
+  and post-rehost startup checks pass. The prior binary is retained for
+  rollback.
+
 ### 2026-08-28 - Support core and notifications deployed
 
 - Migration 057 converts historical ticket `PENDING` state to `IN_PROGRESS`,
@@ -23,8 +168,8 @@
   status, localized time, and the configured action URL—not private message
   bodies. Support core and notification completion are published at
   `256aa8975fa07dc032dd779c8eb4b0d93a3b1a73` and migration 56/57 are applied.
-  Runtime revision `342d65a` is active behind Caddy with binary SHA-256
-  `1d29512c02ab32adf12387f5b97a452d6b9fa38e90d29354e2c3a8ae7272cf22`.
+  Runtime revision `b6b723d` is active behind Caddy with binary SHA-256
+  `92cadd70b9b18106ddf416b3ee06a752ac2c0fc706576fe4e37c6099186decbd`.
   Service/readiness, public routing, Swagger/OpenAPI (213 operations), Caddy,
   and post-rehost startup checks pass. The migration ordering correction for
   existing `PENDING` tickets was applied before migration 57. SMTP delivery,
@@ -907,9 +1052,9 @@ provides:
 - global identities;
 - separate platform-superadmin records;
 - CPO tenant organizations;
-- CPO membership persistence with active staff-role identity; core CPO
-  administration/provider-integration authority remains ADMIN while support
-  and notifications use their own active-membership boundary;
+- CPO membership persistence with active staff-role identity; CPO routes use
+  explicit capabilities as endpoint authority while roles supply defaults;
+  support and notifications retain their separately documented boundaries;
 - tenant-scoped, credential-owning customer accounts;
 - user settings and tenant customer groups;
 - hubs, chargers, connectors, favorites, and group access links;
@@ -999,7 +1144,7 @@ provides:
   `PATCH /api/v1/app/profile`, with omitted-versus-null phone semantics,
   canonical user projection responses, and CPO-scoped field-name-only audit
   evidence;
-- CPO ADMIN-controlled default-false hub publication through
+- `hubs.manage`-controlled default-false hub publication through
   `customer_visible`, plus authenticated customer-safe published network
   discovery for hubs, attached chargers, and connectors; the hub
   `open_24_hours` and charger `twenty_four_seven_open_status` values are
@@ -1138,7 +1283,7 @@ operations after adding customer self-service profile editing, published
 network discovery, favorites, informational customer price reads, charger
 search and wallet reads, and Razorpay recharge order/verification; the deployed binary remains at 113 until a
 separately approved deployment. The deployed
-source includes the CPO ADMIN-only
+source includes the `hubs.manage`-protected
 `POST /api/v1/cpo/hubs/{hub_id}/chargers` hub attachment/reassignment command,
 allows an independent charger to be created without `hub_id`, and adds
 non-negative hub `sanction_load` plus the upgrade-time removal of the legacy
@@ -1164,7 +1309,7 @@ plan retains that app-only header. Customer self-service name and phone
 editing, published-station discovery, favorites, and informational tariff
 display are implemented in source; HAL-dependent charging/billing work remains
 planned.
-CPO ADMIN routes remain owned by the CPO workstream.
+CPO capability-protected routes remain owned by the CPO workstream.
 
 The CMS/HAL transport, authenticated fact receiver, durable charging intent and
 hold state, and customer charging start/stop/status routes are implemented and
@@ -1512,8 +1657,9 @@ intentionally unsupported.
 - `users` represent administrative login identities for platform and CPO staff.
 - `platform_admins` explicitly grant platform-superadmin authority.
 - `cpos` represent tenant/customer organizations.
-- `cpo_memberships` store a fixed role inside one CPO; current callable
-  authority requires `ADMIN`.
+- `cpo_memberships` store a fixed role inside one CPO; callable endpoint
+  authority is the route capability evaluated with the active membership and
+  any override.
 - `customers` are CPO-local app-user accounts and own email, password, profile,
   verification, lockout, and login timestamps.
 - Customer-auth outbox jobs are correlated to their owning CPO without

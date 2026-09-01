@@ -18,16 +18,13 @@ type Handler struct {
 
 func RegisterRoutes(group *gin.RouterGroup, authService *auth.Service, service *Service) {
 	handler := &Handler{service: service}
-	group.Use(
-		noStore,
-		authService.Authenticate(),
-		auth.RequireCPOAppID(),
-		auth.RequireCPOPermission(service.database, cpopermissions.SettingsManage),
-	)
-	group.GET("", handler.list)
-	group.GET("/:provider", handler.get)
-	group.PUT("/:provider", handler.put)
-	group.DELETE("/:provider", handler.delete)
+	group.Use(cmsmiddleware.NoStore, authService.Authenticate(), auth.RequireCPOAppID())
+	read := group.Group("", auth.RequireCPOPermission(service.database, cpopermissions.SettingsRead))
+	manage := group.Group("", auth.RequireCPOPermission(service.database, cpopermissions.SettingsManage))
+	read.GET("", handler.list)
+	read.GET("/:provider", handler.get)
+	manage.PUT("/:provider", handler.put)
+	manage.DELETE("/:provider", handler.delete)
 }
 
 func (handler *Handler) list(ctx *gin.Context) {
@@ -126,10 +123,4 @@ func decodeJSON(ctx *gin.Context, destination any) error {
 		return err
 	}
 	return nil
-}
-
-func noStore(ctx *gin.Context) {
-	ctx.Header("Cache-Control", "no-store")
-	ctx.Header("Pragma", "no-cache")
-	ctx.Next()
 }

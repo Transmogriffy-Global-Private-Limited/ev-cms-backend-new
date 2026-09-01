@@ -1,5 +1,196 @@
 # AI Changelog
 
+## 2026-09-01 - Reconcile CPO historical charging-session commercial projection
+
+- Semantically integrated the two reviewed `abhranil_ev_cms_backend_new`
+  session-projection commits onto current main without merging their older
+  branch wholesale. CPO list/detail responses now expose frozen tariff
+  price/unit, GST components, and optional actual customer start criteria/value.
+- Session-time tariff/tax snapshots are display authority; mutable tariff and
+  hub GST data are legacy-only fallbacks. Start-intent hydration is CPO-scoped
+  and repository-owned, so list reads avoid N+1 service queries. No commercial
+  calculation, migration, deployment, or database mutation changed.
+
+Verification: focused CPO projection and OpenAPI/runtime tests plus the docs
+verifier pass locally. PostgreSQL-gated integration cases remain skipped
+without `TEST_DATABASE_URL`.
+
+## 2026-09-01 - Deploy charging transaction diagnostic trace
+
+- Added additive CMS migration 000059, opaque pre-command trace correlation,
+  append-only sanitized APP/CMS evidence, CPO `charging_traces.read`, bounded
+  trace routes, private HAL-source merge with explicit partial availability,
+  and the four-lane CPO waterfall handoff. Trace evidence is never business
+  authority and trace write/read failure never changes charging admission,
+  billing, wallet, settlement, connector, or OCPP truth.
+- Added bounded diagnostic retention only; it does not delete authoritative
+  charging state. The OpenAPI contract now has 219 operations and the docs
+  verifier enforces that count.
+
+Migration 000059 was applied after a mode-0600 custom-format database backup at
+`/root/evcmsnew-backups/pre-000059-20260901T093435Z.dump`. Rebuilt and rehosted
+revision `3037c46`; the active binary SHA-256 is
+`2f87378e9bda54d8b8db54877add2c363b8293c7fbd34766a864f9e931759da8`. The
+previous trace-release binary is retained at
+`/root/evcmsnew-backups/pre-3037c46-20260901T093716Z`.
+
+Verification: focused trace/config/CPO/customerauth checks, full `go test
+-p 1 ./...`, `go vet -p 1 ./...`, successful production build, loopback/public
+live and readiness, Swagger/OpenAPI (219 operations), Caddy validation,
+migration state, loaded environment-key parity, and post-rehost logs pass.
+The PowerShell documentation verifier and PostgreSQL lifecycle tests remain
+skipped because `pwsh` and a disposable `TEST_DATABASE_URL` are unavailable;
+physical charger and SMTP delivery acceptance remain unclaimed.
+
+## 2026-09-01 - Deploy CPO capability-authority coherence
+
+- Rebuilt and rehosted source revision `bc1fbe7`. The release aligns CPO
+  capability evaluation, support and integration permission boundaries,
+  protected-response cache control, role-change session revocation, and the
+  OpenAPI Bearer-plus-App-ID contract. No migration or data repair was needed.
+- Retained the previous active binary at
+  `builds/evcmsnew.pre-deployed-320d489-20260901-095905` for rollback.
+
+Verification: focused authorization, CPO, integrations, middleware, support,
+routes, and database tests; OpenAPI route parity; full `go test ./...`; `go vet
+./...`; successful build; loopback/public live and readiness; Swagger/OpenAPI
+(217 operations); Caddy validation; migration state; and post-rehost logs all
+pass. `pwsh` and a disposable `TEST_DATABASE_URL` remain unavailable, so the
+PowerShell documentation verifier and PostgreSQL-gated integration tests were
+not run. Physical charger and SMTP delivery acceptance remain unclaimed.
+
+## 2026-09-01 - Complete CPO capability-authority coherence in source
+
+- Made the documented CPO capability, evaluated against active membership and
+  matching `X-CPO-App-ID`, the endpoint authority. Roles remain
+  source-controlled default bundles; explicit `DENY` wins over every default.
+  Evaluator/infrastructure failure now remains a safe `500` rather than being
+  misreported as a permission denial.
+- Corrected support create/reply ordering so create does not fail after commit
+  through an unrelated read check, and reply proves both `support.read` and
+  `support.reply` before mutation. Integration reads use `settings.read`; PUT
+  and DELETE use `settings.manage`. CPO protected responses use shared
+  `no-store` middleware.
+- A real staff role change now transactionally revokes only that member's CPO
+  administrative sessions and refresh tokens; no-op and override-only changes
+  retain sessions. CPO operational SSE streams continue to re-evaluate fresh
+  `chargers.operations` authority at heartbeat.
+- Repaired CPO OpenAPI security as one Bearer-plus-App-ID AND requirement,
+  including the previously omitted hub-GST and user-group membership deletion
+  operations, and updated the CPO contracts, frontend handoffs, project state,
+  development plan, and documentation verifier to describe capabilities as
+  endpoint authority.
+
+Verification: focused auth/permission/middleware/CPO/support/integrations tests,
+OpenAPI/runtime route regressions, documentation verification, `go test ./...`,
+`go vet ./...`, `go build ./...`, and `git diff --check` pass locally.
+PostgreSQL-backed lifecycle cases remain skipped because no disposable
+`TEST_DATABASE_URL` is configured. The source is included in the deployed
+release recorded above; no physical charger or SMTP acceptance is claimed.
+
+## 2026-08-31 - Deploy User App realtime and mail-outbox reconciliation
+
+- Applied migration 058 after a mode-0600 database backup, rebuilt source
+  revision `320d489`, and rehosted the development CMS. The release includes
+  authenticated User App full-state realtime projections, CPO stream ordering,
+  and the reconciled durable mail-template catalogue.
+- Retained the previous binary at
+  `builds/evcmsnew.pre-deployed-632ec13-20260831-141003` and the pre-migration
+  dump at `/root/evcmsnew-backups/devevcmsnew-before-000058-20260831-140835.dump`.
+
+Verification: migration state and the `NOT VALID` mail constraint were checked;
+the service is active with zero restarts; loopback/public live and readiness,
+OpenAPI (217 operations), Swagger UI, Caddy validation, and post-rehost logs
+pass. Focused route, realtime, mail, support, and migration tests plus the
+previously completed broad Go tests/vet/build passed. `pwsh` and a disposable
+`TEST_DATABASE_URL` are unavailable, so the documentation PowerShell verifier
+and PostgreSQL-gated integration tests were not run; physical charger and SMTP
+delivery acceptance remain unclaimed.
+
+## 2026-08-31 - Reconcile the durable mail-outbox template catalogue in source
+
+- Added forward migration 058 to replace the stale `mail_outbox` template
+  CHECK with the 24 templates that current source validation and rendering
+  support. The migration preserves preexisting historical rows without deleting
+  or rewriting them, while PostgreSQL rejects unsupported new/updated rows.
+- Added one explicit Go catalogue, validation/renderer alignment tests, a
+  PostgreSQL-gated constraint regression, and support status rollback coverage
+  so required support mail intent cannot be silently lost from the business
+  transaction.
+
+Verification: source-focused mail, support, and migration tests plus broad Go
+verification are recorded with this slice. PostgreSQL integration coverage
+remains separately gated unless an explicitly selected disposable
+`TEST_DATABASE_URL` is provided. Migration 058 is now applied on the
+development database and the release is deployed in the entry above.
+
+## 2026-08-31 - Correct User App realtime state delivery in source
+
+- Added complete authenticated User App SSE projections for the current
+  customer live-session collection and one customer-visible charger's current
+  availability. Both reuse existing customer-safe CMS projections and batch
+  `liveops` reads; the durable operational-event table only wakes a replacement
+  projection and is not delivered as browser state.
+- Added transactional wake-up publication for the CMS-owned customer
+  `ACTIVE -> STOP_PENDING` transition, bounded heartbeat reprojection for
+  time-derived state, customer/app/visibility revalidation, and OpenAPI/User
+  App/realtime contract updates. Corrected CPO live-session SSE to establish
+  its event watermark before reading the initial snapshot.
+
+Verification: focused customer-auth, liveops, operational-realtime, CPO, and
+route tests; documentation verification; OpenAPI/runtime route parity; full
+`go test ./...`; `go vet ./...`; `go build ./...`; and `git diff --check`
+passed. PostgreSQL-gated lifecycle cases remain unrun because
+`TEST_DATABASE_URL` is not configured. The source is now included in the
+deployed release recorded above; no physical charger or SMTP acceptance is
+claimed.
+
+## 2026-08-28 - Deploy CPO live-session OCPP transaction identity
+
+- Rebuilt and rehosted source revision `632ec13`, which exposes the durable
+  OCPP transaction identifier as `ocpp_transaction_id` in CPO live-session
+  snapshots and SSE payloads. No database migration was pending or required.
+- Retained the previously active binary at
+  `builds/evcmsnew.pre-deployed-d635446-20260828-164259` for rollback.
+
+Verification: service active with zero restarts, loopback and public live/readiness
+checks pass, public OpenAPI contains `ocpp_transaction_id`, Swagger UI responds,
+Caddy configuration validates, and post-rehost logs show successful startup.
+Focused projection and OpenAPI route-parity tests plus the previously completed
+full Go tests and vet passed. `pwsh` is unavailable on this VPS, so the
+PowerShell documentation verifier was not run; physical charger and SMTP
+delivery acceptance remain unclaimed.
+
+## 2026-08-28 - Add live charging financial and usage projections
+
+- Added one shared snapshot-pricing evaluator for current accrued amounts,
+  tenant-scoped CPO customer usage projections, and customer/CPO live-session
+  financial projections. Projected amounts remain distinct from final
+  settlement totals and use persisted tariff/tax snapshots.
+- Extended the existing customer session, CPO customer, and CPO live-session
+  contracts and OpenAPI schemas without adding a migration or a second source
+  of truth.
+
+Verification: focused projection and commercial tests, the OpenAPI route-parity
+test, full `go test ./...`, `go vet ./...`, and `git diff --check` pass. Runtime
+revision `d635446` was rebuilt and rehosted without a migration; service/readiness,
+public routing, Swagger/OpenAPI (213 operations), Caddy, binary identity, and
+post-rehost logs pass. Physical charger, SMTP delivery, disposable PostgreSQL,
+and `pwsh` documentation verification are not claimed or unavailable.
+
+## 2026-08-28 - Fix CPO customer aggregate wallet reads
+
+- Split the customer aggregate query into independent session and wallet
+  reads, preserving zero-valued usage/session totals while reliably returning a
+  customer's wallet balance when no wallet row exists.
+
+Verification: focused CPO aggregate tests, full `go test ./...`, `go vet
+./...`, and `git diff --check` pass. Runtime revision `b6b723d` was rebuilt and
+rehosted without a migration; service/readiness, public routing,
+Swagger/OpenAPI (213 operations), Caddy, binary identity, and post-rehost logs
+pass. `pwsh`, `TEST_DATABASE_URL`, and physical charger acceptance remain
+unavailable/unclaimed.
+
 ## 2026-08-28 - Complete the durable support-ticket core
 
 - Added support migration 057, immutable ticket lifecycle events, the final

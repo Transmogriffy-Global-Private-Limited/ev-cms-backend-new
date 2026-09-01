@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/commercial"
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/constants"
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/halops"
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/models"
@@ -349,6 +350,11 @@ func (service *Service) materializeAuthoritativeStart(tx *gorm.DB, evidence halo
 	if err := tx.Create(&session).Error; err != nil {
 		return nil, false, err
 	}
+	if intent.TraceID != nil {
+		// A fact must remain authoritative even when its diagnostic projection
+		// cannot be appended. The durable session is never derived from trace.
+		_ = service.recordChargingTrace(tx, *intent.TraceID, intent.CPOID, &session.ID, "HAL", "CMS", "LIFECYCLE", "FACT", "CHARGING", "HAL start fact materialized a CMS session", "", models.JSONB{"hal_transaction_id": evidence.HALTransactionID.String(), "ocpp_transaction_id": evidence.OCPPTransactionID})
+	}
 	now := service.now()
 	if err := tx.Model(&command).Updates(map[string]any{"hal_command_id": evidence.HALCommandID, "state": "MATERIALIZED", "last_error_category": "", "last_error_detail": "", "updated_at": now}).Error; err != nil {
 		return nil, false, err
@@ -386,6 +392,17 @@ func startEvidenceFromFact(p models.JSONB) (halops.StartEvidence, error) {
 }
 
 func (service *Service) emitStartedOperationalEvent(tx *gorm.DB, session models.ChargingSession) error {
+	return service.emitChargingSessionChanged(tx, session)
+}
+
+// emitChargingSessionChanged is the transactionally coupled wake-up for CMS
+// mutations that affect a customer live-session projection without waiting for
+// a later HAL fact. The event is never browser state; it only prompts a full
+// replacement projection after commit.
+func (service *Service) emitChargingSessionChanged(tx *gorm.DB, session models.ChargingSession) error {
+	if service.operationalEvents == nil {
+		return nil
+	}
 	_, err := service.operationalEvents.Emit(tx, operationalrealtime.Input{CPOID: session.CPOID, CustomerID: &session.CustomerID, Type: "charging.session_changed", ResourceType: "CHARGING_SESSION", ResourceID: session.ID.String(), Data: models.JSONB{}})
 	return err
 }
@@ -398,6 +415,7 @@ func materializedChargingSession(intent models.ChargingStartIntent, ocppID int64
 		ID:               uuid.New(),
 		CPOID:            intent.CPOID,
 		StartIntentID:    &intent.ID,
+		TraceID:          intent.TraceID,
 		HALTransactionID: &halTransactionID,
 		TransactionID:    ocppID,
 		CustomerID:       intent.CustomerID,
@@ -615,11 +633,13 @@ func (service *Service) ReconcileCompletedSettlements(ctx context.Context, limit
 }
 
 func chargingAmount(tariff, tax models.JSONB, consumedWh int64, startedAt, stoppedAt time.Time) (decimal.Decimal, error) {
-	pricing, err := tariffPricingFromSnapshot(tariff)
-	if err != nil {
-		return decimal.Zero, err
-	}
-	return pricing.amountWithTaxSnapshot(consumedWh, startedAt, stoppedAt, tax)
+	return commercial.SessionAmountFromSnapshots(
+		tariff,
+		tax,
+		consumedWh,
+		startedAt,
+		stoppedAt,
+	)
 }
 func factID(p models.JSONB, key string) (uuid.UUID, bool) {
 	v, ok := p[key].(string)

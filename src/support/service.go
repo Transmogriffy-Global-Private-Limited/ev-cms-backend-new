@@ -111,7 +111,10 @@ func (service *Service) Create(ctx context.Context, principal auth.Principal, re
 	if err != nil {
 		return TicketView{}, fmt.Errorf("create support ticket: %w", err)
 	}
-	return service.Get(ctx, principal, ticket.ID)
+	// Creation authority is intentionally independent from support.read. The
+	// created response remains tenant-scoped, but must not re-authorize with an
+	// unrelated capability after the transaction has committed.
+	return service.loadTicket(ctx, principal, ticket.ID)
 }
 func (service *Service) List(ctx context.Context, principal auth.Principal, request ListQuery) (TicketListPage, error) {
 	if principal.Scope == constants.AuthScopeCPO {
@@ -210,6 +213,9 @@ func (service *Service) loadTicket(ctx context.Context, principal auth.Principal
 func (service *Service) Reply(ctx context.Context, principal auth.Principal, ticketID uuid.UUID, request ReplyRequest) (TicketView, error) {
 	if principal.Scope == constants.AuthScopeCPO {
 		if err := service.requireCPOPermission(ctx, principal, cpopermissions.SupportReply); err != nil {
+			return TicketView{}, err
+		}
+		if err := service.requireCPOPermission(ctx, principal, cpopermissions.SupportRead); err != nil {
 			return TicketView{}, err
 		}
 	}
@@ -537,7 +543,10 @@ func (service *Service) requireCPOPermission(ctx context.Context, principal auth
 		return err
 	}
 	_, allowed, err := auth.EvaluateCPOPermission(ctx, service.database, principal, permission)
-	if err != nil || !allowed {
+	if err != nil {
+		return auth.CPOAuthorizationError(err)
+	}
+	if !allowed {
 		return forbidden()
 	}
 	return nil

@@ -97,6 +97,7 @@ type Mail struct {
 
 type Platform struct {
 	EventRetention    time.Duration
+	TraceRetention    time.Duration
 	RealtimePoll      time.Duration
 	RealtimeHeartbeat time.Duration
 	RealtimeBatchSize int
@@ -189,6 +190,7 @@ func Load() (Config, error) {
 		},
 		Platform: Platform{
 			EventRetention:    durationOrDefault("PLATFORM_EVENT_RETENTION", 7*24*time.Hour),
+			TraceRetention:    durationOrDefault("PLATFORM_CHARGING_TRACE_RETENTION", 30*24*time.Hour),
 			RealtimePoll:      durationOrDefault("PLATFORM_REALTIME_POLL_INTERVAL", time.Second),
 			RealtimeHeartbeat: durationOrDefault("PLATFORM_REALTIME_HEARTBEAT_INTERVAL", 15*time.Second),
 			RealtimeBatchSize: intOrDefault("PLATFORM_REALTIME_BATCH_SIZE", 100),
@@ -266,6 +268,8 @@ func (cfg Config) Validate() error {
 		return errors.New("APP_DISPLAY_TIMEZONE must resolve to an IANA location")
 	case cfg.Platform.EventRetention <= 0:
 		return errors.New("PLATFORM_EVENT_RETENTION must be positive")
+	case cfg.Platform.TraceRetention <= 0:
+		return errors.New("PLATFORM_CHARGING_TRACE_RETENTION must be positive")
 	case cfg.Platform.RealtimePoll <= 0 ||
 		cfg.Platform.RealtimeHeartbeat <= cfg.Platform.RealtimePoll:
 		return errors.New("PLATFORM_REALTIME_HEARTBEAT_INTERVAL must be longer than positive PLATFORM_REALTIME_POLL_INTERVAL")

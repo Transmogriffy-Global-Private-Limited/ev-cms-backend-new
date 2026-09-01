@@ -19,10 +19,12 @@ import (
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/config"
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/constants"
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/cpopermissions"
+	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/integrations"
 	cmsmail "github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/mail"
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/models"
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/platformops"
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/security"
+	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/support"
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/testsupport"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -58,10 +60,18 @@ func TestCPOCapabilityRoutesReachServicesWithPostgreSQL(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create auth service: %v", err)
 	}
-	cpoService := NewService(gormDB, nil, true, "dummy.connection.url")
+	integrationBox, err := security.NewSecretBox("cap-integration-test", bytes.Repeat([]byte{8}, 32))
+	if err != nil {
+		t.Fatalf("create integration secret box: %v", err)
+	}
+	cpoService := NewService(gormDB, cmsmail.NewOutbox(integrationBox), true, "dummy.connection.url")
+	integrationService := integrations.NewService(gormDB, integrationBox)
+	supportService := support.NewService(gormDB)
 	gin.SetMode(gin.TestMode)
 	router := gin.New()
 	RegisterCPORoutes(router.Group("/api/v1/cpo"), authService, cpoService)
+	integrations.RegisterRoutes(router.Group("/api/v1/cpo/integrations"), authService, integrationService)
+	support.RegisterCPORoutes(router.Group("/api/v1/cpo/support"), authService, supportService)
 
 	issue := func(t *testing.T, role constants.CPORole, allow, deny []string) string {
 		t.Helper()
@@ -93,7 +103,7 @@ func TestCPOCapabilityRoutesReachServicesWithPostgreSQL(t *testing.T) {
 		}
 		return token
 	}
-	call := func(t *testing.T, token, method, path string, body any, want int) {
+	callResponse := func(t *testing.T, token, method, path string, body any) *httptest.ResponseRecorder {
 		t.Helper()
 		var requestBody *bytes.Reader
 		if body == nil {
@@ -111,6 +121,11 @@ func TestCPOCapabilityRoutesReachServicesWithPostgreSQL(t *testing.T) {
 		request.Header.Set("Content-Type", "application/json")
 		recorder := httptest.NewRecorder()
 		router.ServeHTTP(recorder, request)
+		return recorder
+	}
+	call := func(t *testing.T, token, method, path string, body any, want int) {
+		t.Helper()
+		recorder := callResponse(t, token, method, path, body)
 		if recorder.Code != want {
 			t.Fatalf("%s %s status = %d, want %d: %s", method, path, recorder.Code, want, recorder.Body.String())
 		}
@@ -122,6 +137,149 @@ func TestCPOCapabilityRoutesReachServicesWithPostgreSQL(t *testing.T) {
 	call(t, issue(t, constants.CPORoleAdmin, nil, []string{cpopermissions.HubsRead}), http.MethodGet, "/api/v1/cpo/hubs?limit=10", nil, http.StatusForbidden)
 	call(t, issue(t, constants.CPORoleOperator, nil, nil), http.MethodGet, "/api/v1/cpo/hubs?limit=10", nil, http.StatusOK)
 	call(t, issue(t, constants.CPORoleViewer, nil, nil), http.MethodPost, "/api/v1/cpo/hubs", CreateHubRequest{Name: "Denied hub", Address: "1 Test Road", State: constants.WestBengal, Latitude: &latitude, Longitude: &longitude}, http.StatusForbidden)
+
+	// This compact matrix proves that router capability gates remain aligned with
+	// real CPO membership authority across each route family. A non-403 result
+	// intentionally means the request reached its service boundary; mutation
+	// fixtures need not manufacture every unrelated domain prerequisite.
+	for _, probe := range []struct {
+		name       string
+		permission string
+		path       string
+	}{
+		{"organization", cpopermissions.OrganizationRead, "/api/v1/cpo/organization"},
+		{"staff", cpopermissions.StaffRead, "/api/v1/cpo/staff"},
+		{"hubs", cpopermissions.HubsRead, "/api/v1/cpo/hubs?limit=10"},
+		{"chargers", cpopermissions.ChargersRead, "/api/v1/cpo/chargers?limit=10"},
+		{"charger operations", cpopermissions.ChargersOperations, "/api/v1/cpo/operations/fleet"},
+		{"tariffs GST user groups", cpopermissions.TariffsRead, "/api/v1/cpo/gsts?limit=10"},
+		{"customers", cpopermissions.CustomersRead, "/api/v1/cpo/customers?limit=10"},
+		{"charging sessions", cpopermissions.ChargingSessionsRead, "/api/v1/cpo/charging-sessions?limit=10"},
+		{"analytics", cpopermissions.AnalyticsRead, "/api/v1/cpo/analytics"},
+		{"support", cpopermissions.SupportRead, "/api/v1/cpo/support"},
+		{"settings", cpopermissions.SettingsRead, "/api/v1/cpo/settings"},
+		{"integrations", cpopermissions.SettingsRead, "/api/v1/cpo/integrations"},
+	} {
+		probe := probe
+		t.Run("matrix allow "+probe.name, func(t *testing.T) {
+			recorder := callResponse(t, issue(t, constants.CPORoleViewer, []string{probe.permission}, nil), http.MethodGet, probe.path, nil)
+			if recorder.Code == http.StatusForbidden {
+				t.Fatalf("%s was blocked by authorization: %s", probe.name, recorder.Body.String())
+			}
+		})
+		t.Run("matrix deny "+probe.name, func(t *testing.T) {
+			call(t, issue(t, constants.CPORoleAdmin, nil, []string{probe.permission}), http.MethodGet, probe.path, nil, http.StatusForbidden)
+		})
+	}
+
+	readOnlyIntegration := issue(t, constants.CPORoleViewer, []string{cpopermissions.SettingsRead}, []string{cpopermissions.SettingsManage})
+	call(t, readOnlyIntegration, http.MethodGet, "/api/v1/cpo/integrations", nil, http.StatusOK)
+	call(t, readOnlyIntegration, http.MethodPut, "/api/v1/cpo/integrations/RAZORPAY", integrations.RazorpayCredentials{KeyID: "rzp_test_12345678", KeySecret: "integration-secret-value"}, http.StatusForbidden)
+	manageOnlyIntegration := issue(t, constants.CPORoleViewer, []string{cpopermissions.SettingsManage}, []string{cpopermissions.SettingsRead})
+	call(t, manageOnlyIntegration, http.MethodGet, "/api/v1/cpo/integrations", nil, http.StatusForbidden)
+	call(t, manageOnlyIntegration, http.MethodPut, "/api/v1/cpo/integrations/RAZORPAY", integrations.RazorpayCredentials{KeyID: "rzp_test_12345678", KeySecret: "integration-secret-value"}, http.StatusOK)
+
+	createdResponse := callResponse(t, issue(t, constants.CPORoleViewer, []string{cpopermissions.SupportCreate}, []string{cpopermissions.SupportRead}), http.MethodPost, "/api/v1/cpo/support", support.CreateRequest{Subject: "Create without read", Body: "The response must not add a post-commit read gate."})
+	if createdResponse.Code != http.StatusCreated {
+		t.Fatalf("support create without read status=%d body=%s", createdResponse.Code, createdResponse.Body.String())
+	}
+	var ticket support.TicketView
+	if err := json.Unmarshal(createdResponse.Body.Bytes(), &ticket); err != nil {
+		t.Fatalf("decode created support ticket: %v", err)
+	}
+	if ticket.ID == uuid.Nil || len(ticket.Messages) != 1 {
+		t.Fatalf("created support response = %#v", ticket)
+	}
+	var messageCount int64
+	if err := gormDB.Model(&models.SupportTicketMessage{}).Where("ticket_id = ?", ticket.ID).Count(&messageCount).Error; err != nil {
+		t.Fatalf("count ticket messages: %v", err)
+	}
+	replyOnly := issue(t, constants.CPORoleViewer, []string{cpopermissions.SupportReply}, []string{cpopermissions.SupportRead})
+	call(t, replyOnly, http.MethodPost, "/api/v1/cpo/support/"+ticket.ID.String()+"/replies", support.ReplyRequest{Body: "must not persist", IdempotencyKey: uuid.NewString()}, http.StatusForbidden)
+	var afterDeniedReply int64
+	if err := gormDB.Model(&models.SupportTicketMessage{}).Where("ticket_id = ?", ticket.ID).Count(&afterDeniedReply).Error; err != nil {
+		t.Fatalf("count denied reply messages: %v", err)
+	}
+	if afterDeniedReply != messageCount {
+		t.Fatalf("reply without read mutated ticket: before=%d after=%d", messageCount, afterDeniedReply)
+	}
+	readAndReply := issue(t, constants.CPORoleViewer, []string{cpopermissions.SupportRead, cpopermissions.SupportReply}, nil)
+	call(t, readAndReply, http.MethodGet, "/api/v1/cpo/support/"+ticket.ID.String(), nil, http.StatusOK)
+	call(t, readAndReply, http.MethodPost, "/api/v1/cpo/support/"+ticket.ID.String()+"/replies", support.ReplyRequest{Body: "allowed reply", IdempotencyKey: uuid.NewString()}, http.StatusOK)
+	readOnly := issue(t, constants.CPORoleViewer, []string{cpopermissions.SupportRead}, []string{cpopermissions.SupportReply})
+	call(t, readOnly, http.MethodGet, "/api/v1/cpo/support/"+ticket.ID.String(), nil, http.StatusOK)
+	call(t, readOnly, http.MethodPost, "/api/v1/cpo/support/"+ticket.ID.String()+"/replies", support.ReplyRequest{Body: "denied reply", IdempotencyKey: uuid.NewString()}, http.StatusForbidden)
+	call(t, issue(t, constants.CPORoleOperator, nil, []string{cpopermissions.SupportReply}), http.MethodPost, "/api/v1/cpo/support/"+ticket.ID.String()+"/replies", support.ReplyRequest{Body: "deny wins", IdempotencyKey: uuid.NewString()}, http.StatusForbidden)
+
+	roleActor := models.User{ID: uuid.New(), Email: uuid.NewString() + "@example.com", PasswordHash: "not-used", FullName: "Role Change Actor", IsActive: true, IsVerified: true, PasswordChangedAt: now, CreatedAt: now, UpdatedAt: now}
+	roleTarget := models.User{ID: uuid.New(), Email: uuid.NewString() + "@example.com", PasswordHash: "not-used", FullName: "Role Change Target", IsActive: true, IsVerified: true, PasswordChangedAt: now, CreatedAt: now, UpdatedAt: now}
+	if err := gormDB.Create(&roleActor).Error; err != nil {
+		t.Fatalf("create role-change actor: %v", err)
+	}
+	if err := gormDB.Create(&roleTarget).Error; err != nil {
+		t.Fatalf("create role-change target: %v", err)
+	}
+	adminRole, operatorRole, viewerRole := constants.CPORoleAdmin, constants.CPORoleOperator, constants.CPORoleViewer
+	actorMembership := models.CPOMembership{ID: uuid.New(), CPOID: cpoRecord.ID, UserID: roleActor.ID, Role: adminRole, Status: constants.MembershipStatusActive, CreatedAt: now, UpdatedAt: now}
+	targetMembership := models.CPOMembership{ID: uuid.New(), CPOID: cpoRecord.ID, UserID: roleTarget.ID, Role: operatorRole, Status: constants.MembershipStatusActive, CreatedAt: now, UpdatedAt: now}
+	if err := gormDB.Create(&actorMembership).Error; err != nil {
+		t.Fatalf("create role-change actor membership: %v", err)
+	}
+	if err := gormDB.Create(&targetMembership).Error; err != nil {
+		t.Fatalf("create role-change target membership: %v", err)
+	}
+	otherCPO := models.CPO{ID: uuid.New(), Slug: "other-" + strings.ToLower(uuid.NewString()), BusinessName: "Other Session CPO", CompanyType: constants.CPOCompanyTypeCompany, GSTIN: uniqueCPOGSTIN(), Address: "2 Test Road", City: "Kolkata", State: constants.WestBengal, Pincode: "700002", Status: constants.CPOStatusActive, StatusReason: "test", StatusChangedAt: now, AppID: "cpo_dummy_" + strings.ReplaceAll(uuid.NewString(), "-", ""), AppIDMode: constants.CPOAppIDModeDummy, AppIDUpdatedAt: now, CreatedAt: now, UpdatedAt: now}
+	if err := gormDB.Create(&otherCPO).Error; err != nil {
+		t.Fatalf("create other CPO: %v", err)
+	}
+	otherMembership := models.CPOMembership{ID: uuid.New(), CPOID: otherCPO.ID, UserID: roleTarget.ID, Role: operatorRole, Status: constants.MembershipStatusActive, CreatedAt: now, UpdatedAt: now}
+	if err := gormDB.Create(&otherMembership).Error; err != nil {
+		t.Fatalf("create other CPO membership: %v", err)
+	}
+	newSession := func(scope constants.AuthScope, sessionCPOID *uuid.UUID, role *constants.CPORole) (uuid.UUID, uuid.UUID) {
+		t.Helper()
+		sessionID, refreshID := uuid.New(), uuid.New()
+		if err := gormDB.Create(&models.AuthSession{ID: sessionID, UserID: roleTarget.ID, Scope: scope, CPOID: sessionCPOID, Role: role, TokenVersion: 1, CreatedAt: now, LastSeenAt: now, ExpiresAt: now.Add(time.Hour)}).Error; err != nil {
+			t.Fatalf("create %s session: %v", scope, err)
+		}
+		if err := gormDB.Create(&models.AuthRefreshToken{ID: refreshID, SessionID: sessionID, TokenHash: uuid.NewString(), ExpiresAt: now.Add(time.Hour), CreatedAt: now}).Error; err != nil {
+			t.Fatalf("create %s refresh token: %v", scope, err)
+		}
+		return sessionID, refreshID
+	}
+	affectedSessionID, affectedRefreshID := newSession(constants.AuthScopeCPO, &cpoRecord.ID, &operatorRole)
+	otherCPOSessionID, otherCPORefreshID := newSession(constants.AuthScopeCPO, &otherCPO.ID, &operatorRole)
+	platformSessionID, platformRefreshID := newSession(constants.AuthScopePlatform, nil, nil)
+	roleActorPrincipal := auth.Principal{UserID: roleActor.ID, Scope: constants.AuthScopeCPO, CPOID: &cpoRecord.ID, Role: &adminRole}
+	if _, err := cpoService.UpdateStaff(ctx, roleActorPrincipal, targetMembership.ID, UpdateStaffRequest{Role: &viewerRole}); err != nil {
+		t.Fatalf("change staff role: %v", err)
+	}
+	assertRevocation := func(t *testing.T, sessionID, refreshID uuid.UUID, wantRevoked bool) {
+		t.Helper()
+		var session models.AuthSession
+		var refresh models.AuthRefreshToken
+		if err := gormDB.First(&session, "id = ?", sessionID).Error; err != nil {
+			t.Fatalf("load session: %v", err)
+		}
+		if err := gormDB.First(&refresh, "id = ?", refreshID).Error; err != nil {
+			t.Fatalf("load refresh token: %v", err)
+		}
+		if (session.RevokedAt != nil) != wantRevoked || (refresh.RevokedAt != nil) != wantRevoked {
+			t.Fatalf("session=%s refresh=%s revoked=%t/%t, want %t", sessionID, refreshID, session.RevokedAt != nil, refresh.RevokedAt != nil, wantRevoked)
+		}
+	}
+	assertRevocation(t, affectedSessionID, affectedRefreshID, true)
+	assertRevocation(t, otherCPOSessionID, otherCPORefreshID, false)
+	assertRevocation(t, platformSessionID, platformRefreshID, false)
+	noOpSessionID, noOpRefreshID := newSession(constants.AuthScopeCPO, &cpoRecord.ID, &viewerRole)
+	if _, err := cpoService.UpdateStaff(ctx, roleActorPrincipal, targetMembership.ID, UpdateStaffRequest{Role: &viewerRole}); err != nil {
+		t.Fatalf("repeat unchanged role: %v", err)
+	}
+	assertRevocation(t, noOpSessionID, noOpRefreshID, false)
+	if _, err := cpoService.UpdateStaff(ctx, roleActorPrincipal, targetMembership.ID, UpdateStaffRequest{Overrides: &[]MembershipPermissionOverrideRequest{{Permission: cpopermissions.HubsManage, Effect: "ALLOW"}}}); err != nil {
+		t.Fatalf("override-only staff update: %v", err)
+	}
+	assertRevocation(t, noOpSessionID, noOpRefreshID, false)
 }
 
 func uniqueCPOGSTIN() string {

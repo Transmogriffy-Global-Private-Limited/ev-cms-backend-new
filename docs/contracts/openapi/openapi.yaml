@@ -93,6 +93,7 @@ paths:
       tags: [CPO Operations - Account & Notifications]
       operationId: replyToCPOSupportTicket
       summary: Reply to a CPO support ticket
+      description: Requires both `support.read` and `support.reply`, because the successful response contains the complete ticket conversation and lifecycle history.
       security: [{BearerAuth: [], CPOAppID: []}]
       parameters: [{$ref: "#/components/parameters/SupportTicketID"}]
       requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/SupportReplyRequest"}}}}
@@ -145,7 +146,7 @@ paths:
       tags: [CPO Operations - Account & Notifications]
       operationId: listCPOAccessPermissions
       summary: List canonical CPO permission definitions for the active membership
-      security: [{BearerAuth: []}, {CPOAppID: []}]
+      security: [{BearerAuth: [], CPOAppID: []}]
       responses:
         "200": {description: Source-controlled permission definitions., content: {application/json: {schema: {$ref: "#/components/schemas/PermissionCatalogResponse"}}}}
         "401": {$ref: "#/components/responses/Unauthorized"}
@@ -155,7 +156,7 @@ paths:
       tags: [CPO Operations - Account & Notifications]
       operationId: getCPOAccessMe
       summary: Get the active CPO membership and effective permissions
-      security: [{BearerAuth: []}, {CPOAppID: []}]
+      security: [{BearerAuth: [], CPOAppID: []}]
       responses:
         "200": {description: Fresh CPO access projection., content: {application/json: {schema: {$ref: "#/components/schemas/CPOAccessMe"}}}}
         "401": {$ref: "#/components/responses/Unauthorized"}
@@ -165,7 +166,7 @@ paths:
       tags: [CPO Operations - Account & Notifications]
       operationId: listCPOPermissionCatalog
       summary: List the source-controlled CPO permission catalog
-      security: [{BearerAuth: []}, {CPOAppID: []}]
+      security: [{BearerAuth: [], CPOAppID: []}]
       responses:
         "200": {description: Known permission definitions., content: {application/json: {schema: {$ref: "#/components/schemas/PermissionCatalogResponse"}}}}
         "401": {$ref: "#/components/responses/Unauthorized"}
@@ -175,7 +176,7 @@ paths:
       tags: [CPO Operations - Account & Notifications]
       operationId: listCPOStaff
       summary: List CPO staff memberships and overrides
-      security: [{BearerAuth: []}, {CPOAppID: []}]
+      security: [{BearerAuth: [], CPOAppID: []}]
       responses:
         "200": {description: CPO staff., content: {application/json: {schema: {$ref: "#/components/schemas/StaffListResponse"}}}}
         "401": {$ref: "#/components/responses/Unauthorized"}
@@ -184,7 +185,7 @@ paths:
       tags: [CPO Operations - Account & Notifications]
       operationId: createCPOStaff
       summary: Create a non-primary CPO staff membership
-      security: [{BearerAuth: []}, {CPOAppID: []}]
+      security: [{BearerAuth: [], CPOAppID: []}]
       requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/CreateStaffRequest"}}}}
       responses:
         "201": {description: Created staff membership., content: {application/json: {schema: {$ref: "#/components/schemas/Staff"}}}}
@@ -197,7 +198,7 @@ paths:
       tags: [CPO Operations - Account & Notifications]
       operationId: getCPOStaff
       summary: Get one CPO staff membership
-      security: [{BearerAuth: []}, {CPOAppID: []}]
+      security: [{BearerAuth: [], CPOAppID: []}]
       parameters: [{$ref: "#/components/parameters/MembershipID"}]
       responses:
         "200": {description: CPO staff membership., content: {application/json: {schema: {$ref: "#/components/schemas/Staff"}}}}
@@ -209,7 +210,7 @@ paths:
       tags: [CPO Operations - Account & Notifications]
       operationId: updateCPOStaff
       summary: Update a non-primary staff role or override set
-      security: [{BearerAuth: []}, {CPOAppID: []}]
+      security: [{BearerAuth: [], CPOAppID: []}]
       parameters: [{$ref: "#/components/parameters/MembershipID"}]
       requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/UpdateStaffRequest"}}}}
       responses:
@@ -224,7 +225,7 @@ paths:
       tags: [CPO Operations - Account & Notifications]
       operationId: activateCPOStaff
       summary: Activate a non-primary staff membership
-      security: [{BearerAuth: []}, {CPOAppID: []}]
+      security: [{BearerAuth: [], CPOAppID: []}]
       parameters: [{$ref: "#/components/parameters/MembershipID"}]
       requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/ReasonRequest"}}}}
       responses: {"200": {description: Updated staff membership., content: {application/json: {schema: {$ref: "#/components/schemas/Staff"}}}}, "400": {$ref: "#/components/responses/InvalidRequest"}, "401": {$ref: "#/components/responses/Unauthorized"}, "403": {$ref: "#/components/responses/CPOBusinessForbidden"}, "404": {description: "`staff_not_found`"}, "409": {$ref: "#/components/responses/Conflict"}}
@@ -233,7 +234,7 @@ paths:
       tags: [CPO Operations - Account & Notifications]
       operationId: suspendCPOStaff
       summary: Suspend a non-primary staff membership and revoke its CPO sessions
-      security: [{BearerAuth: []}, {CPOAppID: []}]
+      security: [{BearerAuth: [], CPOAppID: []}]
       parameters: [{$ref: "#/components/parameters/MembershipID"}]
       requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/ReasonRequest"}}}}
       responses: {"200": {description: Updated staff membership., content: {application/json: {schema: {$ref: "#/components/schemas/Staff"}}}}, "400": {$ref: "#/components/responses/InvalidRequest"}, "401": {$ref: "#/components/responses/Unauthorized"}, "403": {$ref: "#/components/responses/CPOBusinessForbidden"}, "404": {description: "`staff_not_found`"}, "409": {$ref: "#/components/responses/Conflict"}}
@@ -242,7 +243,7 @@ paths:
       tags: [CPO Operations - Account & Notifications]
       operationId: revokeCPOStaff
       summary: Revoke a non-primary staff membership and its CPO sessions
-      security: [{BearerAuth: []}, {CPOAppID: []}]
+      security: [{BearerAuth: [], CPOAppID: []}]
       parameters: [{$ref: "#/components/parameters/MembershipID"}]
       requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/ReasonRequest"}}}}
       responses: {"200": {description: Updated staff membership., content: {application/json: {schema: {$ref: "#/components/schemas/Staff"}}}}, "400": {$ref: "#/components/responses/InvalidRequest"}, "401": {$ref: "#/components/responses/Unauthorized"}, "403": {$ref: "#/components/responses/CPOBusinessForbidden"}, "404": {description: "`staff_not_found`"}, "409": {$ref: "#/components/responses/Conflict"}}
@@ -255,7 +256,7 @@ paths:
       description: Returns a paginated list of charging sessions for the authenticated CPO, ordered by newest first.
       security:
         - BearerAuth: []
-        - CPOAppID: []
+          CPOAppID: []
       parameters:
         - $ref: "#/components/parameters/ListLimit"
         - $ref: "#/components/parameters/ListBefore"
@@ -297,7 +298,7 @@ paths:
       description: Returns a single charging session by ID.
       security:
         - BearerAuth: []
-        - CPOAppID: []
+          CPOAppID: []
       parameters:
         - name: session_id
           in: path
@@ -326,6 +327,51 @@ paths:
                 $ref: "#/components/schemas/ErrorEnvelope"
         "500":
           $ref: "#/components/responses/InternalError"
+  /api/v1/cpo/charging-sessions/{session_id}/trace:
+    get:
+      tags: [CPO Operations - Charging Sessions]
+      operationId: getCPOChargingSessionTrace
+      summary: Get diagnostic charging evidence for a session
+      description: Returns bounded, non-authoritative APP/CMS/HAL/CHARGER trace evidence. `hal_source` is `UNAVAILABLE` when the private HAL diagnostic read cannot be completed; charging truth is never inferred from this response.
+      security:
+        - BearerAuth: []
+          CPOAppID: []
+      parameters:
+        - name: session_id
+          in: path
+          required: true
+          schema: {type: string, format: uuid}
+        - $ref: "#/components/parameters/TraceLimit"
+        - $ref: "#/components/parameters/TraceBeforeOccurredAt"
+        - $ref: "#/components/parameters/TraceBeforeEventID"
+      responses:
+        "200": {description: Diagnostic trace evidence, content: {application/json: {schema: {$ref: "#/components/schemas/ChargingTraceResponse"}}}}
+        "400": {$ref: "#/components/responses/InvalidRequest"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/CPOBusinessForbidden"}
+        "404": {description: "charging_trace_not_found"}
+  /api/v1/cpo/charging-traces/{trace_id}:
+    get:
+      tags: [CPO Operations - Charging Sessions]
+      operationId: getCPOChargingTrace
+      summary: Get diagnostic charging evidence by opaque trace ID
+      security:
+        - BearerAuth: []
+          CPOAppID: []
+      parameters:
+        - name: trace_id
+          in: path
+          required: true
+          schema: {type: string, format: uuid}
+        - $ref: "#/components/parameters/TraceLimit"
+        - $ref: "#/components/parameters/TraceBeforeOccurredAt"
+        - $ref: "#/components/parameters/TraceBeforeEventID"
+      responses:
+        "200": {description: Diagnostic trace evidence, content: {application/json: {schema: {$ref: "#/components/schemas/ChargingTraceResponse"}}}}
+        "400": {$ref: "#/components/responses/InvalidRequest"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/CPOBusinessForbidden"}
+        "404": {description: "charging_trace_not_found"}
   /api/v1/cpo/charger-transactions:
     get:
       tags: [CPO Operations - Charging Sessions]
@@ -334,7 +380,7 @@ paths:
       description: Returns a paginated list of charger transactions for the authenticated CPO, ordered by newest first.
       security:
         - BearerAuth: []
-        - CPOAppID: []
+          CPOAppID: []
       parameters:
         - $ref: "#/components/parameters/ListLimit"
         - $ref: "#/components/parameters/ListBefore"
@@ -372,7 +418,7 @@ paths:
       description: Returns a paginated list of wallet transactions for all customers of the authenticated CPO, ordered by newest first.
       security:
         - BearerAuth: []
-        - CPOAppID: []
+          CPOAppID: []
       parameters:
         - $ref: "#/components/parameters/ListLimit"
         - $ref: "#/components/parameters/ListBefore"
@@ -406,7 +452,7 @@ paths:
       description: Returns a paginated list of wallet transactions for a given customer of the authenticated CPO, ordered by newest first.
       security:
         - BearerAuth: []
-        - CPOAppID: []
+          CPOAppID: []
       parameters:
         - $ref: "#/components/parameters/CustomerID"
         - $ref: "#/components/parameters/ListLimit"
@@ -3614,7 +3660,7 @@ paths:
       description: Returns the subscription details for the authenticated CPO.
       security:
         - BearerAuth: []
-        - CPOAppID: []
+          CPOAppID: []
       responses:
         "200":
           description: The CPO's current subscription.
@@ -3650,7 +3696,7 @@ paths:
         of chargers and connectors remain unfiltered.
       security:
         - BearerAuth: []
-        - CPOAppID: []
+          CPOAppID: []
       parameters:
         - name: period
           in: query
@@ -3696,7 +3742,7 @@ paths:
       summary: List customers for the authenticated CPO
       security:
         - BearerAuth: []
-        - CPOAppID: []
+          CPOAppID: []
       parameters:
         - $ref: "#/components/parameters/CPOAppIDHeader"
         - $ref: "#/components/parameters/ListBefore"
@@ -3744,7 +3790,7 @@ paths:
       summary: Get a specific customer for the authenticated CPO
       security:
         - BearerAuth: []
-        - CPOAppID: []
+          CPOAppID: []
       parameters:
         - $ref: "#/components/parameters/CPOAppIDHeader"
         - name: customer_id
@@ -3900,7 +3946,7 @@ paths:
         tenant.
       security:
         - BearerAuth: []
-        - CPOAppID: []
+          CPOAppID: []
       responses:
         "200":
           description: Current CPO settings.
@@ -3930,7 +3976,7 @@ paths:
         Creates or updates the settings for the authenticated CPO.
       security:
         - BearerAuth: []
-        - CPOAppID: []
+          CPOAppID: []
       requestBody:
         required: true
         content:
@@ -3963,7 +4009,7 @@ paths:
         Updates the settings for the authenticated CPO.
       security:
         - BearerAuth: []
-        - CPOAppID: []
+          CPOAppID: []
       requestBody:
         required: true
         content:
@@ -3996,7 +4042,7 @@ paths:
       description: Returns the invoice logo image previously uploaded for the CPO.
       security:
         - BearerAuth: []
-        - CPOAppID: []
+          CPOAppID: []
       parameters:
         - $ref: "#/components/parameters/CPOAppIDHeader"
       responses:
@@ -4060,7 +4106,7 @@ paths:
       tags: [CPO Operations - Live]
       operationId: listCPOOperationalEvents
       summary: Recover the tenant's retained operational events
-      description: CPO ADMIN-only cursor recovery for committed runtime projection notifications. REST fleet and charger projections remain authoritative.
+      description: Requires `chargers.operations` for cursor recovery of committed runtime projection notifications. REST fleet and charger projections remain authoritative.
       security: [{BearerAuth: [], CPOAppID: []}]
       parameters:
         - $ref: "#/components/parameters/CPOAppIDHeader"
@@ -4078,7 +4124,7 @@ paths:
       tags: [CPO Operations - Live]
       operationId: streamCPOOperationalEvents
       summary: Stream the tenant's retained operational events using SSE
-      description: CPO ADMIN-only SSE. The server revalidates the bearer session on heartbeats; clients deduplicate by event ID and use REST cursor recovery after reconnect.
+      description: Requires `chargers.operations`. The server revalidates the bearer session and fresh capability on heartbeats; clients deduplicate by event ID and use REST cursor recovery after reconnect.
       security: [{BearerAuth: [], CPOAppID: []}]
       parameters:
         - $ref: "#/components/parameters/CPOAppIDHeader"
@@ -4095,7 +4141,7 @@ paths:
       tags: [CPO Operations - Live]
       operationId: streamCPOLiveChargingSessions
       summary: Stream full materialized ongoing-session snapshots using SSE
-      description: CPO ADMIN-only SSE. It immediately emits a `snapshot` frame and emits a replacement-safe `live_sessions` frame after committed CHARGING_SESSION changes. Each frame contains the complete current CMS live-session projection for the requested limit, including duration in seconds at `as_of`, the CPO-visible customer name, and CMS connector UUID, never raw event rows or HAL calls. Reconnect this route to receive a new current snapshot; use the explicit snapshot route for non-stream recovery.
+      description: Requires `chargers.operations`. It immediately emits a `snapshot` frame and emits a replacement-safe `live_sessions` frame after committed CHARGING_SESSION changes. Each frame contains the complete current CMS live-session projection for the requested limit, including duration in seconds at `as_of`, the CPO-visible customer name, and CMS connector UUID, never raw event rows or HAL calls. Reconnect this route to receive a new current snapshot; use the explicit snapshot route for non-stream recovery.
       security: [{BearerAuth: [], CPOAppID: []}]
       parameters:
         - $ref: "#/components/parameters/CPOAppIDHeader"
@@ -4112,7 +4158,7 @@ paths:
       tags: [CPO Operations - Live]
       operationId: listCPOLiveChargingSessions
       summary: List materialized ongoing sessions with current operational telemetry
-      description: CPO ADMIN-only CMS recovery snapshot. Returns only ACTIVE, STOP_PENDING, and RECONCILIATION_REQUIRED sessions in start-time cursor order. It exposes duration in seconds at `as_of`, the CPO-visible customer name, human-readable charger/hub context, CMS connector UUID, and committed meter/SoC values and freshness; it never calls HAL and does not expose customer contact data, wallet, tariff, or settlement data.
+      description: Requires `chargers.operations`. Returns only ACTIVE, STOP_PENDING, and RECONCILIATION_REQUIRED sessions in start-time cursor order. It exposes duration in seconds at `as_of`, the CPO-visible customer name, human-readable charger/hub context, CMS connector UUID, and committed meter/SoC values and freshness; it never calls HAL and does not expose customer contact data, wallet, tariff, or settlement data.
       security: [{BearerAuth: [], CPOAppID: []}]
       parameters:
         - $ref: "#/components/parameters/CPOAppIDHeader"
@@ -4131,7 +4177,7 @@ paths:
       tags: [CPO Operations - Live]
       operationId: listCPOLiveChargingSessionEvents
       summary: Recover retained live-session invalidation events
-      description: CPO ADMIN-only durable replay filtered to CHARGING_SESSION events. This is an advanced cursor/reconciliation surface; the primary live-session UI consumes the full-snapshot SSE route. Event payload is not authoritative session state.
+      description: Requires `chargers.operations` for durable replay filtered to CHARGING_SESSION events. This is an advanced cursor/reconciliation surface; the primary live-session UI consumes the full-snapshot SSE route. Event payload is not authoritative session state.
       security: [{BearerAuth: [], CPOAppID: []}]
       parameters:
         - $ref: "#/components/parameters/CPOAppIDHeader"
@@ -4764,7 +4810,7 @@ paths:
       description: Get a list of chargers for a specific hub.
       security:
         - BearerAuth: []
-        - CPOAppID: []
+          CPOAppID: []
       responses:
         "200":
           description: Successfully retrieved chargers
@@ -4848,6 +4894,7 @@ paths:
       summary: "Assign a GST profile to a hub"
       description: "Assigns an existing GST profile to a charging hub. For a same-state Hub and GST, present SGST/CGST and zero IGST are required. For different states, present IGST and zero SGST/CGST are required. The same resulting-relationship validation protects replacement and later Hub/GST mutations. Invalid combinations return invalid_gst_for_hub."
       operationId: "assign-gst-to-hub"
+      security: [{BearerAuth: [], CPOAppID: []}]
       parameters:
         - name: "hub_id"
           in: "path"
@@ -4887,6 +4934,7 @@ paths:
       summary: "Get the assigned GST profile for a hub"
       description: "Returns the GST profile currently assigned to the specified hub, if any."
       operationId: "getHubGST"
+      security: [{BearerAuth: [], CPOAppID: []}]
       parameters:
         - name: "hub_id"
           in: "path"
@@ -4923,6 +4971,7 @@ paths:
       summary: "Update the assigned GST profile for a hub"
       description: "Replaces the currently assigned GST with a new one. The new GST must belong to the same CPO and not be assigned to another hub. State-aware complete-relationship validation applies: same-state assignments require present SGST/CGST and zero IGST; different-state assignments require present IGST and zero SGST/CGST. Invalid combinations return invalid_gst_for_hub."
       operationId: "updateHubGST"
+      security: [{BearerAuth: [], CPOAppID: []}]
       parameters:
         - name: "hub_id"
           in: "path"
@@ -4971,6 +5020,7 @@ paths:
       summary: "Unassign the GST profile from a hub"
       description: "Removes the currently assigned GST profile from the hub. The hub will then have no GST assigned."
       operationId: "unassignHubGST"
+      security: [{BearerAuth: [], CPOAppID: []}]
       parameters:
         - name: "hub_id"
           in: "path"
@@ -5873,6 +5923,7 @@ paths:
       operationId: removeMemberFromUserGroup
       summary: Remove a member from a user group
       description: Removes a customer from a user group.
+      security: [{BearerAuth: [], CPOAppID: []}]
       tags:
         - CPO Operations - Pricing & Tax
       parameters:
@@ -5930,8 +5981,8 @@ paths:
       summary: List configured integration metadata
       description: |
         Returns metadata only for the authenticated CPO. Secret plaintext is
-        never returned. Requires the currently supported CPO ADMIN session, a changed initial
-        password, and the current app-ID header.
+        never returned. Requires `settings.read`, a changed initial password,
+        and the current app-ID header.
       security:
         - BearerAuth: []
           CPOAppID: []
@@ -5963,6 +6014,7 @@ paths:
       tags: [CPO Operations - Integrations]
       operationId: getCPOIntegration
       summary: Get one integration's metadata
+      description: Requires `settings.read`; secret plaintext is never returned.
       security:
         - BearerAuth: []
           CPOAppID: []
@@ -5994,7 +6046,7 @@ paths:
       description: |
         Stores one encrypted credential object for the authenticated CPO.
         Associated authenticated-encryption data binds it to CPO and provider.
-        The response and audit log contain metadata only.
+        The response and audit log contain metadata only. Requires `settings.manage`.
       security:
         - BearerAuth: []
           CPOAppID: []
@@ -6030,7 +6082,7 @@ paths:
       tags: [CPO Operations - Integrations]
       operationId: deleteCPOIntegration
       summary: Remove the CPO's provider credentials
-      description: Deletes the encrypted credential row and records a safe audit event.
+      description: Deletes the encrypted credential row and records a safe audit event. Requires `settings.manage`.
       security:
         - BearerAuth: []
           CPOAppID: []
@@ -6408,6 +6460,67 @@ paths:
         "401": {$ref: "#/components/responses/Unauthorized"}
         "403": {$ref: "#/components/responses/Forbidden"}
 
+  /api/v1/app/operations/live-sessions:
+    get:
+      tags: [App Charging]
+      operationId: streamCustomerLiveChargingSessions
+      summary: Stream the authenticated customer's complete current live-session collection
+      description: Authenticated fetch streaming with Bearer and X-CPO-App-ID headers. The initial `snapshot` and every later `live_sessions` frame contain a complete replaceable CustomerLiveChargingSessionListResponse, including immutable-snapshot projected amounts. One customer may have multiple concurrent materialized sessions. The browser must replace its collection directly and must not refetch REST after a frame. The server revalidates access and periodically reprojects time-derived freshness and time-priced amounts; reconnect always begins with a current snapshot.
+      security: [{BearerAuth: []}]
+      parameters: [{$ref: "#/components/parameters/CPOAppIDHeader"}]
+      responses:
+        "200": {description: "text/event-stream frames named `snapshot` and `live_sessions`; each data value is CustomerLiveChargingSessionListResponse.", content: {text/event-stream: {schema: {type: string}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "503": {$ref: "#/components/responses/InternalError"}
+
+  /api/v1/app/operations/live-sessions/snapshot:
+    get:
+      tags: [App Charging]
+      operationId: getCustomerLiveChargingSessionsSnapshot
+      summary: Read the authenticated customer's complete current live-session collection
+      description: REST snapshot equivalent of the User App live-session SSE projection. It contains only materialized ACTIVE, STOP_PENDING, or still-open RECONCILIATION_REQUIRED sessions owned by the authenticated customer.
+      security: [{BearerAuth: []}]
+      parameters: [{$ref: "#/components/parameters/CPOAppIDHeader"}]
+      responses:
+        "200": {description: Complete current customer live-session collection, content: {application/json: {schema: {$ref: "#/components/schemas/CustomerLiveChargingSessionListResponse"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+
+  /api/v1/app/operations/live-sessions/realtime/stream:
+    get:
+      tags: [App Charging]
+      operationId: streamCustomerLiveChargingSessionsLegacy
+      summary: Legacy alias for the customer live-session projection stream
+      description: Deprecated compatibility alias for `/api/v1/app/operations/live-sessions`. It emits the same complete `snapshot` and `live_sessions` replacement frames.
+      deprecated: true
+      security: [{BearerAuth: []}]
+      parameters: [{$ref: "#/components/parameters/CPOAppIDHeader"}]
+      responses:
+        "200": {description: "text/event-stream frames named `snapshot` and `live_sessions`; each data value is CustomerLiveChargingSessionListResponse.", content: {text/event-stream: {schema: {type: string}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+
+  /api/v1/app/operations/charger-availability:
+    get:
+      tags: [App Charging]
+      operationId: streamCustomerChargerAvailability
+      summary: Stream one customer-visible charger's complete availability projection
+      description: Authenticated fetch streaming with Bearer and X-CPO-App-ID headers. `charger_id` is the same public charger ID accepted by GET /api/v1/app/chargers/{charger_id}, never a CMS UUID. The initial `snapshot` and every later `charger_availability` frame are complete replaceable CustomerCharger objects, including every connector and favorite/static fields. The browser replaces its selected-charger state directly and does not refetch REST after a frame. The server periodically reprojects connection freshness and closes the stream if access or charger visibility no longer holds.
+      security: [{BearerAuth: []}]
+      parameters:
+        - {$ref: "#/components/parameters/CPOAppIDHeader"}
+        - name: charger_id
+          in: query
+          required: true
+          schema: {type: string, pattern: "^[a-z0-9]{6}$"}
+      responses:
+        "200": {description: "text/event-stream frames named `snapshot` and `charger_availability`; each data value is CustomerCharger.", content: {text/event-stream: {schema: {type: string}}}}
+        "400": {$ref: "#/components/responses/InvalidRequest"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {description: Charger not found or not customer-visible.}
+
   /v1/hal-facts:
     post:
       tags: [HAL Service Integration]
@@ -6675,6 +6788,21 @@ components:
         minimum: 1
         maximum: 200
         default: 50
+    TraceLimit:
+      name: limit
+      in: query
+      required: false
+      schema: {type: integer, minimum: 1, maximum: 100, default: 50}
+    TraceBeforeOccurredAt:
+      name: before_occurred_at
+      in: query
+      required: false
+      schema: {type: string, format: date-time}
+    TraceBeforeEventID:
+      name: before_event_id
+      in: query
+      required: false
+      schema: {type: string, format: uuid}
     LiveSessionLimit:
       name: limit
       in: query
@@ -8704,6 +8832,40 @@ components:
         data: {type: object, additionalProperties: true, description: Safe event metadata without credentials or raw HAL payloads.}
         occurred_at: {type: string, format: date-time}
 
+    ChargingTraceEvent:
+      type: object
+      additionalProperties: false
+      required: [id, trace_id, source, target, category, protocol, phase, summary, occurred_at, recorded_at, data]
+      properties:
+        id: {type: string, format: uuid}
+        trace_id: {type: string, format: uuid}
+        source: {type: string, enum: [APP, CMS, HAL, CHARGER]}
+        target: {type: string, enum: [APP, CMS, HAL, CHARGER]}
+        category: {type: string}
+        protocol: {type: string}
+        phase: {type: string, enum: [PRE_START, STARTING, CHARGING, STOPPING, POST_STOP]}
+        summary: {type: string}
+        occurred_at: {type: string, format: date-time}
+        recorded_at: {type: string, format: date-time}
+        state_before: {type: string}
+        state_after: {type: string}
+        correlation_id: {type: string, description: Opaque command/request or OCPP correlation where available; never credential material.}
+        data: {type: object, additionalProperties: true, description: Sanitized diagnostic metadata only.}
+    ChargingTraceResponse:
+      type: object
+      additionalProperties: false
+      required: [trace_id, events, cms_source, hal_source]
+      properties:
+        trace_id: {type: string, format: uuid}
+        session_id: {type: string, format: uuid}
+        hal_transaction_id: {type: string, format: uuid}
+        ocpp_transaction_id: {type: integer, format: int64}
+        events: {type: array, maxItems: 100, items: {$ref: "#/components/schemas/ChargingTraceEvent"}}
+        cms_source: {type: string, enum: [AVAILABLE]}
+        hal_source: {type: string, enum: [AVAILABLE, UNAVAILABLE, NOT_REQUESTED]}
+        next_occurred_at: {type: string, format: date-time}
+        next_event_id: {type: string, format: uuid}
+
     OperationalEventPage:
       type: object
       additionalProperties: false
@@ -8719,9 +8881,10 @@ components:
     LiveChargingSessionView:
       type: object
       additionalProperties: false
-      required: [session_id, status, started_at, duration_seconds, customer_name, charger_id, charger_name, connector_id, connector_number, meter_freshness, soc_freshness]
+      required: [session_id, ocpp_transaction_id, status, started_at, duration_seconds, customer_name, charger_id, charger_name, connector_id, connector_number, meter_freshness, soc_freshness, projected_amount, currency]
       properties:
         session_id: {type: string, format: uuid}
+        ocpp_transaction_id: {type: integer, format: int64}
         status: {type: string, enum: [ACTIVE, STOP_PENDING, RECONCILIATION_REQUIRED]}
         started_at: {type: string, format: date-time}
         duration_seconds: {type: integer, format: int64, minimum: 0, description: Elapsed whole seconds from started_at to the response as_of timestamp.}
@@ -8733,6 +8896,12 @@ components:
         connector_number: {type: integer, minimum: 1}
         latest_meter_wh: {type: integer, format: int64}
         consumed_wh: {type: integer, format: int64, minimum: 0}
+        projected_amount:
+          $ref: "#/components/schemas/ExactDecimal"
+          description: Current accrued charge projected from the immutable session tariff and tax snapshots; not final settlement.
+        currency:
+          type: string
+          pattern: "^[A-Z]{3}$"
         meter_observed_at: {type: string, format: date-time}
         meter_freshness: {type: string, enum: [FRESH, STALE, UNKNOWN]}
         soc_percent: {type: string, pattern: "^[0-9]+(?:\\.[0-9]{1,3})?$", description: Optional actual OCPP-observed state of charge; never estimated.}
@@ -10049,7 +10218,7 @@ components:
       properties:
         id: {type: string, format: uuid}
         start_intent_id: {type: string, format: uuid}
-        state: {type: string, enum: [START_PENDING, ACTIVE, STOP_PENDING, COMPLETED, FAILED]}
+        state: {type: string, enum: [START_PENDING, ACTIVE, STOP_PENDING, RECONCILIATION_REQUIRED, COMPLETED, FAILED]}
         start_progress: {type: string, enum: [REQUESTED, ACCEPTED_FOR_DELIVERY, PROTOCOL_ACKNOWLEDGED, ACTUALLY_STARTED, REJECTED, EXPIRED, RECONCILIATION_REQUIRED]}
         stop_progress: {type: string}
         latest_meter_wh: {type: integer, format: int64}
@@ -10080,6 +10249,20 @@ components:
         tax: {$ref: "#/components/schemas/ChargingSessionTax"}
         financial: {$ref: "#/components/schemas/ChargingSessionFinancial"}
 
+    CustomerLiveChargingSessionListResponse:
+      type: object
+      additionalProperties: false
+      required: [sessions, as_of]
+      properties:
+        sessions:
+          type: array
+          description: Complete replaceable collection of this authenticated customer's currently operational materialized sessions. Each unfinished session has projected_amount calculated from its immutable tariff and tax snapshots at this response's common as_of time.
+          items: {$ref: "#/components/schemas/ChargingSessionResponse"}
+        as_of:
+          type: string
+          format: date-time
+          description: One CMS timestamp shared by all time-derived projected amounts in this collection frame.
+
     ChargingSessionHistoryResponse:
       type: object
       additionalProperties: false
@@ -10098,7 +10281,7 @@ components:
       required: [id, state, started_at, currency, settlement_status, charger, connector]
       properties:
         id: {type: string, format: uuid}
-        state: {type: string, enum: [START_PENDING, ACTIVE, STOP_PENDING, COMPLETED, FAILED]}
+        state: {type: string, enum: [START_PENDING, ACTIVE, STOP_PENDING, RECONCILIATION_REQUIRED, COMPLETED, FAILED]}
         started_at: {type: string, format: date-time}
         completed_at: {type: string, format: date-time}
         consumed_wh: {type: integer, format: int64, minimum: 0}
@@ -10744,6 +10927,9 @@ components:
           type: string
         total_amount:
           type: string
+        projected_amount:
+          $ref: "#/components/schemas/ExactDecimal"
+          description: Present while settlement is not yet final; current accrued charge projected from the immutable tariff and tax snapshots.
         currency:
           type: string
         status:
@@ -10763,6 +10949,32 @@ components:
           type: string
           format: date-time
           nullable: true
+        price_per_unit:
+          $ref: "#/components/schemas/ExactDecimal"
+          description: Frozen session-time tariff price per billable unit. Current tariff data is only a legacy fallback when no usable snapshot exists.
+        unit:
+          type: string
+          enum: [kwh, minutes]
+          nullable: true
+          description: Frozen tariff unit when the billing dimension has one. Omitted for a per-session tariff.
+        start_criteria:
+          type: string
+          enum: [AUTO, ENERGY, TIME, MONEY]
+          nullable: true
+          description: Customer-selected charging-limit type from the durable start intent, independent of the tariff billing dimension.
+        requested_limit_value:
+          $ref: "#/components/schemas/ExactDecimal"
+          nullable: true
+          description: Customer-requested limit value for start_criteria. It is absent for legacy sessions without a start intent.
+        sgst_percent:
+          $ref: "#/components/schemas/ExactDecimal"
+          description: Frozen session-time SGST rate. Current hub GST is only a legacy fallback when the tax snapshot is unusable.
+        cgst_percent:
+          $ref: "#/components/schemas/ExactDecimal"
+          description: Frozen session-time CGST rate. Current hub GST is only a legacy fallback when the tax snapshot is unusable.
+        igst_percent:
+          $ref: "#/components/schemas/ExactDecimal"
+          description: Frozen session-time IGST rate. Current hub GST is only a legacy fallback when the tax snapshot is unusable.
         created_at:
           type: string
           format: date-time

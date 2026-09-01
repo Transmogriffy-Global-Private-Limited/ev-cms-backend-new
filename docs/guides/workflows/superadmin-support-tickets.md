@@ -68,6 +68,11 @@ locked ticket row ensure a replay cannot create a second message, event,
 platform notification, or mail intent. Repeating an already-current status is
 also side-effect free.
 
+The `mail_outbox` template CHECK is part of that atomic boundary. Migration
+`000058_reconcile_mail_outbox_template_catalog` must be applied before the
+support lifecycle mail templates can be durably recorded; an unrecognized
+template is an error and is never acknowledged as a successful status change.
+
 | Committed fact | CPO mail template | Additional delivery |
 | --- | --- | --- |
 | CPO creates a ticket | `CPO_SUPPORT_TICKET_CREATED` confirmation | Durable `support.ticket.created` platform event |

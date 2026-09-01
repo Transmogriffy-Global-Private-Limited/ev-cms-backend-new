@@ -30,6 +30,65 @@ type semanticMessage struct {
 	SupportStatus     string
 }
 
+// durableTemplateCatalog is the single application source for template names
+// that may be persisted in mail_outbox. The database CHECK in migration 000058
+// deliberately carries the same catalogue for the durable boundary.
+var durableTemplateCatalog = []string{
+	"LOGIN_OTP",
+	"PASSWORD_RESET_OTP",
+	"CUSTOMER_LOGIN_OTP",
+	"CUSTOMER_SIGNUP_OTP",
+	"CUSTOMER_PASSWORD_RESET_OTP",
+	"CPO_ADMIN_WELCOME",
+	"CPO_MEMBERSHIP_ASSIGNED",
+	"PASSWORD_CHANGE_REMINDER",
+	"PLATFORM_ADMIN_INVITE",
+	"PLATFORM_ADMIN_GRANTED",
+	"CPO_STAFF_NEW_IDENTITY",
+	"CPO_STAFF_EXISTING_IDENTITY",
+	"CPO_ONBOARDING_RESENT",
+	"CPO_STAFF_ROLE_CHANGED",
+	"CPO_STAFF_SUSPENDED",
+	"CPO_STAFF_REACTIVATED",
+	"CPO_STAFF_REVOKED",
+	"CPO_SUBSCRIPTION_EXPIRY_WARNING",
+	"CPO_SUBSCRIPTION_EXPIRED",
+	"CPO_SUPPORT_TICKET_CREATED",
+	"CPO_SUPPORT_TICKET_PLATFORM_REPLY",
+	"CPO_SUPPORT_TICKET_RESOLVED",
+	"CPO_SUPPORT_TICKET_CLOSED",
+	"CPO_SUPPORT_TICKET_REOPENED",
+}
+
+var legacyTemplateNames = map[string]struct{}{
+	"CPO_ADMIN_WELCOME":        {},
+	"CPO_MEMBERSHIP_ASSIGNED":  {},
+	"PASSWORD_CHANGE_REMINDER": {},
+	"PLATFORM_ADMIN_INVITE":    {},
+	"PLATFORM_ADMIN_GRANTED":   {},
+}
+
+var durableTemplateNames = func() map[string]struct{} {
+	names := make(map[string]struct{}, len(durableTemplateCatalog))
+	for _, name := range durableTemplateCatalog {
+		names[name] = struct{}{}
+	}
+	return names
+}()
+
+// SupportedDurableTemplateNames returns a copy so callers cannot mutate the
+// authoritative application catalogue.
+func SupportedDurableTemplateNames() []string {
+	names := make([]string, len(durableTemplateCatalog))
+	copy(names, durableTemplateCatalog)
+	return names
+}
+
+func isSupportedDurableTemplate(templateName string) bool {
+	_, ok := durableTemplateNames[templateName]
+	return ok
+}
+
 var semanticSubjects = map[string]string{
 	"LOGIN_OTP": "Your TransEV CMS sign-in code", "PASSWORD_RESET_OTP": "Reset your TransEV CMS password",
 	"CUSTOMER_LOGIN_OTP": "Your charging app sign-in code", "CUSTOMER_SIGNUP_OTP": "Verify your charging account", "CUSTOMER_PASSWORD_RESET_OTP": "Reset your charging account password",

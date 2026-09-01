@@ -13,15 +13,36 @@ Supported templates and payload fields:
 |---|---|
 | `LOGIN_OTP` | recipient name, code, expiry |
 | `PASSWORD_RESET_OTP` | recipient name, recovery challenge ID, code, expiry |
+| `CUSTOMER_LOGIN_OTP` | recipient name, code, expiry |
+| `CUSTOMER_SIGNUP_OTP` | recipient name, code, expiry |
+| `CUSTOMER_PASSWORD_RESET_OTP` | recipient name, recovery challenge ID, code, expiry |
+| `CPO_ADMIN_WELCOME` | recipient name, temporary password, CPO name |
+| `CPO_MEMBERSHIP_ASSIGNED` | recipient name, CPO name |
+| `PASSWORD_CHANGE_REMINDER` | recipient name |
+| `PLATFORM_ADMIN_INVITE` | recipient name, temporary password |
+| `PLATFORM_ADMIN_GRANTED` | recipient name |
 | `CPO_STAFF_NEW_IDENTITY` | recipient name, temporary password, CPO name, actual role, onboarding action URL |
 | `CPO_STAFF_EXISTING_IDENTITY` | recipient name, CPO name, actual role, onboarding action URL |
 | `CPO_ONBOARDING_RESENT` | recipient name, CPO name, onboarding action URL |
-| `PASSWORD_CHANGE_REMINDER` | recipient name |
-| `CUSTOMER_SIGNUP_OTP` | recipient name, code, expiry |
-| `CUSTOMER_LOGIN_OTP` | recipient name, code, expiry |
-| `CUSTOMER_PASSWORD_RESET_OTP` | recipient name, recovery challenge ID, code, expiry |
-| `PLATFORM_ADMIN_INVITE` | recipient name, temporary password |
-| `PLATFORM_ADMIN_GRANTED` | recipient name |
+| `CPO_STAFF_ROLE_CHANGED` | recipient name, CPO name, actual role, CPO-access action URL |
+| `CPO_STAFF_SUSPENDED` | recipient name, CPO name, CPO-access action URL |
+| `CPO_STAFF_REACTIVATED` | recipient name, CPO name, CPO-access action URL |
+| `CPO_STAFF_REVOKED` | recipient name, CPO name, CPO-access action URL |
+| `CPO_SUBSCRIPTION_EXPIRY_WARNING` | recipient name, CPO name, authoritative expiry |
+| `CPO_SUBSCRIPTION_EXPIRED` | recipient name, CPO name, authoritative expiry |
+| `CPO_SUPPORT_TICKET_CREATED` | recipient name, CPO name, ticket subject, current status, occurred time, support action URL |
+| `CPO_SUPPORT_TICKET_PLATFORM_REPLY` | recipient name, CPO name, ticket subject, current status, occurred time, support action URL |
+| `CPO_SUPPORT_TICKET_RESOLVED` | recipient name, CPO name, ticket subject, current status, occurred time, support action URL |
+| `CPO_SUPPORT_TICKET_CLOSED` | recipient name, CPO name, ticket subject, current status, occurred time, support action URL |
+| `CPO_SUPPORT_TICKET_REOPENED` | recipient name, CPO name, ticket subject, current status, occurred time, support action URL |
+
+Migration `000058_reconcile_mail_outbox_template_catalog` makes this exact
+current catalogue the `chk_mail_outbox_template` rule for every newly inserted
+or updated row. It is added `NOT VALID` only to preserve historical rows that
+were accepted by the obsolete catalogues; the migration neither deletes nor
+rewrites those rows. Historical stale names cannot be newly enqueued by the
+current application, which validates against the same 24-name catalogue before
+encrypting and inserting a job.
 
 The JSON payload is encrypted with AES-256-GCM and authenticated using:
 
@@ -106,9 +127,10 @@ remain materially below it.
 ## Template Compatibility
 
 Template name and payload fields form an internal message contract. Producers,
-renderer, tests, and this document must change together. Removing an old
-renderer while old encrypted jobs remain pending would make those jobs
-undeliverable.
+the Go durable-template catalogue, the database CHECK, renderer, tests, and
+this document must change together. The five legacy template names remain
+renderable only for queued-job compatibility; all current semantic templates
+have source-controlled text and HTML rendering.
 
 ## Operational Gaps
 

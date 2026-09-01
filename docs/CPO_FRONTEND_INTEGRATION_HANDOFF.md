@@ -44,13 +44,13 @@ X-CPO-App-ID: <current-cpo-app-id>
 tenant. The server derives the CPO from the bearer session and rejects a stale
 or mismatching header. Never place either token or app ID in a URL.
 
-Core CPO administration and provider-integration routes require an active CPO
-`ADMIN` membership. CPO support and notification routes require an active CPO
-session plus the matching app ID, but are not role-middleware-gated. `OWNER`,
-`OPERATOR`, and `VIEWER` can exist as staff data and the permission catalog
-defines their default capability sets; that catalog is not yet a general
-route-level authorization contract. The UI must not show partial core
-administration navigation merely because a role appears in a staff response.
+Every capability-protected CPO business route requires an active CPO membership,
+the matching app ID, and its documented capability. Roles are source-controlled default bundles,
+not endpoint authority: use `GET /api/v1/cpo/access/me`
+`effective_permissions` to gate navigation and actions. Explicit `DENY` always
+wins, including against an ADMIN default; an explicit `ALLOW` can grant a
+capability to an otherwise lower-role member. Support has separate
+`support.read`, `support.create`, and `support.reply` capabilities.
 
 ## Common browser behavior
 
@@ -78,7 +78,7 @@ administration navigation merely because a role appears in a staff response.
 | Login and OTP | administrative auth endpoints | Login scope is `CPO`; customer auth is separate. |
 | Dashboard | analytics, fleet operations, current subscription | Live state is a projection; display freshness. |
 | Organization and my profile | organization, admin profile, subscription | Organization legal identity is platform-managed/read-only. |
-| Staff and permissions | catalog, staff list/detail/lifecycle | ADMIN-only today; overrides describe future/effective capability data. |
+| Staff and permissions | catalog, staff list/detail/lifecycle | Gate each action from effective staff capabilities; creation/delegation requires both `staff.manage` and `staff.permissions.manage`. |
 | Hubs and chargers | network CRUD, visibility, assignment, static status | CMS configuration is not OCPP transport truth. |
 | Commercial | GST, nested tariffs, user groups, settings | Use decimal strings; follow tariff/GST precedence. |
 | Customers and reports | customers, sessions, charger transactions, wallet ledger | Read-only CPO insight; no CPO customer mutation API. |
@@ -88,10 +88,9 @@ administration navigation merely because a role appears in a staff response.
 
 ## Complete CPO route inventory
 
-All following operations require the CPO administrative headers above. Core
-administration and integration operations require active `ADMIN`; support and
-notifications use their separately stated active-CPO-session boundary. The
-OpenAPI document owns field schemas.
+All following operations require the CPO administrative headers above and the
+capability declared by their route family. The OpenAPI document owns field
+schemas; `GET /cpo/access/me` is the frontend's authority snapshot.
 
 | Area | Operations | UI and recovery rule |
 | --- | --- | --- |
@@ -108,10 +107,10 @@ OpenAPI document owns field schemas.
 | User groups | `GET`, `POST /cpo/user-groups`; `GET`, `PATCH`, `DELETE /cpo/user-groups/{user_group_id}`; `POST /cpo/user-groups/{user_group_id}/members`; `DELETE /cpo/user-groups/{user_group_id}/members/{customer_id}` | Membership changes affect future tariff selection only; do not rewrite settled sessions. |
 | Settings and invoice logo | `GET`, `POST`, `PUT /cpo/settings`; `GET /cpo/settings/invoice-logo` | POST and PUT are replacement/upsert forms. Refresh settings after either. |
 | Customers | `GET /cpo/customers`; `GET /cpo/customers/{customer_id}` | Customer and usage data are read-only CPO projections. Do not expose customer authentication/wallet mutation controls here. |
-| Charging/reporting | `GET /cpo/charging-sessions`; `GET /cpo/charging-sessions/{session_id}`; `GET /cpo/charger-transactions`; `GET /cpo/wallet-transactions` | Use cursor fields unchanged. Show CMS/HAL/OCPP identifiers and reconciliation/settlement state as distinct facts; never infer a missing session from charger live state. |
+| Charging/reporting | `GET /cpo/charging-sessions`; `GET /cpo/charging-sessions/{session_id}`; `GET /cpo/charger-transactions`; `GET /cpo/wallet-transactions` | Use cursor fields unchanged. Historical session views include frozen `price_per_unit`, `unit`, GST rates, and optional customer `start_criteria`/`requested_limit_value`. Treat start criteria as independent of tariff billing dimension; never infer a missing session from charger live state. |
 | Operational projection and realtime | `GET /cpo/operations/fleet`; `GET /cpo/operations/chargers/{charger_id}`; `GET /cpo/operations/events`; `GET /cpo/operations/realtime/stream`; `GET /cpo/operations/live-sessions`; `GET /cpo/operations/live-sessions/snapshot` | The live-session primary route is full-snapshot SSE: replace the table from each frame. Each row supplies `duration_seconds` at `as_of`, `customer_name`, CMS `connector_id`, charger/hub display context, and live meter/SoC status without customer contact or billing data. It needs no event replay or per-update REST refresh. General fleet/charger streams remain invalidation-based. See `CPO_OPERATIONS_LIVE_FE_HANDOFF.md`. |
 | Provider integrations | `GET /cpo/integrations`; `GET`, `PUT`, `DELETE /cpo/integrations/{provider}` | PUT submits credentials for encryption but returns metadata only. Never display, log, or expect provider secret plaintext. |
-| Support | `GET`, `POST /cpo/support`; `GET /cpo/support/{ticket_id}`; `POST /cpo/support/{ticket_id}/replies` | Any active CPO membership with the app ID may use this tenant-scoped conversation boundary; re-fetch ticket after a reply. |
+| Support | `GET`, `POST /cpo/support`; `GET /cpo/support/{ticket_id}`; `POST /cpo/support/{ticket_id}/replies` | `support.read` views queue/history; `support.create` opens a ticket independently; reply requires **both** `support.read` and `support.reply` because it returns the complete conversation. |
 | CPO notifications | `GET /cpo/notifications`; `POST /cpo/notifications/{notification_id}/read` | Any active CPO membership with the app ID may use these personal notifications. Poll/refetch after relevant platform actions; there is no notification SSE stream. |
 
 ## Commercial and network invariants the UI must preserve
@@ -122,6 +121,11 @@ OpenAPI document owns field schemas.
 - Tariff precedence is `UserGroup > Charger > Hub`; GST resolves independently
   from the selected charger's hub. Current tariff values are future commercial
   policy, while settled sessions retain snapshots.
+- For a historical charging session, render its returned tariff/GST fields as
+  session-time commercial evidence. Do not replace them with the currently
+  configured tariff or hub GST. `start_criteria` records the customer's
+  `AUTO`, `ENERGY`, `TIME`, or `MONEY` request; it does not tell the UI how the
+  tariff bills the completed session.
 - Use exact decimal strings for money, GST rates, and kWh amounts. Never add,
   compare, or round currency with binary JavaScript numbers.
 - CPO legal identity is platform-owned. A CPO UI may display GSTIN/state/PIN but
@@ -164,17 +168,17 @@ fresh-looking client must not invent live certainty if the response is `STALE`,
 The staff UI may use it to configure membership data, but it must communicate
 the current server reality:
 
-- current core CPO administration and integration routes are `ADMIN`-gated;
-- `ADMIN` defaults to every registered catalog capability;
-- `DENY` takes precedence over default role capability and `ALLOW` can grant a
-  known capability where a future route-level check uses it;
-- a catalog/override does not itself make an `OWNER`, `OPERATOR`, or `VIEWER`
-  core administration route callable today; support and notifications are
-  independently available to an active CPO membership;
+- each route uses its documented capability; `ADMIN` defaults to every
+  registered catalog capability but does not bypass an explicit `DENY`;
+- `DENY` takes precedence over every default and `ALLOW` can grant a known
+  capability to another active role, subject to the backend delegation checks;
+- do not infer route authority from `OWNER`, `OPERATOR`, or `VIEWER`; always
+  consume `effective_permissions` and handle a fresh `403` after a permission
+  change;
 - omit an override to return to the default; never submit duplicate keys.
 
-This is intentionally not a frontend-only authorization scheme. The backend
-must be the future enforcement point for any capability-specific route.
+This is not a frontend-only authorization scheme. The backend evaluates the
+current membership and overrides on every protected CPO request.
 
 ## CPO versus SuperAdmin difference
 
@@ -186,7 +190,7 @@ global support. It must not become a CPO dashboard or a route to tenant secrets.
 Read `SUPERADMIN_CPO_FRONTEND_BOUNDARY.md` before sharing components. In
 particular, never reuse a platform bearer token with `/cpo`, never attach
 `X-CPO-App-ID` to `/platform`, and never present a SuperAdmin as an implicit
-CPO ADMIN.
+CPO member with tenant capabilities.
 
 ## Verification checklist for the frontend
 

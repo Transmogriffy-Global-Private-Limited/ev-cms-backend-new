@@ -516,6 +516,38 @@ func TestOpenAPIContractMatchesRuntimeRoutesAndServesUI(t *testing.T) {
 	}
 }
 
+func TestCPOOpenAPISecurityRequiresBearerAndMatchingAppID(t *testing.T) {
+	t.Parallel()
+
+	loader := openapi3.NewLoader()
+	document, err := loader.LoadFromData(apidocs.Specification())
+	if err != nil {
+		t.Fatalf("parse embedded OpenAPI contract: %v", err)
+	}
+	for path, item := range document.Paths.Map() {
+		if !strings.HasPrefix(path, "/api/v1/cpo/") {
+			continue
+		}
+		operations := map[string]*openapi3.Operation{
+			http.MethodGet: item.Get, http.MethodPost: item.Post, http.MethodPut: item.Put,
+			http.MethodPatch: item.Patch, http.MethodDelete: item.Delete,
+		}
+		for method, operation := range operations {
+			if operation == nil {
+				continue
+			}
+			if operation.Security == nil || len(*operation.Security) != 1 {
+				t.Errorf("%s %s security = %#v, want one AND requirement", method, path, operation.Security)
+				continue
+			}
+			requirement := (*operation.Security)[0]
+			if len(requirement) != 2 || requirement["BearerAuth"] == nil || requirement["CPOAppID"] == nil {
+				t.Errorf("%s %s security = %#v, want BearerAuth AND CPOAppID", method, path, requirement)
+			}
+		}
+	}
+}
+
 func operationDifference(left, right map[string]struct{}) []string {
 	result := make([]string, 0)
 	for operation := range left {

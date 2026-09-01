@@ -1,9 +1,12 @@
 package db
 
 import (
+	"regexp"
 	"slices"
 	"strings"
 	"testing"
+
+	cmsmail "github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/mail"
 )
 
 func TestEmbeddedMigrationsArePresentAndOrdered(t *testing.T) {
@@ -49,6 +52,69 @@ func TestMatchingDownMigrationRejectsInvalidVersion(t *testing.T) {
 	if _, err := matchingDownMigration("000001_cms_schema.sql"); err == nil {
 		t.Fatal("expected invalid up migration name to fail")
 	}
+}
+
+func TestMailOutboxTemplateCatalogMigrationMatchesApplication(t *testing.T) {
+	t.Parallel()
+
+	upBody, err := migrationFiles.ReadFile("migrations/000058_reconcile_mail_outbox_template_catalog.up.sql")
+	if err != nil {
+		t.Fatalf("read mail outbox template-catalog up migration: %v", err)
+	}
+	downBody, err := migrationFiles.ReadFile("migrations/000058_reconcile_mail_outbox_template_catalog.down.sql")
+	if err != nil {
+		t.Fatalf("read mail outbox template-catalog down migration: %v", err)
+	}
+	upSQL, downSQL := string(upBody), string(downBody)
+	for _, required := range []string{"DROP CONSTRAINT IF EXISTS chk_mail_outbox_template", "ADD CONSTRAINT chk_mail_outbox_template", "NOT VALID"} {
+		if !strings.Contains(upSQL, required) {
+			t.Errorf("up migration is missing %q", required)
+		}
+	}
+	expected := make(map[string]struct{})
+	for _, template := range cmsmail.SupportedDurableTemplateNames() {
+		expected[template] = struct{}{}
+	}
+	actual := mailOutboxTemplateNames(upSQL)
+	if len(actual) != len(expected) {
+		t.Errorf("up migration template count = %d, want %d; got %#v", len(actual), len(expected), actual)
+	}
+	for template := range expected {
+		if _, ok := actual[template]; !ok {
+			t.Errorf("up migration is missing supported template %q", template)
+		}
+	}
+	for template := range actual {
+		if _, ok := expected[template]; !ok {
+			t.Errorf("up migration permits non-application template %q", template)
+		}
+	}
+	for _, staleTemplate := range []string{"CPO_SUBSCRIPTION_CHANGED", "CPO_PLATFORM_INVOICE_ISSUED"} {
+		if strings.Contains(upSQL, "'"+staleTemplate+"'") {
+			t.Errorf("up migration still permits stale template %q", staleTemplate)
+		}
+	}
+	for _, required := range []string{
+		"cannot roll back mail outbox template catalogue while current semantic mail rows exist",
+		"CPO_SUPPORT_TICKET_CREATED",
+		"CPO_SUPPORT_TICKET_REOPENED",
+		"CPO_SUBSCRIPTION_CHANGED",
+		"CPO_PLATFORM_INVOICE_ISSUED",
+	} {
+		if !strings.Contains(downSQL, required) {
+			t.Errorf("down migration is missing %q", required)
+		}
+	}
+}
+
+var quotedMailOutboxTemplate = regexp.MustCompile(`'([A-Z_]+)'`)
+
+func mailOutboxTemplateNames(sql string) map[string]struct{} {
+	templates := make(map[string]struct{})
+	for _, match := range quotedMailOutboxTemplate.FindAllStringSubmatch(sql, -1) {
+		templates[match[1]] = struct{}{}
+	}
+	return templates
 }
 
 func TestCommercialTaxAndChargerHubPrerequisiteMigrationIsGuarded(t *testing.T) {

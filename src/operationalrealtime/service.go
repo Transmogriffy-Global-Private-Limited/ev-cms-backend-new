@@ -23,6 +23,7 @@ import (
 type Service struct {
 	database          *gorm.DB
 	retention         time.Duration
+	traceRetention    time.Duration
 	poll              time.Duration
 	heartbeat         time.Duration
 	batchSize         int
@@ -40,7 +41,13 @@ func (service *Service) WithWorkerObserver(observer workerobs.Observer, workerNa
 }
 
 func New(database *gorm.DB, cfg config.Platform) *Service {
-	return &Service{database: database, retention: cfg.EventRetention, poll: cfg.RealtimePoll, heartbeat: cfg.RealtimeHeartbeat, batchSize: cfg.RealtimeBatchSize, now: func() time.Time { return time.Now().UTC() }}
+	traceRetention := cfg.TraceRetention
+	if traceRetention <= 0 {
+		// Keep package-level callers constructed by older tests/extensions
+		// safe while Config.Validate enforces the configured production value.
+		traceRetention = 30 * 24 * time.Hour
+	}
+	return &Service{database: database, retention: cfg.EventRetention, traceRetention: traceRetention, poll: cfg.RealtimePoll, heartbeat: cfg.RealtimeHeartbeat, batchSize: cfg.RealtimeBatchSize, now: func() time.Time { return time.Now().UTC() }}
 }
 
 // StreamTiming returns bounded polling settings shared by every scoped
@@ -72,13 +79,22 @@ type Page struct {
 	HasMore    bool                      `json:"has_more"`
 }
 
-const chargingSessionResourceType = "CHARGING_SESSION"
+const (
+	chargingSessionResourceType = "CHARGING_SESSION"
+	chargerResourceType         = "CHARGER"
+	connectorResourceType       = "CONNECTOR"
+)
 
 var chargingSessionEventTypes = []string{
 	"charging.session_changed",
 	"charging.meter_changed",
 	"charging.telemetry_changed",
 }
+
+var (
+	chargerLiveStateEventTypes   = []string{"charger.live_state_changed"}
+	connectorLiveStateEventTypes = []string{"connector.live_state_changed"}
+)
 
 func (service *Service) Emit(tx *gorm.DB, input Input) (models.OperationalEvent, error) {
 	if tx == nil || input.CPOID == uuid.Nil || input.Type == "" || input.ResourceType == "" || input.ResourceID == "" {
@@ -108,8 +124,8 @@ func (service *Service) ListCPOChargingSessionEvents(ctx context.Context, cpoID 
 }
 
 // LatestCPOChargingSessionEventID establishes the committed-event watermark
-// after a caller has read a live-session snapshot. Later events signal that a
-// replacement snapshot must be sent; the event data itself is not state.
+// before a caller reads a live-session snapshot. Events after the watermark
+// wake a replacement projection; event data itself is never state.
 func (service *Service) LatestCPOChargingSessionEventID(ctx context.Context, cpoID uuid.UUID) (int64, error) {
 	if cpoID == uuid.Nil {
 		return 0, fmt.Errorf("CPO ID is required")
@@ -124,6 +140,86 @@ func (service *Service) LatestCPOChargingSessionEventID(ctx context.Context, cpo
 		return 0, fmt.Errorf("load latest live charging-session event: %w", err)
 	}
 	return eventID, nil
+}
+
+// LatestCustomerLiveProjectionEventID establishes a pre-snapshot watermark for
+// one customer's live-session projection. Customer session events are scoped
+// directly to that customer; charger and connector observations are tenant
+// shared because their committed live state can affect any owned live session.
+func (service *Service) LatestCustomerLiveProjectionEventID(ctx context.Context, cpoID, customerID uuid.UUID) (int64, error) {
+	if cpoID == uuid.Nil || customerID == uuid.Nil {
+		return 0, fmt.Errorf("CPO and customer IDs are required")
+	}
+	var eventID int64
+	err := service.database.WithContext(ctx).Model(&models.OperationalEvent{}).
+		Where("cpo_id = ? AND expires_at > ?", cpoID, service.now()).
+		Where(`((customer_id = ? AND resource_type = ? AND event_type IN ?) OR
+			(customer_id IS NULL AND ((resource_type = ? AND event_type IN ?) OR (resource_type = ? AND event_type IN ?))))`,
+			customerID, chargingSessionResourceType, chargingSessionEventTypes,
+			chargerResourceType, chargerLiveStateEventTypes,
+			connectorResourceType, connectorLiveStateEventTypes).
+		Select("COALESCE(MAX(id), 0)").Scan(&eventID).Error
+	if err != nil {
+		return 0, fmt.Errorf("load latest customer live-projection event: %w", err)
+	}
+	return eventID, nil
+}
+
+// LatestCPOChargerAvailabilityEventID establishes a pre-snapshot watermark for
+// one selected charger. It deliberately includes only committed availability
+// observations; the customer-safe charger projection remains the state source.
+func (service *Service) LatestCPOChargerAvailabilityEventID(ctx context.Context, cpoID uuid.UUID) (int64, error) {
+	if cpoID == uuid.Nil {
+		return 0, fmt.Errorf("CPO ID is required")
+	}
+	var eventID int64
+	err := service.database.WithContext(ctx).Model(&models.OperationalEvent{}).
+		Where("cpo_id = ? AND customer_id IS NULL AND expires_at > ?", cpoID, service.now()).
+		Where("(resource_type = ? AND event_type IN ?) OR (resource_type = ? AND event_type IN ?)",
+			chargerResourceType, chargerLiveStateEventTypes,
+			connectorResourceType, connectorLiveStateEventTypes).
+		Select("COALESCE(MAX(id), 0)").Scan(&eventID).Error
+	if err != nil {
+		return 0, fmt.Errorf("load latest charger-availability event: %w", err)
+	}
+	return eventID, nil
+}
+
+// ListCustomerLiveProjectionEvents returns only committed events that can
+// affect one current live-session collection. A newly materialized session is
+// always customer-scoped, so it remains visible even when its charger was not
+// in the prior collection snapshot.
+func (service *Service) ListCustomerLiveProjectionEvents(ctx context.Context, cpoID, customerID uuid.UUID, after int64, limit int, chargerIDs, connectorIDs []uuid.UUID) (Page, error) {
+	if cpoID == uuid.Nil || customerID == uuid.Nil {
+		return Page{}, fmt.Errorf("CPO and customer IDs are required")
+	}
+	return service.listCustomerProjectionEvents(ctx, cpoID, customerID, after, limit, chargerIDs, connectorIDs)
+}
+
+// ListCPOChargerAvailabilityEvents returns committed observations for one
+// customer-visible charger and its connectors. It does not disclose the event
+// payload to the browser; it merely wakes a replacement projection.
+func (service *Service) ListCPOChargerAvailabilityEvents(ctx context.Context, cpoID, chargerID uuid.UUID, connectorIDs []uuid.UUID, after int64, limit int) (Page, error) {
+	if cpoID == uuid.Nil || chargerID == uuid.Nil {
+		return Page{}, fmt.Errorf("CPO and charger IDs are required")
+	}
+	if after < 0 {
+		return Page{}, fmt.Errorf("event cursor must be nonnegative")
+	}
+	if limit < 1 || limit > 500 {
+		limit = 100
+	}
+	query := service.database.WithContext(ctx).
+		Where("cpo_id = ? AND customer_id IS NULL AND id > ? AND expires_at > ?", cpoID, after, service.now()).
+		Where("resource_type = ? AND resource_id = ? AND event_type IN ?", chargerResourceType, chargerID.String(), chargerLiveStateEventTypes)
+	if connectorIDTexts := uuidStrings(connectorIDs); len(connectorIDTexts) > 0 {
+		query = service.database.WithContext(ctx).
+			Where("cpo_id = ? AND customer_id IS NULL AND id > ? AND expires_at > ?", cpoID, after, service.now()).
+			Where("(resource_type = ? AND resource_id = ? AND event_type IN ?) OR (resource_type = ? AND resource_id IN ? AND event_type IN ?)",
+				chargerResourceType, chargerID.String(), chargerLiveStateEventTypes,
+				connectorResourceType, connectorIDTexts, connectorLiveStateEventTypes)
+	}
+	return pageOperationalEvents(query, after, limit)
 }
 
 func (service *Service) ListCustomer(ctx context.Context, cpoID, customerID uuid.UUID, after int64, limit int) (Page, error) {
@@ -161,7 +257,6 @@ func (service *Service) list(ctx context.Context, cpoID uuid.UUID, customerID *u
 		limit = 100
 	}
 	now := service.now()
-	records := make([]models.OperationalEvent, 0, limit+1)
 	query := service.database.WithContext(ctx).Where("cpo_id = ? AND id > ? AND expires_at > ?", cpoID, after, now)
 	if customerID != nil {
 		query = query.Where("customer_id IS NULL OR customer_id = ?", *customerID)
@@ -172,6 +267,34 @@ func (service *Service) list(ctx context.Context, cpoID uuid.UUID, customerID *u
 	if len(eventTypes) > 0 {
 		query = query.Where("event_type IN ?", eventTypes)
 	}
+	return pageOperationalEvents(query, after, limit)
+}
+
+func (service *Service) listCustomerProjectionEvents(ctx context.Context, cpoID, customerID uuid.UUID, after int64, limit int, chargerIDs, connectorIDs []uuid.UUID) (Page, error) {
+	if after < 0 {
+		return Page{}, fmt.Errorf("event cursor must be nonnegative")
+	}
+	if limit < 1 || limit > 500 {
+		limit = 100
+	}
+	sharedClauses := ""
+	arguments := []any{customerID, chargingSessionResourceType, chargingSessionEventTypes}
+	if len(chargerIDs) > 0 {
+		sharedClauses += " OR (customer_id IS NULL AND resource_type = ? AND resource_id IN ? AND event_type IN ?)"
+		arguments = append(arguments, chargerResourceType, uuidStrings(chargerIDs), chargerLiveStateEventTypes)
+	}
+	if len(connectorIDs) > 0 {
+		sharedClauses += " OR (customer_id IS NULL AND resource_type = ? AND resource_id IN ? AND event_type IN ?)"
+		arguments = append(arguments, connectorResourceType, uuidStrings(connectorIDs), connectorLiveStateEventTypes)
+	}
+	query := service.database.WithContext(ctx).
+		Where("cpo_id = ? AND id > ? AND expires_at > ?", cpoID, after, service.now()).
+		Where("(customer_id = ? AND resource_type = ? AND event_type IN ?)"+sharedClauses, arguments...)
+	return pageOperationalEvents(query, after, limit)
+}
+
+func pageOperationalEvents(query *gorm.DB, after int64, limit int) (Page, error) {
+	records := make([]models.OperationalEvent, 0, limit+1)
 	if err := query.Order("id ASC").Limit(limit + 1).Find(&records).Error; err != nil {
 		return Page{}, fmt.Errorf("list operational events: %w", err)
 	}
@@ -184,8 +307,33 @@ func (service *Service) list(ctx context.Context, cpoID uuid.UUID, customerID *u
 	}
 	return page, nil
 }
+
+func uuidStrings(ids []uuid.UUID) []string {
+	unique := make(map[uuid.UUID]struct{}, len(ids))
+	values := make([]string, 0, len(ids))
+	for _, id := range ids {
+		if id == uuid.Nil {
+			continue
+		}
+		if _, exists := unique[id]; exists {
+			continue
+		}
+		unique[id] = struct{}{}
+		values = append(values, id.String())
+	}
+	return values
+}
 func (service *Service) DeleteExpired(ctx context.Context) error {
-	return service.database.WithContext(ctx).Where("expires_at <= ?", service.now()).Delete(&models.OperationalEvent{}).Error
+	now := service.now()
+	return service.database.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Where("expires_at <= ?", now).Delete(&models.OperationalEvent{}).Error; err != nil {
+			return err
+		}
+		// Trace rows are diagnostic evidence, never charging authority. A
+		// bounded deletion keeps retention work proportional without touching
+		// sessions, facts, commands, wallets, or connector state.
+		return tx.Exec(`DELETE FROM charging_trace_events WHERE id IN (SELECT id FROM charging_trace_events WHERE recorded_at < ? ORDER BY recorded_at ASC LIMIT 500)`, now.Add(-service.traceRetention)).Error
+	})
 }
 
 // RunRetention owns expiration cleanup for the durable replay log. Failed

@@ -1,6 +1,7 @@
 package cpo
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -33,7 +34,7 @@ func RegisterPlatformRoutes(
 	service *Service,
 ) {
 	handler := &Handler{service: service, authService: authService}
-	group.Use(noStore, authService.Authenticate(), auth.RequirePlatform())
+	group.Use(cmsmiddleware.NoStore, authService.Authenticate(), auth.RequirePlatform())
 	group.POST("", handler.create)
 	group.GET("", handler.list)
 	group.GET("/slug-availability", handler.slugAvailability)
@@ -465,12 +466,6 @@ func writeError(ctx *gin.Context, err error) {
 	})
 }
 
-func noStore(ctx *gin.Context) {
-	ctx.Header("Cache-Control", "no-store")
-	ctx.Header("Pragma", "no-cache")
-	ctx.Next()
-}
-
 func RegisterCPORoutes(
 	group *gin.RouterGroup,
 	authService *auth.Service,
@@ -479,7 +474,7 @@ func RegisterCPORoutes(
 	handler := &Handler{service: service, authService: authService}
 
 	group.Use(
-		noStore,
+		cmsmiddleware.NoStore,
 		authService.Authenticate(),
 		auth.RequireCPOAppID(),
 	)
@@ -501,6 +496,7 @@ func RegisterCPORoutes(
 	tariffsManage := by(cpopermissions.TariffsManage)
 	customersRead := by(cpopermissions.CustomersRead)
 	sessionsRead := by(cpopermissions.ChargingSessionsRead)
+	tracesRead := by(cpopermissions.ChargingTracesRead)
 	analyticsRead := by(cpopermissions.AnalyticsRead)
 	operations := by(cpopermissions.ChargersOperations)
 	settingsRead := by(cpopermissions.SettingsRead)
@@ -594,10 +590,61 @@ func RegisterCPORoutes(
 	settingsRead.GET("/settings/invoice-logo", handler.getInvoiceLogo)
 	sessionsRead.GET("/charging-sessions", handler.listChargingSessions)
 	sessionsRead.GET("/charging-sessions/:session_id", handler.getChargingSession)
+	tracesRead.GET("/charging-sessions/:session_id/trace", handler.getChargingSessionTrace)
+	tracesRead.GET("/charging-traces/:trace_id", handler.getChargingTrace)
 	sessionsRead.GET("/charger-transactions", handler.listChargerTransactions)
 	customersRead.GET("/wallet-transactions", handler.listWalletTransactions)
 	customersRead.GET("/customers/:customer_id/wallet-transactions", handler.listCustomerWalletTransactions)
 
+}
+
+func (handler *Handler) getChargingSessionTrace(ctx *gin.Context) {
+	handler.getChargingTraceFor(ctx, true)
+}
+func (handler *Handler) getChargingTrace(ctx *gin.Context) { handler.getChargingTraceFor(ctx, false) }
+func (handler *Handler) getChargingTraceFor(ctx *gin.Context, bySession bool) {
+	var sessionID, traceID uuid.UUID
+	var err error
+	if bySession {
+		sessionID, err = uuid.Parse(ctx.Param("session_id"))
+	} else {
+		traceID, err = uuid.Parse(ctx.Param("trace_id"))
+	}
+	if err != nil || (bySession && sessionID == uuid.Nil) || (!bySession && traceID == uuid.Nil) {
+		writeError(ctx, &auth.APIError{Status: http.StatusBadRequest, Code: "invalid_request", Message: "A canonical UUID is required."})
+		return
+	}
+	limit := 50
+	if raw := strings.TrimSpace(ctx.Query("limit")); raw != "" {
+		parsed, parseErr := strconv.Atoi(raw)
+		if parseErr != nil || parsed < 1 || parsed > 100 {
+			writeError(ctx, &auth.APIError{Status: http.StatusBadRequest, Code: "invalid_request", Message: "Limit must be an integer between 1 and 100."})
+			return
+		}
+		limit = parsed
+	}
+	var before *time.Time
+	var beforeID *uuid.UUID
+	if raw := ctx.Query("before_occurred_at"); raw != "" {
+		parsed, parseErr := time.Parse(time.RFC3339Nano, raw)
+		cursor, uuidErr := uuid.Parse(ctx.Query("before_event_id"))
+		if parseErr != nil || uuidErr != nil || cursor == uuid.Nil {
+			writeError(ctx, &auth.APIError{Status: http.StatusBadRequest, Code: "invalid_request", Message: "A valid trace cursor is required."})
+			return
+		}
+		before = &parsed
+		beforeID = &cursor
+	} else if strings.TrimSpace(ctx.Query("before_event_id")) != "" {
+		writeError(ctx, &auth.APIError{Status: http.StatusBadRequest, Code: "invalid_request", Message: "Before occurred at is required when before event ID is supplied."})
+		return
+	}
+	principal, _ := auth.CurrentPrincipal(ctx)
+	response, err := handler.service.GetChargingTrace(ctx.Request.Context(), principal, sessionID, traceID, before, beforeID, limit)
+	if err != nil {
+		writeError(ctx, err)
+		return
+	}
+	ctx.JSON(http.StatusOK, response)
 }
 
 func (handler *Handler) permissionCatalog(ctx *gin.Context) {
@@ -736,7 +783,7 @@ func (handler *Handler) listLiveChargingSessions(ctx *gin.Context) {
 	if !ok {
 		return
 	}
-	records, err := handler.service.ListLiveChargingSessions(ctx.Request.Context(), principal, query)
+	records, err := handler.service.ListLiveChargingSessionsWithFinancialProjection(ctx.Request.Context(), principal, query)
 	if err != nil {
 		writeError(ctx, err)
 		return
@@ -1093,15 +1140,23 @@ func (handler *Handler) liveChargingSessionsStream(ctx *gin.Context) {
 	}
 	appID := ctx.GetHeader(auth.CPOAppIDHeader)
 
-	// A live-session SSE connection is a full, replaceable CMS projection, not
-	// an invalidation feed that asks the client to reconstruct operational state.
-	// The durable event log is used only to notice committed projection changes.
-	snapshot, err := handler.service.ListLiveChargingSessions(ctx.Request.Context(), principal, query)
+	// Establish the watermark before reading state. A commit after this point
+	// can cause a harmless redundant projection refresh, but cannot be skipped
+	// between the initial snapshot and the first event query.
+	cursor, err := handler.service.LatestLiveChargingSessionEventID(ctx.Request.Context(), principal)
 	if err != nil {
 		writeError(ctx, err)
 		return
 	}
-	cursor, err := handler.service.LatestLiveChargingSessionEventID(ctx.Request.Context(), principal)
+	// A live-session SSE connection is a full, replaceable CMS projection, not
+	// an invalidation feed that asks the client to reconstruct operational state.
+	// The durable event log is used only to notice committed projection changes.
+	snapshot, err := handler.service.ListLiveChargingSessionsWithFinancialProjection(ctx.Request.Context(), principal, query)
+	if err != nil {
+		writeError(ctx, err)
+		return
+	}
+	lastFingerprint, err := cpoLiveSessionSnapshotFingerprint(snapshot)
 	if err != nil {
 		writeError(ctx, err)
 		return
@@ -1131,17 +1186,17 @@ func (handler *Handler) liveChargingSessionsStream(ctx *gin.Context) {
 				continue
 			}
 			cursor = page.NextCursor
-			snapshot, err := handler.service.ListLiveChargingSessions(ctx.Request.Context(), principal, query)
+			snapshot, lastFingerprint, err = handler.refreshCPOLiveSessionSnapshot(ctx, principal, query, cursor, snapshot, lastFingerprint)
 			if err != nil {
-				continue
-			}
-			if err := writeLiveSessionSnapshot(ctx.Writer, "live_sessions", cursor, snapshot); err != nil {
 				return
 			}
-			ctx.Writer.Flush()
 		case <-heartbeatTicker.C:
 			refreshed, err := handler.authService.ValidateAccess(ctx.Request.Context(), token)
 			if err != nil || !cpoStreamStillAuthorized(ctx.Request.Context(), handler.service.database, refreshed, *principal.CPOID, appID, cpopermissions.ChargersOperations) {
+				return
+			}
+			snapshot, lastFingerprint, err = handler.refreshCPOLiveSessionSnapshot(ctx, principal, query, cursor, snapshot, lastFingerprint)
+			if err != nil {
 				return
 			}
 			if _, err := fmt.Fprintf(ctx.Writer, ": heartbeat %s\n\n", time.Now().UTC().Format(time.RFC3339)); err != nil {
@@ -1150,6 +1205,30 @@ func (handler *Handler) liveChargingSessionsStream(ctx *gin.Context) {
 			ctx.Writer.Flush()
 		}
 	}
+}
+
+func (handler *Handler) refreshCPOLiveSessionSnapshot(ctx *gin.Context, principal auth.Principal, query LiveChargingSessionListQuery, cursor int64, previous LiveChargingSessionFinancialListResponse, previousFingerprint []byte) (LiveChargingSessionFinancialListResponse, []byte, error) {
+	next, err := handler.service.ListLiveChargingSessionsWithFinancialProjection(ctx.Request.Context(), principal, query)
+	if err != nil {
+		return previous, previousFingerprint, err
+	}
+	fingerprint, err := cpoLiveSessionSnapshotFingerprint(next)
+	if err != nil {
+		return previous, previousFingerprint, err
+	}
+	if bytes.Equal(previousFingerprint, fingerprint) {
+		return next, fingerprint, nil
+	}
+	if err := writeLiveSessionSnapshot(ctx.Writer, "live_sessions", cursor, next); err != nil {
+		return previous, previousFingerprint, err
+	}
+	ctx.Writer.Flush()
+	return next, fingerprint, nil
+}
+
+func cpoLiveSessionSnapshotFingerprint(snapshot LiveChargingSessionFinancialListResponse) ([]byte, error) {
+	snapshot.AsOf = time.Time{}
+	return json.Marshal(snapshot)
 }
 
 func parseLiveChargingSessionStreamQuery(ctx *gin.Context) (LiveChargingSessionListQuery, bool) {
@@ -1164,7 +1243,7 @@ func parseLiveChargingSessionStreamQuery(ctx *gin.Context) (LiveChargingSessionL
 	return query, true
 }
 
-func writeLiveSessionSnapshot(writer io.Writer, eventType string, eventID int64, snapshot LiveChargingSessionListResponse) error {
+func writeLiveSessionSnapshot(writer io.Writer, eventType string, eventID int64, snapshot any) error {
 	payload, err := json.Marshal(snapshot)
 	if err != nil {
 		return err
@@ -2157,7 +2236,7 @@ func (handler *Handler) listCustomers(ctx *gin.Context) {
 		return
 	}
 
-	records, err := handler.service.ListCustomers(ctx.Request.Context(), principal, query)
+	records, err := handler.service.ListCustomersWithCurrentUsage(ctx.Request.Context(), principal, query)
 	if err != nil {
 		writeError(ctx, err)
 		return
@@ -2187,7 +2266,7 @@ func (handler *Handler) getCustomer(ctx *gin.Context) {
 		return
 	}
 
-	record, err := handler.service.GetCustomer(ctx.Request.Context(), principal, customerID)
+	record, err := handler.service.GetCustomerWithCurrentUsage(ctx.Request.Context(), principal, customerID)
 	if err != nil {
 		writeError(ctx, err)
 		return

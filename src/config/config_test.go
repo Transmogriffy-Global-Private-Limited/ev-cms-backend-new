@@ -150,6 +150,7 @@ func validTestConfig() Config {
 		},
 		Platform: Platform{
 			EventRetention:    7 * 24 * time.Hour,
+			TraceRetention:    30 * 24 * time.Hour,
 			RealtimePoll:      time.Second,
 			RealtimeHeartbeat: 15 * time.Second,
 			RealtimeBatchSize: 100,

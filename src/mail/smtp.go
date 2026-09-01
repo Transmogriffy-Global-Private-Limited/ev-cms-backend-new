@@ -218,12 +218,8 @@ func renderSemanticMessage(template string, payload MessagePayload, cfg config.M
 }
 
 func isLegacyTemplate(template string) bool {
-	switch template {
-	case "CPO_ADMIN_WELCOME", "CPO_MEMBERSHIP_ASSIGNED", "PLATFORM_ADMIN_INVITE", "PLATFORM_ADMIN_GRANTED", "PASSWORD_CHANGE_REMINDER":
-		return true
-	default:
-		return false
-	}
+	_, ok := legacyTemplateNames[template]
+	return ok
 }
 
 func roleName(role string) string {

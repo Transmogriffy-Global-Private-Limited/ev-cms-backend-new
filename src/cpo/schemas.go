@@ -715,23 +715,24 @@ type LiveChargingSessionListQuery struct {
 // tenant customer's display name, but no customer identifier or contact data;
 // financial and historical session fields belong to the separate session read.
 type LiveChargingSessionView struct {
-	SessionID       uuid.UUID               `json:"session_id"`
-	Status          constants.SessionStatus `json:"status"`
-	StartedAt       time.Time               `json:"started_at"`
-	DurationSeconds int64                   `json:"duration_seconds"`
-	CustomerName    string                  `json:"customer_name"`
-	ChargerID       string                  `json:"charger_id"`
-	ChargerName     string                  `json:"charger_name"`
-	HubName         *string                 `json:"hub_name,omitempty"`
-	ConnectorID     uuid.UUID               `json:"connector_id"`
-	ConnectorNumber int                     `json:"connector_number"`
-	LatestMeterWh   *int64                  `json:"latest_meter_wh,omitempty"`
-	ConsumedWh      *int64                  `json:"consumed_wh,omitempty"`
-	MeterObservedAt *time.Time              `json:"meter_observed_at,omitempty"`
-	MeterFreshness  string                  `json:"meter_freshness"`
-	SoCPercent      *decimal.Decimal        `json:"soc_percent,omitempty"`
-	SoCObservedAt   *time.Time              `json:"soc_observed_at,omitempty"`
-	SoCFreshness    string                  `json:"soc_freshness"`
+	SessionID         uuid.UUID               `json:"session_id"`
+	OCPPTransactionID int64                   `json:"ocpp_transaction_id"`
+	Status            constants.SessionStatus `json:"status"`
+	StartedAt         time.Time               `json:"started_at"`
+	DurationSeconds   int64                   `json:"duration_seconds"`
+	CustomerName      string                  `json:"customer_name"`
+	ChargerID         string                  `json:"charger_id"`
+	ChargerName       string                  `json:"charger_name"`
+	HubName           *string                 `json:"hub_name,omitempty"`
+	ConnectorID       uuid.UUID               `json:"connector_id"`
+	ConnectorNumber   int                     `json:"connector_number"`
+	LatestMeterWh     *int64                  `json:"latest_meter_wh,omitempty"`
+	ConsumedWh        *int64                  `json:"consumed_wh,omitempty"`
+	MeterObservedAt   *time.Time              `json:"meter_observed_at,omitempty"`
+	MeterFreshness    string                  `json:"meter_freshness"`
+	SoCPercent        *decimal.Decimal        `json:"soc_percent,omitempty"`
+	SoCObservedAt     *time.Time              `json:"soc_observed_at,omitempty"`
+	SoCFreshness      string                  `json:"soc_freshness"`
 }
 
 type LiveChargingSessionListResponse struct {
@@ -808,22 +809,29 @@ type ChargingSessionConnectorView struct {
 }
 
 type ChargingSessionView struct {
-	ID                uuid.UUID                    `json:"id"`
-	TransactionID     int64                        `json:"transaction_id"`
-	Customer          ChargingSessionCustomerView  `json:"customer"`
-	Charger           ChargingSessionChargerView   `json:"charger"`
-	Connector         ChargingSessionConnectorView `json:"connector"`
-	StartTime         time.Time                    `json:"start_time"`
-	EndTime           *time.Time                   `json:"end_time,omitempty"`
-	TotalKWh          decimal.Decimal              `json:"total_kwh"`
-	TotalAmount       decimal.Decimal              `json:"total_amount"`
-	Currency          string                       `json:"currency"`
-	Status            constants.SessionStatus      `json:"status"`
-	StopReason        *string                      `json:"stop_reason,omitempty"`
-	InitialSoCPercent *decimal.Decimal             `json:"initial_soc_percent,omitempty"`
-	FinalSoCPercent   *decimal.Decimal             `json:"final_soc_percent,omitempty"`
-	SoCObservedAt     *time.Time                   `json:"soc_observed_at,omitempty"`
-	CreatedAt         time.Time                    `json:"created_at"`
+	ID                  uuid.UUID                    `json:"id"`
+	TransactionID       int64                        `json:"transaction_id"`
+	Customer            ChargingSessionCustomerView  `json:"customer"`
+	Charger             ChargingSessionChargerView   `json:"charger"`
+	Connector           ChargingSessionConnectorView `json:"connector"`
+	StartTime           time.Time                    `json:"start_time"`
+	EndTime             *time.Time                   `json:"end_time,omitempty"`
+	TotalKWh            decimal.Decimal              `json:"total_kwh"`
+	TotalAmount         decimal.Decimal              `json:"total_amount"`
+	Currency            string                       `json:"currency"`
+	Status              constants.SessionStatus      `json:"status"`
+	StopReason          *string                      `json:"stop_reason,omitempty"`
+	InitialSoCPercent   *decimal.Decimal             `json:"initial_soc_percent,omitempty"`
+	FinalSoCPercent     *decimal.Decimal             `json:"final_soc_percent,omitempty"`
+	SoCObservedAt       *time.Time                   `json:"soc_observed_at,omitempty"`
+	PricePerUnit        decimal.Decimal              `json:"price_per_unit"`
+	Unit                *constants.Unit              `json:"unit,omitempty"`
+	StartCriteria       *constants.ChargingLimitType `json:"start_criteria,omitempty"`
+	RequestedLimitValue *decimal.Decimal             `json:"requested_limit_value,omitempty"`
+	SGSTPercent         decimal.Decimal              `json:"sgst_percent"`
+	CGSTPercent         decimal.Decimal              `json:"cgst_percent"`
+	IGSTPercent         decimal.Decimal              `json:"igst_percent"`
+	CreatedAt           time.Time                    `json:"created_at"`
 }
 
 type ChargingSessionListResponse struct {

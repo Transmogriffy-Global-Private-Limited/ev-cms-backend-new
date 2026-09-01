@@ -221,6 +221,33 @@ func TestSupportWorkflowWithPostgreSQL(t *testing.T) {
 	if afterFailedIntent != beforeFailedIntent {
 		t.Fatalf("ticket mutation committed without its required mail intent: before=%d after=%d", beforeFailedIntent, afterFailedIntent)
 	}
+
+	statusRollbackTicket, err := service.Create(ctx, first, CreateRequest{Subject: "Status must roll back", Body: "A missing durable mail intent must roll back the transition."})
+	if err != nil {
+		t.Fatalf("create status rollback ticket: %v", err)
+	}
+	if _, err := service.SetStatus(ctx, platform, statusRollbackTicket.ID, StatusRequest{Status: "IN_PROGRESS", Reason: "Prepare rollback regression"}); err != nil {
+		t.Fatalf("prepare status rollback ticket: %v", err)
+	}
+	if _, err := brokenDelivery.SetStatus(ctx, platform, statusRollbackTicket.ID, StatusRequest{Status: "RESOLVED", Reason: "The mail intent must be atomic"}); err == nil {
+		t.Fatal("status transition unexpectedly committed without a valid mail action URL")
+	}
+	var storedStatusRollback models.SupportTicket
+	if err := gormDB.First(&storedStatusRollback, "id = ?", statusRollbackTicket.ID).Error; err != nil {
+		t.Fatalf("reload status rollback ticket: %v", err)
+	}
+	if storedStatusRollback.Status != "IN_PROGRESS" || storedStatusRollback.ClosedAt != nil {
+		t.Fatalf("status transition committed without its required mail intent: %#v", storedStatusRollback)
+	}
+	var resolvedHistoryCount int64
+	if err := gormDB.Model(&models.SupportTicketEvent{}).
+		Where("ticket_id = ? AND event_type = ? AND next_status = ?", statusRollbackTicket.ID, "STATUS_CHANGED", "RESOLVED").
+		Count(&resolvedHistoryCount).Error; err != nil {
+		t.Fatalf("count rolled-back status history: %v", err)
+	}
+	if resolvedHistoryCount != 0 {
+		t.Fatalf("status history committed without its required mail intent: %d", resolvedHistoryCount)
+	}
 }
 
 func TestReplyRequiresIdempotencyKey(t *testing.T) {

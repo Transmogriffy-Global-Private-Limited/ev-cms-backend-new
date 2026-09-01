@@ -405,6 +405,13 @@ func toChargingSessionView(session models.ChargingSession) ChargingSessionView {
 		SoCObservedAt:     session.SoCObservedAt,
 		CreatedAt:         session.CreatedAt,
 	}
+	view.PricePerUnit, view.Unit = sessionTariffDisplay(session)
+	view.SGSTPercent, view.CGSTPercent, view.IGSTPercent = sessionTaxDisplay(session)
+	if session.StartIntent != nil {
+		criteria := session.StartIntent.LimitType
+		view.StartCriteria = &criteria
+		view.RequestedLimitValue = session.StartIntent.RequestedLimitValue
+	}
 
 	if session.Customer.ID != uuid.Nil {
 		view.Customer = ChargingSessionCustomerView{
@@ -449,6 +456,70 @@ func toChargingSessionView(session models.ChargingSession) ChargingSessionView {
 	return view
 }
 
+// sessionTariffDisplay uses the frozen session-time commercial snapshot first.
+// The mutable Tariff association is strictly a legacy fallback for sessions
+// created before a usable snapshot existed.
+func sessionTariffDisplay(session models.ChargingSession) (decimal.Decimal, *constants.Unit) {
+	if price, unit, ok := sessionSnapshotTariff(session.TariffSnapshot); ok {
+		return price, unit
+	}
+	return session.Tariff.PricePerUnit, session.Tariff.Units
+}
+
+func sessionSnapshotTariff(snapshot models.JSONB) (decimal.Decimal, *constants.Unit, bool) {
+	rawPrice, ok := snapshot["price_per_unit"].(string)
+	if !ok || rawPrice == "" {
+		return decimal.Zero, nil, false
+	}
+	price, err := decimal.NewFromString(rawPrice)
+	if err != nil {
+		return decimal.Zero, nil, false
+	}
+	unitText, _ := snapshot["units"].(string)
+	if unitText == "" {
+		return price, nil, true
+	}
+	unit := constants.Unit(unitText)
+	return price, &unit, true
+}
+
+// sessionTaxDisplay follows the same historical rule as final billing: all
+// three frozen tax components must be usable before they replace the current
+// hub GST fallback for legacy/incomplete sessions.
+func sessionTaxDisplay(session models.ChargingSession) (decimal.Decimal, decimal.Decimal, decimal.Decimal) {
+	if sgst, cgst, igst, ok := sessionSnapshotTax(session.TaxSnapshot); ok {
+		return sgst, cgst, igst
+	}
+	if session.Charger.Hub == nil || session.Charger.Hub.GST == nil {
+		return decimal.Zero, decimal.Zero, decimal.Zero
+	}
+	gst := session.Charger.Hub.GST
+	return decimalValue(gst.SGSTRate), decimalValue(gst.CGSTRate), decimalValue(gst.IGSTRate)
+}
+
+func sessionSnapshotTax(snapshot models.JSONB) (decimal.Decimal, decimal.Decimal, decimal.Decimal, bool) {
+	sgst, sgstOK := sessionSnapshotDecimal(snapshot, "sgst_rate")
+	cgst, cgstOK := sessionSnapshotDecimal(snapshot, "cgst_rate")
+	igst, igstOK := sessionSnapshotDecimal(snapshot, "igst_rate")
+	return sgst, cgst, igst, sgstOK && cgstOK && igstOK
+}
+
+func sessionSnapshotDecimal(snapshot models.JSONB, key string) (decimal.Decimal, bool) {
+	raw, ok := snapshot[key].(string)
+	if !ok || raw == "" {
+		return decimal.Zero, false
+	}
+	value, err := decimal.NewFromString(raw)
+	return value, err == nil
+}
+
+func decimalValue(value *decimal.Decimal) decimal.Decimal {
+	if value == nil {
+		return decimal.Zero
+	}
+	return *value
+}
+
 func toLiveChargingSessionView(session models.ChargingSession, live liveops.SessionState, asOf time.Time) LiveChargingSessionView {
 	charger := session.Charger
 	if charger.ID == uuid.Nil && session.Connector.Charger.ID != uuid.Nil {
@@ -463,23 +534,24 @@ func toLiveChargingSessionView(session models.ChargingSession, live liveops.Sess
 		durationSeconds = 0
 	}
 	return LiveChargingSessionView{
-		SessionID:       session.ID,
-		Status:          session.Status,
-		StartedAt:       session.StartTime,
-		DurationSeconds: durationSeconds,
-		CustomerName:    session.Customer.FullName,
-		ChargerID:       charger.ChargerID,
-		ChargerName:     charger.ChargerName,
-		HubName:         hubName,
-		ConnectorID:     session.Connector.ID,
-		ConnectorNumber: session.Connector.ConnectorNumber,
-		LatestMeterWh:   live.LatestMeterWh,
-		ConsumedWh:      live.ConsumedWh,
-		MeterObservedAt: live.MeterObservedAt,
-		MeterFreshness:  live.MeterFreshness,
-		SoCPercent:      live.LatestSoCPercent,
-		SoCObservedAt:   live.SoCObservedAt,
-		SoCFreshness:    live.SoCFreshness,
+		SessionID:         session.ID,
+		OCPPTransactionID: session.TransactionID,
+		Status:            session.Status,
+		StartedAt:         session.StartTime,
+		DurationSeconds:   durationSeconds,
+		CustomerName:      session.Customer.FullName,
+		ChargerID:         charger.ChargerID,
+		ChargerName:       charger.ChargerName,
+		HubName:           hubName,
+		ConnectorID:       session.Connector.ID,
+		ConnectorNumber:   session.Connector.ConnectorNumber,
+		LatestMeterWh:     live.LatestMeterWh,
+		ConsumedWh:        live.ConsumedWh,
+		MeterObservedAt:   live.MeterObservedAt,
+		MeterFreshness:    live.MeterFreshness,
+		SoCPercent:        live.LatestSoCPercent,
+		SoCObservedAt:     live.SoCObservedAt,
+		SoCFreshness:      live.SoCFreshness,
 	}
 }
 
@@ -2063,7 +2135,7 @@ func (service *Service) GetAdminProfile(
 	}
 	access, err := auth.EvaluateCPOAccess(ctx, service.database, principal)
 	if err != nil {
-		return AdminProfileView{}, forbiddenCPOAccess()
+		return AdminProfileView{}, auth.CPOAuthorizationError(err)
 	}
 	return adminProfileView(user, *principal.CPOID, access.Membership.Role), nil
 }
@@ -2147,7 +2219,7 @@ func (service *Service) UpdateAdminProfile(
 	}
 	access, err := auth.EvaluateCPOAccess(ctx, service.database, principal)
 	if err != nil {
-		return AdminProfileView{}, forbiddenCPOAccess()
+		return AdminProfileView{}, auth.CPOAuthorizationError(err)
 	}
 	return adminProfileView(user, cpoID, access.Membership.Role), nil
 }
@@ -2258,7 +2330,7 @@ func (service *Service) PermissionCatalog(
 func (service *Service) AccessMe(ctx context.Context, principal auth.Principal) (CPOAccessMeResponse, error) {
 	access, err := auth.EvaluateCPOAccess(ctx, service.database, principal)
 	if err != nil {
-		return CPOAccessMeResponse{}, &auth.APIError{Status: http.StatusForbidden, Code: "forbidden", Message: "An active CPO membership is required."}
+		return CPOAccessMeResponse{}, auth.CPOAuthorizationError(err)
 	}
 	return CPOAccessMeResponse{
 		MembershipID: access.Membership.ID, Role: access.Membership.Role,
@@ -2455,6 +2527,10 @@ func (service *Service) UpdateStaff(ctx context.Context, principal auth.Principa
 			}
 		}
 		if request.Role != nil && previousRole != *request.Role {
+			scope := constants.AuthScopeCPO
+			if _, err := revokeCPOSessions(tx, cpoID, &scope, "CPO_STAFF_ROLE_CHANGED", now, &membership.UserID); err != nil {
+				return err
+			}
 			var user models.User
 			var cpoRecord models.CPO
 			if err := tx.First(&user, "id = ?", membership.UserID).Error; err != nil {
@@ -2489,7 +2565,7 @@ func (service *Service) requireDelegation(ctx context.Context, principal auth.Pr
 func (service *Service) requireDelegationWithDatabase(ctx context.Context, database *gorm.DB, principal auth.Principal, role constants.CPORole, overrides []MembershipPermissionOverrideRequest) error {
 	access, err := auth.EvaluateCPOAccess(ctx, database, principal)
 	if err != nil {
-		return &auth.APIError{Status: http.StatusForbidden, Code: "forbidden", Message: "An active CPO membership is required."}
+		return auth.CPOAuthorizationError(err)
 	}
 	has := make(map[string]bool, len(access.Effective))
 	for _, permission := range access.Effective {

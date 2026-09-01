@@ -106,7 +106,12 @@ func RequireCPOPermission(database *gorm.DB, permission string) gin.HandlerFunc 
 			return
 		}
 		_, allowed, err := EvaluateCPOPermission(ctx.Request.Context(), database, principal, permission)
-		if err != nil || !allowed {
+		if err != nil {
+			writeError(ctx, CPOAuthorizationError(err))
+			ctx.Abort()
+			return
+		}
+		if !allowed {
 			writeError(ctx, errForbidden)
 			ctx.Abort()
 			return
@@ -127,7 +132,7 @@ func RequireActiveCPOMembership(database *gorm.DB) gin.HandlerFunc {
 			return
 		}
 		if _, err := EvaluateCPOAccess(ctx.Request.Context(), database, principal); err != nil {
-			writeError(ctx, errForbidden)
+			writeError(ctx, CPOAuthorizationError(err))
 			ctx.Abort()
 			return
 		}

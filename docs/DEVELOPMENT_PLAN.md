@@ -125,6 +125,38 @@ Approved current slice:
 
 Current implementation state:
 
+- Mail-outbox template-catalogue correction is deployed under
+  `docs/work/archive/WI-20260831-mail-outbox-template-catalog.md`. Migration
+  058 is applied on the development database with historical rows preserved by
+  its `NOT VALID` constraint.
+
+- User App realtime projection correction is deployed under
+  `docs/work/archive/WI-20260831-userapp-realtime-projections.md`: preserve the
+  generic retained operational-event feed for compatibility while adding
+  complete customer live-session and selected-charger SSE projections. The
+  slice also corrects the CPO live-session watermark-before-snapshot ordering.
+  Migration 058 and runtime deployment are recorded in the current project
+  state; no direct data repair was required.
+
+- CPO live-session snapshots and SSE payloads now expose
+  `ocpp_transaction_id` from the durable transaction projection. Runtime
+  revision `320d489` is deployed with migration 058; service/readiness,
+  public routing, Swagger/OpenAPI (217 operations), Caddy, and post-rehost
+   checks pass.
+
+- Live charging financial and usage projections are deployed in runtime
+  revision `d635446`. Customer and CPO reads use the shared immutable
+  tariff/tax snapshot evaluator; projected amounts remain distinct from final
+  settlement totals. No migration or data repair was required. Readiness,
+  public routing, Swagger/OpenAPI (213 operations), Caddy, and post-rehost
+  checks pass.
+
+- The CPO customer aggregate wallet read is deployed in runtime revision
+  `b6b723d`. Session usage/count and wallet balance are loaded independently,
+  preserving stable zero values for missing rows; no migration or data repair
+  was required. Readiness, public routing, Swagger/OpenAPI (213 operations),
+  Caddy, and post-rehost checks pass.
+
 - The CPO access, mail, subscription-notification, and support-product
   completion correction is implemented under
   `docs/plans/cpo-access-mail-support-completeness.md`. It replaces broad CPO
@@ -141,7 +173,7 @@ Current implementation state:
   Ticket creation, platform replies, and platform resolved/closed/reopened
   mutations now atomically queue privacy-safe mail intent; CPO activity is
   published through the durable platform-event stream and SMTP remains
-  asynchronous. Migrations 56 and 57 are applied; runtime revision `342d65a`
+  asynchronous. Migrations 56 and 57 are applied; runtime revision `b6b723d`
   is active with the 213-operation API. Readiness, public routing, Swagger,
   Caddy, and post-rehost startup checks pass.
 
@@ -923,7 +955,8 @@ Current source implementation:
 - Governance, security, mail, announcement/notification, overview, and status
   routes are implemented and represented with the CPO user lookup in the
   124-operation source OpenAPI contract. The added CPO charger hub-assignment
-  operation is CPO ADMIN-only and does not extend SuperAdmin authority.
+  operation requires its documented CPO capability and does not extend
+  SuperAdmin authority.
 - Focused source tests, route/OpenAPI parity, documentation verification, the
   full Go suite, vet, and diff checks pass.
 
@@ -1100,11 +1133,37 @@ Current phase:
 
 Active feature:
 
-- CMS HAL operational capability layer
+- CPO historical charging-session commercial projection reconciliation from the
+  reviewed `abhranil_ev_cms_backend_new` branch.
 
 Current implementation slice:
 
-- CPO ADMIN live-session operations: `GET /operations/live-sessions` is the
+- Source-only reconciliation extends CPO session list/detail responses with
+  snapshot-first tariff price/unit and GST rates plus the durable customer
+  start-limit type/value. It uses current tariff/GST only as a legacy fallback,
+  preserves the separate tariff billing and customer limit dimensions, and
+  keeps start-intent hydration bounded and CPO-scoped. No pricing calculation,
+  migration, deployment, or data mutation is part of this slice.
+- Completed and deployed CMS slice: additive cross-stack trace evidence. CMS creates an opaque
+  trace ID before command delivery, persists sanitized APP/CMS diagnostic
+  evidence, exposes tenant-scoped `charging_traces.read` queries, and merges
+  the private HAL read as an explicitly partial source. HAL retains
+  connector-aware OCPP evidence under the same root (or creates a HAL-owned
+  root for a charger-initiated transaction). Trace data is never authority for
+  sessions, connector state, wallet/billing, or OCPP acknowledgement. CMS
+  migration 000059 is applied and revision `3037c46` is active with 219
+  OpenAPI operations. HAL migration 018 and paired reconciliation remain
+  pending in the counterpart repository.
+- Completed and deployed CPO UAC authority coherence: protected CPO routes use
+  their documented capabilities with active-membership/app-ID context, not a
+  hard-coded ADMIN role. The slice distinguishes ordinary permission denial
+  from evaluator infrastructure failure, aligns support and integrations,
+  revokes only matching CPO sessions on an actual role change, preserves fresh
+  SSE authorization, and verifies OpenAPI Bearer+App-ID AND semantics. Runtime
+  revision `3037c46` is active with migration 059, 219 OpenAPI operations, and
+  verified readiness/public routing; PostgreSQL-gated lifecycle cases remain
+  deferred without `TEST_DATABASE_URL`.
+- CPO `chargers.operations` live-session operations: `GET /operations/live-sessions` is the
   full-snapshot SSE (initial `snapshot`, then replacement `live_sessions`
   frames) so the FE never reconstructs session state from invalidations. Each
   CPO-safe row carries `duration_seconds` at `as_of`, `customer_name`, and CMS
@@ -1387,9 +1446,10 @@ Deferred verification decision:
   manual subscription records never control tenant authorization.
 - HAL v1 is consumed through `integrations/ocpp-hal-boundary.md`; do not extend
   the provider contract without a separate approved contract change.
-- `OWNER`, `OPERATOR`, and `VIEWER` have staff-role catalog/override data, but
-  no current core administration or provider-integration route-level capability
-  enforcement. That expansion still requires an approved backend contract.
+- CPO roles are source-controlled default permission bundles. Endpoint authority
+  is the route's documented capability, evaluated against the current active
+  membership and overrides; explicit `DENY` wins. Custom roles and hub-scoped
+  delegation remain deferred.
 
 ## Verification Strategy
 

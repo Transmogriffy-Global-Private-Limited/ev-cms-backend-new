@@ -2,19 +2,63 @@ package cpo
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"strings"
 	"sync"
 	"testing"
 	"time"
 
+	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/auth"
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/constants"
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/liveops"
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/models"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
+	"gorm.io/gorm"
 	"gorm.io/gorm/schema"
 )
+
+type chargingSessionProjectionRepository struct {
+	session      models.ChargingSession
+	getCPOID     uuid.UUID
+	listCPOID    uuid.UUID
+	getSessionID uuid.UUID
+}
+
+func (r *chargingSessionProjectionRepository) GetAnalytics(context.Context, uuid.UUID, AnalyticsQuery) (Analytics, error) {
+	return Analytics{}, nil
+}
+
+func (r *chargingSessionProjectionRepository) ListWalletTransactions(context.Context, uuid.UUID, WalletTransactionListQuery) ([]WalletTransactionDetail, error) {
+	return nil, nil
+}
+
+func (r *chargingSessionProjectionRepository) GetChargingSession(_ context.Context, cpoID, sessionID uuid.UUID) (*models.ChargingSession, error) {
+	r.getCPOID, r.getSessionID = cpoID, sessionID
+	if sessionID != r.session.ID {
+		return nil, gorm.ErrRecordNotFound
+	}
+	copy := r.session
+	return &copy, nil
+}
+
+func (r *chargingSessionProjectionRepository) ListChargingSessions(_ context.Context, cpoID uuid.UUID, _ ChargingSessionListQuery) ([]models.ChargingSession, error) {
+	r.listCPOID = cpoID
+	return []models.ChargingSession{r.session}, nil
+}
+
+func (r *chargingSessionProjectionRepository) ListLiveChargingSessions(context.Context, uuid.UUID, LiveChargingSessionListQuery) ([]models.ChargingSession, error) {
+	return nil, nil
+}
+
+func (r *chargingSessionProjectionRepository) ListChargerTransactions(context.Context, uuid.UUID, ChargerTransactionListQuery) ([]ChargerTransaction, error) {
+	return nil, nil
+}
+
+func (r *chargingSessionProjectionRepository) ListChargersByHub(context.Context, uuid.UUID, uuid.UUID) ([]models.Charger, error) {
+	return nil, nil
+}
 
 func TestCPOTransactionProjectionUsesJoinedHumanAndProtocolIdentity(t *testing.T) {
 	t.Parallel()
@@ -67,6 +111,123 @@ func TestCPOCustomerUsageAlwaysSerializes(t *testing.T) {
 	}
 }
 
+func TestChargingSessionProjectionUsesFrozenCommercialContextAndRequestedLimit(t *testing.T) {
+	t.Parallel()
+
+	minutes, money := constants.UnitMinutes, constants.ChargingLimitTypeMoney
+	requested := decimal.RequireFromString("250.50")
+	currentSGST, currentCGST, currentIGST := decimal.NewFromInt(2), decimal.NewFromInt(2), decimal.NewFromInt(4)
+	session := models.ChargingSession{
+		ID:            uuid.New(),
+		TransactionID: 654321,
+		Tariff: models.Tariff{
+			PricePerUnit: decimal.RequireFromString("99.99"),
+			Units:        func() *constants.Unit { value := constants.UnitKWh; return &value }(),
+		},
+		TariffSnapshot: models.JSONB{"price_per_unit": "7.25", "units": "minutes"},
+		TaxSnapshot:    models.JSONB{"sgst_rate": "9.00", "cgst_rate": "9.00", "igst_rate": "0.00"},
+		StartIntent:    &models.ChargingStartIntent{LimitType: money, RequestedLimitValue: &requested},
+		Customer:       models.Customer{ID: uuid.New(), FullName: "Historical Customer", Email: "customer@example.com"},
+		Charger: models.Charger{ID: uuid.New(), ChargerID: "cp0001", ChargerName: "Historical charger", Hub: &models.Hub{
+			Name: "Historical hub", GST: &models.GST{SGSTRate: &currentSGST, CGSTRate: &currentCGST, IGSTRate: &currentIGST},
+		}},
+		Connector: models.Connector{ID: uuid.New(), ConnectorNumber: 1, ConnectorType: "CCS2"},
+	}
+
+	view := toChargingSessionView(session)
+	if !view.PricePerUnit.Equal(decimal.RequireFromString("7.25")) || view.Unit == nil || *view.Unit != minutes {
+		t.Fatalf("tariff display=%s/%v, want frozen 7.25/minutes", view.PricePerUnit, view.Unit)
+	}
+	if !view.SGSTPercent.Equal(decimal.NewFromInt(9)) || !view.CGSTPercent.Equal(decimal.NewFromInt(9)) || !view.IGSTPercent.Equal(decimal.Zero) {
+		t.Fatalf("tax display=%s/%s/%s, want frozen 9/9/0", view.SGSTPercent, view.CGSTPercent, view.IGSTPercent)
+	}
+	if view.StartCriteria == nil || *view.StartCriteria != money || view.RequestedLimitValue == nil || !view.RequestedLimitValue.Equal(requested) {
+		t.Fatalf("limit display=%v/%v, want MONEY/250.50", view.StartCriteria, view.RequestedLimitValue)
+	}
+	if view.Customer.Name != "Historical Customer" || view.Charger.ChargerID != "cp0001" || view.Connector.Number != 1 {
+		t.Fatalf("existing operational projection regressed: %+v", view)
+	}
+	encoded, err := json.Marshal(view)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, expected := range []string{`"price_per_unit":"7.25"`, `"unit":"minutes"`, `"start_criteria":"MONEY"`, `"requested_limit_value":"250.5"`, `"sgst_percent":"9"`, `"cgst_percent":"9"`, `"igst_percent":"0"`} {
+		if !strings.Contains(string(encoded), expected) {
+			t.Fatalf("session JSON %s missing %s", encoded, expected)
+		}
+	}
+}
+
+func TestChargingSessionProjectionUsesCurrentCommercialDataOnlyWithoutSnapshot(t *testing.T) {
+	t.Parallel()
+
+	kwh := constants.UnitKWh
+	sgst, cgst, igst := decimal.NewFromInt(6), decimal.NewFromInt(6), decimal.Zero
+	session := models.ChargingSession{
+		Tariff:         models.Tariff{PricePerUnit: decimal.RequireFromString("11.50"), Units: &kwh},
+		Charger:        models.Charger{Hub: &models.Hub{GST: &models.GST{SGSTRate: &sgst, CGSTRate: &cgst, IGSTRate: &igst}}},
+		TariffSnapshot: models.JSONB{},
+		TaxSnapshot:    models.JSONB{},
+	}
+
+	view := toChargingSessionView(session)
+	if !view.PricePerUnit.Equal(decimal.RequireFromString("11.50")) || view.Unit == nil || *view.Unit != kwh {
+		t.Fatalf("tariff fallback=%s/%v, want current 11.50/kwh", view.PricePerUnit, view.Unit)
+	}
+	if !view.SGSTPercent.Equal(sgst) || !view.CGSTPercent.Equal(cgst) || !view.IGSTPercent.Equal(igst) {
+		t.Fatalf("tax fallback=%s/%s/%s, want current 6/6/0", view.SGSTPercent, view.CGSTPercent, view.IGSTPercent)
+	}
+	if view.StartCriteria != nil || view.RequestedLimitValue != nil {
+		t.Fatalf("missing start intent must remain absent, got %v/%v", view.StartCriteria, view.RequestedLimitValue)
+	}
+}
+
+func TestChargingSessionModelExposesScopedStartIntentAssociation(t *testing.T) {
+	t.Parallel()
+
+	parsed, err := schema.Parse(&models.ChargingSession{}, &sync.Map{}, schema.NamingStrategy{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if parsed.Relationships.Relations["StartIntent"] == nil {
+		t.Fatal("ChargingSession must expose StartIntent for repository-scoped preload")
+	}
+}
+
+func TestCPOChargingSessionGetAndListKeepCommercialProjectionTenantScoped(t *testing.T) {
+	t.Parallel()
+
+	cpoID := uuid.New()
+	criteria := constants.ChargingLimitTypeTime
+	requested := decimal.RequireFromString("45")
+	session := models.ChargingSession{
+		ID:             uuid.New(),
+		CPOID:          cpoID,
+		TariffSnapshot: models.JSONB{"price_per_unit": "3", "units": "minutes"},
+		TaxSnapshot:    models.JSONB{"sgst_rate": "9", "cgst_rate": "9", "igst_rate": "0"},
+		StartIntent:    &models.ChargingStartIntent{LimitType: criteria, RequestedLimitValue: &requested},
+	}
+	repository := &chargingSessionProjectionRepository{session: session}
+	service := &Service{repository: repository}
+	principal := auth.Principal{Scope: constants.AuthScopeCPO, CPOID: &cpoID}
+
+	got, err := service.GetChargingSession(context.Background(), principal, session.ID)
+	if err != nil || repository.getCPOID != cpoID || repository.getSessionID != session.ID {
+		t.Fatalf("single session read=%+v err=%v scope=%s/%s", got, err, repository.getCPOID, repository.getSessionID)
+	}
+	if !got.PricePerUnit.Equal(decimal.NewFromInt(3)) || got.StartCriteria == nil || *got.StartCriteria != criteria || got.RequestedLimitValue == nil || !got.RequestedLimitValue.Equal(requested) {
+		t.Fatalf("single session commercial projection=%+v", got)
+	}
+
+	listed, err := service.ListChargingSessions(context.Background(), principal, ChargingSessionListQuery{Limit: 1})
+	if err != nil || repository.listCPOID != cpoID || len(listed.Sessions) != 1 {
+		t.Fatalf("list session response=%+v err=%v scope=%s", listed, err, repository.listCPOID)
+	}
+	if !listed.Sessions[0].PricePerUnit.Equal(decimal.NewFromInt(3)) || listed.Sessions[0].StartCriteria == nil || *listed.Sessions[0].StartCriteria != criteria {
+		t.Fatalf("list session commercial projection=%+v", listed.Sessions[0])
+	}
+}
+
 func TestLiveChargingSessionProjectionContainsOnlyOperationalContext(t *testing.T) {
 	t.Parallel()
 
@@ -74,10 +235,11 @@ func TestLiveChargingSessionProjectionContainsOnlyOperationalContext(t *testing.
 	meter, consumed := int64(50120), int64(120)
 	soc := decimal.RequireFromString("63.5")
 	session := models.ChargingSession{
-		ID:        uuid.New(),
-		Status:    constants.SessionStatusActive,
-		StartTime: now,
-		Customer:  models.Customer{FullName: "Chitradeep Ghosh"},
+		ID:            uuid.New(),
+		TransactionID: 654321,
+		Status:        constants.SessionStatusActive,
+		StartTime:     now,
+		Customer:      models.Customer{FullName: "Chitradeep Ghosh"},
 		Charger: models.Charger{
 			ChargerID:   "cp0001",
 			ChargerName: "Main forecourt DC charger",
@@ -95,7 +257,7 @@ func TestLiveChargingSessionProjectionContainsOnlyOperationalContext(t *testing.
 		SoCFreshness:     liveops.FreshnessFresh,
 	}, now.Add(92*time.Second))
 
-	if view.DurationSeconds != 92 || view.CustomerName != "Chitradeep Ghosh" || view.ChargerID != "cp0001" || view.ChargerName != "Main forecourt DC charger" || view.HubName == nil || *view.HubName != "Salt Lake Hub" || view.ConnectorID != session.Connector.ID || view.ConnectorNumber != 2 || view.LatestMeterWh == nil || *view.LatestMeterWh != meter || view.ConsumedWh == nil || *view.ConsumedWh != consumed || view.SoCPercent == nil || !view.SoCPercent.Equal(soc) {
+	if view.OCPPTransactionID != 654321 || view.DurationSeconds != 92 || view.CustomerName != "Chitradeep Ghosh" || view.ChargerID != "cp0001" || view.ChargerName != "Main forecourt DC charger" || view.HubName == nil || *view.HubName != "Salt Lake Hub" || view.ConnectorID != session.Connector.ID || view.ConnectorNumber != 2 || view.LatestMeterWh == nil || *view.LatestMeterWh != meter || view.ConsumedWh == nil || *view.ConsumedWh != consumed || view.SoCPercent == nil || !view.SoCPercent.Equal(soc) {
 		t.Fatalf("live session operational projection=%+v", view)
 	}
 	encoded, err := json.Marshal(view)
@@ -114,7 +276,7 @@ func TestLiveChargingSessionSnapshotSSEContainsTheFullOperationalProjection(t *t
 
 	snapshot := LiveChargingSessionListResponse{
 		Sessions: []LiveChargingSessionView{{
-			SessionID: uuid.New(), CustomerName: "Chitradeep Ghosh", ChargerID: "cp0001", ChargerName: "Main forecourt DC charger",
+			SessionID: uuid.New(), OCPPTransactionID: 654321, CustomerName: "Chitradeep Ghosh", ChargerID: "cp0001", ChargerName: "Main forecourt DC charger",
 			ConnectorID: uuid.New(), DurationSeconds: 92, Status: constants.SessionStatusActive,
 		}},
 		AsOf: time.Date(2026, time.August, 25, 12, 0, 0, 0, time.UTC),
@@ -125,7 +287,7 @@ func TestLiveChargingSessionSnapshotSSEContainsTheFullOperationalProjection(t *t
 	}
 
 	frame := output.String()
-	for _, expected := range []string{"id: 17\n", "event: live_sessions\n", `"sessions":[`, `"duration_seconds":92`, `"customer_name":"Chitradeep Ghosh"`, `"charger_id":"cp0001"`, `"connector_id":`, `"as_of":"2026-08-25T12:00:00Z"`} {
+	for _, expected := range []string{"id: 17\n", "event: live_sessions\n", `"sessions":[`, `"ocpp_transaction_id":654321`, `"duration_seconds":92`, `"customer_name":"Chitradeep Ghosh"`, `"charger_id":"cp0001"`, `"connector_id":`, `"as_of":"2026-08-25T12:00:00Z"`} {
 		if !strings.Contains(frame, expected) {
 			t.Fatalf("SSE frame %q missing %q", frame, expected)
 		}
@@ -134,6 +296,29 @@ func TestLiveChargingSessionSnapshotSSEContainsTheFullOperationalProjection(t *t
 		if strings.Contains(frame, forbidden) {
 			t.Fatalf("SSE frame leaked %q: %s", forbidden, frame)
 		}
+	}
+}
+
+func TestCPOLiveSessionSnapshotFingerprintIgnoresAsOfButRetainsProjectionState(t *testing.T) {
+	t.Parallel()
+	snapshot := LiveChargingSessionFinancialListResponse{
+		Sessions: []LiveChargingSessionFinancialView{{LiveChargingSessionView: LiveChargingSessionView{SessionID: uuid.New(), Status: constants.SessionStatusActive}, ProjectedAmount: decimal.RequireFromString("12.50"), Currency: "INR"}},
+		AsOf:     time.Date(2026, time.August, 25, 12, 0, 0, 0, time.UTC),
+	}
+	first, err := cpoLiveSessionSnapshotFingerprint(snapshot)
+	if err != nil {
+		t.Fatalf("fingerprint: %v", err)
+	}
+	later := snapshot
+	later.AsOf = later.AsOf.Add(time.Minute)
+	second, err := cpoLiveSessionSnapshotFingerprint(later)
+	if err != nil || !bytes.Equal(first, second) {
+		t.Fatalf("as_of-only refresh changed CPO fingerprint: %v", err)
+	}
+	later.Sessions[0].ProjectedAmount = decimal.RequireFromString("13.00")
+	third, err := cpoLiveSessionSnapshotFingerprint(later)
+	if err != nil || bytes.Equal(first, third) {
+		t.Fatalf("client-visible projected amount did not change CPO fingerprint: %v", err)
 	}
 }
 

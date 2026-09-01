@@ -10,7 +10,7 @@ role switcher, or convenience link from becoming an undocumented access bypass.
 | --- | --- | --- |
 | Trusted scope | `PLATFORM` bearer session | `CPO` bearer session plus matching `X-CPO-App-ID` |
 | Scope source | `platform_admins` authority; no tenant context | active membership's server-derived CPO ID; header only confirms app routing |
-| Current route gate | Every `/api/v1/platform/*` operation requires `PLATFORM` | Core CPO administration/integration routes require active `ADMIN`; support and notifications accept any active CPO membership with the app ID |
+| Current route gate | Every `/api/v1/platform/*` operation requires `PLATFORM` | CPO routes require active membership, matching app ID, and their documented capability; roles are default bundles and explicit `DENY` wins |
 | Primary job | Provision/govern the platform and CPO access | Operate one CPO's network, commercial setup, staff, support, and projections |
 | May edit CPO legal identity | Yes: platform CPO profile replacement | No: organization is read-only |
 | May activate/suspend CPO or rotate app ID | Yes | No |

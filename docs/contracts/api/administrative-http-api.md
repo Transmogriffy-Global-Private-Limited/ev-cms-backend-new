@@ -8,8 +8,10 @@ CMS session separately from optional HAL/OCPP protocol identities, and include
 the human-readable charger code, charger OCPP identity/name, hub name/address,
 connector, payment/settlement, and reconciliation state needed for CPO support.
 
-CPO ADMINs use `/api/v1/cpo/permissions/catalog` and `/api/v1/cpo/staff` to
-inspect the source-controlled permission catalog and manage non-primary staff.
+CPO staff use `/api/v1/cpo/access/me` as the current effective-permission
+projection and use `/api/v1/cpo/permissions/catalog` plus `/api/v1/cpo/staff`
+when their staff capabilities permit it. Roles are default bundles, not
+endpoint authority.
 An override has exactly one `ALLOW` or `DENY` effect; `DENY` wins over the role
 default. Suspending or revoking a membership revokes its CPO sessions. Primary
 administrator changes remain under the platform primary-admin flow so an ADMIN
@@ -34,11 +36,11 @@ Connector `last_ocpp_status` is retained as protocol evidence, but a stale,
 offline, or unknown parent connection makes customer/CPO live availability
 `UNAVAILABLE` rather than `AVAILABLE`.
 
-- `GET /api/v1/cpo/operations/fleet` requires a CPO `ADMIN` bearer plus the
-  matching `X-CPO-App-ID`. It returns CPO-scoped projection aggregates only:
+- `GET /api/v1/cpo/operations/fleet` requires active CPO membership, matching
+  `X-CPO-App-ID`, and `chargers.operations`. It returns CPO-scoped projection aggregates only:
   charger connection counts, connector availability counts, and active-session
   count.
-- `GET /api/v1/cpo/operations/chargers/{charger_id}` has the same authority
+- `GET /api/v1/cpo/operations/chargers/{charger_id}` has the same capability authority
   and returns the existing administrative charger projection plus the current
   CMS live charger/connector projection. It does not grant command authority.
 - `GET /api/v1/cpo/operations/live-sessions` is the primary live-table SSE.
@@ -53,7 +55,8 @@ offline, or unknown parent connection makes customer/CPO live availability
   `customer_name` and canonical CMS `connector_id`, plus `duration_seconds`
   measured from `started_at` to the payload's `as_of`. It never contains
   customer ID, email, or phone. Reconnect the stream for an immediate fresh
-  snapshot; the server revalidates bearer, ADMIN role, and app ID at heartbeat.
+  snapshot; the server revalidates bearer, active membership, app ID, and fresh
+  `chargers.operations` at heartbeat.
 - `GET /api/v1/cpo/operations/live-sessions/snapshot` is the explicit JSON
   recovery/pagination route. It has the same authority and payload, and accepts
   the paired `after_started_at` and `after_id` cursor. It never calls HAL.
@@ -61,7 +64,8 @@ offline, or unknown parent connection makes customer/CPO live availability
   `GET /api/v1/platform/cpos/{cpo_id}/operations/chargers/{charger_id}` require
   a `PLATFORM` bearer and are observation-only. They do not expose RemoteStop
   or other charger control.
-- Every scope has cursor recovery and an SSE companion: CPO ADMIN uses
+- Every scope has cursor recovery and an SSE companion: CPO members with
+  `chargers.operations` use
   `/api/v1/cpo/operations/events` and `/operations/realtime/stream`; Platform
   uses the corresponding route under the selected CPO; the User App uses
   `/api/v1/app/operations/events` and `/operations/realtime/stream` with its
@@ -1765,15 +1769,15 @@ changed only by a Superadmin through
 `PUT /api/v1/platform/cpos/{cpo_id}/profile`. The CPO ADMIN can read a safe
 projection through `GET /api/v1/cpo/organization`.
 
-Only the first/primary CPO `ADMIN` authority is callable in the current release.
-The database keeps `OWNER`, `OPERATOR`, and `VIEWER` enum capacity so a later
-staff-management slice can extend the policy without replacing tenant keys or
-business records, but those values cannot currently authenticate a CPO
-administrative session or invoke CPO operations. No API creates them.
+Every CPO business endpoint derives tenant context from a verified CPO session,
+requires the matching `X-CPO-App-ID`, and evaluates the current active
+membership plus fresh permission overrides. Roles are source-controlled default
+bundles. `GET /api/v1/cpo/access/me` is the frontend authority projection;
+explicit `DENY` wins over every role default, including ADMIN.
 
 ### 9.1 `GET /api/v1/cpo/organization`
 
-Returns the authenticated ADMIN's own CPO registration and operational
+Returns the authenticated CPO member's own CPO registration and operational
 identity. The server obtains the CPO ID from the verified session; there is no
 tenant path parameter or client-supplied scope.
 
@@ -1807,7 +1811,8 @@ safe to retry. Organization changes remain Superadmin-only.
 
 ### 9.2 `GET /api/v1/cpo/admin/profile`
 
-Returns the global identity profile used by the authenticated CPO ADMIN:
+Returns the global identity profile used by the authenticated CPO member with
+`organization.read`:
 
 ```json
 {
@@ -1830,7 +1835,8 @@ CPO organization profile.
 
 ### 9.3 `PATCH /api/v1/cpo/admin/profile`
 
-Updates the global login identity used by the current ADMIN session:
+Updates the global login identity used by the current CPO member with
+`organization.manage`:
 
 ```json
 {
@@ -1883,7 +1889,7 @@ Errors: `400 invalid_user_id`; shared authentication/authorization errors; or
 ### 9.4A `GET /api/v1/cpo/wallet-transactions`
 
 Returns wallet transaction projections for customers belonging to the
-authenticated CPO. The read requires the CPO ADMIN session and current
+authenticated CPO. The read requires `customers.read` and current
 `X-CPO-App-ID`; the CPO scope is derived from the verified session and cannot
 be selected by the request. It is read-only, side-effect free, and does not
 contact the HAL.
@@ -2076,7 +2082,7 @@ changed-field metadata. Additional errors: `400 invalid_hub`,
 
 ### 9.8A `DELETE /api/v1/cpo/hubs/{hub_id}`
 
-Takes no body. The request requires CPO ADMIN, locks the tenant hub, and
+Takes no body. The request requires `hubs.manage`, locks the tenant hub, and
 returns `204 No Content` after it transactionally unassigns its chargers and
 removes User App hub and favorite links. Chargers themselves are retained.
 
@@ -2086,7 +2092,7 @@ IDs return `400 invalid_hub_id`.
 
 ### 9.8B `PUT /api/v1/cpo/hubs/{hub_id}/customer-visibility`
 
-Updates only the CPO ADMIN-controlled publication gate:
+Updates only the `hubs.manage` publication gate:
 
 ```json
 {"customer_visible":true}
@@ -2274,7 +2280,7 @@ WebSocket/TLS listener before a charger uses either address.
 
 ### 9.10A `PUT /api/v1/cpo/chargers/{charger_id}/customer-visibility`
 
-Updates only the CPO ADMIN-controlled charger publication gate:
+Updates only the `chargers.manage` charger publication gate:
 
 ```json
 {"customer_visible":true}
@@ -2528,9 +2534,9 @@ changes under locking. Invalid combinations return `400 invalid_gst_for_hub`.
 
 ### 9.19 Scoped tariff routes
 
-All tariff routes require the authenticated CPO ADMIN and its current
-`X-CPO-App-ID`. Tariffs are created, listed, read, updated, and deleted through
-one scope:
+All tariff routes require the current `X-CPO-App-ID`; reads require
+`tariffs.read` and mutations require `tariffs.manage`. Tariffs are created,
+listed, read, updated, and deleted through one scope:
 
 - hub: `POST`/`GET /api/v1/cpo/hubs/{hub_id}/tariffs` and
   `GET`/`PATCH`/`DELETE /api/v1/cpo/hubs/{hub_id}/tariffs/{tariff_id}`;
@@ -2668,7 +2674,8 @@ retention is desired.
 
 ### CPO Settings
 
-`GET /api/v1/cpo/settings` returns the settings for the authenticated CPO ADMIN.
+`GET /api/v1/cpo/settings` returns the settings for the authenticated CPO member
+with `settings.read`.
 The CPO is derived from the verified session and `X-CPO-App-ID`; callers cannot
 select another tenant. CPO provisioning creates a blank settings row, while
 migration forty-three backfills existing CPOs, so a normal CPO GET returns the
@@ -2771,8 +2778,8 @@ Errors: `401 unauthorized`, `403 forbidden`, `404 subscription_not_found`, or `5
 
 ### 9.24 CPO Customer Directory
 
-These read-only endpoints allow a CPO ADMIN to view the app customers
-registered under their CPO. They require the standard CPO bearer session and
+These read-only endpoints allow a CPO member with `customers.read` to view the
+app customers registered under their CPO. They require the standard CPO bearer session and
 matching `X-CPO-App-ID`. The CPO is derived from the session; no request
 parameter can select another tenant's customers.
 
@@ -3303,8 +3310,8 @@ Neither endpoint performs unbounded tenant-business aggregation.
 
 ### 12.4 CPO charging-session reads
 
-The authenticated CPO `ADMIN` can read materialized charging-session records
-for the current tenant:
+An authenticated CPO member with `charging_sessions.read` can read
+materialized charging-session records for the current tenant:
 
 ```text
 GET /api/v1/cpo/charging-sessions
@@ -3325,13 +3332,52 @@ and amount strings, currency, lifecycle status, optional stop reason, and
 creation time. These are read-only CMS projections; they do not query the HAL
 or issue charger commands. A missing session returns `404
 charging_session_not_found`; malformed UUIDs or invalid filters return `400`,
-and unauthenticated or non-ADMIN callers receive the standard `401`/`403`
+and unauthenticated or unauthorized callers receive the standard `401`/`403`
 errors.
 
-### 12.5 CPO charger transaction reads
+Each historical session includes `price_per_unit`, optional tariff `unit`, and
+`sgst_percent`, `cgst_percent`, and `igst_percent` from the immutable
+session-time tariff/tax snapshots. Current tariff and hub GST associations are
+used only as a legacy fallback when a usable snapshot is absent. It also
+returns optional `start_criteria` and `requested_limit_value` from the durable
+start intent: these describe the customer's `AUTO`, `ENERGY`, `TIME`, or
+`MONEY` limit selection and are independent of the tariff billing dimension.
+Legacy sessions without a start intent omit those two fields.
+
+### 12.5 CPO charging diagnostic trace
+
+```text
+GET /api/v1/cpo/charging-sessions/{session_id}/trace
+GET /api/v1/cpo/charging-traces/{trace_id}
+```
+
+Both diagnostic routes require the CPO bearer session, matching
+`X-CPO-App-ID`, active membership, and `charging_traces.read`. The default
+role bundles grant this to `OWNER`, `ADMIN`, and `OPERATOR`; `VIEWER` is not
+granted it, and an explicit membership `DENY` always wins. The current CPO
+scope is derived server-side, so a CPO cannot retrieve another tenant's trace.
+
+The response contains an opaque `trace_id`, optionally correlated CMS session,
+HAL transaction, and OCPP transaction IDs, plus bounded sanitized evidence
+events. Those identifiers remain distinct. Events are newest-first by the
+exclusive `(occurred_at,id)` cursor; `limit` is 1–100 (default 50), and both
+`before_occurred_at` and `before_event_id` must be supplied together for the
+next page. The event lanes are `APP`, `CMS`, `HAL`, and `CHARGER`; trace rows
+are diagnostic evidence only and never determine session, connector, wallet,
+billing, settlement, or OCPP state.
+
+`cms_source` is local evidence availability. `hal_source` is independently
+`AVAILABLE`, `UNAVAILABLE`, or `NOT_REQUESTED`: a private HAL diagnostic read
+failure still returns usable CMS evidence and is not a charging failure. Event
+metadata deliberately excludes idTags, credentials, authorization material,
+customer contacts, and raw OCPP frames. `404 charging_trace_not_found` means
+the diagnostic evidence is unavailable or retained out; it does not mean the
+underlying charging session is invalid.
+
+### 12.6 CPO charger transaction reads
 
 `GET /api/v1/cpo/charger-transactions` returns a cursor-paginated transaction
-projection for the authenticated CPO ADMIN. It accepts `limit` (1–200,
+projection for the authenticated CPO member with `charging_sessions.read`. It accepts `limit` (1–200,
 default 50), `before` (RFC3339), `before_id` (UUID), and optional same-CPO
 `charger_id` or `customer_id` UUID filters. Results are ordered newest first
 by `(created_at, id)`; the returned `next_before` and `next_before_id` form the
@@ -3343,7 +3389,7 @@ duration when complete, hub, CPO owner, host contact projection, customer
 contact projection, creation timestamp, and optional stop reason. The read is
 tenant-scoped and does not contact the HAL or issue charger commands. Financial
 status values are `PENDING`, `COMPLETED`, `FAILED`, `REVERSED`, or `REFUNDED`.
-Malformed filters return `400`; unauthenticated or non-ADMIN callers receive
+Malformed filters return `400`; unauthenticated or unauthorized callers receive
 the standard `401`/`403` responses.
 
 ## 13. Client State Machine

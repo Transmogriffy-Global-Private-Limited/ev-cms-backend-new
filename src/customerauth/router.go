@@ -1,6 +1,7 @@
 package customerauth
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -78,6 +79,10 @@ func RegisterRoutes(group *gin.RouterGroup, service *Service) {
 	protected.POST("/charging-sessions/:session_id/stop", handler.stopCharging)
 	protected.GET("/operations/events", handler.operationalEvents)
 	protected.GET("/operations/realtime/stream", handler.operationalStream)
+	protected.GET("/operations/live-sessions", handler.liveChargingSessionsStream)
+	protected.GET("/operations/live-sessions/snapshot", handler.liveChargingSessionsSnapshot)
+	protected.GET("/operations/live-sessions/realtime/stream", handler.liveChargingSessionsStream)
+	protected.GET("/operations/charger-availability", handler.chargerAvailabilityStream)
 	protected.GET("/favorites", handler.listFavorites)
 	protected.PUT("/favorite-hubs/:hub_id", handler.addFavoriteHub)
 	protected.DELETE("/favorite-hubs/:hub_id", handler.removeFavoriteHub)
@@ -161,7 +166,7 @@ func (handler *Handler) getChargingSession(ctx *gin.Context) {
 		writeError(ctx, &APIError{http.StatusBadRequest, "invalid_session_id", "The charging session ID is invalid."})
 		return
 	}
-	response, err := handler.service.GetChargingSession(ctx.Request.Context(), principal, id)
+	response, err := handler.service.GetChargingSessionWithFinancialProjection(ctx.Request.Context(), principal, id)
 	if err != nil {
 		writeError(ctx, err)
 		return
@@ -246,6 +251,254 @@ func (handler *Handler) operationalStream(ctx *gin.Context) {
 			ctx.Writer.Flush()
 		}
 	}
+}
+
+// liveChargingSessionsSnapshot is the REST recovery/read surface for the same
+// full projection emitted by the live-session SSE stream.
+func (handler *Handler) liveChargingSessionsSnapshot(ctx *gin.Context) {
+	principal, ok := CurrentPrincipal(ctx)
+	if !ok {
+		writeError(ctx, errUnauthorized)
+		return
+	}
+	snapshot, err := handler.service.ListCustomerLiveChargingSessionsWithFinancialProjection(ctx.Request.Context(), principal)
+	if err != nil {
+		writeError(ctx, err)
+		return
+	}
+	ctx.JSON(http.StatusOK, snapshot)
+}
+
+// liveChargingSessionsStream delivers complete replacement state, never event
+// envelopes or resource-ID invalidations. The durable event table is only the
+// ordered committed wake-up source.
+func (handler *Handler) liveChargingSessionsStream(ctx *gin.Context) {
+	principal, token, ok := customerStreamPrincipal(ctx)
+	if !ok {
+		return
+	}
+	if handler.service.operationalEvents == nil {
+		writeError(ctx, &APIError{http.StatusServiceUnavailable, "realtime_unavailable", "Realtime charging updates are temporarily unavailable."})
+		return
+	}
+
+	// Watermark first: a state change after this point may cause a redundant
+	// refresh, but cannot be skipped between snapshot and event consumption.
+	cursor, err := handler.service.operationalEvents.LatestCustomerLiveProjectionEventID(ctx.Request.Context(), principal.CPOID, principal.CustomerID)
+	if err != nil {
+		writeError(ctx, err)
+		return
+	}
+	snapshot, err := handler.service.ListCustomerLiveChargingSessionsWithFinancialProjection(ctx.Request.Context(), principal)
+	if err != nil {
+		writeError(ctx, err)
+		return
+	}
+	lastFingerprint, err := customerLiveSessionFingerprint(snapshot)
+	if err != nil {
+		writeError(ctx, err)
+		return
+	}
+	prepareSSE(ctx)
+	if err := writeProjectionSSE(ctx.Writer, "snapshot", cursor, snapshot); err != nil {
+		return
+	}
+	ctx.Writer.Flush()
+
+	poll, heartbeat, batchSize := handler.service.OperationalStreamTiming()
+	pollTicker, heartbeatTicker := time.NewTicker(poll), time.NewTicker(heartbeat)
+	defer pollTicker.Stop()
+	defer heartbeatTicker.Stop()
+	for {
+		select {
+		case <-ctx.Request.Context().Done():
+			return
+		case <-pollTicker.C:
+			chargerIDs, connectorIDs := customerLiveProjectionResourceIDs(snapshot)
+			page, err := handler.service.operationalEvents.ListCustomerLiveProjectionEvents(ctx.Request.Context(), principal.CPOID, principal.CustomerID, cursor, batchSize, chargerIDs, connectorIDs)
+			if err != nil || len(page.Events) == 0 {
+				continue
+			}
+			cursor = page.NextCursor
+			snapshot, lastFingerprint, err = handler.refreshCustomerLiveSessions(ctx, principal, cursor, snapshot, lastFingerprint)
+			if err != nil {
+				return
+			}
+		case <-heartbeatTicker.C:
+			if !handler.customerStreamStillAuthorized(ctx.Request.Context(), token, principal, ctx.GetHeader(CPOAppIDHeader)) {
+				return
+			}
+			var err error
+			snapshot, lastFingerprint, err = handler.refreshCustomerLiveSessions(ctx, principal, cursor, snapshot, lastFingerprint)
+			if err != nil {
+				return
+			}
+			if _, err := fmt.Fprintf(ctx.Writer, ": heartbeat %s\n\n", time.Now().UTC().Format(time.RFC3339)); err != nil {
+				return
+			}
+			ctx.Writer.Flush()
+		}
+	}
+}
+
+func (handler *Handler) refreshCustomerLiveSessions(ctx *gin.Context, principal Principal, cursor int64, previous CustomerLiveChargingSessionListResponse, previousFingerprint []byte) (CustomerLiveChargingSessionListResponse, []byte, error) {
+	next, err := handler.service.ListCustomerLiveChargingSessionsWithFinancialProjection(ctx.Request.Context(), principal)
+	if err != nil {
+		return previous, previousFingerprint, err
+	}
+	fingerprint, err := customerLiveSessionFingerprint(next)
+	if err != nil {
+		return previous, previousFingerprint, err
+	}
+	if bytes.Equal(previousFingerprint, fingerprint) {
+		return next, fingerprint, nil
+	}
+	if err := writeProjectionSSE(ctx.Writer, "live_sessions", cursor, next); err != nil {
+		return previous, previousFingerprint, err
+	}
+	ctx.Writer.Flush()
+	return next, fingerprint, nil
+}
+
+// chargerAvailabilityStream emits the exact customer-safe charger projection
+// used by GET /chargers/{charger_id}. It accepts the public charger ID, never
+// a CMS UUID, and reprojects on authorized heartbeats for freshness aging.
+func (handler *Handler) chargerAvailabilityStream(ctx *gin.Context) {
+	principal, token, ok := customerStreamPrincipal(ctx)
+	if !ok {
+		return
+	}
+	publicChargerID := strings.TrimSpace(ctx.Query("charger_id"))
+	if publicChargerID == "" {
+		writeError(ctx, &APIError{http.StatusBadRequest, "invalid_charger_id", "The charger ID is required."})
+		return
+	}
+	if handler.service.operationalEvents == nil {
+		writeError(ctx, &APIError{http.StatusServiceUnavailable, "realtime_unavailable", "Realtime charger updates are temporarily unavailable."})
+		return
+	}
+	cursor, err := handler.service.operationalEvents.LatestCPOChargerAvailabilityEventID(ctx.Request.Context(), principal.CPOID)
+	if err != nil {
+		writeError(ctx, err)
+		return
+	}
+	snapshot, err := handler.service.GetCustomerCharger(ctx.Request.Context(), principal, publicChargerID)
+	if err != nil {
+		writeError(ctx, err)
+		return
+	}
+	lastFingerprint, err := json.Marshal(snapshot)
+	if err != nil {
+		writeError(ctx, err)
+		return
+	}
+	prepareSSE(ctx)
+	if err := writeProjectionSSE(ctx.Writer, "snapshot", cursor, snapshot); err != nil {
+		return
+	}
+	ctx.Writer.Flush()
+
+	poll, heartbeat, batchSize := handler.service.OperationalStreamTiming()
+	pollTicker, heartbeatTicker := time.NewTicker(poll), time.NewTicker(heartbeat)
+	defer pollTicker.Stop()
+	defer heartbeatTicker.Stop()
+	for {
+		select {
+		case <-ctx.Request.Context().Done():
+			return
+		case <-pollTicker.C:
+			page, err := handler.service.operationalEvents.ListCPOChargerAvailabilityEvents(ctx.Request.Context(), principal.CPOID, snapshot.ID, customerChargerConnectorIDs(snapshot), cursor, batchSize)
+			if err != nil || len(page.Events) == 0 {
+				continue
+			}
+			cursor = page.NextCursor
+			snapshot, lastFingerprint, err = handler.refreshCustomerCharger(ctx, principal, publicChargerID, cursor, snapshot, lastFingerprint)
+			if err != nil {
+				return
+			}
+		case <-heartbeatTicker.C:
+			if !handler.customerStreamStillAuthorized(ctx.Request.Context(), token, principal, ctx.GetHeader(CPOAppIDHeader)) {
+				return
+			}
+			var err error
+			snapshot, lastFingerprint, err = handler.refreshCustomerCharger(ctx, principal, publicChargerID, cursor, snapshot, lastFingerprint)
+			if err != nil {
+				return
+			}
+			if _, err := fmt.Fprintf(ctx.Writer, ": heartbeat %s\n\n", time.Now().UTC().Format(time.RFC3339)); err != nil {
+				return
+			}
+			ctx.Writer.Flush()
+		}
+	}
+}
+
+func (handler *Handler) refreshCustomerCharger(ctx *gin.Context, principal Principal, publicChargerID string, cursor int64, previous CustomerChargerView, previousFingerprint []byte) (CustomerChargerView, []byte, error) {
+	next, err := handler.service.GetCustomerCharger(ctx.Request.Context(), principal, publicChargerID)
+	if err != nil {
+		return previous, previousFingerprint, err
+	}
+	fingerprint, err := json.Marshal(next)
+	if err != nil {
+		return previous, previousFingerprint, err
+	}
+	if bytes.Equal(previousFingerprint, fingerprint) {
+		return next, fingerprint, nil
+	}
+	if err := writeProjectionSSE(ctx.Writer, "charger_availability", cursor, next); err != nil {
+		return previous, previousFingerprint, err
+	}
+	ctx.Writer.Flush()
+	return next, fingerprint, nil
+}
+
+func customerStreamPrincipal(ctx *gin.Context) (Principal, string, bool) {
+	principal, ok := CurrentPrincipal(ctx)
+	if !ok {
+		writeError(ctx, errUnauthorized)
+		return Principal{}, "", false
+	}
+	parts := strings.Fields(strings.TrimSpace(ctx.GetHeader("Authorization")))
+	if len(parts) != 2 || !strings.EqualFold(parts[0], "Bearer") {
+		writeError(ctx, errUnauthorized)
+		return Principal{}, "", false
+	}
+	return principal, parts[1], true
+}
+
+func (handler *Handler) customerStreamStillAuthorized(ctx context.Context, token string, principal Principal, appID string) bool {
+	refreshed, err := handler.service.ValidateAccess(ctx, token)
+	return err == nil && refreshed.CPOID == principal.CPOID && refreshed.CustomerID == principal.CustomerID && refreshed.CPOAppID == principal.CPOAppID && refreshed.CPOAppID == appID
+}
+
+func prepareSSE(ctx *gin.Context) {
+	ctx.Header("Content-Type", "text/event-stream")
+	ctx.Header("Cache-Control", "no-cache, no-store")
+	ctx.Header("Connection", "keep-alive")
+	ctx.Header("X-Accel-Buffering", "no")
+	_ = http.NewResponseController(ctx.Writer).SetWriteDeadline(time.Time{})
+}
+
+func writeProjectionSSE(writer io.Writer, eventType string, eventID int64, projection any) error {
+	payload, err := json.Marshal(projection)
+	if err != nil {
+		return err
+	}
+	_, err = fmt.Fprintf(writer, "id: %d\nevent: %s\ndata: %s\n\n", eventID, eventType, payload)
+	return err
+}
+
+func customerLiveSessionFingerprint(snapshot CustomerLiveChargingSessionListResponse) ([]byte, error) {
+	snapshot.AsOf = time.Time{}
+	return json.Marshal(snapshot)
+}
+
+func customerChargerConnectorIDs(snapshot CustomerChargerView) []uuid.UUID {
+	ids := make([]uuid.UUID, 0, len(snapshot.Connectors))
+	for _, connector := range snapshot.Connectors {
+		ids = append(ids, connector.ID)
+	}
+	return ids
 }
 
 func parseOperationalEventQuery(ctx *gin.Context) (int64, int, bool) {
