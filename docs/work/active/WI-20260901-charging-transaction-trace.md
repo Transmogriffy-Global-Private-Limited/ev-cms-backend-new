@@ -1,10 +1,10 @@
 # WI-20260901-charging-transaction-trace
 
-Status: Verified
+Status: In Progress
 Owner: Codex
 Collaborators: None
 Started: 2026-09-01
-Last updated: 2026-09-01 (implementation and local verification complete)
+Last updated: 2026-09-01 (CMS migration and deployment complete)
 
 Development-plan reference: `docs/DEVELOPMENT_PLAN.md` (charging lifecycle and CPO operations)
 Detailed-plan reference: User-approved first-class charging transaction trace / waterfall specification
@@ -26,7 +26,7 @@ state.
 ## Non-goals
 
 - Changing charging, settlement, connector, or OCPP authority.
-- Applying migrations, deployment, or direct client-to-HAL access.
+- Direct client-to-HAL access.
 
 ## Claimed surfaces
 
@@ -46,20 +46,22 @@ state.
 
 ## Data and migration impact
 
-- Additive CMS migration only; do not apply it during this work.
+- Additive CMS migration 000059 applied after a custom-format database backup;
+  no authoritative charging or commercial rows were rewritten.
 
 ## Current state
 
 - Baseline: CMS `anubhab-work` at `184ea10de0f1926cd209bb2b013b598a8804241f`.
 - CMS migration 000059, trace model, pre-command opaque ID propagation,
   sanitized APP/CMS evidence, CPO capability/routes, private HAL merge, bounded
-  cursor validation, and CPO waterfall handoff are implemented in the current
-  publication-ready source worktree.
+  cursor validation, and CPO waterfall handoff are implemented and deployed in
+  revision `3037c46` (219 OpenAPI operations).
 - Trace evidence is explicitly non-authoritative. CMS trace retention is
   bounded by `PLATFORM_CHARGING_TRACE_RETENTION`; it does not mutate session,
   command, fact, wallet, or connector authority.
-- CMS focused/full local verification and documentation/OpenAPI parity pass.
-  Final paired HAL reconciliation and final-status checks remain.
+- CMS focused/full local verification, documentation/OpenAPI parity, migration
+  application, and public rehost checks pass. Final paired HAL reconciliation
+  and final-status checks remain in the counterpart repository.
 
 ## Verification
 
@@ -74,6 +76,6 @@ state.
 
 ## Completion
 
-- Implementation and local verification are complete. Publication is
-  authorized; migration application, deployment, and database mutation remain
-  out of scope.
+- CMS implementation, migration, deployment, and local/public verification are
+  complete. Paired HAL reconciliation remains before the cross-repository
+  feature can be marked fully complete.

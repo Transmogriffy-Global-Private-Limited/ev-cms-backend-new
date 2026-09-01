@@ -1133,26 +1133,28 @@ Current phase:
 
 Active feature:
 
-- First-class CMS/HAL charging transaction trace / waterfall
+- First-class CMS/HAL charging transaction trace / waterfall (CMS deployed;
+  paired HAL reconciliation pending)
 
 Current implementation slice:
 
-- In progress: additive cross-stack trace evidence. CMS creates an opaque
+- Completed and deployed CMS slice: additive cross-stack trace evidence. CMS creates an opaque
   trace ID before command delivery, persists sanitized APP/CMS diagnostic
   evidence, exposes tenant-scoped `charging_traces.read` queries, and merges
   the private HAL read as an explicitly partial source. HAL retains
   connector-aware OCPP evidence under the same root (or creates a HAL-owned
   root for a charger-initiated transaction). Trace data is never authority for
-  sessions, connector state, wallet/billing, or OCPP acknowledgement. The
-  pending source-only migrations are 000059 (CMS) and 018 (HAL); no database
-  application or deployment is part of this work item.
+  sessions, connector state, wallet/billing, or OCPP acknowledgement. CMS
+  migration 000059 is applied and revision `3037c46` is active with 219
+  OpenAPI operations. HAL migration 018 and paired reconciliation remain
+  pending in the counterpart repository.
 - Completed and deployed CPO UAC authority coherence: protected CPO routes use
   their documented capabilities with active-membership/app-ID context, not a
   hard-coded ADMIN role. The slice distinguishes ordinary permission denial
   from evaluator infrastructure failure, aligns support and integrations,
   revokes only matching CPO sessions on an actual role change, preserves fresh
   SSE authorization, and verifies OpenAPI Bearer+App-ID AND semantics. Runtime
-  revision `bc1fbe7` is active with migration 058, 217 OpenAPI operations, and
+  revision `3037c46` is active with migration 059, 219 OpenAPI operations, and
   verified readiness/public routing; PostgreSQL-gated lifecycle cases remain
   deferred without `TEST_DATABASE_URL`.
 - CPO `chargers.operations` live-session operations: `GET /operations/live-sessions` is the

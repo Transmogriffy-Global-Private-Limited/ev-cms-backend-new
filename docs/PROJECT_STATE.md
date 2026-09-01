@@ -2,7 +2,7 @@
 
 ## Current State
 
-### 2026-09-01 - Charging transaction trace source implementation verified, not deployed
+### 2026-09-01 - Charging transaction trace deployed
 
 - The current CMS source adds additive migration 000059 and a
   CPO-scoped diagnostic waterfall for CMS/HAL charging evidence. CMS creates
@@ -11,9 +11,11 @@
   and merges private HAL diagnostic evidence without making it authoritative.
 - Trace retention is bounded and leaves session, wallet, settlement, command,
   fact, and connector authorities untouched. The source contract has 219
-  OpenAPI operations and a CPO frontend handoff. No migration was applied, no
-  deployment/restart occurred, and no physical charger or PostgreSQL lifecycle
-  integration is claimed.
+  OpenAPI operations and a CPO frontend handoff. Migration 059 is applied and
+  the runtime is active behind Caddy at revision `3037c46` with binary SHA-256
+  `2f87378e9bda54d8b8db54877add2c363b8293c7fbd34766a864f9e931759da8`.
+  The pre-trace binary is retained at
+  `/root/evcmsnew-backups/pre-3037c46-20260901T093716Z`.
 
 ### 2026-09-01 - CPO capability authority coherence deployed
 
@@ -22,10 +24,11 @@
   role defaults; support, integration, cache-control, session-revocation, and
   OpenAPI security behavior are aligned with that authority. No migration or
   data repair was required.
-- Runtime revision `bc1fbe7` is active behind Caddy with binary SHA-256
+- Runtime revision `bc1fbe7` was active behind Caddy before the trace release
+  with binary SHA-256
   `dbbc77ff75ca46ed95fa1f3a774bbcabcfe3fad52157f386decf39e46100668`.
-  Service/readiness, public routing, Swagger/OpenAPI (217 operations), Caddy,
-  and post-rehost startup checks pass. Migration 058 remains applied. The
+  Service/readiness, public routing, Swagger/OpenAPI, Caddy, and post-rehost
+  startup checks passed. Migration 058 remains applied. The
   prior binary is retained at
   `builds/evcmsnew.pre-deployed-320d489-20260901-095905`.
 
@@ -42,7 +45,7 @@
   SSE streams re-evaluate their capability at heartbeat.
 - OpenAPI now represents CPO Bearer authentication and `X-CPO-App-ID` as a
   single AND requirement, including hub-GST and user-group membership routes.
-  This behavior is included in the active `bc1fbe7` deployment recorded above;
+  This behavior is included in the active `3037c46` deployment recorded above;
   no migration or data repair was required.
 
 ### 2026-08-31 - User App realtime and mail-outbox reconciliation deployed

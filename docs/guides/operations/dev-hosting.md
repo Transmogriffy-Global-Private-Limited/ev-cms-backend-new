@@ -29,9 +29,9 @@ that setting; it must not be used until the OCPP host is explicitly configured
 with TLS/WebSocket support.
 
 The active deployment was updated on September 1, 2026 to runtime source
-revision `bc1fbe7` (CPO capability-authority coherence). It has migrations one
-through fifty-eight and the current 217-operation API. The binary SHA-256 is
-`dbbc77ff75ca46ed95fa1f3a774bbcabcfe3fad52157f386decf39e46100668`.
+revision `3037c46` (charging transaction trace). It has migrations one
+through fifty-nine and the current 219-operation API. The binary SHA-256 is
+`2f87378e9bda54d8b8db54877add2c363b8293c7fbd34766a864f9e931759da8`.
 The pre-migration binary and database dump for migrations 49 through 53 are
 retained under `/root/evcmsnew-backups/` and
 `builds/evcmsnew.pre-162b3be-20260825-135452` and the newer
@@ -59,7 +59,15 @@ pre-migration-058 database dump is
 The immediately preceding binary for this rehost is additionally retained at
 `builds/evcmsnew.pre-deployed-320d489-20260901-095905` (SHA-256
 `37e6397a939ca16b8fb903147b5d7ee80e2f8e1ffa4c21acee448e66af4b413a`). No new
-migration was required for the capability-authority release.
+migration was required for the capability-authority release. The immediately
+preceding trace-release binary is retained at
+`/root/evcmsnew-backups/pre-3037c46-20260901T093716Z` (SHA-256
+`dbbc77ff75ca46ed95fa1f3a774bbcabcfe3fad52157f386decf39e46100668`), and the
+pre-000059 database dump is
+`/root/evcmsnew-backups/pre-000059-20260901T093435Z.dump`.
+Migration 59 adds opaque charging trace correlation and a bounded diagnostic
+trace-event table; it does not change charging, settlement, wallet, connector,
+or OCPP authority.
 Migration 58 reconciles the mail-outbox template catalogue with the
 application-supported templates using a `NOT VALID` check so historical rows
 remain untouched.
@@ -256,7 +264,7 @@ content exclusions are defined in
 `docs/contracts/internal/http-request-logging.md`. Long-lived SSE requests are
 recorded when they disconnect. A recovered panic first emits a correlated safe
 JSON stack diagnostic without Gin's request dump or the panic value. The
-currently deployed `bc1fbe7` binary includes this logger.
+currently deployed `3037c46` binary includes this logger.
 
 The platform realtime SSE route is long-lived. If a browser holds that stream
 during a rehost, the application may log `shut down HTTP server: context
