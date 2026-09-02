@@ -4141,7 +4141,7 @@ paths:
       tags: [CPO Operations - Live]
       operationId: streamCPOLiveChargingSessions
       summary: Stream full materialized ongoing-session snapshots using SSE
-      description: Requires `chargers.operations`. It immediately emits a `snapshot` frame and emits a replacement-safe `live_sessions` frame after committed CHARGING_SESSION changes. Each frame contains the complete current CMS live-session projection for the requested limit, including duration in seconds at `as_of`, the CPO-visible customer name, and CMS connector UUID, never raw event rows or HAL calls. Reconnect this route to receive a new current snapshot; use the explicit snapshot route for non-stream recovery.
+      description: "Requires `chargers.operations`. It immediately emits a `snapshot` frame and emits a replacement-safe `live_sessions` frame after committed CHARGING_SESSION changes. Each frame contains the complete current CMS live-session projection for the requested limit: normal-session static context (including CMS and OCPP identities, nested customer/charger/connector data, frozen tariff/tax metadata, and start criteria) plus live telemetry and financial projection. It never sends raw event rows or calls HAL. Reconnect this route to receive a new current snapshot; use the explicit snapshot route for non-stream recovery."
       security: [{BearerAuth: [], CPOAppID: []}]
       parameters:
         - $ref: "#/components/parameters/CPOAppIDHeader"
@@ -4158,7 +4158,7 @@ paths:
       tags: [CPO Operations - Live]
       operationId: listCPOLiveChargingSessions
       summary: List materialized ongoing sessions with current operational telemetry
-      description: Requires `chargers.operations`. Returns only ACTIVE, STOP_PENDING, and RECONCILIATION_REQUIRED sessions in start-time cursor order. It exposes duration in seconds at `as_of`, the CPO-visible customer name, human-readable charger/hub context, CMS connector UUID, and committed meter/SoC values and freshness; it never calls HAL and does not expose customer contact data, wallet, tariff, or settlement data.
+      description: "Requires `chargers.operations`. Returns only ACTIVE, STOP_PENDING, and RECONCILIATION_REQUIRED sessions in start-time cursor order. It uses the same canonical projection as the live-session SSE frames: normal-session static context (including nested customer/charger/connector data, frozen tariff/tax metadata, and start criteria) plus duration, committed meter/SoC values, freshness, and the current financial projection. It never calls HAL. Final settlement fields remain completion-only."
       security: [{BearerAuth: [], CPOAppID: []}]
       parameters:
         - $ref: "#/components/parameters/CPOAppIDHeader"
@@ -8881,19 +8881,48 @@ components:
     LiveChargingSessionView:
       type: object
       additionalProperties: false
-      required: [session_id, ocpp_transaction_id, status, started_at, duration_seconds, customer_name, charger_id, charger_name, connector_id, connector_number, meter_freshness, soc_freshness, projected_amount, currency]
+      required: [session_id, ocpp_transaction_id, status, started_at, duration_seconds, customer, charger, connector, price_per_unit, sgst_percent, cgst_percent, igst_percent, created_at, customer_name, charger_id, charger_name, connector_id, connector_number, meter_freshness, soc_freshness, projected_amount, currency]
       properties:
         session_id: {type: string, format: uuid}
         ocpp_transaction_id: {type: integer, format: int64}
         status: {type: string, enum: [ACTIVE, STOP_PENDING, RECONCILIATION_REQUIRED]}
         started_at: {type: string, format: date-time}
         duration_seconds: {type: integer, format: int64, minimum: 0, description: Elapsed whole seconds from started_at to the response as_of timestamp.}
-        customer_name: {type: string, description: "CPO-visible customer display name; customer ID, email, and phone are not included."}
-        charger_id: {type: string, description: Human-facing CMS charger ID.}
-        charger_name: {type: string, description: Human-facing CPO charger name.}
+        customer:
+          $ref: "#/components/schemas/ChargingSessionCustomerView"
+          description: Same CPO-visible customer context as a normal charging-session response.
+        charger:
+          $ref: "#/components/schemas/ChargingSessionChargerView"
+          description: Same persisted charger identity and static metadata as a normal charging-session response.
+        connector:
+          $ref: "#/components/schemas/ChargingSessionConnectorView"
+          description: Same persisted connector identity and static metadata as a normal charging-session response.
+        initial_soc_percent: {type: string, nullable: true, description: "First actual charger-observed session SoC, when known."}
+        price_per_unit:
+          $ref: "#/components/schemas/ExactDecimal"
+          description: Frozen session-time tariff price per billable unit; current tariff data is only a legacy fallback when the snapshot is unusable.
+        unit: {type: string, enum: [kwh, minutes], nullable: true, description: Frozen tariff billing unit when applicable.}
+        start_criteria: {type: string, enum: [AUTO, ENERGY, TIME, MONEY], nullable: true, description: "Customer-selected stop-limit dimension, independent of tariff billing dimension."}
+        requested_limit_value:
+          $ref: "#/components/schemas/ExactDecimal"
+          nullable: true
+          description: Customer-requested value for start_criteria when a durable start intent exists.
+        sgst_percent:
+          $ref: "#/components/schemas/ExactDecimal"
+          description: Frozen session-time SGST rate; current hub GST is legacy fallback only.
+        cgst_percent:
+          $ref: "#/components/schemas/ExactDecimal"
+          description: Frozen session-time CGST rate; current hub GST is legacy fallback only.
+        igst_percent:
+          $ref: "#/components/schemas/ExactDecimal"
+          description: Frozen session-time IGST rate; current hub GST is legacy fallback only.
+        created_at: {type: string, format: date-time, description: CMS materialization timestamp for this session.}
+        customer_name: {type: string, description: Backward-compatible alias of customer.name.}
+        charger_id: {type: string, description: Backward-compatible alias of charger.charger_id.}
+        charger_name: {type: string, description: Backward-compatible alias of charger.name.}
         hub_name: {type: string, nullable: true}
-        connector_id: {type: string, format: uuid, description: Canonical CMS connector UUID.}
-        connector_number: {type: integer, minimum: 1}
+        connector_id: {type: string, format: uuid, description: Backward-compatible alias of connector.id.}
+        connector_number: {type: integer, minimum: 1, description: Backward-compatible alias of connector.number.}
         latest_meter_wh: {type: integer, format: int64}
         consumed_wh: {type: integer, format: int64, minimum: 0}
         projected_amount:

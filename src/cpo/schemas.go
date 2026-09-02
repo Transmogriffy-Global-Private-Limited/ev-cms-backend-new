@@ -710,29 +710,43 @@ type LiveChargingSessionListQuery struct {
 	Limit          int
 }
 
-// LiveChargingSessionView deliberately contains only the CPO display context
-// needed to operate a charger and the committed live telemetry. It includes the
-// tenant customer's display name, but no customer identifier or contact data;
-// financial and historical session fields belong to the separate session read.
+// LiveChargingSessionView combines the canonical normal-session context that
+// is already durable at start with committed live telemetry. The flat display
+// fields remain backward-compatible; nested static views are the canonical
+// representation shared by REST snapshots and full replacement SSE frames.
 type LiveChargingSessionView struct {
-	SessionID         uuid.UUID               `json:"session_id"`
-	OCPPTransactionID int64                   `json:"ocpp_transaction_id"`
-	Status            constants.SessionStatus `json:"status"`
-	StartedAt         time.Time               `json:"started_at"`
-	DurationSeconds   int64                   `json:"duration_seconds"`
-	CustomerName      string                  `json:"customer_name"`
-	ChargerID         string                  `json:"charger_id"`
-	ChargerName       string                  `json:"charger_name"`
-	HubName           *string                 `json:"hub_name,omitempty"`
-	ConnectorID       uuid.UUID               `json:"connector_id"`
-	ConnectorNumber   int                     `json:"connector_number"`
-	LatestMeterWh     *int64                  `json:"latest_meter_wh,omitempty"`
-	ConsumedWh        *int64                  `json:"consumed_wh,omitempty"`
-	MeterObservedAt   *time.Time              `json:"meter_observed_at,omitempty"`
-	MeterFreshness    string                  `json:"meter_freshness"`
-	SoCPercent        *decimal.Decimal        `json:"soc_percent,omitempty"`
-	SoCObservedAt     *time.Time              `json:"soc_observed_at,omitempty"`
-	SoCFreshness      string                  `json:"soc_freshness"`
+	SessionID           uuid.UUID                    `json:"session_id"`
+	OCPPTransactionID   int64                        `json:"ocpp_transaction_id"`
+	Status              constants.SessionStatus      `json:"status"`
+	StartedAt           time.Time                    `json:"started_at"`
+	DurationSeconds     int64                        `json:"duration_seconds"`
+	Customer            ChargingSessionCustomerView  `json:"customer"`
+	Charger             ChargingSessionChargerView   `json:"charger"`
+	Connector           ChargingSessionConnectorView `json:"connector"`
+	InitialSoCPercent   *decimal.Decimal             `json:"initial_soc_percent,omitempty"`
+	PricePerUnit        decimal.Decimal              `json:"price_per_unit"`
+	Unit                *constants.Unit              `json:"unit,omitempty"`
+	StartCriteria       *constants.ChargingLimitType `json:"start_criteria,omitempty"`
+	RequestedLimitValue *decimal.Decimal             `json:"requested_limit_value,omitempty"`
+	SGSTPercent         decimal.Decimal              `json:"sgst_percent"`
+	CGSTPercent         decimal.Decimal              `json:"cgst_percent"`
+	IGSTPercent         decimal.Decimal              `json:"igst_percent"`
+	CreatedAt           time.Time                    `json:"created_at"`
+	// Deprecated compatibility display fields. New CPO consumers should use the
+	// nested customer, charger, and connector values above.
+	CustomerName    string           `json:"customer_name"`
+	ChargerID       string           `json:"charger_id"`
+	ChargerName     string           `json:"charger_name"`
+	HubName         *string          `json:"hub_name,omitempty"`
+	ConnectorID     uuid.UUID        `json:"connector_id"`
+	ConnectorNumber int              `json:"connector_number"`
+	LatestMeterWh   *int64           `json:"latest_meter_wh,omitempty"`
+	ConsumedWh      *int64           `json:"consumed_wh,omitempty"`
+	MeterObservedAt *time.Time       `json:"meter_observed_at,omitempty"`
+	MeterFreshness  string           `json:"meter_freshness"`
+	SoCPercent      *decimal.Decimal `json:"soc_percent,omitempty"`
+	SoCObservedAt   *time.Time       `json:"soc_observed_at,omitempty"`
+	SoCFreshness    string           `json:"soc_freshness"`
 }
 
 type LiveChargingSessionListResponse struct {

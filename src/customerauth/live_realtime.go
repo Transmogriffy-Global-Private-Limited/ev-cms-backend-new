@@ -30,14 +30,18 @@ func (service *Service) ListCustomerLiveChargingSessionsWithFinancialProjection(
 	asOf := service.now()
 	records := make([]models.ChargingSession, 0)
 	if err := service.database.WithContext(ctx).
-		Preload("Charger.Hub").
-		Preload("Connector").
+		Preload("Charger", "cpo_id = ?", principal.CPOID).
+		Preload("Charger.Hub", "cpo_id = ?", principal.CPOID).
+		Preload("Connector", "cpo_id = ?", principal.CPOID).
+		Preload("Connector.Charger", "cpo_id = ?", principal.CPOID).
+		Preload("Connector.Charger.Hub", "cpo_id = ?", principal.CPOID).
 		Preload("Payment.WalletTransaction").
 		Where("charging_sessions.cpo_id = ? AND charging_sessions.customer_id = ? AND charging_sessions.status IN ? AND charging_sessions.end_time IS NULL", principal.CPOID, principal.CustomerID, chargingSessionOccupancyStatuses).
 		Order("charging_sessions.start_time DESC, charging_sessions.id DESC").
 		Find(&records).Error; err != nil {
 		return CustomerLiveChargingSessionListResponse{}, fmt.Errorf("list customer live charging sessions: %w", err)
 	}
+	hydrateCustomerSessionChargers(principal.CPOID, records)
 	response := CustomerLiveChargingSessionListResponse{Sessions: make([]ChargingSessionFinancialProjectionView, 0, len(records)), AsOf: asOf}
 	if len(records) == 0 {
 		return response, nil

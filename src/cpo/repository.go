@@ -194,9 +194,12 @@ func (r *repository) ListLiveChargingSessions(ctx context.Context, cpoID uuid.UU
 		Preload("Customer").
 		Preload("Charger").
 		Preload("Charger.Hub").
+		Preload("Charger.Hub.GST", "cpo_id = ?", cpoID).
 		Preload("Connector").
 		Preload("Connector.Charger").
 		Preload("Connector.Charger.Hub").
+		Preload("Tariff", "cpo_id = ?", cpoID).
+		Preload("StartIntent", "cpo_id = ?", cpoID).
 		Where("cpo_id = ? AND status IN ?", cpoID, []constants.SessionStatus{
 			constants.SessionStatusActive,
 			constants.SessionStatusStopPending,
