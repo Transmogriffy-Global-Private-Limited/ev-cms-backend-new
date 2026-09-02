@@ -4,7 +4,7 @@ Status: Verified
 Owner: Codex
 Collaborators: Anubhab Dey (product and CMS/HAL boundary owner)
 Started: 2026-09-02
-Last updated: 2026-09-02 (deployment and public verification complete)
+Last updated: 2026-09-02 (customer charger fallback correction deployed and verified)
 
 Development-plan reference: `docs/DEVELOPMENT_PLAN.md` — charging lifecycle and CPO operations
 Detailed-plan reference: None
@@ -68,16 +68,19 @@ snapshot, and start-intent relationships.
 
 ## Current state
 
-Customer charger relation-safe hydration and the shared CPO normal/live static
-mapper are complete. REST snapshots and both SSE frame types use the existing
-financial wrapper around the same canonical live projection.
+The prior published customer fallback required a fully loaded nested
+`Connector.Charger` association and did not repair the reported rows. The
+deployed correction uses the same bounded CPO-scoped batch lookup
+pattern as the CPO session repository, preferring the persisted connector
+charger key and then the materialized session key. REST snapshots and both SSE
+frame types continue to use the existing financial wrapper around the same
+projection.
 
 ## Verification
 
 Passed: focused customer-auth/CPO/liveops/operational-realtime tests, full
-`go test ./...`, `go vet ./...`, `go build ./...`, OpenAPI/runtime route test,
-documentation contract verifier, and `git diff --check`. PostgreSQL-gated
-coverage was not run because `TEST_DATABASE_URL` is unset.
+`go test ./...`, `go vet ./...`, `go build ./...`, and `git diff --check`.
+PostgreSQL-gated coverage requires a disposable `TEST_DATABASE_URL`.
 
 ## Handoff
 
@@ -86,5 +89,5 @@ evidence only; HAL remains the owner of OCPP and meter truth.
 
 ## Completion
 
-Source, deployment, and local/public verification complete. No migration or
+Source, deployment, and public verification are complete. No migration or
 database action was required.

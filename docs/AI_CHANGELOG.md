@@ -1,5 +1,30 @@
 # AI Changelog
 
+## 2026-09-02 - Deploy customer charger fallback lookup correction
+
+- Replaced the published fallback that depended on an already-populated nested
+  `Connector.Charger` preload. Customer history, detail, and live-session
+  projection reads now batch-load missing chargers within the authenticated
+  CPO and prefer the persisted connector charger key before the session key.
+- The in-memory fallback updates only the response projection; it does not
+  write a session or invent a relation. Regressions cover zero/stale session
+  charger keys, connector precedence, cross-CPO rejection, and SSE identity.
+  No migration or database action was required.
+
+Rebuilt and rehosted revision `48d196f`; the active binary SHA-256 is
+`ceb9e0de19c5c2141926c8f580d84c5d3efbaad6f114bc3aecb2041dc1a5edc1`. The
+stale prior binary is retained at
+`/root/evcmsnew-backups/pre-48d196f-stale-20260902T042542Z`. Migration 000059
+remains current.
+
+Verification: focused customer-auth/CPO/live/realtime/route tests, full `go test
+-p 1 ./...`, `go vet -p 1 ./...`, successful production build, loopback/public
+live and readiness, Swagger/OpenAPI (219 operations), Caddy validation,
+migration state, and post-rehost startup checks pass. The PowerShell
+documentation verifier and PostgreSQL-gated integration cases remain skipped
+because `pwsh` and a disposable `TEST_DATABASE_URL` are unavailable; physical
+charger and SMTP delivery acceptance remain unclaimed.
+
 ## 2026-09-02 - Deploy customer and CPO charging-session projection coherence
 
 - Repaired customer detail/history and live-session reads so an absent direct
