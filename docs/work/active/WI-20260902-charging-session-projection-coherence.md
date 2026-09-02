@@ -4,7 +4,7 @@ Status: Verified
 Owner: Codex
 Collaborators: Anubhab Dey (product and CMS/HAL boundary owner)
 Started: 2026-09-02
-Last updated: 2026-09-02
+Last updated: 2026-09-02 (deployment and public verification complete)
 
 Development-plan reference: `docs/DEVELOPMENT_PLAN.md` — charging lifecycle and CPO operations
 Detailed-plan reference: None
@@ -40,8 +40,8 @@ changing CMS/HAL ownership, live-event authority, or financial calculation.
 
 ## Non-goals
 
-- Pricing/tariff redesign, database migration, HAL changes, deployment,
-  database mutation, or client-side state reconstruction.
+- Pricing/tariff redesign, database migration, HAL changes, database mutation,
+  or client-side state reconstruction.
 
 ## Claimed surfaces
 
@@ -86,5 +86,5 @@ evidence only; HAL remains the owner of OCPP and meter truth.
 
 ## Completion
 
-Source and local verification complete. No migration, deployment, database
-action, commit, or push was performed.
+Source, deployment, and local/public verification complete. No migration or
+database action was required.

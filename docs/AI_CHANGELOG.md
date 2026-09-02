@@ -1,6 +1,6 @@
 # AI Changelog
 
-## 2026-09-02 - Align customer and CPO charging-session projections in source
+## 2026-09-02 - Deploy customer and CPO charging-session projection coherence
 
 - Repaired customer detail/history and live-session reads so an absent direct
   session charger can be hydrated only from the persisted matching same-CPO
@@ -13,8 +13,22 @@
   initial SSE `snapshot`, and replacement `live_sessions` events therefore
   share one complete projection; legacy flat display fields remain compatible.
 - Added customer hydration/isolation and CPO REST/SSE parity regressions plus
-  OpenAPI and CPO/User App handoff updates. No migration, database mutation,
-  deployment, or live runtime verification is claimed.
+  OpenAPI and CPO/User App handoff updates. No migration or database mutation
+  was required.
+
+Rebuilt and rehosted revision `a1a21a0`; the active binary SHA-256 is
+`f302fc496eebff51a497ad91f245124da1cffc5a8b3ece3142cbb59db8ec6c97`. The
+previous binary is retained at
+`/root/evcmsnew-backups/pre-a1a21a0-20260902T042542Z`. Migration 000059 remains
+current.
+
+Verification: focused customer-auth/CPO/live/realtime/route tests, full `go test
+-p 1 ./...`, `go vet -p 1 ./...`, successful production build, loopback/public
+live and readiness, Swagger/OpenAPI (219 operations), Caddy validation,
+migration state, and post-rehost startup checks pass. The PowerShell
+documentation verifier and PostgreSQL-gated integration cases remain skipped
+because `pwsh` and a disposable `TEST_DATABASE_URL` are unavailable; physical
+charger and SMTP delivery acceptance remain unclaimed.
 
 ## 2026-09-01 - Deploy CPO historical charging-session commercial projection
 
