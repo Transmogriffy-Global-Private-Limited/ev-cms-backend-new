@@ -1,5 +1,49 @@
 # AI Changelog
 
+## 2026-09-02 - Deploy database-owned diagnostic trace replay sequence
+
+- Made `ChargingTraceEvent.ingestion_sequence` GORM read-only, so PostgreSQL
+  migration 000060 remains its sole allocator through the existing column
+  default/sequence. CMS-native trace creation and HAL ingress share this model
+  contract and no longer explicitly send a zero sequence value.
+- Added schema and PostgreSQL-dialect DryRun regression coverage for readable,
+  create-excluded, update-excluded sequence behavior. The existing PostgreSQL
+  integration test now also requires distinct positive DB-generated sequences
+  in actual ingestion order for out-of-order evidence.
+
+Migration 000060 was applied during the temporary rehost; this pass rebuilt and
+rehosted revision `e5ff8c0` from canonical `main`. The active binary SHA-256 is
+`617729272e6bdd57cdc059ad6a8e33e0dbb02b3feed7a3a15ee5f886acea9306`. The prior
+temporary binary is retained at
+`/root/evcmsnew-backups/pre-e5ff8c0-stale-20260902T101829Z`.
+
+Verification: focused trace ingress/model/CPO/customer/route checks,
+loopback/public live and readiness, Swagger/OpenAPI (221 operations), Caddy
+validation, migration state, and post-rehost startup checks pass. PostgreSQL
+integration execution remains deferred because no `TEST_DATABASE_URL` exists;
+the PowerShell documentation verifier is unavailable because `pwsh` is not
+installed. Physical charger and SMTP delivery acceptance remain unclaimed.
+
+## 2026-09-02 - Deploy diagnostic trace push pipeline
+
+- Replaced CMS query-time HAL diagnostic trace retrieval with a dedicated,
+  bearer-authenticated HAL event ingress. The additive 000060 migration adds
+  trace roots, immutable content digests, and durable ingestion sequence
+  cursors. Equal retried events are idempotent; contradictory event/root
+  identity is rejected.
+- CPO trace reads and SSE replay now use only the tenant-scoped CMS projection.
+  The trace response keeps CMS, HAL, OCPP, charger, and connector identities
+  distinct, reports only actually persisted sources, and never becomes session,
+  billing, connector, command, or OCPP authority. HAL unavailability therefore
+  cannot affect CPO trace reads or charging correctness.
+- Documented the matching isolated HAL outbox/worker contract, retention, CPO
+  frontend SSE recovery, and the separate `HAL_V1_TRACE_BEARER_TOKEN`.
+
+Verification: focused trace ingress/CPO/customerauth/HAL-client/operations/
+realtime tests, runtime OpenAPI test, and source build checks pass. Migration
+000060 is applied on the CMS database and the CMS runtime is rehosted at
+`e5ff8c0`; matching HAL deployment remains separate.
+
 ## 2026-09-02 - Deploy customer charger fallback lookup correction
 
 - Replaced the published fallback that depended on an already-populated nested

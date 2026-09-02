@@ -2,6 +2,33 @@
 
 ## Current State
 
+### 2026-09-02 - Database-owned trace replay sequence fix deployed
+
+- `ChargingTraceEvent.ingestion_sequence` is now GORM read-only. PostgreSQL's
+  migration-000060 default sequence is the sole allocator: trace writers may
+  read the stored cursor for CPO replay/SSE but cannot include it in INSERT or
+  UPDATE statements. This fixes the observed explicit-zero unique conflict
+  without changing charging, fact, session, or trace ordering semantics.
+- Migration 000060 is applied; the historical zero-valued diagnostic row
+  remains untouched and the PostgreSQL-owned sequence allocates subsequent
+  values without colliding with it. Runtime revision `e5ff8c0` is active behind
+  Caddy with binary SHA-256
+  `617729272e6bdd57cdc059ad6a8e33e0dbb02b3feed7a3a15ee5f886acea9306`.
+  The prior temporary binary is retained at
+  `/root/evcmsnew-backups/pre-e5ff8c0-stale-20260902T101829Z`.
+
+### 2026-09-02 - Diagnostic trace push pipeline deployed
+
+- The current source replaces the deployed query-time HAL trace merge with an
+  isolated HAL-to-CMS diagnostic event pipeline. CMS accepts the dedicated
+  bearer only at `POST /v1/hal-trace-events`, adopts immutable trace roots,
+  and serves CPO static trace and replayable SSE reads entirely from its own
+  durable projection. Trace evidence remains non-authoritative.
+- CMS migration 000060 is applied and the CMS ingress/read/replay routes are
+  active in revision `e5ff8c0` (221 OpenAPI operations). The matching HAL
+  migration 019 remains a separate counterpart deployment concern; no HAL
+  service state is inferred from this CMS rehost.
+
 ### 2026-09-02 - Customer charger fallback correction deployed
 
 - Production evidence showed that the published nested-preload-only customer

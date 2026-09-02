@@ -11,12 +11,16 @@ import (
 // deliberately not interpreted as charging, billing, or connector truth.
 func (service *Service) recordChargingTrace(tx *gorm.DB, traceID uuid.UUID, cpoID uuid.UUID, sessionID *uuid.UUID, source, target, category, protocol, phase, summary, correlation string, data models.JSONB) error {
 	data = sanitizedChargingTraceData(data)
-	now := service.now()
 	// Charging trace rows are diagnostic only. A failed INSERT inside a PostgreSQL
 	// transaction would otherwise mark the whole transaction aborted even when a
 	// caller deliberately ignores this error. GORM uses a savepoint for nested
 	// transactions, so returning the insert error rolls back only the trace write.
 	return tx.Transaction(func(traceTx *gorm.DB) error {
+		now := service.now()
+		root := models.ChargingTrace{TraceID: traceID, CPOID: cpoID, CMSChargingSessionID: sessionID, CreatedAt: now, UpdatedAt: now}
+		if err := traceTx.Where("trace_id = ?", traceID).FirstOrCreate(&root).Error; err != nil {
+			return err
+		}
 		return traceTx.Create(&models.ChargingTraceEvent{ID: uuid.New(), TraceID: traceID, CPOID: cpoID, SessionID: sessionID, Source: source, Target: target, Category: category, Protocol: protocol, Phase: phase, Summary: summary, OccurredAt: now, RecordedAt: now, CorrelationID: correlation, Data: data}).Error
 	})
 }

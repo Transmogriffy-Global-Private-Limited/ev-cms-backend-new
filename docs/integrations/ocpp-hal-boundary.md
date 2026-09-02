@@ -22,6 +22,12 @@ establish start and completion truth.
   `Idempotency-Key` to equal `fact_id`, verifies RFC 8785 JCS SHA-256 immutable
   content, records a durable receipt, accepts exact duplicates once, and rejects
   altered fact-ID reuse.
+- `POST /v1/hal-trace-events` is a separate diagnostic-only HAL-to-CMS
+  ingestion boundary. It uses `HAL_V1_TRACE_BEARER_TOKEN`, never the fact or
+  command bearer, and accepts immutable event envelopes only after strict
+  validation and exact duplicate-digest verification. Its failure never
+  changes authoritative charging projections. CPO trace reads query the CMS
+  trace store only; they do not synchronously query or merge HAL.
 - CMS persists start intents, wallet holds, command records, mappings, fact
   receipts, and durable connection/connector runtime projections in migration
   `000028_cms_hal_charging_vertical`.

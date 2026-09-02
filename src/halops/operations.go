@@ -197,25 +197,6 @@ type Command struct {
 	UpdatedAt         time.Time
 }
 
-type TraceResult struct {
-	Trace  halclient.Trace
-	Events []halclient.TraceEvent
-}
-
-// GetTrace keeps the private HAL read behind the CMS integration boundary.
-// A diagnostic read failure is intentionally returned to the caller as a
-// partial-source condition; it has no charging lifecycle side effect.
-func (service *Service) GetTrace(ctx context.Context, traceID uuid.UUID, before time.Time, beforeID uuid.UUID, limit int) (TraceResult, error) {
-	if !service.Available() {
-		return TraceResult{}, halclient.ErrUnavailable
-	}
-	trace, events, err := service.client.GetTrace(ctx, traceID, before, beforeID, limit)
-	if err != nil {
-		return TraceResult{}, err
-	}
-	return TraceResult{Trace: trace, Events: events}, nil
-}
-
 func fromWireCommand(command halclient.Command) Command {
 	return Command{HALCommandID: command.HALCommandID, CMSCommandID: command.CMSCommandID, Kind: command.Kind, State: command.State, HALTransactionID: command.HALTransactionID, OCPPTransactionID: command.OCPPTransactionID, UpdatedAt: command.UpdatedAt}
 }

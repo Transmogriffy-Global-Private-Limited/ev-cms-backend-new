@@ -446,25 +446,47 @@ type HALCommandRecord struct {
 // ChargingTraceEvent stores immutable diagnostic evidence. It never owns
 // session, connector, billing, or command state.
 type ChargingTraceEvent struct {
-	ID            uuid.UUID  `gorm:"type:uuid;primaryKey" json:"id"`
-	TraceID       uuid.UUID  `gorm:"type:uuid;not null;index" json:"trace_id"`
-	CPOID         uuid.UUID  `gorm:"type:uuid;not null;index" json:"cpo_id"`
-	SessionID     *uuid.UUID `gorm:"type:uuid;index" json:"session_id,omitempty"`
-	Source        string     `gorm:"type:varchar(32);not null" json:"source"`
-	Target        string     `gorm:"type:varchar(32);not null" json:"target"`
-	Category      string     `gorm:"type:varchar(48);not null" json:"category"`
-	Protocol      string     `gorm:"type:varchar(24);not null" json:"protocol"`
-	Phase         string     `gorm:"type:varchar(24);not null" json:"phase"`
-	Summary       string     `gorm:"type:varchar(200);not null" json:"summary"`
-	OccurredAt    time.Time  `gorm:"type:timestamptz;not null" json:"occurred_at"`
-	RecordedAt    time.Time  `gorm:"type:timestamptz;not null" json:"recorded_at"`
-	StateBefore   string     `gorm:"type:varchar(64);not null;default:''" json:"state_before,omitempty"`
-	StateAfter    string     `gorm:"type:varchar(64);not null;default:''" json:"state_after,omitempty"`
-	CorrelationID string     `gorm:"type:varchar(128);not null;default:''" json:"correlation_id,omitempty"`
-	Data          JSONB      `gorm:"type:jsonb;not null;default:'{}'" json:"data"`
+	ID                     uuid.UUID  `gorm:"type:uuid;primaryKey" json:"id"`
+	TraceID                uuid.UUID  `gorm:"type:uuid;not null;index" json:"trace_id"`
+	CPOID                  uuid.UUID  `gorm:"type:uuid;not null;index" json:"cpo_id"`
+	SessionID              *uuid.UUID `gorm:"type:uuid;index" json:"session_id,omitempty"`
+	Source                 string     `gorm:"type:varchar(32);not null" json:"source"`
+	Target                 string     `gorm:"type:varchar(32);not null" json:"target"`
+	Category               string     `gorm:"type:varchar(48);not null" json:"category"`
+	Protocol               string     `gorm:"type:varchar(24);not null" json:"protocol"`
+	Phase                  string     `gorm:"type:varchar(24);not null" json:"phase"`
+	Summary                string     `gorm:"type:varchar(200);not null" json:"summary"`
+	OccurredAt             time.Time  `gorm:"type:timestamptz;not null" json:"occurred_at"`
+	RecordedAt             time.Time  `gorm:"type:timestamptz;not null" json:"recorded_at"`
+	StateBefore            string     `gorm:"type:varchar(64);not null;default:''" json:"state_before,omitempty"`
+	StateAfter             string     `gorm:"type:varchar(64);not null;default:''" json:"state_after,omitempty"`
+	CorrelationID          string     `gorm:"type:varchar(128);not null;default:''" json:"correlation_id,omitempty"`
+	Data                   JSONB      `gorm:"type:jsonb;not null;default:'{}'" json:"data"`
+	ImmutableContentSHA256 string     `gorm:"column:immutable_content_sha256;type:varchar(64);not null;default:''" json:"-"`
+	// PostgreSQL owns this replay cursor through migration 000060's sequence.
+	// GORM may scan it, but must never include it in INSERT or UPDATE writes.
+	IngestionSequence int64 `gorm:"column:ingestion_sequence;->" json:"-"`
 }
 
 func (ChargingTraceEvent) TableName() string { return "charging_trace_events" }
+
+// ChargingTrace is the CMS-local root for immutable diagnostic evidence. It
+// is never consulted to establish charging, billing, or connector authority.
+type ChargingTrace struct {
+	TraceID              uuid.UUID  `gorm:"column:trace_id;type:uuid;primaryKey" json:"trace_id"`
+	CPOID                uuid.UUID  `gorm:"column:cpo_id;type:uuid;not null;index" json:"cpo_id"`
+	CMSStartIntentID     *uuid.UUID `gorm:"column:cms_start_intent_id;type:uuid" json:"cms_start_intent_id,omitempty"`
+	CMSChargingSessionID *uuid.UUID `gorm:"column:cms_charging_session_id;type:uuid" json:"cms_charging_session_id,omitempty"`
+	CMSCommandID         *uuid.UUID `gorm:"column:cms_command_id;type:uuid" json:"cms_command_id,omitempty"`
+	HALTransactionID     *uuid.UUID `gorm:"column:hal_transaction_id;type:uuid" json:"hal_transaction_id,omitempty"`
+	OCPPTransactionID    *int64     `gorm:"column:ocpp_transaction_id;type:bigint" json:"ocpp_transaction_id,omitempty"`
+	ChargerOCPPIdentity  string     `gorm:"column:charger_ocpp_identity;type:varchar(255);not null" json:"charger_ocpp_identity"`
+	OCPPConnectorNumber  int        `gorm:"column:ocpp_connector_number;not null" json:"ocpp_connector_number"`
+	CreatedAt            time.Time  `gorm:"column:created_at;not null" json:"created_at"`
+	UpdatedAt            time.Time  `gorm:"column:updated_at;not null" json:"updated_at"`
+}
+
+func (ChargingTrace) TableName() string { return "charging_traces" }
 
 type HALFactReceipt struct {
 	FactID      uuid.UUID `gorm:"type:uuid;primaryKey" json:"fact_id"`

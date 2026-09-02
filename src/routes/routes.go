@@ -8,6 +8,7 @@ import (
 
 	apidocs "github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/docs/contracts/openapi"
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/auth"
+	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/chargingtrace"
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/cpo"
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/customerauth"
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/halops"
@@ -78,6 +79,7 @@ func New(
 	if customerAuthService != nil {
 		customerauth.RegisterRoutes(router.Group("/api/v1/app"), customerAuthService)
 		halops.RegisterFactRoutes(router.Group("/v1"), customerAuthService.HALFactIngestor())
+		chargingtrace.RegisterIngressRoutes(router.Group("/v1"), customerAuthService.HALTraceIngestor())
 	}
 	if authService != nil && cpoService != nil {
 		cpo.RegisterPlatformRoutes(

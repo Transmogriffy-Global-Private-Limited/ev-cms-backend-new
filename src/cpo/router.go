@@ -592,6 +592,7 @@ func RegisterCPORoutes(
 	sessionsRead.GET("/charging-sessions/:session_id", handler.getChargingSession)
 	tracesRead.GET("/charging-sessions/:session_id/trace", handler.getChargingSessionTrace)
 	tracesRead.GET("/charging-traces/:trace_id", handler.getChargingTrace)
+	tracesRead.GET("/charging-traces/:trace_id/stream", handler.chargingTraceStream)
 	sessionsRead.GET("/charger-transactions", handler.listChargerTransactions)
 	customersRead.GET("/wallet-transactions", handler.listWalletTransactions)
 	customersRead.GET("/customers/:customer_id/wallet-transactions", handler.listCustomerWalletTransactions)
@@ -646,6 +647,81 @@ func (handler *Handler) getChargingTraceFor(ctx *gin.Context, bySession bool) {
 		return
 	}
 	ctx.JSON(http.StatusOK, response)
+}
+
+func (handler *Handler) chargingTraceStream(ctx *gin.Context) {
+	traceID, err := uuid.Parse(ctx.Param("trace_id"))
+	if err != nil || traceID == uuid.Nil {
+		writeError(ctx, invalid("trace_id", "A canonical trace UUID is required."))
+		return
+	}
+	principal, _ := auth.CurrentPrincipal(ctx)
+	token, ok := auth.CurrentAccessToken(ctx)
+	if !ok || principal.CPOID == nil {
+		writeError(ctx, &auth.APIError{Status: http.StatusUnauthorized, Code: "authentication_required", Message: "Authentication is required."})
+		return
+	}
+	after := int64(0)
+	raw := strings.TrimSpace(ctx.Query("after"))
+	if raw == "" {
+		raw = strings.TrimSpace(ctx.GetHeader("Last-Event-ID"))
+	}
+	if raw != "" {
+		parsed, parseErr := strconv.ParseInt(raw, 10, 64)
+		if parseErr != nil || parsed < 0 {
+			writeError(ctx, invalid("after", "After must be a non-negative trace replay cursor."))
+			return
+		}
+		after = parsed
+	}
+	appID := ctx.GetHeader(auth.CPOAppIDHeader)
+	poll, heartbeat, batch := handler.service.OperationalStreamTiming()
+	page, err := handler.service.ListChargingTraceReplay(ctx.Request.Context(), principal, traceID, after, batch)
+	if err != nil {
+		writeError(ctx, err)
+		return
+	}
+	ctx.Header("Content-Type", "text/event-stream")
+	ctx.Header("Cache-Control", "no-cache, no-store")
+	ctx.Header("Connection", "keep-alive")
+	ctx.Header("X-Accel-Buffering", "no")
+	_ = http.NewResponseController(ctx.Writer).SetWriteDeadline(time.Time{})
+	pollTicker, heartbeatTicker := time.NewTicker(poll), time.NewTicker(heartbeat)
+	defer pollTicker.Stop()
+	defer heartbeatTicker.Stop()
+	for {
+		for _, event := range page.Events {
+			payload, marshalErr := json.Marshal(event)
+			if marshalErr != nil {
+				return
+			}
+			if _, writeErr := fmt.Fprintf(ctx.Writer, "id: %d\nevent: trace_event\ndata: %s\n\n", event.IngestionSequence, payload); writeErr != nil {
+				return
+			}
+		}
+		if len(page.Events) > 0 {
+			after = page.NextCursor
+			ctx.Writer.Flush()
+		}
+		select {
+		case <-ctx.Request.Context().Done():
+			return
+		case <-pollTicker.C:
+			page, err = handler.service.ListChargingTraceReplay(ctx.Request.Context(), principal, traceID, after, batch)
+			if err != nil {
+				return
+			}
+		case <-heartbeatTicker.C:
+			refreshed, checkErr := handler.authService.ValidateAccess(ctx.Request.Context(), token)
+			if checkErr != nil || !cpoStreamStillAuthorized(ctx.Request.Context(), handler.service.database, refreshed, *principal.CPOID, appID, cpopermissions.ChargingTracesRead) {
+				return
+			}
+			if _, writeErr := fmt.Fprintf(ctx.Writer, ": heartbeat %s\n\n", time.Now().UTC().Format(time.RFC3339)); writeErr != nil {
+				return
+			}
+			ctx.Writer.Flush()
+		}
+	}
 }
 
 func (handler *Handler) permissionCatalog(ctx *gin.Context) {
