@@ -111,6 +111,7 @@ type HAL struct {
 	BaseURL              string
 	CMSBearerToken       string
 	FactBearerToken      string
+	TraceBearerToken     string
 	RequestTimeout       time.Duration
 	MeterStaleAfter      time.Duration
 	ConnectionStaleAfter time.Duration
@@ -202,6 +203,7 @@ func Load() (Config, error) {
 			BaseURL:              strings.TrimRight(strings.TrimSpace(os.Getenv("HAL_V1_BASE_URL")), "/"),
 			CMSBearerToken:       strings.TrimSpace(os.Getenv("HAL_V1_CMS_BEARER_TOKEN")),
 			FactBearerToken:      strings.TrimSpace(os.Getenv("HAL_V1_CMS_FACT_BEARER_TOKEN")),
+			TraceBearerToken:     strings.TrimSpace(os.Getenv("HAL_V1_TRACE_BEARER_TOKEN")),
 			RequestTimeout:       durationOrDefault("HAL_V1_REQUEST_TIMEOUT", 5*time.Second),
 			MeterStaleAfter:      durationOrDefault("HAL_V1_METER_STALE_AFTER", 30*time.Second),
 			ConnectionStaleAfter: durationOrDefault("HAL_V1_CONNECTION_STALE_AFTER", 15*time.Minute),
@@ -285,8 +287,8 @@ func (cfg Config) Validate() error {
 	if err := cfg.Frontend.Validate(); err != nil {
 		return err
 	}
-	if cfg.HAL.BaseURL != "" && (cfg.HAL.CMSBearerToken == "" || cfg.HAL.FactBearerToken == "") {
-		return errors.New("HAL_V1_CMS_BEARER_TOKEN and HAL_V1_CMS_FACT_BEARER_TOKEN are required when HAL_V1_BASE_URL is set")
+	if cfg.HAL.BaseURL != "" && (cfg.HAL.CMSBearerToken == "" || cfg.HAL.FactBearerToken == "" || cfg.HAL.TraceBearerToken == "") {
+		return errors.New("HAL_V1_CMS_BEARER_TOKEN, HAL_V1_CMS_FACT_BEARER_TOKEN, and HAL_V1_TRACE_BEARER_TOKEN are required when HAL_V1_BASE_URL is set")
 	}
 	if cfg.HAL.BaseURL != "" && (cfg.HAL.RequestTimeout <= 0 || cfg.HAL.MeterStaleAfter <= 0 || cfg.HAL.ConnectionStaleAfter <= 0 || cfg.HAL.StartReconcileAfter <= 0) {
 		return errors.New("HAL v1 durations must be positive")

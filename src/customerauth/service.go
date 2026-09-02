@@ -14,6 +14,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/chargingtrace"
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/config"
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/constants"
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/halops"
@@ -59,6 +60,7 @@ type Service struct {
 	hal                *halops.Service
 	live               *liveops.Service
 	factIngestor       *halops.FactIngestor
+	traceIngestor      *chargingtrace.Ingestor
 	operationalEvents  *operationalrealtime.Service
 	halFactBearer      string
 	halMeterStaleAfter time.Duration
@@ -79,10 +81,12 @@ func (service *Service) WithHALOperations(operations *halops.Service, live *live
 	service.halFactBearer = cfg.FactBearerToken
 	service.halMeterStaleAfter = cfg.MeterStaleAfter
 	service.factIngestor = halops.NewFactIngestor(service.database, cfg.FactBearerToken, service)
+	service.traceIngestor = chargingtrace.NewIngestor(service.database, cfg.TraceBearerToken)
 	return service
 }
 
-func (service *Service) HALFactIngestor() *halops.FactIngestor { return service.factIngestor }
+func (service *Service) HALFactIngestor() *halops.FactIngestor     { return service.factIngestor }
+func (service *Service) HALTraceIngestor() *chargingtrace.Ingestor { return service.traceIngestor }
 
 func (service *Service) WithOperationalEvents(events *operationalrealtime.Service) *Service {
 	service.operationalEvents = events
@@ -134,6 +138,7 @@ func NewService(
 	// capability before routes are registered.
 	service.live = liveops.New(database, config.HAL{MeterStaleAfter: 30 * time.Second, ConnectionStaleAfter: 15 * time.Minute})
 	service.factIngestor = halops.NewFactIngestor(database, "", service)
+	service.traceIngestor = chargingtrace.NewIngestor(database, "")
 	return service, nil
 }
 

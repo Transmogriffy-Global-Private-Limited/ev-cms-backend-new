@@ -332,7 +332,13 @@ func (service *Service) DeleteExpired(ctx context.Context) error {
 		// Trace rows are diagnostic evidence, never charging authority. A
 		// bounded deletion keeps retention work proportional without touching
 		// sessions, facts, commands, wallets, or connector state.
-		return tx.Exec(`DELETE FROM charging_trace_events WHERE id IN (SELECT id FROM charging_trace_events WHERE recorded_at < ? ORDER BY recorded_at ASC LIMIT 500)`, now.Add(-service.traceRetention)).Error
+		if err := tx.Exec(`DELETE FROM charging_trace_events WHERE id IN (SELECT id FROM charging_trace_events WHERE recorded_at < ? ORDER BY recorded_at ASC LIMIT 500)`, now.Add(-service.traceRetention)).Error; err != nil {
+			return err
+		}
+		// A retained-out root must not make an empty trace appear available. This
+		// removes only bounded, eventless diagnostic roots and never touches any
+		// authoritative charging or commercial relation.
+		return tx.Exec(`DELETE FROM charging_traces WHERE trace_id IN (SELECT t.trace_id FROM charging_traces t WHERE t.updated_at < ? AND NOT EXISTS (SELECT 1 FROM charging_trace_events e WHERE e.trace_id = t.trace_id) ORDER BY t.updated_at ASC LIMIT 500)`, now.Add(-service.traceRetention)).Error
 	})
 }
 

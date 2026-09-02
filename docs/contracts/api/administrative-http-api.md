@@ -3349,6 +3349,7 @@ Legacy sessions without a start intent omit those two fields.
 ```text
 GET /api/v1/cpo/charging-sessions/{session_id}/trace
 GET /api/v1/cpo/charging-traces/{trace_id}
+GET /api/v1/cpo/charging-traces/{trace_id}/stream
 ```
 
 Both diagnostic routes require the CPO bearer session, matching
@@ -3357,22 +3358,28 @@ role bundles grant this to `OWNER`, `ADMIN`, and `OPERATOR`; `VIEWER` is not
 granted it, and an explicit membership `DENY` always wins. The current CPO
 scope is derived server-side, so a CPO cannot retrieve another tenant's trace.
 
-The response contains an opaque `trace_id`, optionally correlated CMS session,
-HAL transaction, and OCPP transaction IDs, plus bounded sanitized evidence
-events. Those identifiers remain distinct. Events are newest-first by the
-exclusive `(occurred_at,id)` cursor; `limit` is 1–100 (default 50), and both
-`before_occurred_at` and `before_event_id` must be supplied together for the
-next page. The event lanes are `APP`, `CMS`, `HAL`, and `CHARGER`; trace rows
-are diagnostic evidence only and never determine session, connector, wallet,
-billing, settlement, or OCPP state.
+CMS is the canonical CPO-visible trace store. These reads never query HAL or
+merge a runtime HAL response. The static response contains an opaque
+`trace_id`, optionally correlated CMS session, HAL transaction, and OCPP
+transaction IDs, bounded sanitized evidence, `sources_present`, and a
+`replay_cursor`. Those identifiers remain distinct. `sources_present` means
+only that CMS currently persists evidence attributed to the listed actor; an
+absent HAL/CHARGER source is not a HAL-health assertion. Events are newest
+first by the exclusive `(occurred_at,id)` cursor; `limit` is 1–100 (default
+50), and both `before_occurred_at` and `before_event_id` must be supplied
+together for the next page.
 
-`cms_source` is local evidence availability. `hal_source` is independently
-`AVAILABLE`, `UNAVAILABLE`, or `NOT_REQUESTED`: a private HAL diagnostic read
-failure still returns usable CMS evidence and is not a charging failure. Event
-metadata deliberately excludes idTags, credentials, authorization material,
-customer contacts, and raw OCPP frames. `404 charging_trace_not_found` means
-the diagnostic evidence is unavailable or retained out; it does not mean the
-underlying charging session is invalid.
+Use the static response's `replay_cursor` as the exclusive `after` query value
+(or SSE `Last-Event-ID`) for the stream. It replays immutable `trace_event`
+frames by CMS ingestion sequence, while the FE displays events chronologically
+by `(occurred_at,id)`. The SSE `id` is that sequence; clients dedupe by event
+ID. Event lanes are `APP`, `CMS`, `HAL`, and `CHARGER`; trace rows are
+diagnostic evidence only and never determine session, connector, wallet,
+billing, settlement, or OCPP state. Event metadata deliberately excludes
+idTags, credentials, authorization material, customer contacts, and raw OCPP
+frames. `404 charging_trace_not_found` means the diagnostic evidence is
+unavailable or retained out; it does not mean the underlying charging session
+is invalid.
 
 ### 12.6 CPO charger transaction reads
 

@@ -2,6 +2,18 @@
 
 ## Current State
 
+### 2026-09-02 - Diagnostic trace push pipeline source verified, not deployed
+
+- The current source replaces the deployed query-time HAL trace merge with an
+  isolated HAL-to-CMS diagnostic event pipeline. CMS accepts the dedicated
+  bearer only at `POST /v1/hal-trace-events`, adopts immutable trace roots,
+  and serves CPO static trace and replayable SSE reads entirely from its own
+  durable projection. Trace evidence remains non-authoritative.
+- The source adds additive migration 000060; it and the matching HAL migration
+  019 have not been applied. No service was restarted or deployed. The current
+  deployed trace behavior remains the 2026-09-01 baseline below until an
+  explicitly authorized coordinated rollout.
+
 ### 2026-09-02 - Customer charger fallback correction deployed
 
 - Production evidence showed that the published nested-preload-only customer

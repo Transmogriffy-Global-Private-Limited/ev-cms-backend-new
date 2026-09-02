@@ -86,6 +86,15 @@ retention is observed but does not block serving because it only cleans durable
 replay history. Realtime and retention configuration is loaded at startup and
 requires a restart to change.
 
+## HAL diagnostic trace ingress
+
+| Variable | Default / validation |
+|---|---|
+| `HAL_V1_TRACE_BEARER_TOKEN` | required, non-empty opaque service credential whenever `HAL_V1_BASE_URL` is configured; it authenticates only `POST /v1/hal-trace-events` and is independent from both `HAL_V1_CMS_BEARER_TOKEN` and `HAL_V1_CMS_FACT_BEARER_TOKEN` |
+
+The token is supplied only by ignored local configuration, process environment,
+or an approved secret store. It is never logged or sent to browser clients.
+
 ## Cryptographic Keys
 
 | Variable | Requirement |

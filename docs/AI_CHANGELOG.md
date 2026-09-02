@@ -1,5 +1,25 @@
 # AI Changelog
 
+## 2026-09-02 - Diagnostic trace push pipeline source verification
+
+- Replaced CMS query-time HAL diagnostic trace retrieval with a dedicated,
+  bearer-authenticated HAL event ingress. The additive 000060 migration adds
+  trace roots, immutable content digests, and durable ingestion sequence
+  cursors. Equal retried events are idempotent; contradictory event/root
+  identity is rejected.
+- CPO trace reads and SSE replay now use only the tenant-scoped CMS projection.
+  The trace response keeps CMS, HAL, OCPP, charger, and connector identities
+  distinct, reports only actually persisted sources, and never becomes session,
+  billing, connector, command, or OCPP authority. HAL unavailability therefore
+  cannot affect CPO trace reads or charging correctness.
+- Documented the matching isolated HAL outbox/worker contract, retention, CPO
+  frontend SSE recovery, and the separate `HAL_V1_TRACE_BEARER_TOKEN`.
+
+Verification: focused trace ingress/CPO/customerauth/HAL-client/operations/
+realtime tests, runtime OpenAPI test, and documentation verification pass.
+PostgreSQL-gated integration coverage is skipped without `TEST_DATABASE_URL`.
+No migration was applied, and no deployment, restart, or publish occurred.
+
 ## 2026-09-02 - Deploy customer charger fallback lookup correction
 
 - Replaced the published fallback that depended on an already-populated nested

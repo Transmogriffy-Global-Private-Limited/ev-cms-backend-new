@@ -196,6 +196,7 @@ func TestHALConnectionFreshnessConfigurationValidation(t *testing.T) {
 		BaseURL:              "http://127.0.0.1:29080",
 		CMSBearerToken:       "cms-test-token",
 		FactBearerToken:      "fact-test-token",
+		TraceBearerToken:     "trace-test-token",
 		RequestTimeout:       5 * time.Second,
 		MeterStaleAfter:      30 * time.Second,
 		ConnectionStaleAfter: 15 * time.Minute,

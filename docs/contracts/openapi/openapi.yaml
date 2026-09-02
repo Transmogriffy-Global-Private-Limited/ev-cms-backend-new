@@ -354,7 +354,7 @@ paths:
     get:
       tags: [CPO Operations - Charging Sessions]
       operationId: getCPOChargingTrace
-      summary: Get diagnostic charging evidence by opaque trace ID
+      summary: Get CMS-stored diagnostic charging evidence by opaque trace ID
       security:
         - BearerAuth: []
           CPOAppID: []
@@ -368,6 +368,42 @@ paths:
         - $ref: "#/components/parameters/TraceBeforeEventID"
       responses:
         "200": {description: Diagnostic trace evidence, content: {application/json: {schema: {$ref: "#/components/schemas/ChargingTraceResponse"}}}}
+        "400": {$ref: "#/components/responses/InvalidRequest"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/CPOBusinessForbidden"}
+        "404": {description: "charging_trace_not_found"}
+  /api/v1/cpo/charging-traces/{trace_id}/stream:
+    get:
+      tags: [CPO Operations - Charging Sessions]
+      operationId: streamCPOChargingTrace
+      summary: Replay and stream CMS-stored diagnostic charging evidence
+      description: |
+        Emits `trace_event` SSE messages in CMS ingestion-sequence order. Read
+        the static trace first, then reconnect with its `replay_cursor` as
+        `after` (or `Last-Event-ID`) to close the static-to-SSE race. Trace
+        evidence is diagnostic only and never establishes charging truth.
+      security:
+        - BearerAuth: []
+          CPOAppID: []
+      parameters:
+        - name: trace_id
+          in: path
+          required: true
+          schema: {type: string, format: uuid}
+        - name: after
+          in: query
+          description: Exclusive non-negative CMS ingestion-sequence cursor.
+          schema: {type: integer, format: int64, minimum: 0}
+        - name: Last-Event-ID
+          in: header
+          description: Optional reconnect cursor used when `after` is absent.
+          schema: {type: integer, format: int64, minimum: 0}
+      responses:
+        "200":
+          description: text/event-stream `trace_event` messages whose JSON data is ChargingTraceEvent and whose SSE id is the ingestion sequence.
+          content:
+            text/event-stream:
+              schema: {type: string}
         "400": {$ref: "#/components/responses/InvalidRequest"}
         "401": {$ref: "#/components/responses/Unauthorized"}
         "403": {$ref: "#/components/responses/CPOBusinessForbidden"}
@@ -6544,6 +6580,28 @@ paths:
         "401": {$ref: "#/components/responses/Unauthorized"}
         "409": {$ref: "#/components/responses/Conflict"}
         "422": {description: HAL fact is semantically invalid or unsafe to apply.}
+  /v1/hal-trace-events:
+    post:
+      tags: [HAL Trace Integration]
+      operationId: receiveHALTraceEvent
+      summary: Durably receive one immutable HAL diagnostic trace event
+      description: "Requires the dedicated diagnostic trace bearer and Idempotency-Key equal to event_id. This endpoint is isolated from authoritative HAL facts and cannot alter charging business state."
+      security: [{HALTraceBearer: []}]
+      parameters:
+        - name: Idempotency-Key
+          in: header
+          required: true
+          schema: {type: string, format: uuid}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/HALTraceEventEnvelope"}
+      responses:
+        "204": {description: Durable receipt or exact duplicate acknowledgement.}
+        "400": {$ref: "#/components/responses/InvalidRequest"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "409": {$ref: "#/components/responses/Conflict"}
 
 components:
   headers:
@@ -6563,6 +6621,10 @@ components:
       type: http
       scheme: bearer
       description: Independent opaque HAL-to-CMS service bearer. It is never a customer or staff access token.
+    HALTraceBearer:
+      type: http
+      scheme: bearer
+      description: Dedicated opaque HAL-to-CMS diagnostic trace bearer. It cannot authorize authoritative fact ingestion.
     CPOAppID:
       type: apiKey
       in: header
@@ -8854,17 +8916,49 @@ components:
     ChargingTraceResponse:
       type: object
       additionalProperties: false
-      required: [trace_id, events, cms_source, hal_source]
+      required: [trace_id, events, sources_present, replay_cursor]
       properties:
         trace_id: {type: string, format: uuid}
+        cms_start_intent_id: {type: string, format: uuid}
         session_id: {type: string, format: uuid}
+        cms_command_id: {type: string, format: uuid}
         hal_transaction_id: {type: string, format: uuid}
         ocpp_transaction_id: {type: integer, format: int64}
+        charger_ocpp_identity: {type: string, maxLength: 255}
+        ocpp_connector_number: {type: integer, minimum: 1}
         events: {type: array, maxItems: 100, items: {$ref: "#/components/schemas/ChargingTraceEvent"}}
-        cms_source: {type: string, enum: [AVAILABLE]}
-        hal_source: {type: string, enum: [AVAILABLE, UNAVAILABLE, NOT_REQUESTED]}
+        sources_present: {type: array, items: {type: string, enum: [APP, CMS, HAL, CHARGER]}, description: Evidence actors currently persisted by CMS; absence does not represent runtime health.}
+        replay_cursor: {type: integer, format: int64, minimum: 0, description: Latest CMS ingestion sequence included by this static response; use it as the SSE after cursor.}
         next_occurred_at: {type: string, format: date-time}
         next_event_id: {type: string, format: uuid}
+    HALTraceEventEnvelope:
+      type: object
+      additionalProperties: false
+      required: [schema_version, trace_id, event_id, cpo_id, charger_ocpp_identity, ocpp_connector_number, source, target, category, protocol, phase, summary, occurred_at, data, immutable_content_sha256]
+      properties:
+        schema_version: {type: integer, enum: [1]}
+        trace_id: {type: string, format: uuid}
+        event_id: {type: string, format: uuid}
+        cpo_id: {type: string, format: uuid}
+        cms_start_intent_id: {type: string, format: uuid, nullable: true}
+        cms_charging_session_id: {type: string, format: uuid, nullable: true}
+        cms_command_id: {type: string, format: uuid, nullable: true}
+        hal_transaction_id: {type: string, format: uuid, nullable: true}
+        ocpp_transaction_id: {type: integer, format: int64, nullable: true}
+        charger_ocpp_identity: {type: string, maxLength: 255}
+        ocpp_connector_number: {type: integer, minimum: 1}
+        source: {type: string, enum: [APP, CMS, HAL, CHARGER]}
+        target: {type: string, enum: [APP, CMS, HAL, CHARGER]}
+        category: {type: string, maxLength: 48}
+        protocol: {type: string, maxLength: 24}
+        phase: {type: string, maxLength: 24}
+        summary: {type: string, maxLength: 200}
+        occurred_at: {type: string, format: date-time}
+        state_before: {type: string, maxLength: 64}
+        state_after: {type: string, maxLength: 64}
+        correlation_id: {type: string, maxLength: 128}
+        data: {type: object, additionalProperties: true}
+        immutable_content_sha256: {type: string, pattern: "^[a-f0-9]{64}$"}
 
     OperationalEventPage:
       type: object

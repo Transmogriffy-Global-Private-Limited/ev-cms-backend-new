@@ -1,57 +1,59 @@
 # CPO charging transaction trace
 
-Use the CMS only; browsers must never call the HAL.
+The browser uses CMS only; it must never query the OCPP HAL. Trace is
+diagnostic evidence, never charging, billing, connector, wallet, or command
+authority. Keep the normal CMS charging-session projection as the source for
+current status, money, and meter display.
+
+## Access and static snapshot
 
 `GET /api/v1/cpo/charging-sessions/{session_id}/trace` and
-`GET /api/v1/cpo/charging-traces/{trace_id}` require the normal CPO Bearer
-token, `X-CPO-App-ID`, active membership, and `charging_traces.read`.
-
-The response is a diagnostic waterfall, not charging authority. Keep the CMS
-session projection as the source for status, money, and meter display.
+`GET /api/v1/cpo/charging-traces/{trace_id}` require a CPO bearer token, the
+matching `X-CPO-App-ID`, active membership, and `charging_traces.read`.
 `trace_id`, `session_id`, `hal_transaction_id`, and
-`ocpp_transaction_id` are distinct identities.
+`ocpp_transaction_id` are separate labelled identities.
 
-Events are newest-first by the pair `(occurred_at, id)`. To fetch the next
-page send both `before_occurred_at` and `before_event_id` from the response;
-never send either cursor component alone. A page is bounded to 100 events.
-`hal_source: UNAVAILABLE` means HAL diagnostic evidence could not be fetched:
-show the available CMS events and a partial-data indicator, without treating
-it as a charging error. Event data is intentionally sanitized; do not expect
-idTags, credentials, authorization headers, customer contact data, or raw
-OCPP frames.
+The static response is newest-first by `(occurred_at,id)`. Fetch later pages
+with both `before_occurred_at` and `before_event_id`; never send either cursor
+alone. It also returns `sources_present` and `replay_cursor`.
 
-## Waterfall rendering contract
+`sources_present` means only that CMS has persisted evidence attributed to one
+or more of `APP`, `CMS`, `HAL`, and `CHARGER`. It is not HAL availability or
+health. A `404 charging_trace_not_found` is a neutral “diagnostic evidence
+unavailable/retained out” state, not a charging-session error.
 
-Render one chronological waterfall after reversing the newest-first page (or
-prepend later pages). Use four fixed lanes and directional arrows:
+## Race-free SSE
+
+After reading the static trace, connect to:
 
 ```text
-APP  -> CMS  -> HAL  -> CHARGER
+GET /api/v1/cpo/charging-traces/{trace_id}/stream?after={replay_cursor}
 ```
 
-Each event provides `source`, `target`, `category`, `protocol`, `phase`,
-`summary`, occurrence/recording timestamps, optional before/after state, and
-sanitized data. Show protocol acknowledgements and rejected outcomes as their
-own events; do not infer success from a later state row.
+The stream emits `event: trace_event`. Its SSE `id` and reconnect cursor are
+the durable CMS ingestion sequence, not `occurred_at`. Send it back as
+`Last-Event-ID` (or `after`) after reconnect. The client dedupes by immutable
+event `id`, then inserts into the display by `(occurred_at,id)`. This separates
+safe delivery replay from chronological waterfall display.
 
-- Band events by `PRE_START`, `STARTING`, `CHARGING`, `STOPPING`, and
-  `POST_STOP`.
-- Render state transitions (`state_before` -> `state_after`) as markers in
-  the connector's lane.
-- Collapse repeated meter samples into a count plus first/last time and meter
-  value; let an operator expand them. Never turn the collapsed summary into a
-  billing calculation.
-- Visually mark persistence/reconciliation failure evidence, but keep it
-  distinct from a protocol acceptance/rejection and from commercial state.
-- Treat `session_id`, `hal_transaction_id`, and `ocpp_transaction_id` as
-  distinct labelled correlation chips. Do not substitute any one for another.
+The connection is reauthorized during heartbeats. If membership, app context,
+or `charging_traces.read` is revoked, it closes; refresh the normal CPO session
+instead of attempting to bypass the scope.
 
-`cms_source` and `hal_source` independently say `AVAILABLE`, `UNAVAILABLE`,
-or `NOT_REQUESTED`. A partial source is expected diagnostic degradation: the
-normal charging-session API remains the source for status, money, energy and
-stop eligibility. A `404 charging_trace_not_found` is not a session error and
-should show a neutral “diagnostic evidence unavailable/retained out” state.
+## Waterfall rendering
 
-The initial user-app start response exposes `trace_id`. A CPO can also begin
-from a session ID after the authoritative HAL start fact has materialized the
-CMS session.
+Use fixed lanes:
+
+```text
+APP | CMS | HAL | CHARGER
+```
+
+Render only the backend-declared `source -> target` relation. Do not infer
+arrows from timestamps, correlation IDs, adjacent events, charger identity, or
+customer identity. `correlation_id` is details metadata only.
+
+Each immutable event includes source, target, category, protocol, phase,
+summary, occurrence and CMS-recording time, optional state transition, and
+sanitized `data`. Meter events may be visually collapsed, but that display must
+not produce billing calculations. No event data contains credentials, idTags,
+authorization headers, customer contacts, or raw OCPP frames.

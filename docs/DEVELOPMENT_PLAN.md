@@ -1145,7 +1145,7 @@ Current implementation slice:
   keeps start-intent hydration bounded and CPO-scoped. No pricing calculation,
   migration, or data mutation was required. Runtime revision `e263463` is
   active with migration 059 and 219 OpenAPI operations.
-- Completed and deployed CMS slice: additive cross-stack trace evidence. CMS creates an opaque
+- Deployed baseline trace slice: additive cross-stack trace evidence. CMS creates an opaque
   trace ID before command delivery, persists sanitized APP/CMS diagnostic
   evidence, exposes tenant-scoped `charging_traces.read` queries, and merges
   the private HAL read as an explicitly partial source. HAL retains
@@ -1155,6 +1155,12 @@ Current implementation slice:
   migration 000059 is applied and revision `3037c46` is active with 219
   OpenAPI operations. HAL migration 018 and paired reconciliation remain
   pending in the counterpart repository.
+- Verified source-only Task 2 replaces the deployed query-time diagnostic
+  merge with a separate HAL trace outbox/worker and CMS `POST
+  /v1/hal-trace-events` ingress. It adds CMS trace-root adoption, immutable
+  event digest/idempotency, CMS-only static CPO reads, and replayable CPO SSE;
+  `/v1/hal-facts` remains untouched. It is not deployed and migration 000060
+  is not applied. See `docs/work/archive/WI-20260902-hal-trace-push-pipeline.md`.
 - Completed and deployed CPO UAC authority coherence: protected CPO routes use
   their documented capabilities with active-membership/app-ID context, not a
   hard-coded ADMIN role. The slice distinguishes ordinary permission denial
