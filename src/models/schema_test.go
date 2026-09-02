@@ -9,6 +9,7 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/google/uuid"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 	"gorm.io/gorm/schema"
@@ -86,6 +87,7 @@ func TestGORMModelsParse(t *testing.T) {
 		&CPOSubscriptionHistory{},
 		&HALChargerRuntime{},
 		&HALConnectorRuntime{},
+		&ChargingTraceEvent{},
 	}
 
 	cache := &sync.Map{}
@@ -163,6 +165,7 @@ func TestGORMColumnMappingsMatchMigration(t *testing.T) {
 		{model: &HALChargerMapping{}, field: "LastSyncCorrelationID", database: "last_sync_correlation_id"},
 		{model: &HALChargerRuntime{}, field: "CMSChargerID", database: "cms_charger_id"},
 		{model: &HALConnectorRuntime{}, field: "OCPPConnectorStatus", database: "ocpp_connector_status"},
+		{model: &ChargingTraceEvent{}, field: "IngestionSequence", database: "ingestion_sequence"},
 		{model: &AuthChallenge{}, field: "RequestIP", database: "request_ip"},
 		{model: &AuthSession{}, field: "IPAddress", database: "ip_address"},
 		{model: &CPOIntegration{}, field: "EncryptionKeyID", database: "encryption_key_id"},
@@ -231,5 +234,42 @@ func TestChargingSessionPersistenceUsesMigrationTotalKWhColumn(t *testing.T) {
 	}
 	if strings.Contains(statement, `"total_k_wh"`) {
 		t.Fatalf("ChargingSession insert targets nonexistent total_k_wh: %s", statement)
+	}
+}
+
+func TestChargingTraceEventIngestionSequenceIsDatabaseGeneratedAndReadable(t *testing.T) {
+	t.Parallel()
+
+	parsed, err := schema.Parse(&ChargingTraceEvent{}, &sync.Map{}, schema.NamingStrategy{})
+	if err != nil {
+		t.Fatalf("parse ChargingTraceEvent: %v", err)
+	}
+	field := parsed.LookUpField("IngestionSequence")
+	if field == nil || !field.Readable || field.Creatable || field.Updatable {
+		t.Fatalf("ingestion sequence field permissions: %#v", field)
+	}
+
+	database, err := gorm.Open(postgres.New(postgres.Config{Conn: dryRunConn{}}), &gorm.Config{
+		DryRun:                 true,
+		SkipDefaultTransaction: true,
+	})
+	if err != nil {
+		t.Fatalf("open dry-run postgres GORM database: %v", err)
+	}
+	event := ChargingTraceEvent{ID: uuid.New(), TraceID: uuid.New(), CPOID: uuid.New(), IngestionSequence: 99}
+	insert := database.Create(&event)
+	if insert.Error != nil {
+		t.Fatalf("build ChargingTraceEvent insert: %v", insert.Error)
+	}
+	if statement := insert.Statement.SQL.String(); strings.Contains(statement, `"ingestion_sequence"`) {
+		t.Fatalf("ChargingTraceEvent insert explicitly writes database-owned ingestion_sequence: %s", statement)
+	}
+
+	update := database.Model(&ChargingTraceEvent{}).Where("id = ?", event.ID).Updates(ChargingTraceEvent{Summary: "updated", IngestionSequence: 100})
+	if update.Error != nil {
+		t.Fatalf("build ChargingTraceEvent update: %v", update.Error)
+	}
+	if statement := update.Statement.SQL.String(); strings.Contains(statement, `"ingestion_sequence"`) {
+		t.Fatalf("ChargingTraceEvent update rewrites database-owned ingestion_sequence: %s", statement)
 	}
 }

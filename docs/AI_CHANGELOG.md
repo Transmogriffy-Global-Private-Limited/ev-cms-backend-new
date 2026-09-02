@@ -1,5 +1,20 @@
 # AI Changelog
 
+## 2026-09-02 - Database-owned diagnostic trace replay sequence
+
+- Made `ChargingTraceEvent.ingestion_sequence` GORM read-only, so PostgreSQL
+  migration 000060 remains its sole allocator through the existing column
+  default/sequence. CMS-native trace creation and HAL ingress share this model
+  contract and no longer explicitly send a zero sequence value.
+- Added schema and PostgreSQL-dialect DryRun regression coverage for readable,
+  create-excluded, update-excluded sequence behavior. The existing PostgreSQL
+  integration test now also requires distinct positive DB-generated sequences
+  in actual ingestion order for out-of-order evidence.
+
+PostgreSQL integration execution remains deferred because no `TEST_DATABASE_URL`
+exists by explicit operator constraint. No migration, data repair, deployment,
+restart, commit, or push occurred.
+
 ## 2026-09-02 - Diagnostic trace push pipeline source verification
 
 - Replaced CMS query-time HAL diagnostic trace retrieval with a dedicated,

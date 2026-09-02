@@ -2,6 +2,17 @@
 
 ## Current State
 
+### 2026-09-02 - Database-owned trace replay sequence source fix, not deployed
+
+- `ChargingTraceEvent.ingestion_sequence` is now GORM read-only. PostgreSQL's
+  migration-000060 default sequence is the sole allocator: trace writers may
+  read the stored cursor for CPO replay/SSE but cannot include it in INSERT or
+  UPDATE statements. This fixes the observed explicit-zero unique conflict
+  without changing charging, fact, session, or trace ordering semantics.
+- No migration, database repair, service restart, or deployment was performed.
+  The historical zero-valued diagnostic row remains untouched; the healthy
+  sequence will naturally allocate its next value without colliding with it.
+
 ### 2026-09-02 - Diagnostic trace push pipeline source verified, not deployed
 
 - The current source replaces the deployed query-time HAL trace merge with an

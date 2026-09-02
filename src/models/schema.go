@@ -463,7 +463,9 @@ type ChargingTraceEvent struct {
 	CorrelationID          string     `gorm:"type:varchar(128);not null;default:''" json:"correlation_id,omitempty"`
 	Data                   JSONB      `gorm:"type:jsonb;not null;default:'{}'" json:"data"`
 	ImmutableContentSHA256 string     `gorm:"column:immutable_content_sha256;type:varchar(64);not null;default:''" json:"-"`
-	IngestionSequence      int64      `gorm:"column:ingestion_sequence;not null" json:"-"`
+	// PostgreSQL owns this replay cursor through migration 000060's sequence.
+	// GORM may scan it, but must never include it in INSERT or UPDATE writes.
+	IngestionSequence int64 `gorm:"column:ingestion_sequence;->" json:"-"`
 }
 
 func (ChargingTraceEvent) TableName() string { return "charging_trace_events" }

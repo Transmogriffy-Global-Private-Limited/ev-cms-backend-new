@@ -68,7 +68,7 @@ func TestIngressAdoptsRootsIdempotentlyAndNeverMutatesSessionsWithPostgreSQL(t *
 		t.Fatalf("accept out-of-order event: %v", err)
 	}
 	var events []models.ChargingTraceEvent
-	if err := gormDB.Where("trace_id = ?", first.TraceID).Order("ingestion_sequence ASC").Find(&events).Error; err != nil || len(events) != 2 || events[0].IngestionSequence >= events[1].IngestionSequence {
+	if err := gormDB.Where("trace_id = ?", first.TraceID).Order("ingestion_sequence ASC").Find(&events).Error; err != nil || len(events) != 2 || events[0].IngestionSequence <= 0 || events[1].IngestionSequence <= 0 || events[0].IngestionSequence >= events[1].IngestionSequence {
 		t.Fatalf("events=%#v err=%v", events, err)
 	}
 	var sessions int64
