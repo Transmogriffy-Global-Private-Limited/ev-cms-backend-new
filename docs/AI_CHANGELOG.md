@@ -12,10 +12,10 @@
   No migration or database action was required.
 
 Rebuilt and rehosted revision `48d196f`; the active binary SHA-256 is
-`f302fc496eebff51a497ad91f245124da1cffc5a8b3ece3142cbb59db8ec6c97`. The
-previous binary is retained at
-`/root/evcmsnew-backups/pre-a1a21a0-20260902T042542Z`. Migration 000059 remains
-current.
+`ceb9e0de19c5c2141926c8f580d84c5d3efbaad6f114bc3aecb2041dc1a5edc1`. The
+stale prior binary is retained at
+`/root/evcmsnew-backups/pre-48d196f-stale-20260902T042542Z`. Migration 000059
+remains current.
 
 Verification: focused customer-auth/CPO/live/realtime/route tests, full `go test
 -p 1 ./...`, `go vet -p 1 ./...`, successful production build, loopback/public

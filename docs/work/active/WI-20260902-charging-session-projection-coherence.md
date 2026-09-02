@@ -70,7 +70,7 @@ snapshot, and start-intent relationships.
 
 The prior published customer fallback required a fully loaded nested
 `Connector.Charger` association and did not repair the reported rows. The
-source-verified correction uses the same bounded CPO-scoped batch lookup
+deployed correction uses the same bounded CPO-scoped batch lookup
 pattern as the CPO session repository, preferring the persisted connector
 charger key and then the materialized session key. REST snapshots and both SSE
 frame types continue to use the existing financial wrapper around the same
