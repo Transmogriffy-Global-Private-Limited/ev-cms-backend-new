@@ -26,7 +26,7 @@ type chargingSessionProjectionRepository struct {
 	getSessionID uuid.UUID
 }
 
-func (r *chargingSessionProjectionRepository) GetAnalytics(context.Context, uuid.UUID, AnalyticsQuery) (Analytics, error) {
+func (r *chargingSessionProjectionRepository) GetAnalytics(context.Context, uuid.UUID, *uuid.UUID, AnalyticsQuery) (Analytics, error) {
 	return Analytics{}, nil
 }
 

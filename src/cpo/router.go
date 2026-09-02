@@ -595,6 +595,7 @@ func RegisterCPORoutes(
 	sessionsRead.GET("/charger-transactions", handler.listChargerTransactions)
 	customersRead.GET("/wallet-transactions", handler.listWalletTransactions)
 	customersRead.GET("/customers/:customer_id/wallet-transactions", handler.listCustomerWalletTransactions)
+	analyticsRead.GET("/hubs/:hub_id/analytics", handler.getHubAnalytics)
 
 }
 
@@ -3196,4 +3197,25 @@ func parseWalletTransactionListQuery(ctx *gin.Context) (WalletTransactionListQue
 		query.CustomerID = &customerID
 	}
 	return query, true
+}
+
+func (handler *Handler) getHubAnalytics(ctx *gin.Context) {
+	principal, _ := auth.CurrentPrincipal(ctx)
+	hubID, ok := parseHubID(ctx)
+	if !ok {
+		return
+	}
+
+	var query AnalyticsQuery
+	if err := ctx.ShouldBindQuery(&query); err != nil {
+		writeError(ctx, invalid("query", "Invalid query parameters"))
+		return
+	}
+
+	record, err := handler.service.GetHubAnalytics(ctx.Request.Context(), principal, hubID, query)
+	if err != nil {
+		writeError(ctx, err)
+		return
+	}
+	ctx.JSON(http.StatusOK, record)
 }
