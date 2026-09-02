@@ -1167,15 +1167,17 @@ Current implementation slice:
 - CPO `chargers.operations` live-session operations: `GET /operations/live-sessions` is the
   full-snapshot SSE (initial `snapshot`, then replacement `live_sessions`
   frames) so the FE never reconstructs session state from invalidations. The
-  deployed runtime now combines canonical normal-session static context (nested
+  deployed runtime combines canonical normal-session static context (nested
   customer/charger/connector, first SoC, frozen tariff/tax, and start
   criteria) with live telemetry and unchanged financial projection, while
   retaining flat display fields for compatibility. REST snapshots and both SSE
   frame types serialize this one shared projection. The explicit
   `/live-sessions/snapshot` JSON endpoint keeps recovery/keyset pagination;
-  filtered event replay is advanced reconciliation only. Revision `a1a21a0` is
-  active with migration 059 and 219 OpenAPI operations; no data repair was
-  required.
+  filtered event replay is advanced reconciliation only. A source-verified
+  customer-only correction now replaces the deployed nested-preload fallback
+  with a bounded CPO-scoped charger lookup for missing customer projections;
+  it is ready for separate deployment/rehost. Revision `a1a21a0` remains active with migration 059
+  and 219 OpenAPI operations; no data repair is required.
 - Completed source hardening: one-current authentication challenges are
   serialized by their identity owner and backed by partial unique indexes;
   administrative current-password changes lock before authorization; readiness

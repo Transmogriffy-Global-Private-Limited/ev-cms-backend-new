@@ -2,6 +2,18 @@
 
 ## Current State
 
+### 2026-09-02 - Customer charger fallback correction source-verified
+
+- Production evidence showed that the published nested-preload-only customer
+  fallback still allowed valid persisted sessions to serialize a zero-value
+  charger. Current local source instead performs one bounded charger lookup
+  for all missing rows in the page, scoped to the authenticated CPO and keyed
+  first by the persisted connector charger ID, then the materialized session
+  charger ID. It is a read projection only and does not write session state.
+- Customer history, detail, JSON live snapshots, and both replacement SSE
+  frame types share this repair. This correction is source-verified locally;
+  it is not yet deployed and no database mutation is claimed.
+
 ### 2026-09-02 - Charging-session projection coherence deployed
 
 - Current local source repairs customer charging-session charger hydration:

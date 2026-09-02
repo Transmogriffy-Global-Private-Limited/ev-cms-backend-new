@@ -1,5 +1,17 @@
 # AI Changelog
 
+## 2026-09-02 - Correct customer charger fallback lookup in source
+
+- Replaced the published fallback that depended on an already-populated nested
+  `Connector.Charger` preload. Customer history, detail, and live-session
+  projection reads now batch-load missing chargers within the authenticated
+  CPO and prefer the persisted connector charger key before the session key.
+- The in-memory fallback updates only the response projection; it does not
+  write a session or invent a relation. Regressions cover zero/stale session
+  charger keys, connector precedence, cross-CPO rejection, and SSE identity.
+  No migration, database action, deployment, or physical-charger verification
+  is claimed.
+
 ## 2026-09-02 - Deploy customer and CPO charging-session projection coherence
 
 - Repaired customer detail/history and live-session reads so an absent direct

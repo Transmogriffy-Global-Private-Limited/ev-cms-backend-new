@@ -1077,8 +1077,6 @@ func (service *Service) ListCustomerChargingSessions(ctx context.Context, princi
 		Preload("Charger", "cpo_id = ?", principal.CPOID).
 		Preload("Charger.Hub", "cpo_id = ?", principal.CPOID).
 		Preload("Connector", "cpo_id = ?", principal.CPOID).
-		Preload("Connector.Charger", "cpo_id = ?", principal.CPOID).
-		Preload("Connector.Charger.Hub", "cpo_id = ?", principal.CPOID).
 		Where("charging_sessions.cpo_id = ? AND charging_sessions.customer_id = ?", principal.CPOID, principal.CustomerID).
 		Order("charging_sessions.start_time DESC, charging_sessions.id DESC")
 	if query.Before != nil {
@@ -1093,7 +1091,9 @@ func (service *Service) ListCustomerChargingSessions(ctx context.Context, princi
 	if hasMore {
 		records = records[:query.Limit]
 	}
-	hydrateCustomerSessionChargers(principal.CPOID, records)
+	if err := service.hydrateCustomerSessionChargers(ctx, principal.CPOID, records); err != nil {
+		return ChargingSessionHistoryResponse{}, fmt.Errorf("hydrate customer session chargers: %w", err)
+	}
 	response := ChargingSessionHistoryResponse{
 		Sessions: make([]ChargingSessionHistoryView, 0, len(records)),
 		HasMore:  hasMore,
@@ -1131,13 +1131,17 @@ func (service *Service) GetChargingSession(ctx context.Context, principal Princi
 		Preload("Charger", "cpo_id = ?", principal.CPOID).
 		Preload("Charger.Hub", "cpo_id = ?", principal.CPOID).
 		Preload("Connector", "cpo_id = ?", principal.CPOID).
-		Preload("Connector.Charger", "cpo_id = ?", principal.CPOID).
-		Preload("Connector.Charger.Hub", "cpo_id = ?", principal.CPOID).
 		Preload("Payment.WalletTransaction").
 		First(&session, "id = ? AND cpo_id = ? AND customer_id = ?", sessionID, principal.CPOID, principal.CustomerID).Error; err != nil {
 		return ChargingSessionView{}, customerNetworkNotFound(err, "charging session")
 	}
-	hydrateCustomerSessionCharger(principal.CPOID, &session)
+	// hydrateCustomerSessionChargers receives a slice to batch history/live
+	// reads. Copy the repaired one-row projection back for this detail read.
+	sessions := []models.ChargingSession{session}
+	if err := service.hydrateCustomerSessionChargers(ctx, principal.CPOID, sessions); err != nil {
+		return ChargingSessionView{}, fmt.Errorf("hydrate customer session charger: %w", err)
+	}
+	session = sessions[0]
 	var intent models.ChargingStartIntent
 	if session.StartIntentID == nil || service.database.WithContext(ctx).First(&intent, "id = ? AND cpo_id = ? AND customer_id = ?", *session.StartIntentID, principal.CPOID, principal.CustomerID).Error != nil {
 		return ChargingSessionView{}, fmt.Errorf("load charging start intent: %w", gorm.ErrRecordNotFound)
@@ -1185,26 +1189,69 @@ func customerChargingSessionHistoryView(session models.ChargingSession) Charging
 	return view
 }
 
-// hydrateCustomerSessionChargers resolves only an absent preloaded direct
-// charger relation. ChargingSession.ChargerID remains the materialized start
-// truth; the connector association is a same-CPO read fallback for that exact
-// persisted key, never a serializer-created identity.
-func hydrateCustomerSessionChargers(cpoID uuid.UUID, sessions []models.ChargingSession) {
+// hydrateCustomerSessionChargers restores an absent direct preloaded charger
+// relation with one CPO-scoped batch lookup. Connector.ChargerID is the first
+// fallback because it is the persisted physical relationship; session.ChargerID
+// remains the second materialized-start key. No serializer manufactures data.
+func (service *Service) hydrateCustomerSessionChargers(ctx context.Context, cpoID uuid.UUID, sessions []models.ChargingSession) error {
+	chargerIDs := make([]uuid.UUID, 0, len(sessions)*2)
+	for _, session := range sessions {
+		if session.Charger.ID != uuid.Nil {
+			continue
+		}
+		chargerIDs = append(chargerIDs, session.Connector.ChargerID, session.ChargerID)
+	}
+	chargerIDs = uniqueCustomerSessionChargerIDs(chargerIDs)
+	if len(chargerIDs) == 0 {
+		return nil
+	}
+
+	var chargers []models.Charger
+	if err := service.database.WithContext(ctx).
+		Preload("Hub", "cpo_id = ?", cpoID).
+		Where("cpo_id = ? AND id IN ?", cpoID, chargerIDs).
+		Find(&chargers).Error; err != nil {
+		return err
+	}
+	chargersByID := make(map[uuid.UUID]models.Charger, len(chargers))
+	for _, charger := range chargers {
+		chargersByID[charger.ID] = charger
+	}
 	for index := range sessions {
-		hydrateCustomerSessionCharger(cpoID, &sessions[index])
+		assignCustomerSessionChargerFallback(cpoID, &sessions[index], chargersByID)
+	}
+	return nil
+}
+
+func assignCustomerSessionChargerFallback(cpoID uuid.UUID, session *models.ChargingSession, chargersByID map[uuid.UUID]models.Charger) {
+	if session.Charger.ID != uuid.Nil || session.CPOID != cpoID || session.Connector.CPOID != cpoID {
+		return
+	}
+	for _, candidateID := range []uuid.UUID{session.Connector.ChargerID, session.ChargerID} {
+		candidate, ok := chargersByID[candidateID]
+		if !ok || candidate.CPOID != cpoID {
+			continue
+		}
+		session.Charger = candidate
+		session.ChargerID = candidate.ID
+		return
 	}
 }
 
-func hydrateCustomerSessionCharger(cpoID uuid.UUID, session *models.ChargingSession) {
-	if session.Charger.ID != uuid.Nil {
-		return
+func uniqueCustomerSessionChargerIDs(ids []uuid.UUID) []uuid.UUID {
+	seen := make(map[uuid.UUID]struct{}, len(ids))
+	result := make([]uuid.UUID, 0, len(ids))
+	for _, id := range ids {
+		if id == uuid.Nil {
+			continue
+		}
+		if _, ok := seen[id]; ok {
+			continue
+		}
+		seen[id] = struct{}{}
+		result = append(result, id)
 	}
-	candidate := session.Connector.Charger
-	if candidate.ID == uuid.Nil || candidate.CPOID != cpoID ||
-		session.ChargerID != candidate.ID || session.Connector.ChargerID != candidate.ID {
-		return
-	}
-	session.Charger = candidate
+	return result
 }
 
 func customerChargingSessionDetailView(session models.ChargingSession, intent models.ChargingStartIntent, liveState liveops.SessionState, chargerState liveops.ChargerState, connectorState liveops.ConnectorState) ChargingSessionView {

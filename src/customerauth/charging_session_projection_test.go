@@ -12,23 +12,25 @@ import (
 	"github.com/google/uuid"
 )
 
-func TestCustomerSessionChargerHydrationUsesMatchingTenantConnectorRelation(t *testing.T) {
+func TestCustomerSessionChargerFallbackUsesPersistedConnectorRelation(t *testing.T) {
 	t.Parallel()
 
 	cpoID, chargerID, connectorID := uuid.New(), uuid.New(), uuid.New()
 	session := models.ChargingSession{
 		ID:        uuid.New(),
 		CPOID:     cpoID,
-		ChargerID: chargerID,
+		ChargerID: uuid.Nil,
 		Connector: models.Connector{
 			ID: connectorID, CPOID: cpoID, ChargerID: chargerID,
 			ConnectorNumber: 1, ConnectorType: "CCS2",
-			Charger: models.Charger{ID: chargerID, CPOID: cpoID, ChargerID: "cp0001", ChargerName: "Salt Lake DC"},
 		},
 	}
+	chargers := map[uuid.UUID]models.Charger{
+		chargerID: {ID: chargerID, CPOID: cpoID, ChargerID: "cp0001", ChargerName: "Salt Lake DC"},
+	}
 
-	hydrateCustomerSessionCharger(cpoID, &session)
-	if session.Charger.ID != chargerID || session.Charger.ChargerID != "cp0001" || session.Charger.ChargerName != "Salt Lake DC" {
+	assignCustomerSessionChargerFallback(cpoID, &session, chargers)
+	if session.Charger.ID != chargerID || session.ChargerID != chargerID || session.Charger.ChargerID != "cp0001" || session.Charger.ChargerName != "Salt Lake DC" {
 		t.Fatalf("valid persisted charger relation was not hydrated: %+v", session.Charger)
 	}
 
@@ -52,7 +54,24 @@ func TestCustomerSessionChargerHydrationUsesMatchingTenantConnectorRelation(t *t
 	}
 }
 
-func TestCustomerSessionChargerHydrationRejectsCrossTenantOrMismatchedRelation(t *testing.T) {
+func TestCustomerSessionChargerFallbackPrefersConnectorOverLegacySessionKey(t *testing.T) {
+	t.Parallel()
+
+	cpoID, connectorChargerID, legacySessionChargerID := uuid.New(), uuid.New(), uuid.New()
+	session := models.ChargingSession{
+		CPOID: cpoID, ChargerID: legacySessionChargerID,
+		Connector: models.Connector{CPOID: cpoID, ChargerID: connectorChargerID},
+	}
+	assignCustomerSessionChargerFallback(cpoID, &session, map[uuid.UUID]models.Charger{
+		connectorChargerID:     {ID: connectorChargerID, CPOID: cpoID, ChargerID: "actual1", ChargerName: "Actual connector charger"},
+		legacySessionChargerID: {ID: legacySessionChargerID, CPOID: cpoID, ChargerID: "legacy1", ChargerName: "Legacy session charger"},
+	})
+	if session.Charger.ID != connectorChargerID || session.ChargerID != connectorChargerID || session.Charger.ChargerID != "actual1" {
+		t.Fatalf("connector charger did not win over stale session key: %+v", session)
+	}
+}
+
+func TestCustomerSessionChargerFallbackRejectsCrossTenantOrMismatchedRelation(t *testing.T) {
 	t.Parallel()
 
 	cpoID, actualChargerID := uuid.New(), uuid.New()
@@ -61,29 +80,28 @@ func TestCustomerSessionChargerHydrationRejectsCrossTenantOrMismatchedRelation(t
 		ChargerID: actualChargerID,
 		Connector: models.Connector{
 			CPOID: cpoID, ChargerID: actualChargerID,
-			Charger: models.Charger{ID: actualChargerID, CPOID: uuid.New(), ChargerID: "other1", ChargerName: "Other CPO"},
 		},
 	}
-	hydrateCustomerSessionCharger(cpoID, &session)
+	assignCustomerSessionChargerFallback(cpoID, &session, map[uuid.UUID]models.Charger{actualChargerID: {ID: actualChargerID, CPOID: uuid.New(), ChargerID: "other1", ChargerName: "Other CPO"}})
 	if session.Charger.ID != uuid.Nil {
 		t.Fatalf("cross-CPO connector charger was accepted: %+v", session.Charger)
 	}
 
-	session.Connector.Charger = models.Charger{ID: uuid.New(), CPOID: cpoID, ChargerID: "wrong1", ChargerName: "Wrong relation"}
-	hydrateCustomerSessionCharger(cpoID, &session)
+	session.Connector.ChargerID = uuid.New()
+	assignCustomerSessionChargerFallback(cpoID, &session, map[uuid.UUID]models.Charger{})
 	if session.Charger.ID != uuid.Nil {
 		t.Fatalf("mismatched connector charger was accepted: %+v", session.Charger)
 	}
 }
 
-func TestCustomerSessionChargerHydrationDoesNotChangeLiveSessionState(t *testing.T) {
+func TestCustomerSessionChargerFallbackDoesNotChangeLiveSessionState(t *testing.T) {
 	t.Parallel()
 
 	// This guards the projection-only fallback: it restores read context but
 	// never changes the durable session state or invents an active session.
 	cpoID, chargerID := uuid.New(), uuid.New()
-	session := models.ChargingSession{CPOID: cpoID, ChargerID: chargerID, Status: constants.SessionStatusActive, Connector: models.Connector{CPOID: cpoID, ChargerID: chargerID, Charger: models.Charger{ID: chargerID, CPOID: cpoID}}}
-	hydrateCustomerSessionCharger(cpoID, &session)
+	session := models.ChargingSession{CPOID: cpoID, ChargerID: chargerID, Status: constants.SessionStatusActive, Connector: models.Connector{CPOID: cpoID, ChargerID: chargerID}}
+	assignCustomerSessionChargerFallback(cpoID, &session, map[uuid.UUID]models.Charger{chargerID: {ID: chargerID, CPOID: cpoID}})
 	if session.Status != constants.SessionStatusActive || session.ChargerID != chargerID {
 		t.Fatalf("projection hydration changed durable session state: %+v", session)
 	}
