@@ -1,6 +1,6 @@
 # AI Changelog
 
-## 2026-09-02 - Database-owned diagnostic trace replay sequence
+## 2026-09-02 - Deploy database-owned diagnostic trace replay sequence
 
 - Made `ChargingTraceEvent.ingestion_sequence` GORM read-only, so PostgreSQL
   migration 000060 remains its sole allocator through the existing column
@@ -11,11 +11,20 @@
   integration test now also requires distinct positive DB-generated sequences
   in actual ingestion order for out-of-order evidence.
 
-PostgreSQL integration execution remains deferred because no `TEST_DATABASE_URL`
-exists by explicit operator constraint. No migration, data repair, deployment,
-restart, commit, or push occurred.
+Migration 000060 was applied during the temporary rehost; this pass rebuilt and
+rehosted revision `e5ff8c0` from canonical `main`. The active binary SHA-256 is
+`617729272e6bdd57cdc059ad6a8e33e0dbb02b3feed7a3a15ee5f886acea9306`. The prior
+temporary binary is retained at
+`/root/evcmsnew-backups/pre-e5ff8c0-stale-20260902T101829Z`.
 
-## 2026-09-02 - Diagnostic trace push pipeline source verification
+Verification: focused trace ingress/model/CPO/customer/route checks,
+loopback/public live and readiness, Swagger/OpenAPI (221 operations), Caddy
+validation, migration state, and post-rehost startup checks pass. PostgreSQL
+integration execution remains deferred because no `TEST_DATABASE_URL` exists;
+the PowerShell documentation verifier is unavailable because `pwsh` is not
+installed. Physical charger and SMTP delivery acceptance remain unclaimed.
+
+## 2026-09-02 - Deploy diagnostic trace push pipeline
 
 - Replaced CMS query-time HAL diagnostic trace retrieval with a dedicated,
   bearer-authenticated HAL event ingress. The additive 000060 migration adds
@@ -31,9 +40,9 @@ restart, commit, or push occurred.
   frontend SSE recovery, and the separate `HAL_V1_TRACE_BEARER_TOKEN`.
 
 Verification: focused trace ingress/CPO/customerauth/HAL-client/operations/
-realtime tests, runtime OpenAPI test, and documentation verification pass.
-PostgreSQL-gated integration coverage is skipped without `TEST_DATABASE_URL`.
-No migration was applied, and no deployment, restart, or publish occurred.
+realtime tests, runtime OpenAPI test, and source build checks pass. Migration
+000060 is applied on the CMS database and the CMS runtime is rehosted at
+`e5ff8c0`; matching HAL deployment remains separate.
 
 ## 2026-09-02 - Deploy customer charger fallback lookup correction
 

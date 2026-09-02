@@ -1,6 +1,6 @@
 # WI-20260902-hal-trace-push-pipeline
 
-Status: Verified (source only)
+Status: Verified (CMS deployed; HAL rollout pending)
 Owner: Codex
 Collaborators: None
 Started: 2026-09-02
@@ -23,8 +23,8 @@ HAL diagnostic delivery pipeline and CMS-local CPO static/SSE reads.
 
 ## Non-goals
 
-- Any change to `/v1/hal-facts`, charging authority, billing, deployment, or
-  database mutation.
+- Any change to `/v1/hal-facts`, charging authority, billing, or database
+  mutation.
 
 ## Claimed surfaces
 
@@ -46,7 +46,8 @@ HAL diagnostic delivery pipeline and CMS-local CPO static/SSE reads.
 ## Data and migration impact
 
 - Additive CMS migration 000060 creates trace roots plus immutable digest and
-  durable ingestion replay fields. It was not applied.
+  durable ingestion replay fields. It is applied on the CMS database; matching
+  HAL migration 019 remains a separate rollout.
 
 ## Current state
 
@@ -63,11 +64,11 @@ HAL diagnostic delivery pipeline and CMS-local CPO static/SSE reads.
 ## Handoff
 
 - Preserve diagnostic-evidence-only semantics and strict separation from
-  authoritative fact delivery. Apply migrations 000060 and HAL 019 only in an
-  explicitly authorized coordinated rollout.
+  authoritative fact delivery. The CMS migration is applied and rehosted;
+  apply HAL 019 only in an explicitly authorized coordinated rollout.
 
 ## Completion
 
-- Source implementation and applicable local verification complete. No commit,
-  push, deployment, database mutation, migration application, or service
-  restart was performed.
+- Source implementation and CMS deployment verification are complete. No HAL
+  service state is inferred; no database mutation beyond the already-applied
+  additive CMS migration was performed in this pass.
