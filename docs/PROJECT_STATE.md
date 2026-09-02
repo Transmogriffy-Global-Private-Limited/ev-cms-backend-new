@@ -2,7 +2,7 @@
 
 ## Current State
 
-### 2026-09-02 - Customer charger fallback correction source-verified
+### 2026-09-02 - Customer charger fallback correction deployed
 
 - Production evidence showed that the published nested-preload-only customer
   fallback still allowed valid persisted sessions to serialize a zero-value
@@ -11,8 +11,12 @@
   first by the persisted connector charger ID, then the materialized session
   charger ID. It is a read projection only and does not write session state.
 - Customer history, detail, JSON live snapshots, and both replacement SSE
-  frame types share this repair. This correction is source-verified locally;
-  it is not yet deployed and no database mutation is claimed.
+  frame types share this repair. Runtime revision `48d196f` is active behind
+  Caddy with binary SHA-256
+  `f302fc496eebff51a497ad91f245124da1cffc5a8b3ece3142cbb59db8ec6c97`.
+  The prior binary is retained at
+  `/root/evcmsnew-backups/pre-a1a21a0-20260902T042542Z`; no database mutation
+  was required.
 
 ### 2026-09-02 - Charging-session projection coherence deployed
 
@@ -26,11 +30,9 @@
   the normal-session static projection for nested customer/charger/connector
   context, first SoC, frozen tariff/tax metadata, start criteria, and CMS
   materialization time, alongside existing live telemetry and unchanged
-  financial projection. No migration or database mutation was required. Runtime
-  revision `a1a21a0` is active behind Caddy with binary SHA-256
-  `f302fc496eebff51a497ad91f245124da1cffc5a8b3ece3142cbb59db8ec6c97`.
-  The prior binary is retained at
-  `/root/evcmsnew-backups/pre-a1a21a0-20260902T042542Z`.
+  financial projection. No migration or database mutation was required. This
+  earlier coherence slice was deployed as revision `a1a21a0`; the current
+  correction is recorded above.
 
 ### 2026-09-01 - CPO historical charging-session commercial projection deployed
 
@@ -91,7 +93,7 @@
   SSE streams re-evaluate their capability at heartbeat.
 - OpenAPI now represents CPO Bearer authentication and `X-CPO-App-ID` as a
   single AND requirement, including hub-GST and user-group membership routes.
-  This behavior is included in the active `a1a21a0` deployment recorded above;
+  This behavior is included in the active `48d196f` deployment recorded above;
   no migration or data repair was required.
 
 ### 2026-08-31 - User App realtime and mail-outbox reconciliation deployed

@@ -1173,11 +1173,11 @@ Current implementation slice:
   retaining flat display fields for compatibility. REST snapshots and both SSE
   frame types serialize this one shared projection. The explicit
   `/live-sessions/snapshot` JSON endpoint keeps recovery/keyset pagination;
-  filtered event replay is advanced reconciliation only. A source-verified
-  customer-only correction now replaces the deployed nested-preload fallback
-  with a bounded CPO-scoped charger lookup for missing customer projections;
-  it is ready for separate deployment/rehost. Revision `a1a21a0` remains active with migration 059
-  and 219 OpenAPI operations; no data repair is required.
+  filtered event replay is advanced reconciliation only. The deployed
+  customer-only correction replaces the nested-preload fallback with a bounded
+  CPO-scoped charger lookup for missing customer projections. Revision
+  `48d196f` is active with migration 059 and 219 OpenAPI operations; no data
+  repair was required.
 - Completed source hardening: one-current authentication challenges are
   serialized by their identity owner and backed by partial unique indexes;
   administrative current-password changes lock before authorization; readiness

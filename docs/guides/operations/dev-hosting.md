@@ -29,7 +29,7 @@ that setting; it must not be used until the OCPP host is explicitly configured
 with TLS/WebSocket support.
 
 The active deployment was updated on September 2, 2026 to runtime source
-revision `a1a21a0` (charging-session projection coherence). It has migrations
+revision `48d196f` (customer charger projection correction). It has migrations
 one through fifty-nine and the current 219-operation API. The binary SHA-256
 is `f302fc496eebff51a497ad91f245124da1cffc5a8b3ece3142cbb59db8ec6c97`.
 The pre-migration binary and database dump for migrations 49 through 53 are
@@ -264,7 +264,7 @@ content exclusions are defined in
 `docs/contracts/internal/http-request-logging.md`. Long-lived SSE requests are
 recorded when they disconnect. A recovered panic first emits a correlated safe
 JSON stack diagnostic without Gin's request dump or the panic value. The
-currently deployed `a1a21a0` binary includes this logger.
+currently deployed `48d196f` binary includes this logger.
 
 The platform realtime SSE route is long-lived. If a browser holds that stream
 during a rehost, the application may log `shut down HTTP server: context

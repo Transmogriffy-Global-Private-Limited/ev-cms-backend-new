@@ -4,7 +4,7 @@ Status: Verified
 Owner: Codex
 Collaborators: Anubhab Dey (product and CMS/HAL boundary owner)
 Started: 2026-09-02
-Last updated: 2026-09-02 (customer charger fallback correction source-verified)
+Last updated: 2026-09-02 (customer charger fallback correction deployed and verified)
 
 Development-plan reference: `docs/DEVELOPMENT_PLAN.md` — charging lifecycle and CPO operations
 Detailed-plan reference: None
@@ -89,4 +89,5 @@ evidence only; HAL remains the owner of OCPP and meter truth.
 
 ## Completion
 
-Source verification is complete. No migration or database action is required.
+Source, deployment, and public verification are complete. No migration or
+database action was required.
