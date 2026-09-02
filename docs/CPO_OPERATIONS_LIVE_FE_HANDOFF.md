@@ -13,7 +13,7 @@ It is critical to understand that the CMS (this backend) and the OCPP HAL (Hardw
 The "Live Operations" APIs do **not** make synchronous calls to the HAL or the physical chargers. As stated in the administrative API contract, "Live operational REST snapshots are derived solely from committed CMS HAL projections; these reads never block on a HAL HTTP request."
 
 - **REST is Authoritative**: The REST API endpoints are the source of truth for the current state known to the CMS.
-- **SSE is for Invalidation**: The realtime Server-Sent Events (SSE) stream announces that a state has changed. It is a hint for the frontend to refetch the authoritative state from the REST endpoints. **Do not use the event payload to directly update the UI state.**
+- **Two SSE contracts exist**: The general operational SSE stream carries invalidation events, so its consumer refetches REST state. The live-session SSE is deliberately different: each `snapshot` and `live_sessions` frame is the complete authoritative CMS live-session projection and replaces the table directly. Never reconstruct the live table from general event deltas.
 - **"Live" is a Projection**: The data from these APIs is a snapshot of the last known state committed to the CMS database. `freshness: "FRESH"` indicates the data is recent, while `freshness: "STALE"` means the last update from the HAL is older than the configured threshold. A stale state does not mean the charger is offline, only that the CMS has not heard from it recently.
 
 ## Authentication
@@ -25,12 +25,12 @@ default capability bundles only; the frontend must gate this surface from
 
 Every request must include two headers:
 
-1.  `Authorization: Bearer <access_token>`: The encrypted JWT for the CPO `ADMIN`.
+1.  `Authorization: Bearer <access_token>`: The encrypted JWT for an active CPO membership with `chargers.operations`.
 2.  `X-CPO-App-ID: <current_app_id>`: The application identifier for the CPO.
 
 **The `X-CPO-App-ID` header is crucial.** As explained in the identity and tenancy guide, it is **not a secret and does not authenticate a user**. It is routing and deployment identity metadata. The backend first establishes the CPO from the authenticated bearer token, then verifies that the `X-CPO-App-ID` header matches that CPO's currently configured `app_id`.
 
-A `401 Unauthorized` error will be returned if the token is missing or invalid. A `403 Forbidden` error will be returned if the user is not a CPO `ADMIN` or if there is a `cpo_app_id_mismatch`.
+A `401 Unauthorized` error will be returned if the token is missing or invalid. A `403 Forbidden` error will be returned if the active membership lacks `chargers.operations` or the app ID does not match.
 
 ## API Inventory
 
@@ -182,17 +182,59 @@ export interface CpoOperationalEventPage {
   has_more: boolean;
 }
 
-/** A CMS-projected ongoing session; this is intentionally not billing or customer history. */
+/** Static context shared with normal CPO charging-session responses. */
+export interface ChargingSessionCustomerView {
+  id: UUID;
+  name: string;
+  email: string;
+  phone?: string;
+}
+
+export interface ChargingSessionChargerView {
+  id: UUID;
+  charger_id: string;
+  ocpp_identity: string;
+  name: string;
+  hub_id?: UUID;
+  hub_name?: string;
+  hub_address?: string;
+  max_power_kw: number;
+  vendor: string;
+  model: string;
+}
+
+export interface ChargingSessionConnectorView {
+  id: UUID;
+  number: number;
+  connector_type: string;
+  connector_total_capacity: number;
+}
+
+/** A CMS-projected ongoing session: normal durable static context plus live telemetry. */
 export interface LiveChargingSessionView {
   session_id: UUID;
+  ocpp_transaction_id: number;
   status: "ACTIVE" | "STOP_PENDING" | "RECONCILIATION_REQUIRED";
   started_at: RFC3339;
   duration_seconds: number; // elapsed at response.as_of; tick locally for a live clock
-  customer_name: string; // CPO-visible display name only; no customer ID/email/phone
+  customer: ChargingSessionCustomerView;
+  charger: ChargingSessionChargerView;
+  connector: ChargingSessionConnectorView;
+  initial_soc_percent?: string;
+  price_per_unit: string;
+  unit?: "kwh" | "minutes";
+  start_criteria?: "AUTO" | "ENERGY" | "TIME" | "MONEY";
+  requested_limit_value?: string;
+  sgst_percent: string;
+  cgst_percent: string;
+  igst_percent: string;
+  created_at: RFC3339;
+  // Legacy flat display aliases. New rendering should use the nested fields.
+  customer_name: string;
   charger_id: string;
   charger_name: string;
   hub_name?: string;
-  connector_id: UUID; // Canonical CMS connector UUID, distinct from physical number
+  connector_id: UUID;
   connector_number: number;
   latest_meter_wh?: number;
   consumed_wh?: number;
@@ -256,14 +298,16 @@ with `JSON.parse(event.data).sessions`; do not merge meter patches, deduplicate
 event rows, or call another endpoint per update. A completed session simply
 disappears from the next replacement snapshot.
 
-The payload includes `duration_seconds` measured at the response `as_of`, the
-CPO-visible `customer_name`, and canonical `connector_id`, but no customer ID,
-email, phone, wallet, tariff, total amount, or settlement fields. Use the
-duration plus the current browser clock to keep a display timer moving between
-frames. `charger_id`, `charger_name`, optional `hub_name`, and
-`connector_number` are display fields. Meter and SoC observations are
-independently fresh, stale, or unknown; never display a stale value as current
-charger truth. `limit` defaults to `100` and has a maximum of `200`.
+The payload includes the same nested customer, charger, connector, frozen
+tariff/tax, initial-SoC, and start-limit context as a normal CPO
+charging-session response, plus `duration_seconds` measured at response
+`as_of`, live meter/SoC observations, and the existing `projected_amount`.
+`customer_name`, `charger_id`, `charger_name`, `hub_name`, `connector_id`, and
+`connector_number` remain compatibility display aliases; new rendering should
+prefer the nested values. Final totals, final SoC, end time, and stop reason
+remain completion-only. Meter and SoC observations are independently fresh,
+stale, or unknown; never display a stale value as current charger truth.
+`limit` defaults to `100` and has a maximum of `200`.
 
 Reconnect the primary stream after any close: it always gives a new immediate
 snapshot, so no `Last-Event-ID` or durable browser cursor is required for this

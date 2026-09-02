@@ -2,6 +2,21 @@
 
 ## Current State
 
+### 2026-09-02 - Charging-session projection coherence source correction
+
+- Current local source repairs customer charging-session charger hydration:
+  the durable direct session charger remains preferred, and only a matching
+  same-CPO persisted connector-to-charger relation can supply the historical
+  read fallback. Detail/history and live REST/SSE therefore use the same real
+  charger UUID, public code, name, and existing customer-visible metadata; no
+  serializer invents charger identity.
+- CPO live REST snapshots and both full-replacement SSE event types now reuse
+  the normal-session static projection for nested customer/charger/connector
+  context, first SoC, frozen tariff/tax metadata, start criteria, and CMS
+  materialization time, alongside existing live telemetry and unchanged
+  financial projection. No migration, database mutation, deployment, or live
+  runtime verification is claimed.
+
 ### 2026-09-01 - CPO historical charging-session commercial projection deployed
 
 - Current source extends CPO charging-session list/detail views with frozen

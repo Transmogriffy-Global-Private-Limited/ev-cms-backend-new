@@ -1,5 +1,21 @@
 # AI Changelog
 
+## 2026-09-02 - Align customer and CPO charging-session projections in source
+
+- Repaired customer detail/history and live-session reads so an absent direct
+  session charger can be hydrated only from the persisted matching same-CPO
+  connector charger. This preserves the durable direct relation as preferred
+  while preventing real sessions from serializing a zero charger UUID and
+  blank identity.
+- Reused the canonical normal CPO session mapper for every static field valid
+  during an active session, then combined it with existing live telemetry and
+  unchanged frozen-snapshot financial projection. The JSON live snapshot,
+  initial SSE `snapshot`, and replacement `live_sessions` events therefore
+  share one complete projection; legacy flat display fields remain compatible.
+- Added customer hydration/isolation and CPO REST/SSE parity regressions plus
+  OpenAPI and CPO/User App handoff updates. No migration, database mutation,
+  deployment, or live runtime verification is claimed.
+
 ## 2026-09-01 - Deploy CPO historical charging-session commercial projection
 
 - Semantically integrated the two reviewed `abhranil_ev_cms_backend_new`

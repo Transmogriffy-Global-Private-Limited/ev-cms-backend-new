@@ -1133,8 +1133,8 @@ Current phase:
 
 Active feature:
 
-- CPO historical charging-session commercial projection reconciliation from the
-  reviewed `abhranil_ev_cms_backend_new` branch.
+- Charging-session projection coherence: customer charger hydration plus CPO
+  normal/live static-field parity.
 
 Current implementation slice:
 
@@ -1166,12 +1166,15 @@ Current implementation slice:
   deferred without `TEST_DATABASE_URL`.
 - CPO `chargers.operations` live-session operations: `GET /operations/live-sessions` is the
   full-snapshot SSE (initial `snapshot`, then replacement `live_sessions`
-  frames) so the FE never reconstructs session state from invalidations. Each
-  CPO-safe row carries `duration_seconds` at `as_of`, `customer_name`, and CMS
-  `connector_id` alongside charger/hub/live telemetry. The explicit
+  frames) so the FE never reconstructs session state from invalidations. The
+  local source now combines canonical normal-session static context (nested
+  customer/charger/connector, first SoC, frozen tariff/tax, and start
+  criteria) with live telemetry and unchanged financial projection, while
+  retaining flat display fields for compatibility. REST snapshots and both SSE
+  frame types serialize this one shared projection. The explicit
   `/live-sessions/snapshot` JSON endpoint keeps recovery/keyset pagination;
-  filtered event replay is advanced reconciliation only. The deployed contract
-  has 211 operations; focused/broad source verification and live readiness pass.
+  filtered event replay is advanced reconciliation only. This source-only
+  correction has no migration, data repair, or deployment claim.
 - Completed source hardening: one-current authentication challenges are
   serialized by their identity owner and backed by partial unique indexes;
   administrative current-password changes lock before authorization; readiness

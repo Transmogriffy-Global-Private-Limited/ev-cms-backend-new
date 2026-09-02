@@ -891,6 +891,14 @@ sessions disappear from the next frame. Each unfinished session's
 `projected_amount` is calculated by CMS from its immutable tariff/tax snapshots
 using the frame-wide `as_of`; it is not final `total_amount`.
 
+Every session `charger` comes from the persisted materialized session charger.
+For a historical read where that direct relation was not preloaded, CMS may use
+only the matching same-CPO persisted connector-to-charger relation for the
+same charger key. A valid session must therefore return its actual charger UUID,
+public `charger_id`, and name consistently in detail/history, the JSON live
+snapshot, and both live-session SSE frame types. The client must not treat a
+blank charger object as an alternate charger state.
+
 Reconnect without a historical cursor: every new connection begins with the
 current full snapshot. The server also reprojections on heartbeats so meter,
 connection, and connector freshness can age, and time-priced projected amounts

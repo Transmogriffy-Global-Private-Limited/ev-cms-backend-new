@@ -521,37 +521,42 @@ func decimalValue(value *decimal.Decimal) decimal.Decimal {
 }
 
 func toLiveChargingSessionView(session models.ChargingSession, live liveops.SessionState, asOf time.Time) LiveChargingSessionView {
-	charger := session.Charger
-	if charger.ID == uuid.Nil && session.Connector.Charger.ID != uuid.Nil {
-		charger = session.Connector.Charger
-	}
-	var hubName *string
-	if charger.Hub != nil && charger.Hub.Name != "" {
-		hubName = &charger.Hub.Name
-	}
+	static := toChargingSessionView(session)
 	durationSeconds := int64(asOf.Sub(session.StartTime) / time.Second)
 	if durationSeconds < 0 {
 		durationSeconds = 0
 	}
 	return LiveChargingSessionView{
-		SessionID:         session.ID,
-		OCPPTransactionID: session.TransactionID,
-		Status:            session.Status,
-		StartedAt:         session.StartTime,
-		DurationSeconds:   durationSeconds,
-		CustomerName:      session.Customer.FullName,
-		ChargerID:         charger.ChargerID,
-		ChargerName:       charger.ChargerName,
-		HubName:           hubName,
-		ConnectorID:       session.Connector.ID,
-		ConnectorNumber:   session.Connector.ConnectorNumber,
-		LatestMeterWh:     live.LatestMeterWh,
-		ConsumedWh:        live.ConsumedWh,
-		MeterObservedAt:   live.MeterObservedAt,
-		MeterFreshness:    live.MeterFreshness,
-		SoCPercent:        live.LatestSoCPercent,
-		SoCObservedAt:     live.SoCObservedAt,
-		SoCFreshness:      live.SoCFreshness,
+		SessionID:           session.ID,
+		OCPPTransactionID:   session.TransactionID,
+		Status:              session.Status,
+		StartedAt:           session.StartTime,
+		DurationSeconds:     durationSeconds,
+		Customer:            static.Customer,
+		Charger:             static.Charger,
+		Connector:           static.Connector,
+		InitialSoCPercent:   static.InitialSoCPercent,
+		PricePerUnit:        static.PricePerUnit,
+		Unit:                static.Unit,
+		StartCriteria:       static.StartCriteria,
+		RequestedLimitValue: static.RequestedLimitValue,
+		SGSTPercent:         static.SGSTPercent,
+		CGSTPercent:         static.CGSTPercent,
+		IGSTPercent:         static.IGSTPercent,
+		CreatedAt:           static.CreatedAt,
+		CustomerName:        static.Customer.Name,
+		ChargerID:           static.Charger.ChargerID,
+		ChargerName:         static.Charger.Name,
+		HubName:             static.Charger.HubName,
+		ConnectorID:         static.Connector.ID,
+		ConnectorNumber:     static.Connector.Number,
+		LatestMeterWh:       live.LatestMeterWh,
+		ConsumedWh:          live.ConsumedWh,
+		MeterObservedAt:     live.MeterObservedAt,
+		MeterFreshness:      live.MeterFreshness,
+		SoCPercent:          live.LatestSoCPercent,
+		SoCObservedAt:       live.SoCObservedAt,
+		SoCFreshness:        live.SoCFreshness,
 	}
 }
 

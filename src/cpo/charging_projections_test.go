@@ -228,7 +228,7 @@ func TestCPOChargingSessionGetAndListKeepCommercialProjectionTenantScoped(t *tes
 	}
 }
 
-func TestLiveChargingSessionProjectionContainsOnlyOperationalContext(t *testing.T) {
+func TestLiveChargingSessionProjectionContainsActiveStaticContextAndTelemetry(t *testing.T) {
 	t.Parallel()
 
 	now := time.Date(2026, time.August, 25, 12, 0, 0, 0, time.UTC)
@@ -239,13 +239,14 @@ func TestLiveChargingSessionProjectionContainsOnlyOperationalContext(t *testing.
 		TransactionID: 654321,
 		Status:        constants.SessionStatusActive,
 		StartTime:     now,
-		Customer:      models.Customer{FullName: "Chitradeep Ghosh"},
+		Customer:      models.Customer{ID: uuid.New(), FullName: "Chitradeep Ghosh", Email: "chitradeep@example.test"},
 		Charger: models.Charger{
+			ID:          uuid.New(),
 			ChargerID:   "cp0001",
 			ChargerName: "Main forecourt DC charger",
 			Hub:         &models.Hub{Name: "Salt Lake Hub"},
 		},
-		Connector: models.Connector{ID: uuid.New(), ConnectorNumber: 2},
+		Connector: models.Connector{ID: uuid.New(), ConnectorNumber: 2, ConnectorType: "CCS2"},
 	}
 	view := toLiveChargingSessionView(session, liveops.SessionState{
 		LatestMeterWh:    &meter,
@@ -264,37 +265,70 @@ func TestLiveChargingSessionProjectionContainsOnlyOperationalContext(t *testing.
 	if err != nil {
 		t.Fatalf("marshal live session view: %v", err)
 	}
-	for _, forbidden := range []string{"customer_id", "customer_email", "wallet", "tariff", "total_amount", "total_kwh"} {
+	for _, forbidden := range []string{"wallet", "total_amount", "total_kwh"} {
 		if strings.Contains(string(encoded), forbidden) {
 			t.Fatalf("live session projection leaked %q: %s", forbidden, encoded)
 		}
 	}
 }
 
+func TestLiveChargingSessionProjectionRetainsNormalActiveStaticContext(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, time.September, 2, 12, 0, 0, 0, time.UTC)
+	initial := decimal.RequireFromString("31.5")
+	limit := decimal.RequireFromString("45")
+	criteria := constants.ChargingLimitTypeTime
+	vendor, model := "TransEV", "DC47"
+	hubID := uuid.New()
+	session := models.ChargingSession{
+		ID: uuid.New(), TransactionID: 987654, Status: constants.SessionStatusActive, StartTime: now.Add(-time.Minute), CreatedAt: now.Add(-time.Hour), InitialSoCPercent: &initial,
+		Currency: "INR", TariffSnapshot: models.JSONB{"price_per_unit": "2", "units": "minutes"}, TaxSnapshot: models.JSONB{"sgst_rate": "0", "cgst_rate": "9", "igst_rate": "0"},
+		Customer:    models.Customer{ID: uuid.New(), FullName: "Puja Das", Email: "puja@example.test"},
+		Charger:     models.Charger{ID: uuid.New(), ChargerID: "cp0002", OCPPIdentity: "station-2", ChargerName: "City DC", HubID: &hubID, Hub: &models.Hub{ID: hubID, Name: "City Hub", Address: "2 Test Lane"}, MaxPowerKW: 47, Vendor: &vendor, Model: &model},
+		Connector:   models.Connector{ID: uuid.New(), ConnectorNumber: 2, ConnectorType: "CCS2", ConnectorTotalCapacity: 47},
+		StartIntent: &models.ChargingStartIntent{LimitType: criteria, RequestedLimitValue: &limit},
+	}
+
+	normal := toChargingSessionView(session)
+	live := toLiveChargingSessionView(session, liveops.SessionState{MeterFreshness: liveops.FreshnessFresh, SoCFreshness: liveops.FreshnessFresh}, now)
+	if live.Customer != normal.Customer || live.Charger != normal.Charger || live.Connector != normal.Connector || live.InitialSoCPercent == nil || !live.InitialSoCPercent.Equal(initial) || !live.PricePerUnit.Equal(normal.PricePerUnit) || live.Unit == nil || normal.Unit == nil || *live.Unit != *normal.Unit || live.StartCriteria == nil || *live.StartCriteria != criteria || live.RequestedLimitValue == nil || !live.RequestedLimitValue.Equal(limit) || !live.SGSTPercent.Equal(normal.SGSTPercent) || !live.CGSTPercent.Equal(normal.CGSTPercent) || !live.IGSTPercent.Equal(normal.IGSTPercent) || !live.CreatedAt.Equal(normal.CreatedAt) {
+		t.Fatalf("live static projection diverged from normal session view: live=%+v normal=%+v", live, normal)
+	}
+	if live.CustomerName != normal.Customer.Name || live.ChargerID != normal.Charger.ChargerID || live.ChargerName != normal.Charger.Name || live.HubName == nil || *live.HubName != *normal.Charger.HubName || live.ConnectorID != normal.Connector.ID || live.ConnectorNumber != normal.Connector.Number {
+		t.Fatalf("legacy live display fields diverged from canonical context: %+v", live)
+	}
+}
+
 func TestLiveChargingSessionSnapshotSSEContainsTheFullOperationalProjection(t *testing.T) {
 	t.Parallel()
 
-	snapshot := LiveChargingSessionListResponse{
-		Sessions: []LiveChargingSessionView{{
+	unit := constants.UnitMinutes
+	snapshot := LiveChargingSessionFinancialListResponse{
+		Sessions: []LiveChargingSessionFinancialView{{LiveChargingSessionView: LiveChargingSessionView{
 			SessionID: uuid.New(), OCPPTransactionID: 654321, CustomerName: "Chitradeep Ghosh", ChargerID: "cp0001", ChargerName: "Main forecourt DC charger",
-			ConnectorID: uuid.New(), DurationSeconds: 92, Status: constants.SessionStatusActive,
-		}},
+			Customer: ChargingSessionCustomerView{ID: uuid.New(), Name: "Chitradeep Ghosh", Email: "chitradeep@example.test"}, Charger: ChargingSessionChargerView{ID: uuid.New(), ChargerID: "cp0001", Name: "Main forecourt DC charger"},
+			Connector: ChargingSessionConnectorView{ID: uuid.New(), Number: 1, ConnectorType: "CCS2"}, ConnectorID: uuid.New(), DurationSeconds: 92, Status: constants.SessionStatusActive,
+			PricePerUnit: decimal.RequireFromString("2"), Unit: &unit,
+		}, ProjectedAmount: decimal.RequireFromString("12.50"), Currency: "INR"}},
 		AsOf: time.Date(2026, time.August, 25, 12, 0, 0, 0, time.UTC),
 	}
-	var output bytes.Buffer
-	if err := writeLiveSessionSnapshot(&output, "live_sessions", 17, snapshot); err != nil {
-		t.Fatalf("write live-session snapshot: %v", err)
-	}
-
-	frame := output.String()
-	for _, expected := range []string{"id: 17\n", "event: live_sessions\n", `"sessions":[`, `"ocpp_transaction_id":654321`, `"duration_seconds":92`, `"customer_name":"Chitradeep Ghosh"`, `"charger_id":"cp0001"`, `"connector_id":`, `"as_of":"2026-08-25T12:00:00Z"`} {
-		if !strings.Contains(frame, expected) {
-			t.Fatalf("SSE frame %q missing %q", frame, expected)
+	for _, eventType := range []string{"snapshot", "live_sessions"} {
+		var output bytes.Buffer
+		if err := writeLiveSessionSnapshot(&output, eventType, 17, snapshot); err != nil {
+			t.Fatalf("write %s live-session snapshot: %v", eventType, err)
 		}
-	}
-	for _, forbidden := range []string{"customer_id", "customer_email", "wallet", "tariff", "total_amount", "total_kwh"} {
-		if strings.Contains(frame, forbidden) {
-			t.Fatalf("SSE frame leaked %q: %s", forbidden, frame)
+
+		frame := output.String()
+		for _, expected := range []string{"id: 17\n", "event: " + eventType + "\n", `"sessions":[`, `"ocpp_transaction_id":654321`, `"duration_seconds":92`, `"customer":{"id":`, `"charger":{"id":`, `"connector":{"id":`, `"price_per_unit":"2"`, `"projected_amount":"12.5"`, `"as_of":"2026-08-25T12:00:00Z"`} {
+			if !strings.Contains(frame, expected) {
+				t.Fatalf("%s SSE frame %q missing %q", eventType, frame, expected)
+			}
+		}
+		for _, forbidden := range []string{"wallet", "total_amount", "total_kwh"} {
+			if strings.Contains(frame, forbidden) {
+				t.Fatalf("%s SSE frame leaked %q: %s", eventType, forbidden, frame)
+			}
 		}
 	}
 }
