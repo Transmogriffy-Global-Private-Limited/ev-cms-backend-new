@@ -1,6 +1,6 @@
 # WI-20260903-customer-chargeability-projection
 
-Status: Verified locally; pending human-authorized publication
+Status: Implemented and published; not deployed
 Owner: Codex
 Collaborators: None
 Started: 2026-09-03
@@ -78,5 +78,5 @@ authority even when `can_charge=true` was observed earlier.
 
 ## Completion
 
-The implementation is locally verified. This work item remains active while
-its uncommitted source change intentionally awaits human-authorized publication.
+Source checkpoint `01cd88d` is verified and published. No migration or runtime
+deployment is part of this work item.

@@ -1,6 +1,6 @@
 # Project State
 
-## 2026-09-03 - Locally verified customer chargeability source change (not deployed)
+## 2026-09-03 - Published customer chargeability source change (not deployed)
 
 - The current local source worktree adds a customer-specific, side-effect-free
   `can_charge` / `chargeability_reason` projection for normal AUTO/default
@@ -11,9 +11,10 @@
   connector decision fields. The same evaluated projection also backs one
   bounded public charger-ID batch REST read and one full-replacement SSE stream
   under the authenticated CPO-local customer/app scope.
-- This is an unpublished source change only. It has no migration, database
-  mutation, deployment, or release record. `POST /api/v1/app/charging-sessions`
-  remains the locked final authority and revalidates all state at command time.
+- Source checkpoint `01cd88d` contains this change. It has no migration,
+  database mutation, deployment, or release record. `POST
+  /api/v1/app/charging-sessions` remains the locked final authority and
+  revalidates all state at command time.
 - The source projection consumes existing `liveops` connection/freshness
   predicates without redefining them. Its reasons distinguish materialized
   `CHARGER_OFFLINE` from unknown or stale live evidence; any lower-level

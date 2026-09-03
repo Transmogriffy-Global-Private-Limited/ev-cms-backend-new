@@ -133,12 +133,11 @@ Approved current slice:
 
 Current implementation state:
 
-- Customer AUTO-start chargeability is implemented in the current uncommitted
-  source worktree under
+- Customer AUTO-start chargeability is implemented in source history under
   `docs/work/active/WI-20260903-customer-chargeability-projection.md`. It is
   an additive, side-effect-free customer projection and batch REST/SSE
-  contract; repository verification passes and human-authorized publication
-  remains pending. It does not alter StartCharging's transactional authority.
+  contract; source checkpoint `01cd88d` passed repository verification. It
+  does not alter StartCharging's transactional authority.
 
 - Mail-outbox template-catalogue correction is deployed under
   `docs/work/archive/WI-20260831-mail-outbox-template-catalog.md`. Migration

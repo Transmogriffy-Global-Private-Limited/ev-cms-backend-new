@@ -1,6 +1,6 @@
 # AI Changelog
 
-## 2026-09-03 - Add locally verified User App customer chargeability projection
+## 2026-09-03 - Add published User App customer chargeability projection
 
 - Added one batched `customerauth` read evaluator shared by customer
   charger-list/detail/hub/favorite projections, a compact
@@ -26,7 +26,8 @@
 Verification: `./scripts/verify-docs.ps1`, `go test ./...`, `go vet ./...`,
 `go build ./...`, and the runtime/OpenAPI route test pass. PostgreSQL-gated
 integration coverage is skipped because `TEST_DATABASE_URL` is intentionally
-unset. No migration, database mutation, deployment, commit, or push occurred.
+unset. Source checkpoint `01cd88d` is published; no migration, database
+mutation, or deployment occurred.
 
 ## 2026-09-03 - Deploy charging-trace root identity enrichment
 
