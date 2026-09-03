@@ -1,11 +1,20 @@
 # Project State
 
+## Active source remediation - charging-trace root identity enrichment
+
+- Runtime evidence disproved the prior claim that every published trace root
+  is fully enriched: a root can retain its CMS start intent while omitting the
+  already-authoritative CMS command, CMS session, HAL transaction, and OCPP
+  transaction identities. The active CMS-only source remediation binds those
+  values monotonically at durable command creation and authoritative session
+  materialization. It has not been deployed, and it requires no migration or
+  data mutation.
+
 ## 2026-09-03 - Charging-trace commercial evidence and hub analytics deployed
 
-- CMS diagnostic roots now monotonically retain the actual start-intent,
-  command, and later session identifiers rather than leaving a locally created
-  root partially linked. HAL ingress continues to add HAL/OCPP identities only
-  from authenticated HAL evidence.
+- CMS diagnostic roots retain start-intent linkage and append sanitized
+  evidence, but the deployed revision has the active root-enrichment gap
+  recorded above. HAL ingress continues to provide authenticated HAL evidence.
 - CMS appends sanitized CMS-to-CMS evidence for persisted admission/limits,
   wallet holds/releases, command/reconciliation state, authoritative session
   materialization, final frozen-snapshot charge calculation, and settlement.
@@ -30,8 +39,9 @@
 
 ### 2026-09-03 - Charging-trace commercial evidence and hub analytics deployed
 
-- CMS trace roots now retain start-intent, command, and session linkage, while
-  authenticated HAL ingress remains the source of later HAL/OCPP identities.
+- CMS trace roots retain start-intent linkage, while the deployed revision's
+  later identity-enrichment gap is recorded above. Authenticated HAL ingress
+  remains the source of HAL evidence.
   Sanitized CMS evidence covers admission, limits, wallet holds/releases,
   commands, materialization, completion, reconciliation, debit, and settlement
   without becoming charging or commercial authority.

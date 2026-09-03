@@ -353,7 +353,7 @@ func (service *Service) materializeAuthoritativeStart(tx *gorm.DB, evidence halo
 	if intent.TraceID != nil {
 		// A fact must remain authoritative even when its diagnostic projection
 		// cannot be appended. The durable session is never derived from trace.
-		_ = service.recordChargingTraceWithRoot(tx, *intent.TraceID, intent.CPOID, chargingTraceRoot{StartIntentID: &intent.ID, SessionID: &session.ID, CommandID: &evidence.CMSCommandID}, "CMS", "CMS", "LIFECYCLE", "POSTGRES", "CHARGING", "CMS session materialized from HAL start fact", "", models.JSONB{"hal_transaction_id": evidence.HALTransactionID.String(), "ocpp_transaction_id": evidence.OCPPTransactionID, "status": string(constants.SessionStatusActive)})
+		_ = service.recordChargingTraceWithRoot(tx, *intent.TraceID, intent.CPOID, chargingTraceRoot{StartIntentID: &intent.ID, SessionID: &session.ID, CommandID: &evidence.CMSCommandID, HALTransactionID: &evidence.HALTransactionID, OCPPTransactionID: &evidence.OCPPTransactionID, ChargerOCPPIdentity: evidence.ChargerOCPPIdentity, OCPPConnectorNumber: evidence.OCPPConnectorNumber}, "CMS", "CMS", "LIFECYCLE", "POSTGRES", "CHARGING", "CMS session materialized from HAL start fact", "", models.JSONB{"hal_transaction_id": evidence.HALTransactionID.String(), "ocpp_transaction_id": evidence.OCPPTransactionID, "status": string(constants.SessionStatusActive)})
 	}
 	now := service.now()
 	if err := tx.Model(&command).Updates(map[string]any{"hal_command_id": evidence.HALCommandID, "state": "MATERIALIZED", "last_error_category": "", "last_error_detail": "", "updated_at": now}).Error; err != nil {

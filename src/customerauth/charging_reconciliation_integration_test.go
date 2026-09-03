@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -190,6 +191,13 @@ func TestChargingStartReconciliationWithPostgreSQL(t *testing.T) {
 	if err := gormDB.Model(&models.ChargingStartIntent{}).Where("id = ?", retry.StartIntentID).Updates(map[string]any{"hal_command_id": zero, "status": constants.StartIntentStatusReconciliation}).Error; err != nil {
 		t.Fatalf("shape zero start-intent HAL command identity: %v", err)
 	}
+	var root models.ChargingTrace
+	if err := gormDB.First(&root, "trace_id = ?", retry.TraceID).Error; err != nil {
+		t.Fatalf("load initial trace root: %v", err)
+	}
+	if root.CMSStartIntentID == nil || *root.CMSStartIntentID != retry.StartIntentID || root.CMSCommandID == nil || *root.CMSCommandID != retryCommand.CMSCommandID || root.CMSChargingSessionID != nil || root.HALTransactionID != nil || root.OCPPTransactionID != nil {
+		t.Fatalf("durable command root linkage=%+v", root)
+	}
 	evidence := halops.StartEvidence{HALTransactionID: uuid.New(), HALCommandID: uuid.New(), CMSCommandID: retryCommand.CMSCommandID, CMSStartIntentID: retry.StartIntentID, CPOID: fixture.cpo.ID, CMSChargerID: fixture.charger.ID, CMSConnectorID: fixture.connector.ID, ChargerOCPPIdentity: fixture.charger.OCPPIdentity, OCPPConnectorNumber: fixture.connector.ConnectorNumber, OCPPTransactionID: 81, MeterStartWh: 100, ActualStartedAt: time.Now().UTC()}
 	if err := service.MaterializeAuthoritativeStart(ctx, evidence); err != nil {
 		t.Fatalf("materialize authoritative start over zero identity: %v", err)
@@ -201,6 +209,39 @@ func TestChargingStartReconciliationWithPostgreSQL(t *testing.T) {
 	if intent.Status != constants.StartIntentStatusActuallyStarted || intent.HALCommandID == nil || *intent.HALCommandID != evidence.HALCommandID || command.State != "MATERIALIZED" || command.HALCommandID == nil || *command.HALCommandID != evidence.HALCommandID {
 		t.Fatalf("zero identity was not repaired intent=%+v command=%+v", intent, command)
 	}
+	if err := gormDB.First(&root, "trace_id = ?", retry.TraceID).Error; err != nil {
+		t.Fatalf("load materialized trace root: %v", err)
+	}
+	if root.CMSChargingSessionID == nil || root.HALTransactionID == nil || root.OCPPTransactionID == nil || *root.HALTransactionID != evidence.HALTransactionID || *root.OCPPTransactionID != evidence.OCPPTransactionID {
+		t.Fatalf("materialized root linkage=%+v", root)
+	}
+	if err := gormDB.Transaction(func(tx *gorm.DB) error {
+		return service.recordChargingTraceWithRoot(tx, retry.TraceID, fixture.cpo.ID, chargingTraceRoot{}, "CMS", "CMS", "DIAGNOSTIC", "POSTGRES", "CHARGING", "Later trace event", "", models.JSONB{})
+	}); err != nil {
+		t.Fatalf("append later trace event: %v", err)
+	}
+	var afterLaterEvent models.ChargingTrace
+	if err := gormDB.First(&afterLaterEvent, "trace_id = ?", retry.TraceID).Error; err != nil {
+		t.Fatalf("load root after later event: %v", err)
+	}
+	if afterLaterEvent.CMSStartIntentID == nil || *afterLaterEvent.CMSStartIntentID != retry.StartIntentID || afterLaterEvent.CMSCommandID == nil || *afterLaterEvent.CMSCommandID != retryCommand.CMSCommandID || afterLaterEvent.CMSChargingSessionID == nil || *afterLaterEvent.CMSChargingSessionID != *root.CMSChargingSessionID || afterLaterEvent.HALTransactionID == nil || *afterLaterEvent.HALTransactionID != evidence.HALTransactionID || afterLaterEvent.OCPPTransactionID == nil || *afterLaterEvent.OCPPTransactionID != evidence.OCPPTransactionID {
+		t.Fatalf("later trace event erased root linkage=%+v", afterLaterEvent)
+	}
+	eventFailureTraceID, eventFailureIntentID, eventFailureCommandID := uuid.New(), uuid.New(), uuid.New()
+	var eventFailureErr error
+	if err := gormDB.Transaction(func(tx *gorm.DB) error {
+		eventFailureErr = service.recordChargingTraceWithRoot(tx, eventFailureTraceID, fixture.cpo.ID, chargingTraceRoot{StartIntentID: &eventFailureIntentID, CommandID: &eventFailureCommandID}, "CMS", "CMS", "DIAGNOSTIC", "POSTGRES", "STARTING", strings.Repeat("x", 201), "", models.JSONB{})
+		return nil // The caller intentionally isolates diagnostics from business state.
+	}); err != nil {
+		t.Fatalf("commit diagnostic-isolated root enrichment: %v", err)
+	}
+	if eventFailureErr == nil {
+		t.Fatal("expected oversized diagnostic event to fail")
+	}
+	var eventFailureRoot models.ChargingTrace
+	if err := gormDB.First(&eventFailureRoot, "trace_id = ?", eventFailureTraceID).Error; err != nil || eventFailureRoot.CMSStartIntentID == nil || *eventFailureRoot.CMSStartIntentID != eventFailureIntentID || eventFailureRoot.CMSCommandID == nil || *eventFailureRoot.CMSCommandID != eventFailureCommandID {
+		t.Fatalf("event failure rolled back successful root enrichment: root=%+v err=%v", eventFailureRoot, err)
+	}
 	conflictingEvidence := evidence
 	conflictingEvidence.HALCommandID = uuid.New()
 	if err := service.MaterializeAuthoritativeStart(ctx, conflictingEvidence); err == nil {
@@ -210,6 +251,33 @@ func TestChargingStartReconciliationWithPostgreSQL(t *testing.T) {
 		if !errors.As(err, &projectionError) || projectionError.Code != "hal_start_evidence_conflict" {
 			t.Fatalf("conflicting identity error=%v", err)
 		}
+	}
+
+	traceFailureConnector := fixture.newConnector(t)
+	setChargingAdmissionProjection(t, gormDB, fixture, traceFailureConnector.ID, "ONLINE", "Available", time.Now().UTC())
+	traceFailureStart, err := service.StartCharging(ctx, fixture.firstPrincipal, ChargingStartRequest{ChargerID: fixture.charger.ChargerID, ConnectorID: traceFailureConnector.ID}, "trace-enrichment-failure")
+	if err != nil || traceFailureStart.Status != constants.StartIntentStatusAcceptedForDelivery {
+		t.Fatalf("trace failure start response=%+v err=%v", traceFailureStart, err)
+	}
+	traceFailureIntent, traceFailureCommand, _ := loadStartAttempt(t, gormDB, traceFailureStart.StartIntentID)
+	if traceFailureCommand.HALCommandID == nil {
+		t.Fatalf("trace failure start did not retain HAL command identity: %+v", traceFailureCommand)
+	}
+	conflictingTraceCommandID := uuid.New()
+	if err := gormDB.Model(&models.ChargingTrace{}).Where("trace_id = ?", traceFailureStart.TraceID).Update("cms_command_id", conflictingTraceCommandID).Error; err != nil {
+		t.Fatalf("inject trace root integrity failure: %v", err)
+	}
+	traceFailureEvidence := halops.StartEvidence{HALTransactionID: uuid.New(), HALCommandID: *traceFailureCommand.HALCommandID, CMSCommandID: traceFailureCommand.CMSCommandID, CMSStartIntentID: traceFailureIntent.ID, CPOID: fixture.cpo.ID, CMSChargerID: fixture.charger.ID, CMSConnectorID: traceFailureConnector.ID, ChargerOCPPIdentity: fixture.charger.OCPPIdentity, OCPPConnectorNumber: traceFailureConnector.ConnectorNumber, OCPPTransactionID: 82, MeterStartWh: 100, ActualStartedAt: time.Now().UTC()}
+	if err := service.MaterializeAuthoritativeStart(ctx, traceFailureEvidence); err != nil {
+		t.Fatalf("diagnostic root conflict rolled back authoritative start: %v", err)
+	}
+	var traceFailureSession models.ChargingSession
+	if err := gormDB.First(&traceFailureSession, "start_intent_id = ?", traceFailureStart.StartIntentID).Error; err != nil || traceFailureSession.TransactionID != traceFailureEvidence.OCPPTransactionID {
+		t.Fatalf("authoritative session missing after trace enrichment failure: session=%+v err=%v", traceFailureSession, err)
+	}
+	var traceFailureRoot models.ChargingTrace
+	if err := gormDB.First(&traceFailureRoot, "trace_id = ?", traceFailureStart.TraceID).Error; err != nil || traceFailureRoot.CMSCommandID == nil || *traceFailureRoot.CMSCommandID != conflictingTraceCommandID {
+		t.Fatalf("trace root conflict was overwritten after diagnostic failure: root=%+v err=%v", traceFailureRoot, err)
 	}
 
 	raceConnector := fixture.newConnector(t)

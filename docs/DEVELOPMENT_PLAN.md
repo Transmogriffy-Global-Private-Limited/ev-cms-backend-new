@@ -115,6 +115,8 @@ Active work:
 
 - `docs/work/active/WI-20260812-cms-hal-operational-capabilities.md`.
 - `docs/work/active/WI-20260826-customer-selected-session-limits.md`.
+- `docs/work/active/WI-20260901-charging-transaction-trace.md` root-identity
+  enrichment remediation.
 
 Approved current slice:
 

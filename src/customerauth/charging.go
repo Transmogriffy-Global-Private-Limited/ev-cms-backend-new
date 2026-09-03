@@ -478,7 +478,7 @@ func (service *Service) StartCharging(ctx context.Context, principal Principal, 
 		}
 		// Trace rows are diagnostic evidence only. Their availability must not
 		// decide whether an otherwise valid charging command is accepted.
-		linkage := chargingTraceRoot{StartIntentID: &intentID}
+		linkage := chargingTraceRoot{StartIntentID: &intentID, ChargerOCPPIdentity: charger.OCPPIdentity, OCPPConnectorNumber: connector.ConnectorNumber}
 		_ = service.recordChargingTraceWithRoot(tx, traceID, principal.CPOID, linkage, "APP", "CMS", "REQUEST", "HTTP", "PRE_START", "Charging start request accepted", correlationID, models.JSONB{"start_intent_id": intentID.String(), "connector_id": request.ConnectorID.String()})
 		_ = service.recordChargingTraceWithRoot(tx, traceID, principal.CPOID, linkage, "CMS", "CMS", "LIFECYCLE", "POSTGRES", "STARTING", "Charging admission and limits persisted", correlationID, models.JSONB{"limit_type": string(effectiveLimit.Type), "energy_limit_wh": effectiveLimit.EnergyLimitWh, "energy_limit_source": string(effectiveLimit.EnergyLimitSource), "max_duration_seconds": effectiveLimit.MaxDurationSeconds, "duration_limit_source": string(effectiveLimit.DurationLimitSource)})
 		hold := models.WalletHold{ID: uuid.New(), CPOID: principal.CPOID, WalletID: wallet.ID, StartIntentID: intent.ID, Amount: effectiveLimit.HoldAmount, Currency: tariff.Currency, Status: constants.WalletHoldStatusHeld, CreatedAt: now, UpdatedAt: now}

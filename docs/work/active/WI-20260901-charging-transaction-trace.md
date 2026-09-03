@@ -4,7 +4,7 @@ Status: In Progress
 Owner: Codex
 Collaborators: None
 Started: 2026-09-01
-Last updated: 2026-09-03 (CMS trace linkage/commercial evidence deployed)
+Last updated: 2026-09-03 (root-identity enrichment source remediation)
 
 Development-plan reference: `docs/DEVELOPMENT_PLAN.md` (charging lifecycle and CPO operations)
 Detailed-plan reference: User-approved first-class charging transaction trace / waterfall specification
@@ -65,6 +65,13 @@ state.
   `a46b50a` with 222 OpenAPI operations. It changes no source-of-truth
   behavior; final paired HAL reconciliation and cross-repository status remain
   separate.
+- Runtime evidence for trace `2647bfb4-5c18-46e4-b99d-3e92dfe61dad` showed
+  that this published root can retain only `cms_start_intent_id` even though
+  command and authoritative session evidence exist. The active CMS-only source
+  remediation monotonically binds the command at durable creation and the CMS,
+  HAL, and OCPP transaction identities at authoritative CMS materialization.
+  It is uncommitted and not deployed; no migration or runtime data mutation is
+  required.
 
 ## Verification
 
@@ -79,6 +86,6 @@ state.
 
 ## Completion
 
-- The published CMS pipeline and this CMS completeness slice are deployed and
-  verified. Paired HAL reconciliation remains before the cross-repository
-  feature can be marked fully complete.
+- The published pipeline remains deployed, with the root-identity remediation
+  active in the current source worktree. Paired HAL reconciliation remains
+  before the cross-repository feature can be marked fully complete.
