@@ -1,20 +1,18 @@
 # Project State
 
-## Active source remediation - charging-trace root identity enrichment
+## 2026-09-03 - Charging-trace root identity enrichment deployed
 
-- Runtime evidence disproved the prior claim that every published trace root
-  is fully enriched: a root can retain its CMS start intent while omitting the
-  already-authoritative CMS command, CMS session, HAL transaction, and OCPP
-  transaction identities. The active CMS-only source remediation binds those
-  values monotonically at durable command creation and authoritative session
-  materialization. It has not been deployed, and it requires no migration or
-  data mutation.
+- Runtime evidence showed that a published trace root could retain only its CMS
+  start intent. The deployed CMS-only remediation now binds the authoritative
+  CMS command at durable creation and the CMS session, HAL transaction, and
+  OCPP transaction identities at materialization, monotonically and without a
+  migration or data mutation.
 
 ## 2026-09-03 - Charging-trace commercial evidence and hub analytics deployed
 
 - CMS diagnostic roots retain start-intent linkage and append sanitized
-  evidence, but the deployed revision has the active root-enrichment gap
-  recorded above. HAL ingress continues to provide authenticated HAL evidence.
+  evidence; root identity enrichment is deployed in the latest revision. HAL
+  ingress continues to provide authenticated HAL evidence.
 - CMS appends sanitized CMS-to-CMS evidence for persisted admission/limits,
   wallet holds/releases, command/reconciliation state, authoritative session
   materialization, final frozen-snapshot charge calculation, and settlement.
@@ -24,11 +22,11 @@
 - These append-only rows are savepoint-isolated diagnostic evidence. They do
   not control session, wallet, pricing, fact, connector, OCPP, or command
   authority. Migration 000060 was already applied; no additional migration or
-  data repair was needed for this release. Revision `a46b50a` is deployed
+  data repair was needed for this release. Revision `ab1ab54` is deployed
   behind Caddy with binary SHA-256
-  `ec056dbbb2945e6ee2214c407d9bd2f57ee9498dac7bd14370219f15e75f607a` and
+  `70cd1e14381d3584e7cf893f64a7b5fca108108a84b8c766cc2303601a075606` and
   the live contract contains 222 operations. The prior binary is retained at
-  `/root/evcmsnew-backups/pre-a46b50a-stale-20260903T1001Z`.
+  `/root/evcmsnew-backups/pre-ab1ab54-stale-20260903T1138IST`.
 
 - The same release adds CPO-scoped `GET /api/v1/cpo/hubs/{hub_id}/analytics`.
   It returns the selected hub, period/date-filtered aggregate analytics, and
@@ -39,13 +37,13 @@
 
 ### 2026-09-03 - Charging-trace commercial evidence and hub analytics deployed
 
-- CMS trace roots retain start-intent linkage, while the deployed revision's
-  later identity-enrichment gap is recorded above. Authenticated HAL ingress
+- CMS trace roots retain start-intent linkage and now include the later
+  authoritative CMS/HAL/OCPP identity enrichment. Authenticated HAL ingress
   remains the source of HAL evidence.
   Sanitized CMS evidence covers admission, limits, wallet holds/releases,
   commands, materialization, completion, reconciliation, debit, and settlement
   without becoming charging or commercial authority.
-- The deployed revision is `a46b50a` with migration 000060 and 222 OpenAPI
+- The deployed revision is `ab1ab54` with migration 000060 and 222 OpenAPI
   operations. The CPO hub-analytics read is tenant-scoped and side-effect free;
   the matching HAL deployment remains a separate concern.
 

@@ -1,5 +1,27 @@
 # AI Changelog
 
+## 2026-09-03 - Deploy charging-trace root identity enrichment
+
+- Trace roots now bind the durable CMS command identity at command creation and
+  the CMS session, HAL transaction, and OCPP transaction identities at
+  authoritative session materialization. The updates are monotonic and remain
+  diagnostic evidence only; no charging or commercial authority moved.
+- Added regression coverage for root linkage and PostgreSQL-backed
+  reconciliation evidence. No migration or data repair was required.
+
+Revision `ab1ab54` was rebuilt from canonical `main` and rehosted. The active
+binary SHA-256 is
+`70cd1e14381d3584e7cf893f64a7b5fca108108a84b8c766cc2303601a075606`. The
+previous binary is retained at
+`/root/evcmsnew-backups/pre-ab1ab54-stale-20260903T1138IST`.
+
+Verification: focused trace/CPO/customer/routes tests, full `go test -p 1
+./...`, `go vet -p 1 ./...`, production build, local/public live and readiness,
+Swagger/OpenAPI (222 operations), Caddy validation, migration state, fresh
+worker-incarnation checks, and post-rehost startup checks pass. PostgreSQL
+integration remains skipped without `TEST_DATABASE_URL`; the PowerShell
+documentation verifier remains unavailable because `pwsh` is not installed.
+
 ## 2026-09-03 - Deploy CMS charging-trace linkage, commercial evidence, and hub analytics
 
 - Added monotonic local trace-root linkage for CMS start intent, command, and
