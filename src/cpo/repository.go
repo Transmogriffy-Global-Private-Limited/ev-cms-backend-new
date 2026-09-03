@@ -314,7 +314,13 @@ func uniqueUUIDs(ids []uuid.UUID) []uuid.UUID {
 
 func (r *repository) ListChargersByHub(ctx context.Context, cpoID, hubID uuid.UUID) ([]models.Charger, error) {
 	var chargers []models.Charger
-	if err := r.db.WithContext(ctx).Where("cpo_id = ? AND hub_id = ?", cpoID, hubID).Find(&chargers).Error; err != nil {
+	if err := r.db.WithContext(ctx).
+		Preload("Connectors", func(tx *gorm.DB) *gorm.DB {
+			return tx.Order("connector_number ASC")
+		}).
+		Preload("Hub").
+		Where("cpo_id = ? AND hub_id = ?", cpoID, hubID).
+		Find(&chargers).Error; err != nil {
 		return nil, err
 	}
 	return chargers, nil

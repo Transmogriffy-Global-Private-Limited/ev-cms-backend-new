@@ -7758,6 +7758,7 @@ func (service *Service) ListWalletTransactions(
 }
 
 // GetHubAnalytics returns aggregate analytics plus the full charger list (with connectors and live data) for a specific hub.
+// GetHubAnalytics returns aggregate analytics plus the full charger list (with connectors and live data) for a specific hub.
 func (service *Service) GetHubAnalytics(
 	ctx context.Context,
 	principal auth.Principal,
@@ -7782,19 +7783,37 @@ func (service *Service) GetHubAnalytics(
 		return HubAnalyticsResponse{}, fmt.Errorf("get hub analytics: %w", err)
 	}
 
-	// 3) List chargers for this hub (with preloads and live data)
+	// 3) List chargers for this hub (now with preloaded connectors & hub)
 	chargers, err := service.repository.ListChargersByHub(ctx, cpoID, hubID)
 	if err != nil {
 		return HubAnalyticsResponse{}, fmt.Errorf("list hub chargers: %w", err)
 	}
 
-	// Build ChargerResponse list (includes connectors and live status)
-	chargerResponses := make([]ChargerResponse, 0, len(chargers))
-	for _, charger := range chargers {
-		chargerResponses = append(chargerResponses, service.chargerView(charger, principal))
+	// 4) Batch‑fetch live data for all chargers
+	liveByCharger := make(map[uuid.UUID]liveops.ChargerDetail)
+	if service.liveOperations != nil && len(chargers) > 0 {
+		chargerIDs := make([]uuid.UUID, 0, len(chargers))
+		for _, c := range chargers {
+			chargerIDs = append(chargerIDs, c.ID)
+		}
+		liveByCharger, err = service.liveOperations.GetChargerDetails(ctx, cpoID, chargerIDs)
+		if err != nil {
+			// Log the error (you should have a logger) and continue without live data
+			liveByCharger = make(map[uuid.UUID]liveops.ChargerDetail)
+		}
 	}
 
-	// 4) Build response
+	// 5) Build charger responses, attaching live data
+	chargerResponses := make([]ChargerResponse, 0, len(chargers))
+	for _, charger := range chargers {
+		resp := service.chargerView(charger, principal)
+		if live, ok := liveByCharger[charger.ID]; ok {
+			resp.Live = &live
+		}
+		chargerResponses = append(chargerResponses, resp)
+	}
+
+	// 6) Build final response
 	return HubAnalyticsResponse{
 		Hub: hubView(hub),
 		Analytics: AnalyticsResponse{
