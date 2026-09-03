@@ -1,11 +1,41 @@
 # Project State
 
+## 2026-09-03 - Customer charger chargeability projection deployed
+
+- The current local source worktree adds a customer-specific, side-effect-free
+  `can_charge` / `chargeability_reason` projection for normal AUTO/default
+  charging. It remains separate from device availability: an occupying CMS
+  session can make `can_charge=false` while the committed OCPP connector
+  projection remains `AVAILABLE`.
+- Full `CustomerCharger` responses now carry the additive charger and
+  connector decision fields. The same evaluated projection also backs one
+  bounded public charger-ID batch REST read and one full-replacement SSE stream
+  under the authenticated CPO-local customer/app scope.
+- Source checkpoint `01cd88d` contains this change. It has no migration or
+  database mutation. Revision `c6f3ab5` is deployed behind Caddy with binary
+  SHA-256 `97dbe45cdf392d161c0078dc54163e454d04c702a2bfb2d303fd7afdd2f2c2a0`,
+  and the live contract contains 224 operations. The prior binary is retained
+  at `/root/evcmsnew-backups/pre-c6f3ab5-stale-20260903T145820+0530/evcmsnew`.
+  `POST /api/v1/app/charging-sessions` remains the locked final authority and
+  revalidates all state at command time.
+- The source projection consumes existing `liveops` connection/freshness
+  predicates without redefining them. Its reasons distinguish materialized
+  `CHARGER_OFFLINE` from unknown or stale live evidence; any lower-level
+  `OFFLINE`/`UNKNOWN`/`STALE` semantic audit remains separate work.
+
+## 2026-09-03 - Charging-trace root identity enrichment deployed
+
+- Runtime evidence showed that a published trace root could retain only its CMS
+  start intent. The deployed CMS-only remediation now binds the authoritative
+  CMS command at durable creation and the CMS session, HAL transaction, and
+  OCPP transaction identities at materialization, monotonically and without a
+  migration or data mutation.
+
 ## 2026-09-03 - Charging-trace commercial evidence and hub analytics deployed
 
-- CMS diagnostic roots now monotonically retain the actual start-intent,
-  command, and later session identifiers rather than leaving a locally created
-  root partially linked. HAL ingress continues to add HAL/OCPP identities only
-  from authenticated HAL evidence.
+- CMS diagnostic roots retain start-intent linkage and append sanitized
+  evidence; root identity enrichment is deployed in the latest revision. HAL
+  ingress continues to provide authenticated HAL evidence.
 - CMS appends sanitized CMS-to-CMS evidence for persisted admission/limits,
   wallet holds/releases, command/reconciliation state, authoritative session
   materialization, final frozen-snapshot charge calculation, and settlement.
@@ -15,11 +45,11 @@
 - These append-only rows are savepoint-isolated diagnostic evidence. They do
   not control session, wallet, pricing, fact, connector, OCPP, or command
   authority. Migration 000060 was already applied; no additional migration or
-  data repair was needed for this release. Revision `a46b50a` is deployed
+  data repair was needed for this release. Revision `c6f3ab5` is deployed
   behind Caddy with binary SHA-256
-  `ec056dbbb2945e6ee2214c407d9bd2f57ee9498dac7bd14370219f15e75f607a` and
-  the live contract contains 222 operations. The prior binary is retained at
-  `/root/evcmsnew-backups/pre-a46b50a-stale-20260903T1001Z`.
+  `97dbe45cdf392d161c0078dc54163e454d04c702a2bfb2d303fd7afdd2f2c2a0` and
+  the live contract contains 224 operations. The prior binary is retained at
+  `/root/evcmsnew-backups/pre-c6f3ab5-stale-20260903T145820+0530/evcmsnew`.
 
 - The same release adds CPO-scoped `GET /api/v1/cpo/hubs/{hub_id}/analytics`.
   It returns the selected hub, period/date-filtered aggregate analytics, and
@@ -30,12 +60,13 @@
 
 ### 2026-09-03 - Charging-trace commercial evidence and hub analytics deployed
 
-- CMS trace roots now retain start-intent, command, and session linkage, while
-  authenticated HAL ingress remains the source of later HAL/OCPP identities.
+- CMS trace roots retain start-intent linkage and now include the later
+  authoritative CMS/HAL/OCPP identity enrichment. Authenticated HAL ingress
+  remains the source of HAL evidence.
   Sanitized CMS evidence covers admission, limits, wallet holds/releases,
   commands, materialization, completion, reconciliation, debit, and settlement
   without becoming charging or commercial authority.
-- The deployed revision is `a46b50a` with migration 000060 and 222 OpenAPI
+- The deployed revision is `c6f3ab5` with migration 000060 and 224 OpenAPI
   operations. The CPO hub-analytics read is tenant-scoped and side-effect free;
   the matching HAL deployment remains a separate concern.
 

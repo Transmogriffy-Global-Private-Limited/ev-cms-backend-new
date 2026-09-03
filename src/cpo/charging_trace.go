@@ -127,16 +127,9 @@ func (service *Service) GetChargingTrace(ctx context.Context, principal auth.Pri
 	if more {
 		rows = rows[:limit]
 	}
-	response := ChargingTraceResponse{TraceID: traceID, Events: make([]ChargingTraceEventView, 0, len(rows)), SourcesPresent: []string{}}
-	if root.TraceID != uuid.Nil {
-		response.StartIntentID = root.CMSStartIntentID
-		response.SessionID = root.CMSChargingSessionID
-		response.CMSCommandID = root.CMSCommandID
-		response.HALTransactionID = root.HALTransactionID
-		response.OCPPTransactionID = root.OCPPTransactionID
-		response.ChargerOCPPIdentity = root.ChargerOCPPIdentity
-		response.OCPPConnectorNumber = root.OCPPConnectorNumber
-	}
+	response := chargingTraceResponseFromRoot(traceID, root)
+	response.Events = make([]ChargingTraceEventView, 0, len(rows))
+	response.SourcesPresent = []string{}
 	if session.ID != uuid.Nil {
 		response.SessionID = &session.ID
 		response.HALTransactionID = session.HALTransactionID
@@ -167,6 +160,21 @@ func (service *Service) GetChargingTrace(ctx context.Context, principal auth.Pri
 	}
 	response.ReplayCursor = replayCursor
 	return response, nil
+}
+
+func chargingTraceResponseFromRoot(traceID uuid.UUID, root models.ChargingTrace) ChargingTraceResponse {
+	response := ChargingTraceResponse{TraceID: traceID}
+	if root.TraceID == uuid.Nil {
+		return response
+	}
+	response.StartIntentID = root.CMSStartIntentID
+	response.SessionID = root.CMSChargingSessionID
+	response.CMSCommandID = root.CMSCommandID
+	response.HALTransactionID = root.HALTransactionID
+	response.OCPPTransactionID = root.OCPPTransactionID
+	response.ChargerOCPPIdentity = root.ChargerOCPPIdentity
+	response.OCPPConnectorNumber = root.OCPPConnectorNumber
+	return response
 }
 
 func chargingTraceNotFound() *auth.APIError {

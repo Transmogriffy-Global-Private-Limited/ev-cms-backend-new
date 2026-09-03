@@ -25,6 +25,7 @@ emitted as misleading invalidations.
 | User App legacy/general feed | `GET /api/v1/app/operations/events` | `GET /api/v1/app/operations/realtime/stream` | Authenticated CPO-local customer and matching app ID; retained invalidation/cursor compatibility only |
 | User App live-session collection | `GET /api/v1/app/operations/live-sessions/snapshot` | `GET /api/v1/app/operations/live-sessions` | Authenticated customer/app scope; full initial/replacement `CustomerLiveChargingSessionListResponse` only |
 | User App selected charger | Existing `GET /api/v1/app/chargers/{charger_id}` | `GET /api/v1/app/operations/charger-availability?charger_id={public_id}` | Authenticated customer/app scope and current charger visibility; full initial/replacement `CustomerCharger` only |
+| User App charger-card batch | `GET /api/v1/app/operations/charger-chargeability?charger_ids=...` | `GET /api/v1/app/operations/charger-chargeability/stream?charger_ids=...` | Authenticated customer/app scope; 1–100 public IDs, full initial/replacement compact `CustomerChargeabilityResponse` only |
 
 REST accepts `after_id` and optional `limit` (1–500; default 100). SSE accepts
 the same cursor or `Last-Event-ID` when the query parameter is absent. Records
@@ -55,20 +56,33 @@ route is a compatibility alias. Both SSE aliases recheck active CPO session,
 matching app ID, and `chargers.operations` on heartbeat and
 `X-CPO-App-ID` at each heartbeat.
 
-The two dedicated User App streams likewise keep operational events internal:
+The dedicated User App streams likewise keep operational events internal:
 events only wake a committed CMS re-projection and are never sent as their
 browser state. `live-sessions` uses a customer-scoped collection: its snapshot
 and replacement frames contain all current owned materialized sessions, and a
 customer can validly have more than one. Its wake-up filter includes owned
 session facts plus tenant-shared charger/connector facts for the collection's
 current resources. `charger-availability` is scoped to one already authorized
-public charger ID and includes the complete current `CustomerCharger` object;
-its wake-ups are only that charger and its connectors. Both streams establish a
-watermark before their initial snapshot, revalidate on heartbeat, and
-periodically reproject so time-derived freshness and time-priced financial
-state cannot remain stale when no fact arrives. Reconnect begins with current
-state rather than event replay. The generic User App feed remains unchanged
-for compatibility.
+public charger ID and includes the complete current `CustomerCharger` object,
+including customer-specific chargeability. `charger-chargeability` is the
+corresponding one-stream batch projection for card UIs; it accepts only public
+IDs, omits no-longer-visible IDs, and replaces the complete requested set on
+every semantic change. Because chargeability also depends on wallet, holds,
+commercial admission, tariff/GST, mapping, administrative lifecycle, durable
+occupancy, and freshness, these charger streams watch the retained CPO
+operational wake-up set rather than treating OCPP status as the sole trigger.
+Both establish a watermark before their initial snapshot, revalidate on
+heartbeat, and periodically reproject so time-derived freshness or
+chargeability cannot remain stale when no fact arrives. Fingerprints suppress
+replacement frames when the projection is unchanged. Reconnect begins with
+current state rather than event replay. The generic User App feed remains
+unchanged for compatibility.
+
+`can_charge` consumes the existing committed `liveops` predicates and does not
+repair or reinterpret their operational `OFFLINE`, `UNKNOWN`, or `STALE`
+semantics. Its reason vocabulary preserves that distinction: `CHARGER_OFFLINE`
+means the materialized parent connection says offline, while unknown or stale
+live evidence returns the corresponding `*_STATE_UNKNOWN` or `*_STALE` reason.
 
 ## Event Shape
 

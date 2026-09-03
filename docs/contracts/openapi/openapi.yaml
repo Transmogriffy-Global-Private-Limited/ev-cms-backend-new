@@ -6610,6 +6610,65 @@ paths:
         "403": {$ref: "#/components/responses/Forbidden"}
         "404": {description: Charger not found or not customer-visible.}
 
+  /api/v1/app/operations/charger-chargeability:
+    get:
+      tags: [App Charging]
+      operationId: getCustomerChargerChargeability
+      summary: Read current default-start chargeability for a bounded charger set
+      description: |
+        Returns the authenticated customer's current CMS/HAL-derived decision
+        for normal AUTO/default charging only. `can_charge` is a read
+        projection, not a reservation or a guarantee: POST
+        `/api/v1/app/charging-sessions` revalidates all state, wallet,
+        commercial, mapping, and concurrency rules and also validates any
+        customer-selected ENERGY, TIME, or MONEY limit. Unknown or no-longer
+        customer-visible requested IDs are omitted rather than exposing private
+        inventory. This read never calls HAL or creates mapping, intent, hold,
+        command, or reconciliation state.
+      security: [{BearerAuth: []}]
+      parameters:
+        - {$ref: "#/components/parameters/CPOAppIDHeader"}
+        - name: charger_ids
+          in: query
+          required: true
+          description: One or more public six-character charger IDs. Repeat the parameter or pass a comma-separated list; whitespace is trimmed, IDs are lowercased/deduplicated, and at most 100 distinct IDs are accepted.
+          schema: {type: string, pattern: "^[A-Za-z0-9,\\s]+$", maxLength: 699}
+      responses:
+        "200": {description: Bounded compact replacement projection, content: {application/json: {schema: {$ref: "#/components/schemas/CustomerChargeabilityResponse"}}}}
+        "400": {$ref: "#/components/responses/InvalidRequest"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "500": {$ref: "#/components/responses/InternalError"}
+
+  /api/v1/app/operations/charger-chargeability/stream:
+    get:
+      tags: [App Charging]
+      operationId: streamCustomerChargerChargeability
+      summary: Stream one customer's complete bounded charger chargeability projection
+      description: |
+        Authenticated fetch SSE using the same public-ID input and omission
+        rules as the static chargeability read. The initial `snapshot` and
+        later `charger_chargeability` frames are complete replaceable
+        CustomerChargeabilityResponse values. The server wakes from retained
+        CPO operational events, periodically fully reprojects to cover
+        freshness aging or a missed producer, emits only when the semantic
+        fingerprint changes, and closes when customer/app scope is no longer
+        valid. Event data itself is never business authority.
+      security: [{BearerAuth: []}]
+      parameters:
+        - {$ref: "#/components/parameters/CPOAppIDHeader"}
+        - name: charger_ids
+          in: query
+          required: true
+          description: One or more public six-character charger IDs; repeated/comma-separated, normalized, deduplicated, maximum 100.
+          schema: {type: string, pattern: "^[A-Za-z0-9,\\s]+$", maxLength: 699}
+      responses:
+        "200": {description: "text/event-stream frames named `snapshot` and `charger_chargeability`; each data value is CustomerChargeabilityResponse.", content: {text/event-stream: {schema: {type: string}}}}
+        "400": {$ref: "#/components/responses/InvalidRequest"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "503": {$ref: "#/components/responses/InternalError"}
+
   /v1/hal-facts:
     post:
       tags: [HAL Service Integration]
@@ -7757,7 +7816,7 @@ components:
     CustomerCharger:
       type: object
       additionalProperties: false
-      required: [id, hub_id, charger_id, max_power_kw, ocpp_version, status, twenty_four_seven_open_status, availability, availability_freshness, is_favorite, connectors]
+      required: [id, hub_id, charger_id, max_power_kw, ocpp_version, status, twenty_four_seven_open_status, availability, availability_freshness, can_charge, chargeability_reason, is_favorite, connectors]
       properties:
         id: {type: string, format: uuid}
         hub_id: {type: string, format: uuid}
@@ -7800,6 +7859,11 @@ components:
           type: string
           enum: [FRESH, STALE, UNKNOWN]
           description: Freshness of the committed parent charger connection projection.
+        can_charge:
+          type: boolean
+          description: Current customer-specific decision for a normal/default AUTO charging start. It is not a reservation; POST revalidates at command time and explicit selected limits are evaluated separately.
+        chargeability_reason:
+          $ref: "#/components/schemas/CustomerChargeabilityReason"
         is_favorite: {type: boolean}
         connectors:
           type: array
@@ -7809,7 +7873,7 @@ components:
     CustomerConnector:
       type: object
       additionalProperties: false
-      required: [id, connector_number, connector_type, connector_total_capacity, status, availability, freshness]
+      required: [id, connector_number, connector_type, connector_total_capacity, status, availability, freshness, can_charge, chargeability_reason]
       properties:
         id: {type: string, format: uuid}
         connector_number: {type: integer, minimum: 1}
@@ -7824,6 +7888,48 @@ components:
         freshness:
           type: string
           enum: [FRESH, STALE, UNKNOWN]
+        can_charge:
+          type: boolean
+          description: Current customer-specific default-start decision for this connector. It is not derived by the frontend from availability.
+        chargeability_reason:
+          $ref: "#/components/schemas/CustomerChargeabilityReason"
+
+    CustomerChargeabilityReason:
+      type: string
+      enum: [AVAILABLE, NO_CHARGEABLE_CONNECTOR, CPO_NOT_ACTIVE, COMMERCIAL_ADMISSION_BLOCKED, HAL_UNAVAILABLE, CHARGER_NOT_AVAILABLE, CONNECTOR_NOT_AVAILABLE, CHARGER_OFFLINE, CHARGER_STATE_UNKNOWN, CHARGER_STALE, CONNECTOR_STATE_UNKNOWN, CONNECTOR_STALE, CONNECTOR_FAULTED, START_IN_PROGRESS, CONNECTOR_OCCUPIED, MAPPING_UNAVAILABLE, NO_ELIGIBLE_TARIFF, UNSUPPORTED_TARIFF_PRICING, HUB_GST_UNAVAILABLE, WALLET_MINIMUM_BALANCE_NOT_MET, INSUFFICIENT_WALLET_BALANCE]
+      description: Stable machine-readable explanation for the current customer chargeability decision. It intentionally exposes no wallet amounts, tenant-private inventory, or diagnostics. CHARGER_OFFLINE is distinct from unknown or stale live evidence.
+
+    CustomerConnectorChargeability:
+      type: object
+      additionalProperties: false
+      required: [connector_id, connector_number, can_charge, chargeability_reason]
+      properties:
+        connector_id: {type: string, format: uuid}
+        connector_number: {type: integer, minimum: 1}
+        can_charge: {type: boolean}
+        chargeability_reason: {$ref: "#/components/schemas/CustomerChargeabilityReason"}
+
+    CustomerChargerChargeability:
+      type: object
+      additionalProperties: false
+      required: [charger_id, can_charge, chargeability_reason, connectors]
+      properties:
+        charger_id: {type: string, pattern: "^[a-z0-9]{6}$"}
+        can_charge: {type: boolean}
+        chargeability_reason: {$ref: "#/components/schemas/CustomerChargeabilityReason"}
+        connectors:
+          type: array
+          items: {$ref: "#/components/schemas/CustomerConnectorChargeability"}
+
+    CustomerChargeabilityResponse:
+      type: object
+      additionalProperties: false
+      required: [as_of, chargers]
+      properties:
+        as_of: {type: string, format: date-time}
+        chargers:
+          type: array
+          items: {$ref: "#/components/schemas/CustomerChargerChargeability"}
 
     CustomerChargerListResponse:
       type: object

@@ -1,5 +1,63 @@
 # AI Changelog
 
+## 2026-09-03 - Add published User App customer chargeability projection
+
+- Added one batched `customerauth` read evaluator shared by customer
+  charger-list/detail/hub/favorite projections, a compact
+  `GET /api/v1/app/operations/charger-chargeability` read, and one bounded
+  full-replacement SSE stream. The projection uses committed CPO commercial
+  admission, administrative inventory, mapping readiness, HAL-derived live
+  freshness/state, unresolved intents, occupying sessions, tariff/GST, wallet
+  holds, minimum balance, buffer, and normal AUTO-limit affordability.
+- Availability remains independent. In particular, an `ACTIVE`,
+  `STOP_PENDING`, or `RECONCILIATION_REQUIRED` CMS session blocks the connector
+  even when OCPP last reported `Available`; a fresh `Preparing` connector
+  remains eligible through `AllowsCMSControlledStart`.
+- Reason codes preserve already-materialized live evidence precisely:
+  `CHARGER_OFFLINE` is not used for unknown or stale state. The projection
+  consumes existing `liveops` operational predicates and deliberately does not
+  change their lower-level `OFFLINE`/`UNKNOWN`/`STALE` semantics.
+- Added stable reason codes, deterministic normalized public-ID input (1–100),
+  visibility-safe omission, fingerprinted CPO-event wake-up/reprojection,
+  OpenAPI, realtime/User App contracts, unit/SSE tests, and a gated PostgreSQL
+  integration test. The evaluator is strictly read-only and POST remains the
+  locked final authority.
+
+Verification: `./scripts/verify-docs.ps1`, `go test ./...`, `go vet ./...`,
+`go build ./...`, and the runtime/OpenAPI route test pass. PostgreSQL-gated
+integration coverage is skipped because `TEST_DATABASE_URL` is intentionally
+unset. Source checkpoint `01cd88d` is published and was rebuilt as revision
+`c6f3ab5`; the active binary SHA-256 is
+`97dbe45cdf392d161c0078dc54163e454d04c702a2bfb2d303fd7afdd2f2c2a0`. The
+previous binary is retained at
+`/root/evcmsnew-backups/pre-c6f3ab5-stale-20260903T145820+0530/evcmsnew`.
+Migration 000060 was already current; no database mutation was required.
+Post-rehost local/public readiness, Swagger/OpenAPI (224 operations), Caddy,
+and worker-incarnation checks pass. The PowerShell documentation verifier
+remains unavailable because `pwsh` is not installed.
+
+## 2026-09-03 - Deploy charging-trace root identity enrichment
+
+- Trace roots now bind the durable CMS command identity at command creation and
+  the CMS session, HAL transaction, and OCPP transaction identities at
+  authoritative session materialization. The updates are monotonic and remain
+  diagnostic evidence only; no charging or commercial authority moved.
+- Added regression coverage for root linkage and PostgreSQL-backed
+  reconciliation evidence. No migration or data repair was required.
+
+Revision `ab1ab54` was rebuilt from canonical `main` and rehosted. The active
+binary SHA-256 is
+`70cd1e14381d3584e7cf893f64a7b5fca108108a84b8c766cc2303601a075606`. The
+previous binary is retained at
+`/root/evcmsnew-backups/pre-ab1ab54-stale-20260903T1138IST`.
+
+Verification: focused trace/CPO/customer/routes tests, full `go test -p 1
+./...`, `go vet -p 1 ./...`, production build, local/public live and readiness,
+Swagger/OpenAPI (222 operations), Caddy validation, migration state, fresh
+worker-incarnation checks, and post-rehost startup checks pass. PostgreSQL
+integration remains skipped without `TEST_DATABASE_URL`; the PowerShell
+documentation verifier remains unavailable because `pwsh` is not installed.
+
 ## 2026-09-03 - Deploy CMS charging-trace linkage, commercial evidence, and hub analytics
 
 - Added monotonic local trace-root linkage for CMS start intent, command, and
