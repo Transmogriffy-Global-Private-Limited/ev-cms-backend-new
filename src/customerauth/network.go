@@ -118,6 +118,8 @@ type CustomerChargerView struct {
 	DistanceKM            *float64                `json:"distance_km,omitempty"`
 	Availability          string                  `json:"availability"`
 	AvailabilityFreshness string                  `json:"availability_freshness"`
+	CanCharge             bool                    `json:"can_charge"`
+	ChargeabilityReason   string                  `json:"chargeability_reason"`
 	IsFavorite            bool                    `json:"is_favorite"`
 	Connectors            []CustomerConnectorView `json:"connectors"`
 }
@@ -142,7 +144,7 @@ func (service *Service) ListCustomerChargers(ctx context.Context, principal Prin
 		}
 		chargers = append(chargers, view)
 	}
-	if err := service.overlayCustomerChargerLiveStates(ctx, principal.CPOID, chargers); err != nil {
+	if err := service.enrichCustomerChargerChargeability(ctx, principal, chargers); err != nil {
 		return CustomerChargerListResponse{}, err
 	}
 	return CustomerChargerListResponse{
@@ -255,6 +257,8 @@ type CustomerConnectorView struct {
 	Status                 constants.ChargerStatus `json:"status"`
 	Availability           string                  `json:"availability"`
 	Freshness              string                  `json:"freshness"`
+	CanCharge              bool                    `json:"can_charge"`
+	ChargeabilityReason    string                  `json:"chargeability_reason"`
 }
 
 func (service *Service) ListCustomerHubs(ctx context.Context, principal Principal, query CustomerHubListQuery) (CustomerHubListResponse, error) {
@@ -322,7 +326,7 @@ func (service *Service) GetCustomerHub(ctx context.Context, principal Principal,
 	for _, charger := range record.Chargers {
 		chargers = append(chargers, customerChargerView(charger, favoriteChargers[charger.ID]))
 	}
-	if err := service.overlayCustomerChargerLiveStates(ctx, principal.CPOID, chargers); err != nil {
+	if err := service.enrichCustomerChargerChargeability(ctx, principal, chargers); err != nil {
 		return CustomerHubView{}, err
 	}
 	return CustomerHubView{CustomerHubSummary: customerHubSummary(record, favoriteHubs[record.ID]), Chargers: chargers}, nil
@@ -351,7 +355,7 @@ func (service *Service) GetCustomerCharger(ctx context.Context, principal Princi
 	}
 	view := customerChargerView(charger, favoriteChargers[charger.ID])
 	views := []CustomerChargerView{view}
-	if err := service.overlayCustomerChargerLiveStates(ctx, principal.CPOID, views); err != nil {
+	if err := service.enrichCustomerChargerChargeability(ctx, principal, views); err != nil {
 		return CustomerChargerView{}, err
 	}
 	return views[0], nil
@@ -484,12 +488,13 @@ func customerChargerView(record models.Charger, favorite bool) CustomerChargerVi
 			Status:                 connector.Status,
 			Availability:           customerAvailabilityUnknown,
 			Freshness:              customerAvailabilityUnknown,
+			ChargeabilityReason:    chargeabilityConnectorUnavailable,
 		})
 		if connector.Status != constants.ChargerStatusActive {
 			connectors[len(connectors)-1].Availability = "UNAVAILABLE"
 		}
 	}
-	view := CustomerChargerView{ID: record.ID, HubID: hubID, ChargerID: record.ChargerID, ChargerName: record.ChargerName, Vendor: record.Vendor, Model: record.Model, MaxPowerKW: record.MaxPowerKW, OCPPVersion: record.OCPPVersion, Status: record.Status, ChargerImageURL: customerChargerImageURL(record), ChargerType: record.ChargerType, Segment: record.Segment, SubSegment: record.SubSegment, ChargerUseType: record.ChargerUseType, Parking: record.Parking, TwentyFourSevenOpen: record.TwentyFourSevenOpen, Availability: customerAvailabilityUnknown, AvailabilityFreshness: customerAvailabilityUnknown, IsFavorite: favorite, Connectors: connectors}
+	view := CustomerChargerView{ID: record.ID, HubID: hubID, ChargerID: record.ChargerID, ChargerName: record.ChargerName, Vendor: record.Vendor, Model: record.Model, MaxPowerKW: record.MaxPowerKW, OCPPVersion: record.OCPPVersion, Status: record.Status, ChargerImageURL: customerChargerImageURL(record), ChargerType: record.ChargerType, Segment: record.Segment, SubSegment: record.SubSegment, ChargerUseType: record.ChargerUseType, Parking: record.Parking, TwentyFourSevenOpen: record.TwentyFourSevenOpen, Availability: customerAvailabilityUnknown, AvailabilityFreshness: customerAvailabilityUnknown, ChargeabilityReason: chargeabilityNoChargeableConnector, IsFavorite: favorite, Connectors: connectors}
 	if record.Hub != nil {
 		open24Hours := record.Hub.Open24Hours
 		view.HubName = record.Hub.Name

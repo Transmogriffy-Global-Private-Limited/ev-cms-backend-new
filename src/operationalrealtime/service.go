@@ -185,6 +185,30 @@ func (service *Service) LatestCPOChargerAvailabilityEventID(ctx context.Context,
 	return eventID, nil
 }
 
+// LatestCPOChargeabilityEventID intentionally watches every retained CPO
+// operational event. Chargeability has commercial, inventory, wallet, and
+// session dependencies in addition to live OCPP state; event payloads merely
+// wake a fresh projection and are never exposed or treated as authority.
+func (service *Service) LatestCPOChargeabilityEventID(ctx context.Context, cpoID uuid.UUID) (int64, error) {
+	if cpoID == uuid.Nil {
+		return 0, fmt.Errorf("CPO ID is required")
+	}
+	var eventID int64
+	if err := service.database.WithContext(ctx).Model(&models.OperationalEvent{}).
+		Where("cpo_id = ? AND expires_at > ?", cpoID, service.now()).
+		Select("COALESCE(MAX(id), 0)").Scan(&eventID).Error; err != nil {
+		return 0, fmt.Errorf("load latest chargeability event: %w", err)
+	}
+	return eventID, nil
+}
+
+// ListCPOChargeabilityEvents returns only a wake-up cursor for the batch
+// chargeability projection. A complete read projection follows any event, so
+// this intentionally does not let clients infer state from event payloads.
+func (service *Service) ListCPOChargeabilityEvents(ctx context.Context, cpoID uuid.UUID, after int64, limit int) (Page, error) {
+	return service.list(ctx, cpoID, nil, after, limit, "", nil)
+}
+
 // ListCustomerLiveProjectionEvents returns only committed events that can
 // affect one current live-session collection. A newly materialized session is
 // always customer-scoped, so it remains visible even when its charger was not

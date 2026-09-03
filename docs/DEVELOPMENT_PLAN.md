@@ -113,6 +113,7 @@ Current phase:
 
 Active work:
 
+- `docs/work/active/WI-20260903-customer-chargeability-projection.md`.
 - `docs/work/active/WI-20260812-cms-hal-operational-capabilities.md`.
 - `docs/work/active/WI-20260826-customer-selected-session-limits.md`.
 - `docs/work/active/WI-20260901-charging-transaction-trace.md` root-identity
@@ -125,7 +126,19 @@ Approved current slice:
   money limit. Tariff billing basis remains independent from the selected stop
   limit; no parallel charging flow is permitted.
 
+- Add a side-effect-free User App `can_charge` projection for normal AUTO
+  starts. It must share current StartCharging semantic predicates where safe,
+  remain distinct from operational availability, preserve POST as locked final
+  authority, and expose one bounded public-charger-ID REST/SSE batch surface.
+
 Current implementation state:
+
+- Customer AUTO-start chargeability is implemented in the current uncommitted
+  source worktree under
+  `docs/work/active/WI-20260903-customer-chargeability-projection.md`. It is
+  an additive, side-effect-free customer projection and batch REST/SSE
+  contract; repository verification passes and human-authorized publication
+  remains pending. It does not alter StartCharging's transactional authority.
 
 - Mail-outbox template-catalogue correction is deployed under
   `docs/work/archive/WI-20260831-mail-outbox-template-catalog.md`. Migration

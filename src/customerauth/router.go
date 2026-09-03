@@ -83,6 +83,8 @@ func RegisterRoutes(group *gin.RouterGroup, service *Service) {
 	protected.GET("/operations/live-sessions/snapshot", handler.liveChargingSessionsSnapshot)
 	protected.GET("/operations/live-sessions/realtime/stream", handler.liveChargingSessionsStream)
 	protected.GET("/operations/charger-availability", handler.chargerAvailabilityStream)
+	protected.GET("/operations/charger-chargeability", handler.chargerChargeability)
+	protected.GET("/operations/charger-chargeability/stream", handler.chargerChargeabilityStream)
 	protected.GET("/favorites", handler.listFavorites)
 	protected.PUT("/favorite-hubs/:hub_id", handler.addFavoriteHub)
 	protected.DELETE("/favorite-hubs/:hub_id", handler.removeFavoriteHub)
@@ -377,7 +379,11 @@ func (handler *Handler) chargerAvailabilityStream(ctx *gin.Context) {
 		writeError(ctx, &APIError{http.StatusServiceUnavailable, "realtime_unavailable", "Realtime charger updates are temporarily unavailable."})
 		return
 	}
-	cursor, err := handler.service.operationalEvents.LatestCPOChargerAvailabilityEventID(ctx.Request.Context(), principal.CPOID)
+	// The established stream retains its availability event name, but its full
+	// CustomerCharger projection now includes chargeability. Watch the complete
+	// tenant operational wake-up set so wallet/session/commercial changes do not
+	// wait for a new OCPP status packet; fingerprints suppress false updates.
+	cursor, err := handler.service.operationalEvents.LatestCPOChargeabilityEventID(ctx.Request.Context(), principal.CPOID)
 	if err != nil {
 		writeError(ctx, err)
 		return
@@ -407,7 +413,7 @@ func (handler *Handler) chargerAvailabilityStream(ctx *gin.Context) {
 		case <-ctx.Request.Context().Done():
 			return
 		case <-pollTicker.C:
-			page, err := handler.service.operationalEvents.ListCPOChargerAvailabilityEvents(ctx.Request.Context(), principal.CPOID, snapshot.ID, customerChargerConnectorIDs(snapshot), cursor, batchSize)
+			page, err := handler.service.operationalEvents.ListCPOChargeabilityEvents(ctx.Request.Context(), principal.CPOID, cursor, batchSize)
 			if err != nil || len(page.Events) == 0 {
 				continue
 			}
@@ -431,6 +437,115 @@ func (handler *Handler) chargerAvailabilityStream(ctx *gin.Context) {
 			ctx.Writer.Flush()
 		}
 	}
+}
+
+func (handler *Handler) chargerChargeability(ctx *gin.Context) {
+	principal, ok := CurrentPrincipal(ctx)
+	if !ok {
+		writeError(ctx, errUnauthorized)
+		return
+	}
+	response, err := handler.service.ListCustomerChargerChargeability(ctx.Request.Context(), principal, customerChargeabilityIDsQuery(ctx))
+	if err != nil {
+		writeError(ctx, err)
+		return
+	}
+	ctx.JSON(http.StatusOK, response)
+}
+
+// chargerChargeabilityStream is one bounded batch stream for list/card UIs.
+// Each frame is a full replacement projection, so the browser never rebuilds
+// business eligibility from availability, wallet, or event fragments.
+func (handler *Handler) chargerChargeabilityStream(ctx *gin.Context) {
+	principal, token, ok := customerStreamPrincipal(ctx)
+	if !ok {
+		return
+	}
+	ids, err := normalizeCustomerChargerIDs(customerChargeabilityIDsQuery(ctx))
+	if err != nil {
+		writeError(ctx, err)
+		return
+	}
+	if handler.service.operationalEvents == nil {
+		writeError(ctx, &APIError{http.StatusServiceUnavailable, "realtime_unavailable", "Realtime chargeability updates are temporarily unavailable."})
+		return
+	}
+	cursor, err := handler.service.operationalEvents.LatestCPOChargeabilityEventID(ctx.Request.Context(), principal.CPOID)
+	if err != nil {
+		writeError(ctx, err)
+		return
+	}
+	snapshot, err := handler.service.ListCustomerChargerChargeability(ctx.Request.Context(), principal, ids)
+	if err != nil {
+		writeError(ctx, err)
+		return
+	}
+	fingerprint, err := customerChargeabilityFingerprint(snapshot)
+	if err != nil {
+		writeError(ctx, err)
+		return
+	}
+	prepareSSE(ctx)
+	if err := writeProjectionSSE(ctx.Writer, "snapshot", cursor, snapshot); err != nil {
+		return
+	}
+	ctx.Writer.Flush()
+
+	poll, heartbeat, batchSize := handler.service.OperationalStreamTiming()
+	pollTicker, heartbeatTicker := time.NewTicker(poll), time.NewTicker(heartbeat)
+	defer pollTicker.Stop()
+	defer heartbeatTicker.Stop()
+	for {
+		select {
+		case <-ctx.Request.Context().Done():
+			return
+		case <-pollTicker.C:
+			page, err := handler.service.operationalEvents.ListCPOChargeabilityEvents(ctx.Request.Context(), principal.CPOID, cursor, batchSize)
+			if err != nil || len(page.Events) == 0 {
+				continue
+			}
+			cursor = page.NextCursor
+			snapshot, fingerprint, err = handler.refreshCustomerChargeability(ctx, principal, ids, cursor, snapshot, fingerprint)
+			if err != nil {
+				return
+			}
+		case <-heartbeatTicker.C:
+			if !handler.customerStreamStillAuthorized(ctx.Request.Context(), token, principal, ctx.GetHeader(CPOAppIDHeader)) {
+				return
+			}
+			snapshot, fingerprint, err = handler.refreshCustomerChargeability(ctx, principal, ids, cursor, snapshot, fingerprint)
+			if err != nil {
+				return
+			}
+			if _, err := fmt.Fprintf(ctx.Writer, ": heartbeat %s\n\n", time.Now().UTC().Format(time.RFC3339)); err != nil {
+				return
+			}
+			ctx.Writer.Flush()
+		}
+	}
+}
+
+func customerChargeabilityIDsQuery(ctx *gin.Context) []string {
+	return ctx.QueryArray("charger_ids")
+}
+
+func (handler *Handler) refreshCustomerChargeability(ctx *gin.Context, principal Principal, ids []string, cursor int64, previous CustomerChargeabilityResponse, previousFingerprint []byte) (CustomerChargeabilityResponse, []byte, error) {
+	next, err := handler.service.ListCustomerChargerChargeability(ctx.Request.Context(), principal, ids)
+	if err != nil {
+		return previous, previousFingerprint, err
+	}
+	fingerprint, err := customerChargeabilityFingerprint(next)
+	if err != nil {
+		return previous, previousFingerprint, err
+	}
+	if bytes.Equal(previousFingerprint, fingerprint) {
+		return next, fingerprint, nil
+	}
+	if err := writeProjectionSSE(ctx.Writer, "charger_chargeability", cursor, next); err != nil {
+		return previous, previousFingerprint, err
+	}
+	ctx.Writer.Flush()
+	return next, fingerprint, nil
 }
 
 func (handler *Handler) refreshCustomerCharger(ctx *gin.Context, principal Principal, publicChargerID string, cursor int64, previous CustomerChargerView, previousFingerprint []byte) (CustomerChargerView, []byte, error) {
@@ -489,6 +604,11 @@ func writeProjectionSSE(writer io.Writer, eventType string, eventID int64, proje
 }
 
 func customerLiveSessionFingerprint(snapshot CustomerLiveChargingSessionListResponse) ([]byte, error) {
+	snapshot.AsOf = time.Time{}
+	return json.Marshal(snapshot)
+}
+
+func customerChargeabilityFingerprint(snapshot CustomerChargeabilityResponse) ([]byte, error) {
 	snapshot.AsOf = time.Time{}
 	return json.Marshal(snapshot)
 }

@@ -277,7 +277,32 @@ export type CustomerConnector = {
   connector_total_capacity: number;
   status: CustomerNetworkStatus;
   availability: "UNKNOWN";
+  can_charge: boolean;
+  chargeability_reason: CustomerChargeabilityReason;
 };
+
+export type CustomerChargeabilityReason =
+  | "AVAILABLE"
+  | "NO_CHARGEABLE_CONNECTOR"
+  | "CPO_NOT_ACTIVE"
+  | "COMMERCIAL_ADMISSION_BLOCKED"
+  | "HAL_UNAVAILABLE"
+  | "CHARGER_NOT_AVAILABLE"
+  | "CONNECTOR_NOT_AVAILABLE"
+  | "CHARGER_OFFLINE"
+  | "CHARGER_STATE_UNKNOWN"
+  | "CHARGER_STALE"
+  | "CONNECTOR_STATE_UNKNOWN"
+  | "CONNECTOR_STALE"
+  | "CONNECTOR_FAULTED"
+  | "START_IN_PROGRESS"
+  | "CONNECTOR_OCCUPIED"
+  | "MAPPING_UNAVAILABLE"
+  | "NO_ELIGIBLE_TARIFF"
+  | "UNSUPPORTED_TARIFF_PRICING"
+  | "HUB_GST_UNAVAILABLE"
+  | "WALLET_MINIMUM_BALANCE_NOT_MET"
+  | "INSUFFICIENT_WALLET_BALANCE";
 
 export type CustomerCharger = {
   id: string;
@@ -303,6 +328,8 @@ export type CustomerCharger = {
   hub_open_24_hours?: boolean;
   distance_km?: number;
   availability: "UNKNOWN";
+  can_charge: boolean;
+  chargeability_reason: CustomerChargeabilityReason;
   is_favorite: boolean;
   connectors: CustomerConnector[];
 };
@@ -312,6 +339,21 @@ export type CustomerChargerList = {
   next_before?: string;
   next_before_id?: string;
   has_more: boolean;
+};
+
+export type CustomerChargeability = {
+  as_of: string;
+  chargers: Array<{
+    charger_id: string;
+    can_charge: boolean;
+    chargeability_reason: CustomerChargeabilityReason;
+    connectors: Array<{
+      connector_id: string;
+      connector_number: number;
+      can_charge: boolean;
+      chargeability_reason: CustomerChargeabilityReason;
+    }>;
+  }>;
 };
 
 export type CustomerChargerLocation = {
@@ -461,6 +503,8 @@ alter the separate customer-selected time-bounded-session cutoff workflow.
 | `GET /operations/live-sessions/snapshot` | Yes | `200 CustomerLiveChargingSessionListResponse` | JSON read/recovery surface with the same complete live-session projection. |
 | `GET /operations/live-sessions/realtime/stream` | Yes | `200 text/event-stream` | Deprecated alias of the primary live-session stream. |
 | `GET /operations/charger-availability?charger_id={public_id}` | Yes | `200 text/event-stream` | Full-state stream for one customer-visible charger's current connector availability. |
+| `GET /operations/charger-chargeability?charger_ids={public_id}[,...]` | Yes | `200 CustomerChargeability` | Compact current default/AUTO-start decision for 1–100 public charger IDs. |
+| `GET /operations/charger-chargeability/stream?charger_ids={public_id}[,...]` | Yes | `200 text/event-stream` | One batch full-replacement chargeability stream for 1–100 public charger IDs. |
 | `GET /auth/sessions` | Yes | `200 SessionList` | List this account's active sessions. |
 | `DELETE /auth/sessions/{session_id}` | Yes | `204` | Revoke one owned session. |
 | `POST /auth/logout` | Yes | `204` | Revoke current session. |
@@ -906,6 +950,63 @@ can advance even when no new HAL fact arrives. The matching JSON read is
 `GET /operations/live-sessions/snapshot`. The `/realtime/stream` alias is
 deprecated and has exactly the same frames.
 
+#### Customer chargeability: render the server decision, never reconstruct it
+
+Every full `CustomerCharger` (charger list, detail, hub detail, favorites, and
+selected-charger SSE) includes `can_charge` and `chargeability_reason` on the
+charger and each connector. Connector `can_charge` is the actual answer.
+Charger `can_charge` is true when any connector is true; a fully blocked
+charger reports `NO_CHARGEABLE_CONNECTOR` even when connector reasons differ.
+
+This decision uses committed customer/CPO commercial state, wallet and held
+funds, tariff/GST eligibility, administrative status, mapping/readiness,
+HAL-derived connection and connector state/freshness, and durable unresolved
+start/session occupancy. It is separate from `availability`: a connector can
+be operationally `AVAILABLE` while `can_charge=false` because an `ACTIVE`,
+`STOP_PENDING`, or `RECONCILIATION_REQUIRED` CMS session occupies it. A fresh,
+online OCPP `Preparing` connector can be chargeable because CMS-controlled
+start intentionally supports that state.
+
+Do not collapse the reason codes into a presentation availability label:
+`CHARGER_OFFLINE` asserts the currently materialized parent state is offline,
+whereas `CHARGER_STATE_UNKNOWN`, `CHARGER_STALE`,
+`CONNECTOR_STATE_UNKNOWN`, and `CONNECTOR_STALE` preserve the distinct lack or
+age of current live evidence. This endpoint consumes the existing `liveops`
+state and `AllowsCMSControlledStart` predicate; it does **not** redefine the
+underlying HAL/CMS `OFFLINE`/`UNKNOWN`/`STALE` operational-state semantics.
+
+`can_charge=true` is **not a reservation**. It means current committed state
+permits normal AUTO/default charging. `POST /charging-sessions` rechecks every
+gate under locks, performs mapping delivery, protects races, and separately
+validates a selected ENERGY, TIME, or MONEY limit. Render `can_charge`
+directly; do not reimplement business rules from availability, status, wallet,
+or the reason code.
+
+For card/list batches use one request, never one detail request per charger:
+
+```text
+GET /operations/charger-chargeability?charger_ids=8d2bd0,abc123
+```
+
+The query accepts repeated or comma-separated public IDs, trims/lowercases/
+deduplicates them, and accepts at most 100. Unknown, cross-CPO, unpublished,
+or no-longer-visible IDs are omitted intentionally; omission does not prove
+inventory existence. The compact response has no charger metadata, so retain
+the existing list/detail payload for display fields.
+
+For many visible cards use exactly one authorized fetch-SSE connection:
+
+```text
+GET /operations/charger-chargeability/stream?charger_ids=8d2bd0,abc123
+```
+
+Initial `snapshot` and later `charger_chargeability` frames are complete
+`CustomerChargeability` replacements. Index the array by public `charger_id`;
+never apply deltas or infer state from event payloads. The server wakes from
+committed CPO operational events and periodically reprojects, covering wallet,
+session, administrative, commercial, mapping, and freshness changes without a
+new OCPP StatusNotification. Reconnect starts with a new snapshot.
+
 #### Selected charger availability: replace the whole charger object
 
 When a charger detail screen is active, open one additional stream for that
@@ -919,7 +1020,7 @@ GET /operations/charger-availability?charger_id=8d2bd0
 never send the internal UUID. The initial event is `snapshot`; later changes
 are `charger_availability`. Every data value is the complete existing
 `CustomerCharger` object, including static safe fields, `is_favorite`, parent
-availability/freshness, and every connector. Apply it directly:
+availability/freshness, chargeability, and every connector. Apply it directly:
 `state.selectedCharger = frame.data`. Do not invent browser availability rules
 or refetch REST after a frame. Connection/connector freshness is periodically
 reprojected, and the stream closes if the token, app scope, or customer

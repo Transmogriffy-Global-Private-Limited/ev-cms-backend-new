@@ -1,5 +1,33 @@
 # AI Changelog
 
+## 2026-09-03 - Add locally verified User App customer chargeability projection
+
+- Added one batched `customerauth` read evaluator shared by customer
+  charger-list/detail/hub/favorite projections, a compact
+  `GET /api/v1/app/operations/charger-chargeability` read, and one bounded
+  full-replacement SSE stream. The projection uses committed CPO commercial
+  admission, administrative inventory, mapping readiness, HAL-derived live
+  freshness/state, unresolved intents, occupying sessions, tariff/GST, wallet
+  holds, minimum balance, buffer, and normal AUTO-limit affordability.
+- Availability remains independent. In particular, an `ACTIVE`,
+  `STOP_PENDING`, or `RECONCILIATION_REQUIRED` CMS session blocks the connector
+  even when OCPP last reported `Available`; a fresh `Preparing` connector
+  remains eligible through `AllowsCMSControlledStart`.
+- Reason codes preserve already-materialized live evidence precisely:
+  `CHARGER_OFFLINE` is not used for unknown or stale state. The projection
+  consumes existing `liveops` operational predicates and deliberately does not
+  change their lower-level `OFFLINE`/`UNKNOWN`/`STALE` semantics.
+- Added stable reason codes, deterministic normalized public-ID input (1–100),
+  visibility-safe omission, fingerprinted CPO-event wake-up/reprojection,
+  OpenAPI, realtime/User App contracts, unit/SSE tests, and a gated PostgreSQL
+  integration test. The evaluator is strictly read-only and POST remains the
+  locked final authority.
+
+Verification: `./scripts/verify-docs.ps1`, `go test ./...`, `go vet ./...`,
+`go build ./...`, and the runtime/OpenAPI route test pass. PostgreSQL-gated
+integration coverage is skipped because `TEST_DATABASE_URL` is intentionally
+unset. No migration, database mutation, deployment, commit, or push occurred.
+
 ## 2026-09-03 - Deploy charging-trace root identity enrichment
 
 - Trace roots now bind the durable CMS command identity at command creation and

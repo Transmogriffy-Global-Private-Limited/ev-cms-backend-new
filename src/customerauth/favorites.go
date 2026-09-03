@@ -192,7 +192,7 @@ func (service *Service) ListCustomerFavorites(ctx context.Context, principal Pri
 				response.Chargers = append(response.Chargers, customerChargerView(charger, true))
 			}
 		}
-		if err := service.overlayCustomerChargerLiveStates(ctx, principal.CPOID, response.Chargers); err != nil {
+		if err := service.enrichCustomerChargerChargeability(ctx, principal, response.Chargers); err != nil {
 			return CustomerFavoritesResponse{}, err
 		}
 	}
