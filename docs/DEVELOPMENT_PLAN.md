@@ -1133,8 +1133,7 @@ Current phase:
 
 Active feature:
 
-- Charging-session projection coherence: customer charger hydration plus CPO
-  normal/live static-field parity.
+- Charging-trace commercial evidence and tenant-scoped hub analytics.
 
 Current implementation slice:
 
@@ -1143,8 +1142,12 @@ Current implementation slice:
   start-limit type/value. It uses current tariff/GST only as a legacy fallback,
   preserves the separate tariff billing and customer limit dimensions, and
   keeps start-intent hydration bounded and CPO-scoped. No pricing calculation,
-  migration, or data mutation was required. Runtime revision `e5ff8c0` is
-  active with migration 060 and 221 OpenAPI operations.
+  migration, or data mutation was required. Runtime revision `a46b50a` is
+  active with migration 060 and 222 OpenAPI operations.
+- Deployed CPO hub analytics: `GET /api/v1/cpo/hubs/{hub_id}/analytics` first
+  validates same-CPO Hub ownership, then returns period/date-filtered session
+  aggregates plus the Hub's charger projections. It is read-only, requires
+  `analytics.read`, and introduces no migration or HAL dependency.
 - Deployed baseline trace slice: additive cross-stack trace evidence. CMS creates an opaque
   trace ID before command delivery, persists sanitized APP/CMS diagnostic
   evidence, exposes tenant-scoped `charging_traces.read` queries, and merges
@@ -1152,7 +1155,7 @@ Current implementation slice:
   connector-aware OCPP evidence under the same root (or creates a HAL-owned
   root for a charger-initiated transaction). Trace data is never authority for
   sessions, connector state, wallet/billing, or OCPP acknowledgement. CMS
-  migration 000059 is applied and revision `e5ff8c0` is active with 221
+  migration 000059 is applied and revision `a46b50a` is active with 222
   OpenAPI operations. HAL migration 018 and paired reconciliation remain
   pending in the counterpart repository.
 - Deployed Task 2 replaces the deployed query-time diagnostic
@@ -1160,7 +1163,7 @@ Current implementation slice:
   /v1/hal-trace-events` ingress. It adds CMS trace-root adoption, immutable
   event digest/idempotency, CMS-only static CPO reads, and replayable CPO SSE;
   `/v1/hal-facts` remains untouched. CMS migration 000060 is applied and the
-  CMS runtime is revision `e5ff8c0`; matching HAL migration 019 remains a
+  CMS runtime is revision `a46b50a`; matching HAL migration 019 remains a
   separate counterpart deployment concern. See
   `docs/work/archive/WI-20260902-hal-trace-push-pipeline.md`.
 - Completed and deployed CPO UAC authority coherence: protected CPO routes use
@@ -1169,7 +1172,7 @@ Current implementation slice:
   from evaluator infrastructure failure, aligns support and integrations,
   revokes only matching CPO sessions on an actual role change, preserves fresh
   SSE authorization, and verifies OpenAPI Bearer+App-ID AND semantics. Runtime
-  revision `e5ff8c0` is active with migration 060, 221 OpenAPI operations, and
+  revision `a46b50a` is active with migration 060, 222 OpenAPI operations, and
   verified readiness/public routing; PostgreSQL-gated lifecycle cases remain
   deferred without `TEST_DATABASE_URL`.
 - CPO `chargers.operations` live-session operations: `GET /operations/live-sessions` is the
@@ -1184,7 +1187,7 @@ Current implementation slice:
   filtered event replay is advanced reconciliation only. The deployed
   customer-only correction replaces the nested-preload fallback with a bounded
   CPO-scoped charger lookup for missing customer projections. Revision
-  `e5ff8c0` is active with migration 060 and 221 OpenAPI operations; no data
+  `a46b50a` is active with migration 060 and 222 OpenAPI operations; no data
   repair was required.
 - Completed source hardening: one-current authentication challenges are
   serialized by their identity owner and backed by partial unique indexes;

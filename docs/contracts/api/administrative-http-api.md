@@ -1953,6 +1953,34 @@ persisted session `total_amount`; usage is the sum of persisted session
 the authenticated CPO. Errors are `401 unauthorized`, `403 forbidden`, or
 `500 internal_error`.
 
+### 9.4C `GET /api/v1/cpo/hubs/{hub_id}/analytics`
+
+Returns aggregate analytics and the charger projections for one Hub belonging
+to the authenticated CPO. The request requires the current CPO bearer and
+`X-CPO-App-ID`; the CPO scope comes from the verified membership and cannot be
+selected by the caller. A Hub belonging to another CPO is reported as
+`404 hub_not_found`. The read is side-effect free and does not contact the HAL.
+
+Optional query parameters:
+
+- `period`: `day`, `week`, `month`, or `year`;
+- `date`: ISO `YYYY-MM-DD` reference date for the selected period. For `day`,
+  sessions started on that date are included; `week` uses the Monday–Sunday
+  week containing the date; `month` uses the calendar month; and `year` uses
+  the calendar year. The filter is applied only when both `period` and `date`
+  are present; otherwise the aggregate is unfiltered.
+
+The response contains `hub`, `analytics`, and `chargers`. `analytics` uses the
+same decimal-string aggregates as the tenant route (`total_chargers`,
+`total_connectors`, `total_revenue`, `total_usage`, and `total_sessions`).
+`chargers` is the full CPO-scoped charger projection for the Hub, including its
+connectors and live operational fields.
+
+Malformed query binding returns `400 invalid_request`; shared `401`/`403`
+authentication and capability failures, `404 hub_not_found`, and `500
+internal_error` are also possible. Unsupported period values or malformed
+dates currently result in an unfiltered aggregate.
+
 ### 9.5 `POST /api/v1/cpo/hubs`
 
 Creates a commercial charging location. The server sources `id`, `cpo_id`, and

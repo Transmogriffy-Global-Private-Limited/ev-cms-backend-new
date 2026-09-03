@@ -4,7 +4,7 @@ Status: In Progress
 Owner: Codex
 Collaborators: None
 Started: 2026-09-01
-Last updated: 2026-09-03 (CMS trace linkage/commercial evidence source slice in progress)
+Last updated: 2026-09-03 (CMS trace linkage/commercial evidence deployed)
 
 Development-plan reference: `docs/DEVELOPMENT_PLAN.md` (charging lifecycle and CPO operations)
 Detailed-plan reference: User-approved first-class charging transaction trace / waterfall specification
@@ -61,9 +61,10 @@ state.
   command, fact, wallet, or connector authority.
 - CMS focused/full local verification, documentation/OpenAPI parity, migration
   application, and public rehost checks pass for the previously published
-  pipeline. The current uncommitted source slice fills local root linkage and
-  appends CMS commercial evidence without changing source-of-truth behavior;
-  final paired HAL reconciliation and final-status checks remain.
+  pipeline. The linkage/commercial-evidence slice is deployed in CMS revision
+  `a46b50a` with 222 OpenAPI operations. It changes no source-of-truth
+  behavior; final paired HAL reconciliation and cross-repository status remain
+  separate.
 
 ## Verification
 
@@ -78,6 +79,6 @@ state.
 
 ## Completion
 
-- The published CMS pipeline remains complete. This source-only completeness
-  slice is uncommitted and unpublished; paired HAL reconciliation remains
-  before the cross-repository feature can be marked fully complete.
+- The published CMS pipeline and this CMS completeness slice are deployed and
+  verified. Paired HAL reconciliation remains before the cross-repository
+  feature can be marked fully complete.

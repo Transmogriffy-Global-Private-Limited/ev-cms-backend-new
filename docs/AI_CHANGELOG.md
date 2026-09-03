@@ -1,6 +1,6 @@
 # AI Changelog
 
-## 2026-09-03 - Complete CMS charging-trace linkage and commercial evidence
+## 2026-09-03 - Deploy CMS charging-trace linkage, commercial evidence, and hub analytics
 
 - Added monotonic local trace-root linkage for CMS start intent, command, and
   session IDs; authenticated HAL ingress remains the sole source of later HAL
@@ -10,10 +10,24 @@
   reconciliation, debit, and settlement mutations. No billing calculation or
   charging transition was moved into trace code.
 
-Verification: focused `go test ./src/customerauth` passes locally. Full
-repository verification is recorded with this uncommitted source slice;
-PostgreSQL integration remains skipped without `TEST_DATABASE_URL`. No
-migration, database mutation, deployment, restart, commit, or push occurred.
+Added the CPO-scoped `GET /api/v1/cpo/hubs/{hub_id}/analytics` read and aligned
+its OpenAPI security declaration. It returns hub metadata, optional
+period/date-filtered aggregates, and the hub's charger projections without a
+new migration or HAL call.
+
+Migration 000060 was already applied. Revision `a46b50a` was rebuilt from
+canonical `main` and rehosted; the active binary SHA-256 is
+`ec056dbbb2945e6ee2214c407d9bd2f57ee9498dac7bd14370219f15e75f607a`. The
+previous binary is retained at
+`/root/evcmsnew-backups/pre-a46b50a-stale-20260903T1001Z`.
+
+Verification: focused CPO/customerauth/routes tests, full `go test -p 1 ./...`,
+`go vet -p 1 ./...`, production build, loopback/public live and readiness,
+Swagger/OpenAPI (222 operations), Caddy validation, migration state, and
+post-rehost startup checks pass. PostgreSQL integration remains skipped without
+`TEST_DATABASE_URL`; the PowerShell documentation verifier remains unavailable
+because `pwsh` is not installed. Physical charger, HAL-counterpart, and SMTP
+acceptance remain unclaimed.
 
 ## 2026-09-02 - Deploy database-owned diagnostic trace replay sequence
 
