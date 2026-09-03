@@ -120,7 +120,7 @@ func (service *Service) GetAnalytics(ctx context.Context, principal auth.Princip
 	if err := requireCPOContext(principal); err != nil {
 		return AnalyticsResponse{}, err
 	}
-	analytics, err := service.repository.GetAnalytics(ctx, *principal.CPOID, query)
+	analytics, err := service.repository.GetAnalytics(ctx, *principal.CPOID, nil, query)
 	if err != nil {
 		return AnalyticsResponse{}, fmt.Errorf("get analytics: %w", err)
 	}
@@ -7755,4 +7755,55 @@ func (service *Service) ListWalletTransactions(
 	}
 
 	return response, nil
+}
+
+// GetHubAnalytics returns aggregate analytics plus the full charger list (with connectors and live data) for a specific hub.
+func (service *Service) GetHubAnalytics(
+	ctx context.Context,
+	principal auth.Principal,
+	hubID uuid.UUID,
+	query AnalyticsQuery,
+) (HubAnalyticsResponse, error) {
+	if err := requireCPOContext(principal); err != nil {
+		return HubAnalyticsResponse{}, err
+	}
+	cpoID := *principal.CPOID
+
+	// 1) Validate hub belongs to CPO
+	var hub models.Hub
+	if err := service.database.WithContext(ctx).
+		First(&hub, "id = ? AND cpo_id = ?", hubID, cpoID).Error; err != nil {
+		return HubAnalyticsResponse{}, mapHubNotFound(err)
+	}
+
+	// 2) Get aggregate analytics for this hub
+	analytics, err := service.repository.GetAnalytics(ctx, cpoID, &hubID, query)
+	if err != nil {
+		return HubAnalyticsResponse{}, fmt.Errorf("get hub analytics: %w", err)
+	}
+
+	// 3) List chargers for this hub (with preloads and live data)
+	chargers, err := service.repository.ListChargersByHub(ctx, cpoID, hubID)
+	if err != nil {
+		return HubAnalyticsResponse{}, fmt.Errorf("list hub chargers: %w", err)
+	}
+
+	// Build ChargerResponse list (includes connectors and live status)
+	chargerResponses := make([]ChargerResponse, 0, len(chargers))
+	for _, charger := range chargers {
+		chargerResponses = append(chargerResponses, service.chargerView(charger, principal))
+	}
+
+	// 4) Build response
+	return HubAnalyticsResponse{
+		Hub: hubView(hub),
+		Analytics: AnalyticsResponse{
+			TotalChargers:   analytics.TotalChargers,
+			TotalConnectors: analytics.TotalConnectors,
+			TotalRevenue:    analytics.TotalRevenue,
+			TotalUsage:      analytics.TotalUsage,
+			TotalSessions:   analytics.TotalSessions,
+		},
+		Chargers: chargerResponses,
+	}, nil
 }

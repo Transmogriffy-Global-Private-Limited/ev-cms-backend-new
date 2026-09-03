@@ -4923,6 +4923,59 @@ paths:
                 $ref: "#/components/schemas/ErrorEnvelope"
         "500":
           $ref: "#/components/responses/InternalError"
+
+  /api/v1/cpo/hubs/{hub_id}/analytics:
+    get:
+      tags:
+        - CPO Operations - Account & Notifications
+      operationId: getHubAnalytics
+      summary: Get hub analytics and charger list
+      description: |
+        Returns aggregate analytics for a specific hub (total chargers, connectors, revenue, usage, sessions)
+        along with the full list of chargers (with connectors and live operational status) belonging to that hub.
+        Optionally filter session aggregates by a time period using `period` and `date` parameters.
+      security:
+        - BearerAuth: []
+        - CPOAppID: []
+      parameters:
+        - $ref: "#/components/parameters/HubID"
+        - name: period
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [day, week, month, year]
+          description: |
+            Time period for filtering session data. When omitted, overall session data is returned.
+        - name: date
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date
+          description: |
+            Reference date for the period (ISO 8601 date, YYYY-MM-DD). For `period=day` it filters sessions started on that date; for `week` it filters the Monday‑to‑Sunday week containing that date; for `month` the calendar month; for `year` the calendar year.
+      responses:
+        "200":
+          description: Hub analytics and charger list.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HubAnalyticsResponse"
+        "400":
+          $ref: "#/components/responses/InvalidRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/CPOBusinessForbidden"
+        "404":
+          description: "`hub_not_found` — no hub in this CPO has the UUID."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "500":
+          $ref: "#/components/responses/InternalError"
   /api/v1/cpo/hubs/{hub_id}/gst:
     post:
       tags:
@@ -11148,6 +11201,17 @@ components:
         total_revenue: {type: string, pattern: "^[0-9]+(?:\\.[0-9]{1,2})?$"}
         total_usage: {type: string, pattern: "^[0-9]+(?:\\.[0-9]{1,3})?$"}
         total_sessions: {type: integer, format: int64, minimum: 0}
+    HubAnalyticsResponse:
+      type: object
+      additionalProperties: false
+      required: [hub, analytics, chargers]
+      properties:
+        hub:
+          $ref: "#/components/schemas/Hub"
+        analytics:
+          $ref: "#/components/schemas/AnalyticsResponse"
+        chargers:
+          $ref: "#/components/schemas/ChargerListResponse"
 
     CPOAssetsOverview:
       type: object

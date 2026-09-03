@@ -13,7 +13,7 @@ import (
 )
 
 type Repository interface {
-	GetAnalytics(ctx context.Context, cpoID uuid.UUID, query AnalyticsQuery) (Analytics, error)
+	GetAnalytics(ctx context.Context, cpoID uuid.UUID, hubID *uuid.UUID, query AnalyticsQuery) (Analytics, error)
 	ListWalletTransactions(ctx context.Context, cpoID uuid.UUID, query WalletTransactionListQuery) ([]WalletTransactionDetail, error)
 	GetChargingSession(ctx context.Context, cpoID, sessionID uuid.UUID) (*models.ChargingSession, error)
 	ListChargingSessions(ctx context.Context, cpoID uuid.UUID, query ChargingSessionListQuery) ([]models.ChargingSession, error)
@@ -21,7 +21,6 @@ type Repository interface {
 	ListChargerTransactions(ctx context.Context, cpoID uuid.UUID, query ChargerTransactionListQuery) ([]ChargerTransaction, error)
 	ListChargersByHub(ctx context.Context, cpoID, hubID uuid.UUID) ([]models.Charger, error)
 }
-
 type repository struct {
 	db *gorm.DB
 }
@@ -42,22 +41,44 @@ type Analytics struct {
 // It should be defined in schemas.go (or alongside the repository).
 
 // GetAnalytics returns overall and optionally period‑filtered analytics.
-func (r *repository) GetAnalytics(ctx context.Context, cpoID uuid.UUID, query AnalyticsQuery) (Analytics, error) {
+// GetAnalytics returns overall or hub‑filtered analytics.
+func (r *repository) GetAnalytics(
+	ctx context.Context,
+	cpoID uuid.UUID,
+	hubID *uuid.UUID,
+	query AnalyticsQuery,
+) (Analytics, error) {
 	var analytics Analytics
 
-	// 1) Total chargers and connectors – always overall (not time‑filtered)
-	if err := r.db.WithContext(ctx).Model(&models.Charger{}).Where("cpo_id = ?", cpoID).Count(&analytics.TotalChargers).Error; err != nil {
-		return Analytics{}, err
+	// 1) Total chargers – filter by hub if given
+	dbCharger := r.db.WithContext(ctx).Model(&models.Charger{}).Where("cpo_id = ?", cpoID)
+	if hubID != nil {
+		dbCharger = dbCharger.Where("hub_id = ?", *hubID)
 	}
-	if err := r.db.WithContext(ctx).Model(&models.Connector{}).Where("cpo_id = ?", cpoID).Count(&analytics.TotalConnectors).Error; err != nil {
+	if err := dbCharger.Count(&analytics.TotalChargers).Error; err != nil {
 		return Analytics{}, err
 	}
 
-	// 2) Build session aggregation query
+	// 2) Total connectors – join with chargers to filter by hub
+	dbConnector := r.db.WithContext(ctx).Model(&models.Connector{}).
+		Joins("JOIN chargers ON chargers.id = connectors.charger_id").
+		Where("connectors.cpo_id = ?", cpoID)
+	if hubID != nil {
+		dbConnector = dbConnector.Where("chargers.hub_id = ?", *hubID)
+	}
+	if err := dbConnector.Count(&analytics.TotalConnectors).Error; err != nil {
+		return Analytics{}, err
+	}
+
+	// 3) Build session aggregation query – join with chargers to filter by hub
 	db := r.db.WithContext(ctx).Model(&models.ChargingSession{}).
-		Where("cpo_id = ?", cpoID)
+		Joins("JOIN chargers ON chargers.id = charging_sessions.charger_id").
+		Where("charging_sessions.cpo_id = ?", cpoID)
+	if hubID != nil {
+		db = db.Where("chargers.hub_id = ?", *hubID)
+	}
 
-	// 3) Apply time filter if period and date are given and valid
+	// 4) Apply time filter if period and date are given and valid
 	if query.Period != "" && query.Date != "" {
 		var start, end time.Time
 		var err error
@@ -70,10 +91,8 @@ func (r *repository) GetAnalytics(ctx context.Context, cpoID uuid.UUID, query An
 				db = db.Where("start_time >= ? AND start_time < ?", start, end)
 			}
 		case "week":
-			// Compute start of the week (Monday) from the given date
 			t, err := time.Parse("2006-01-02", query.Date)
 			if err == nil {
-				// Go's weekday: Sunday=0, Monday=1, ...
 				offset := int((t.Weekday() + 6) % 7) // days back to Monday
 				start = t.AddDate(0, 0, -offset)
 				end = start.AddDate(0, 0, 7)
@@ -94,11 +113,11 @@ func (r *repository) GetAnalytics(ctx context.Context, cpoID uuid.UUID, query An
 				db = db.Where("start_time >= ? AND start_time < ?", start, end)
 			}
 		default:
-			// Unsupported period -> ignore filter (or you may return an error)
+			// Unsupported period – ignore filter (or you may return an error)
 		}
 	}
 
-	// 4) Execute aggregation
+	// 5) Execute aggregation
 	var sessionAnalytics struct {
 		TotalRevenue  decimal.Decimal
 		TotalUsage    decimal.Decimal

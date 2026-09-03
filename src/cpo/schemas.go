@@ -955,3 +955,9 @@ type AnalyticsQuery struct {
 	Period string `form:"period"` // "day", "week", "month", "year"
 	Date   string `form:"date"`   // YYYY-MM-DD
 }
+
+type HubAnalyticsResponse struct {
+	Hub       HubView           `json:"hub"`
+	Analytics AnalyticsResponse `json:"analytics"`
+	Chargers  []ChargerResponse `json:"chargers"`
+}
