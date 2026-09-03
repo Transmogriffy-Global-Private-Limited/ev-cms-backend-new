@@ -4936,7 +4936,7 @@ paths:
         Optionally filter session aggregates by a time period using `period` and `date` parameters.
       security:
         - BearerAuth: []
-        - CPOAppID: []
+          CPOAppID: []
       parameters:
         - $ref: "#/components/parameters/HubID"
         - name: period

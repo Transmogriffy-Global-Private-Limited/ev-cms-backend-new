@@ -1,6 +1,43 @@
 # Project State
 
+## 2026-09-03 - Charging-trace commercial evidence and hub analytics deployed
+
+- CMS diagnostic roots now monotonically retain the actual start-intent,
+  command, and later session identifiers rather than leaving a locally created
+  root partially linked. HAL ingress continues to add HAL/OCPP identities only
+  from authenticated HAL evidence.
+- CMS appends sanitized CMS-to-CMS evidence for persisted admission/limits,
+  wallet holds/releases, command/reconciliation state, authoritative session
+  materialization, final frozen-snapshot charge calculation, and settlement.
+  The sanitizer permits only bounded diagnostic commercial identifiers,
+  amounts, currency, status, causes, and limits; credentials and raw payloads
+  remain excluded.
+- These append-only rows are savepoint-isolated diagnostic evidence. They do
+  not control session, wallet, pricing, fact, connector, OCPP, or command
+  authority. Migration 000060 was already applied; no additional migration or
+  data repair was needed for this release. Revision `a46b50a` is deployed
+  behind Caddy with binary SHA-256
+  `ec056dbbb2945e6ee2214c407d9bd2f57ee9498dac7bd14370219f15e75f607a` and
+  the live contract contains 222 operations. The prior binary is retained at
+  `/root/evcmsnew-backups/pre-a46b50a-stale-20260903T1001Z`.
+
+- The same release adds CPO-scoped `GET /api/v1/cpo/hubs/{hub_id}/analytics`.
+  It returns the selected hub, period/date-filtered aggregate analytics, and
+  its charger projections under the authenticated CPO; no new persistence or
+  HAL dependency is introduced.
+
 ## Current State
+
+### 2026-09-03 - Charging-trace commercial evidence and hub analytics deployed
+
+- CMS trace roots now retain start-intent, command, and session linkage, while
+  authenticated HAL ingress remains the source of later HAL/OCPP identities.
+  Sanitized CMS evidence covers admission, limits, wallet holds/releases,
+  commands, materialization, completion, reconciliation, debit, and settlement
+  without becoming charging or commercial authority.
+- The deployed revision is `a46b50a` with migration 000060 and 222 OpenAPI
+  operations. The CPO hub-analytics read is tenant-scoped and side-effect free;
+  the matching HAL deployment remains a separate concern.
 
 ### 2026-09-02 - Database-owned trace replay sequence fix deployed
 
