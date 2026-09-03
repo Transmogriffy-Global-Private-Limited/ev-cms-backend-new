@@ -1,5 +1,22 @@
 # Project State
 
+## 2026-09-03 - Charging-trace commercial evidence source work, verified locally and not deployed
+
+- CMS diagnostic roots now monotonically retain the actual start-intent,
+  command, and later session identifiers rather than leaving a locally created
+  root partially linked. HAL ingress continues to add HAL/OCPP identities only
+  from authenticated HAL evidence.
+- CMS appends sanitized CMS-to-CMS evidence for persisted admission/limits,
+  wallet holds/releases, command/reconciliation state, authoritative session
+  materialization, final frozen-snapshot charge calculation, and settlement.
+  The sanitizer permits only bounded diagnostic commercial identifiers,
+  amounts, currency, status, causes, and limits; credentials and raw payloads
+  remain excluded.
+- These append-only rows are savepoint-isolated diagnostic evidence. They do
+  not control session, wallet, pricing, fact, connector, OCPP, or command
+  authority. No migration, database mutation, deployment, restart, commit, or
+  push occurred in this source worktree.
+
 ## Current State
 
 ### 2026-09-02 - Database-owned trace replay sequence fix deployed

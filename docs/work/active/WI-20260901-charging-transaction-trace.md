@@ -4,7 +4,7 @@ Status: In Progress
 Owner: Codex
 Collaborators: None
 Started: 2026-09-01
-Last updated: 2026-09-01 (CMS migration and deployment complete)
+Last updated: 2026-09-03 (CMS trace linkage/commercial evidence source slice in progress)
 
 Development-plan reference: `docs/DEVELOPMENT_PLAN.md` (charging lifecycle and CPO operations)
 Detailed-plan reference: User-approved first-class charging transaction trace / waterfall specification
@@ -20,7 +20,7 @@ state.
 ## Scope
 
 - CMS trace persistence, charging start/stop/fact evidence, authorized CPO
-  read APIs, HAL trace merge, contracts, frontend handoff, and tests.
+  read APIs, isolated HAL trace ingress, contracts, frontend handoff, and tests.
 - Cross-repository coordination with the matching HAL work item.
 
 ## Non-goals
@@ -35,14 +35,14 @@ state.
 
 ## Dependencies and blockers
 
-- Depends on HAL's private authenticated trace-read contract and durable trace
-  evidence. No external blocker is currently known.
+- Depends on HAL's dedicated authenticated trace-event delivery and durable
+  trace evidence. No external blocker is currently known.
 
 ## Contract impact
 
 - Adds CPO trace queries and exposes opaque trace identity where a session or
   start command needs diagnostic correlation. CMS remains the only frontend
-  entry point and returns partial HAL state when the private HAL read fails.
+  entry point and serves its durable projection without query-time HAL reads.
 
 ## Data and migration impact
 
@@ -60,8 +60,10 @@ state.
   bounded by `PLATFORM_CHARGING_TRACE_RETENTION`; it does not mutate session,
   command, fact, wallet, or connector authority.
 - CMS focused/full local verification, documentation/OpenAPI parity, migration
-  application, and public rehost checks pass. Final paired HAL reconciliation
-  and final-status checks remain in the counterpart repository.
+  application, and public rehost checks pass for the previously published
+  pipeline. The current uncommitted source slice fills local root linkage and
+  appends CMS commercial evidence without changing source-of-truth behavior;
+  final paired HAL reconciliation and final-status checks remain.
 
 ## Verification
 
@@ -76,6 +78,6 @@ state.
 
 ## Completion
 
-- CMS implementation, migration, deployment, and local/public verification are
-  complete. Paired HAL reconciliation remains before the cross-repository
-  feature can be marked fully complete.
+- The published CMS pipeline remains complete. This source-only completeness
+  slice is uncommitted and unpublished; paired HAL reconciliation remains
+  before the cross-repository feature can be marked fully complete.

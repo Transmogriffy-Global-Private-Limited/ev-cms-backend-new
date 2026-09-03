@@ -478,16 +478,20 @@ func (service *Service) StartCharging(ctx context.Context, principal Principal, 
 		}
 		// Trace rows are diagnostic evidence only. Their availability must not
 		// decide whether an otherwise valid charging command is accepted.
-		_ = service.recordChargingTrace(tx, traceID, principal.CPOID, nil, "APP", "CMS", "REQUEST", "HTTP", "PRE_START", "Charging start request accepted", correlationID, models.JSONB{"start_intent_id": intentID.String(), "connector_id": request.ConnectorID.String()})
+		linkage := chargingTraceRoot{StartIntentID: &intentID}
+		_ = service.recordChargingTraceWithRoot(tx, traceID, principal.CPOID, linkage, "APP", "CMS", "REQUEST", "HTTP", "PRE_START", "Charging start request accepted", correlationID, models.JSONB{"start_intent_id": intentID.String(), "connector_id": request.ConnectorID.String()})
+		_ = service.recordChargingTraceWithRoot(tx, traceID, principal.CPOID, linkage, "CMS", "CMS", "LIFECYCLE", "POSTGRES", "STARTING", "Charging admission and limits persisted", correlationID, models.JSONB{"limit_type": string(effectiveLimit.Type), "energy_limit_wh": effectiveLimit.EnergyLimitWh, "energy_limit_source": string(effectiveLimit.EnergyLimitSource), "max_duration_seconds": effectiveLimit.MaxDurationSeconds, "duration_limit_source": string(effectiveLimit.DurationLimitSource)})
 		hold := models.WalletHold{ID: uuid.New(), CPOID: principal.CPOID, WalletID: wallet.ID, StartIntentID: intent.ID, Amount: effectiveLimit.HoldAmount, Currency: tariff.Currency, Status: constants.WalletHoldStatusHeld, CreatedAt: now, UpdatedAt: now}
 		if err := tx.Create(&hold).Error; err != nil {
 			return err
 		}
+		_ = service.recordChargingTraceWithRoot(tx, traceID, principal.CPOID, linkage, "CMS", "CMS", "COMMERCIAL", "POSTGRES", "STARTING", "Wallet reservation held", correlationID, models.JSONB{"wallet_hold_id": hold.ID.String(), "amount": hold.Amount.String(), "currency": hold.Currency, "status": string(hold.Status)})
 		command := models.HALCommandRecord{CMSCommandID: commandID, TraceID: &traceID, CPOID: principal.CPOID, Kind: "START", StartIntentID: &intentID, State: "PERSISTED", CommandExpiresAt: intent.CommandExpiresAt, CreatedAt: now, UpdatedAt: now}
 		if err := tx.Create(&command).Error; err != nil {
 			return err
 		}
-		_ = service.recordChargingTrace(tx, traceID, principal.CPOID, nil, "CMS", "HAL", "COMMAND", "HTTP", "STARTING", "Start command persisted", correlationID, models.JSONB{"cms_command_id": commandID.String()})
+		linkage.CommandID = &commandID
+		_ = service.recordChargingTraceWithRoot(tx, traceID, principal.CPOID, linkage, "CMS", "CMS", "COMMAND", "POSTGRES", "STARTING", "Start command persisted", correlationID, models.JSONB{"cms_command_id": commandID.String(), "status": command.State})
 		mapping = halops.ChargerMapping{CPOID: principal.CPOID, CMSChargerID: charger.ID, ChargerOCPPIdentity: charger.OCPPIdentity, ExpectedSerial: strings.TrimSpace(charger.SerialNumber), Enabled: true, Connectors: make([]halops.ConnectorMapping, 0, len(connectors))}
 		for _, mappedConnector := range connectors {
 			mapping.Connectors = append(mapping.Connectors, halops.ConnectorMapping{CMSConnectorID: mappedConnector.ID, OCPPConnectorNumber: mappedConnector.ConnectorNumber})
@@ -554,7 +558,7 @@ func (service *Service) StartCharging(ctx context.Context, principal Principal, 
 			return err
 		}
 		if persistedIntent.TraceID != nil {
-			_ = service.recordChargingTrace(tx, *persistedIntent.TraceID, persistedIntent.CPOID, persistedIntent.MaterializedSessionID, "HAL", "CMS", "COMMAND", "HTTP", "STARTING", "HAL recorded start command outcome", correlationID, models.JSONB{"cms_command_id": commandID.String(), "hal_command_id": command.HALCommandID.String(), "state": command.State})
+			_ = service.recordChargingTraceWithRoot(tx, *persistedIntent.TraceID, persistedIntent.CPOID, chargingTraceRoot{StartIntentID: &persistedIntent.ID, SessionID: persistedIntent.MaterializedSessionID, CommandID: &commandID}, "HAL", "CMS", "COMMAND", "HTTP", "STARTING", "HAL recorded start command outcome", correlationID, models.JSONB{"cms_command_id": commandID.String(), "hal_command_id": command.HALCommandID.String(), "state": command.State})
 		}
 		response.Status = status
 		return nil
@@ -874,7 +878,7 @@ func (service *Service) markHALStartCommandFailure(ctx context.Context, commandI
 			return err
 		}
 		if command.TraceID != nil {
-			_ = service.recordChargingTrace(tx, *command.TraceID, command.CPOID, nil, "CMS", "HAL", "FAILURE", "HTTP", "STARTING", "HAL start command requires reconciliation", "", models.JSONB{"cms_command_id": commandID.String(), "error_class": category})
+			_ = service.recordChargingTraceWithRoot(tx, *command.TraceID, command.CPOID, chargingTraceRoot{CommandID: &commandID}, "CMS", "CMS", "FAILURE", "POSTGRES", "STARTING", "HAL start command requires reconciliation", "", models.JSONB{"cms_command_id": commandID.String(), "error_class": category, "status": "RECONCILIATION_REQUIRED"})
 		}
 		return tx.Model(&models.ChargingStartIntent{}).Where("id = (SELECT start_intent_id FROM hal_command_records WHERE cms_command_id = ?)", commandID).Updates(map[string]any{"status": constants.StartIntentStatusReconciliation, "updated_at": service.now()}).Error
 	})
@@ -894,7 +898,7 @@ func (service *Service) markHALStopCommandFailure(ctx context.Context, commandID
 			return err
 		}
 		if command.TraceID != nil {
-			_ = service.recordChargingTrace(tx, *command.TraceID, command.CPOID, command.ChargingSessionID, "CMS", "HAL", "FAILURE", "HTTP", "STOPPING", "HAL stop command requires reconciliation", "", models.JSONB{"cms_command_id": commandID.String(), "error_class": category})
+			_ = service.recordChargingTraceWithRoot(tx, *command.TraceID, command.CPOID, chargingTraceRoot{SessionID: command.ChargingSessionID, CommandID: &commandID}, "CMS", "CMS", "FAILURE", "POSTGRES", "STOPPING", "HAL stop command requires reconciliation", "", models.JSONB{"cms_command_id": commandID.String(), "error_class": category, "status": "RECONCILIATION_REQUIRED"})
 		}
 		return tx.Model(&models.ChargingSession{}).Where("id = (SELECT charging_session_id FROM hal_command_records WHERE cms_command_id = ?) AND end_time IS NULL", commandID).Updates(map[string]any{"status": constants.SessionStatusStopPending, "updated_at": service.now()}).Error
 	})
@@ -963,6 +967,9 @@ func (service *Service) terminalizeStartCommand(ctx context.Context, commandID u
 		if err := tx.Model(&hold).Updates(map[string]any{"status": constants.WalletHoldStatusReleased, "released_at": now, "updated_at": now}).Error; err != nil {
 			return err
 		}
+		if command.TraceID != nil {
+			_ = service.recordChargingTraceWithRoot(tx, *command.TraceID, command.CPOID, chargingTraceRoot{StartIntentID: &intent.ID, CommandID: &commandID}, "CMS", "CMS", "COMMERCIAL", "POSTGRES", "STARTING", "Wallet reservation released", "", models.JSONB{"wallet_hold_id": hold.ID.String(), "amount": hold.Amount.String(), "currency": hold.Currency, "status": string(constants.WalletHoldStatusReleased), "reason": errorCategory})
+		}
 		if err := tx.Model(&command).Updates(map[string]any{
 			"state":               terminalCommandState,
 			"last_error_category": errorCategory,
@@ -1010,8 +1017,9 @@ func (service *Service) StopCharging(ctx context.Context, principal Principal, s
 		if err := tx.Create(&models.HALCommandRecord{CMSCommandID: commandID, TraceID: &traceID, CPOID: principal.CPOID, Kind: "STOP", ChargingSessionID: &sessionID, State: "PERSISTED", CommandExpiresAt: expires, CreatedAt: service.now(), UpdatedAt: service.now()}).Error; err != nil {
 			return err
 		}
-		_ = service.recordChargingTrace(tx, traceID, principal.CPOID, &sessionID, "APP", "CMS", "REQUEST", "HTTP", "STOPPING", "Charging stop request accepted", correlation, models.JSONB{"cms_command_id": commandID.String(), "connector_id": session.ConnectorID.String()})
-		_ = service.recordChargingTrace(tx, traceID, principal.CPOID, &sessionID, "CMS", "HAL", "COMMAND", "HTTP", "STOPPING", "Stop command persisted", correlation, models.JSONB{"cms_command_id": commandID.String()})
+		linkage := chargingTraceRoot{StartIntentID: session.StartIntentID, SessionID: &sessionID, CommandID: &commandID}
+		_ = service.recordChargingTraceWithRoot(tx, traceID, principal.CPOID, linkage, "APP", "CMS", "REQUEST", "HTTP", "STOPPING", "Charging stop request accepted", correlation, models.JSONB{"cms_command_id": commandID.String(), "connector_id": session.ConnectorID.String()})
+		_ = service.recordChargingTraceWithRoot(tx, traceID, principal.CPOID, linkage, "CMS", "CMS", "COMMAND", "POSTGRES", "STOPPING", "Stop command persisted", correlation, models.JSONB{"cms_command_id": commandID.String(), "status": "PERSISTED"})
 		update := tx.Model(&models.ChargingSession{}).Where("id = ? AND status = ?", sessionID, constants.SessionStatusActive).Updates(map[string]any{"status": constants.SessionStatusStopPending, "updated_at": service.now()})
 		if update.Error != nil {
 			return update.Error

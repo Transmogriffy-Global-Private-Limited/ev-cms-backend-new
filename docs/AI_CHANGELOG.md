@@ -1,5 +1,20 @@
 # AI Changelog
 
+## 2026-09-03 - Complete CMS charging-trace linkage and commercial evidence
+
+- Added monotonic local trace-root linkage for CMS start intent, command, and
+  session IDs; authenticated HAL ingress remains the sole source of later HAL
+  and OCPP identifiers. Existing trace IDs and routes are unchanged.
+- Added best-effort, sanitized CMS-to-CMS diagnostic events at existing
+  authoritative admission, reservation, command, materialization, completion,
+  reconciliation, debit, and settlement mutations. No billing calculation or
+  charging transition was moved into trace code.
+
+Verification: focused `go test ./src/customerauth` passes locally. Full
+repository verification is recorded with this uncommitted source slice;
+PostgreSQL integration remains skipped without `TEST_DATABASE_URL`. No
+migration, database mutation, deployment, restart, commit, or push occurred.
+
 ## 2026-09-02 - Deploy database-owned diagnostic trace replay sequence
 
 - Made `ChargingTraceEvent.ingestion_sequence` GORM read-only, so PostgreSQL

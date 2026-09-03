@@ -353,7 +353,7 @@ func (service *Service) materializeAuthoritativeStart(tx *gorm.DB, evidence halo
 	if intent.TraceID != nil {
 		// A fact must remain authoritative even when its diagnostic projection
 		// cannot be appended. The durable session is never derived from trace.
-		_ = service.recordChargingTrace(tx, *intent.TraceID, intent.CPOID, &session.ID, "HAL", "CMS", "LIFECYCLE", "FACT", "CHARGING", "HAL start fact materialized a CMS session", "", models.JSONB{"hal_transaction_id": evidence.HALTransactionID.String(), "ocpp_transaction_id": evidence.OCPPTransactionID})
+		_ = service.recordChargingTraceWithRoot(tx, *intent.TraceID, intent.CPOID, chargingTraceRoot{StartIntentID: &intent.ID, SessionID: &session.ID, CommandID: &evidence.CMSCommandID}, "CMS", "CMS", "LIFECYCLE", "POSTGRES", "CHARGING", "CMS session materialized from HAL start fact", "", models.JSONB{"hal_transaction_id": evidence.HALTransactionID.String(), "ocpp_transaction_id": evidence.OCPPTransactionID, "status": string(constants.SessionStatusActive)})
 	}
 	now := service.now()
 	if err := tx.Model(&command).Updates(map[string]any{"hal_command_id": evidence.HALCommandID, "state": "MATERIALIZED", "last_error_category": "", "last_error_detail": "", "updated_at": now}).Error; err != nil {
@@ -539,6 +539,9 @@ func (service *Service) applyCompletedFact(tx *gorm.DB, p models.JSONB) error {
 	if err := tx.Model(&session).Updates(updates).Error; err != nil {
 		return err
 	}
+	if session.TraceID != nil {
+		_ = service.recordChargingTraceWithRoot(tx, *session.TraceID, session.CPOID, chargingTraceRoot{StartIntentID: session.StartIntentID, SessionID: &session.ID}, "CMS", "CMS", "COMMERCIAL", "POSTGRES", "POST_STOP", "Final charge calculated from frozen commercial snapshot", "", models.JSONB{"amount": amount.String(), "currency": session.Currency, "meter_wh": meterStop, "stop_reason": updates["stop_reason"], "status": string(constants.SessionStatusReconciliationRequired), "settlement_status": "RECONCILIATION_REQUIRED"})
+	}
 	session.MeterStopWh, session.LatestMeterWh, session.MeterObservedAt, session.EndTime, session.TotalAmount = &meterStop, &meterStop, &stopped, &stopped, amount
 	session.TotalKWh, session.Status, session.SettlementStatus = decimal.NewFromInt(meterStop-session.MeterStartWh).Div(decimal.NewFromInt(1000)), constants.SessionStatusReconciliationRequired, "RECONCILIATION_REQUIRED"
 	return service.settleCompletedSession(tx, &session)
@@ -560,7 +563,13 @@ func (service *Service) settleCompletedSession(tx *gorm.DB, session *models.Char
 		if err := tx.Model(&hold).Updates(map[string]any{"status": constants.WalletHoldStatusReconciling, "updated_at": now}).Error; err != nil {
 			return err
 		}
-		return tx.Model(&models.ChargingSession{}).Where("id = ?", session.ID).Updates(map[string]any{"status": constants.SessionStatusReconciliationRequired, "settlement_status": "RECONCILIATION_REQUIRED", "updated_at": now}).Error
+		if err := tx.Model(&models.ChargingSession{}).Where("id = ?", session.ID).Updates(map[string]any{"status": constants.SessionStatusReconciliationRequired, "settlement_status": "RECONCILIATION_REQUIRED", "updated_at": now}).Error; err != nil {
+			return err
+		}
+		if session.TraceID != nil {
+			_ = service.recordChargingTraceWithRoot(tx, *session.TraceID, session.CPOID, chargingTraceRoot{StartIntentID: session.StartIntentID, SessionID: &session.ID}, "CMS", "CMS", "COMMERCIAL", "POSTGRES", "POST_STOP", "Settlement requires reconciliation", "", models.JSONB{"status": string(constants.SessionStatusReconciliationRequired), "settlement_status": "RECONCILIATION_REQUIRED", "wallet_hold_id": hold.ID.String()})
+		}
+		return nil
 	}
 	var payment models.Payment
 	err := tx.First(&payment, "session_id = ?", session.ID).Error
@@ -568,7 +577,13 @@ func (service *Service) settleCompletedSession(tx *gorm.DB, session *models.Char
 		if err := tx.Model(&hold).Updates(map[string]any{"status": constants.WalletHoldStatusCaptured, "captured_at": now, "updated_at": now}).Error; err != nil {
 			return err
 		}
-		return tx.Model(&models.ChargingSession{}).Where("id = ?", session.ID).Updates(map[string]any{"status": constants.SessionStatusCompleted, "settlement_status": "SETTLED", "updated_at": now}).Error
+		if err := tx.Model(&models.ChargingSession{}).Where("id = ?", session.ID).Updates(map[string]any{"status": constants.SessionStatusCompleted, "settlement_status": "SETTLED", "updated_at": now}).Error; err != nil {
+			return err
+		}
+		if session.TraceID != nil {
+			_ = service.recordChargingTraceWithRoot(tx, *session.TraceID, session.CPOID, chargingTraceRoot{StartIntentID: session.StartIntentID, SessionID: &session.ID}, "CMS", "CMS", "COMMERCIAL", "POSTGRES", "POST_STOP", "Existing settlement confirmed", "", models.JSONB{"status": string(constants.SessionStatusCompleted), "settlement_status": "SETTLED", "wallet_hold_id": hold.ID.String()})
+		}
+		return nil
 	}
 	if !errors.Is(err, gorm.ErrRecordNotFound) {
 		return err
@@ -580,7 +595,13 @@ func (service *Service) settleCompletedSession(tx *gorm.DB, session *models.Char
 		if err := tx.Model(&hold).Updates(map[string]any{"status": constants.WalletHoldStatusCaptured, "captured_at": now, "updated_at": now}).Error; err != nil {
 			return err
 		}
-		return tx.Model(&models.ChargingSession{}).Where("id = ?", session.ID).Updates(map[string]any{"status": constants.SessionStatusCompleted, "settlement_status": "SETTLED", "updated_at": now}).Error
+		if err := tx.Model(&models.ChargingSession{}).Where("id = ?", session.ID).Updates(map[string]any{"status": constants.SessionStatusCompleted, "settlement_status": "SETTLED", "updated_at": now}).Error; err != nil {
+			return err
+		}
+		if session.TraceID != nil {
+			_ = service.recordChargingTraceWithRoot(tx, *session.TraceID, session.CPOID, chargingTraceRoot{StartIntentID: session.StartIntentID, SessionID: &session.ID}, "CMS", "CMS", "COMMERCIAL", "POSTGRES", "POST_STOP", "Zero-amount settlement completed", "", models.JSONB{"amount": session.TotalAmount.String(), "currency": session.Currency, "status": string(constants.SessionStatusCompleted), "settlement_status": "SETTLED", "wallet_hold_id": hold.ID.String()})
+		}
+		return nil
 	}
 	var wallet models.Wallet
 	if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&wallet, "id = ?", hold.WalletID).Error; err != nil {
@@ -602,7 +623,13 @@ func (service *Service) settleCompletedSession(tx *gorm.DB, session *models.Char
 	if err := tx.Model(&hold).Updates(map[string]any{"status": constants.WalletHoldStatusCaptured, "captured_at": now, "updated_at": now}).Error; err != nil {
 		return err
 	}
-	return tx.Model(&models.ChargingSession{}).Where("id = ?", session.ID).Updates(map[string]any{"status": constants.SessionStatusCompleted, "settlement_status": "SETTLED", "updated_at": now}).Error
+	if err := tx.Model(&models.ChargingSession{}).Where("id = ?", session.ID).Updates(map[string]any{"status": constants.SessionStatusCompleted, "settlement_status": "SETTLED", "updated_at": now}).Error; err != nil {
+		return err
+	}
+	if session.TraceID != nil {
+		_ = service.recordChargingTraceWithRoot(tx, *session.TraceID, session.CPOID, chargingTraceRoot{StartIntentID: session.StartIntentID, SessionID: &session.ID}, "CMS", "CMS", "COMMERCIAL", "POSTGRES", "POST_STOP", "Wallet debit and settlement completed", "", models.JSONB{"amount": session.TotalAmount.String(), "currency": session.Currency, "status": string(constants.SessionStatusCompleted), "settlement_status": "SETTLED", "wallet_hold_id": hold.ID.String(), "wallet_transaction_id": ledger.ID.String()})
+	}
+	return nil
 }
 
 // ReconcileCompletedSettlements makes durable completion evidence recoverable
