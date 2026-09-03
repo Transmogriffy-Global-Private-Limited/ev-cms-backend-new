@@ -1,10 +1,10 @@
 # WI-20260903-customer-chargeability-projection
 
-Status: Implemented and published; not deployed
+Status: Implemented, deployed, and verified
 Owner: Codex
 Collaborators: None
 Started: 2026-09-03
-Last updated: 2026-09-03
+Last updated: 2026-09-03 (rehosted as `c6f3ab5`)
 
 Development-plan reference: Phase 5/6 customer charging projection
 Detailed-plan reference: `docs/plans/customer-app-experience.md`
@@ -78,5 +78,7 @@ authority even when `can_charge=true` was observed earlier.
 
 ## Completion
 
-Source checkpoint `01cd88d` is verified and published. No migration or runtime
-deployment is part of this work item.
+Source checkpoint `01cd88d` is verified and published. Revision `c6f3ab5` was
+rebuilt and rehosted with no migration or runtime data mutation; the live
+contract exposes 224 operations. PostgreSQL-gated integration remains skipped
+without `TEST_DATABASE_URL`.

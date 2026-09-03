@@ -1,6 +1,6 @@
 # Project State
 
-## 2026-09-03 - Published customer chargeability source change (not deployed)
+## 2026-09-03 - Customer charger chargeability projection deployed
 
 - The current local source worktree adds a customer-specific, side-effect-free
   `can_charge` / `chargeability_reason` projection for normal AUTO/default
@@ -11,9 +11,12 @@
   connector decision fields. The same evaluated projection also backs one
   bounded public charger-ID batch REST read and one full-replacement SSE stream
   under the authenticated CPO-local customer/app scope.
-- Source checkpoint `01cd88d` contains this change. It has no migration,
-  database mutation, deployment, or release record. `POST
-  /api/v1/app/charging-sessions` remains the locked final authority and
+- Source checkpoint `01cd88d` contains this change. It has no migration or
+  database mutation. Revision `c6f3ab5` is deployed behind Caddy with binary
+  SHA-256 `97dbe45cdf392d161c0078dc54163e454d04c702a2bfb2d303fd7afdd2f2c2a0`,
+  and the live contract contains 224 operations. The prior binary is retained
+  at `/root/evcmsnew-backups/pre-c6f3ab5-stale-20260903T145820+0530/evcmsnew`.
+  `POST /api/v1/app/charging-sessions` remains the locked final authority and
   revalidates all state at command time.
 - The source projection consumes existing `liveops` connection/freshness
   predicates without redefining them. Its reasons distinguish materialized
@@ -42,11 +45,11 @@
 - These append-only rows are savepoint-isolated diagnostic evidence. They do
   not control session, wallet, pricing, fact, connector, OCPP, or command
   authority. Migration 000060 was already applied; no additional migration or
-  data repair was needed for this release. Revision `ab1ab54` is deployed
+  data repair was needed for this release. Revision `c6f3ab5` is deployed
   behind Caddy with binary SHA-256
-  `70cd1e14381d3584e7cf893f64a7b5fca108108a84b8c766cc2303601a075606` and
-  the live contract contains 222 operations. The prior binary is retained at
-  `/root/evcmsnew-backups/pre-ab1ab54-stale-20260903T1138IST`.
+  `97dbe45cdf392d161c0078dc54163e454d04c702a2bfb2d303fd7afdd2f2c2a0` and
+  the live contract contains 224 operations. The prior binary is retained at
+  `/root/evcmsnew-backups/pre-c6f3ab5-stale-20260903T145820+0530/evcmsnew`.
 
 - The same release adds CPO-scoped `GET /api/v1/cpo/hubs/{hub_id}/analytics`.
   It returns the selected hub, period/date-filtered aggregate analytics, and
@@ -63,7 +66,7 @@
   Sanitized CMS evidence covers admission, limits, wallet holds/releases,
   commands, materialization, completion, reconciliation, debit, and settlement
   without becoming charging or commercial authority.
-- The deployed revision is `ab1ab54` with migration 000060 and 222 OpenAPI
+- The deployed revision is `c6f3ab5` with migration 000060 and 224 OpenAPI
   operations. The CPO hub-analytics read is tenant-scoped and side-effect free;
   the matching HAL deployment remains a separate concern.
 

@@ -26,8 +26,15 @@
 Verification: `./scripts/verify-docs.ps1`, `go test ./...`, `go vet ./...`,
 `go build ./...`, and the runtime/OpenAPI route test pass. PostgreSQL-gated
 integration coverage is skipped because `TEST_DATABASE_URL` is intentionally
-unset. Source checkpoint `01cd88d` is published; no migration, database
-mutation, or deployment occurred.
+unset. Source checkpoint `01cd88d` is published and was rebuilt as revision
+`c6f3ab5`; the active binary SHA-256 is
+`97dbe45cdf392d161c0078dc54163e454d04c702a2bfb2d303fd7afdd2f2c2a0`. The
+previous binary is retained at
+`/root/evcmsnew-backups/pre-c6f3ab5-stale-20260903T145820+0530/evcmsnew`.
+Migration 000060 was already current; no database mutation was required.
+Post-rehost local/public readiness, Swagger/OpenAPI (224 operations), Caddy,
+and worker-incarnation checks pass. The PowerShell documentation verifier
+remains unavailable because `pwsh` is not installed.
 
 ## 2026-09-03 - Deploy charging-trace root identity enrichment
 

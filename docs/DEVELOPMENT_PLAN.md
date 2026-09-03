@@ -113,7 +113,6 @@ Current phase:
 
 Active work:
 
-- `docs/work/active/WI-20260903-customer-chargeability-projection.md`.
 - `docs/work/active/WI-20260812-cms-hal-operational-capabilities.md`.
 - `docs/work/active/WI-20260826-customer-selected-session-limits.md`.
 - `docs/work/active/WI-20260901-charging-transaction-trace.md` root-identity
@@ -133,11 +132,14 @@ Approved current slice:
 
 Current implementation state:
 
-- Customer AUTO-start chargeability is implemented in source history under
-  `docs/work/active/WI-20260903-customer-chargeability-projection.md`. It is
+- Customer AUTO-start chargeability is implemented and deployed under the
+  archived work item
+  `docs/work/archive/WI-20260903-customer-chargeability-projection.md`. It is
   an additive, side-effect-free customer projection and batch REST/SSE
-  contract; source checkpoint `01cd88d` passed repository verification. It
-  does not alter StartCharging's transactional authority.
+  contract; source checkpoint `01cd88d` passed repository verification and is
+  active in runtime revision `c6f3ab5` with 224 OpenAPI operations. It does not
+  alter StartCharging's transactional authority; no migration or data mutation
+  was required.
 
 - Mail-outbox template-catalogue correction is deployed under
   `docs/work/archive/WI-20260831-mail-outbox-template-catalog.md`. Migration
@@ -1156,13 +1158,13 @@ Current implementation slice:
   start-limit type/value. It uses current tariff/GST only as a legacy fallback,
   preserves the separate tariff billing and customer limit dimensions, and
   keeps start-intent hydration bounded and CPO-scoped. No pricing calculation,
-  migration, or data mutation was required. Runtime revision `ab1ab54` is
-  active with migration 060 and 222 OpenAPI operations.
+  migration, or data mutation was required. Runtime revision `c6f3ab5` is
+  active with migration 060 and 224 OpenAPI operations.
 - Deployed charging-trace root identity enrichment: CMS binds the durable
   command identity at command creation and the CMS session, HAL transaction,
   and OCPP transaction identities at authoritative materialization. The
   monotonic diagnostic linkage requires no migration or data repair and is
-  active in revision `ab1ab54`.
+  active in revision `c6f3ab5`.
 - Deployed CPO hub analytics: `GET /api/v1/cpo/hubs/{hub_id}/analytics` first
   validates same-CPO Hub ownership, then returns period/date-filtered session
   aggregates plus the Hub's charger projections. It is read-only, requires
@@ -1174,7 +1176,7 @@ Current implementation slice:
   connector-aware OCPP evidence under the same root (or creates a HAL-owned
   root for a charger-initiated transaction). Trace data is never authority for
   sessions, connector state, wallet/billing, or OCPP acknowledgement. CMS
-  migration 000059 is applied and revision `ab1ab54` is active with 222
+  migration 000059 is applied and revision `c6f3ab5` is active with 224
   OpenAPI operations. HAL migration 018 and paired reconciliation remain
   pending in the counterpart repository.
 - Deployed Task 2 replaces the deployed query-time diagnostic
@@ -1182,7 +1184,7 @@ Current implementation slice:
   /v1/hal-trace-events` ingress. It adds CMS trace-root adoption, immutable
   event digest/idempotency, CMS-only static CPO reads, and replayable CPO SSE;
   `/v1/hal-facts` remains untouched. CMS migration 000060 is applied and the
-  CMS runtime is revision `ab1ab54`; matching HAL migration 019 remains a
+  CMS runtime is revision `c6f3ab5`; matching HAL migration 019 remains a
   separate counterpart deployment concern. See
   `docs/work/archive/WI-20260902-hal-trace-push-pipeline.md`.
 - Completed and deployed CPO UAC authority coherence: protected CPO routes use
@@ -1191,7 +1193,7 @@ Current implementation slice:
   from evaluator infrastructure failure, aligns support and integrations,
   revokes only matching CPO sessions on an actual role change, preserves fresh
   SSE authorization, and verifies OpenAPI Bearer+App-ID AND semantics. Runtime
-  revision `ab1ab54` is active with migration 060, 222 OpenAPI operations, and
+  revision `c6f3ab5` is active with migration 060, 224 OpenAPI operations, and
   verified readiness/public routing; PostgreSQL-gated lifecycle cases remain
   deferred without `TEST_DATABASE_URL`.
 - CPO `chargers.operations` live-session operations: `GET /operations/live-sessions` is the
@@ -1206,7 +1208,7 @@ Current implementation slice:
   filtered event replay is advanced reconciliation only. The deployed
   customer-only correction replaces the nested-preload fallback with a bounded
   CPO-scoped charger lookup for missing customer projections. Revision
-  `ab1ab54` is active with migration 060 and 222 OpenAPI operations; no data
+  `c6f3ab5` is active with migration 060 and 224 OpenAPI operations; no data
   repair was required.
 - Completed source hardening: one-current authentication challenges are
   serialized by their identity owner and backed by partial unique indexes;
