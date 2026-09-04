@@ -3,11 +3,13 @@
 ## Status, audience, and authority
 
 This is the canonical CMS-side manual for a CPO-backend developer. It records
-the source state that consumes the read-only `ocpp-hal-go-new` v1 provider at
-`21836e5d98967399d599d6afeca52fe1c375ec0d`. It does not claim that migration,
-dual-service, virtual-charge-point, restart, or production acceptance has run.
-Read the provider's `docs/contracts/CMS_HAL_CHARGING_V1.md` for the frozen wire
-contract; this manual documents CMS ownership and actual extension points.
+the deployed CMS state that consumes the `ocpp-hal-go-new` v1 provider at
+`21836e5d98967399d599d6afeca52fe1c375ec0d`. CMS migration `000061` is applied
+on the development database, while paired HAL deployment, dual-service,
+virtual-charge-point, restart, and physical/production acceptance remain
+unverified. Read the provider's `docs/contracts/CMS_HAL_CHARGING_V1.md` for the
+frozen wire contract; this manual documents CMS ownership and actual extension
+points.
 
 | Fact or decision | Authority | CMS consequence |
 | --- | --- | --- |

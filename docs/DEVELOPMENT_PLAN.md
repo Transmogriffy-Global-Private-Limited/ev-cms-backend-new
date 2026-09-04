@@ -133,20 +133,21 @@ Approved current slice:
 
 Current implementation state:
 
-- CPO charger operations are in source implementation: typed Reset,
+- CPO charger operations are implemented and deployed in CMS revision
+  `b79a3e5` with migration `000061` and 232 OpenAPI operations: typed Reset,
   UnlockConnector, ChangeAvailability, ClearCache, Get/ChangeConfiguration,
   and allowlisted TriggerMessage use the existing `halops -> halclient -> HAL`
-  boundary. Dedicated operation records, migrations, exact-ID reconciliation,
-  and contract verification are required before this slice can be marked
-  implemented or verified. No deployment or migration application is part of
-  the source work.
+  boundary. Dedicated operation records, exact-ID reconciliation, and contract
+  verification are complete for the CMS runtime. The paired HAL runtime,
+  PostgreSQL lifecycle integration, and physical OCPP acceptance remain
+  unverified; the active work item retains those follow-ups.
 
 - Customer AUTO-start chargeability is implemented and deployed under the
   archived work item
   `docs/work/archive/WI-20260903-customer-chargeability-projection.md`. It is
   an additive, side-effect-free customer projection and batch REST/SSE
   contract; source checkpoint `01cd88d` passed repository verification and is
-  active in runtime revision `e7bab56` with 224 OpenAPI operations. It does not
+  included in runtime revision `b79a3e5` with 232 OpenAPI operations. It does not
   alter StartCharging's transactional authority; no migration or data mutation
   was required.
 

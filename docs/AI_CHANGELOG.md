@@ -1,6 +1,6 @@
 # AI Changelog
 
-## 2026-09-04 - Add source-only CPO typed charger operations
+## 2026-09-04 - Deploy CPO typed charger operations
 
 - Added the CPO-to-HAL typed operation vertical with dedicated CMS/HAL
   operation identities and ledgers, scoped mapping validation, caller-key
@@ -12,14 +12,18 @@
   keys. Existing customer RemoteStart/RemoteStop and charging persistence are
   untouched.
 - Added migration `000061`, route/OpenAPI/human-contract updates, and focused
-  HAL-client contract coverage. No migration, database mutation, service
-  restart, deployment, commit, or push occurred.
+  HAL-client contract coverage. The reviewed CMS migration was applied during
+  the guarded development rehost; no unrelated database mutation occurred.
 
-Verification: `./scripts/verify-docs.ps1`, focused
+Verification: focused
 `go test ./src/halclient ./src/halops ./src/cpo ./src/routes -count=1`, full
-`go test -p 1 ./...`, `go vet -p 1 ./...`, and `git diff --check` pass.
-PostgreSQL and hardware verification are intentionally unrun without a
-disposable test database and mapped charge point.
+`go test -p 1 ./...`, `go vet -p 1 ./...`, production build, migration ledger
+and table checks, post-rehost service/process SHA, local/public health and
+readiness, OpenAPI (232 operations), Swagger, Caddy, worker, and log checks
+pass. PostgreSQL lifecycle integration, paired HAL runtime, and physical OCPP
+verification remain unrun without a disposable test database and mapped
+charge point. `pwsh` is unavailable, so `./scripts/verify-docs.ps1` was not
+run.
 
 ## 2026-09-04 - Rehost current main revision
 

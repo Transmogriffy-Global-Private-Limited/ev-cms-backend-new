@@ -62,7 +62,7 @@ state.
 - CMS focused/full local verification, documentation/OpenAPI parity, migration
   application, and public rehost checks pass for the previously published
   pipeline. The linkage/commercial-evidence slice is deployed in CMS revision
-  `e7bab56` with 224 OpenAPI operations. It changes no source-of-truth
+  `b79a3e5` with 232 OpenAPI operations. It changes no source-of-truth
   behavior; final paired HAL reconciliation and cross-repository status remain
   separate.
 - Runtime evidence for trace `2647bfb4-5c18-46e4-b99d-3e92dfe61dad` showed
@@ -70,7 +70,7 @@ state.
   command and authoritative session evidence exist. The CMS-only remediation
   now monotonically binds the command at durable creation and the CMS, HAL, and
   OCPP transaction identities at authoritative CMS materialization. It is
-  deployed in CMS revision `e7bab56`; no migration or runtime data mutation was
+  deployed in CMS revision `b79a3e5`; no migration or runtime data mutation was
   required.
 
 ## Verification

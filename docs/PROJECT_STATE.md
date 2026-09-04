@@ -1,8 +1,8 @@
 # Project State
 
-## 2026-09-04 - CPO charger-operation source vertical, locally verified and not deployed
+## 2026-09-04 - CPO charger-operation vertical deployed
 
-- The uncommitted CMS source now has dedicated `charger_operations` persistence
+- The CMS source has dedicated `charger_operations` persistence
   and typed CPO routes for Reset, UnlockConnector, ChangeAvailability,
   ClearCache, Get/ChangeConfiguration, and an allowlisted TriggerMessage.
   These records do not reuse charging Start/Stop commands and do not modify
@@ -12,22 +12,30 @@
   event, and reconciles an ambiguous request only by exact CMS operation ID.
   CMS durable acceptance, the preserved HAL/OCPP response, and later observed
   charger effect remain separate claims.
-- Migration `000061_cpo_charger_operations` and its HAL counterpart are source
-  artifacts only. They were not applied, and no service, database, deployment,
-  restart, commit, or push occurred.
+- CMS migration `000061_cpo_charger_operations` is applied on the development
+  database. The CMS runtime is revision `b79a3e5` behind Caddy with 232
+  OpenAPI operations and binary SHA-256
+  `a69df5053e5f929855b116b9d6ae9c7e3ac701d71c0bd956c26b463fe1981f06`.
+  The prior binary is retained at
+  `/root/evcmsnew-backups/pre-b79a3e5-20260904T110619+0530/evcmsnew`.
+- CMS service, workers, loopback/public health and readiness, public contracts,
+  Caddy, and post-rehost logs were verified. The HAL counterpart, PostgreSQL
+  lifecycle integration, and physical OCPP acceptance remain unverified.
 
-Verification: documentation/OpenAPI route verification, focused CPO,
+Verification: focused CPO,
 HAL-client, and HAL-operations packages, full `go test -p 1 ./...`, and
-`go vet -p 1 ./...` pass locally. PostgreSQL lifecycle, dual-service, and
-physical OCPP verification remain unrun because no disposable
-`TEST_DATABASE_URL` or mapped charge point was selected.
+`go vet -p 1 ./...` pass locally, followed by migration and post-rehost
+verification. PostgreSQL lifecycle, dual-service, and physical OCPP
+verification remain unrun because no disposable `TEST_DATABASE_URL` or mapped
+charge point was selected; `pwsh` is unavailable for documentation verification.
 
-## 2026-09-04 - Current main revision rehosted
+## 2026-09-04 - Previous main revision rehosted before charger operations
 
-- Canonical `main` revision `e7bab56` is active behind Caddy with migration
-  000060 and 224 OpenAPI operations. The installed and running binary SHA-256
+- Canonical `main` revision `e7bab56` was active behind Caddy with migration
+  000060 and 224 OpenAPI operations before the charger-operations release. Its
+  installed binary SHA-256 was
   is `9193f1986dfc1df91862a4eb01769d897dfef7f82f10a218eb99b796703c5253`.
-- The prior deployed binary is retained at
+- The binary retained from that rehost is at
   `/root/evcmsnew-backups/pre-e7bab56-20260904T101048+0530/evcmsnew`.
 - No migration or database mutation was required. Service/readiness, workers,
   public contracts, loopback binding, Caddy validation, and post-rehost logs
