@@ -1,5 +1,17 @@
 # Project State
 
+## 2026-09-04 - Current main revision rehosted
+
+- Canonical `main` revision `e7bab56` is active behind Caddy with migration
+  000060 and 224 OpenAPI operations. The installed and running binary SHA-256
+  is `9193f1986dfc1df91862a4eb01769d897dfef7f82f10a218eb99b796703c5253`.
+- The prior deployed binary is retained at
+  `/root/evcmsnew-backups/pre-e7bab56-20260904T101048+0530/evcmsnew`.
+- No migration or database mutation was required. Service/readiness, workers,
+  public contracts, loopback binding, Caddy validation, and post-rehost logs
+  were verified. PostgreSQL integration and PowerShell documentation checks
+  remain unverified because `TEST_DATABASE_URL` and `pwsh` are unavailable.
+
 ## 2026-09-03 - Customer charger chargeability projection deployed
 
 - The current local source worktree adds a customer-specific, side-effect-free

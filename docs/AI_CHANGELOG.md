@@ -1,5 +1,22 @@
 # AI Changelog
 
+## 2026-09-04 - Rehost current main revision
+
+- Rebuilt and rehosted canonical `main` revision `e7bab56` after verifying the
+  source, migration ledger, and existing runtime prerequisites. No migration or
+  database mutation was required; migration `000060` remains current.
+- Retained the prior deployed binary at
+  `/root/evcmsnew-backups/pre-e7bab56-20260904T101048+0530/evcmsnew` and
+  verified the installed/runtime binary SHA-256 as
+  `9193f1986dfc1df91862a4eb01769d897dfef7f82f10a218eb99b796703c5253`.
+
+Verification: full `go test -p 1 ./...`, `go vet -p 1 ./...`, and production
+build passed. Post-rehost service, loopback/public health and readiness,
+loopback listener, worker-incarnation state, public OpenAPI (224 operations),
+Swagger, Caddy configuration, and service-log checks passed. PostgreSQL
+integration coverage was skipped because `TEST_DATABASE_URL` is unset, and the
+PowerShell documentation verifier was skipped because `pwsh` is unavailable.
+
 ## 2026-09-03 - Add published User App customer chargeability projection
 
 - Added one batched `customerauth` read evaluator shared by customer

@@ -137,7 +137,7 @@ Current implementation state:
   `docs/work/archive/WI-20260903-customer-chargeability-projection.md`. It is
   an additive, side-effect-free customer projection and batch REST/SSE
   contract; source checkpoint `01cd88d` passed repository verification and is
-  active in runtime revision `c6f3ab5` with 224 OpenAPI operations. It does not
+  active in runtime revision `e7bab56` with 224 OpenAPI operations. It does not
   alter StartCharging's transactional authority; no migration or data mutation
   was required.
 
