@@ -4,7 +4,7 @@ Status: Implemented
 Owner: Codex
 Collaborators: Anubhab Dey (CMS/HAL boundary owner)
 Started: 2026-09-04
-Last updated: 2026-09-04 (CMS history/audit listing source slice complete; not deployed)
+Last updated: 2026-09-04 (CMS history/audit listing deployed; paired HAL and hardware validation pending)
 
 Development-plan reference: `docs/DEVELOPMENT_PLAN.md` — Charging lifecycle and HAL integration
 Detailed-plan reference: `docs/integrations/cpo-hal-operational-capability-manual.md`
@@ -28,8 +28,8 @@ existing CMS `halops -> halclient -> HAL v1 -> OCPP` boundary.
 ## Non-goals
 
 - Direct browser-to-HAL access, generic OCPP passthrough, CPO raw remote
-  start/stop, firmware, diagnostics, customer chargeability changes, runtime
-  database mutation, deployment, or old-HAL work.
+  start/stop, firmware, diagnostics, customer chargeability changes, or
+  old-HAL work.
 
 ## Claimed surfaces
 
@@ -67,16 +67,19 @@ CPO routes, idempotency/digest, server correlation, committed events, typed
 HAL calls, exact-ID recovery, and CMS OpenAPI/human contract. The counterpart
 new-HAL source has its own operation ledger/migration and typed OCPP dispatch.
 
-In-progress CMS-only history source adds deterministic tenant-rooted listing,
-enrichment, bounded real-semantic filters, configuration-value redaction, and
-one targeted cursor index. It does not alter the exact-recovery path.
+Implemented and deployed CMS-only history adds deterministic tenant-rooted
+listing, enrichment, bounded real-semantic filters, configuration-value
+redaction, and one targeted cursor index. It does not alter the exact-recovery
+path or call HAL.
 
 ## Verification
 
-History parser/projection tests, CPO capability-route coverage, documentation
-verification, route/OpenAPI parity, full `go test -p 1 ./...`, `go vet -p 1
-./...`, and diff checks pass locally. PostgreSQL-gated history integration
-coverage remains skipped because `TEST_DATABASE_URL` is absent.
+History parser/projection tests, CPO capability-route coverage, route/OpenAPI
+parity, full `go test -p 1 ./...`, `go vet -p 1 ./...`, production build,
+migration/index checks, and CMS post-rehost service/contract verification pass.
+PostgreSQL-gated history integration coverage remains skipped because
+`TEST_DATABASE_URL` is absent; `pwsh` is unavailable for documentation
+verification.
 
 ## Handoff
 
@@ -85,6 +88,6 @@ commands; do not route generic operations through Start/Stop records.
 
 ## Completion
 
-The original CMS execution and this CMS history source slice are complete.
-Keep this item active for paired HAL runtime, dual-service, and physical OCPP
-acceptance; this source-only history slice was not deployed.
+The original CMS execution and this CMS history slice are deployed and
+complete. Keep this item active for paired HAL runtime, dual-service, and
+physical OCPP acceptance.

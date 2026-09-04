@@ -134,7 +134,7 @@ Approved current slice:
 Current implementation state:
 
 - CPO charger operations are implemented and deployed in CMS revision
-  `b79a3e5` with migration `000061` and 232 OpenAPI operations: typed Reset,
+  `0f79230` with migrations `000061` and `000062` and 233 OpenAPI operations: typed Reset,
   UnlockConnector, ChangeAvailability, ClearCache, Get/ChangeConfiguration,
   and allowlisted TriggerMessage use the existing `halops -> halclient -> HAL`
   boundary. Dedicated operation records, exact-ID reconciliation, and contract
@@ -142,12 +142,13 @@ Current implementation state:
   PostgreSQL lifecycle integration, and physical OCPP acceptance remain
   unverified; the active work item retains those follow-ups.
 
-- CPO charger-operation history/audit listing is source-complete and not
-  deployed:
+- CPO charger-operation history/audit listing is implemented and deployed in
+  CMS revision `0f79230` with migration `000062` and 233 OpenAPI operations:
   CMS-owned keyset pagination, safe enrichment, bounded operation filters, and
   ChangeConfiguration value redaction extend the active charger-operations
-  work item. It requires no HAL route or runtime action; migration `000062` is
-  source-only until separately authorized.
+  work item. The list requires no HAL route or runtime action. PostgreSQL
+  lifecycle integration, paired HAL runtime, and physical OCPP acceptance
+  remain unverified.
 
 - Customer AUTO-start chargeability is implemented and deployed under the
   archived work item

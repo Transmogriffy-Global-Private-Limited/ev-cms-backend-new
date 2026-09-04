@@ -1,6 +1,6 @@
 # AI Changelog
 
-## 2026-09-04 - Add source-only CPO charger-operation history surface
+## 2026-09-04 - Deploy CPO charger-operation history surface
 
 - Added the CMS-owned `GET /api/v1/cpo/operations/charger-operations` history
   route with tenant-rooted keyset pagination, operation/actor/charger/connector
@@ -9,15 +9,18 @@
 - The safe list projection excludes raw JSONB, idempotency/correlation data,
   provider data, internal connector helpers, and every ChangeConfiguration
   value. The existing exact-operation response is unchanged.
-- Added source-only migration `000062` for the primary CPO history cursor index
-  and updated the OpenAPI/human contract and existing work item. No migration,
-  deployment, restart, database mutation, commit, or push occurred.
+- Added migration `000062` for the primary CPO history cursor index and updated
+  the OpenAPI/human contract and existing work item. The reviewed migration was
+  applied during the guarded development rehost; no unrelated database
+  mutation occurred.
 
 Verification: focused parser/projection tests, CPO capability-route coverage,
-`./scripts/verify-docs.ps1`, OpenAPI/runtime route parity, full
-`go test -p 1 ./...`, `go vet -p 1 ./...`, and `git diff --check` pass.
-PostgreSQL history integration remains skipped because `TEST_DATABASE_URL` is
-unset.
+OpenAPI/runtime route parity, full `go test -p 1 ./...`, `go vet -p 1 ./...`,
+production build, migration/index checks, post-rehost service/process SHA,
+local/public health and readiness, OpenAPI (233 operations), Swagger, Caddy,
+worker, and log checks pass. PostgreSQL history integration remains skipped
+because `TEST_DATABASE_URL` is unset; `pwsh` is unavailable, so the
+documentation verifier was not run.
 
 ## 2026-09-04 - Deploy CPO typed charger operations
 

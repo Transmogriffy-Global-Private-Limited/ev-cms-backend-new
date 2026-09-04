@@ -1,19 +1,23 @@
 # Project State
 
-## 2026-09-04 - CPO charger-operation history source slice complete and not deployed
+## 2026-09-04 - CPO charger-operation history deployed
 
 - The local CMS source adds a CPO-scoped, deterministic operation-history read
   over CMS `charger_operations`. It is a side-effect-free audit view: no HAL
   calls, no reconciliation, no operation event, and no customer charging,
   wallet, session, or chargeability change.
-- The pending source migration `000062` adds only the `(cpo_id, created_at
-  DESC, id DESC)` keyset index. It has not been applied. No deployment,
-  restart, database mutation, commit, or push occurred for this slice.
+- CMS migration `000062` adds only the `(cpo_id, created_at DESC, id DESC)`
+  keyset index and is applied on the development database. Runtime revision
+  `0f79230` is active behind Caddy with 233 OpenAPI operations and binary
+  SHA-256 `b0d0d69372179f26dc35ca11a381a2b8bb0d18ceeb5423f3e448eeceacb1ff60`.
+- The prior binary is retained at
+  `/root/evcmsnew-backups/pre-0f79230-20260904T120246+0530/evcmsnew`.
 
-Focused parser/projection tests, CPO capability-route coverage, documentation
-verification, OpenAPI route parity, full `go test -p 1 ./...`, `go vet -p 1
-./...`, and diff checks pass locally. PostgreSQL history integration coverage
-remains unrun because `TEST_DATABASE_URL` is not set.
+Focused parser/projection tests, CPO capability-route coverage, OpenAPI route
+parity, full `go test -p 1 ./...`, `go vet -p 1 ./...`, migration/index checks,
+and post-rehost service verification pass. PostgreSQL history integration
+coverage remains unrun because `TEST_DATABASE_URL` is not set; `pwsh` is
+unavailable for documentation verification.
 
 ## 2026-09-04 - CPO charger-operation vertical deployed
 
@@ -49,7 +53,7 @@ charge point was selected; `pwsh` is unavailable for documentation verification.
 - Canonical `main` revision `e7bab56` was active behind Caddy with migration
   000060 and 224 OpenAPI operations before the charger-operations release. Its
   installed binary SHA-256 was
-  is `9193f1986dfc1df91862a4eb01769d897dfef7f82f10a218eb99b796703c5253`.
+  `9193f1986dfc1df91862a4eb01769d897dfef7f82f10a218eb99b796703c5253`.
 - The binary retained from that rehost is at
   `/root/evcmsnew-backups/pre-e7bab56-20260904T101048+0530/evcmsnew`.
 - No migration or database mutation was required. Service/readiness, workers,
