@@ -4207,6 +4207,45 @@ paths:
       requestBody: {required: true, content: {application/json: {schema: {type: object, required: [key, value], properties: {key: {type: string, maxLength: 100}, value: {type: string, maxLength: 500}}}}}}
       responses: {"202": {description: Durable operation evidence; RebootRequired remains a distinct OCPP result, content: {application/json: {schema: {$ref: "#/components/schemas/ChargerOperationResponse"}}}}, "400": {$ref: "#/components/responses/InvalidRequest"}, "403": {$ref: "#/components/responses/CPOBusinessForbidden"}, "404": {description: Charger not found}, "409": {description: Idempotency conflict}, "503": {description: HAL or mapping unavailable}}
 
+  /api/v1/cpo/operations/charger-operations:
+    get:
+      tags: [CPO Charger Operations]
+      operationId: listCPOChargerOperations
+      summary: List durable CPO charger-operation history
+      description: |
+        Returns CMS-owned operation attempts for the authenticated CPO only,
+        newest first. This is a read-only audit feed: it never calls HAL,
+        reconciles records, or dispatches OCPP. `before` and `before_id` form
+        one required pair when either is supplied. Typed parameter filters
+        automatically constrain the matching operation kind. Configuration
+        values, request digests, correlation identifiers, and arbitrary JSON
+        parameters are never returned.
+      security: [{BearerAuth: [], CPOAppID: []}]
+      parameters:
+        - {$ref: "#/components/parameters/CPOAppIDHeader"}
+        - {name: limit, in: query, schema: {type: integer, minimum: 1, maximum: 200, default: 50}}
+        - {name: before, in: query, description: RFC3339 creation timestamp; must be paired with before_id., schema: {type: string, format: date-time}}
+        - {name: before_id, in: query, description: UUID tie-breaker; must be paired with before., schema: {type: string, format: uuid}}
+        - {name: charger_id, in: query, schema: {type: string, format: uuid}}
+        - {name: connector_id, in: query, schema: {type: string, format: uuid}}
+        - {name: actor_user_id, in: query, schema: {type: string, format: uuid}}
+        - {name: kind, in: query, schema: {type: string, enum: [RESET, UNLOCK_CONNECTOR, CHANGE_AVAILABILITY, CLEAR_CACHE, CHANGE_CONFIGURATION, TRIGGER_MESSAGE]}}
+        - {name: state, in: query, schema: {type: string, enum: [PERSISTED, HAL_ACCEPTED, OCPP_CONFIRMED, RECONCILIATION_REQUIRED, CONFIRMED_ABSENT]}}
+        - {name: ocpp_result, in: query, description: Exact known OCPP response result., schema: {type: string, maxLength: 64}}
+        - {name: failure_category, in: query, schema: {type: string, maxLength: 64}}
+        - {name: created_after, in: query, description: Inclusive RFC3339 creation lower bound., schema: {type: string, format: date-time}}
+        - {name: created_before, in: query, description: Inclusive RFC3339 creation upper bound., schema: {type: string, format: date-time}}
+        - {name: reset_type, in: query, description: Automatically constrains kind to RESET., schema: {type: string, enum: [SOFT, HARD]}}
+        - {name: availability_type, in: query, description: Automatically constrains kind to CHANGE_AVAILABILITY., schema: {type: string, enum: [OPERATIVE, INOPERATIVE]}}
+        - {name: requested_message, in: query, description: Automatically constrains kind to TRIGGER_MESSAGE., schema: {type: string, enum: [BootNotification, DiagnosticsStatusNotification, FirmwareStatusNotification, Heartbeat, MeterValues, StatusNotification]}}
+        - {name: configuration_key, in: query, description: Automatically constrains kind to CHANGE_CONFIGURATION. Configuration values cannot be queried., schema: {type: string, maxLength: 100}}
+      responses:
+        "200": {description: Deterministic CMS operation-history page., content: {application/json: {schema: {$ref: "#/components/schemas/ChargerOperationHistoryResponse"}}}}
+        "400": {$ref: "#/components/responses/InvalidRequest"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/CPOBusinessForbidden"}
+        "500": {$ref: "#/components/responses/InternalError"}
+
   /api/v1/cpo/operations/charger-operations/{operation_id}:
     get:
       tags: [CPO Charger Operations]
@@ -7239,6 +7278,65 @@ components:
         created_at: {type: string, format: date-time}
         updated_at: {type: string, format: date-time}
         completed_at: {type: string, format: date-time}
+    ChargerOperationHistoryResponse:
+      type: object
+      additionalProperties: false
+      required: [operations, has_more]
+      properties:
+        operations: {type: array, items: {$ref: "#/components/schemas/ChargerOperationHistoryItem"}}
+        next_before: {type: string, format: date-time}
+        next_before_id: {type: string, format: uuid}
+        has_more: {type: boolean}
+    ChargerOperationHistoryItem:
+      type: object
+      additionalProperties: false
+      required: [id, kind, state, charger, actor, created_at, updated_at]
+      properties:
+        id: {type: string, format: uuid}
+        kind: {type: string, enum: [RESET, UNLOCK_CONNECTOR, CHANGE_AVAILABILITY, CLEAR_CACHE, CHANGE_CONFIGURATION, TRIGGER_MESSAGE]}
+        state: {type: string, enum: [PERSISTED, HAL_ACCEPTED, OCPP_CONFIRMED, RECONCILIATION_REQUIRED, CONFIRMED_ABSENT]}
+        ocpp_result: {type: string}
+        failure_category: {type: string}
+        hal_operation_id: {type: string, format: uuid}
+        charger: {$ref: "#/components/schemas/ChargerOperationHistoryCharger"}
+        connector: {$ref: "#/components/schemas/ChargerOperationHistoryConnector"}
+        actor: {$ref: "#/components/schemas/ChargerOperationHistoryActor"}
+        parameters: {$ref: "#/components/schemas/ChargerOperationHistoryParameters"}
+        created_at: {type: string, format: date-time}
+        updated_at: {type: string, format: date-time}
+        completed_at: {type: string, format: date-time}
+    ChargerOperationHistoryCharger:
+      type: object
+      additionalProperties: false
+      required: [id, charger_id, name]
+      properties:
+        id: {type: string, format: uuid}
+        charger_id: {type: string, description: CMS-owned human charger identifier.}
+        name: {type: string}
+    ChargerOperationHistoryConnector:
+      type: object
+      additionalProperties: false
+      required: [id, number, type]
+      properties:
+        id: {type: string, format: uuid}
+        number: {type: integer, minimum: 1}
+        type: {type: string}
+    ChargerOperationHistoryActor:
+      type: object
+      additionalProperties: false
+      required: [id, full_name]
+      properties:
+        id: {type: string, format: uuid}
+        full_name: {type: string}
+    ChargerOperationHistoryParameters:
+      type: object
+      additionalProperties: false
+      description: Kind-specific safe projection; absent for UnlockConnector and ClearCache. ChangeConfiguration includes only key, never value.
+      properties:
+        type: {type: string, description: Reset or availability type.}
+        reason: {type: string, description: Reset reason.}
+        requested_message: {type: string}
+        key: {type: string, description: Configuration key only; configuration value is omitted.}
     ChargerConfigurationResponse:
       type: object
       additionalProperties: false

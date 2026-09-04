@@ -4,7 +4,7 @@ Status: Implemented
 Owner: Codex
 Collaborators: Anubhab Dey (CMS/HAL boundary owner)
 Started: 2026-09-04
-Last updated: 2026-09-04 (CMS migration and development rehost verified; paired HAL and hardware validation pending)
+Last updated: 2026-09-04 (CMS history/audit listing source slice complete; not deployed)
 
 Development-plan reference: `docs/DEVELOPMENT_PLAN.md` — Charging lifecycle and HAL integration
 Detailed-plan reference: `docs/integrations/cpo-hal-operational-capability-manual.md`
@@ -22,6 +22,8 @@ existing CMS `halops -> halclient -> HAL v1 -> OCPP` boundary.
 - Dedicated CMS and HAL operation ledgers, exact-ID reconciliation, caller
   idempotency, scoped CPO audit/recovery reads, operational invalidations,
   contracts, tests, and forward-only migrations.
+- CMS-owned paginated, filtered, safe CPO history listing without HAL calls or
+  list-side reconciliation.
 
 ## Non-goals
 
@@ -47,7 +49,8 @@ existing CMS `halops -> halclient -> HAL v1 -> OCPP` boundary.
 
 Adds typed CPO charger-operation routes and an authenticated HAL v1 operation
 contract. CMS operation state, HAL acceptance, OCPP acknowledgement, and later
-observed charger effects remain separately represented.
+observed charger effects remain separately represented. The CMS history route
+lists every CMS-recorded attempt, including failed or HAL-absent attempts.
 
 ## Data and migration impact
 
@@ -64,14 +67,16 @@ CPO routes, idempotency/digest, server correlation, committed events, typed
 HAL calls, exact-ID recovery, and CMS OpenAPI/human contract. The counterpart
 new-HAL source has its own operation ledger/migration and typed OCPP dispatch.
 
+In-progress CMS-only history source adds deterministic tenant-rooted listing,
+enrichment, bounded real-semantic filters, configuration-value redaction, and
+one targeted cursor index. It does not alter the exact-recovery path.
+
 ## Verification
 
-Focused CPO/HAL-client/HAL-operations tests, full `go test -p 1 ./...`,
-`go vet -p 1 ./...`, production build, migration/table checks, and CMS
-post-rehost service, contract, worker, proxy, and log checks pass. PostgreSQL
-lifecycle integration, paired HAL runtime, and physical charger validation
-remain skipped unless a disposable URL and mapped charge point are supplied;
-`pwsh` is unavailable for the documentation verifier.
+History parser/projection tests, CPO capability-route coverage, documentation
+verification, route/OpenAPI parity, full `go test -p 1 ./...`, `go vet -p 1
+./...`, and diff checks pass locally. PostgreSQL-gated history integration
+coverage remains skipped because `TEST_DATABASE_URL` is absent.
 
 ## Handoff
 
@@ -80,5 +85,6 @@ commands; do not route generic operations through Start/Stop records.
 
 ## Completion
 
-CMS implementation and development deployment are complete. Keep this item
-active for paired HAL runtime, dual-service, and physical OCPP acceptance.
+The original CMS execution and this CMS history source slice are complete.
+Keep this item active for paired HAL runtime, dual-service, and physical OCPP
+acceptance; this source-only history slice was not deployed.

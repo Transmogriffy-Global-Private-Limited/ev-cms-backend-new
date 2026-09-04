@@ -1,5 +1,24 @@
 # AI Changelog
 
+## 2026-09-04 - Add source-only CPO charger-operation history surface
+
+- Added the CMS-owned `GET /api/v1/cpo/operations/charger-operations` history
+  route with tenant-rooted keyset pagination, operation/actor/charger/connector
+  enrichment, bounded filters, and explicit typed parameter filters. The list
+  never calls HAL or changes/reconciles operation records.
+- The safe list projection excludes raw JSONB, idempotency/correlation data,
+  provider data, internal connector helpers, and every ChangeConfiguration
+  value. The existing exact-operation response is unchanged.
+- Added source-only migration `000062` for the primary CPO history cursor index
+  and updated the OpenAPI/human contract and existing work item. No migration,
+  deployment, restart, database mutation, commit, or push occurred.
+
+Verification: focused parser/projection tests, CPO capability-route coverage,
+`./scripts/verify-docs.ps1`, OpenAPI/runtime route parity, full
+`go test -p 1 ./...`, `go vet -p 1 ./...`, and `git diff --check` pass.
+PostgreSQL history integration remains skipped because `TEST_DATABASE_URL` is
+unset.
+
 ## 2026-09-04 - Deploy CPO typed charger operations
 
 - Added the CPO-to-HAL typed operation vertical with dedicated CMS/HAL

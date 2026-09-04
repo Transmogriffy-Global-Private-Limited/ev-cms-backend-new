@@ -142,6 +142,13 @@ Current implementation state:
   PostgreSQL lifecycle integration, and physical OCPP acceptance remain
   unverified; the active work item retains those follow-ups.
 
+- CPO charger-operation history/audit listing is source-complete and not
+  deployed:
+  CMS-owned keyset pagination, safe enrichment, bounded operation filters, and
+  ChangeConfiguration value redaction extend the active charger-operations
+  work item. It requires no HAL route or runtime action; migration `000062` is
+  source-only until separately authorized.
+
 - Customer AUTO-start chargeability is implemented and deployed under the
   archived work item
   `docs/work/archive/WI-20260903-customer-chargeability-projection.md`. It is

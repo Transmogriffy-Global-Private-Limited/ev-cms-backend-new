@@ -516,6 +516,7 @@ func RegisterCPORoutes(
 	operations.POST("/operations/chargers/:charger_id/clear-cache", handler.clearCache)
 	operations.GET("/operations/chargers/:charger_id/configuration", handler.getChargerConfiguration)
 	operations.POST("/operations/chargers/:charger_id/trigger-message", handler.triggerMessage)
+	operations.GET("/operations/charger-operations", handler.listChargerOperationHistory)
 	operations.GET("/operations/charger-operations/:operation_id", handler.getChargerOperation)
 	operationsAndManage.POST("/operations/chargers/:charger_id/configuration", handler.changeConfiguration)
 	operations.GET("/operations/events", handler.listOperationalEvents)

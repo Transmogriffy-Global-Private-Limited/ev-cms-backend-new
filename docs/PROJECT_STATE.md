@@ -1,5 +1,20 @@
 # Project State
 
+## 2026-09-04 - CPO charger-operation history source slice complete and not deployed
+
+- The local CMS source adds a CPO-scoped, deterministic operation-history read
+  over CMS `charger_operations`. It is a side-effect-free audit view: no HAL
+  calls, no reconciliation, no operation event, and no customer charging,
+  wallet, session, or chargeability change.
+- The pending source migration `000062` adds only the `(cpo_id, created_at
+  DESC, id DESC)` keyset index. It has not been applied. No deployment,
+  restart, database mutation, commit, or push occurred for this slice.
+
+Focused parser/projection tests, CPO capability-route coverage, documentation
+verification, OpenAPI route parity, full `go test -p 1 ./...`, `go vet -p 1
+./...`, and diff checks pass locally. PostgreSQL history integration coverage
+remains unrun because `TEST_DATABASE_URL` is not set.
+
 ## 2026-09-04 - CPO charger-operation vertical deployed
 
 - The CMS source has dedicated `charger_operations` persistence

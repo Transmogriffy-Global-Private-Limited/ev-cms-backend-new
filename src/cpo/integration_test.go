@@ -152,6 +152,7 @@ func TestCPOCapabilityRoutesReachServicesWithPostgreSQL(t *testing.T) {
 		{"hubs", cpopermissions.HubsRead, "/api/v1/cpo/hubs?limit=10"},
 		{"chargers", cpopermissions.ChargersRead, "/api/v1/cpo/chargers?limit=10"},
 		{"charger operations", cpopermissions.ChargersOperations, "/api/v1/cpo/operations/fleet"},
+		{"charger operation history", cpopermissions.ChargersOperations, "/api/v1/cpo/operations/charger-operations?limit=10"},
 		{"tariffs GST user groups", cpopermissions.TariffsRead, "/api/v1/cpo/gsts?limit=10"},
 		{"customers", cpopermissions.CustomersRead, "/api/v1/cpo/customers?limit=10"},
 		{"charging sessions", cpopermissions.ChargingSessionsRead, "/api/v1/cpo/charging-sessions?limit=10"},

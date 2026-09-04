@@ -113,6 +113,27 @@ returns `409 idempotency_conflict`.
   recovery resource. For `RECONCILIATION_REQUIRED` it performs only exact
   same-ID HAL lookup; it never sends another physical OCPP command.
 
+`GET /api/v1/cpo/operations/charger-operations` is the separate CMS-owned
+history feed. It requires the same CPO bearer, matching app ID, and
+`chargers.operations` permission, but it is read-only: it neither contacts HAL
+nor reconciles or changes any row. It uses deterministic keyset pagination:
+`created_at DESC, id DESC`, default `limit=50`, maximum `200`; `before` and
+`before_id` are a required RFC3339/UUID cursor pair. The response contains
+`operations`, `has_more`, and the next cursor when another page exists.
+
+The list accepts bounded `charger_id`, `connector_id`, `actor_user_id`, `kind`,
+`state`, `ocpp_result`, `failure_category`, `created_after`, and
+`created_before` filters. `reset_type`, `availability_type`,
+`requested_message`, and `configuration_key` are typed parameter filters and
+automatically select their matching operation kind; more than one typed
+parameter filter or a mismatched explicit `kind` is rejected. It returns safe
+charger code/name, optional connector number/type, and actor ID/name context.
+Its `parameters` object is kind-specific: Reset includes type/reason,
+availability includes type, TriggerMessage includes requested message, and
+ChangeConfiguration includes only key. It never returns the configuration
+value, raw JSONB, internal connector helper, idempotency key/digest,
+correlation ID, or provider payload.
+
 `PERSISTED` means CMS accepted the operation durably. `OCPP_CONFIRMED` means
 HAL received an OCPP response, whose exact result is retained in
 `ocpp_result`; it does not prove a later physical effect. `CONFIRMED_ABSENT`

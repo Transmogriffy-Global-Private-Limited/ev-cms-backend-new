@@ -1,0 +1,1 @@
+DROP INDEX IF EXISTS ix_charger_operations_cpo_created_id;
