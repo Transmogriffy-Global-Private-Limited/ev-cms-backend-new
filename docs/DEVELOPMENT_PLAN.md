@@ -113,6 +113,7 @@ Current phase:
 
 Active work:
 
+- `docs/work/active/WI-20260904-cpo-charger-operations.md`.
 - `docs/work/active/WI-20260812-cms-hal-operational-capabilities.md`.
 - `docs/work/active/WI-20260826-customer-selected-session-limits.md`.
 - `docs/work/active/WI-20260901-charging-transaction-trace.md` root-identity
@@ -131,6 +132,14 @@ Approved current slice:
   authority, and expose one bounded public-charger-ID REST/SSE batch surface.
 
 Current implementation state:
+
+- CPO charger operations are in source implementation: typed Reset,
+  UnlockConnector, ChangeAvailability, ClearCache, Get/ChangeConfiguration,
+  and allowlisted TriggerMessage use the existing `halops -> halclient -> HAL`
+  boundary. Dedicated operation records, migrations, exact-ID reconciliation,
+  and contract verification are required before this slice can be marked
+  implemented or verified. No deployment or migration application is part of
+  the source work.
 
 - Customer AUTO-start chargeability is implemented and deployed under the
   archived work item

@@ -39,6 +39,33 @@ func TestMutationsSendCMSCorrelationAndIdempotencyHeaders(t *testing.T) {
 	}
 }
 
+func TestChargerOperationUsesDedicatedHALContract(t *testing.T) {
+	cmsOperationID, halOperationID := uuid.New(), uuid.New()
+	correlationID := uuid.NewString()
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		if request.Method != http.MethodPost || request.URL.Path != "/v1/charger-operations" {
+			t.Fatalf("unexpected operation request: %s %s", request.Method, request.URL.Path)
+		}
+		if request.Header.Get("Authorization") != "Bearer test" || request.Header.Get("Idempotency-Key") != cmsOperationID.String() || request.Header.Get("X-Correlation-ID") != correlationID {
+			t.Fatal("charger operation omitted its authenticated idempotency or correlation contract")
+		}
+		writer.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(writer).Encode(map[string]any{"operation": map[string]any{
+			"hal_operation_id": halOperationID, "cms_operation_id": cmsOperationID,
+			"kind": "CLEAR_CACHE", "state": "OCPP_CONFIRMED", "ocpp_result": "Accepted",
+			"updated_at": time.Now().UTC(),
+		}})
+	}))
+	defer server.Close()
+
+	operation, err := New(config.HAL{BaseURL: server.URL, CMSBearerToken: "test", RequestTimeout: time.Second}).OperateCharger(context.Background(), ChargerOperationRequest{
+		CMSOperationID: cmsOperationID, CPOID: uuid.New(), CMSChargerID: uuid.New(), ChargerOCPPIdentity: "CP-01", Kind: "CLEAR_CACHE", Parameters: map[string]string{},
+	}, correlationID)
+	if err != nil || operation.HALOperationID != halOperationID || operation.OCPPResult != "Accepted" {
+		t.Fatalf("operation=%+v err=%v", operation, err)
+	}
+}
+
 func TestRequeueFactUsesExactAuthenticatedRecoveryContract(t *testing.T) {
 	factID, correlationID := uuid.New(), uuid.New().String()
 	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {

@@ -131,6 +131,44 @@ type Command struct {
 	UpdatedAt         time.Time  `json:"updated_at"`
 }
 
+// ChargerOperation is separate from Command because only Start/Stop command
+// records carry charging lifecycle semantics.
+type ChargerOperation struct {
+	HALOperationID      uuid.UUID  `json:"hal_operation_id"`
+	CMSOperationID      uuid.UUID  `json:"cms_operation_id"`
+	CPOID               uuid.UUID  `json:"cpo_id"`
+	CMSChargerID        uuid.UUID  `json:"cms_charger_id"`
+	CMSConnectorID      *uuid.UUID `json:"cms_connector_id,omitempty"`
+	ChargerOCPPIdentity string     `json:"-"`
+	OCPPConnectorNumber int        `json:"ocpp_connector_number"`
+	Kind                string     `json:"kind"`
+	State               string     `json:"state"`
+	OCPPResult          string     `json:"ocpp_result,omitempty"`
+	ErrorCategory       string     `json:"error_category,omitempty"`
+	DeliveryAttempts    int        `json:"delivery_attempts"`
+	CreatedAt           time.Time  `json:"created_at"`
+	UpdatedAt           time.Time  `json:"updated_at"`
+	CompletedAt         *time.Time `json:"completed_at,omitempty"`
+}
+
+type ChargerOperationRequest struct {
+	CMSOperationID      uuid.UUID         `json:"cms_operation_id"`
+	CPOID               uuid.UUID         `json:"cpo_id"`
+	CMSChargerID        uuid.UUID         `json:"cms_charger_id"`
+	CMSConnectorID      *uuid.UUID        `json:"cms_connector_id,omitempty"`
+	ChargerOCPPIdentity string            `json:"charger_ocpp_identity"`
+	OCPPConnectorNumber int               `json:"ocpp_connector_number"`
+	Kind                string            `json:"kind"`
+	Parameters          map[string]string `json:"parameters"`
+}
+
+type ChargerConfigurationKey struct {
+	Key      string  `json:"key"`
+	Readonly bool    `json:"readonly"`
+	Value    *string `json:"value"`
+	Redacted bool    `json:"redacted"`
+}
+
 // Transaction is the exact authoritative start truth returned by HAL's
 // service-only reconciliation lookup. CMS never derives these identities from
 // a charger, command response, or timeout.
@@ -179,6 +217,87 @@ func (client *Client) GetCommand(ctx context.Context, id uuid.UUID) (Command, er
 		return Command{}, err
 	}
 	return command, nil
+}
+
+func (client *Client) OperateCharger(ctx context.Context, request ChargerOperationRequest, correlationID string) (ChargerOperation, error) {
+	var response struct {
+		Operation ChargerOperation `json:"operation"`
+	}
+	if err := client.mutateOperation(ctx, http.MethodPost, "/v1/charger-operations", request.CMSOperationID.String(), correlationID, request, &response); err != nil {
+		return ChargerOperation{}, err
+	}
+	if response.Operation.HALOperationID == uuid.Nil || response.Operation.CMSOperationID != request.CMSOperationID || response.Operation.Kind != request.Kind || response.Operation.UpdatedAt.IsZero() {
+		return ChargerOperation{}, invalidCommandResponse("charger operation response violates identity or state invariants")
+	}
+	return response.Operation, nil
+}
+
+func (client *Client) GetChargerOperation(ctx context.Context, id uuid.UUID) (ChargerOperation, error) {
+	var response struct {
+		Operation ChargerOperation `json:"operation"`
+	}
+	if err := client.requestJSON(ctx, http.MethodGet, "/v1/charger-operations?cms_operation_id="+url.QueryEscape(id.String()), nil, &response); err != nil {
+		return ChargerOperation{}, err
+	}
+	if response.Operation.HALOperationID == uuid.Nil || response.Operation.CMSOperationID != id || response.Operation.UpdatedAt.IsZero() {
+		return ChargerOperation{}, invalidCommandResponse("charger operation lookup response violates identity or state invariants")
+	}
+	return response.Operation, nil
+}
+
+func (client *Client) GetChargerConfiguration(ctx context.Context, cpoID, chargerID uuid.UUID, identity string, keys []string) ([]ChargerConfigurationKey, []string, error) {
+	var response struct {
+		ConfigurationKeys []ChargerConfigurationKey `json:"configuration_keys"`
+		UnknownKeys       []string                  `json:"unknown_keys"`
+	}
+	body := struct {
+		CPOID               uuid.UUID `json:"cpo_id"`
+		CMSChargerID        uuid.UUID `json:"cms_charger_id"`
+		ChargerOCPPIdentity string    `json:"charger_ocpp_identity"`
+		Keys                []string  `json:"keys,omitempty"`
+	}{cpoID, chargerID, identity, keys}
+	if err := client.requestJSON(ctx, http.MethodPost, "/v1/charger-configurations/read", body, &response); err != nil {
+		return nil, nil, err
+	}
+	return response.ConfigurationKeys, response.UnknownKeys, nil
+}
+
+func (client *Client) mutateOperation(ctx context.Context, method, path, idempotency, correlation string, body, target any) error {
+	parsed, err := uuid.Parse(correlation)
+	if err != nil || parsed == uuid.Nil || parsed.String() != correlation {
+		return ErrMissingCorrelationID
+	}
+	if !client.Available() {
+		return ErrUnavailable
+	}
+	raw, err := json.Marshal(body)
+	if err != nil {
+		return fmt.Errorf("marshal HAL v1 operation request: %w", err)
+	}
+	req, err := http.NewRequestWithContext(ctx, method, client.baseURL+path, bytes.NewReader(raw))
+	if err != nil {
+		return fmt.Errorf("create HAL v1 operation request: %w", err)
+	}
+	req.Header.Set("Authorization", "Bearer "+client.bearer)
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Idempotency-Key", idempotency)
+	req.Header.Set("X-Correlation-ID", correlation)
+	resp, err := client.http.Do(req)
+	if err != nil {
+		return fmt.Errorf("send HAL v1 operation request: %w", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		var body struct {
+			Error string `json:"error"`
+		}
+		_ = json.NewDecoder(io.LimitReader(resp.Body, 32*1024)).Decode(&body)
+		return &HTTPError{Status: resp.StatusCode, Code: body.Error}
+	}
+	if err := json.NewDecoder(io.LimitReader(resp.Body, 64*1024)).Decode(target); err != nil {
+		return fmt.Errorf("decode HAL v1 operation response: %w", err)
+	}
+	return nil
 }
 
 func (client *Client) GetTransactionByStartIntent(ctx context.Context, id uuid.UUID) (Transaction, error) {

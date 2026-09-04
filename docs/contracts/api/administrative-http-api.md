@@ -85,6 +85,43 @@ provider diagnostics, another customer session, or fabricated electrical
 measurements. REST is the recovery authority; no frontend correctness depends
 on a live connection.
 
+## CPO typed charger operations
+
+The CPO-only routes under `/api/v1/cpo/operations/chargers/{charger_id}` use
+the CMS charger UUID (not the public inventory identifier), a matching active
+`X-CPO-App-ID`, a CPO bearer, and `chargers.operations`. Every mutating route
+also requires an `Idempotency-Key` of at most 128 characters. CMS persists the
+operation before contacting HAL and uses the server request ID as the trusted
+cross-service correlation ID. Reusing a key with an identical operation
+returns the same durable record; reusing it with a different typed payload
+returns `409 idempotency_conflict`.
+
+- `POST /reset` accepts only `SOFT` or `HARD` plus a bounded reason.
+- `POST /unlock` requires one CPO-owned CMS connector UUID.
+- `POST /availability` accepts only `OPERATIVE` or `INOPERATIVE`, for the
+  whole charger or one CPO-owned connector.
+- `POST /clear-cache` has no generic payload.
+- `POST /trigger-message` accepts only `BootNotification`,
+  `DiagnosticsStatusNotification`, `FirmwareStatusNotification`, `Heartbeat`,
+  `MeterValues`, or `StatusNotification`, optionally for one connector.
+- `GET /configuration` reads a bounded repeatable `key` query parameter;
+  values marked sensitive are explicitly redacted. `POST /configuration`
+  additionally requires `chargers.manage`, rejects HAL-owned reconciliation
+  keys and sensitive credential-like keys, and changes exactly one remaining
+  key.
+- `GET /api/v1/cpo/operations/charger-operations/{operation_id}` is the
+  recovery resource. For `RECONCILIATION_REQUIRED` it performs only exact
+  same-ID HAL lookup; it never sends another physical OCPP command.
+
+`PERSISTED` means CMS accepted the operation durably. `OCPP_CONFIRMED` means
+HAL received an OCPP response, whose exact result is retained in
+`ocpp_result`; it does not prove a later physical effect. `CONFIRMED_ABSENT`
+means HAL's exact lookup proves the operation was never created there. A
+`RECONCILIATION_REQUIRED` response is honest about ambiguous delivery. These
+operations are distinct from customer RemoteStart/RemoteStop, sessions,
+wallets, chargeability, firmware, and diagnostics; none of those states are
+changed by this API.
+
 This is the human-readable contract for every currently implemented HTTP
 endpoint, including public customer signup and administrative APIs. It is
 intended to be sufficient for frontend, QA, mobile, and backend integration

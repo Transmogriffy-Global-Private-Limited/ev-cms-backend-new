@@ -1,5 +1,26 @@
 # AI Changelog
 
+## 2026-09-04 - Add source-only CPO typed charger operations
+
+- Added the CPO-to-HAL typed operation vertical with dedicated CMS/HAL
+  operation identities and ledgers, scoped mapping validation, caller-key
+  idempotency, request correlation, one-way ambiguous-delivery handling, exact
+  lookup reconciliation, and committed operational invalidation events.
+- Added only Reset, UnlockConnector, ChangeAvailability, ClearCache,
+  Get/ChangeConfiguration, and an allowlisted TriggerMessage. Configuration
+  changes reject HAL-owned reconciliation keys and sensitive credential-like
+  keys. Existing customer RemoteStart/RemoteStop and charging persistence are
+  untouched.
+- Added migration `000061`, route/OpenAPI/human-contract updates, and focused
+  HAL-client contract coverage. No migration, database mutation, service
+  restart, deployment, commit, or push occurred.
+
+Verification: `./scripts/verify-docs.ps1`, focused
+`go test ./src/halclient ./src/halops ./src/cpo ./src/routes -count=1`, full
+`go test -p 1 ./...`, `go vet -p 1 ./...`, and `git diff --check` pass.
+PostgreSQL and hardware verification are intentionally unrun without a
+disposable test database and mapped charge point.
+
 ## 2026-09-04 - Rehost current main revision
 
 - Rebuilt and rehosted canonical `main` revision `e7bab56` after verifying the

@@ -443,6 +443,29 @@ type HALCommandRecord struct {
 	UpdatedAt         time.Time  `gorm:"not null" json:"updated_at"`
 }
 
+// ChargerOperation is the CPO-control audit/recovery record. It deliberately
+// does not reuse HALCommandRecord because no generic charger operation has a
+// charging-session, hold, or settlement meaning.
+type ChargerOperation struct {
+	ID              uuid.UUID  `gorm:"type:uuid;primaryKey" json:"id"`
+	CPOID           uuid.UUID  `gorm:"type:uuid;not null;index" json:"cpo_id"`
+	ChargerID       uuid.UUID  `gorm:"type:uuid;not null;index" json:"charger_id"`
+	ConnectorID     *uuid.UUID `gorm:"type:uuid;index" json:"connector_id,omitempty"`
+	ActorUserID     uuid.UUID  `gorm:"type:uuid;not null;index" json:"actor_user_id"`
+	IdempotencyKey  string     `gorm:"type:varchar(128);not null" json:"-"`
+	RequestDigest   string     `gorm:"type:char(64);not null" json:"-"`
+	CorrelationID   string     `gorm:"type:varchar(64);not null" json:"correlation_id"`
+	Kind            string     `gorm:"type:varchar(32);not null;index" json:"kind"`
+	Parameters      JSONB      `gorm:"type:jsonb;not null;default:'{}'" json:"-"`
+	HALOperationID  *uuid.UUID `gorm:"type:uuid;uniqueIndex" json:"hal_operation_id,omitempty"`
+	State           string     `gorm:"type:varchar(32);not null;index" json:"state"`
+	OCPPResult      string     `gorm:"type:varchar(64);not null;default:''" json:"ocpp_result,omitempty"`
+	FailureCategory string     `gorm:"type:varchar(64);not null;default:''" json:"failure_category,omitempty"`
+	CreatedAt       time.Time  `gorm:"not null" json:"created_at"`
+	UpdatedAt       time.Time  `gorm:"not null" json:"updated_at"`
+	CompletedAt     *time.Time `gorm:"type:timestamptz" json:"completed_at,omitempty"`
+}
+
 // ChargingTraceEvent stores immutable diagnostic evidence. It never owns
 // session, connector, billing, or command state.
 type ChargingTraceEvent struct {

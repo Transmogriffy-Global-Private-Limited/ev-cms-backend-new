@@ -664,11 +664,17 @@ wallet, or frontend event conclusions.
 | `GET /api/v1/cpo/operations/live-sessions/snapshot` | JSON recovery/keyset pagination for the live-session projection |
 | `GET /api/v1/cpo/operations/live-sessions/events` | advanced retained `CHARGING_SESSION` reconciliation cursor; not needed by the normal live table |
 
-Current source has no CPO start/stop/reset/unlock endpoint. Customer start and
-owner-only stop are implemented. A future CPO command needs a separate approved
-vertical slice: same-CPO capability authorization, exact resource lookup, durable CMS
-command, `halops`, fact projection, REST/SSE recovery, OpenAPI, and dual-service
-verification.
+Customer start and owner-only stop remain the only charging/session commands.
+The CPO control vertical adds typed non-commercial charger operations through
+the same boundary: Reset, UnlockConnector, ChangeAvailability, ClearCache,
+Get/ChangeConfiguration, and allowlisted TriggerMessage. Each mutation creates
+one CMS operation before HAL I/O and reuses that exact ID for HAL idempotency
+and reconciliation. It must never be represented as a Start/Stop command or
+used to mutate sessions, holds, settlement, administrative inventory, or
+customer chargeability. `chargers.operations` is required; ChangeConfiguration
+also requires `chargers.manage`. HAL-owned configuration keys and sensitive
+values are rejected/redacted, and later OCPP facts remain the authority for
+observed charger effects.
 
 SSE frames are numeric `id`, event name, and JSON data. Client stores the ID,
 uses `after_id` or `Last-Event-ID` after reconnect, deduplicates, then refetches

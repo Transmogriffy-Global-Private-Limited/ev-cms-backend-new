@@ -4137,6 +4137,86 @@ paths:
         "404": {description: Charger not found, content: {application/json: {schema: {$ref: "#/components/schemas/ErrorEnvelope"}}}}
         "500": {$ref: "#/components/responses/InternalError"}
 
+  /api/v1/cpo/operations/chargers/{charger_id}/reset:
+    post:
+      tags: [CPO Charger Operations]
+      operationId: resetCPOCharger
+      summary: Request a typed soft or hard OCPP reset
+      description: Requires `chargers.operations` and an Idempotency-Key. CMS/HAL durable acceptance, OCPP acknowledgement, and later charger state are distinct.
+      security: [{BearerAuth: [], CPOAppID: []}]
+      parameters: [{name: charger_id, in: path, required: true, schema: {type: string, format: uuid}}, {$ref: "#/components/parameters/CPOAppIDHeader"}, {name: Idempotency-Key, in: header, required: true, schema: {type: string, maxLength: 128}}]
+      requestBody: {required: true, content: {application/json: {schema: {type: object, required: [type, reason], properties: {type: {type: string, enum: [SOFT, HARD]}, reason: {type: string, minLength: 3, maxLength: 500}}}}}}
+      responses: {"202": {description: Durable operation and current delivery evidence, content: {application/json: {schema: {$ref: "#/components/schemas/ChargerOperationResponse"}}}}, "400": {$ref: "#/components/responses/InvalidRequest"}, "401": {$ref: "#/components/responses/Unauthorized"}, "403": {$ref: "#/components/responses/CPOBusinessForbidden"}, "404": {description: Charger not found}, "409": {description: Idempotency conflict}, "503": {description: HAL or mapping unavailable}}
+
+  /api/v1/cpo/operations/chargers/{charger_id}/unlock:
+    post:
+      tags: [CPO Charger Operations]
+      operationId: unlockCPOChargerConnector
+      summary: Request OCPP UnlockConnector for one CMS connector
+      security: [{BearerAuth: [], CPOAppID: []}]
+      parameters: [{name: charger_id, in: path, required: true, schema: {type: string, format: uuid}}, {$ref: "#/components/parameters/CPOAppIDHeader"}, {name: Idempotency-Key, in: header, required: true, schema: {type: string}}]
+      requestBody: {required: true, content: {application/json: {schema: {type: object, required: [connector_id], properties: {connector_id: {type: string, format: uuid}}}}}}
+      responses: {"202": {description: Durable operation evidence, content: {application/json: {schema: {$ref: "#/components/schemas/ChargerOperationResponse"}}}}, "400": {$ref: "#/components/responses/InvalidRequest"}, "403": {$ref: "#/components/responses/CPOBusinessForbidden"}, "404": {description: Charger or connector not found}, "409": {description: Idempotency conflict}, "503": {description: HAL or mapping unavailable}}
+
+  /api/v1/cpo/operations/chargers/{charger_id}/availability:
+    post:
+      tags: [CPO Charger Operations]
+      operationId: changeCPOChargerAvailability
+      summary: Request OCPP ChangeAvailability for a charger or connector
+      description: An OCPP Scheduled result is not an applied CMS administrative or customer-visible state.
+      security: [{BearerAuth: [], CPOAppID: []}]
+      parameters: [{name: charger_id, in: path, required: true, schema: {type: string, format: uuid}}, {$ref: "#/components/parameters/CPOAppIDHeader"}, {name: Idempotency-Key, in: header, required: true, schema: {type: string}}]
+      requestBody: {required: true, content: {application/json: {schema: {type: object, required: [type], properties: {connector_id: {type: string, format: uuid}, type: {type: string, enum: [OPERATIVE, INOPERATIVE]}}}}}}
+      responses: {"202": {description: Durable operation evidence, content: {application/json: {schema: {$ref: "#/components/schemas/ChargerOperationResponse"}}}}, "400": {$ref: "#/components/responses/InvalidRequest"}, "403": {$ref: "#/components/responses/CPOBusinessForbidden"}, "404": {description: Charger or connector not found}, "409": {description: Idempotency conflict}, "503": {description: HAL or mapping unavailable}}
+
+  /api/v1/cpo/operations/chargers/{charger_id}/clear-cache:
+    post:
+      tags: [CPO Charger Operations]
+      operationId: clearCPOChargerCache
+      summary: Request OCPP ClearCache
+      security: [{BearerAuth: [], CPOAppID: []}]
+      parameters: [{name: charger_id, in: path, required: true, schema: {type: string, format: uuid}}, {$ref: "#/components/parameters/CPOAppIDHeader"}, {name: Idempotency-Key, in: header, required: true, schema: {type: string}}]
+      responses: {"202": {description: Durable operation evidence, content: {application/json: {schema: {$ref: "#/components/schemas/ChargerOperationResponse"}}}}, "403": {$ref: "#/components/responses/CPOBusinessForbidden"}, "404": {description: Charger not found}, "409": {description: Idempotency conflict}, "503": {description: HAL or mapping unavailable}}
+
+  /api/v1/cpo/operations/chargers/{charger_id}/trigger-message:
+    post:
+      tags: [CPO Charger Operations]
+      operationId: triggerCPOChargerMessage
+      summary: Request one allowlisted OCPP TriggerMessage
+      security: [{BearerAuth: [], CPOAppID: []}]
+      parameters: [{name: charger_id, in: path, required: true, schema: {type: string, format: uuid}}, {$ref: "#/components/parameters/CPOAppIDHeader"}, {name: Idempotency-Key, in: header, required: true, schema: {type: string}}]
+      requestBody: {required: true, content: {application/json: {schema: {type: object, required: [requested_message], properties: {connector_id: {type: string, format: uuid}, requested_message: {type: string, enum: [BootNotification, DiagnosticsStatusNotification, FirmwareStatusNotification, Heartbeat, MeterValues, StatusNotification]}}}}}}
+      responses: {"202": {description: Durable operation evidence; Accepted does not prove the later notification arrived, content: {application/json: {schema: {$ref: "#/components/schemas/ChargerOperationResponse"}}}}, "400": {$ref: "#/components/responses/InvalidRequest"}, "403": {$ref: "#/components/responses/CPOBusinessForbidden"}, "404": {description: Charger or connector not found}, "409": {description: Idempotency conflict}, "503": {description: HAL or mapping unavailable}}
+
+  /api/v1/cpo/operations/chargers/{charger_id}/configuration:
+    get:
+      tags: [CPO Charger Operations]
+      operationId: getCPOChargerConfiguration
+      summary: Read bounded OCPP configuration keys through CMS
+      description: "Requires `chargers.operations`; omitted key selects the OCPP all-keys form. Sensitive values are explicitly redacted."
+      security: [{BearerAuth: [], CPOAppID: []}]
+      parameters: [{name: charger_id, in: path, required: true, schema: {type: string, format: uuid}}, {$ref: "#/components/parameters/CPOAppIDHeader"}, {name: key, in: query, required: false, schema: {type: string}, description: Repeat up to 64 times.}]
+      responses: {"200": {description: "Readonly, unknown, and explicitly redacted configuration representation", content: {application/json: {schema: {$ref: "#/components/schemas/ChargerConfigurationResponse"}}}}, "400": {$ref: "#/components/responses/InvalidRequest"}, "403": {$ref: "#/components/responses/CPOBusinessForbidden"}, "404": {description: Charger not found}, "503": {description: "HAL, mapping, or connection unavailable"}}
+    post:
+      tags: [CPO Charger Operations]
+      operationId: changeCPOChargerConfiguration
+      summary: Change one non-reserved OCPP configuration key
+      description: Requires both `chargers.operations` and `chargers.manage`. HAL-owned and sensitive keys are rejected.
+      security: [{BearerAuth: [], CPOAppID: []}]
+      parameters: [{name: charger_id, in: path, required: true, schema: {type: string, format: uuid}}, {$ref: "#/components/parameters/CPOAppIDHeader"}, {name: Idempotency-Key, in: header, required: true, schema: {type: string}}]
+      requestBody: {required: true, content: {application/json: {schema: {type: object, required: [key, value], properties: {key: {type: string, maxLength: 100}, value: {type: string, maxLength: 500}}}}}}
+      responses: {"202": {description: Durable operation evidence; RebootRequired remains a distinct OCPP result, content: {application/json: {schema: {$ref: "#/components/schemas/ChargerOperationResponse"}}}}, "400": {$ref: "#/components/responses/InvalidRequest"}, "403": {$ref: "#/components/responses/CPOBusinessForbidden"}, "404": {description: Charger not found}, "409": {description: Idempotency conflict}, "503": {description: HAL or mapping unavailable}}
+
+  /api/v1/cpo/operations/charger-operations/{operation_id}:
+    get:
+      tags: [CPO Charger Operations]
+      operationId: getCPOChargerOperation
+      summary: Recover one durable CPO charger operation by its CMS identity
+      description: A reconciliation-required operation performs only exact same-ID HAL lookup; it never creates or replays a replacement physical command.
+      security: [{BearerAuth: [], CPOAppID: []}]
+      parameters: [{name: operation_id, in: path, required: true, schema: {type: string, format: uuid}}, {$ref: "#/components/parameters/CPOAppIDHeader"}]
+      responses: {"200": {description: Durable operation delivery and OCPP acknowledgement evidence, content: {application/json: {schema: {$ref: "#/components/schemas/ChargerOperationResponse"}}}}, "400": {$ref: "#/components/responses/InvalidRequest"}, "403": {$ref: "#/components/responses/CPOBusinessForbidden"}, "404": {description: Operation not found}}
+
   /api/v1/cpo/operations/events:
     get:
       tags: [CPO Operations - Live]
@@ -7143,6 +7223,41 @@ components:
             $ref: "#/components/schemas/ErrorEnvelope"
 
   schemas:
+    ChargerOperationResponse:
+      type: object
+      additionalProperties: false
+      required: [id, charger_id, kind, state, created_at, updated_at]
+      properties:
+        id: {type: string, format: uuid}
+        charger_id: {type: string, format: uuid}
+        connector_id: {type: string, format: uuid}
+        kind: {type: string, enum: [RESET, UNLOCK_CONNECTOR, CHANGE_AVAILABILITY, CLEAR_CACHE, CHANGE_CONFIGURATION, TRIGGER_MESSAGE]}
+        state: {type: string, enum: [PERSISTED, HAL_ACCEPTED, OCPP_CONFIRMED, RECONCILIATION_REQUIRED, CONFIRMED_ABSENT]}
+        ocpp_result: {type: string, description: Exact OCPP response result when HAL received one.}
+        failure_category: {type: string, description: Safe reconciliation category; not a raw provider error.}
+        hal_operation_id: {type: string, format: uuid}
+        created_at: {type: string, format: date-time}
+        updated_at: {type: string, format: date-time}
+        completed_at: {type: string, format: date-time}
+    ChargerConfigurationResponse:
+      type: object
+      additionalProperties: false
+      required: [configuration_keys, unknown_keys]
+      properties:
+        configuration_keys:
+          type: array
+          items:
+            type: object
+            additionalProperties: false
+            required: [key, readonly, redacted]
+            properties:
+              key: {type: string}
+              readonly: {type: boolean}
+              value: {type: string, nullable: true}
+              redacted: {type: boolean}
+        unknown_keys:
+          type: array
+          items: {type: string}
     AdministratorPage:
       type: object
       additionalProperties: false

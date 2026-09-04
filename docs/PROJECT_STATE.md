@@ -1,5 +1,27 @@
 # Project State
 
+## 2026-09-04 - CPO charger-operation source vertical, locally verified and not deployed
+
+- The uncommitted CMS source now has dedicated `charger_operations` persistence
+  and typed CPO routes for Reset, UnlockConnector, ChangeAvailability,
+  ClearCache, Get/ChangeConfiguration, and an allowlisted TriggerMessage.
+  These records do not reuse charging Start/Stop commands and do not modify
+  sessions, wallet holds, customer chargeability, firmware, or diagnostics.
+- CMS persists a CPO-scoped idempotency record before contacting HAL, uses the
+  trusted request correlation ID, publishes a committed operational change
+  event, and reconciles an ambiguous request only by exact CMS operation ID.
+  CMS durable acceptance, the preserved HAL/OCPP response, and later observed
+  charger effect remain separate claims.
+- Migration `000061_cpo_charger_operations` and its HAL counterpart are source
+  artifacts only. They were not applied, and no service, database, deployment,
+  restart, commit, or push occurred.
+
+Verification: documentation/OpenAPI route verification, focused CPO,
+HAL-client, and HAL-operations packages, full `go test -p 1 ./...`, and
+`go vet -p 1 ./...` pass locally. PostgreSQL lifecycle, dual-service, and
+physical OCPP verification remain unrun because no disposable
+`TEST_DATABASE_URL` or mapped charge point was selected.
+
 ## 2026-09-04 - Current main revision rehosted
 
 - Canonical `main` revision `e7bab56` is active behind Caddy with migration
