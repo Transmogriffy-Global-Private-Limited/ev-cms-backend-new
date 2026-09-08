@@ -7826,3 +7826,64 @@ func (service *Service) GetHubAnalytics(
 		Chargers: chargerResponses,
 	}, nil
 }
+
+func (service *Service) ListVehicles(
+	ctx context.Context,
+	principal auth.Principal,
+	query VehicleListQuery,
+) (VehicleListResponse, error) {
+	if err := requireCPOContext(principal); err != nil {
+		return VehicleListResponse{}, err
+	}
+
+	if query.Limit == 0 {
+		query.Limit = defaultListLimit
+	}
+	if query.Limit < 1 || query.Limit > maxListLimit {
+		return VehicleListResponse{}, invalid(
+			"limit",
+			"Limit must be between 1 and 200.",
+		)
+	}
+
+	vehicles, err := service.repository.ListVehicles(ctx, *principal.CPOID, query)
+	if err != nil {
+		return VehicleListResponse{}, fmt.Errorf("list vehicles: %w", err)
+	}
+
+	hasMore := len(vehicles) > query.Limit
+	if hasMore {
+		vehicles = vehicles[:query.Limit]
+	}
+
+	result := make([]VehicleView, 0, len(vehicles))
+	for _, v := range vehicles {
+		result = append(result, VehicleView{
+			ID:            v.ID,
+			CustomerID:    v.CustomerID,
+			CustomerName:  v.CustomerName,
+			CustomerEmail: v.CustomerEmail,
+			VehicleNumber: v.VehicleNumber,
+			Type:          v.Type,
+			Make:          v.Make,
+			Model:         v.Model,
+			LastCharged:   v.LastCharged,
+			DateAdded:     v.DateAdded,
+			CreatedAt:     v.CreatedAt,
+			UpdatedAt:     v.UpdatedAt,
+		})
+	}
+
+	response := VehicleListResponse{
+		Vehicles: result,
+		HasMore:  hasMore,
+	}
+
+	if hasMore && len(vehicles) > 0 {
+		nextBefore := vehicles[len(vehicles)-1].CreatedAt
+		nextBeforeID := vehicles[len(vehicles)-1].ID
+		response.NextBefore = &nextBefore
+		response.NextBeforeID = &nextBeforeID
+	}
+	return response, nil
+}

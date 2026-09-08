@@ -609,7 +609,7 @@ func RegisterCPORoutes(
 	customersRead.GET("/wallet-transactions", handler.listWalletTransactions)
 	customersRead.GET("/customers/:customer_id/wallet-transactions", handler.listCustomerWalletTransactions)
 	analyticsRead.GET("/hubs/:hub_id/analytics", handler.getHubAnalytics)
-
+	customersRead.GET("/vehicles", handler.listVehicles)
 }
 
 func (handler *Handler) getChargingSessionTrace(ctx *gin.Context) {
@@ -3211,6 +3211,19 @@ func (handler *Handler) listWalletTransactions(ctx *gin.Context) {
 	}
 	ctx.JSON(http.StatusOK, records)
 }
+func (handler *Handler) listVehicles(ctx *gin.Context) {
+	principal, _ := auth.CurrentPrincipal(ctx)
+	query, ok := parseVehicleListQuery(ctx)
+	if !ok {
+		return
+	}
+	records, err := handler.service.ListVehicles(ctx.Request.Context(), principal, query)
+	if err != nil {
+		writeError(ctx, err)
+		return
+	}
+	ctx.JSON(http.StatusOK, records)
+}
 
 // listCustomerWalletTransactions – returns wallet transactions for a single,
 // specific customer (identified by the path parameter).
@@ -3281,6 +3294,43 @@ func parseWalletTransactionListQuery(ctx *gin.Context) (WalletTransactionListQue
 		if err != nil || customerID == uuid.Nil {
 			writeError(ctx, invalid("customer_id", "Customer ID must be a non-zero UUID."))
 			return WalletTransactionListQuery{}, false
+		}
+		query.CustomerID = &customerID
+	}
+	return query, true
+}
+
+func parseVehicleListQuery(ctx *gin.Context) (VehicleListQuery, bool) {
+	query := VehicleListQuery{}
+	if limitText := strings.TrimSpace(ctx.Query("limit")); limitText != "" {
+		limit, err := strconv.Atoi(limitText)
+		if err != nil {
+			writeError(ctx, invalid("limit", "Limit must be an integer."))
+			return VehicleListQuery{}, false
+		}
+		query.Limit = limit
+	}
+	if beforeText := strings.TrimSpace(ctx.Query("before")); beforeText != "" {
+		before, err := time.Parse(time.RFC3339, beforeText)
+		if err != nil {
+			writeError(ctx, invalid("before", "Before must be an RFC3339 timestamp."))
+			return VehicleListQuery{}, false
+		}
+		query.Before = &before
+	}
+	if beforeIDText := strings.TrimSpace(ctx.Query("before_id")); beforeIDText != "" {
+		beforeID, err := uuid.Parse(beforeIDText)
+		if err != nil || beforeID == uuid.Nil {
+			writeError(ctx, invalid("before_id", "Before ID must be a non-zero UUID."))
+			return VehicleListQuery{}, false
+		}
+		query.BeforeID = &beforeID
+	}
+	if customerIDText := strings.TrimSpace(ctx.Query("customer_id")); customerIDText != "" {
+		customerID, err := uuid.Parse(customerIDText)
+		if err != nil || customerID == uuid.Nil {
+			writeError(ctx, invalid("customer_id", "Customer ID must be a non-zero UUID."))
+			return VehicleListQuery{}, false
 		}
 		query.CustomerID = &customerID
 	}

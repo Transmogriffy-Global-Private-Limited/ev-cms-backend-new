@@ -961,3 +961,32 @@ type HubAnalyticsResponse struct {
 	Analytics AnalyticsResponse `json:"analytics"`
 	Chargers  []ChargerResponse `json:"chargers"`
 }
+
+type VehicleListQuery struct {
+	Before     *time.Time
+	BeforeID   *uuid.UUID
+	Limit      int
+	CustomerID *uuid.UUID
+}
+
+type VehicleView struct {
+	ID            uuid.UUID  `json:"id"`
+	CustomerID    uuid.UUID  `json:"customer_id"`
+	CustomerName  string     `json:"customer_name"`
+	CustomerEmail string     `json:"customer_email"`
+	VehicleNumber string     `json:"vehicle_number"`
+	Type          string     `json:"type,omitempty"`
+	Make          string     `json:"make,omitempty"`
+	Model         string     `json:"model,omitempty"`
+	LastCharged   *time.Time `json:"last_charged,omitempty"`
+	DateAdded     time.Time  `json:"date_added"`
+	CreatedAt     time.Time  `json:"created_at"`
+	UpdatedAt     time.Time  `json:"updated_at"`
+}
+
+type VehicleListResponse struct {
+	Vehicles     []VehicleView `json:"vehicles"`
+	NextBefore   *time.Time    `json:"next_before,omitempty"`
+	NextBeforeID *uuid.UUID    `json:"next_before_id,omitempty"`
+	HasMore      bool          `json:"has_more"`
+}
