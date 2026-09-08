@@ -1,5 +1,28 @@
 # AI Changelog
 
+## 2026-09-08 - Deploy customer vehicle CRUD and tenant integrity
+
+- Deployed customer-owned vehicle create, list, read, partial-update, and
+  hard-delete routes under `/api/v1/app/vehicles`. Ownership is derived from
+  authenticated customer context; server-owned identifiers are rejected and
+  foreign or absent vehicles return the same not-found contract.
+- Applied migration `000066`, replacing the standalone vehicle/customer
+  foreign key with the PostgreSQL composite `(cpo_id, customer_id)` invariant.
+  No vehicle rows or charging data were rewritten.
+- The runtime is source revision `f6dc9a0`, with binary SHA-256
+  `d226751d1dc0031a0b3bf369896c4f9c955abc864189f1ec33158e8aa6203167` and 241
+  OpenAPI operations. The pre-migration dump is retained at
+  `/root/evcmsnew-backups/pre-000066-20260908T161639+0530/`; the prior binary
+  is retained at `/root/evcmsnew-backups/pre-f6dc9a0-20260908T161745+0530/`.
+
+Verification: focused customer-auth/routes/database checks, full
+`go test -p 1 ./...`, `go vet -p 1 ./...`, production build, migration/FK
+checks, post-rehost process identity, loopback/public health and readiness,
+OpenAPI/Swagger, worker, Caddy, and startup-log checks pass. PostgreSQL
+lifecycle CRUD tests remain unrun because `TEST_DATABASE_URL` is unset;
+paired HAL and physical OCPP checks are outside this slice. `pwsh` is
+unavailable, so `./scripts/verify-docs.ps1` was not run.
+
 ## 2026-09-08 - Deploy vehicle listing and audited GetConfiguration catalog fix
 
 - Added CMS-owned CPO vehicle listing persistence and route support through

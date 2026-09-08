@@ -1,10 +1,10 @@
 # WI-20260908-customer-vehicle-crud
 
-Status: Implemented (source verified; PostgreSQL lifecycle verification pending)
+Status: Implemented (deployed; PostgreSQL lifecycle verification pending)
 Owner: Codex
 Collaborators: Anubhab Dey
 Started: 2026-09-08
-Last updated: 2026-09-08
+Last updated: 2026-09-08 (migration and runtime deployed; lifecycle verification pending)
 
 Development-plan reference: `docs/DEVELOPMENT_PLAN.md` — customer app experience
 Detailed-plan reference: None
@@ -25,7 +25,8 @@ operations without exposing or accepting tenant/customer ownership identifiers.
 ## Non-goals
 
 - CPO vehicle mutation, charging/session linkage, HAL changes, vehicle-number
-  uniqueness or format rules, search infrastructure, runtime migration, or deploy.
+  uniqueness or format rules, search infrastructure, or paired physical
+  charger acceptance.
 
 ## Claimed surfaces
 
@@ -54,23 +55,24 @@ add vehicle uniqueness, or alter charging data.
 
 All five customer routes, strict server-owned-field rejection, owner-scoped
 search/filter/keyset reads, transactional audits, and hard delete are
-implemented. The model now preserves nullable metadata and declares the
-composite customer association. No migration has been run and no runtime state
-has been changed.
+implemented and deployed. Migration `000066` is applied and enforces the
+composite customer/CPO foreign key. Runtime revision `f6dc9a0` is active with
+241 OpenAPI operations; no charging or HAL state is changed by this slice.
 
 ## Verification
 
 Focused customer-auth/routes/database tests, full `go test -p 1 ./...`,
-`go vet -p 1 ./...`, OpenAPI/docs verification, route-contract smoke test, and
-`git diff --check` pass. PostgreSQL lifecycle coverage is present in
+`go vet -p 1 ./...`, production build, migration/FK checks, OpenAPI/docs
+contract checks, route-contract smoke test, and post-rehost service checks
+pass. PostgreSQL lifecycle coverage is present in
 `vehicles_integration_test.go` but remains skipped because `TEST_DATABASE_URL`
-is unset.
+is unset. `pwsh` is unavailable for the repository documentation verifier.
 
 ## Handoff
 
 Run the PostgreSQL-gated CRUD/atomicity test against an explicitly selected
-disposable database before deployment, then archive this record.
+disposable database, then archive this record.
 
 ## Completion
 
-Source implementation complete; dynamic PostgreSQL verification pending.
+Deployment complete; dynamic PostgreSQL verification pending.

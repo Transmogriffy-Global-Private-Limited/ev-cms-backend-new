@@ -1,5 +1,24 @@
 # Project State
 
+## 2026-09-08 - Customer vehicle CRUD deployed
+
+- Customer vehicle CRUD is active under `/api/v1/app/vehicles`. The five
+  routes derive CPO/customer ownership from authenticated context, provide
+  owner-scoped keyset listing and search/filter behaviour, record transactional
+  audits, and do not alter charging or HAL state.
+- CMS migration `000066_vehicle_customer_tenant_integrity.up.sql` is applied.
+  `vehicles(cpo_id, customer_id)` now references `customers(cpo_id, id)` as a
+  durable PostgreSQL tenant-consistency invariant.
+- Runtime source revision `f6dc9a0` is active behind Caddy with 241 OpenAPI
+  operations and binary SHA-256
+  `d226751d1dc0031a0b3bf369896c4f9c955abc864189f1ec33158e8aa6203167`.
+  The preceding binary and pre-migration dump are recorded in the changelog.
+
+Loopback/public health and readiness, raw OpenAPI, Swagger, workers, Caddy,
+and post-rehost logs pass. PostgreSQL lifecycle CRUD tests remain unrun because
+`TEST_DATABASE_URL` is not configured; paired HAL and physical OCPP checks are
+not part of this customer-only slice. `pwsh` is unavailable.
+
 ## 2026-09-08 - Vehicle listing and audited operation catalog deployed
 
 - CMS migration `000064` is applied and owns the CPO-scoped `vehicles` table

@@ -168,6 +168,13 @@ Current implementation state:
   PostgreSQL lifecycle integration, paired HAL delivery, and physical OCPP
   verification remain pending without a disposable environment.
 
+- Customer vehicle CRUD is implemented and deployed under the active work
+  item `docs/work/active/WI-20260908-customer-vehicle-crud.md`. Migration
+  `000066` enforces the composite vehicle/customer tenant relationship, and
+  the five customer routes are active in runtime revision `f6dc9a0` with 241
+  OpenAPI operations. PostgreSQL lifecycle CRUD verification remains pending
+  without `TEST_DATABASE_URL`.
+
 - Customer AUTO-start chargeability is implemented and deployed under the
   archived work item
   `docs/work/archive/WI-20260903-customer-chargeability-projection.md`. It is
@@ -1189,6 +1196,10 @@ Active feature:
 
 Current implementation slice:
 
+- Deployed customer vehicle CRUD and migration `000066` tenant-integrity
+  constraint. Runtime revision `f6dc9a0` is active with 241 OpenAPI
+  operations; customer ownership remains authentication-derived and the
+  routes do not call HAL.
 - Deployed CMS vehicle listing and audited charger-operation catalog
   correction. Migrations `000064` and `000065` are applied; the runtime
   revision is `219c5b1` plus the OpenAPI correction with 236 OpenAPI
