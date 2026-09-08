@@ -150,13 +150,14 @@ Current implementation state:
   lifecycle integration, paired HAL runtime, and physical OCPP acceptance
   remain unverified.
 
-- Per-operation OCPP protocol evidence is implemented as an uncommitted,
-  source-only CMS/HAL slice. Each operation has a distinct trace ID, reuses the
+- Per-operation OCPP protocol evidence is implemented and deployed in CMS
+  revision `81e1814` with migration `000063` and 235 OpenAPI operations. Each
+  operation has a distinct trace ID, reuses the
   existing trace outbox/ingress, exposes only its CPO-scoped grouped safe
   exchanges, and adds audited GET_CONFIGURATION without changing the legacy
-  configuration read. Migrations `000063` (CMS) and `021` (HAL) are not
-  applied. Focused source checks pass; PostgreSQL, paired-service, and physical
-  OCPP verification remain pending without a disposable environment.
+  configuration read. CMS migration `000063` is applied; HAL migration `021`
+  remains a separate counterpart deployment. PostgreSQL, paired-service, and
+  physical OCPP verification remain pending without a disposable environment.
 
 - Customer AUTO-start chargeability is implemented and deployed under the
   archived work item

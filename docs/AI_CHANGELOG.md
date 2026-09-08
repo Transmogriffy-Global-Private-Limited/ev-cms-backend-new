@@ -1,8 +1,8 @@
 # AI Changelog
 
-## 2026-09-08 - Add uncommitted per-operation OCPP evidence source slice
+## 2026-09-08 - Deploy per-operation OCPP evidence
 
-- Added trace-root operation identities, source-only migration `000063`, a
+- Added trace-root operation identities, migration `000063`, a
   narrow grouped OCPP exchange read, and action-specific redaction at both the
   HAL ingress and CMS durable persistence boundaries. ChangeConfiguration
   values cannot be persisted in evidence.
@@ -10,10 +10,14 @@
   and an optional safe synchronous response, while preserving the legacy GET
   configuration path.
 
-Verification: focused CMS evidence-redaction test, OpenAPI/runtime route
-parity, and `./scripts/verify-docs.ps1` pass. No migration, runtime database,
-deployment, commit, or push was performed. PostgreSQL and physical OCPP tests
-remain unrun without an explicitly selected disposable test environment.
+Verification: focused CMS evidence-redaction and route/OpenAPI checks, full
+`go test -p 1 ./...`, `go vet -p 1 ./...`, production build, migration/schema
+checks, post-rehost service/process SHA, local/public health and readiness,
+OpenAPI (235 operations), Swagger, Caddy, worker, and log checks pass. The
+CMS migration was applied after a validated mode-0600 database dump.
+PostgreSQL integration, paired HAL delivery, and physical OCPP tests remain
+unrun without an explicitly selected disposable test environment. `pwsh` is
+unavailable, so `./scripts/verify-docs.ps1` was not run.
 
 ## 2026-09-04 - Deploy CPO charger-operation history surface
 

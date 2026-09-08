@@ -37,6 +37,15 @@ plane and does not grant command authority.
 joining seam for a future approved capability; do not add a second HAL client,
 direct HAL DB use, or a parallel event stream.
 
+The deployed CMS charger-operation vertical adds one trace identity per CMS
+operation. HAL trace ingress may attach the matching CMS/HAL operation roots
+through the authenticated existing trace-outbox path. The CPO operation
+evidence read groups only safe `CALL`, `CALLRESULT`, and `CALLERROR` projections
+for that operation; it is diagnostic evidence, not proof of a later physical
+charger effect. CMS migration `000063` owns the operation/root links. The HAL
+counterpart migration and paired runtime remain separate deployment and
+verification steps.
+
 ## Identifier crosswalk
 
 | Identifier | Meaning | Not interchangeable with |

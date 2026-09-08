@@ -1,8 +1,8 @@
 # Project State
 
-## 2026-09-08 - Per-operation OCPP protocol-evidence source slice
+## 2026-09-08 - Per-operation OCPP protocol-evidence deployed
 
-- Uncommitted CMS source now assigns every new charger operation a distinct
+- The CMS source assigns every new charger operation a distinct
   `trace_id`, accepts the matching HAL/CMS operation-root IDs through the
   existing authenticated trace-outbox ingress, and exposes only that
   operation's grouped safe OCPP exchanges through the CPO operations
@@ -12,13 +12,18 @@
   evidence without changing the legacy read. A safe configuration response is
   transient and included only when the immediate OCPP confirmation is
   available; history retains requested keys, never values.
-- Forward-only migration `000063` is source-only and has not been applied.
-  No runtime, database, deployment, or repository publication action occurred.
+- Forward-only migration `000063` is applied on the development database.
+  Runtime revision `81e1814` is active behind Caddy with 235 OpenAPI
+  operations and binary SHA-256
+  `c706f99f3e529241ee6b638337ea1a8def9c3e4d163c6cdd9c95a7947ac3e490`.
+- The prior binary is retained at
+  `/root/evcmsnew-backups/pre-81e1814-20260908T101547+0530/evcmsnew`.
 
-Focused evidence-redaction and route/OpenAPI checks pass, as does the
-PowerShell documentation verifier. PostgreSQL lifecycle, paired HAL delivery,
-and physical OCPP verification remain unrun because no disposable
-`TEST_DATABASE_URL` or mapped test charger was selected.
+Focused evidence-redaction and route/OpenAPI checks, full Go tests, vet,
+production build, migration/schema checks, and CMS post-rehost verification
+pass. PostgreSQL lifecycle, paired HAL delivery, and physical OCPP verification
+remain unrun because no disposable `TEST_DATABASE_URL` or mapped test charger
+was selected. `pwsh` is unavailable for documentation verification.
 
 ## 2026-09-04 - CPO charger-operation history deployed
 

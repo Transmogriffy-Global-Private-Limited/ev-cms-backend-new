@@ -4,7 +4,7 @@ Status: In Progress
 Owner: Codex
 Collaborators: Anubhab Dey (CMS/HAL boundary owner)
 Started: 2026-09-04
-Last updated: 2026-09-08 (per-operation OCPP protocol-evidence source slice implemented; verification and source review in progress; uncommitted and not deployed)
+Last updated: 2026-09-08 (per-operation OCPP protocol-evidence CMS deployment verified; paired HAL and hardware validation pending)
 
 Development-plan reference: `docs/DEVELOPMENT_PLAN.md` — Charging lifecycle and HAL integration
 Detailed-plan reference: `docs/integrations/cpo-hal-operational-capability-manual.md`
@@ -74,21 +74,22 @@ listing, enrichment, bounded real-semantic filters, configuration-value
 redaction, and one targeted cursor index. It does not alter the exact-recovery
 path or call HAL.
 
-Implemented but uncommitted/source-only: stable operation trace identities,
+Implemented and deployed CMS: stable operation trace identities,
 operation-root linking, strict action-specific protocol evidence sanitation,
 the CPO-only grouped exchange projection, and audited GET_CONFIGURATION with
 requested-key-only history and an optional transient safe response. CMS
-migration `000063` and the counterpart HAL migration `021` were not applied.
+migration `000063` is applied; counterpart HAL migration `021` remains
+unapplied.
 
 ## Verification
 
-History parser/projection tests, CPO capability-route coverage, route/OpenAPI
-parity, full `go test -p 1 ./...`, `go vet -p 1 ./...`, production build,
-migration/index checks, and CMS post-rehost service/contract verification pass.
-Focused source checks include trace-evidence redaction, OpenAPI/runtime route
-parity, and PowerShell documentation verification. PostgreSQL-gated history
-and protocol integration coverage remains skipped because `TEST_DATABASE_URL`
-is absent; no runtime database or paired charger was selected.
+History/parser/projection and evidence-redaction tests, CPO capability-route
+coverage, route/OpenAPI parity, full `go test -p 1 ./...`, `go vet -p 1 ./...`,
+production build, migration/schema checks, and CMS post-rehost
+service/contract verification pass. PostgreSQL-gated history/protocol
+integration coverage remains skipped because `TEST_DATABASE_URL` is absent;
+no paired charger was selected. `pwsh` is unavailable for documentation
+verification.
 
 ## Handoff
 
