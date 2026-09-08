@@ -1,5 +1,20 @@
 # AI Changelog
 
+## 2026-09-08 - Add uncommitted per-operation OCPP evidence source slice
+
+- Added trace-root operation identities, source-only migration `000063`, a
+  narrow grouped OCPP exchange read, and action-specific redaction at both the
+  HAL ingress and CMS durable persistence boundaries. ChangeConfiguration
+  values cannot be persisted in evidence.
+- Added explicit audited `GET_CONFIGURATION` with requested-key-only history
+  and an optional safe synchronous response, while preserving the legacy GET
+  configuration path.
+
+Verification: focused CMS evidence-redaction test, OpenAPI/runtime route
+parity, and `./scripts/verify-docs.ps1` pass. No migration, runtime database,
+deployment, commit, or push was performed. PostgreSQL and physical OCPP tests
+remain unrun without an explicitly selected disposable test environment.
+
 ## 2026-09-04 - Deploy CPO charger-operation history surface
 
 - Added the CMS-owned `GET /api/v1/cpo/operations/charger-operations` history

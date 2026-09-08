@@ -448,6 +448,7 @@ type HALCommandRecord struct {
 // charging-session, hold, or settlement meaning.
 type ChargerOperation struct {
 	ID              uuid.UUID  `gorm:"type:uuid;primaryKey" json:"id"`
+	TraceID         uuid.UUID  `gorm:"type:uuid;not null;uniqueIndex" json:"trace_id"`
 	CPOID           uuid.UUID  `gorm:"type:uuid;not null;index" json:"cpo_id"`
 	ChargerID       uuid.UUID  `gorm:"type:uuid;not null;index" json:"charger_id"`
 	ConnectorID     *uuid.UUID `gorm:"type:uuid;index" json:"connector_id,omitempty"`
@@ -496,17 +497,19 @@ func (ChargingTraceEvent) TableName() string { return "charging_trace_events" }
 // ChargingTrace is the CMS-local root for immutable diagnostic evidence. It
 // is never consulted to establish charging, billing, or connector authority.
 type ChargingTrace struct {
-	TraceID              uuid.UUID  `gorm:"column:trace_id;type:uuid;primaryKey" json:"trace_id"`
-	CPOID                uuid.UUID  `gorm:"column:cpo_id;type:uuid;not null;index" json:"cpo_id"`
-	CMSStartIntentID     *uuid.UUID `gorm:"column:cms_start_intent_id;type:uuid" json:"cms_start_intent_id,omitempty"`
-	CMSChargingSessionID *uuid.UUID `gorm:"column:cms_charging_session_id;type:uuid" json:"cms_charging_session_id,omitempty"`
-	CMSCommandID         *uuid.UUID `gorm:"column:cms_command_id;type:uuid" json:"cms_command_id,omitempty"`
-	HALTransactionID     *uuid.UUID `gorm:"column:hal_transaction_id;type:uuid" json:"hal_transaction_id,omitempty"`
-	OCPPTransactionID    *int64     `gorm:"column:ocpp_transaction_id;type:bigint" json:"ocpp_transaction_id,omitempty"`
-	ChargerOCPPIdentity  string     `gorm:"column:charger_ocpp_identity;type:varchar(255);not null" json:"charger_ocpp_identity"`
-	OCPPConnectorNumber  int        `gorm:"column:ocpp_connector_number;not null" json:"ocpp_connector_number"`
-	CreatedAt            time.Time  `gorm:"column:created_at;not null" json:"created_at"`
-	UpdatedAt            time.Time  `gorm:"column:updated_at;not null" json:"updated_at"`
+	TraceID               uuid.UUID  `gorm:"column:trace_id;type:uuid;primaryKey" json:"trace_id"`
+	CPOID                 uuid.UUID  `gorm:"column:cpo_id;type:uuid;not null;index" json:"cpo_id"`
+	CMSStartIntentID      *uuid.UUID `gorm:"column:cms_start_intent_id;type:uuid" json:"cms_start_intent_id,omitempty"`
+	CMSChargingSessionID  *uuid.UUID `gorm:"column:cms_charging_session_id;type:uuid" json:"cms_charging_session_id,omitempty"`
+	CMSCommandID          *uuid.UUID `gorm:"column:cms_command_id;type:uuid" json:"cms_command_id,omitempty"`
+	CMSChargerOperationID *uuid.UUID `gorm:"column:cms_charger_operation_id;type:uuid" json:"cms_charger_operation_id,omitempty"`
+	HALChargerOperationID *uuid.UUID `gorm:"column:hal_charger_operation_id;type:uuid" json:"hal_charger_operation_id,omitempty"`
+	HALTransactionID      *uuid.UUID `gorm:"column:hal_transaction_id;type:uuid" json:"hal_transaction_id,omitempty"`
+	OCPPTransactionID     *int64     `gorm:"column:ocpp_transaction_id;type:bigint" json:"ocpp_transaction_id,omitempty"`
+	ChargerOCPPIdentity   string     `gorm:"column:charger_ocpp_identity;type:varchar(255);not null" json:"charger_ocpp_identity"`
+	OCPPConnectorNumber   int        `gorm:"column:ocpp_connector_number;not null" json:"ocpp_connector_number"`
+	CreatedAt             time.Time  `gorm:"column:created_at;not null" json:"created_at"`
+	UpdatedAt             time.Time  `gorm:"column:updated_at;not null" json:"updated_at"`
 }
 
 func (ChargingTrace) TableName() string { return "charging_traces" }

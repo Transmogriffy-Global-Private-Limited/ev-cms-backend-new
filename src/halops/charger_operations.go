@@ -15,6 +15,7 @@ var ErrChargerOperationNotFound = errors.New("HAL charger operation not found")
 
 type ChargerOperationRequest struct {
 	CMSOperationID      uuid.UUID
+	TraceID             uuid.UUID
 	CPOID               uuid.UUID
 	CMSChargerID        uuid.UUID
 	CMSConnectorID      *uuid.UUID
@@ -22,6 +23,7 @@ type ChargerOperationRequest struct {
 	OCPPConnectorNumber int
 	Kind                string
 	Parameters          map[string]string
+	ConfigurationKeys   []string
 }
 
 type ChargerOperation struct {
@@ -34,17 +36,18 @@ type ChargerOperation struct {
 	DeliveryAttempts int
 	UpdatedAt        time.Time
 	CompletedAt      *time.Time
+	Configuration    *halclient.ChargerConfigurationResponse
 }
 
 func fromWireChargerOperation(operation halclient.ChargerOperation) ChargerOperation {
-	return ChargerOperation{HALOperationID: operation.HALOperationID, CMSOperationID: operation.CMSOperationID, Kind: operation.Kind, State: operation.State, OCPPResult: operation.OCPPResult, ErrorCategory: operation.ErrorCategory, DeliveryAttempts: operation.DeliveryAttempts, UpdatedAt: operation.UpdatedAt, CompletedAt: operation.CompletedAt}
+	return ChargerOperation{HALOperationID: operation.HALOperationID, CMSOperationID: operation.CMSOperationID, Kind: operation.Kind, State: operation.State, OCPPResult: operation.OCPPResult, ErrorCategory: operation.ErrorCategory, DeliveryAttempts: operation.DeliveryAttempts, UpdatedAt: operation.UpdatedAt, CompletedAt: operation.CompletedAt, Configuration: operation.Configuration}
 }
 
 func (service *Service) RequestChargerOperation(ctx context.Context, request ChargerOperationRequest, correlationID string) (ChargerOperation, error) {
 	if !service.Available() {
 		return ChargerOperation{}, halclient.ErrUnavailable
 	}
-	operation, err := service.client.OperateCharger(ctx, halclient.ChargerOperationRequest{CMSOperationID: request.CMSOperationID, CPOID: request.CPOID, CMSChargerID: request.CMSChargerID, CMSConnectorID: request.CMSConnectorID, ChargerOCPPIdentity: request.ChargerOCPPIdentity, OCPPConnectorNumber: request.OCPPConnectorNumber, Kind: request.Kind, Parameters: request.Parameters}, correlationID)
+	operation, err := service.client.OperateCharger(ctx, halclient.ChargerOperationRequest{CMSOperationID: request.CMSOperationID, TraceID: request.TraceID, CPOID: request.CPOID, CMSChargerID: request.CMSChargerID, CMSConnectorID: request.CMSConnectorID, ChargerOCPPIdentity: request.ChargerOCPPIdentity, OCPPConnectorNumber: request.OCPPConnectorNumber, Kind: request.Kind, Parameters: request.Parameters, ConfigurationKeys: request.ConfigurationKeys}, correlationID)
 	return fromWireChargerOperation(operation), err
 }
 

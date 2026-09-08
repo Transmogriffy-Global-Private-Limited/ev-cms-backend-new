@@ -1,10 +1,10 @@
 # WI-20260904-cpo-charger-operations
 
-Status: Implemented
+Status: In Progress
 Owner: Codex
 Collaborators: Anubhab Dey (CMS/HAL boundary owner)
 Started: 2026-09-04
-Last updated: 2026-09-04 (CMS history/audit listing deployed; paired HAL and hardware validation pending)
+Last updated: 2026-09-08 (per-operation OCPP protocol-evidence source slice implemented; verification and source review in progress; uncommitted and not deployed)
 
 Development-plan reference: `docs/DEVELOPMENT_PLAN.md` — Charging lifecycle and HAL integration
 Detailed-plan reference: `docs/integrations/cpo-hal-operational-capability-manual.md`
@@ -24,6 +24,8 @@ existing CMS `halops -> halclient -> HAL v1 -> OCPP` boundary.
   contracts, tests, and forward-only migrations.
 - CMS-owned paginated, filtered, safe CPO history listing without HAL calls or
   list-side reconciliation.
+- Per-operation trace identity, safe OCPP CALL/CALLRESULT/CALLERROR evidence,
+  lazy CPO operation-evidence projection, and audited GET_CONFIGURATION.
 
 ## Non-goals
 
@@ -72,14 +74,21 @@ listing, enrichment, bounded real-semantic filters, configuration-value
 redaction, and one targeted cursor index. It does not alter the exact-recovery
 path or call HAL.
 
+Implemented but uncommitted/source-only: stable operation trace identities,
+operation-root linking, strict action-specific protocol evidence sanitation,
+the CPO-only grouped exchange projection, and audited GET_CONFIGURATION with
+requested-key-only history and an optional transient safe response. CMS
+migration `000063` and the counterpart HAL migration `021` were not applied.
+
 ## Verification
 
 History parser/projection tests, CPO capability-route coverage, route/OpenAPI
 parity, full `go test -p 1 ./...`, `go vet -p 1 ./...`, production build,
 migration/index checks, and CMS post-rehost service/contract verification pass.
-PostgreSQL-gated history integration coverage remains skipped because
-`TEST_DATABASE_URL` is absent; `pwsh` is unavailable for documentation
-verification.
+Focused source checks include trace-evidence redaction, OpenAPI/runtime route
+parity, and PowerShell documentation verification. PostgreSQL-gated history
+and protocol integration coverage remains skipped because `TEST_DATABASE_URL`
+is absent; no runtime database or paired charger was selected.
 
 ## Handoff
 

@@ -134,25 +134,28 @@ type Command struct {
 // ChargerOperation is separate from Command because only Start/Stop command
 // records carry charging lifecycle semantics.
 type ChargerOperation struct {
-	HALOperationID      uuid.UUID  `json:"hal_operation_id"`
-	CMSOperationID      uuid.UUID  `json:"cms_operation_id"`
-	CPOID               uuid.UUID  `json:"cpo_id"`
-	CMSChargerID        uuid.UUID  `json:"cms_charger_id"`
-	CMSConnectorID      *uuid.UUID `json:"cms_connector_id,omitempty"`
-	ChargerOCPPIdentity string     `json:"-"`
-	OCPPConnectorNumber int        `json:"ocpp_connector_number"`
-	Kind                string     `json:"kind"`
-	State               string     `json:"state"`
-	OCPPResult          string     `json:"ocpp_result,omitempty"`
-	ErrorCategory       string     `json:"error_category,omitempty"`
-	DeliveryAttempts    int        `json:"delivery_attempts"`
-	CreatedAt           time.Time  `json:"created_at"`
-	UpdatedAt           time.Time  `json:"updated_at"`
-	CompletedAt         *time.Time `json:"completed_at,omitempty"`
+	HALOperationID      uuid.UUID                     `json:"hal_operation_id"`
+	CMSOperationID      uuid.UUID                     `json:"cms_operation_id"`
+	TraceID             uuid.UUID                     `json:"trace_id"`
+	CPOID               uuid.UUID                     `json:"cpo_id"`
+	CMSChargerID        uuid.UUID                     `json:"cms_charger_id"`
+	CMSConnectorID      *uuid.UUID                    `json:"cms_connector_id,omitempty"`
+	ChargerOCPPIdentity string                        `json:"-"`
+	OCPPConnectorNumber int                           `json:"ocpp_connector_number"`
+	Kind                string                        `json:"kind"`
+	State               string                        `json:"state"`
+	OCPPResult          string                        `json:"ocpp_result,omitempty"`
+	ErrorCategory       string                        `json:"error_category,omitempty"`
+	DeliveryAttempts    int                           `json:"delivery_attempts"`
+	CreatedAt           time.Time                     `json:"created_at"`
+	UpdatedAt           time.Time                     `json:"updated_at"`
+	CompletedAt         *time.Time                    `json:"completed_at,omitempty"`
+	Configuration       *ChargerConfigurationResponse `json:"-"`
 }
 
 type ChargerOperationRequest struct {
 	CMSOperationID      uuid.UUID         `json:"cms_operation_id"`
+	TraceID             uuid.UUID         `json:"trace_id"`
 	CPOID               uuid.UUID         `json:"cpo_id"`
 	CMSChargerID        uuid.UUID         `json:"cms_charger_id"`
 	CMSConnectorID      *uuid.UUID        `json:"cms_connector_id,omitempty"`
@@ -160,6 +163,7 @@ type ChargerOperationRequest struct {
 	OCPPConnectorNumber int               `json:"ocpp_connector_number"`
 	Kind                string            `json:"kind"`
 	Parameters          map[string]string `json:"parameters"`
+	ConfigurationKeys   []string          `json:"configuration_keys,omitempty"`
 }
 
 type ChargerConfigurationKey struct {
@@ -167,6 +171,11 @@ type ChargerConfigurationKey struct {
 	Readonly bool    `json:"readonly"`
 	Value    *string `json:"value"`
 	Redacted bool    `json:"redacted"`
+}
+
+type ChargerConfigurationResponse struct {
+	ConfigurationKeys []ChargerConfigurationKey `json:"configuration_keys"`
+	UnknownKeys       []string                  `json:"unknown_keys"`
 }
 
 // Transaction is the exact authoritative start truth returned by HAL's
@@ -221,7 +230,8 @@ func (client *Client) GetCommand(ctx context.Context, id uuid.UUID) (Command, er
 
 func (client *Client) OperateCharger(ctx context.Context, request ChargerOperationRequest, correlationID string) (ChargerOperation, error) {
 	var response struct {
-		Operation ChargerOperation `json:"operation"`
+		Operation     ChargerOperation              `json:"operation"`
+		Configuration *ChargerConfigurationResponse `json:"configuration,omitempty"`
 	}
 	if err := client.mutateOperation(ctx, http.MethodPost, "/v1/charger-operations", request.CMSOperationID.String(), correlationID, request, &response); err != nil {
 		return ChargerOperation{}, err
@@ -229,6 +239,7 @@ func (client *Client) OperateCharger(ctx context.Context, request ChargerOperati
 	if response.Operation.HALOperationID == uuid.Nil || response.Operation.CMSOperationID != request.CMSOperationID || response.Operation.Kind != request.Kind || response.Operation.UpdatedAt.IsZero() {
 		return ChargerOperation{}, invalidCommandResponse("charger operation response violates identity or state invariants")
 	}
+	response.Operation.Configuration = response.Configuration
 	return response.Operation, nil
 }
 

@@ -109,9 +109,21 @@ returns `409 idempotency_conflict`.
   additionally requires `chargers.manage`, rejects HAL-owned reconciliation
   keys and sensitive credential-like keys, and changes exactly one remaining
   key.
+- `POST /configuration/read` is the explicit audited, read-only
+  `GET_CONFIGURATION` OCPP interaction. It requires `Idempotency-Key` and
+  persists a stable operation/trace identity; the compatibility GET does not
+  create operation history during page refreshes. Its `202` includes a safe
+  `configuration` projection only when the synchronous OCPP confirmation is
+  available; it never persists configuration values in operation history.
 - `GET /api/v1/cpo/operations/charger-operations/{operation_id}` is the
   recovery resource. For `RECONCILIATION_REQUIRED` it performs only exact
   same-ID HAL lookup; it never sends another physical OCPP command.
+- `GET /api/v1/cpo/operations/charger-operations/{operation_id}/ocpp-exchanges`
+  requires the same operation capability (not generic trace permission), is
+  tenant-safe, and returns only grouped safe CALL/CALLRESULT/CALLERROR
+  evidence for that operation. It may truthfully return `exchanges: []` while
+  asynchronous HAL trace delivery is pending. `OCPP_CONFIRMED` is a protocol
+  response, never proof of a later physical charger effect.
 
 `GET /api/v1/cpo/operations/charger-operations` is the separate CMS-owned
 history feed. It requires the same CPO bearer, matching app ID, and

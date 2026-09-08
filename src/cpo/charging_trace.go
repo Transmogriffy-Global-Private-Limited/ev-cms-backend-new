@@ -49,6 +49,68 @@ type ChargingTraceReplayPage struct {
 	NextCursor int64
 }
 
+// ChargerOperationOCPPExchanges is a deliberately narrow projection of only
+// the immutable protocol evidence for one CPO operation. It is not the
+// generic charging diagnostic feed and cannot infer physical charger effects.
+type ChargerOperationOCPPExchanges struct {
+	OperationID uuid.UUID                      `json:"operation_id"`
+	TraceID     uuid.UUID                      `json:"trace_id"`
+	Exchanges   []ChargerOperationOCPPExchange `json:"exchanges"`
+}
+type ChargerOperationOCPPExchange struct {
+	UniqueID string                     `json:"unique_id"`
+	Action   string                     `json:"action"`
+	Sent     *ChargerOperationOCPPFrame `json:"sent,omitempty"`
+	Received *ChargerOperationOCPPFrame `json:"received,omitempty"`
+}
+type ChargerOperationOCPPFrame struct {
+	MessageType string       `json:"message_type"`
+	OccurredAt  time.Time    `json:"occurred_at"`
+	Payload     models.JSONB `json:"payload"`
+}
+
+func (service *Service) GetChargerOperationOCPPExchanges(ctx context.Context, principal auth.Principal, operationID uuid.UUID) (ChargerOperationOCPPExchanges, error) {
+	if err := requireCPOContext(principal); err != nil {
+		return ChargerOperationOCPPExchanges{}, err
+	}
+	var operation models.ChargerOperation
+	if err := service.database.WithContext(ctx).Where("id = ? AND cpo_id = ?", operationID, *principal.CPOID).First(&operation).Error; err != nil {
+		return ChargerOperationOCPPExchanges{}, &auth.APIError{Status: 404, Code: "charger_operation_not_found", Message: "The charger operation was not found."}
+	}
+	response := ChargerOperationOCPPExchanges{OperationID: operation.ID, TraceID: operation.TraceID, Exchanges: []ChargerOperationOCPPExchange{}}
+	if operation.TraceID == uuid.Nil {
+		return response, nil
+	}
+	var rows []models.ChargingTraceEvent
+	if err := service.database.WithContext(ctx).Where("cpo_id = ? AND trace_id = ? AND category = ?", *principal.CPOID, operation.TraceID, "CHARGER_OPERATION_OCPP").Order("ingestion_sequence ASC").Find(&rows).Error; err != nil {
+		return ChargerOperationOCPPExchanges{}, err
+	}
+	byUnique := map[string]int{}
+	for _, row := range rows {
+		uniqueID, _ := row.Data["unique_id"].(string)
+		action, _ := row.Data["action"].(string)
+		messageType, _ := row.Data["message_type"].(string)
+		payload, _ := row.Data["payload"].(map[string]any)
+		if uniqueID == "" || action == "" || (messageType != "CALL" && messageType != "CALLRESULT" && messageType != "CALLERROR") {
+			continue
+		}
+		index, ok := byUnique[uniqueID]
+		if !ok {
+			response.Exchanges = append(response.Exchanges, ChargerOperationOCPPExchange{UniqueID: uniqueID, Action: action})
+			index = len(response.Exchanges) - 1
+			byUnique[uniqueID] = index
+		}
+		exchange := &response.Exchanges[index]
+		frame := &ChargerOperationOCPPFrame{MessageType: messageType, OccurredAt: row.OccurredAt, Payload: models.JSONB(payload)}
+		if messageType == "CALL" {
+			exchange.Sent = frame
+		} else if exchange.Received == nil {
+			exchange.Received = frame
+		}
+	}
+	return response, nil
+}
+
 // ListChargingTraceReplay uses CMS ingestion sequence rather than occurred_at:
 // replay is delivery-order recovery, while waterfall display stays chronological.
 func (service *Service) ListChargingTraceReplay(ctx context.Context, principal auth.Principal, traceID uuid.UUID, after int64, limit int) (ChargingTraceReplayPage, error) {

@@ -25,6 +25,9 @@ type configurationOperationRequest struct {
 	Key   string `json:"key"`
 	Value string `json:"value"`
 }
+type configurationReadOperationRequest struct {
+	Keys []string `json:"keys,omitempty"`
+}
 type triggerMessageOperationRequest struct {
 	ConnectorID      string `json:"connector_id,omitempty"`
 	RequestedMessage string `json:"requested_message"`
@@ -185,4 +188,62 @@ func (handler *Handler) getChargerConfiguration(ctx *gin.Context) {
 		return
 	}
 	ctx.JSON(http.StatusOK, response)
+}
+
+func (handler *Handler) getChargerOperationOCPPExchanges(ctx *gin.Context) {
+	id, err := uuid.Parse(ctx.Param("operation_id"))
+	if err != nil || id == uuid.Nil {
+		writeError(ctx, &auth.APIError{Status: http.StatusBadRequest, Code: "invalid_operation_id", Message: "A canonical operation UUID is required."})
+		return
+	}
+	principal, _ := auth.CurrentPrincipal(ctx)
+	response, err := handler.service.GetChargerOperationOCPPExchanges(ctx.Request.Context(), principal, id)
+	if err != nil {
+		writeError(ctx, err)
+		return
+	}
+	ctx.JSON(http.StatusOK, response)
+}
+
+// readChargerConfiguration is deliberately a POST: it is an explicit audited
+// OCPP interaction, unlike the compatibility GET used by ordinary refreshes.
+func (handler *Handler) readChargerConfiguration(ctx *gin.Context) {
+	var request configurationReadOperationRequest
+	if err := decodeJSON(ctx, &request); err != nil {
+		writeError(ctx, &auth.APIError{Status: http.StatusBadRequest, Code: "invalid_request", Message: "The request body is invalid."})
+		return
+	}
+	if len(request.Keys) > 64 {
+		writeError(ctx, &auth.APIError{Status: http.StatusBadRequest, Code: "invalid_operation_parameters", Message: "Too many configuration keys were requested."})
+		return
+	}
+	for _, key := range request.Keys {
+		key = strings.TrimSpace(key)
+		if len(key) < 1 || len(key) > 100 {
+			writeError(ctx, &auth.APIError{Status: http.StatusBadRequest, Code: "invalid_operation_parameters", Message: "A configuration key is invalid."})
+			return
+		}
+	}
+	chargerID, err := uuid.Parse(ctx.Param("charger_id"))
+	if err != nil || chargerID == uuid.Nil {
+		writeError(ctx, &auth.APIError{Status: http.StatusBadRequest, Code: "invalid_charger_id", Message: "A canonical charger UUID is required."})
+		return
+	}
+	key := strings.TrimSpace(ctx.GetHeader("Idempotency-Key"))
+	correlation, ok := cmsmiddleware.RequestID(ctx)
+	if !ok {
+		writeError(ctx, &auth.APIError{Status: http.StatusInternalServerError, Code: "missing_request_correlation", Message: "The operation could not be correlated."})
+		return
+	}
+	principal, _ := auth.CurrentPrincipal(ctx)
+	operation, err := handler.service.RequestChargerOperation(ctx.Request.Context(), principal, chargerID, ChargerOperationInput{Kind: "GET_CONFIGURATION", Parameters: map[string]string{}, ConfigurationKeys: request.Keys, IdempotencyKey: key, CorrelationID: correlation})
+	if err != nil {
+		writeError(ctx, err)
+		return
+	}
+	response := map[string]any{"operation": operation}
+	if operation.Configuration != nil {
+		response["configuration"] = operation.Configuration
+	}
+	ctx.JSON(http.StatusAccepted, response)
 }

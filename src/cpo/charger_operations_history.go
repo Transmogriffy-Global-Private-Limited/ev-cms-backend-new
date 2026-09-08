@@ -13,7 +13,7 @@ import (
 
 var chargerOperationKinds = map[string]struct{}{
 	"RESET": {}, "UNLOCK_CONNECTOR": {}, "CHANGE_AVAILABILITY": {},
-	"CLEAR_CACHE": {}, "CHANGE_CONFIGURATION": {}, "TRIGGER_MESSAGE": {},
+	"CLEAR_CACHE": {}, "CHANGE_CONFIGURATION": {}, "TRIGGER_MESSAGE": {}, "GET_CONFIGURATION": {},
 }
 
 var chargerOperationStates = map[string]struct{}{
@@ -67,10 +67,11 @@ type ChargerOperationHistoryActorView struct {
 // non-secret request semantics. In particular, ChangeConfiguration never
 // returns its persisted value.
 type ChargerOperationHistoryParameters struct {
-	Type             string `json:"type,omitempty"`
-	Reason           string `json:"reason,omitempty"`
-	RequestedMessage string `json:"requested_message,omitempty"`
-	Key              string `json:"key,omitempty"`
+	Type              string   `json:"type,omitempty"`
+	Reason            string   `json:"reason,omitempty"`
+	RequestedMessage  string   `json:"requested_message,omitempty"`
+	Key               string   `json:"key,omitempty"`
+	ConfigurationKeys []string `json:"configuration_keys,omitempty"`
 }
 
 type ChargerOperationHistoryItem struct {
@@ -324,6 +325,32 @@ func safeChargerOperationHistoryParameters(kind string, parameters models.JSONB)
 		return &ChargerOperationHistoryParameters{RequestedMessage: text("requested_message")}
 	case "CHANGE_CONFIGURATION":
 		return &ChargerOperationHistoryParameters{Key: text("key")}
+	case "GET_CONFIGURATION":
+		keys := []string{}
+		switch raw := parameters["configuration_keys"].(type) {
+		case []string:
+			keys = raw
+		case []any:
+			for _, item := range raw {
+				key, ok := item.(string)
+				if !ok {
+					return nil
+				}
+				keys = append(keys, key)
+			}
+		}
+		if len(keys) == 0 || len(keys) > 64 {
+			return nil
+		}
+		safe := make([]string, 0, len(keys))
+		for _, key := range keys {
+			key = strings.TrimSpace(key)
+			if key == "" || len(key) > 100 {
+				return nil
+			}
+			safe = append(safe, key)
+		}
+		return &ChargerOperationHistoryParameters{ConfigurationKeys: safe}
 	default:
 		return nil
 	}

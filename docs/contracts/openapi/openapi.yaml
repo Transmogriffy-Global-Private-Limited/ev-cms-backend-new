@@ -4207,6 +4207,17 @@ paths:
       requestBody: {required: true, content: {application/json: {schema: {type: object, required: [key, value], properties: {key: {type: string, maxLength: 100}, value: {type: string, maxLength: 500}}}}}}
       responses: {"202": {description: Durable operation evidence; RebootRequired remains a distinct OCPP result, content: {application/json: {schema: {$ref: "#/components/schemas/ChargerOperationResponse"}}}}, "400": {$ref: "#/components/responses/InvalidRequest"}, "403": {$ref: "#/components/responses/CPOBusinessForbidden"}, "404": {description: Charger not found}, "409": {description: Idempotency conflict}, "503": {description: HAL or mapping unavailable}}
 
+  /api/v1/cpo/operations/chargers/{charger_id}/configuration/read:
+    post:
+      tags: [CPO Charger Operations]
+      operationId: readCPOChargerConfigurationAudited
+      summary: Explicitly audit one GetConfiguration OCPP interaction
+      description: "Requires chargers.operations and Idempotency-Key. Unlike the compatibility GET configuration read, this creates exactly one durable GET_CONFIGURATION operation and lazy protocol-evidence identity; retries reuse it."
+      security: [{BearerAuth: [], CPOAppID: []}]
+      parameters: [{name: charger_id, in: path, required: true, schema: {type: string, format: uuid}}, {$ref: "#/components/parameters/CPOAppIDHeader"}, {name: Idempotency-Key, in: header, required: true, schema: {type: string}}]
+      requestBody: {required: true, content: {application/json: {schema: {type: object, additionalProperties: false, properties: {keys: {type: array, maxItems: 64, items: {type: string, maxLength: 100}}}}}}}
+      responses: {"202": {description: "Durable read-only OCPP operation; a result is protocol acknowledgement, not a later physical-effect assertion. configuration is included only when the synchronous OCPP confirmation arrives.", content: {application/json: {schema: {type: object, required: [operation], properties: {operation: {$ref: "#/components/schemas/ChargerOperationResponse"}, configuration: {$ref: "#/components/schemas/ChargerConfigurationResponse"}}}}}}, "400": {$ref: "#/components/responses/InvalidRequest"}, "403": {$ref: "#/components/responses/CPOBusinessForbidden"}, "404": {description: Charger not found}, "409": {description: Idempotency conflict}, "503": {description: HAL or mapping unavailable}}
+
   /api/v1/cpo/operations/charger-operations:
     get:
       tags: [CPO Charger Operations]
@@ -4255,6 +4266,16 @@ paths:
       security: [{BearerAuth: [], CPOAppID: []}]
       parameters: [{name: operation_id, in: path, required: true, schema: {type: string, format: uuid}}, {$ref: "#/components/parameters/CPOAppIDHeader"}]
       responses: {"200": {description: Durable operation delivery and OCPP acknowledgement evidence, content: {application/json: {schema: {$ref: "#/components/schemas/ChargerOperationResponse"}}}}, "400": {$ref: "#/components/responses/InvalidRequest"}, "403": {$ref: "#/components/responses/CPOBusinessForbidden"}, "404": {description: Operation not found}}
+
+  /api/v1/cpo/operations/charger-operations/{operation_id}/ocpp-exchanges:
+    get:
+      tags: [CPO Charger Operations]
+      operationId: getCPOChargerOperationOCPPExchanges
+      summary: Read lazy safe OCPP CALL/CALLRESULT/CALLERROR evidence for one operation
+      description: Requires chargers.operations, not generic trace permission. Delivery is asynchronous; a valid operation with no delivered evidence returns 200 and an empty exchanges array. No timeout response is fabricated.
+      security: [{BearerAuth: [], CPOAppID: []}]
+      parameters: [{name: operation_id, in: path, required: true, schema: {type: string, format: uuid}}, {$ref: "#/components/parameters/CPOAppIDHeader"}]
+      responses: {"200": {description: Grouped frontend-safe protocol exchanges., content: {application/json: {schema: {$ref: "#/components/schemas/ChargerOperationOCPPExchanges"}}}}, "400": {$ref: "#/components/responses/InvalidRequest"}, "403": {$ref: "#/components/responses/CPOBusinessForbidden"}, "404": {description: Tenant-safe operation not found}}
 
   /api/v1/cpo/operations/events:
     get:
@@ -7270,14 +7291,42 @@ components:
         id: {type: string, format: uuid}
         charger_id: {type: string, format: uuid}
         connector_id: {type: string, format: uuid}
-        kind: {type: string, enum: [RESET, UNLOCK_CONNECTOR, CHANGE_AVAILABILITY, CLEAR_CACHE, CHANGE_CONFIGURATION, TRIGGER_MESSAGE]}
+        kind: {type: string, enum: [RESET, UNLOCK_CONNECTOR, CHANGE_AVAILABILITY, CLEAR_CACHE, CHANGE_CONFIGURATION, TRIGGER_MESSAGE, GET_CONFIGURATION]}
         state: {type: string, enum: [PERSISTED, HAL_ACCEPTED, OCPP_CONFIRMED, RECONCILIATION_REQUIRED, CONFIRMED_ABSENT]}
         ocpp_result: {type: string, description: Exact OCPP response result when HAL received one.}
         failure_category: {type: string, description: Safe reconciliation category; not a raw provider error.}
         hal_operation_id: {type: string, format: uuid}
+        trace_id: {type: string, format: uuid}
         created_at: {type: string, format: date-time}
         updated_at: {type: string, format: date-time}
         completed_at: {type: string, format: date-time}
+    ChargerOperationOCPPExchanges:
+      type: object
+      additionalProperties: false
+      required: [operation_id, trace_id, exchanges]
+      properties:
+        operation_id: {type: string, format: uuid}
+        trace_id: {type: string, format: uuid}
+        exchanges:
+          type: array
+          items:
+            type: object
+            additionalProperties: false
+            required: [unique_id, action]
+            properties:
+              unique_id: {type: string}
+              action: {type: string, enum: [Reset, UnlockConnector, ChangeAvailability, ClearCache, ChangeConfiguration, TriggerMessage, GetConfiguration]}
+              sent: {$ref: "#/components/schemas/ChargerOperationOCPPFrame"}
+              received: {$ref: "#/components/schemas/ChargerOperationOCPPFrame"}
+    ChargerOperationOCPPFrame:
+      type: object
+      additionalProperties: false
+      required: [message_type, occurred_at, payload]
+      properties:
+        message_type: {type: string, enum: [CALL, CALLRESULT, CALLERROR]}
+        occurred_at: {type: string, format: date-time}
+        payload: {type: object, additionalProperties: true, description: Action-specific safe projection; configuration-change values and arbitrary CALLERROR details are never exposed.}
+
     ChargerOperationHistoryResponse:
       type: object
       additionalProperties: false
@@ -7293,7 +7342,7 @@ components:
       required: [id, kind, state, charger, actor, created_at, updated_at]
       properties:
         id: {type: string, format: uuid}
-        kind: {type: string, enum: [RESET, UNLOCK_CONNECTOR, CHANGE_AVAILABILITY, CLEAR_CACHE, CHANGE_CONFIGURATION, TRIGGER_MESSAGE]}
+        kind: {type: string, enum: [RESET, UNLOCK_CONNECTOR, CHANGE_AVAILABILITY, CLEAR_CACHE, CHANGE_CONFIGURATION, TRIGGER_MESSAGE, GET_CONFIGURATION]}
         state: {type: string, enum: [PERSISTED, HAL_ACCEPTED, OCPP_CONFIRMED, RECONCILIATION_REQUIRED, CONFIRMED_ABSENT]}
         ocpp_result: {type: string}
         failure_category: {type: string}
@@ -7337,6 +7386,7 @@ components:
         reason: {type: string, description: Reset reason.}
         requested_message: {type: string}
         key: {type: string, description: Configuration key only; configuration value is omitted.}
+        configuration_keys: {type: array, items: {type: string}, description: Requested configuration keys only; returned values are never retained in history.}
     ChargerConfigurationResponse:
       type: object
       additionalProperties: false

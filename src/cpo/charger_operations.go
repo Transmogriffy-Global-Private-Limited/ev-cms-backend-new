@@ -21,37 +21,41 @@ import (
 )
 
 type ChargerOperationInput struct {
-	Kind           string
-	ConnectorID    *uuid.UUID
-	Parameters     map[string]string
-	IdempotencyKey string
-	CorrelationID  string
+	Kind              string
+	ConnectorID       *uuid.UUID
+	Parameters        map[string]string
+	ConfigurationKeys []string
+	IdempotencyKey    string
+	CorrelationID     string
 }
 
 type ChargerOperationResponse struct {
-	ID              uuid.UUID  `json:"id"`
-	ChargerID       uuid.UUID  `json:"charger_id"`
-	ConnectorID     *uuid.UUID `json:"connector_id,omitempty"`
-	Kind            string     `json:"kind"`
-	State           string     `json:"state"`
-	OCPPResult      string     `json:"ocpp_result,omitempty"`
-	FailureCategory string     `json:"failure_category,omitempty"`
-	HALOperationID  *uuid.UUID `json:"hal_operation_id,omitempty"`
-	CreatedAt       time.Time  `json:"created_at"`
-	UpdatedAt       time.Time  `json:"updated_at"`
-	CompletedAt     *time.Time `json:"completed_at,omitempty"`
+	ID              uuid.UUID                               `json:"id"`
+	ChargerID       uuid.UUID                               `json:"charger_id"`
+	ConnectorID     *uuid.UUID                              `json:"connector_id,omitempty"`
+	Kind            string                                  `json:"kind"`
+	State           string                                  `json:"state"`
+	OCPPResult      string                                  `json:"ocpp_result,omitempty"`
+	FailureCategory string                                  `json:"failure_category,omitempty"`
+	HALOperationID  *uuid.UUID                              `json:"hal_operation_id,omitempty"`
+	TraceID         uuid.UUID                               `json:"trace_id"`
+	CreatedAt       time.Time                               `json:"created_at"`
+	UpdatedAt       time.Time                               `json:"updated_at"`
+	CompletedAt     *time.Time                              `json:"completed_at,omitempty"`
+	Configuration   *halclient.ChargerConfigurationResponse `json:"-"`
 }
 
 func chargerOperationView(operation models.ChargerOperation) ChargerOperationResponse {
-	return ChargerOperationResponse{ID: operation.ID, ChargerID: operation.ChargerID, ConnectorID: operation.ConnectorID, Kind: operation.Kind, State: operation.State, OCPPResult: operation.OCPPResult, FailureCategory: operation.FailureCategory, HALOperationID: operation.HALOperationID, CreatedAt: operation.CreatedAt, UpdatedAt: operation.UpdatedAt, CompletedAt: operation.CompletedAt}
+	return ChargerOperationResponse{ID: operation.ID, ChargerID: operation.ChargerID, ConnectorID: operation.ConnectorID, Kind: operation.Kind, State: operation.State, OCPPResult: operation.OCPPResult, FailureCategory: operation.FailureCategory, HALOperationID: operation.HALOperationID, TraceID: operation.TraceID, CreatedAt: operation.CreatedAt, UpdatedAt: operation.UpdatedAt, CompletedAt: operation.CompletedAt}
 }
 
 func chargerOperationDigest(input ChargerOperationInput) (string, error) {
 	raw, err := json.Marshal(struct {
-		Kind        string            `json:"kind"`
-		ConnectorID *uuid.UUID        `json:"connector_id,omitempty"`
-		Parameters  map[string]string `json:"parameters"`
-	}{input.Kind, input.ConnectorID, input.Parameters})
+		Kind              string            `json:"kind"`
+		ConnectorID       *uuid.UUID        `json:"connector_id,omitempty"`
+		Parameters        map[string]string `json:"parameters"`
+		ConfigurationKeys []string          `json:"configuration_keys,omitempty"`
+	}{input.Kind, input.ConnectorID, input.Parameters, input.ConfigurationKeys})
 	if err != nil {
 		return "", err
 	}
@@ -100,11 +104,14 @@ func (service *Service) RequestChargerOperation(ctx context.Context, principal a
 	if err := service.database.WithContext(ctx).First(&mapping, "cms_charger_id = ? AND cpo_id = ? AND sync_state = ?", chargerID, *principal.CPOID, "SYNCHRONIZED").Error; err != nil {
 		return ChargerOperationResponse{}, &auth.APIError{Status: http.StatusServiceUnavailable, Code: "mapping_unavailable", Message: "The charger mapping is not ready for operations."}
 	}
-	operation := models.ChargerOperation{ID: uuid.New(), CPOID: *principal.CPOID, ChargerID: chargerID, ConnectorID: input.ConnectorID, ActorUserID: principal.UserID, IdempotencyKey: input.IdempotencyKey, RequestDigest: digest, CorrelationID: input.CorrelationID, Kind: input.Kind, Parameters: models.JSONB{}, State: "PERSISTED", CreatedAt: service.now(), UpdatedAt: service.now()}
+	operation := models.ChargerOperation{ID: uuid.New(), TraceID: uuid.New(), CPOID: *principal.CPOID, ChargerID: chargerID, ConnectorID: input.ConnectorID, ActorUserID: principal.UserID, IdempotencyKey: input.IdempotencyKey, RequestDigest: digest, CorrelationID: input.CorrelationID, Kind: input.Kind, Parameters: models.JSONB{}, State: "PERSISTED", CreatedAt: service.now(), UpdatedAt: service.now()}
 	for key, value := range input.Parameters {
 		if key != "_connector_number" {
 			operation.Parameters[key] = value
 		}
+	}
+	if input.Kind == "GET_CONFIGURATION" {
+		operation.Parameters["configuration_keys"] = append([]string(nil), input.ConfigurationKeys...)
 	}
 	if err := service.database.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if err := tx.Create(&operation).Error; err != nil {
@@ -118,7 +125,7 @@ func (service *Service) RequestChargerOperation(ctx context.Context, principal a
 	if input.ConnectorID != nil {
 		fmt.Sscan(input.Parameters["_connector_number"], &connectorNumber)
 	}
-	result, callErr := service.halOperations.RequestChargerOperation(ctx, halops.ChargerOperationRequest{CMSOperationID: operation.ID, CPOID: operation.CPOID, CMSChargerID: chargerID, CMSConnectorID: input.ConnectorID, ChargerOCPPIdentity: mapping.ChargerOCPPIdentity, OCPPConnectorNumber: connectorNumber, Kind: input.Kind, Parameters: operationParameters(operation.Parameters)}, input.CorrelationID)
+	result, callErr := service.halOperations.RequestChargerOperation(ctx, halops.ChargerOperationRequest{CMSOperationID: operation.ID, TraceID: operation.TraceID, CPOID: operation.CPOID, CMSChargerID: chargerID, CMSConnectorID: input.ConnectorID, ChargerOCPPIdentity: mapping.ChargerOCPPIdentity, OCPPConnectorNumber: connectorNumber, Kind: input.Kind, Parameters: operationParameters(operation.Parameters), ConfigurationKeys: input.ConfigurationKeys}, input.CorrelationID)
 	updates := map[string]any{"updated_at": service.now()}
 	if callErr != nil {
 		updates["state"] = "RECONCILIATION_REQUIRED"
@@ -143,7 +150,9 @@ func (service *Service) RequestChargerOperation(ctx context.Context, principal a
 	}); err != nil {
 		return ChargerOperationResponse{}, fmt.Errorf("record charger operation result: %w", err)
 	}
-	return chargerOperationView(operation), nil
+	response := chargerOperationView(operation)
+	response.Configuration = result.Configuration
+	return response, nil
 }
 
 func operationParameters(parameters models.JSONB) map[string]string {
