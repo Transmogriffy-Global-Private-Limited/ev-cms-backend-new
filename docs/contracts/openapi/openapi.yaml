@@ -1067,6 +1067,124 @@ paths:
         "500":
           $ref: "#/components/responses/InternalError"
 
+  /api/v1/app/vehicles:
+    post:
+      tags: [App User Vehicles]
+      operationId: createCustomerVehicle
+      summary: Create a vehicle owned by the current customer
+      description: Customer and CPO ownership, timestamps, and `last_charged` are server-owned. The request accepts only editable vehicle metadata.
+      security: [{BearerAuth: []}]
+      parameters: [{$ref: "#/components/parameters/CPOAppIDHeader"}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/CreateCustomerVehicleRequest"}
+            example: {vehicle_number: "KA01AB1234", vehicle_type: "Hatchback", vehicle_make: "Tata", vehicle_model: "Tiago EV"}
+      responses:
+        "201":
+          description: Created customer-owned vehicle.
+          content: {application/json: {schema: {$ref: "#/components/schemas/CustomerVehicleView"}}}
+        "400": {description: "Invalid vehicle fields, JSON, or app ID.", content: {application/json: {schema: {$ref: "#/components/schemas/ErrorEnvelope"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/CPOBusinessForbidden"}
+        "500": {$ref: "#/components/responses/InternalError"}
+    get:
+      tags: [App User Vehicles]
+      operationId: listCustomerVehicles
+      summary: List vehicles owned by the current customer
+      description: |
+        Results are always scoped to the authenticated CPO and customer, ordered
+        by `(date_added DESC, id DESC)`. `search` is a case-insensitive substring
+        search across the four editable fields. Metadata filters are trimmed,
+        case-insensitive exact matches and compose with search and the paired
+        keyset cursor. Discard a cursor when any search or filter changes.
+      security: [{BearerAuth: []}]
+      parameters:
+        - {$ref: "#/components/parameters/CPOAppIDHeader"}
+        - {$ref: "#/components/parameters/ListBefore"}
+        - {$ref: "#/components/parameters/ListBeforeID"}
+        - name: limit
+          in: query
+          schema: {type: integer, minimum: 1, maximum: 100, default: 50}
+        - name: search
+          in: query
+          schema: {type: string, maxLength: 100}
+        - name: vehicle_type
+          in: query
+          schema: {type: string, maxLength: 50}
+        - name: vehicle_make
+          in: query
+          schema: {type: string, maxLength: 100}
+        - name: vehicle_model
+          in: query
+          schema: {type: string, maxLength: 100}
+      responses:
+        "200":
+          description: Current customer's vehicle page.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/CustomerVehicleListResponse"}
+              examples:
+                search: {value: {vehicles: [], has_more: false}, summary: "GET /vehicles?search=tiago"}
+                make: {value: {vehicles: [], has_more: false}, summary: "GET /vehicles?vehicle_make=Tata"}
+                combined: {value: {vehicles: [], has_more: false}, summary: "GET /vehicles?search=tata&vehicle_type=SUV"}
+        "400": {description: "Invalid search, filter, limit, cursor, or app ID.", content: {application/json: {schema: {$ref: "#/components/schemas/ErrorEnvelope"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/CPOBusinessForbidden"}
+        "500": {$ref: "#/components/responses/InternalError"}
+
+  /api/v1/app/vehicles/{vehicle_id}:
+    get:
+      tags: [App User Vehicles]
+      operationId: getCustomerVehicle
+      summary: Get one vehicle owned by the current customer
+      security: [{BearerAuth: []}]
+      parameters: [{$ref: "#/components/parameters/CPOAppIDHeader"}, {$ref: "#/components/parameters/VehicleID"}]
+      responses:
+        "200": {description: Customer-owned vehicle., content: {application/json: {schema: {$ref: "#/components/schemas/CustomerVehicleView"}}}}
+        "400": {description: "Invalid vehicle ID or app ID.", content: {application/json: {schema: {$ref: "#/components/schemas/ErrorEnvelope"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/CPOBusinessForbidden"}
+        "404": {description: "The vehicle is absent or belongs to another customer/CPO.", content: {application/json: {schema: {$ref: "#/components/schemas/ErrorEnvelope"}}}}
+        "500": {$ref: "#/components/responses/InternalError"}
+    patch:
+      tags: [App User Vehicles]
+      operationId: updateCustomerVehicle
+      summary: Partially update a vehicle owned by the current customer
+      description: Omitted fields are unchanged. Explicit null or blank optional metadata clears it; a supplied vehicle number must be nonblank. A valid no-op returns the current view and creates no update audit record.
+      security: [{BearerAuth: []}]
+      parameters: [{$ref: "#/components/parameters/CPOAppIDHeader"}, {$ref: "#/components/parameters/VehicleID"}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/UpdateCustomerVehicleRequest"}
+            examples:
+              changeMake: {value: {vehicle_make: "Tata Motors"}}
+              clearType: {value: {vehicle_type: null}}
+      responses:
+        "200": {description: Updated or unchanged customer-owned vehicle., content: {application/json: {schema: {$ref: "#/components/schemas/CustomerVehicleView"}}}}
+        "400": {description: "Invalid vehicle ID, update, field, JSON, or app ID.", content: {application/json: {schema: {$ref: "#/components/schemas/ErrorEnvelope"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/CPOBusinessForbidden"}
+        "404": {description: "The vehicle is absent or belongs to another customer/CPO.", content: {application/json: {schema: {$ref: "#/components/schemas/ErrorEnvelope"}}}}
+        "500": {$ref: "#/components/responses/InternalError"}
+    delete:
+      tags: [App User Vehicles]
+      operationId: deleteCustomerVehicle
+      summary: Hard-delete a vehicle owned by the current customer
+      description: Deletes only the current customer's row and records audit evidence; no charging, session, or invoice relationship exists in the current schema.
+      security: [{BearerAuth: []}]
+      parameters: [{$ref: "#/components/parameters/CPOAppIDHeader"}, {$ref: "#/components/parameters/VehicleID"}]
+      responses:
+        "204": {description: Vehicle deleted.}
+        "400": {description: "Invalid vehicle ID or app ID.", content: {application/json: {schema: {$ref: "#/components/schemas/ErrorEnvelope"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/CPOBusinessForbidden"}
+        "404": {description: "The vehicle is absent or belongs to another customer/CPO.", content: {application/json: {schema: {$ref: "#/components/schemas/ErrorEnvelope"}}}}
+        "500": {$ref: "#/components/responses/InternalError"}
+
   /api/v1/app/hubs:
     get:
       tags: [App User Network]
@@ -7075,6 +7193,14 @@ components:
       schema:
         type: string
         format: uuid
+    VehicleID:
+      name: vehicle_id
+      in: path
+      required: true
+      description: Server-generated vehicle UUID owned by the authenticated customer.
+      schema:
+        type: string
+        format: uuid
     TariffID:
       name: tariff_id
       in: path
@@ -7979,6 +8105,48 @@ components:
           pattern: "^\\+?[0-9]{7,15}$"
           description: Optional normalized phone. Omit to preserve; send null to clear.
           example: "+919876543210"
+
+    CreateCustomerVehicleRequest:
+      type: object
+      additionalProperties: false
+      required: [vehicle_number]
+      properties:
+        vehicle_number: {type: string, minLength: 1, maxLength: 50}
+        vehicle_type: {type: string, maxLength: 50, nullable: true}
+        vehicle_make: {type: string, maxLength: 100, nullable: true}
+        vehicle_model: {type: string, maxLength: 100, nullable: true}
+    UpdateCustomerVehicleRequest:
+      type: object
+      additionalProperties: false
+      minProperties: 1
+      properties:
+        vehicle_number: {type: string, minLength: 1, maxLength: 50}
+        vehicle_type: {type: string, maxLength: 50, nullable: true}
+        vehicle_make: {type: string, maxLength: 100, nullable: true}
+        vehicle_model: {type: string, maxLength: 100, nullable: true}
+    CustomerVehicleView:
+      type: object
+      additionalProperties: false
+      required: [id, vehicle_number, date_added, created_at, updated_at]
+      properties:
+        id: {type: string, format: uuid}
+        vehicle_number: {type: string}
+        vehicle_type: {type: string, nullable: true}
+        vehicle_make: {type: string, nullable: true}
+        vehicle_model: {type: string, nullable: true}
+        last_charged: {type: string, format: date-time, nullable: true}
+        date_added: {type: string, format: date-time}
+        created_at: {type: string, format: date-time}
+        updated_at: {type: string, format: date-time}
+    CustomerVehicleListResponse:
+      type: object
+      additionalProperties: false
+      required: [vehicles, has_more]
+      properties:
+        vehicles: {type: array, items: {$ref: "#/components/schemas/CustomerVehicleView"}}
+        has_more: {type: boolean}
+        next_before: {type: string, format: date-time, nullable: true}
+        next_before_id: {type: string, format: uuid, nullable: true}
 
     CustomerRelationship:
       type: object
@@ -11442,10 +11610,13 @@ components:
           type: string
         type:
           type: string
+          nullable: true
         make:
           type: string
+          nullable: true
         model:
           type: string
+          nullable: true
         last_charged:
           type: string
           format: date-time

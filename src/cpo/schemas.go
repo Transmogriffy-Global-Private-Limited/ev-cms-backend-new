@@ -975,9 +975,9 @@ type VehicleView struct {
 	CustomerName  string     `json:"customer_name"`
 	CustomerEmail string     `json:"customer_email"`
 	VehicleNumber string     `json:"vehicle_number"`
-	Type          string     `json:"type,omitempty"`
-	Make          string     `json:"make,omitempty"`
-	Model         string     `json:"model,omitempty"`
+	Type          *string    `json:"type,omitempty"`
+	Make          *string    `json:"make,omitempty"`
+	Model         *string    `json:"model,omitempty"`
 	LastCharged   *time.Time `json:"last_charged,omitempty"`
 	DateAdded     time.Time  `json:"date_added"`
 	CreatedAt     time.Time  `json:"created_at"`

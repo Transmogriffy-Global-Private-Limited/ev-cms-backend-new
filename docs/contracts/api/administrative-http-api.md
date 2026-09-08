@@ -821,6 +821,52 @@ challenge for that account. Errors include
 `401 invalid_current_password`, normal bearer/app-ID errors, and
 `500 internal_error`.
 
+### 4.20A Customer vehicle CRUD
+
+Every vehicle route requires the customer bearer and matching `X-CPO-App-ID`.
+The server derives both CPO and customer from that validated session; clients
+cannot send or filter by either ID. `POST /api/v1/app/vehicles` accepts only
+`vehicle_number` (required, trimmed, 1–50 characters), optional
+`vehicle_type` (50), `vehicle_make` (100), and `vehicle_model` (100). Optional
+blank/null values persist as NULL. It returns `201 CustomerVehicleView`, which
+contains only ID, editable metadata, `last_charged`, `date_added`, and server
+timestamps—not CPO/customer IDs.
+
+The customer HTTP contract deliberately uses the descriptive `vehicle_type`,
+`vehicle_make`, and `vehicle_model` names. They map directly to the established
+`vehicles.type`, `vehicles.make`, and `vehicles.model` columns; no storage or
+existing CPO vehicle API field is renamed.
+
+`GET /api/v1/app/vehicles` returns `{vehicles, has_more, next_before?,
+next_before_id?}` ordered by `(date_added DESC, id DESC)`. `limit` defaults to
+50 and is capped at 100. `before` and `before_id` are required together. The
+optional `search` (maximum 100) is a case-insensitive substring across vehicle
+number/type/make/model. `vehicle_type` (50), `vehicle_make` (100), and
+`vehicle_model` (100) are trimmed, case-insensitive exact filters; every
+selected filter, search, and cursor composes inside the authenticated
+`(cpo_id, customer_id)` boundary. Examples:
+
+```text
+GET /api/v1/app/vehicles?search=tiago
+GET /api/v1/app/vehicles?vehicle_make=Tata
+GET /api/v1/app/vehicles?search=tata&vehicle_type=SUV
+```
+
+`GET`, `PATCH`, and `DELETE /api/v1/app/vehicles/{vehicle_id}` use the same
+owner-only scope. Foreign vehicles are indistinguishable from absence and
+return `404 vehicle_not_found`. PATCH is partial: omitted values are unchanged;
+optional null/blank values clear metadata; an empty editable patch returns
+`400 invalid_vehicle_update`. A valid no-op returns the unchanged view and
+writes no update audit. DELETE is a hard delete and returns `204`.
+
+Malformed IDs return `400 invalid_vehicle_id`; invalid field, search, filter,
+limit, and cursor inputs return the corresponding `invalid_vehicle_*`,
+`invalid_search`, `invalid_limit`, or `invalid_cursor` error. Unknown and
+server-owned JSON fields are rejected. Create, actual update, and delete share
+a transaction with `CUSTOMER_VEHICLE_CREATED`, `CUSTOMER_VEHICLE_UPDATED`, or
+`CUSTOMER_VEHICLE_DELETED` audit persistence. Update audit details contain only
+the changed field names.
+
 ### 4.21 `GET /api/v1/app/favorites`
 
 Returns the current customer's saved hubs and chargers as safe published
