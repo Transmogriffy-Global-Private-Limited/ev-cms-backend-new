@@ -1,6 +1,7 @@
 package cpo
 
 import (
+	"reflect"
 	"testing"
 	"time"
 
@@ -59,6 +60,14 @@ func TestChargerOperationHistoryProjectionRetainsOnlyTypedResetParameters(t *tes
 	view := chargerOperationHistoryView(chargerOperationHistoryRow{ChargerOperation: models.ChargerOperation{ID: uuid.New(), ChargerID: uuid.New(), ActorUserID: uuid.New(), Kind: "RESET", Parameters: parameters}})
 	if view.Parameters == nil || view.Parameters.Type != "SOFT" || view.Parameters.Reason != "Safe maintenance" || view.Parameters.Key != "" || view.Parameters.RequestedMessage != "" {
 		t.Fatalf("reset projection = %#v", view.Parameters)
+	}
+}
+
+func TestChargerOperationHistoryProjectionRetainsRequestedConfigurationKeys(t *testing.T) {
+	keys := []string{"HeartbeatInterval", "ConnectionTimeOut"}
+	view := chargerOperationHistoryView(chargerOperationHistoryRow{ChargerOperation: models.ChargerOperation{ID: uuid.New(), ChargerID: uuid.New(), ActorUserID: uuid.New(), Kind: "GET_CONFIGURATION", Parameters: models.JSONB{"configuration_keys": keys}}})
+	if view.Kind != "GET_CONFIGURATION" || view.Connector != nil || view.Parameters == nil || !reflect.DeepEqual(view.Parameters.ConfigurationKeys, keys) {
+		t.Fatalf("GetConfiguration history view = %#v", view)
 	}
 }
 

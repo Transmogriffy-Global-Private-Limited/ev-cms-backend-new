@@ -1,5 +1,22 @@
 # Project State
 
+## 2026-09-08 - Audited GetConfiguration operation-kind schema source correction
+
+- Forward-only source migration `000065` brings the CMS
+  `charger_operations_kind_check` catalog into agreement with the existing
+  audited `GET_CONFIGURATION` application flow. It changes no operation
+  state, persistence payload, HAL contract, or OCPP behavior.
+- Its down migration refuses rollback when `GET_CONFIGURATION` operation
+  history exists, preserving durable audit evidence rather than deleting or
+  coercing it. The history `kind` OpenAPI filter now includes the same durable
+  catalog.
+
+Migration execution and PostgreSQL integration remain unrun because no
+disposable `TEST_DATABASE_URL` was selected. Source-level migration-catalog and
+history-projection coverage, full Go tests, vet, and documentation-contract
+verification pass. No database mutation, deployment, restart, commit, or push
+occurred.
+
 ## 2026-09-08 - Per-operation OCPP protocol-evidence deployed
 
 - The CMS source assigns every new charger operation a distinct

@@ -4240,7 +4240,7 @@ paths:
         - {name: charger_id, in: query, schema: {type: string, format: uuid}}
         - {name: connector_id, in: query, schema: {type: string, format: uuid}}
         - {name: actor_user_id, in: query, schema: {type: string, format: uuid}}
-        - {name: kind, in: query, schema: {type: string, enum: [RESET, UNLOCK_CONNECTOR, CHANGE_AVAILABILITY, CLEAR_CACHE, CHANGE_CONFIGURATION, TRIGGER_MESSAGE]}}
+        - {name: kind, in: query, schema: {type: string, enum: [RESET, UNLOCK_CONNECTOR, CHANGE_AVAILABILITY, CLEAR_CACHE, CHANGE_CONFIGURATION, TRIGGER_MESSAGE, GET_CONFIGURATION]}}
         - {name: state, in: query, schema: {type: string, enum: [PERSISTED, HAL_ACCEPTED, OCPP_CONFIRMED, RECONCILIATION_REQUIRED, CONFIRMED_ABSENT]}}
         - {name: ocpp_result, in: query, description: Exact known OCPP response result., schema: {type: string, maxLength: 64}}
         - {name: failure_category, in: query, schema: {type: string, maxLength: 64}}

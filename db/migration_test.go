@@ -54,6 +54,44 @@ func TestMatchingDownMigrationRejectsInvalidVersion(t *testing.T) {
 	}
 }
 
+func TestChargerOperationGetConfigurationMigrationPreservesBoundedKindCatalog(t *testing.T) {
+	t.Parallel()
+
+	upBody, err := migrationFiles.ReadFile("migrations/000065_allow_get_configuration_charger_operation.up.sql")
+	if err != nil {
+		t.Fatalf("read charger-operation kind up migration: %v", err)
+	}
+	downBody, err := migrationFiles.ReadFile("migrations/000065_allow_get_configuration_charger_operation.down.sql")
+	if err != nil {
+		t.Fatalf("read charger-operation kind down migration: %v", err)
+	}
+	upSQL, downSQL := string(upBody), string(downBody)
+	if !strings.Contains(upSQL, "DROP CONSTRAINT charger_operations_kind_check") || !strings.Contains(upSQL, "ADD CONSTRAINT charger_operations_kind_check") || !strings.Contains(upSQL, "CHECK (kind IN") {
+		t.Fatal("up migration does not replace the bounded charger-operation kind constraint")
+	}
+	for _, kind := range []string{"RESET", "UNLOCK_CONNECTOR", "CHANGE_AVAILABILITY", "CLEAR_CACHE", "CHANGE_CONFIGURATION", "TRIGGER_MESSAGE", "GET_CONFIGURATION"} {
+		if !strings.Contains(upSQL, "'"+kind+"'") {
+			t.Errorf("up migration does not permit %q", kind)
+		}
+	}
+	if !strings.Contains(downSQL, "WHERE kind = 'GET_CONFIGURATION'") || !strings.Contains(downSQL, "RAISE EXCEPTION") || !strings.Contains(downSQL, "cannot rollback charger operation kind constraint while GET_CONFIGURATION rows exist") {
+		t.Fatal("down migration does not fail safely when GET_CONFIGURATION history exists")
+	}
+	restoredAt := strings.LastIndex(downSQL, "ADD CONSTRAINT charger_operations_kind_check")
+	if restoredAt < 0 {
+		t.Fatal("down migration does not restore charger_operations_kind_check")
+	}
+	restoredConstraint := downSQL[restoredAt:]
+	if strings.Contains(restoredConstraint, "'GET_CONFIGURATION'") {
+		t.Fatal("down migration must restore the original six-kind constraint")
+	}
+	for _, kind := range []string{"RESET", "UNLOCK_CONNECTOR", "CHANGE_AVAILABILITY", "CLEAR_CACHE", "CHANGE_CONFIGURATION", "TRIGGER_MESSAGE"} {
+		if !strings.Contains(restoredConstraint, "'"+kind+"'") {
+			t.Errorf("down migration does not restore %q", kind)
+		}
+	}
+}
+
 func TestMailOutboxTemplateCatalogMigrationMatchesApplication(t *testing.T) {
 	t.Parallel()
 

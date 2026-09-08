@@ -1,5 +1,20 @@
 # AI Changelog
 
+## 2026-09-08 - Repair audited GetConfiguration operation-kind schema drift
+
+- Added forward migration `000065` to replace only the bounded
+  `charger_operations_kind_check` catalog and admit the already implemented
+  `GET_CONFIGURATION` operation. The rollback fails safely if that durable
+  audit history exists; it never rewrites or deletes operation rows.
+- Corrected the history endpoint OpenAPI `kind` filter enum and human contract
+  so every durable operation kind is discoverable to consumers.
+
+Verification: source-level migration-catalog and requested-key history coverage,
+focused CPO/HAL package checks, full Go tests, vet, and documentation-contract
+verification pass. PostgreSQL integration remains skipped without
+`TEST_DATABASE_URL`. No migration was applied and no database, deployment,
+restart, commit, or push occurred.
+
 ## 2026-09-08 - Deploy per-operation OCPP evidence
 
 - Added trace-root operation identities, migration `000063`, a

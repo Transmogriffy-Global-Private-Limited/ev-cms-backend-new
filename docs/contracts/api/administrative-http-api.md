@@ -141,8 +141,9 @@ automatically select their matching operation kind; more than one typed
 parameter filter or a mismatched explicit `kind` is rejected. It returns safe
 charger code/name, optional connector number/type, and actor ID/name context.
 Its `parameters` object is kind-specific: Reset includes type/reason,
-availability includes type, TriggerMessage includes requested message, and
-ChangeConfiguration includes only key. It never returns the configuration
+availability includes type, TriggerMessage includes requested message,
+ChangeConfiguration includes only key, and GetConfiguration includes only the
+requested key names. It never returns the configuration
 value, raw JSONB, internal connector helper, idempotency key/digest,
 correlation ID, or provider payload.
 
