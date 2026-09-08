@@ -398,6 +398,34 @@ export type CustomerWalletTransactionList = {
   has_more: boolean;
 };
 
+export type CustomerVehicle = {
+  id: string;
+  vehicle_number: string;
+  vehicle_type?: string;
+  vehicle_make?: string;
+  vehicle_model?: string;
+  last_charged?: string;
+  date_added: string;
+  created_at: string;
+  updated_at: string;
+};
+
+export type CreateCustomerVehicleRequest = {
+  vehicle_number: string; // trimmed, 1–50 characters
+  vehicle_type?: string | null; // trimmed; blank/null persist as absent metadata
+  vehicle_make?: string | null;
+  vehicle_model?: string | null;
+};
+
+export type UpdateCustomerVehicleRequest = Partial<CreateCustomerVehicleRequest>;
+
+export type CustomerVehicleList = {
+  vehicles: CustomerVehicle[];
+  has_more: boolean;
+  next_before?: string;
+  next_before_id?: string;
+};
+
 export type CustomerRechargeOrder = {
   recharge_order_id: string;
   provider: "RAZORPAY";
@@ -475,6 +503,11 @@ alter the separate customer-selected time-bounded-session cutoff workflow.
 | `POST /auth/password/reset` | No | `200 MessageResponse` | Replace forgotten password. |
 | `GET /me` | Yes | `200 CustomerMe` | Bootstrap authenticated app state. |
 | `PATCH /profile` | Yes | `200 CustomerUser` | Update this account's name or phone. |
+| `POST /vehicles` | Yes | `201 CustomerVehicle` | Create a vehicle owned by this customer. |
+| `GET /vehicles` | Yes | `200 CustomerVehicleList` | List this customer's vehicles with search, filters, and cursor pagination. |
+| `GET /vehicles/{vehicle_id}` | Yes | `200 CustomerVehicle` | Read one vehicle owned by this customer. |
+| `PATCH /vehicles/{vehicle_id}` | Yes | `200 CustomerVehicle` | Partially update one owned vehicle. |
+| `DELETE /vehicles/{vehicle_id}` | Yes | `204` | Hard-delete one owned vehicle. |
 | `GET /hubs` | Yes | `200 CustomerHubList` | List published hubs in this CPO. |
 | `GET /hubs/{hub_id}` | Yes | `200 CustomerHub` | Read one published hub and attached chargers. |
 | `GET /chargers` | Yes | `200 CustomerChargerList` | Search/filter published chargers, including optional near-me results. |
@@ -1213,7 +1246,53 @@ changed field names in the CPO-scoped audit event.
 Errors are `400 invalid_request`, `400 invalid_full_name`,
 `400 invalid_phone`, `401 unauthorized`, or `403 cpo_app_id_mismatch`.
 
-### 9.3 Session list
+### 9.3 Vehicles
+
+All vehicle calls use `USER_APP_ROOT` and therefore require the standard
+`X-CPO-App-ID` and bearer headers. The backend derives the CPO and customer
+from those credentials. Do not send `cpo_id`, `customer_id`, timestamps, or
+`last_charged`; they are not writable request fields. A vehicle outside the
+current `(cpo_id, customer_id)` scope returns `404 vehicle_not_found`, not a
+cross-tenant indication.
+
+The customer HTTP names are intentionally descriptive: `vehicle_type`,
+`vehicle_make`, and `vehicle_model`. They are API aliases for the established
+storage fields `type`, `make`, and `model`; frontend clients must not use the
+storage names.
+
+Create with `POST /vehicles`:
+
+```json
+{
+  "vehicle_number": "KA01AB1234",
+  "vehicle_type": "Hatchback",
+  "vehicle_make": "Tata",
+  "vehicle_model": "Tiago EV"
+}
+```
+
+`vehicle_number` is required, trimmed, and limited to 50 characters.
+`vehicle_type`, `vehicle_make`, and `vehicle_model` are optional, trimmed, and
+limited to 50, 100, and 100 characters respectively. On create, `null` or a
+blank optional value is stored as absent metadata. Unknown fields and malformed
+JSON return `400 invalid_request`.
+
+`GET /vehicles` returns `CustomerVehicleList`, ordered by
+`date_added DESC, id DESC`. `limit` defaults to 50 and is at most 100. Continue
+only with the paired `next_before` and `next_before_id` values from the prior
+response; do not send one cursor component alone. `search` is a case-insensitive
+substring search across number, type, make, and model. `vehicle_type`,
+`vehicle_make`, and `vehicle_model` are trimmed, case-insensitive exact filters;
+all supplied filters compose. Invalid cursors, limits, and oversized filters
+return their documented `400` error code.
+
+`PATCH /vehicles/{vehicle_id}` accepts at least one of the four create fields.
+Omitted fields remain unchanged. Sending `null` or a blank value clears optional
+metadata; `vehicle_number` cannot be cleared or blank. A valid no-op returns the
+current `CustomerVehicle` unchanged. `DELETE /vehicles/{vehicle_id}` returns
+`204` with no body. Keep a deleted vehicle out of local lists and detail caches.
+
+### 9.4 Session list
 
 `GET /auth/sessions`
 
@@ -1236,14 +1315,14 @@ Errors are `400 invalid_request`, `400 invalid_full_name`,
 Only active, unexpired sessions for this exact `(cpo_id, customer_id)` are
 returned.
 
-### 9.4 Revoke one session
+### 9.5 Revoke one session
 
 `DELETE /auth/sessions/{session_id}` returns `204`. The customer may revoke their
 current session; if `is_current` was true, clear local authentication state
 immediately. `404 session_not_found` means the session is not owned by this
 account or does not exist.
 
-### 9.5 Logout
+### 9.6 Logout
 
 - `POST /auth/logout` returns `204` and revokes the current session.
 - `POST /auth/logout-all` returns `204` and revokes all sessions for only this
