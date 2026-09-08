@@ -480,6 +480,42 @@ paths:
           $ref: "#/components/responses/CPOBusinessForbidden"
         "500":
           $ref: "#/components/responses/InternalError"
+
+  /api/v1/cpo/vehicles:
+    get:
+      tags: [CPO Operations - Account & Notifications]
+      operationId: listCPOVehicles
+      summary: List vehicles registered by customers of the CPO
+      description: Returns a paginated list of vehicles for the authenticated CPO, ordered by newest first. Optionally filter by customer.
+      security:
+        - BearerAuth: []
+          CPOAppID: []
+      parameters:
+        - $ref: "#/components/parameters/ListLimit"
+        - $ref: "#/components/parameters/ListBefore"
+        - $ref: "#/components/parameters/ListBeforeID"
+        - name: customer_id
+          in: query
+          schema:
+            type: string
+            format: uuid
+          description: Filter vehicles by a specific customer.
+      responses:
+        "200":
+          description: A list of vehicles.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VehicleListResponse"
+        "400":
+          $ref: "#/components/responses/InvalidRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/CPOBusinessForbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
   /api/v1/cpo/customers/{customer_id}/wallet-transactions:
     get:
       tags: [CPO Operations - Charging Sessions]
@@ -11378,6 +11414,74 @@ components:
           nullable: true
         has_more:
           type: boolean
+      Vehicle:
+        type: object
+        additionalProperties: false
+        required:
+          - id
+          - customer_id
+          - customer_name
+          - customer_email
+          - vehicle_number
+          - date_added
+          - created_at
+          - updated_at
+        properties:
+          id:
+            type: string
+            format: uuid
+          customer_id:
+            type: string
+            format: uuid
+          customer_name:
+            type: string
+          customer_email:
+            type: string
+            format: email
+          vehicle_number:
+            type: string
+          type:
+            type: string
+          make:
+            type: string
+          model:
+            type: string
+          last_charged:
+            type: string
+            format: date-time
+            nullable: true
+          date_added:
+            type: string
+            format: date-time
+          created_at:
+            type: string
+            format: date-time
+          updated_at:
+            type: string
+            format: date-time
+
+      VehicleListResponse:
+        type: object
+        additionalProperties: false
+        required:
+          - vehicles
+          - has_more
+        properties:
+          vehicles:
+            type: array
+            items:
+              $ref: "#/components/schemas/Vehicle"
+          next_before:
+            type: string
+            format: date-time
+            nullable: true
+          next_before_id:
+            type: string
+            format: uuid
+            nullable: true
+          has_more:
+            type: boolean
+            
     ChargingSessionCustomerView:
       type: object
       properties:

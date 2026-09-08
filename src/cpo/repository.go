@@ -20,6 +20,7 @@ type Repository interface {
 	ListLiveChargingSessions(ctx context.Context, cpoID uuid.UUID, query LiveChargingSessionListQuery) ([]models.ChargingSession, error)
 	ListChargerTransactions(ctx context.Context, cpoID uuid.UUID, query ChargerTransactionListQuery) ([]ChargerTransaction, error)
 	ListChargersByHub(ctx context.Context, cpoID, hubID uuid.UUID) ([]models.Charger, error)
+	ListVehicles(ctx context.Context, cpoID uuid.UUID, query VehicleListQuery) ([]VehicleDetail, error)
 }
 type repository struct {
 	db *gorm.DB
@@ -415,6 +416,11 @@ type WalletTransactionDetail struct {
 	CustomerEmail string    `gorm:"column:customer_email"`
 	Currency      string    `gorm:"column:currency"`
 }
+type VehicleDetail struct {
+	models.Vehicle
+	CustomerName  string `gorm:"column:customer_name"`
+	CustomerEmail string `gorm:"column:customer_email"`
+}
 
 // Implement the new method for the repository struct (around line 114)
 func (r *repository) ListWalletTransactions(ctx context.Context, cpoID uuid.UUID, query WalletTransactionListQuery) ([]WalletTransactionDetail, error) {
@@ -447,4 +453,34 @@ func (r *repository) ListWalletTransactions(ctx context.Context, cpoID uuid.UUID
 	}
 
 	return transactions, nil
+}
+
+func (r *repository) ListVehicles(ctx context.Context, cpoID uuid.UUID, query VehicleListQuery) ([]VehicleDetail, error) {
+	var vehicles []VehicleDetail
+	db := r.db.WithContext(ctx).
+		Table("vehicles").
+		Select("vehicles.*, customers.full_name as customer_name, customers.email as customer_email").
+		Joins("JOIN customers ON customers.id = vehicles.customer_id").
+		Where("vehicles.cpo_id = ?", cpoID)
+
+	if query.CustomerID != nil {
+		db = db.Where("vehicles.customer_id = ?", *query.CustomerID)
+	}
+
+	if query.Before != nil {
+		if query.BeforeID != nil {
+			db = db.Where("(vehicles.created_at, vehicles.id) < (?, ?)", *query.Before, *query.BeforeID)
+		} else {
+			db = db.Where("vehicles.created_at < ?", *query.Before)
+		}
+	}
+
+	if query.Limit > 0 {
+		db = db.Limit(query.Limit + 1)
+	}
+
+	if err := db.Order("vehicles.created_at DESC, vehicles.id DESC").Scan(&vehicles).Error; err != nil {
+		return nil, err
+	}
+	return vehicles, nil
 }
