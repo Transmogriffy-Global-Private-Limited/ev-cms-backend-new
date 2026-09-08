@@ -159,6 +159,15 @@ Current implementation state:
   remains a separate counterpart deployment. PostgreSQL, paired-service, and
   physical OCPP verification remain pending without a disposable environment.
 
+- CPO vehicle listing is implemented and deployed with migration `000064`.
+  The CMS-owned vehicle table is CPO/customer scoped through foreign keys and
+  indexes, and `GET /api/v1/cpo/vehicles` is read-only with keyset pagination.
+  The audited `GET_CONFIGURATION` catalog correction is deployed with
+  migration `000065`; live and source OpenAPI each expose 236 operations.
+  Runtime revision `219c5b1` plus the embedded OpenAPI correction is active.
+  PostgreSQL lifecycle integration, paired HAL delivery, and physical OCPP
+  verification remain pending without a disposable environment.
+
 - Customer AUTO-start chargeability is implemented and deployed under the
   archived work item
   `docs/work/archive/WI-20260903-customer-chargeability-projection.md`. It is
@@ -1179,6 +1188,11 @@ Active feature:
 - Charging-trace commercial evidence and tenant-scoped hub analytics.
 
 Current implementation slice:
+
+- Deployed CMS vehicle listing and audited charger-operation catalog
+  correction. Migrations `000064` and `000065` are applied; the runtime
+  revision is `219c5b1` plus the OpenAPI correction with 236 OpenAPI
+  operations. The CPO vehicle read is CMS-owned and does not call HAL.
 
 - Completed and deployed reconciliation extends CPO session list/detail responses with
   snapshot-first tariff price/unit and GST rates plus the durable customer

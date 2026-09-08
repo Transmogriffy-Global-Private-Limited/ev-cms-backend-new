@@ -4,7 +4,7 @@ Status: In Progress
 Owner: Codex
 Collaborators: Anubhab Dey (CMS/HAL boundary owner)
 Started: 2026-09-04
-Last updated: 2026-09-08 (audited GetConfiguration schema-catalog source correction added; paired HAL and hardware validation pending)
+Last updated: 2026-09-08 (vehicle listing and audited GetConfiguration catalog correction deployed; paired HAL and hardware validation pending)
 
 Development-plan reference: `docs/DEVELOPMENT_PLAN.md` — Charging lifecycle and HAL integration
 Detailed-plan reference: `docs/integrations/cpo-hal-operational-capability-manual.md`
@@ -81,21 +81,24 @@ requested-key-only history and an optional transient safe response. CMS
 migration `000063` is applied; counterpart HAL migration `021` remains
 unapplied.
 
-Implemented but uncommitted/source-only: forward migration `000065` adds the
-already supported `GET_CONFIGURATION` kind to the bounded CMS operation
-constraint. Its rollback refuses to invalidate existing audited reads, and the
-history OpenAPI kind filter now matches the durable catalog.
+Deployed CMS: migration `000064` owns the CPO/customer-scoped vehicle table and
+read route; migration `000065` adds the already supported `GET_CONFIGURATION`
+kind to the bounded CMS operation constraint. Its rollback refuses to
+invalidate existing audited reads, and the history OpenAPI kind filter now
+matches the durable catalog. The embedded OpenAPI schema correction is active;
+source and live contracts each expose 236 operations. Runtime revision
+`219c5b1` plus that correction is active, with its previous binary and the
+pre-`000065` database dump retained in the hosting guide and project state.
 
 ## Verification
 
 History/parser/projection and evidence-redaction tests, CPO capability-route
 coverage, route/OpenAPI parity, full `go test -p 1 ./...`, `go vet -p 1 ./...`,
 production build, migration/schema checks, and CMS post-rehost
-service/contract verification pass. The source-only `000065` catalog migration
-and rollback guard are covered by database-free migration tests and current
-documentation-contract verification. PostgreSQL-gated history/protocol
-integration coverage remains skipped because `TEST_DATABASE_URL` is absent;
-no paired charger was selected.
+service/contract verification pass. Migrations `000064` and `000065` were
+applied after a retained mode-0600 custom-format dump. PostgreSQL-gated
+history/protocol integration coverage remains skipped because
+`TEST_DATABASE_URL` is absent; no paired charger was selected.
 
 ## Handoff
 

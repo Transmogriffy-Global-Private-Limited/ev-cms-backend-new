@@ -1,19 +1,30 @@
 # AI Changelog
 
-## 2026-09-08 - Repair audited GetConfiguration operation-kind schema drift
+## 2026-09-08 - Deploy vehicle listing and audited GetConfiguration catalog fix
 
+- Added CMS-owned CPO vehicle listing persistence and route support through
+  migration `000064`, including CPO/customer ownership constraints and cursor
+  indexes.
 - Added forward migration `000065` to replace only the bounded
   `charger_operations_kind_check` catalog and admit the already implemented
   `GET_CONFIGURATION` operation. The rollback fails safely if that durable
   audit history exists; it never rewrites or deletes operation rows.
-- Corrected the history endpoint OpenAPI `kind` filter enum and human contract
-  so every durable operation kind is discoverable to consumers.
+- Corrected the embedded OpenAPI schema nesting and history endpoint `kind`
+  filter enum so the vehicle response and every durable operation kind are
+  discoverable to consumers.
 
-Verification: source-level migration-catalog and requested-key history coverage,
-focused CPO/HAL package checks, full Go tests, vet, and documentation-contract
-verification pass. PostgreSQL integration remains skipped without
-`TEST_DATABASE_URL`. No migration was applied and no database, deployment,
-restart, commit, or push occurred.
+Verification: focused OpenAPI/runtime route parity, relevant CPO and database
+package checks, full `go test -p 1 ./...`, `go vet -p 1 ./...`, and production
+build pass. Migrations `000064` and `000065` are applied after a mode-0600
+custom-format database dump retained at
+`/root/evcmsnew-backups/pre-000065-20260908T141327+0530/`.
+The rehosted runtime is source revision `219c5b1` plus the OpenAPI correction,
+with binary SHA-256
+`2d6746c737e2d07cc6c98c931abcc3141e679852a18fc3b5dc1af3fb8bbc65a4` and 236
+OpenAPI operations. Loopback/public health and readiness, raw OpenAPI,
+Swagger, workers, Caddy, and post-rehost logs pass. PostgreSQL lifecycle
+integration, paired HAL delivery, and physical OCPP checks remain unrun;
+`TEST_DATABASE_URL` and a mapped charger are absent. `pwsh` is unavailable.
 
 ## 2026-09-08 - Deploy per-operation OCPP evidence
 

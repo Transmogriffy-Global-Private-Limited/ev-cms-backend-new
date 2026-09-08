@@ -11414,73 +11414,73 @@ components:
           nullable: true
         has_more:
           type: boolean
-      Vehicle:
-        type: object
-        additionalProperties: false
-        required:
-          - id
-          - customer_id
-          - customer_name
-          - customer_email
-          - vehicle_number
-          - date_added
-          - created_at
-          - updated_at
-        properties:
-          id:
-            type: string
-            format: uuid
-          customer_id:
-            type: string
-            format: uuid
-          customer_name:
-            type: string
-          customer_email:
-            type: string
-            format: email
-          vehicle_number:
-            type: string
-          type:
-            type: string
-          make:
-            type: string
-          model:
-            type: string
-          last_charged:
-            type: string
-            format: date-time
-            nullable: true
-          date_added:
-            type: string
-            format: date-time
-          created_at:
-            type: string
-            format: date-time
-          updated_at:
-            type: string
-            format: date-time
+    Vehicle:
+      type: object
+      additionalProperties: false
+      required:
+        - id
+        - customer_id
+        - customer_name
+        - customer_email
+        - vehicle_number
+        - date_added
+        - created_at
+        - updated_at
+      properties:
+        id:
+          type: string
+          format: uuid
+        customer_id:
+          type: string
+          format: uuid
+        customer_name:
+          type: string
+        customer_email:
+          type: string
+          format: email
+        vehicle_number:
+          type: string
+        type:
+          type: string
+        make:
+          type: string
+        model:
+          type: string
+        last_charged:
+          type: string
+          format: date-time
+          nullable: true
+        date_added:
+          type: string
+          format: date-time
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
 
-      VehicleListResponse:
-        type: object
-        additionalProperties: false
-        required:
-          - vehicles
-          - has_more
-        properties:
-          vehicles:
-            type: array
-            items:
-              $ref: "#/components/schemas/Vehicle"
-          next_before:
-            type: string
-            format: date-time
-            nullable: true
-          next_before_id:
-            type: string
-            format: uuid
-            nullable: true
-          has_more:
-            type: boolean
+    VehicleListResponse:
+      type: object
+      additionalProperties: false
+      required:
+        - vehicles
+        - has_more
+      properties:
+        vehicles:
+          type: array
+          items:
+            $ref: "#/components/schemas/Vehicle"
+        next_before:
+          type: string
+          format: date-time
+          nullable: true
+        next_before_id:
+          type: string
+          format: uuid
+          nullable: true
+        has_more:
+          type: boolean
             
     ChargingSessionCustomerView:
       type: object

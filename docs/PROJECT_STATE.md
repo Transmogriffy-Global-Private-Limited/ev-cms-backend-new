@@ -1,5 +1,29 @@
 # Project State
 
+## 2026-09-08 - Vehicle listing and audited operation catalog deployed
+
+- CMS migration `000064` is applied and owns the CPO-scoped `vehicles` table
+  with CPO/customer foreign keys and lookup/cursor indexes. The CPO vehicle
+  listing route is active without changing customer charging or HAL state.
+- CMS migration `000065` is applied and permits the already implemented
+  audited `GET_CONFIGURATION` operation kind while preserving the bounded
+  rollback guard. The embedded OpenAPI vehicle schemas are correctly rooted
+  under `components.schemas`; live and source contracts each expose 236
+  operations.
+- Runtime source revision `219c5b1` plus the OpenAPI correction is active
+  behind Caddy. Its binary SHA-256 is
+  `2d6746c737e2d07cc6c98c931abcc3141e679852a18fc3b5dc1af3fb8bbc65a4`.
+  The immediately preceding binary is retained at
+  `/root/evcmsnew-backups/pre-219c5b1-20260908T141438+0530/evcmsnew` and the
+  pre-`000065` database dump is retained at
+  `/root/evcmsnew-backups/pre-000065-20260908T141327+0530/`.
+
+Loopback and public liveness/readiness, OpenAPI, Swagger, worker status, Caddy
+validation, and post-rehost logs pass. PostgreSQL lifecycle integration,
+paired HAL delivery, and physical OCPP verification remain unrun because no
+disposable `TEST_DATABASE_URL` or mapped charger was selected; `pwsh` is not
+installed.
+
 ## 2026-09-08 - Audited GetConfiguration operation-kind schema source correction
 
 - Forward-only source migration `000065` brings the CMS
