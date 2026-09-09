@@ -14,12 +14,12 @@
   `RECONCILIATION_REQUIRED` with bounded safe command diagnostics. Existing
   payment and wallet-ledger identities make repeated recovery and a later
   ordinary `transaction.completed` fact idempotent.
-- The original completion-recovery slice is committed and published as
-  `ced8b65` on CMS `main` and `anubhab-work`. Its narrow source follow-up adds
-  migration `000067` with a durable circular reconciliation cursor and partial
-  candidate index, so an unchanged oldest active/404/transport-failed session
-  cannot monopolize a bounded pass. The scheduler does not alter charging
-  session truth or `updated_at`.
+- The original completion-recovery slice is `ced8b65`; its fairness follow-up
+  is committed and published as `3ea7b76` on CMS `main` and `anubhab-work`.
+  It adds migration `000067` with a durable circular reconciliation cursor and
+  partial candidate index, so an unchanged oldest active/404/transport-failed
+  session cannot monopolize a bounded pass. The scheduler does not alter
+  charging session truth or `updated_at`.
 - The follow-up distinguishes invalid/mismatched successful transaction
   responses from retryable provider uncertainty: only the former marks the
   session `RECONCILIATION_REQUIRED`. It also rejects contradictory terminal

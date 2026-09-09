@@ -7,9 +7,9 @@
   open materialized session with a known HAL transaction ID. Matching durable
   `COMPLETED` evidence reuses the same locked completion/frozen-snapshot
   settlement path as `transaction.completed` fact ingress; it does not add a
-  command, duplicate payment path, or second worker. That baseline is
-  committed and published as `ced8b65` on CMS `main` and `anubhab-work`.
-- The current uncommitted fairness follow-up adds source migration `000067`:
+  command, duplicate payment path, or second worker. The published fairness
+  follow-up is `3ea7b76` on CMS `main` and `anubhab-work`.
+- That follow-up adds source migration `000067`:
   a durable cursor and partial candidate index rotate bounded exact-HAL reads
   across every eligible open materialized session without mutating session
   business timestamps. Invalid/mismatched successful HAL responses now mark

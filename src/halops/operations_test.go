@@ -75,10 +75,19 @@ func TestCompletionEvidenceFromTransactionRequiresExactDurableTerminalEvidence(t
 			transaction.CompletedAt = nil
 			transaction.StopState = "NONE"
 		}, wantCompleted: false},
+		{name: "ambiguous delivery is unresolved", alter: func(transaction *halclient.Transaction) {
+			transaction.CompletedAt = nil
+			transaction.StopState = "AMBIGUOUS"
+		}, wantCompleted: false},
 		{name: "completed", wantCompleted: true},
 		{name: "completed state without completion timestamp", alter: func(transaction *halclient.Transaction) { transaction.CompletedAt = nil }, wantError: true},
 		{name: "wrong terminal state", alter: func(transaction *halclient.Transaction) { transaction.StopState = "PERSISTED" }, wantError: true},
 		{name: "completion timestamp with non completed stop state", alter: func(transaction *halclient.Transaction) { transaction.StopState = "NONE" }, wantError: true},
+		{name: "ambiguous delivery with completion timestamp", alter: func(transaction *halclient.Transaction) { transaction.StopState = "AMBIGUOUS" }, wantError: true},
+		{name: "unknown stop state without completion timestamp", alter: func(transaction *halclient.Transaction) {
+			transaction.CompletedAt = nil
+			transaction.StopState = "UNRECOGNIZED"
+		}, wantError: true},
 		{name: "missing stop meter", alter: func(transaction *halclient.Transaction) { transaction.MeterStopWh = nil }, wantError: true},
 		{name: "decreasing stop meter", alter: func(transaction *halclient.Transaction) { meter := int64(99); transaction.MeterStopWh = &meter }, wantError: true},
 		{name: "completion before start", alter: func(transaction *halclient.Transaction) {

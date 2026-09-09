@@ -71,12 +71,12 @@ Establish reusable CMS capabilities over HAL-derived operational truth and expos
   source-only slice. PostgreSQL-gated recovery coverage remains pending while
   `TEST_DATABASE_URL` is unset.
 
-- 2026-09-09 fairness follow-up: published CMS baseline `ced8b65` is corrected
-  in source with migration `000067`, a durable circular scheduler cursor, and
-  a partial open-session candidate index. Cursor movement is serialized under
-  PostgreSQL row locking and never updates charging business state merely to
-  rotate polling. Exact invalid/mismatched transaction responses now become
-  explicit `RECONCILIATION_REQUIRED`; 404/active/timeout/unavailable/5xx stay
+- 2026-09-09 fairness follow-up: published CMS revision `3ea7b76` adds
+  migration `000067`, a durable circular scheduler cursor, and a partial
+  open-session candidate index. Cursor movement is serialized under PostgreSQL
+  row locking and never updates charging business state merely to rotate
+  polling. Exact invalid/mismatched transaction responses now become explicit
+  `RECONCILIATION_REQUIRED`; 404/active/timeout/unavailable/5xx stay
   non-terminal. Cursor-fairness and invalid-evidence PostgreSQL tests are
   correctly gated pending `TEST_DATABASE_URL`; no deployment or database
   migration application occurred.

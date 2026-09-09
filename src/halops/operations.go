@@ -652,7 +652,7 @@ func completionEvidenceFromTransaction(transaction halclient.Transaction) (Compl
 // provider evidence, not an ordinary active transaction.
 func isHALNonTerminalStopState(stopState string) bool {
 	switch stopState {
-	case "NONE", "PERSISTED", "PENDING_DELIVERY", "DELIVERY_ATTEMPTED", "OCPP_ACCEPTED", "OCPP_REJECTED", "RECONCILIATION_REQUIRED":
+	case "NONE", "PERSISTED", "PENDING_DELIVERY", "DELIVERY_ATTEMPTED", "OCPP_ACCEPTED", "OCPP_REJECTED", "AMBIGUOUS", "RECONCILIATION_REQUIRED":
 		return true
 	default:
 		return false

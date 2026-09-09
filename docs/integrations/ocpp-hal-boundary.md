@@ -271,11 +271,13 @@ keeps each range restricted to open materialized reconciliation candidates.
 For a HAL snapshot without `completed_at`, CMS treats only HAL's current
 non-terminal stop states (`NONE`, `PERSISTED`, `PENDING_DELIVERY`,
 `DELIVERY_ATTEMPTED`, `OCPP_ACCEPTED`, `OCPP_REJECTED`, and
-`RECONCILIATION_REQUIRED`) as ordinary active evidence. `COMPLETED` without a
-timestamp, any unknown state without a timestamp, or a timestamp paired with a
-non-`COMPLETED` state is malformed terminal evidence. A completed snapshot
-also requires final meter evidence at or above the start meter and a completion
-time no earlier than actual start.
+`AMBIGUOUS`, and `RECONCILIATION_REQUIRED`) as ordinary active evidence.
+`AMBIGUOUS` means delivery outcome remains unresolved; it neither completes
+the CMS session nor changes its occupancy or financial state. `COMPLETED`
+without a timestamp, any unknown state without a timestamp, or a timestamp
+paired with a non-`COMPLETED` state is malformed terminal evidence. A completed
+snapshot also requires final meter evidence at or above the start meter and a
+completion time no earlier than actual start.
 
 The finalization locks the CMS session, so concurrent recovery/fact delivery
 cannot create a second payment or debit. No HAL provider route or HAL worker
