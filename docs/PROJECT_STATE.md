@@ -18,11 +18,12 @@
   contradictions remain non-financial reconciliation evidence. No HAL change
   is required.
 
-Focused client/reconciler tests pass. The new PostgreSQL-gated materialized
-session recovery/incoming-fact idempotency and cursor-fairness tests are
-present but skipped because `TEST_DATABASE_URL` is unset. The fairness follow-up
-is source-only: migration `000067` has not been applied, and no database
-mutation, deployment, or restart occurred.
+Focused client/reconciler tests, full Go tests, vet, production build,
+migration/schema checks, and post-rehost service verification pass. The new
+PostgreSQL-gated materialized-session recovery/incoming-fact idempotency and
+cursor-fairness tests are present but skipped because `TEST_DATABASE_URL` is
+unset. Migration `000067` is applied after a retained mode-0600 dump; runtime
+revision `4b43e58` is active behind Caddy. `pwsh` is unavailable.
 
 ## 2026-09-08 - Customer vehicle CRUD deployed
 

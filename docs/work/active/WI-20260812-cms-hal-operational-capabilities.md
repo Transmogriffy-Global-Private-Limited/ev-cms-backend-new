@@ -78,8 +78,10 @@ Establish reusable CMS capabilities over HAL-derived operational truth and expos
   polling. Exact invalid/mismatched transaction responses now become explicit
   `RECONCILIATION_REQUIRED`; 404/active/timeout/unavailable/5xx stay
   non-terminal. Cursor-fairness and invalid-evidence PostgreSQL tests are
-  correctly gated pending `TEST_DATABASE_URL`; no deployment or database
-  migration application occurred.
+  correctly gated pending `TEST_DATABASE_URL`. Migration `000067` is applied
+  on the development database and the combined reconciliation runtime is
+  deployed in source revision `4b43e58`; paired HAL/virtual-charger acceptance
+  remains pending.
 
 - `halops` owns CMS mapping/command mechanics, exact-ID reconciliation, and fact ingress; `halclient` remains the wire adapter.
 - `liveops` reads committed CMS projections and centralizes freshness/offline connector semantics.

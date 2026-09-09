@@ -23,13 +23,15 @@
 - The follow-up distinguishes invalid/mismatched successful transaction
   responses from retryable provider uncertainty: only the former marks the
   session `RECONCILIATION_REQUIRED`. It also rejects contradictory terminal
-  state/timestamp/meter evidence. No HAL provider change, database mutation,
-  deployment, or restart is included.
+  state/timestamp/meter evidence. Migration `000067` is applied after a
+  retained mode-0600 custom-format dump, and the CMS runtime is deployed.
 
-Verification: focused HAL-client and reconciler tests pass. PostgreSQL-gated
-materialized-session recovery and cursor-fairness coverage is present and
-skipped because `TEST_DATABASE_URL` is unset; broad repository verification is
-recorded with this source checkpoint after it completes.
+Verification: focused HAL-client and reconciler tests, full Go tests, vet,
+production build, migration/schema checks, post-rehost process identity,
+loopback/public health and readiness, OpenAPI/Swagger, worker, Caddy, and
+startup-log checks pass. PostgreSQL-gated materialized-session recovery and
+cursor-fairness coverage remains skipped because `TEST_DATABASE_URL` is unset;
+`pwsh` is unavailable.
 
 ## 2026-09-08 - Deploy customer vehicle CRUD and tenant integrity
 
