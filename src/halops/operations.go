@@ -32,6 +32,8 @@ type Service struct {
 	startMaterializer         StartMaterializer
 	stopCommandAbsentHandler  StopCommandAbsentHandler
 	stopCommandReconciler     StopCommandReconciler
+	completionMaterializer    CompletionMaterializer
+	completionObserver        CompletionReconciliationObserver
 	settlementReconciler      SettlementReconciler
 	startReconcileAfter       time.Duration
 	observer                  workerobs.Observer
@@ -66,6 +68,33 @@ type StartEvidence struct {
 // wallet holds, and customer-visible projection state. halops only discovers
 // durable HAL truth and invokes this explicit socket.
 type StartMaterializer func(context.Context, StartEvidence) error
+
+// CompletionEvidence is HAL's durable terminal transaction truth. It is
+// intentionally separate from diagnostic trace and live-runtime projections.
+type CompletionEvidence struct {
+	HALTransactionID    uuid.UUID
+	CMSStartIntentID    uuid.UUID
+	CMSCommandID        uuid.UUID
+	CPOID               uuid.UUID
+	CMSChargerID        uuid.UUID
+	CMSConnectorID      uuid.UUID
+	ChargerOCPPIdentity string
+	OCPPConnectorNumber int
+	OCPPTransactionID   int64
+	ActualStartedAt     time.Time
+	MeterStartWh        int64
+	ActualCompletedAt   time.Time
+	MeterStopWh         int64
+	StopReason          string
+}
+
+// CompletionMaterializer belongs to the charging domain because it validates
+// the CMS projection and applies the normal completion/settlement transition.
+type CompletionMaterializer func(context.Context, CompletionEvidence) error
+
+// CompletionReconciliationObserver records safe, durable ambiguity diagnostics
+// in the charging domain without making HAL protocol uncertainty into a result.
+type CompletionReconciliationObserver func(context.Context, uuid.UUID, string, string, bool) error
 
 // Stop callbacks keep session policy in the charging domain while halops owns
 // exact provider lookup and durable command evidence.
@@ -122,6 +151,14 @@ func (service *Service) WithStopCommandAbsentHandler(handler StopCommandAbsentHa
 }
 func (service *Service) WithStopCommandReconciler(reconciler StopCommandReconciler) *Service {
 	service.stopCommandReconciler = reconciler
+	return service
+}
+func (service *Service) WithCompletionMaterializer(materializer CompletionMaterializer) *Service {
+	service.completionMaterializer = materializer
+	return service
+}
+func (service *Service) WithCompletionReconciliationObserver(observer CompletionReconciliationObserver) *Service {
+	service.completionObserver = observer
 	return service
 }
 func (service *Service) WithSettlementReconciler(reconciler SettlementReconciler) *Service {
@@ -445,10 +482,123 @@ func (service *Service) ReconcilePending(ctx context.Context, limit int) error {
 	if err := service.reconcileStrandedStarts(ctx, limit); err != nil {
 		return err
 	}
+	if err := service.reconcileMaterializedSessions(ctx, limit); err != nil {
+		return err
+	}
 	if service.settlementReconciler != nil {
 		return service.settlementReconciler(ctx, limit)
 	}
 	return nil
+}
+
+// reconcileMaterializedSessions reads only known HAL transaction identities.
+// A 404, transport failure, active transaction, or malformed evidence never
+// manufactures completion or releases occupancy.
+func (service *Service) reconcileMaterializedSessions(ctx context.Context, limit int) error {
+	if service.completionMaterializer == nil || !service.Available() {
+		return nil
+	}
+	var sessions []models.ChargingSession
+	if err := service.database.WithContext(ctx).
+		Where("status IN ? AND end_time IS NULL AND hal_transaction_id IS NOT NULL", []string{"ACTIVE", "STOP_PENDING", "RECONCILIATION_REQUIRED"}).
+		Order("updated_at ASC").Limit(limit).Find(&sessions).Error; err != nil {
+		return fmt.Errorf("list materialized sessions for HAL reconciliation: %w", err)
+	}
+	for _, session := range sessions {
+		if session.HALTransactionID == nil || *session.HALTransactionID == uuid.Nil {
+			continue
+		}
+		transaction, err := service.client.GetTransactionByHALTransactionID(ctx, *session.HALTransactionID)
+		if err != nil {
+			if isHALHTTPStatus(err, 404) {
+				if err := service.observeCompletionReconciliation(ctx, session.ID, "hal_transaction_not_found", "HAL exact transaction lookup found no durable transaction; CMS session remains unresolved", false); err != nil {
+					return err
+				}
+				continue
+			}
+			if err := service.observeCompletionReconciliation(ctx, session.ID, completionLookupErrorCategory(err), completionLookupErrorDetail(err), false); err != nil {
+				return err
+			}
+			continue
+		}
+		evidence, completed, err := completionEvidenceFromTransaction(transaction)
+		if err != nil {
+			if err := service.observeCompletionReconciliation(ctx, session.ID, "hal_completion_evidence_invalid", "HAL transaction completion evidence is incomplete or inconsistent; CMS completion was not applied", true); err != nil {
+				return err
+			}
+			continue
+		}
+		if !completed {
+			if err := service.observeCompletionReconciliation(ctx, session.ID, "", "", false); err != nil {
+				return err
+			}
+			continue
+		}
+		if err := service.completionMaterializer(ctx, evidence); err != nil {
+			var projectionError *FactProjectionError
+			if errors.As(err, &projectionError) {
+				if err := service.observeCompletionReconciliation(ctx, session.ID, "hal_completion_identity_conflict", "HAL completion evidence conflicts with the established CMS session; CMS completion was not applied", true); err != nil {
+					return err
+				}
+				continue
+			}
+			return fmt.Errorf("materialize reconciled HAL completion %s: %w", session.ID, err)
+		}
+	}
+	return nil
+}
+
+func (service *Service) observeCompletionReconciliation(ctx context.Context, sessionID uuid.UUID, category, detail string, reconciliationRequired bool) error {
+	if service.completionObserver == nil {
+		return nil
+	}
+	return service.completionObserver(ctx, sessionID, category, detail, reconciliationRequired)
+}
+
+func completionLookupErrorCategory(cause error) string {
+	if errors.Is(cause, halclient.ErrUnavailable) {
+		return "hal_unavailable"
+	}
+	if errors.Is(cause, halclient.ErrInvalidTransactionResponse) {
+		return "hal_transaction_response_invalid"
+	}
+	var httpError *halclient.HTTPError
+	if errors.As(cause, &httpError) {
+		return "provider_http"
+	}
+	var networkError net.Error
+	if errors.As(cause, &networkError) && networkError.Timeout() {
+		return "timeout"
+	}
+	return "transport"
+}
+
+func completionLookupErrorDetail(cause error) string {
+	var httpError *halclient.HTTPError
+	if errors.As(cause, &httpError) {
+		return fmt.Sprintf("HAL exact transaction lookup returned HTTP %d; CMS session remains unresolved", httpError.Status)
+	}
+	if errors.Is(cause, halclient.ErrUnavailable) {
+		return "HAL exact transaction lookup is unavailable; CMS session remains unresolved"
+	}
+	var networkError net.Error
+	if errors.As(cause, &networkError) && networkError.Timeout() {
+		return "HAL exact transaction lookup timed out; CMS session remains unresolved"
+	}
+	return "HAL exact transaction lookup transport outcome is unknown; CMS session remains unresolved"
+}
+
+func completionEvidenceFromTransaction(transaction halclient.Transaction) (CompletionEvidence, bool, error) {
+	if transaction.CompletedAt == nil {
+		return CompletionEvidence{}, false, nil
+	}
+	if transaction.StopState != "COMPLETED" || transaction.MeterStopWh == nil || transaction.CompletedAt.IsZero() || transaction.CompletedAt.Before(transaction.ActualStartedAt) || *transaction.MeterStopWh < transaction.MeterStartWh {
+		return CompletionEvidence{}, false, errors.New("HAL transaction lacks valid terminal evidence")
+	}
+	if transaction.HALTransactionID == uuid.Nil || transaction.CMSStartIntentID == uuid.Nil || transaction.CMSCommandID == uuid.Nil || transaction.CPOID == uuid.Nil || transaction.CMSChargerID == uuid.Nil || transaction.CMSConnectorID == uuid.Nil || transaction.OCPPTransactionID < 1 || transaction.MeterStartWh < 0 || transaction.ActualStartedAt.IsZero() || transaction.OCPPConnectorNumber < 1 || strings.TrimSpace(transaction.ChargerOCPPIdentity) == "" {
+		return CompletionEvidence{}, false, errors.New("HAL transaction omits required identity evidence")
+	}
+	return CompletionEvidence{HALTransactionID: transaction.HALTransactionID, CMSStartIntentID: transaction.CMSStartIntentID, CMSCommandID: transaction.CMSCommandID, CPOID: transaction.CPOID, CMSChargerID: transaction.CMSChargerID, CMSConnectorID: transaction.CMSConnectorID, ChargerOCPPIdentity: transaction.ChargerOCPPIdentity, OCPPConnectorNumber: transaction.OCPPConnectorNumber, OCPPTransactionID: transaction.OCPPTransactionID, ActualStartedAt: transaction.ActualStartedAt, MeterStartWh: transaction.MeterStartWh, ActualCompletedAt: *transaction.CompletedAt, MeterStopWh: *transaction.MeterStopWh, StopReason: strings.TrimSpace(transaction.OCPPStopReason)}, true, nil
 }
 
 // reconcileStrandedStarts closes the gap in which HAL accepted/delivered a

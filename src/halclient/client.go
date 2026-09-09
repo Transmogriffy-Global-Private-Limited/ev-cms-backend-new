@@ -178,21 +178,25 @@ type ChargerConfigurationResponse struct {
 	UnknownKeys       []string                  `json:"unknown_keys"`
 }
 
-// Transaction is the exact authoritative start truth returned by HAL's
-// service-only reconciliation lookup. CMS never derives these identities from
-// a charger, command response, or timeout.
+// Transaction is HAL's exact durable transaction truth. The same snapshot is
+// used for stranded-start materialization and for completion recovery; CMS
+// never derives these identities or terminal values from runtime/trace state.
 type Transaction struct {
-	HALTransactionID    uuid.UUID `json:"hal_transaction_id"`
-	CMSStartIntentID    uuid.UUID `json:"cms_start_intent_id"`
-	CMSCommandID        uuid.UUID `json:"cms_command_id"`
-	CPOID               uuid.UUID `json:"cpo_id"`
-	CMSChargerID        uuid.UUID `json:"cms_charger_id"`
-	CMSConnectorID      uuid.UUID `json:"cms_connector_id"`
-	ChargerOCPPIdentity string    `json:"charger_ocpp_identity"`
-	OCPPConnectorNumber int       `json:"ocpp_connector_number"`
-	OCPPTransactionID   int64     `json:"ocpp_transaction_id"`
-	ActualStartedAt     time.Time `json:"actual_started_at"`
-	MeterStartWh        int64     `json:"meter_start_wh"`
+	HALTransactionID    uuid.UUID  `json:"hal_transaction_id"`
+	CMSStartIntentID    uuid.UUID  `json:"cms_start_intent_id"`
+	CMSCommandID        uuid.UUID  `json:"cms_command_id"`
+	CPOID               uuid.UUID  `json:"cpo_id"`
+	CMSChargerID        uuid.UUID  `json:"cms_charger_id"`
+	CMSConnectorID      uuid.UUID  `json:"cms_connector_id"`
+	ChargerOCPPIdentity string     `json:"charger_ocpp_identity"`
+	OCPPConnectorNumber int        `json:"ocpp_connector_number"`
+	OCPPTransactionID   int64      `json:"ocpp_transaction_id"`
+	ActualStartedAt     time.Time  `json:"actual_started_at"`
+	MeterStartWh        int64      `json:"meter_start_wh"`
+	StopState           string     `json:"stop_state"`
+	CompletedAt         *time.Time `json:"completed_at"`
+	MeterStopWh         *int64     `json:"meter_stop_wh"`
+	OCPPStopReason      string     `json:"ocpp_stop_reason"`
 }
 
 func (client *Client) SyncMapping(ctx context.Context, mapping ChargerMapping, correlationID string) error {
@@ -312,16 +316,29 @@ func (client *Client) mutateOperation(ctx context.Context, method, path, idempot
 }
 
 func (client *Client) GetTransactionByStartIntent(ctx context.Context, id uuid.UUID) (Transaction, error) {
+	return client.getTransaction(ctx, "/v1/transactions?cms_start_intent_id="+url.QueryEscape(id.String()), id, uuid.Nil)
+}
+
+// GetTransactionByHALTransactionID reads only a known durable HAL identity.
+// It is a reconciliation query, never a charger/runtime search.
+func (client *Client) GetTransactionByHALTransactionID(ctx context.Context, id uuid.UUID) (Transaction, error) {
+	if id == uuid.Nil {
+		return Transaction{}, invalidTransactionResponse("requested hal_transaction_id must be a nonzero UUID")
+	}
+	return client.getTransaction(ctx, "/v1/transactions/"+url.PathEscape(id.String()), uuid.Nil, id)
+}
+
+func (client *Client) getTransaction(ctx context.Context, path string, expectedStartIntentID, expectedHALTransactionID uuid.UUID) (Transaction, error) {
 	var wrapper struct {
 		Transaction *Transaction `json:"transaction"`
 	}
-	if err := client.requestJSON(ctx, http.MethodGet, "/v1/transactions?cms_start_intent_id="+url.QueryEscape(id.String()), nil, &wrapper); err != nil {
+	if err := client.requestJSON(ctx, http.MethodGet, path, nil, &wrapper); err != nil {
 		return Transaction{}, err
 	}
 	if wrapper.Transaction == nil {
 		return Transaction{}, invalidTransactionResponse("missing transaction object")
 	}
-	if err := validateTransaction(*wrapper.Transaction, id); err != nil {
+	if err := validateTransaction(*wrapper.Transaction, expectedStartIntentID, expectedHALTransactionID); err != nil {
 		return Transaction{}, err
 	}
 	return *wrapper.Transaction, nil
@@ -446,15 +463,18 @@ func invalidTransactionResponse(invariant string) error {
 	return &TransactionResponseError{invariant: invariant}
 }
 
-func validateTransaction(transaction Transaction, expectedStartIntentID uuid.UUID) error {
+func validateTransaction(transaction Transaction, expectedStartIntentID, expectedHALTransactionID uuid.UUID) error {
 	if transaction.HALTransactionID == uuid.Nil {
 		return invalidTransactionResponse("hal_transaction_id must be a nonzero UUID")
 	}
 	if transaction.CMSStartIntentID == uuid.Nil {
 		return invalidTransactionResponse("cms_start_intent_id must be a nonzero UUID")
 	}
-	if transaction.CMSStartIntentID != expectedStartIntentID {
+	if expectedStartIntentID != uuid.Nil && transaction.CMSStartIntentID != expectedStartIntentID {
 		return invalidTransactionResponse("cms_start_intent_id does not match the requested start intent")
+	}
+	if expectedHALTransactionID != uuid.Nil && transaction.HALTransactionID != expectedHALTransactionID {
+		return invalidTransactionResponse("hal_transaction_id does not match the requested transaction")
 	}
 	if transaction.CMSCommandID == uuid.Nil {
 		return invalidTransactionResponse("cms_command_id must be a nonzero UUID")

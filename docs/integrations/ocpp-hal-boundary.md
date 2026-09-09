@@ -215,6 +215,50 @@ START and STOP deliberately differ: a missing STOP command never proves that a
 materialized session stopped, so its command remains reconciliation-required
 and session settlement continues to require `transaction.completed`.
 
+## Materialized-session completion recovery
+
+The existing `halops` reconciler also makes one bounded pass over materialized
+CMS sessions that still have an open end time and a known nonzero
+`hal_transaction_id`. It reads only HAL's existing authenticated exact socket:
+
+```text
+GET /v1/transactions/{hal_transaction_id}
+```
+
+This is recovery for a missing or delayed immutable `transaction.completed`
+fact, not a new command, worker, runtime-state query, trace interpretation, or
+acknowledgement inference. CMS accepts terminal recovery evidence only when
+the HAL snapshot has `stop_state=COMPLETED`, a nondecreasing final Wh value,
+nonzero completion/start identities, a completion time no earlier than the
+actual start, and the complete stored CPO/charger/connector/start-intent/start
+command/OCPP-transaction chain agrees with the materialized CMS session.
+
+```text
+exact completed HAL transaction with matching identity chain
+    -> reuse the same locked finalization and wallet settlement path as
+       immutable transaction.completed fact ingress
+    -> the session reaches COMPLETED only when existing settlement succeeds
+    -> Payment and wallet-ledger session identities keep repeat recovery and
+       a later normal fact idempotent
+
+exact active HAL transaction
+    -> preserve the open CMS session; no synthetic completion
+
+404, timeout, 5xx, unavailable HAL, malformed response
+    -> preserve the open CMS session and occupancy; record only a bounded safe
+       start-command diagnostic
+
+terminal snapshot with malformed or conflicting identity/meter/time evidence
+    -> retain occupancy and financial state; mark the CMS session
+       RECONCILIATION_REQUIRED with bounded safe diagnostics
+```
+
+The reconciliation candidate selection is bounded by the worker limit and
+uses the already-running `halops.RunReconciler` loop. The finalization locks the
+CMS session, so concurrent recovery/fact delivery cannot create a second
+payment or debit. No HAL migration, provider route, or HAL worker change is
+required: the paired HAL already exposes this durable exact transaction view.
+
 ## Post-deployment Connection-Liveness Acceptance
 
 This procedure is not evidence until it is run after separately approved

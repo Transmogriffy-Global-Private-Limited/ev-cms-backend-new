@@ -75,6 +75,8 @@ func (service *Service) WithHALOperations(operations *halops.Service, live *live
 		operations.WithStartMaterializer(service.MaterializeAuthoritativeStart)
 		operations.WithStopCommandAbsentHandler(service.ReconcileConfirmedAbsentStopCommand)
 		operations.WithStopCommandReconciler(service.ReconcileStopCommand)
+		operations.WithCompletionMaterializer(service.MaterializeAuthoritativeCompletion)
+		operations.WithCompletionReconciliationObserver(service.ObserveAuthoritativeCompletionReconciliation)
 		operations.WithSettlementReconciler(service.ReconcileCompletedSettlements)
 	}
 	service.live = live

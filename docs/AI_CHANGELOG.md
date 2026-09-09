@@ -1,5 +1,28 @@
 # AI Changelog
 
+## 2026-09-09 - Reconcile durable HAL completion for materialized CMS sessions
+
+- Extended the existing bounded `halops` reconciliation loop with an exact
+  HAL-transaction read for open materialized sessions. CMS consumes only
+  `GET /v1/transactions/{hal_transaction_id}` and requires complete matching
+  stored identity, completed timestamp, terminal state, and nondecreasing
+  meter evidence before reusing the normal immutable-fact completion and
+  frozen-snapshot settlement finalizer.
+- Preserved conservative ambiguity handling: active/404/timeout/5xx/unavailable
+  or malformed reads never fabricate terminal state or release occupancy;
+  terminal identity/meter/time conflicts remain
+  `RECONCILIATION_REQUIRED` with bounded safe command diagnostics. Existing
+  payment and wallet-ledger identities make repeated recovery and a later
+  ordinary `transaction.completed` fact idempotent.
+- No migration, HAL provider change, database mutation, deployment, restart,
+  commit, or push is included. The paired HAL already exposes the authenticated
+  durable exact transaction view.
+
+Verification: focused HAL-client and reconciler tests pass. PostgreSQL-gated
+materialized-session recovery coverage is present and skipped because
+`TEST_DATABASE_URL` is unset; broad repository verification is recorded with
+this source checkpoint after it completes.
+
 ## 2026-09-08 - Deploy customer vehicle CRUD and tenant integrity
 
 - Deployed customer-owned vehicle create, list, read, partial-update, and

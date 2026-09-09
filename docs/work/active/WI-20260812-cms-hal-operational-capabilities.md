@@ -4,7 +4,7 @@ Status: In Progress
 Owner: Codex
 Collaborators: Anubhab Dey (CMS/HAL boundary owner)
 Started: 2026-08-12
-Last updated: 2026-08-25
+Last updated: 2026-09-09
 
 Development-plan reference: `docs/DEVELOPMENT_PLAN.md` — Charging lifecycle and HAL integration
 Detailed-plan reference: `docs/integrations/ocpp-hal-boundary.md`
@@ -59,6 +59,17 @@ Establish reusable CMS capabilities over HAL-derived operational truth and expos
   financial reconciliation, wallet reservation accounting, STOP convergence,
   and strict HAL transaction lookup validation. Claimed migration surface is
   `000045_charging_session_occupancy_and_reconciliation`.
+
+- 2026-09-09 source slice: the existing `halops` worker now performs bounded
+  exact transaction-by-HAL-ID reads for open materialized sessions and routes
+  only verified durable `COMPLETED` evidence through the same locked CMS
+  finalization/settlement path as fact ingress. Active/404/timeout/5xx or
+  malformed evidence cannot fabricate completion or release occupancy;
+  terminal identity/meter/time conflicts remain reconciliation-required with
+  bounded safe start-command diagnostics. The existing HAL route is sufficient;
+  no HAL change, migration, database mutation, or deployment belongs to this
+  source-only slice. PostgreSQL-gated recovery coverage remains pending while
+  `TEST_DATABASE_URL` is unset.
 
 - `halops` owns CMS mapping/command mechanics, exact-ID reconciliation, and fact ingress; `halclient` remains the wire adapter.
 - `liveops` reads committed CMS projections and centralizes freshness/offline connector semantics.

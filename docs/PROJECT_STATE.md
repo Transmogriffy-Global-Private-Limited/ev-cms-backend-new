@@ -1,5 +1,25 @@
 # Project State
 
+## 2026-09-09 - Materialized-session completion reconciliation source update
+
+- CMS source now extends the existing bounded HAL reconciler to query only the
+  existing exact `GET /v1/transactions/{hal_transaction_id}` HAL view for an
+  open materialized session with a known HAL transaction ID. Matching durable
+  `COMPLETED` evidence reuses the same locked completion/frozen-snapshot
+  settlement path as `transaction.completed` fact ingress; it does not add a
+  command, migration, duplicate payment path, or second worker.
+- A HAL `404`, timeout, unavailable/5xx response, active transaction, or
+  malformed response does not synthesize completion or release occupancy. A
+  terminal identity/meter/time conflict becomes
+  `RECONCILIATION_REQUIRED` with safe diagnostics on the existing start-command
+  record. The paired HAL already provides the exact read; no HAL change is
+  required by this CMS slice.
+
+Focused client/reconciler tests pass. The new PostgreSQL-gated materialized
+session recovery/incoming-fact idempotency test is present but skipped because
+`TEST_DATABASE_URL` is unset. This is source-only: no migration, database
+mutation, deployment, restart, commit, or push occurred.
+
 ## 2026-09-08 - Customer vehicle CRUD deployed
 
 - Customer vehicle CRUD is active under `/api/v1/app/vehicles`. The five
