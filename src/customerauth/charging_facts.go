@@ -518,14 +518,101 @@ func (service *Service) applyCompletedFact(tx *gorm.DB, p models.JSONB) error {
 	if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&session, "hal_transaction_id = ?", halTx).Error; err != nil {
 		return invalidFact()
 	}
+	// A late duplicate must retain the established completion idempotency even
+	// when its non-identity terminal fields are no longer useful to CMS.
 	if session.Status == constants.SessionStatusCompleted {
 		return nil
 	}
-	if meterStop < session.MeterStartWh {
+	ocppID, ok := factInt(p, "ocpp_transaction_id")
+	if !ok {
 		return invalidFact()
 	}
-	ocppID, ok := factInt(p, "ocpp_transaction_id")
-	if !ok || ocppID != session.TransactionID {
+	var stopReason *string
+	if reason, ok := factString(p, "stop_reason"); ok {
+		stopReason = &reason
+	}
+	return service.finalizeAuthoritativeCompletion(tx, &session, ocppID, meterStop, stopped, stopReason)
+}
+
+// MaterializeAuthoritativeCompletion is the reconciliation socket for an exact
+// HAL transaction read. It validates the complete established identity chain,
+// then reuses the same terminal business transition as immutable fact ingress.
+func (service *Service) MaterializeAuthoritativeCompletion(ctx context.Context, evidence halops.CompletionEvidence) error {
+	return service.database.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var session models.ChargingSession
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&session, "hal_transaction_id = ?", evidence.HALTransactionID).Error; err != nil {
+			return halops.NewFactProjectionError(409, "hal_completion_evidence_conflict", "The HAL completion evidence does not match a materialized CMS session.", err)
+		}
+		if session.Status == constants.SessionStatusCompleted {
+			return nil
+		}
+		if err := service.validateAuthoritativeCompletion(tx, session, evidence); err != nil {
+			return err
+		}
+		stopReason := strings.TrimSpace(evidence.StopReason)
+		var stopReasonPtr *string
+		if stopReason != "" {
+			stopReasonPtr = &stopReason
+		}
+		if err := service.finalizeAuthoritativeCompletion(tx, &session, evidence.OCPPTransactionID, evidence.MeterStopWh, evidence.ActualCompletedAt, stopReasonPtr); err != nil {
+			return err
+		}
+		return service.emitChargingSessionChanged(tx, session)
+	})
+}
+
+func (service *Service) validateAuthoritativeCompletion(tx *gorm.DB, session models.ChargingSession, evidence halops.CompletionEvidence) error {
+	if session.HALTransactionID == nil || *session.HALTransactionID != evidence.HALTransactionID || session.StartIntentID == nil || *session.StartIntentID != evidence.CMSStartIntentID || session.CPOID != evidence.CPOID || session.ChargerID != evidence.CMSChargerID || session.ConnectorID != evidence.CMSConnectorID || session.TransactionID != evidence.OCPPTransactionID || session.MeterStartWh != evidence.MeterStartWh || !session.StartTime.Equal(evidence.ActualStartedAt) {
+		return halops.NewFactProjectionError(409, "hal_completion_evidence_conflict", "The HAL completion evidence conflicts with the materialized CMS session.", nil)
+	}
+	var command models.HALCommandRecord
+	if err := tx.First(&command, "start_intent_id = ? AND kind = ?", *session.StartIntentID, "START").Error; err != nil || command.CMSCommandID != evidence.CMSCommandID {
+		return halops.NewFactProjectionError(409, "hal_completion_evidence_conflict", "The HAL completion evidence conflicts with the recorded start command.", err)
+	}
+	var charger models.Charger
+	var connector models.Connector
+	if tx.First(&charger, "id = ? AND cpo_id = ? AND ocpp_identity = ?", session.ChargerID, session.CPOID, evidence.ChargerOCPPIdentity).Error != nil ||
+		tx.First(&connector, "id = ? AND charger_id = ? AND cpo_id = ? AND connector_number = ?", session.ConnectorID, session.ChargerID, session.CPOID, evidence.OCPPConnectorNumber).Error != nil {
+		return halops.NewFactProjectionError(409, "hal_completion_evidence_conflict", "The HAL completion evidence conflicts with the recorded charger mapping.", nil)
+	}
+	return nil
+}
+
+// ObserveAuthoritativeCompletionReconciliation retains safe lookup evidence on
+// the existing start-command record. It never changes financial state; only a
+// malformed/conflicting terminal snapshot marks the session reconciliation-required.
+func (service *Service) ObserveAuthoritativeCompletionReconciliation(ctx context.Context, sessionID uuid.UUID, category, detail string, reconciliationRequired bool) error {
+	return service.database.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var session models.ChargingSession
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&session, "id = ?", sessionID).Error; err != nil {
+			return err
+		}
+		if session.Status == constants.SessionStatusCompleted || session.EndTime != nil {
+			return nil
+		}
+		if session.StartIntentID != nil {
+			if err := tx.Model(&models.HALCommandRecord{}).Where("start_intent_id = ? AND kind = ?", *session.StartIntentID, "START").Updates(map[string]any{"last_error_category": category, "last_error_detail": detail, "updated_at": service.now()}).Error; err != nil {
+				return err
+			}
+		}
+		if !reconciliationRequired || session.Status == constants.SessionStatusReconciliationRequired {
+			return nil
+		}
+		if err := tx.Model(&session).Updates(map[string]any{"status": constants.SessionStatusReconciliationRequired, "updated_at": service.now()}).Error; err != nil {
+			return err
+		}
+		session.Status = constants.SessionStatusReconciliationRequired
+		return service.emitChargingSessionChanged(tx, session)
+	})
+}
+
+// finalizeAuthoritativeCompletion is the sole CMS completion/settlement path
+// for both immutable HAL facts and exact HAL recovery reads.
+func (service *Service) finalizeAuthoritativeCompletion(tx *gorm.DB, session *models.ChargingSession, ocppTransactionID, meterStop int64, stopped time.Time, stopReason *string) error {
+	if session.Status == constants.SessionStatusCompleted {
+		return nil
+	}
+	if meterStop < session.MeterStartWh || ocppTransactionID != session.TransactionID || stopped.IsZero() {
 		return invalidFact()
 	}
 	amount, err := chargingAmount(session.TariffSnapshot, session.TaxSnapshot, meterStop-session.MeterStartWh, session.StartTime, stopped)
@@ -533,18 +620,21 @@ func (service *Service) applyCompletedFact(tx *gorm.DB, p models.JSONB) error {
 		return err
 	}
 	updates := map[string]any{"meter_stop_wh": meterStop, "latest_meter_wh": meterStop, "meter_observed_at": stopped, "end_time": stopped, "total_kwh": decimal.NewFromInt(meterStop - session.MeterStartWh).Div(decimal.NewFromInt(1000)), "total_amount": amount, "status": constants.SessionStatusReconciliationRequired, "settlement_status": "RECONCILIATION_REQUIRED", "updated_at": service.now()}
-	if reason, ok := factString(p, "stop_reason"); ok {
-		updates["stop_reason"] = reason
+	if stopReason != nil {
+		updates["stop_reason"] = *stopReason
 	}
-	if err := tx.Model(&session).Updates(updates).Error; err != nil {
+	if err := tx.Model(session).Updates(updates).Error; err != nil {
 		return err
 	}
 	if session.TraceID != nil {
 		_ = service.recordChargingTraceWithRoot(tx, *session.TraceID, session.CPOID, chargingTraceRoot{StartIntentID: session.StartIntentID, SessionID: &session.ID}, "CMS", "CMS", "COMMERCIAL", "POSTGRES", "POST_STOP", "Final charge calculated from frozen commercial snapshot", "", models.JSONB{"amount": amount.String(), "currency": session.Currency, "meter_wh": meterStop, "stop_reason": updates["stop_reason"], "status": string(constants.SessionStatusReconciliationRequired), "settlement_status": "RECONCILIATION_REQUIRED"})
 	}
 	session.MeterStopWh, session.LatestMeterWh, session.MeterObservedAt, session.EndTime, session.TotalAmount = &meterStop, &meterStop, &stopped, &stopped, amount
+	if stopReason != nil {
+		session.StopReason = stopReason
+	}
 	session.TotalKWh, session.Status, session.SettlementStatus = decimal.NewFromInt(meterStop-session.MeterStartWh).Div(decimal.NewFromInt(1000)), constants.SessionStatusReconciliationRequired, "RECONCILIATION_REQUIRED"
-	return service.settleCompletedSession(tx, &session)
+	return service.settleCompletedSession(tx, session)
 }
 
 // settleCompletedSession is called under the session transaction by both the

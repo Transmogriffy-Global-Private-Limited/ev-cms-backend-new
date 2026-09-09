@@ -383,6 +383,17 @@ type ChargingSession struct {
 	UpdatedAt          time.Time               `gorm:"not null" json:"updated_at"`
 }
 
+// ChargingReconciliationCursor is scheduler metadata, not charging truth. Its
+// stable circular position prevents a bounded HAL recovery pass from starving
+// later open sessions without overloading ChargingSession.UpdatedAt.
+type ChargingReconciliationCursor struct {
+	Name          string     `gorm:"type:varchar(64);primaryKey" json:"-"`
+	LastSessionID *uuid.UUID `gorm:"type:uuid" json:"-"`
+	UpdatedAt     time.Time  `gorm:"not null" json:"-"`
+}
+
+func (ChargingReconciliationCursor) TableName() string { return "charging_reconciliation_cursors" }
+
 // ChargingStartIntent is the durable CMS decision and commercial reservation
 // made before a command crosses the service boundary. It is not OCPP start
 // truth and cannot materialize a session by itself.

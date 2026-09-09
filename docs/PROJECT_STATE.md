@@ -1,5 +1,30 @@
 # Project State
 
+## 2026-09-09 - Materialized-session completion reconciliation publication and fairness follow-up
+
+- CMS source now extends the existing bounded HAL reconciler to query only the
+  existing exact `GET /v1/transactions/{hal_transaction_id}` HAL view for an
+  open materialized session with a known HAL transaction ID. Matching durable
+  `COMPLETED` evidence reuses the same locked completion/frozen-snapshot
+  settlement path as `transaction.completed` fact ingress; it does not add a
+  command, duplicate payment path, or second worker. The published fairness
+  follow-up is `3ea7b76` on CMS `main` and `anubhab-work`.
+- That follow-up adds source migration `000067`:
+  a durable cursor and partial candidate index rotate bounded exact-HAL reads
+  across every eligible open materialized session without mutating session
+  business timestamps. Invalid/mismatched successful HAL responses now mark
+  `RECONCILIATION_REQUIRED`; active/404/timeout/unavailable/5xx observations
+  retain occupancy and retry later. Terminal timestamp/state/meter/time
+  contradictions remain non-financial reconciliation evidence. No HAL change
+  is required.
+
+Focused client/reconciler tests, full Go tests, vet, production build,
+migration/schema checks, and post-rehost service verification pass. The new
+PostgreSQL-gated materialized-session recovery/incoming-fact idempotency and
+cursor-fairness tests are present but skipped because `TEST_DATABASE_URL` is
+unset. Migration `000067` is applied after a retained mode-0600 dump; runtime
+revision `4b43e58` is active behind Caddy. `pwsh` is unavailable.
+
 ## 2026-09-08 - Customer vehicle CRUD deployed
 
 - Customer vehicle CRUD is active under `/api/v1/app/vehicles`. The five

@@ -4,7 +4,7 @@ Status: In Progress
 Owner: Codex
 Collaborators: Anubhab Dey (CMS/HAL boundary owner)
 Started: 2026-08-12
-Last updated: 2026-08-25
+Last updated: 2026-09-09
 
 Development-plan reference: `docs/DEVELOPMENT_PLAN.md` — Charging lifecycle and HAL integration
 Detailed-plan reference: `docs/integrations/ocpp-hal-boundary.md`
@@ -59,6 +59,29 @@ Establish reusable CMS capabilities over HAL-derived operational truth and expos
   financial reconciliation, wallet reservation accounting, STOP convergence,
   and strict HAL transaction lookup validation. Claimed migration surface is
   `000045_charging_session_occupancy_and_reconciliation`.
+
+- 2026-09-09 source slice: the existing `halops` worker now performs bounded
+  exact transaction-by-HAL-ID reads for open materialized sessions and routes
+  only verified durable `COMPLETED` evidence through the same locked CMS
+  finalization/settlement path as fact ingress. Active/404/timeout/5xx or
+  malformed evidence cannot fabricate completion or release occupancy;
+  terminal identity/meter/time conflicts remain reconciliation-required with
+  bounded safe start-command diagnostics. The existing HAL route is sufficient;
+  no HAL change, migration, database mutation, or deployment belongs to this
+  source-only slice. PostgreSQL-gated recovery coverage remains pending while
+  `TEST_DATABASE_URL` is unset.
+
+- 2026-09-09 fairness follow-up: published CMS revision `3ea7b76` adds
+  migration `000067`, a durable circular scheduler cursor, and a partial
+  open-session candidate index. Cursor movement is serialized under PostgreSQL
+  row locking and never updates charging business state merely to rotate
+  polling. Exact invalid/mismatched transaction responses now become explicit
+  `RECONCILIATION_REQUIRED`; 404/active/timeout/unavailable/5xx stay
+  non-terminal. Cursor-fairness and invalid-evidence PostgreSQL tests are
+  correctly gated pending `TEST_DATABASE_URL`. Migration `000067` is applied
+  on the development database and the combined reconciliation runtime is
+  deployed in source revision `4b43e58`; paired HAL/virtual-charger acceptance
+  remains pending.
 
 - `halops` owns CMS mapping/command mechanics, exact-ID reconciliation, and fact ingress; `halclient` remains the wire adapter.
 - `liveops` reads committed CMS projections and centralizes freshness/offline connector semantics.

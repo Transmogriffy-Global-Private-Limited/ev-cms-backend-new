@@ -215,6 +215,75 @@ START and STOP deliberately differ: a missing STOP command never proves that a
 materialized session stopped, so its command remains reconciliation-required
 and session settlement continues to require `transaction.completed`.
 
+## Materialized-session completion recovery
+
+The existing `halops` reconciler also makes one bounded pass over materialized
+CMS sessions that still have an open end time and a known nonzero
+`hal_transaction_id`. It reads only HAL's existing authenticated exact socket:
+
+```text
+GET /v1/transactions/{hal_transaction_id}
+```
+
+This is recovery for a missing or delayed immutable `transaction.completed`
+fact, not a new command, worker, runtime-state query, trace interpretation, or
+acknowledgement inference. CMS accepts terminal recovery evidence only when
+the HAL snapshot has `stop_state=COMPLETED`, a nondecreasing final Wh value,
+nonzero completion/start identities, a completion time no earlier than the
+actual start, and the complete stored CPO/charger/connector/start-intent/start
+command/OCPP-transaction chain agrees with the materialized CMS session.
+
+```text
+exact completed HAL transaction with matching identity chain
+    -> reuse the same locked finalization and wallet settlement path as
+       immutable transaction.completed fact ingress
+    -> the session reaches COMPLETED only when existing settlement succeeds
+    -> Payment and wallet-ledger session identities keep repeat recovery and
+       a later normal fact idempotent
+
+exact active HAL transaction
+    -> preserve the open CMS session; no synthetic completion
+
+404, timeout, 5xx, unavailable HAL
+    -> preserve the open CMS session and occupancy; record only a bounded safe
+       start-command diagnostic and retry later
+
+syntactically or semantically invalid exact HAL response, including a returned
+hal_transaction_id that differs from the requested identity
+    -> retain occupancy and financial state; mark the CMS session
+       RECONCILIATION_REQUIRED with bounded safe diagnostics
+
+terminal snapshot with malformed or conflicting identity/meter/time evidence
+    -> retain occupancy and financial state; mark the CMS session
+       RECONCILIATION_REQUIRED with bounded safe diagnostics
+```
+
+The existing `halops.RunReconciler` loop uses a durable cursor row named
+`hal-materialized-session-completion` to select a stable circular order by CMS
+session UUID. Each pass claims no more than its worker limit after the cursor,
+then performs at most one bounded wrapped range. It advances the cursor inside
+a PostgreSQL row-lock transaction before issuing HAL reads. Thus, unchanged
+oldest active/404/transport-failed sessions cannot monopolize every pass, and
+restart/concurrent workers serialize cursor movement without changing
+`charging_sessions.updated_at` or business truth. The matching partial index
+keeps each range restricted to open materialized reconciliation candidates.
+
+For a HAL snapshot without `completed_at`, CMS treats only HAL's current
+non-terminal stop states (`NONE`, `PERSISTED`, `PENDING_DELIVERY`,
+`DELIVERY_ATTEMPTED`, `OCPP_ACCEPTED`, `OCPP_REJECTED`, and
+`AMBIGUOUS`, and `RECONCILIATION_REQUIRED`) as ordinary active evidence.
+`AMBIGUOUS` means delivery outcome remains unresolved; it neither completes
+the CMS session nor changes its occupancy or financial state. `COMPLETED`
+without a timestamp, any unknown state without a timestamp, or a timestamp
+paired with a non-`COMPLETED` state is malformed terminal evidence. A completed
+snapshot also requires final meter evidence at or above the start meter and a
+completion time no earlier than actual start.
+
+The finalization locks the CMS session, so concurrent recovery/fact delivery
+cannot create a second payment or debit. No HAL provider route or HAL worker
+change is required: the paired HAL already exposes this durable exact
+transaction view.
+
 ## Post-deployment Connection-Liveness Acceptance
 
 This procedure is not evidence until it is run after separately approved

@@ -108,6 +108,55 @@ func TestGetTransactionByStartIntentDecodesAuthoritativeHALTruth(t *testing.T) {
 	}
 }
 
+func TestGetTransactionByHALTransactionIDDecodesCompletionEvidence(t *testing.T) {
+	transactionID, intentID, commandID := uuid.New(), uuid.New(), uuid.New()
+	cpoID, chargerID, connectorID := uuid.New(), uuid.New(), uuid.New()
+	completedAt := time.Date(2026, time.September, 9, 10, 0, 0, 0, time.UTC)
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		if request.Method != http.MethodGet || request.URL.Path != "/v1/transactions/"+transactionID.String() {
+			t.Fatalf("unexpected lookup %s %s", request.Method, request.URL.Path)
+		}
+		if request.Header.Get("Authorization") != "Bearer test" {
+			t.Fatal("missing HAL service authentication")
+		}
+		writer.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(writer).Encode(map[string]any{"transaction": map[string]any{
+			"hal_transaction_id": transactionID, "cms_start_intent_id": intentID, "cms_command_id": commandID,
+			"cpo_id": cpoID, "cms_charger_id": chargerID, "cms_connector_id": connectorID,
+			"charger_ocpp_identity": "charger-1", "ocpp_connector_number": 1, "ocpp_transaction_id": 42,
+			"actual_started_at": completedAt.Add(-time.Hour), "meter_start_wh": 100,
+			"stop_state": "COMPLETED", "completed_at": completedAt, "meter_stop_wh": 140, "ocpp_stop_reason": "Local",
+		}})
+	}))
+	defer server.Close()
+
+	transaction, err := New(config.HAL{BaseURL: server.URL, CMSBearerToken: "test", RequestTimeout: time.Second}).GetTransactionByHALTransactionID(context.Background(), transactionID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if transaction.HALTransactionID != transactionID || transaction.CompletedAt == nil || !transaction.CompletedAt.Equal(completedAt) || transaction.MeterStopWh == nil || *transaction.MeterStopWh != 140 || transaction.StopState != "COMPLETED" || transaction.OCPPStopReason != "Local" {
+		t.Fatalf("decoded completion transaction = %#v", transaction)
+	}
+}
+
+func TestGetTransactionByHALTransactionIDRejectsMismatchedIdentity(t *testing.T) {
+	requestedID := uuid.New()
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
+		_ = json.NewEncoder(writer).Encode(map[string]any{"transaction": map[string]any{
+			"hal_transaction_id": uuid.New(), "cms_start_intent_id": uuid.New(), "cms_command_id": uuid.New(),
+			"cpo_id": uuid.New(), "cms_charger_id": uuid.New(), "cms_connector_id": uuid.New(),
+			"charger_ocpp_identity": "charger-1", "ocpp_connector_number": 1, "ocpp_transaction_id": 42,
+			"actual_started_at": time.Now().UTC(), "meter_start_wh": 100,
+		}})
+	}))
+	defer server.Close()
+
+	_, err := New(config.HAL{BaseURL: server.URL, CMSBearerToken: "test", RequestTimeout: time.Second}).GetTransactionByHALTransactionID(context.Background(), requestedID)
+	if !errors.Is(err, ErrInvalidTransactionResponse) {
+		t.Fatalf("error=%v, want ErrInvalidTransactionResponse", err)
+	}
+}
+
 func TestGetTransactionByStartIntentRejectsMalformedSuccessfulResponse(t *testing.T) {
 	intentID, transactionID, commandID := uuid.New(), uuid.New(), uuid.New()
 	base := map[string]any{

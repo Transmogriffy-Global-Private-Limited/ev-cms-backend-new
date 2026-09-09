@@ -1,0 +1,2 @@
+DROP INDEX IF EXISTS idx_charging_sessions_open_hal_reconciliation_cursor;
+DROP TABLE IF EXISTS charging_reconciliation_cursors;

@@ -1,5 +1,38 @@
 # AI Changelog
 
+## 2026-09-09 - Reconcile durable HAL completion for materialized CMS sessions
+
+- Extended the existing bounded `halops` reconciliation loop with an exact
+  HAL-transaction read for open materialized sessions. CMS consumes only
+  `GET /v1/transactions/{hal_transaction_id}` and requires complete matching
+  stored identity, completed timestamp, terminal state, and nondecreasing
+  meter evidence before reusing the normal immutable-fact completion and
+  frozen-snapshot settlement finalizer.
+- Preserved conservative ambiguity handling: active/404/timeout/5xx/unavailable
+  or malformed reads never fabricate terminal state or release occupancy;
+  terminal identity/meter/time conflicts remain
+  `RECONCILIATION_REQUIRED` with bounded safe command diagnostics. Existing
+  payment and wallet-ledger identities make repeated recovery and a later
+  ordinary `transaction.completed` fact idempotent.
+- The original completion-recovery slice is `ced8b65`; its fairness follow-up
+  is committed and published as `3ea7b76` on CMS `main` and `anubhab-work`.
+  It adds migration `000067` with a durable circular reconciliation cursor and
+  partial candidate index, so an unchanged oldest active/404/transport-failed
+  session cannot monopolize a bounded pass. The scheduler does not alter
+  charging session truth or `updated_at`.
+- The follow-up distinguishes invalid/mismatched successful transaction
+  responses from retryable provider uncertainty: only the former marks the
+  session `RECONCILIATION_REQUIRED`. It also rejects contradictory terminal
+  state/timestamp/meter evidence. Migration `000067` is applied after a
+  retained mode-0600 custom-format dump, and the CMS runtime is deployed.
+
+Verification: focused HAL-client and reconciler tests, full Go tests, vet,
+production build, migration/schema checks, post-rehost process identity,
+loopback/public health and readiness, OpenAPI/Swagger, worker, Caddy, and
+startup-log checks pass. PostgreSQL-gated materialized-session recovery and
+cursor-fairness coverage remains skipped because `TEST_DATABASE_URL` is unset;
+`pwsh` is unavailable.
+
 ## 2026-09-08 - Deploy customer vehicle CRUD and tenant integrity
 
 - Deployed customer-owned vehicle create, list, read, partial-update, and
