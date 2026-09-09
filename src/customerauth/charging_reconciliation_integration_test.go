@@ -349,7 +349,7 @@ func TestMaterializedSessionCompletionReconciliationWithPostgreSQL(t *testing.T)
 		t.Fatalf("apply migrations: %v", err)
 	}
 
-	var completed atomic.Bool
+	var completed, mismatched atomic.Bool
 	var halTransactionID uuid.UUID
 	halServer := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		switch {
@@ -387,11 +387,15 @@ func TestMaterializedSessionCompletionReconciliationWithPostgreSQL(t *testing.T)
 			if err := gormDB.First(&connector, "id = ?", session.ConnectorID).Error; err != nil {
 				t.Fatalf("load connector for HAL reply: %v", err)
 			}
+			responseTransactionID := halTransactionID
+			if mismatched.Load() {
+				responseTransactionID = uuid.New()
+			}
 			transaction := map[string]any{
-				"hal_transaction_id": halTransactionID, "cms_start_intent_id": intent.ID, "cms_command_id": command.CMSCommandID,
+				"hal_transaction_id": responseTransactionID, "cms_start_intent_id": intent.ID, "cms_command_id": command.CMSCommandID,
 				"cpo_id": session.CPOID, "cms_charger_id": session.ChargerID, "cms_connector_id": session.ConnectorID,
 				"charger_ocpp_identity": charger.OCPPIdentity, "ocpp_connector_number": connector.ConnectorNumber,
-				"ocpp_transaction_id": session.TransactionID, "actual_started_at": session.StartTime, "meter_start_wh": session.MeterStartWh,
+				"ocpp_transaction_id": session.TransactionID, "actual_started_at": session.StartTime, "meter_start_wh": session.MeterStartWh, "stop_state": "NONE",
 			}
 			if completed.Load() {
 				transaction["stop_state"] = "COMPLETED"
@@ -440,6 +444,25 @@ func TestMaterializedSessionCompletionReconciliationWithPostgreSQL(t *testing.T)
 	if err := gormDB.First(&session, "id = ?", session.ID).Error; err != nil || session.Status != constants.SessionStatusActive || session.EndTime != nil {
 		t.Fatalf("active exact transaction changed session=%+v err=%v", session, err)
 	}
+	mismatched.Store(true)
+	if err := operations.ReconcilePending(ctx, 10); err != nil {
+		t.Fatalf("reconcile mismatched HAL transaction: %v", err)
+	}
+	if err := gormDB.First(&session, "id = ?", session.ID).Error; err != nil || session.Status != constants.SessionStatusReconciliationRequired || session.EndTime != nil || session.MeterStopWh != nil {
+		t.Fatalf("mismatched exact transaction changed terminal/financial truth session=%+v err=%v", session, err)
+	}
+	var mismatchPayments, mismatchLedgerEntries int64
+	if err := gormDB.Model(&models.Payment{}).Where("session_id = ?", session.ID).Count(&mismatchPayments).Error; err != nil {
+		t.Fatalf("count mismatch payments: %v", err)
+	}
+	if err := gormDB.Model(&models.WalletTransaction{}).Where("session_id = ?", session.ID).Count(&mismatchLedgerEntries).Error; err != nil || mismatchPayments != 0 || mismatchLedgerEntries != 0 {
+		t.Fatalf("mismatched exact transaction mutated settlement payments=%d ledger=%d err=%v", mismatchPayments, mismatchLedgerEntries, err)
+	}
+	var mismatchCommand models.HALCommandRecord
+	if err := gormDB.First(&mismatchCommand, "cms_command_id = ?", command.CMSCommandID).Error; err != nil || mismatchCommand.LastErrorCategory != "hal_transaction_response_invalid" {
+		t.Fatalf("mismatched exact transaction was not durable reconciliation evidence command=%+v err=%v", mismatchCommand, err)
+	}
+	mismatched.Store(false)
 
 	completed.Store(true)
 	if err := operations.ReconcilePending(ctx, 10); err != nil {
@@ -483,6 +506,109 @@ func TestMaterializedSessionCompletionReconciliationWithPostgreSQL(t *testing.T)
 	}
 	if payments != 1 || ledgerEntries != 1 {
 		t.Fatalf("completion retries duplicated settlement payments=%d ledger=%d", payments, ledgerEntries)
+	}
+}
+
+func TestMaterializedSessionReconciliationCursorWithPostgreSQL(t *testing.T) {
+	databaseURL := os.Getenv("TEST_DATABASE_URL")
+	if databaseURL == "" {
+		t.Skip("TEST_DATABASE_URL is not set")
+	}
+	ctx := context.Background()
+	gormDB, sqlDB, err := db.Open(ctx, databaseURL)
+	if err != nil {
+		t.Fatalf("open test database: %v", err)
+	}
+	defer sqlDB.Close()
+	if err := db.ApplyMigrations(ctx, sqlDB); err != nil {
+		t.Fatalf("apply migrations: %v", err)
+	}
+
+	fixture := newChargingAdmissionFixture(t, gormDB)
+	var tariff models.Tariff
+	if err := gormDB.First(&tariff, "cpo_id = ?", fixture.cpo.ID).Error; err != nil {
+		t.Fatalf("load fixture tariff: %v", err)
+	}
+	type transactionFixture struct {
+		session             models.ChargingSession
+		halID               uuid.UUID
+		chargerOCPPIdentity string
+		connectorNumber     int
+	}
+	fixtures := make([]transactionFixture, 0, 3)
+	for index := 0; index < 3; index++ {
+		connector := fixture.connector
+		if index > 0 {
+			connector = fixture.newConnector(t)
+		}
+		halID := uuid.New()
+		now := time.Now().UTC().Add(-time.Duration(index+1) * time.Minute).Truncate(time.Second)
+		session := models.ChargingSession{ID: uuid.New(), CPOID: fixture.cpo.ID, HALTransactionID: &halID, TransactionID: int64(900 + index), CustomerID: fixture.firstPrincipal.CustomerID, ChargerID: fixture.charger.ID, ConnectorID: connector.ID, TariffID: tariff.ID, StartTime: now, MeterStartWh: 100, Currency: tariff.Currency, TariffSnapshot: models.JSONB{}, TaxSnapshot: models.JSONB{}, Status: constants.SessionStatusActive, SettlementStatus: "PENDING", CreatedAt: now, UpdatedAt: now}
+		if err := gormDB.Create(&session).Error; err != nil {
+			t.Fatalf("create open session %d: %v", index, err)
+		}
+		fixtures = append(fixtures, transactionFixture{session: session, halID: halID, chargerOCPPIdentity: fixture.charger.OCPPIdentity, connectorNumber: connector.ConnectorNumber})
+	}
+
+	byHALID := make(map[string]transactionFixture, len(fixtures))
+	for _, fixture := range fixtures {
+		byHALID[fixture.halID.String()] = fixture
+	}
+	var calls []uuid.UUID
+	halServer := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		const prefix = "/v1/transactions/"
+		if request.Method != http.MethodGet || !strings.HasPrefix(request.URL.Path, prefix) {
+			http.NotFound(writer, request)
+			return
+		}
+		fixture, ok := byHALID[strings.TrimPrefix(request.URL.Path, prefix)]
+		if !ok {
+			http.NotFound(writer, request)
+			return
+		}
+		calls = append(calls, fixture.halID)
+		_ = json.NewEncoder(writer).Encode(map[string]any{"transaction": map[string]any{
+			"hal_transaction_id": fixture.halID, "cms_start_intent_id": uuid.New(), "cms_command_id": uuid.New(),
+			"cpo_id": fixture.session.CPOID, "cms_charger_id": fixture.session.ChargerID, "cms_connector_id": fixture.session.ConnectorID,
+			"charger_ocpp_identity": fixture.chargerOCPPIdentity, "ocpp_connector_number": fixture.connectorNumber,
+			"ocpp_transaction_id": fixture.session.TransactionID, "actual_started_at": fixture.session.StartTime, "meter_start_wh": fixture.session.MeterStartWh, "stop_state": "NONE",
+		}})
+	}))
+	defer halServer.Close()
+
+	operations := halops.New(gormDB, config.HAL{BaseURL: halServer.URL, CMSBearerToken: "test"}).WithCompletionMaterializer(func(context.Context, halops.CompletionEvidence) error {
+		t.Fatal("active HAL transaction must not materialize completion")
+		return nil
+	})
+	if err := operations.ReconcilePending(ctx, 2); err != nil {
+		t.Fatalf("first bounded reconciliation pass: %v", err)
+	}
+	if len(calls) != 2 || calls[0] == calls[1] {
+		t.Fatalf("first reconciliation batch calls=%v", calls)
+	}
+	firstBatch := map[uuid.UUID]bool{calls[0]: true, calls[1]: true}
+	if err := operations.ReconcilePending(ctx, 2); err != nil {
+		t.Fatalf("second bounded reconciliation pass: %v", err)
+	}
+	if len(calls) != 4 {
+		t.Fatalf("reconciliation passes were not bounded to two calls: %v", calls)
+	}
+	allReached := make(map[uuid.UUID]bool, len(fixtures))
+	for _, id := range calls {
+		allReached[id] = true
+	}
+	for _, fixture := range fixtures {
+		if !allReached[fixture.halID] {
+			t.Fatalf("later eligible transaction %s starved after wrapped cursor batches; first=%v all=%v", fixture.halID, firstBatch, calls)
+		}
+		var stored models.ChargingSession
+		if err := gormDB.First(&stored, "id = ?", fixture.session.ID).Error; err != nil || stored.Status != constants.SessionStatusActive || stored.EndTime != nil {
+			t.Fatalf("fair active polling changed session truth session=%+v err=%v", stored, err)
+		}
+	}
+	var cursor models.ChargingReconciliationCursor
+	if err := gormDB.First(&cursor, "name = ?", "hal-materialized-session-completion").Error; err != nil || cursor.LastSessionID == nil {
+		t.Fatalf("durable fairness cursor=%+v err=%v", cursor, err)
 	}
 }
 

@@ -136,11 +136,14 @@ Current implementation state:
 - Source-only reconciliation checkpoint: an open materialized CMS session can
   now recover from the paired HAL's existing exact transaction-by-HAL-ID view
   through the same completion/settlement finalizer as fact ingress. This is
-  bounded automatic recovery only; 404/timeout/5xx/active/malformed evidence
-  remains non-terminal, while terminal identity/meter/time conflicts retain
-  occupancy as `RECONCILIATION_REQUIRED`. No migration or HAL change is
-  required. Disposable PostgreSQL recovery coverage remains pending until a
-  `TEST_DATABASE_URL` is selected.
+  bounded automatic recovery only; the published baseline is `ced8b65`.
+  Source migration `000067` now gives the existing worker a durable circular
+  candidate cursor so bounded active/404/transport observations cannot starve
+  later sessions. Invalid/mismatched successful reads and contradictory
+  terminal evidence retain occupancy as `RECONCILIATION_REQUIRED`; 404,
+  timeout, 5xx, unavailable, and genuinely active evidence remain non-terminal.
+  No HAL change is required. Disposable PostgreSQL recovery/fairness coverage
+  remains pending until a `TEST_DATABASE_URL` is selected.
 
 - CPO charger operations are implemented and deployed in CMS revision
   `0f79230` with migrations `000061` and `000062` and 233 OpenAPI operations: typed Reset,

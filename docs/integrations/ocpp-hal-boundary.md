@@ -244,20 +244,43 @@ exact completed HAL transaction with matching identity chain
 exact active HAL transaction
     -> preserve the open CMS session; no synthetic completion
 
-404, timeout, 5xx, unavailable HAL, malformed response
+404, timeout, 5xx, unavailable HAL
     -> preserve the open CMS session and occupancy; record only a bounded safe
-       start-command diagnostic
+       start-command diagnostic and retry later
+
+syntactically or semantically invalid exact HAL response, including a returned
+hal_transaction_id that differs from the requested identity
+    -> retain occupancy and financial state; mark the CMS session
+       RECONCILIATION_REQUIRED with bounded safe diagnostics
 
 terminal snapshot with malformed or conflicting identity/meter/time evidence
     -> retain occupancy and financial state; mark the CMS session
        RECONCILIATION_REQUIRED with bounded safe diagnostics
 ```
 
-The reconciliation candidate selection is bounded by the worker limit and
-uses the already-running `halops.RunReconciler` loop. The finalization locks the
-CMS session, so concurrent recovery/fact delivery cannot create a second
-payment or debit. No HAL migration, provider route, or HAL worker change is
-required: the paired HAL already exposes this durable exact transaction view.
+The existing `halops.RunReconciler` loop uses a durable cursor row named
+`hal-materialized-session-completion` to select a stable circular order by CMS
+session UUID. Each pass claims no more than its worker limit after the cursor,
+then performs at most one bounded wrapped range. It advances the cursor inside
+a PostgreSQL row-lock transaction before issuing HAL reads. Thus, unchanged
+oldest active/404/transport-failed sessions cannot monopolize every pass, and
+restart/concurrent workers serialize cursor movement without changing
+`charging_sessions.updated_at` or business truth. The matching partial index
+keeps each range restricted to open materialized reconciliation candidates.
+
+For a HAL snapshot without `completed_at`, CMS treats only HAL's current
+non-terminal stop states (`NONE`, `PERSISTED`, `PENDING_DELIVERY`,
+`DELIVERY_ATTEMPTED`, `OCPP_ACCEPTED`, `OCPP_REJECTED`, and
+`RECONCILIATION_REQUIRED`) as ordinary active evidence. `COMPLETED` without a
+timestamp, any unknown state without a timestamp, or a timestamp paired with a
+non-`COMPLETED` state is malformed terminal evidence. A completed snapshot
+also requires final meter evidence at or above the start meter and a completion
+time no earlier than actual start.
+
+The finalization locks the CMS session, so concurrent recovery/fact delivery
+cannot create a second payment or debit. No HAL provider route or HAL worker
+change is required: the paired HAL already exposes this durable exact
+transaction view.
 
 ## Post-deployment Connection-Liveness Acceptance
 

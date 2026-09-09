@@ -14,14 +14,22 @@
   `RECONCILIATION_REQUIRED` with bounded safe command diagnostics. Existing
   payment and wallet-ledger identities make repeated recovery and a later
   ordinary `transaction.completed` fact idempotent.
-- No migration, HAL provider change, database mutation, deployment, restart,
-  commit, or push is included. The paired HAL already exposes the authenticated
-  durable exact transaction view.
+- The original completion-recovery slice is committed and published as
+  `ced8b65` on CMS `main` and `anubhab-work`. Its narrow source follow-up adds
+  migration `000067` with a durable circular reconciliation cursor and partial
+  candidate index, so an unchanged oldest active/404/transport-failed session
+  cannot monopolize a bounded pass. The scheduler does not alter charging
+  session truth or `updated_at`.
+- The follow-up distinguishes invalid/mismatched successful transaction
+  responses from retryable provider uncertainty: only the former marks the
+  session `RECONCILIATION_REQUIRED`. It also rejects contradictory terminal
+  state/timestamp/meter evidence. No HAL provider change, database mutation,
+  deployment, or restart is included.
 
 Verification: focused HAL-client and reconciler tests pass. PostgreSQL-gated
-materialized-session recovery coverage is present and skipped because
-`TEST_DATABASE_URL` is unset; broad repository verification is recorded with
-this source checkpoint after it completes.
+materialized-session recovery and cursor-fairness coverage is present and
+skipped because `TEST_DATABASE_URL` is unset; broad repository verification is
+recorded with this source checkpoint after it completes.
 
 ## 2026-09-08 - Deploy customer vehicle CRUD and tenant integrity
 

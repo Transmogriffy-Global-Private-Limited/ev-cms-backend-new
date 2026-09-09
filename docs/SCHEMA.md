@@ -100,7 +100,7 @@ Migration files:
 | `ChargingSession` | `charging_sessions` |
 | `Payment` | `payments` |
 | `AuditLog` | `audit_logs`; `cpo_id` is nullable for platform events |
-| CMS HAL charging consumer | `charging_start_intents`, `wallet_holds`, `hal_command_records`, `hal_fact_receipts`, `hal_charger_mappings`, `hal_charger_runtime`, and `hal_connector_runtime` |
+| CMS HAL charging consumer | `charging_start_intents`, `wallet_holds`, `hal_command_records`, `hal_fact_receipts`, `hal_charger_mappings`, `hal_charger_runtime`, `hal_connector_runtime`, and scheduler-only `charging_reconciliation_cursors` |
 | Durable operational notification | `operational_events`, scoped to a CPO and optionally a customer |
 
 ## Important Data Corrections
@@ -128,6 +128,10 @@ Migration files:
   `ACTIVE`, `STOP_PENDING`, or `RECONCILIATION_REQUIRED` session reserves the
   connector. It extends the session CHECK constraint for reconciliation and
   refuses migration if existing rows violate either occupancy invariant.
+- Migration sixty-seven adds `charging_reconciliation_cursors` and a partial
+  open-session UUID index solely for fair bounded HAL completion polling. The
+  cursor is not charging, financial, or occupancy truth and does not change
+  `charging_sessions.updated_at` to schedule work.
 - Migration twenty-nine adds `tariff_type`, `price_type`, and `units` columns.
   Migration forty renames the durable tariff amount from `price_per_kwh` to
   `price_per_unit` without recreating values or inventing missing metadata.

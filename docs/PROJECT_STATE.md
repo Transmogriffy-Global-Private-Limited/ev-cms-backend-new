@@ -1,24 +1,28 @@
 # Project State
 
-## 2026-09-09 - Materialized-session completion reconciliation source update
+## 2026-09-09 - Materialized-session completion reconciliation publication and fairness follow-up
 
 - CMS source now extends the existing bounded HAL reconciler to query only the
   existing exact `GET /v1/transactions/{hal_transaction_id}` HAL view for an
   open materialized session with a known HAL transaction ID. Matching durable
   `COMPLETED` evidence reuses the same locked completion/frozen-snapshot
   settlement path as `transaction.completed` fact ingress; it does not add a
-  command, migration, duplicate payment path, or second worker.
-- A HAL `404`, timeout, unavailable/5xx response, active transaction, or
-  malformed response does not synthesize completion or release occupancy. A
-  terminal identity/meter/time conflict becomes
-  `RECONCILIATION_REQUIRED` with safe diagnostics on the existing start-command
-  record. The paired HAL already provides the exact read; no HAL change is
-  required by this CMS slice.
+  command, duplicate payment path, or second worker. That baseline is
+  committed and published as `ced8b65` on CMS `main` and `anubhab-work`.
+- The current uncommitted fairness follow-up adds source migration `000067`:
+  a durable cursor and partial candidate index rotate bounded exact-HAL reads
+  across every eligible open materialized session without mutating session
+  business timestamps. Invalid/mismatched successful HAL responses now mark
+  `RECONCILIATION_REQUIRED`; active/404/timeout/unavailable/5xx observations
+  retain occupancy and retry later. Terminal timestamp/state/meter/time
+  contradictions remain non-financial reconciliation evidence. No HAL change
+  is required.
 
 Focused client/reconciler tests pass. The new PostgreSQL-gated materialized
-session recovery/incoming-fact idempotency test is present but skipped because
-`TEST_DATABASE_URL` is unset. This is source-only: no migration, database
-mutation, deployment, restart, commit, or push occurred.
+session recovery/incoming-fact idempotency and cursor-fairness tests are
+present but skipped because `TEST_DATABASE_URL` is unset. The fairness follow-up
+is source-only: migration `000067` has not been applied, and no database
+mutation, deployment, or restart occurred.
 
 ## 2026-09-08 - Customer vehicle CRUD deployed
 
