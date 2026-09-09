@@ -147,6 +147,12 @@ Current implementation state:
   `TEST_DATABASE_URL` is selected. Migration `000067` is applied in the
   development database and runtime revision `4b43e58` is active.
 
+- CPO customer visit counts are implemented and deployed under
+  `GET /api/v1/cpo/customers/visit-counts`. The read is CPO-scoped, supports
+  bounded customer search and keyset pagination, and returns only completed or
+  reconciliation-required session aggregates. Runtime revision `b21020e`
+  plus contract alignment is active with 242 OpenAPI operations.
+
 - CPO charger operations are implemented and deployed in CMS revision
   `0f79230` with migrations `000061` and `000062` and 233 OpenAPI operations: typed Reset,
   UnlockConnector, ChangeAvailability, ClearCache, Get/ChangeConfiguration,

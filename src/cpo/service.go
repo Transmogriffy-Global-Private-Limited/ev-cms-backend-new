@@ -5044,6 +5044,13 @@ func (service *Service) ListChargers(
 }
 
 func validateTenantListQuery(query TenantListQuery) (TenantListQuery, error) {
+	query.Search = strings.TrimSpace(query.Search)
+	if len(query.Search) > maxSearchLength {
+		return TenantListQuery{}, invalid(
+			"q",
+			"Search text must not exceed 200 characters.",
+		)
+	}
 	if query.Limit == 0 {
 		query.Limit = defaultListLimit
 	}
@@ -7907,6 +7914,13 @@ func (service *Service) ListCustomerVisitCounts(
 	// 1. Fetch customers with pagination
 	var customers []models.Customer
 	db := service.database.WithContext(ctx).Where("cpo_id = ?", cpoID)
+	if query.Search != "" {
+		search := strings.ToLower(query.Search)
+		db = db.Where(
+			`strpos(lower(email), ?) > 0 OR strpos(lower(full_name), ?) > 0 OR strpos(lower(coalesce(phone, '')), ?) > 0`,
+			search, search, search,
+		)
+	}
 	if query.Before != nil {
 		db = db.Where("(created_at, id) < (?, ?)", *query.Before, *query.BeforeID)
 	}

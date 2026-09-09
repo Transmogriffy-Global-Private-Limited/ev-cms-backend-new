@@ -33,6 +33,16 @@ startup-log checks pass. PostgreSQL-gated materialized-session recovery and
 cursor-fairness coverage remains skipped because `TEST_DATABASE_URL` is unset;
 `pwsh` is unavailable.
 
+- Added and deployed `GET /api/v1/cpo/customers/visit-counts`, a tenant-scoped
+  read of completed/reconciliation-required session counts, usage, and latest
+  session time. It supports the bounded customer `q` search and keyset cursor
+  without calling HAL or changing customer/session/wallet state.
+- The final runtime was built from source revision `b21020e` plus the endpoint
+  contract alignment and formatting correction. Its binary SHA-256 is
+  `220789b31050240ecf2394c229489c72fa9fa6749ff05767830fe9d4d59b941a` and the
+  live/source OpenAPI contract contains 242 operations. The previous binary is
+  retained at `/root/evcmsnew-backups/pre-b21020e-20260909T164022+0530/`.
+
 ## 2026-09-08 - Deploy customer vehicle CRUD and tenant integrity
 
 - Deployed customer-owned vehicle create, list, read, partial-update, and

@@ -23,7 +23,13 @@ migration/schema checks, and post-rehost service verification pass. The new
 PostgreSQL-gated materialized-session recovery/incoming-fact idempotency and
 cursor-fairness tests are present but skipped because `TEST_DATABASE_URL` is
 unset. Migration `000067` is applied after a retained mode-0600 dump; runtime
-revision `4b43e58` is active behind Caddy. `pwsh` is unavailable.
+revision `b21020e` plus the CPO visit-count contract alignment is active behind
+Caddy with 242 OpenAPI operations. `pwsh` is unavailable.
+
+- The CPO customer visit-count read is tenant-scoped and read-only. It returns
+  completed/reconciliation-required session totals, usage, and latest session
+  time, with bounded customer search and keyset pagination. It does not call
+  HAL or alter durable business state.
 
 ## 2026-09-08 - Customer vehicle CRUD deployed
 

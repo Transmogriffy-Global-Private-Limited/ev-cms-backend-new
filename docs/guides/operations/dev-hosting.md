@@ -29,10 +29,10 @@ that setting; it must not be used until the OCPP host is explicitly configured
 with TLS/WebSocket support.
 
 The active deployment was updated on September 9, 2026 to runtime source
-revision `4b43e58` (durable HAL completion reconciliation and fairness). It has
-migrations one through sixty-seven and the current 241-operation API. The
+revision `b21020e` plus the CPO visit-count contract alignment. It has
+migrations one through sixty-seven and the current 242-operation API. The
 binary SHA-256 is
-`d226751d1dc0031a0b3bf369896c4f9c955abc864189f1ec33158e8aa6203167`.
+`220789b31050240ecf2394c229489c72fa9fa6749ff05767830fe9d4d59b941a`.
 The pre-migration binary and database dump for migrations 49 through 53 are
 retained under `/root/evcmsnew-backups/` and
 `builds/evcmsnew.pre-162b3be-20260825-135452` and the newer
@@ -265,9 +265,9 @@ content exclusions are defined in
 `docs/contracts/internal/http-request-logging.md`. Long-lived SSE requests are
 recorded when they disconnect. A recovered panic first emits a correlated safe
 JSON stack diagnostic without Gin's request dump or the panic value. The
-currently deployed `4b43e58` binary includes this logger. The stale prior
+currently deployed `b21020e`-based binary includes this logger. The stale prior
 binary is retained at
-`/root/evcmsnew-backups/pre-4b43e58-20260909T154608+0530/evcmsnew`
+`/root/evcmsnew-backups/pre-b21020e-20260909T164022+0530/evcmsnew`
 (SHA-256 `d226751d1dc0031a0b3bf369896c4f9c955abc864189f1ec33158e8aa6203167`).
 
 The platform realtime SSE route is long-lived. If a browser holds that stream

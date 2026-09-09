@@ -1756,7 +1756,7 @@ func (handler *Handler) listChargers(ctx *gin.Context) {
 }
 
 func parseTenantListQuery(ctx *gin.Context) (TenantListQuery, bool) {
-	query := TenantListQuery{}
+	query := TenantListQuery{Search: strings.TrimSpace(ctx.Query("q"))}
 	if limitText := strings.TrimSpace(ctx.Query("limit")); limitText != "" {
 		limit, err := strconv.Atoi(limitText)
 		if err != nil {

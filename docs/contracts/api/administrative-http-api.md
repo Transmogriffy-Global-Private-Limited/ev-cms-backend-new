@@ -3011,7 +3011,28 @@ paths:
 
 </details>
 
-#### 9.24.2 `GET /api/v1/cpo/customers/{customer_id}`
+#### 9.24.2 `GET /api/v1/cpo/customers/visit-counts`
+
+Returns a CPO-scoped, read-only customer directory projection with the number
+of completed or reconciliation-required charging sessions, total consumed
+energy, and the latest session start time. It requires active CPO membership,
+matching `X-CPO-App-ID`, and the `customers.read` capability. The CPO is
+derived from the authenticated staff session; no tenant identifier is accepted.
+
+Query parameters are `q` (case-insensitive substring over customer name, email,
+or phone, maximum 200 characters), `limit` (1 through 200, default 50), and
+the paired keyset cursor `before` plus `before_id`. Results are ordered by
+customer creation `(created_at DESC, id DESC)`. Customers without qualifying
+sessions are returned with zero usage/count and no `last_session_at`.
+
+The response is `{customers, has_more, next_before?, next_before_id?}`. Each
+customer contains `customer_id`, `full_name`, `email`, optional `phone`,
+`total_sessions`, decimal `total_usage_kwh`, and optional `last_session_at`.
+This read does not call HAL or alter customer, session, wallet, or charger
+state. Errors are the shared authentication/capability errors,
+`400 invalid_q`, `invalid_limit`, or `invalid_cursor`, and `500 internal_error`.
+
+#### 9.24.3 `GET /api/v1/cpo/customers/{customer_id}`
 
 Returns a single customer belonging to the authenticated CPO. A cross-tenant
 or unknown ID returns `404 customer_not_found`.
