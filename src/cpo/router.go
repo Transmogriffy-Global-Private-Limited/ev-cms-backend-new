@@ -610,6 +610,7 @@ func RegisterCPORoutes(
 	customersRead.GET("/customers/:customer_id/wallet-transactions", handler.listCustomerWalletTransactions)
 	analyticsRead.GET("/hubs/:hub_id/analytics", handler.getHubAnalytics)
 	customersRead.GET("/vehicles", handler.listVehicles)
+	customersRead.GET("/customers/visit-counts", handler.listCustomerVisitCounts)
 }
 
 func (handler *Handler) getChargingSessionTrace(ctx *gin.Context) {
@@ -3356,4 +3357,19 @@ func (handler *Handler) getHubAnalytics(ctx *gin.Context) {
 		return
 	}
 	ctx.JSON(http.StatusOK, record)
+}
+
+func (handler *Handler) listCustomerVisitCounts(ctx *gin.Context) {
+	principal, _ := auth.CurrentPrincipal(ctx)
+	// parse pagination query parameters (like before, before_id, limit)
+	query, ok := parseTenantListQuery(ctx)
+	if !ok {
+		return
+	}
+	records, err := handler.service.ListCustomerVisitCounts(ctx.Request.Context(), principal, query)
+	if err != nil {
+		writeError(ctx, err)
+		return
+	}
+	ctx.JSON(http.StatusOK, records)
 }

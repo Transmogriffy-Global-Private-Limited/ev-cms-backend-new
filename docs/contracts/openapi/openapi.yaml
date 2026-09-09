@@ -551,6 +551,40 @@ paths:
                 $ref: "#/components/schemas/ErrorEnvelope"
         "500":
           $ref: "#/components/responses/InternalError"
+  /api/v1/cpo/customers/visit-counts:
+    get:
+      tags: [CPO Operations - Account & Notifications]
+      operationId: listCPOCustomerVisitCounts
+      summary: List customers with visit counts and usage
+      description: Returns a paginated list of customers with their total number of charging sessions, total energy usage, and last session timestamp.
+      security:
+        - BearerAuth: []
+          CPOAppID: []
+      parameters:
+        - $ref: "#/components/parameters/ListLimit"
+        - $ref: "#/components/parameters/ListBefore"
+        - $ref: "#/components/parameters/ListBeforeID"
+        - name: q
+          in: query
+          schema:
+            type: string
+            maxLength: 200
+          description: Search by customer name, email, or phone.
+      responses:
+        "200":
+          description: List of customers with visit counts.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CustomerVisitCountListResponse"
+        "400":
+          $ref: "#/components/responses/InvalidRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/CPOBusinessForbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
   /health/live:
     get:
       tags: [Health]
@@ -9277,6 +9311,63 @@ components:
         next_before_id:
           type: string
           format: uuid
+        has_more:
+          type: boolean
+          
+    CustomerVisitCountView:
+      type: object
+      additionalProperties: false
+      required:
+        - customer_id
+        - full_name
+        - email
+        - total_sessions
+        - total_usage_kwh
+      properties:
+        customer_id:
+          type: string
+          format: uuid
+        full_name:
+          type: string
+        email:
+          type: string
+          format: email
+        phone:
+          type: string
+          nullable: true
+        total_sessions:
+          type: integer
+          format: int64
+          description: Total number of charging sessions.
+        total_usage_kwh:
+          type: string
+          pattern: "^[0-9]+(?:\\.[0-9]{1,3})?$"
+          description: Total energy consumed in kWh.
+        last_session_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: Timestamp of the customer's most recent session.
+
+    CustomerVisitCountListResponse:
+      type: object
+      additionalProperties: false
+      required:
+        - customers
+        - has_more
+      properties:
+        customers:
+          type: array
+          items:
+            $ref: "#/components/schemas/CustomerVisitCountView"
+        next_before:
+          type: string
+          format: date-time
+          nullable: true
+        next_before_id:
+          type: string
+          format: uuid
+          nullable: true
         has_more:
           type: boolean
 

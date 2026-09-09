@@ -7887,3 +7887,91 @@ func (service *Service) ListVehicles(
 	}
 	return response, nil
 }
+
+func (service *Service) ListCustomerVisitCounts(
+	ctx context.Context,
+	principal auth.Principal,
+	query TenantListQuery,
+) (CustomerVisitCountListResponse, error) {
+	if err := requireCPOContext(principal); err != nil {
+		return CustomerVisitCountListResponse{}, err
+	}
+	// validate pagination
+	query, err := validateTenantListQuery(query)
+	if err != nil {
+		return CustomerVisitCountListResponse{}, err
+	}
+
+	cpoID := *principal.CPOID
+
+	// 1. Fetch customers with pagination
+	var customers []models.Customer
+	db := service.database.WithContext(ctx).Where("cpo_id = ?", cpoID)
+	if query.Before != nil {
+		db = db.Where("(created_at, id) < (?, ?)", *query.Before, *query.BeforeID)
+	}
+	if err := db.Order("created_at DESC, id DESC").Limit(query.Limit + 1).Find(&customers).Error; err != nil {
+		return CustomerVisitCountListResponse{}, fmt.Errorf("list customers: %w", err)
+	}
+
+	hasMore := len(customers) > query.Limit
+	if hasMore {
+		customers = customers[:query.Limit]
+	}
+
+	// 2. Collect customer IDs
+	customerIDs := make([]uuid.UUID, len(customers))
+	for i, c := range customers {
+		customerIDs[i] = c.ID
+	}
+
+	// 3. Get session aggregates (count, total usage, last session time)
+	type SessionAgg struct {
+		CustomerID    uuid.UUID       `gorm:"column:customer_id"`
+		TotalSessions int64           `gorm:"column:total_sessions"`
+		TotalUsageKWh decimal.Decimal `gorm:"column:total_usage_kwh"`
+		LastSessionAt *time.Time      `gorm:"column:last_session_at"`
+	}
+	var aggregates []SessionAgg
+	if len(customerIDs) > 0 {
+		err := service.database.WithContext(ctx).Model(&models.ChargingSession{}).
+			Select("customer_id, COUNT(*) AS total_sessions, COALESCE(SUM(total_kwh), 0) AS total_usage_kwh, MAX(start_time) AS last_session_at").
+			Where("cpo_id = ? AND customer_id IN (?) AND status IN (?, ?)", cpoID, customerIDs,
+				constants.SessionStatusCompleted, constants.SessionStatusReconciliationRequired).
+			Group("customer_id").
+			Scan(&aggregates).Error
+		if err != nil {
+			return CustomerVisitCountListResponse{}, fmt.Errorf("aggregate sessions: %w", err)
+		}
+	}
+
+	// 4. Build result map
+	aggMap := make(map[uuid.UUID]SessionAgg)
+	for _, agg := range aggregates {
+		aggMap[agg.CustomerID] = agg
+	}
+
+	// 5. Build response
+	result := make([]CustomerVisitCountView, 0, len(customers))
+	for _, c := range customers {
+		agg := aggMap[c.ID]
+		result = append(result, CustomerVisitCountView{
+			CustomerID:    c.ID,
+			FullName:      c.FullName,
+			Email:         c.Email,
+			Phone:         c.Phone,
+			TotalSessions: agg.TotalSessions,
+			TotalUsageKWh: agg.TotalUsageKWh,
+			LastSessionAt: agg.LastSessionAt,
+		})
+	}
+
+	resp := CustomerVisitCountListResponse{Customers: result, HasMore: hasMore}
+	if hasMore && len(customers) > 0 {
+		nextBefore := customers[len(customers)-1].CreatedAt
+		nextBeforeID := customers[len(customers)-1].ID
+		resp.NextBefore = &nextBefore
+		resp.NextBeforeID = &nextBeforeID
+	}
+	return resp, nil
+}

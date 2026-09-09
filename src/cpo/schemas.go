@@ -990,3 +990,20 @@ type VehicleListResponse struct {
 	NextBeforeID *uuid.UUID    `json:"next_before_id,omitempty"`
 	HasMore      bool          `json:"has_more"`
 }
+
+type CustomerVisitCountView struct {
+    CustomerID      uuid.UUID `json:"customer_id"`
+    FullName        string    `json:"full_name"`
+    Email           string    `json:"email"`
+    Phone           *string   `json:"phone,omitempty"`
+    TotalSessions   int64     `json:"total_sessions"`
+    TotalUsageKWh   decimal.Decimal `json:"total_usage_kwh"`
+    LastSessionAt   *time.Time `json:"last_session_at,omitempty"`
+}
+
+type CustomerVisitCountListResponse struct {
+    Customers []CustomerVisitCountView `json:"customers"`
+    HasMore   bool                     `json:"has_more"`
+    NextBefore   *time.Time            `json:"next_before,omitempty"`
+    NextBeforeID *uuid.UUID            `json:"next_before_id,omitempty"`
+}
