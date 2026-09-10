@@ -48,21 +48,23 @@ func TestCompletionEvidenceFromTransactionRequiresExactDurableTerminalEvidence(t
 	completedAt := time.Date(2026, time.September, 9, 10, 0, 0, 0, time.UTC)
 	meterStop := int64(140)
 	base := halclient.Transaction{
-		HALTransactionID:    transactionID,
-		CMSStartIntentID:    intentID,
-		CMSCommandID:        commandID,
-		CPOID:               uuid.New(),
-		CMSChargerID:        uuid.New(),
-		CMSConnectorID:      uuid.New(),
-		ChargerOCPPIdentity: "charger-1",
-		OCPPConnectorNumber: 1,
-		OCPPTransactionID:   42,
-		ActualStartedAt:     completedAt.Add(-time.Hour),
-		MeterStartWh:        100,
-		StopState:           "COMPLETED",
-		CompletedAt:         &completedAt,
-		MeterStopWh:         &meterStop,
-		OCPPStopReason:      "Local",
+		HALTransactionID:       transactionID,
+		CMSStartIntentID:       intentID,
+		CMSCommandID:           commandID,
+		CPOID:                  uuid.New(),
+		CMSChargerID:           uuid.New(),
+		CMSConnectorID:         uuid.New(),
+		ChargerOCPPIdentity:    "charger-1",
+		OCPPConnectorNumber:    1,
+		OCPPTransactionID:      42,
+		ActualStartedAt:        completedAt.Add(-time.Hour),
+		MeterStartWh:           100,
+		StopState:              "COMPLETED",
+		CompletedAt:            &completedAt,
+		MeterStopWh:            &meterStop,
+		RequestedStopInitiator: "ENERGY_LIMIT",
+		RequestedStopReason:    "energy_limit_reached",
+		OCPPStopReason:         "Local",
 	}
 
 	for _, test := range []struct {
@@ -104,7 +106,7 @@ func TestCompletionEvidenceFromTransactionRequiresExactDurableTerminalEvidence(t
 			if (err != nil) != test.wantError || completed != test.wantCompleted {
 				t.Fatalf("evidence=%+v completed=%t err=%v", evidence, completed, err)
 			}
-			if completed && (evidence.HALTransactionID != transactionID || evidence.ActualCompletedAt != completedAt || evidence.MeterStopWh != meterStop) {
+			if completed && (evidence.HALTransactionID != transactionID || evidence.ActualCompletedAt != completedAt || evidence.MeterStopWh != meterStop || evidence.RequestedStopInitiator != "ENERGY_LIMIT" || evidence.RequestedStopReason != "energy_limit_reached" || evidence.OCPPStopReason != "Local") {
 				t.Fatalf("completion evidence=%+v", evidence)
 			}
 		})

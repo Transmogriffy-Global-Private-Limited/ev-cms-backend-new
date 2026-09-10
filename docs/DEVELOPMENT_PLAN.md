@@ -133,6 +133,13 @@ Approved current slice:
 
 Current implementation state:
 
+- Charging-session stop provenance is deployed in CMS revision `db16078` with
+  migration `000068` applied and 242 OpenAPI operations. The additive
+  requested-stop and charger-reported OCPP stop fields use the conflict-safe
+  completion/reconciliation finalizer; no historical provenance is fabricated.
+  Paired HAL, PostgreSQL lifecycle, virtual-charger, and physical OCPP
+  verification remain pending.
+
 - Deployed reconciliation checkpoint: an open materialized CMS session can
   now recover from the paired HAL's existing exact transaction-by-HAL-ID view
   through the same completion/settlement finalizer as fact ingress. This is
@@ -178,6 +185,28 @@ Current implementation state:
   configuration read. CMS migration `000063` is applied; HAL migration `021`
   remains a separate counterpart deployment. PostgreSQL, paired-service, and
   physical OCPP verification remain pending without a disposable environment.
+
+- TriggerMessage follow-on diagnostics are now deployed in the CMS runtime
+  revision `7e5ea97` with 242 OpenAPI operations and no new CMS migration; the
+  database remains through `000067`. CMS rehost and health, contract, worker,
+  Caddy, and journal verification passed. The paired HAL runtime, migration
+  `022`, PostgreSQL lifecycle, virtual-charger, and physical-OCPP verification
+  remain pending.
+
+- The TriggerMessage follow-on diagnostics design has an indexed durable
+  HAL window migration (`022`, not applied) and no new CMS command or worker.
+  HAL atomically persists the window with its `CALLRESULT` `Accepted` trace
+  and outbox record before later operation completion, so immediate follow-on
+  traffic is not lost. A window transitions only `OPEN -> OBSERVED` or
+  `OPEN -> CLOSED`; the first durable outcome is final. CMS
+  derives acceptance from that delivered trace; it returns `NOT_OBSERVED` only
+  after matching delivered HAL closure, while missing delivery remains
+  `PENDING` beyond the nominal deadline. Its positive-first scan remains
+  defensive compatibility handling, not a correction of contradictory closure.
+  The temporal observation does not establish causation or mutate operation,
+  charging, connector, or commercial state. The CMS rehost is recorded above;
+  HAL rehost/deployment, PostgreSQL, paired-service, and hardware verification
+  remain pending without `TEST_DATABASE_URL` and a test charger.
 
 - CPO vehicle listing is implemented and deployed with migration `000064`.
   The CMS-owned vehicle table is CPO/customer scoped through foreign keys and

@@ -102,12 +102,21 @@ type ChargingSessionView struct {
 	Currency             string                        `json:"currency"`
 	SettlementStatus     string                        `json:"settlement_status"`
 	StopReason           *string                       `json:"stop_reason,omitempty"`
+	Stop                 *ChargingSessionStopView      `json:"stop,omitempty"`
 	Charger              ChargingSessionChargerView    `json:"charger"`
 	Connector            ChargingSessionConnectorView  `json:"connector"`
 	Pricing              ChargingSessionPricingView    `json:"pricing"`
 	Limit                ChargingLimitView             `json:"limit"`
 	Tax                  ChargingSessionTaxView        `json:"tax"`
 	Financial            *ChargingSessionFinancialView `json:"financial,omitempty"`
+}
+
+// ChargingSessionStopView preserves distinct request provenance and charger
+// StopTransaction reason without presenting either as customer-facing prose.
+type ChargingSessionStopView struct {
+	RequestedInitiator *string `json:"requested_initiator,omitempty"`
+	RequestedReason    *string `json:"requested_reason,omitempty"`
+	OCPPReason         *string `json:"ocpp_reason,omitempty"`
 }
 
 // ChargingSessionHistoryQuery uses the same descending timestamp/UUID cursor
@@ -135,6 +144,7 @@ type ChargingSessionHistoryView struct {
 	TotalAmount       *string                      `json:"total_amount,omitempty"`
 	Currency          string                       `json:"currency"`
 	SettlementStatus  string                       `json:"settlement_status"`
+	Stop              *ChargingSessionStopView     `json:"stop,omitempty"`
 	InitialSoCPercent *string                      `json:"initial_soc_percent,omitempty"`
 	FinalSoCPercent   *string                      `json:"final_soc_percent,omitempty"`
 	SoCObservedAt     *time.Time                   `json:"soc_observed_at,omitempty"`
@@ -1183,6 +1193,7 @@ func customerChargingSessionHistoryView(session models.ChargingSession) Charging
 		ConsumedWh:        customerChargingSessionConsumedWh(session),
 		Currency:          session.Currency,
 		SettlementStatus:  session.SettlementStatus,
+		Stop:              customerChargingSessionStopView(session),
 		InitialSoCPercent: decimalPointerString(session.InitialSoCPercent),
 		FinalSoCPercent:   decimalPointerString(session.LatestSoCPercent),
 		SoCObservedAt:     session.SoCObservedAt,
@@ -1287,6 +1298,7 @@ func customerChargingSessionDetailView(session models.ChargingSession, intent mo
 		Currency:             session.Currency,
 		SettlementStatus:     session.SettlementStatus,
 		StopReason:           session.StopReason,
+		Stop:                 customerChargingSessionStopView(session),
 		Charger:              customerChargingSessionChargerView(session.Charger),
 		Connector:            customerChargingSessionConnectorView(session.Connector),
 		Pricing:              customerChargingSessionPricingView(session),
@@ -1300,6 +1312,13 @@ func customerChargingSessionDetailView(session models.ChargingSession, intent mo
 		view.TotalKWh, view.TotalAmount = &totalKWh, &totalAmount
 	}
 	return view
+}
+
+func customerChargingSessionStopView(session models.ChargingSession) *ChargingSessionStopView {
+	if session.RequestedStopInitiator == nil && session.RequestedStopReason == nil && session.OCPPStopReason == nil {
+		return nil
+	}
+	return &ChargingSessionStopView{RequestedInitiator: session.RequestedStopInitiator, RequestedReason: session.RequestedStopReason, OCPPReason: session.OCPPStopReason}
 }
 
 func decimalPointerString(value *decimal.Decimal) *string {

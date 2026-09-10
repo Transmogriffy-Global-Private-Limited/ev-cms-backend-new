@@ -401,7 +401,6 @@ func TestMaterializedSessionCompletionReconciliationWithPostgreSQL(t *testing.T)
 				transaction["stop_state"] = "COMPLETED"
 				transaction["completed_at"] = session.StartTime.Add(time.Hour)
 				transaction["meter_stop_wh"] = session.MeterStartWh + 1000
-				transaction["ocpp_stop_reason"] = "Local"
 			}
 			_ = json.NewEncoder(writer).Encode(map[string]any{"transaction": transaction})
 		default:
@@ -468,7 +467,7 @@ func TestMaterializedSessionCompletionReconciliationWithPostgreSQL(t *testing.T)
 	if err := operations.ReconcilePending(ctx, 10); err != nil {
 		t.Fatalf("reconcile completed HAL transaction: %v", err)
 	}
-	if err := gormDB.First(&session, "id = ?", session.ID).Error; err != nil || session.Status != constants.SessionStatusCompleted || session.EndTime == nil || session.MeterStopWh == nil || *session.MeterStopWh != 1100 || session.SettlementStatus != "SETTLED" {
+	if err := gormDB.First(&session, "id = ?", session.ID).Error; err != nil || session.Status != constants.SessionStatusCompleted || session.EndTime == nil || session.MeterStopWh == nil || *session.MeterStopWh != 1100 || session.SettlementStatus != "SETTLED" || session.OCPPStopReason != nil || session.StopReason != nil {
 		t.Fatalf("completed reconciliation session=%+v err=%v", session, err)
 	}
 	var payments, ledgerEntries int64
@@ -485,7 +484,7 @@ func TestMaterializedSessionCompletionReconciliationWithPostgreSQL(t *testing.T)
 	if err := operations.ReconcilePending(ctx, 10); err != nil {
 		t.Fatalf("repeat completion reconciliation: %v", err)
 	}
-	payload := models.JSONB{"hal_transaction_id": halTransactionID.String(), "ocpp_transaction_id": float64(session.TransactionID), "meter_stop_wh": float64(*session.MeterStopWh), "stopped_at": session.EndTime.Format(time.RFC3339), "stop_reason": "Local"}
+	payload := models.JSONB{"hal_transaction_id": halTransactionID.String(), "ocpp_transaction_id": float64(session.TransactionID), "meter_stop_wh": float64(*session.MeterStopWh), "stopped_at": session.EndTime.Format(time.RFC3339), "ocpp_stop_reason": "Local"}
 	rawPayload, err := json.Marshal(payload)
 	if err != nil {
 		t.Fatalf("marshal delayed completion fact: %v", err)
@@ -497,6 +496,21 @@ func TestMaterializedSessionCompletionReconciliationWithPostgreSQL(t *testing.T)
 	}
 	if err := halops.NewFactIngestor(gormDB, "test", service).Accept(ctx, "test", fact); err != nil {
 		t.Fatalf("normal completion fact after recovery: %v", err)
+	}
+	if err := gormDB.First(&session, "id = ?", session.ID).Error; err != nil || session.OCPPStopReason == nil || *session.OCPPStopReason != "Local" || session.StopReason == nil || *session.StopReason != "Local" {
+		t.Fatalf("late immutable completion metadata did not fill canonical and legacy OCPP reasons session=%+v err=%v", session, err)
+	}
+	duplicateFact := fact
+	duplicateFact.FactID = uuid.New()
+	duplicateFact.ImmutableContentSHA256, err = halops.CanonicalFactDigest(duplicateFact)
+	if err != nil {
+		t.Fatalf("digest duplicate delayed completion fact: %v", err)
+	}
+	if err := halops.NewFactIngestor(gormDB, "test", service).Accept(ctx, "test", duplicateFact); err != nil {
+		t.Fatalf("duplicate late completion fact: %v", err)
+	}
+	if err := gormDB.First(&session, "id = ?", session.ID).Error; err != nil || session.OCPPStopReason == nil || *session.OCPPStopReason != "Local" || session.StopReason == nil || *session.StopReason != "Local" {
+		t.Fatalf("duplicate late completion metadata changed persisted stop reasons session=%+v err=%v", session, err)
 	}
 	if err := gormDB.Model(&models.Payment{}).Where("session_id = ?", session.ID).Count(&payments).Error; err != nil {
 		t.Fatalf("count payments after retries: %v", err)

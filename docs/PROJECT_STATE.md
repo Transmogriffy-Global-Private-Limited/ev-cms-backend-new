@@ -1,5 +1,42 @@
 # Project State
 
+## 2026-09-10 - Charging-session stop provenance deployed
+
+CMS source migration `000068` (not applied) adds nullable canonical requested
+stop initiator/reason and OCPP stop reason to charging sessions. HAL immutable
+completion facts and exact transaction reconciliation converge through one
+locked finalizer: matching/new metadata fills missing canonical fields, while
+conflicting established metadata fails safely without changing meter, time,
+settlement, wallet, connector, or command truth. Customer and CPO session
+detail/list plus CPO charger-transaction reads expose the additive `stop`
+object; legacy `stop_reason`/transaction `reason` remain the
+compatibility OCPP projection for new completions and safe late OCPP-metadata
+enrichment when it was previously absent. No HAL source or
+financial/session-policy change occurred. Migration `000068` is applied and
+the CMS runtime is source revision `db16078` with binary SHA-256
+`88f7ee243a302ebb9fda06ef33dd7b0d04710299336eae630dcccec2d77a5543`.
+The preceding binary is retained at
+`/root/evcmsnew-backups/pre-db16078-20260910T164902+0530/evcmsnew`.
+
+Loopback/public health and readiness, 242-operation OpenAPI parity, workers,
+Caddy, and post-rehost logs passed. Paired HAL, virtual-charger, physical
+OCPP, and PostgreSQL-gated lifecycle checks remain unverified; `pwsh` is
+unavailable.
+
+## 2026-09-10 - TriggerMessage follow-on CMS rehost
+
+The CMS runtime is active from source revision `7e5ea97`, with binary SHA-256
+`220789b31050240ecf2394c229489c72fa9fa6749ff05767830fe9d4d59b941a` and 242
+live/source OpenAPI operations. No new CMS migration was required; the
+development database remains through `000067`. The preceding binary is
+retained at `/root/evcmsnew-backups/pre-b21020e-20260909T164022+0530/evcmsnew`.
+
+Loopback/public health and readiness, public OpenAPI and Swagger, workers,
+Caddy validation, loopback binding, and the post-rehost journal scan passed.
+This rehost covers CMS only: HAL migration `022`, paired HAL runtime,
+virtual-charger, physical OCPP, and PostgreSQL-gated tests remain unverified.
+`TEST_DATABASE_URL` and `pwsh` are unavailable.
+
 ## 2026-09-09 - Materialized-session completion reconciliation publication and fairness follow-up
 
 - CMS source now extends the existing bounded HAL reconciler to query only the
@@ -90,6 +127,25 @@ disposable `TEST_DATABASE_URL` was selected. Source-level migration-catalog and
 history-projection coverage, full Go tests, vet, and documentation-contract
 verification pass. No database mutation, deployment, restart, commit, or push
 occurred.
+
+## 2026-09-10 - TriggerMessage follow-on diagnostics source design checkpoint
+
+The source now records and exposes a strictly sanitized, diagnostic-only
+follow-on observation for an allowlisted TriggerMessage whose HAL `CALLRESULT`
+is durably recorded as `Accepted`. HAL migration `022` (source only, not
+applied) atomically stores an indexed, restart-safe 60-second evidence window
+with that accepted trace and its outbox record before later operation
+completion. A HAL window can transition only from `OPEN` to either
+`OBSERVED` or `CLOSED`; its first durable outcome is final. CMS derives acceptance only
+from the delivered Accepted trace, and returns `NOT_OBSERVED` only after a
+matching delivered HAL closure; missing delivery remains `PENDING` past the
+nominal deadline. Its positive-first scan is defensive compatibility handling,
+not a correction of contradictory HAL closure evidence. It establishes no
+causal or physical charger-effect proof and mutates no operation, session,
+occupancy, or financial state. The CMS rehost is recorded in the current
+deployment entry above; paired HAL deployment and PostgreSQL/hardware
+verification remain unavailable without `TEST_DATABASE_URL` and a test
+charger.
 
 ## 2026-09-08 - Per-operation OCPP protocol-evidence deployed
 

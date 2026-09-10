@@ -343,44 +343,47 @@ type Wallet struct {
 }
 
 type ChargingSession struct {
-	ID                 uuid.UUID               `gorm:"type:uuid;primaryKey;default:gen_random_uuid()" json:"id"`
-	CPOID              uuid.UUID               `gorm:"type:uuid;not null;index" json:"cpo_id"`
-	StartIntentID      *uuid.UUID              `gorm:"type:uuid;uniqueIndex" json:"start_intent_id,omitempty"`
-	StartIntent        *ChargingStartIntent    `gorm:"foreignKey:StartIntentID;references:ID" json:"-"`
-	TraceID            *uuid.UUID              `gorm:"type:uuid;uniqueIndex" json:"trace_id,omitempty"`
-	HALTransactionID   *uuid.UUID              `gorm:"type:uuid;uniqueIndex" json:"hal_transaction_id,omitempty"`
-	TransactionID      int64                   `gorm:"type:bigint;not null;index" json:"transaction_id"`
-	CustomerID         uuid.UUID               `gorm:"type:uuid;not null;index" json:"customer_id"`
-	Customer           Customer                `gorm:"foreignKey:CustomerID;constraint:OnUpdate:CASCADE,OnDelete:RESTRICT" json:"customer,omitempty"`
-	ChargerID          uuid.UUID               `gorm:"type:uuid;not null;index" json:"charger_id"`
-	Charger            Charger                 `gorm:"foreignKey:ChargerID;constraint:OnUpdate:CASCADE,OnDelete:RESTRICT" json:"charger,omitempty"`
-	ConnectorID        uuid.UUID               `gorm:"type:uuid;not null;index" json:"connector_id"`
-	Connector          Connector               `gorm:"foreignKey:ConnectorID;constraint:OnUpdate:CASCADE,OnDelete:RESTRICT" json:"connector,omitempty"`
-	TariffID           uuid.UUID               `gorm:"type:uuid;not null;index" json:"tariff_id"`
-	Tariff             Tariff                  `gorm:"foreignKey:TariffID;constraint:OnUpdate:CASCADE,OnDelete:RESTRICT" json:"tariff,omitempty"`
-	StartTime          time.Time               `gorm:"not null" json:"start_time"`
-	EndTime            *time.Time              `json:"end_time,omitempty"`
-	MeterStartWh       int64                   `gorm:"not null" json:"meter_start_wh"`
-	MeterStopWh        *int64                  `json:"meter_stop_wh,omitempty"`
-	LatestMeterWh      *int64                  `gorm:"type:bigint" json:"latest_meter_wh,omitempty"`
-	MeterObservedAt    *time.Time              `gorm:"type:timestamptz" json:"meter_observed_at,omitempty"`
-	MeterSequence      int64                   `gorm:"type:bigint;not null;default:0" json:"meter_sequence"`
-	InitialSoCPercent  *decimal.Decimal        `gorm:"column:initial_soc_percent;type:numeric(6,3)" json:"initial_soc_percent,omitempty"`
-	LatestSoCPercent   *decimal.Decimal        `gorm:"column:latest_soc_percent;type:numeric(6,3)" json:"latest_soc_percent,omitempty"`
-	SoCObservedAt      *time.Time              `gorm:"column:soc_observed_at;type:timestamptz" json:"soc_observed_at,omitempty"`
-	SoCSequence        int64                   `gorm:"column:soc_sequence;type:bigint;not null;default:0" json:"soc_sequence"`
-	TotalKWh           decimal.Decimal         `gorm:"column:total_kwh;type:numeric(14,3);not null;default:0" json:"total_kwh"`
-	TotalAmount        decimal.Decimal         `gorm:"type:numeric(14,2);not null;default:0" json:"total_amount"`
-	Currency           string                  `gorm:"type:char(3);not null;default:'INR'" json:"currency"`
-	StopReason         *string                 `gorm:"type:varchar(50)" json:"stop_reason,omitempty"`
-	TariffSnapshot     JSONB                   `gorm:"type:jsonb;not null;default:'{}'" json:"tariff_snapshot"`
-	TaxSnapshot        JSONB                   `gorm:"type:jsonb;not null;default:'{}'" json:"tax_snapshot"`
-	Status             constants.SessionStatus `gorm:"type:varchar(30);not null;default:'ACTIVE'" json:"status"`
-	SettlementStatus   string                  `gorm:"type:varchar(32);not null;default:'PENDING'" json:"settlement_status"`
-	WalletTransactions []WalletTransaction     `gorm:"foreignKey:SessionID" json:"wallet_transactions,omitempty"`
-	Payment            *Payment                `gorm:"foreignKey:SessionID" json:"payment,omitempty"`
-	CreatedAt          time.Time               `gorm:"not null" json:"created_at"`
-	UpdatedAt          time.Time               `gorm:"not null" json:"updated_at"`
+	ID                     uuid.UUID               `gorm:"type:uuid;primaryKey;default:gen_random_uuid()" json:"id"`
+	CPOID                  uuid.UUID               `gorm:"type:uuid;not null;index" json:"cpo_id"`
+	StartIntentID          *uuid.UUID              `gorm:"type:uuid;uniqueIndex" json:"start_intent_id,omitempty"`
+	StartIntent            *ChargingStartIntent    `gorm:"foreignKey:StartIntentID;references:ID" json:"-"`
+	TraceID                *uuid.UUID              `gorm:"type:uuid;uniqueIndex" json:"trace_id,omitempty"`
+	HALTransactionID       *uuid.UUID              `gorm:"type:uuid;uniqueIndex" json:"hal_transaction_id,omitempty"`
+	TransactionID          int64                   `gorm:"type:bigint;not null;index" json:"transaction_id"`
+	CustomerID             uuid.UUID               `gorm:"type:uuid;not null;index" json:"customer_id"`
+	Customer               Customer                `gorm:"foreignKey:CustomerID;constraint:OnUpdate:CASCADE,OnDelete:RESTRICT" json:"customer,omitempty"`
+	ChargerID              uuid.UUID               `gorm:"type:uuid;not null;index" json:"charger_id"`
+	Charger                Charger                 `gorm:"foreignKey:ChargerID;constraint:OnUpdate:CASCADE,OnDelete:RESTRICT" json:"charger,omitempty"`
+	ConnectorID            uuid.UUID               `gorm:"type:uuid;not null;index" json:"connector_id"`
+	Connector              Connector               `gorm:"foreignKey:ConnectorID;constraint:OnUpdate:CASCADE,OnDelete:RESTRICT" json:"connector,omitempty"`
+	TariffID               uuid.UUID               `gorm:"type:uuid;not null;index" json:"tariff_id"`
+	Tariff                 Tariff                  `gorm:"foreignKey:TariffID;constraint:OnUpdate:CASCADE,OnDelete:RESTRICT" json:"tariff,omitempty"`
+	StartTime              time.Time               `gorm:"not null" json:"start_time"`
+	EndTime                *time.Time              `json:"end_time,omitempty"`
+	MeterStartWh           int64                   `gorm:"not null" json:"meter_start_wh"`
+	MeterStopWh            *int64                  `json:"meter_stop_wh,omitempty"`
+	LatestMeterWh          *int64                  `gorm:"type:bigint" json:"latest_meter_wh,omitempty"`
+	MeterObservedAt        *time.Time              `gorm:"type:timestamptz" json:"meter_observed_at,omitempty"`
+	MeterSequence          int64                   `gorm:"type:bigint;not null;default:0" json:"meter_sequence"`
+	InitialSoCPercent      *decimal.Decimal        `gorm:"column:initial_soc_percent;type:numeric(6,3)" json:"initial_soc_percent,omitempty"`
+	LatestSoCPercent       *decimal.Decimal        `gorm:"column:latest_soc_percent;type:numeric(6,3)" json:"latest_soc_percent,omitempty"`
+	SoCObservedAt          *time.Time              `gorm:"column:soc_observed_at;type:timestamptz" json:"soc_observed_at,omitempty"`
+	SoCSequence            int64                   `gorm:"column:soc_sequence;type:bigint;not null;default:0" json:"soc_sequence"`
+	TotalKWh               decimal.Decimal         `gorm:"column:total_kwh;type:numeric(14,3);not null;default:0" json:"total_kwh"`
+	TotalAmount            decimal.Decimal         `gorm:"type:numeric(14,2);not null;default:0" json:"total_amount"`
+	Currency               string                  `gorm:"type:char(3);not null;default:'INR'" json:"currency"`
+	StopReason             *string                 `gorm:"type:varchar(50)" json:"stop_reason,omitempty"`
+	RequestedStopInitiator *string                 `gorm:"type:varchar(50)" json:"requested_stop_initiator,omitempty"`
+	RequestedStopReason    *string                 `gorm:"type:varchar(100)" json:"requested_stop_reason,omitempty"`
+	OCPPStopReason         *string                 `gorm:"type:varchar(50)" json:"ocpp_stop_reason,omitempty"`
+	TariffSnapshot         JSONB                   `gorm:"type:jsonb;not null;default:'{}'" json:"tariff_snapshot"`
+	TaxSnapshot            JSONB                   `gorm:"type:jsonb;not null;default:'{}'" json:"tax_snapshot"`
+	Status                 constants.SessionStatus `gorm:"type:varchar(30);not null;default:'ACTIVE'" json:"status"`
+	SettlementStatus       string                  `gorm:"type:varchar(32);not null;default:'PENDING'" json:"settlement_status"`
+	WalletTransactions     []WalletTransaction     `gorm:"foreignKey:SessionID" json:"wallet_transactions,omitempty"`
+	Payment                *Payment                `gorm:"foreignKey:SessionID" json:"payment,omitempty"`
+	CreatedAt              time.Time               `gorm:"not null" json:"created_at"`
+	UpdatedAt              time.Time               `gorm:"not null" json:"updated_at"`
 }
 
 // ChargingReconciliationCursor is scheduler metadata, not charging truth. Its

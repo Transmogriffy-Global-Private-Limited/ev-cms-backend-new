@@ -395,6 +395,7 @@ func toChargerTransactionView(transaction ChargerTransaction) ChargerTransaction
 		},
 		Timestamp:              transaction.CreatedAt,
 		Reason:                 transaction.StopReason,
+		Stop:                   chargingSessionStopView(transaction.ChargingSession),
 		SessionStatus:          transaction.Status,
 		SettlementStatus:       transaction.SettlementStatus,
 		ReconciliationRequired: transaction.Status == constants.SessionStatusReconciliationRequired || transaction.SettlementStatus == "RECONCILIATION_REQUIRED",
@@ -412,6 +413,7 @@ func toChargingSessionView(session models.ChargingSession) ChargingSessionView {
 		Currency:          session.Currency,
 		Status:            session.Status,
 		StopReason:        session.StopReason,
+		Stop:              chargingSessionStopView(session),
 		InitialSoCPercent: session.InitialSoCPercent,
 		FinalSoCPercent:   session.LatestSoCPercent,
 		SoCObservedAt:     session.SoCObservedAt,
@@ -466,6 +468,20 @@ func toChargingSessionView(session models.ChargingSession) ChargingSessionView {
 	}
 
 	return view
+}
+
+// chargingSessionStopView projects only the persisted canonical stop fields.
+// Legacy stop_reason/reason remains a compatibility field and cannot establish
+// requested-stop provenance on its own.
+func chargingSessionStopView(session models.ChargingSession) *ChargingSessionStopView {
+	if session.RequestedStopInitiator == nil && session.RequestedStopReason == nil && session.OCPPStopReason == nil {
+		return nil
+	}
+	return &ChargingSessionStopView{
+		RequestedInitiator: session.RequestedStopInitiator,
+		RequestedReason:    session.RequestedStopReason,
+		OCPPReason:         session.OCPPStopReason,
+	}
 }
 
 // sessionTariffDisplay uses the frozen session-time commercial snapshot first.

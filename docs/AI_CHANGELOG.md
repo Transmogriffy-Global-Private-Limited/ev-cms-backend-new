@@ -1,5 +1,74 @@
 # AI Changelog
 
+## 2026-09-10 - Deploy authoritative charging-session stop provenance
+
+- CMS migration `000068` adds nullable requested-stop initiator/reason and
+  charger-reported OCPP stop-reason columns without backfilling ambiguous
+  legacy `stop_reason` data. Immutable HAL completion facts and exact HAL
+  transaction reconciliation use the same conflict-safe finalizer.
+- Customer and CPO session projections plus CPO charger transactions gain an
+  additive `stop` object; legacy `stop_reason`/transaction `reason` remain
+  compatible as the OCPP-reason projection for
+  new authoritative completions and safe late OCPP-metadata enrichment when it
+  was previously absent. No HAL change or financial/session-policy change
+  occurred. Migration `000068` was applied
+  after a retained mode-0600 custom-format database dump; the CMS was
+  rehosted from source revision `db16078`.
+- The active binary SHA-256 is
+  `88f7ee243a302ebb9fda06ef33dd7b0d04710299336eae630dcccec2d77a5543`.
+  The preceding binary is retained at
+  `/root/evcmsnew-backups/pre-db16078-20260910T164902+0530/evcmsnew`
+  (SHA-256 `220789b31050240ecf2394c229489c72fa9fa6749ff05767830fe9d4d59b941a`).
+- Loopback/public health and readiness, live/source OpenAPI parity at 242
+  operations, workers, Caddy validation, and the post-rehost journal scan
+  passed. Paired HAL, virtual-charger, physical OCPP, and PostgreSQL-gated
+  lifecycle checks remain unverified; `TEST_DATABASE_URL` and `pwsh` are
+  unavailable.
+
+## 2026-09-10 - Rehost CMS TriggerMessage follow-on diagnostics
+
+- Rehosted the CMS from source revision `7e5ea97` after source verification.
+  No new CMS migration was required; the development database remains through
+  migration `000067`. The active binary SHA-256 is
+  `220789b31050240ecf2394c229489c72fa9fa6749ff05767830fe9d4d59b941a`, with
+  242 live/source OpenAPI operations.
+- Retained the previous binary at
+  `/root/evcmsnew-backups/pre-b21020e-20260909T164022+0530/evcmsnew`
+  (SHA-256 `d226751d1dc0031a0b3bf369896c4f9c955abc864189f1ec33158e8aa6203167`).
+- Post-rehost loopback/public liveness and readiness, public OpenAPI and
+  Swagger, all current workers, Caddy validation, loopback binding, and the
+  post-rehost journal error scan passed. The CMS deployment does not claim the
+  paired HAL migration `022`, HAL runtime, virtual-charger, or physical-OCPP
+  acceptance; those remain separate pending validation.
+
+Verification: focused and full Go tests, vet, and production build passed
+before rehost. `TEST_DATABASE_URL` is unset, so PostgreSQL-gated tests were
+not run; `pwsh` is unavailable for the repository documentation verifier.
+
+## 2026-09-10 - Close TriggerMessage follow-on acceptance and negative-proof races (source only)
+
+- HAL atomically persists migration `022`'s indexed, durable follow-on window
+  with its `TriggerMessage` `CALLRESULT` `Accepted` trace event and trace
+  outbox record, before ordinary operation completion bookkeeping. Inbound OCPP matching uses
+  this bounded window table, not a growing charger-operation ledger scan; the
+  existing trace worker durably closes expired windows. CMS derives acceptance
+  from the delivered Accepted trace, never local completion time.
+- CMS returns `NOT_OBSERVED` only for a matching delivered closure. Missing
+  delivery remains `PENDING` beyond 60 seconds. HAL makes a window's first
+  durable outcome final (`OPEN -> OBSERVED` or `OPEN -> CLOSED`), so CMS's
+  positive-first scan remains defensive compatibility handling rather than a
+  correction of a contradictory closure. Identity, requested action, strict `(accepted_at,
+  deadline]` timing, and connector scope for `MeterValues` and
+  `StatusNotification` remain required. This is diagnostic evidence only: no
+  operation, session, connector occupancy, settlement, HAL command, or new
+  worker changes. Migration `022` is source-only and unapplied.
+
+Verification: focused CMS classifier/trace-ingress/OpenAPI checks, focused HAL
+store/OCPP/trace-worker checks, both repositories' `go test -p 1 ./...`,
+`go vet -p 1 ./...`, `go build ./...`, `git diff --check`, and CMS
+documentation verification pass. PostgreSQL-gated tests remain unavailable
+without `TEST_DATABASE_URL`. Neither CMS nor HAL has been rehosted/deployed.
+
 ## 2026-09-09 - Reconcile durable HAL completion for materialized CMS sessions
 
 - Extended the existing bounded `halops` reconciliation loop with an exact

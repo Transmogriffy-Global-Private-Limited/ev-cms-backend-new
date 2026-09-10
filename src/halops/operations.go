@@ -75,20 +75,22 @@ type StartMaterializer func(context.Context, StartEvidence) error
 // CompletionEvidence is HAL's durable terminal transaction truth. It is
 // intentionally separate from diagnostic trace and live-runtime projections.
 type CompletionEvidence struct {
-	HALTransactionID    uuid.UUID
-	CMSStartIntentID    uuid.UUID
-	CMSCommandID        uuid.UUID
-	CPOID               uuid.UUID
-	CMSChargerID        uuid.UUID
-	CMSConnectorID      uuid.UUID
-	ChargerOCPPIdentity string
-	OCPPConnectorNumber int
-	OCPPTransactionID   int64
-	ActualStartedAt     time.Time
-	MeterStartWh        int64
-	ActualCompletedAt   time.Time
-	MeterStopWh         int64
-	StopReason          string
+	HALTransactionID       uuid.UUID
+	CMSStartIntentID       uuid.UUID
+	CMSCommandID           uuid.UUID
+	CPOID                  uuid.UUID
+	CMSChargerID           uuid.UUID
+	CMSConnectorID         uuid.UUID
+	ChargerOCPPIdentity    string
+	OCPPConnectorNumber    int
+	OCPPTransactionID      int64
+	ActualStartedAt        time.Time
+	MeterStartWh           int64
+	ActualCompletedAt      time.Time
+	MeterStopWh            int64
+	RequestedStopInitiator string
+	RequestedStopReason    string
+	OCPPStopReason         string
 }
 
 // CompletionMaterializer belongs to the charging domain because it validates
@@ -644,7 +646,7 @@ func completionEvidenceFromTransaction(transaction halclient.Transaction) (Compl
 	if transaction.HALTransactionID == uuid.Nil || transaction.CMSStartIntentID == uuid.Nil || transaction.CMSCommandID == uuid.Nil || transaction.CPOID == uuid.Nil || transaction.CMSChargerID == uuid.Nil || transaction.CMSConnectorID == uuid.Nil || transaction.OCPPTransactionID < 1 || transaction.MeterStartWh < 0 || transaction.ActualStartedAt.IsZero() || transaction.OCPPConnectorNumber < 1 || strings.TrimSpace(transaction.ChargerOCPPIdentity) == "" {
 		return CompletionEvidence{}, false, errors.New("HAL transaction omits required identity evidence")
 	}
-	return CompletionEvidence{HALTransactionID: transaction.HALTransactionID, CMSStartIntentID: transaction.CMSStartIntentID, CMSCommandID: transaction.CMSCommandID, CPOID: transaction.CPOID, CMSChargerID: transaction.CMSChargerID, CMSConnectorID: transaction.CMSConnectorID, ChargerOCPPIdentity: transaction.ChargerOCPPIdentity, OCPPConnectorNumber: transaction.OCPPConnectorNumber, OCPPTransactionID: transaction.OCPPTransactionID, ActualStartedAt: transaction.ActualStartedAt, MeterStartWh: transaction.MeterStartWh, ActualCompletedAt: *transaction.CompletedAt, MeterStopWh: *transaction.MeterStopWh, StopReason: strings.TrimSpace(transaction.OCPPStopReason)}, true, nil
+	return CompletionEvidence{HALTransactionID: transaction.HALTransactionID, CMSStartIntentID: transaction.CMSStartIntentID, CMSCommandID: transaction.CMSCommandID, CPOID: transaction.CPOID, CMSChargerID: transaction.CMSChargerID, CMSConnectorID: transaction.CMSConnectorID, ChargerOCPPIdentity: transaction.ChargerOCPPIdentity, OCPPConnectorNumber: transaction.OCPPConnectorNumber, OCPPTransactionID: transaction.OCPPTransactionID, ActualStartedAt: transaction.ActualStartedAt, MeterStartWh: transaction.MeterStartWh, ActualCompletedAt: *transaction.CompletedAt, MeterStopWh: *transaction.MeterStopWh, RequestedStopInitiator: strings.TrimSpace(transaction.RequestedStopInitiator), RequestedStopReason: strings.TrimSpace(transaction.RequestedStopReason), OCPPStopReason: strings.TrimSpace(transaction.OCPPStopReason)}, true, nil
 }
 
 // HAL currently persists these states before a transaction's durable terminal

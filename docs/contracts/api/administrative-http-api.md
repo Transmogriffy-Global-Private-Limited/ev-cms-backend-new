@@ -120,10 +120,23 @@ returns `409 idempotency_conflict`.
   same-ID HAL lookup; it never sends another physical OCPP command.
 - `GET /api/v1/cpo/operations/charger-operations/{operation_id}/ocpp-exchanges`
   requires the same operation capability (not generic trace permission), is
-  tenant-safe, and returns only grouped safe CALL/CALLRESULT/CALLERROR
-  evidence for that operation. It may truthfully return `exchanges: []` while
-  asynchronous HAL trace delivery is pending. `OCPP_CONFIRMED` is a protocol
-  response, never proof of a later physical charger effect.
+  tenant-safe, and returns grouped safe CALL/CALLRESULT/CALLERROR evidence for
+  that operation plus a `follow_on` diagnostic object. It may truthfully return
+  `exchanges: []` while asynchronous HAL trace delivery is pending.
+  `OCPP_CONFIRMED` is a protocol response, never proof of a later physical
+  charger effect. For an `Accepted` allowlisted `TRIGGER_MESSAGE`, `follow_on`
+  is `PENDING`, `OBSERVED`, or `NOT_OBSERVED`: the window is exactly 60 seconds
+  from the delivered HAL `TriggerMessage` `CALLRESULT` `Accepted` trace event,
+  not from the CMS request or later operation completion. `OBSERVED` requires matching
+  later charger traffic with the requested action and charger identity; for
+  `MeterValues` and `StatusNotification` it also requires the requested
+  connector. Windows may overlap, and one observed frame may appear in every
+  matching operation. `NOT_OBSERVED` requires a matching delivered HAL closure
+  after that exact window; the absence of delivered evidence remains `PENDING`
+  even after the nominal deadline. It is temporal diagnostic evidence only: it proves no
+  causal uniqueness, physical effect, operation-state change, session change,
+  connector release, or settlement outcome. Operations that are not an
+  accepted allowlisted TriggerMessage return `NOT_APPLICABLE`.
 
 `GET /api/v1/cpo/operations/charger-operations` is the separate CMS-owned
 history feed. It requires the same CPO bearer, matching app ID, and
@@ -3510,6 +3523,16 @@ start intent: these describe the customer's `AUTO`, `ENERGY`, `TIME`, or
 `MONEY` limit selection and are independent of the tariff billing dimension.
 Legacy sessions without a start intent omit those two fields.
 
+The additive `stop` object preserves authoritative stop provenance: optional
+`requested_initiator` and `requested_reason` describe the actor/policy and
+machine-readable reason that requested a stop; `ocpp_reason` is the charger
+reported OCPP `StopTransaction.reason`. For example,
+`ENERGY_LIMIT` / `energy_limit_reached` / `Remote` means an energy limit
+requested the stop and the charger reported a remote protocol stop. `Remote`
+is not a business reason. A spontaneous charger stop may contain only
+`ocpp_reason: Local`. Existing `stop_reason` remains a legacy compatibility
+projection and must not be used to manufacture missing canonical provenance.
+
 ### 12.5 CPO charging diagnostic trace
 
 ```text
@@ -3564,6 +3587,11 @@ tenant-scoped and does not contact the HAL or issue charger commands. Financial
 status values are `PENDING`, `COMPLETED`, `FAILED`, `REVERSED`, or `REFUNDED`.
 Malformed filters return `400`; unauthenticated or unauthorized callers receive
 the standard `401`/`403` responses.
+
+Transactions expose the same additive `stop` object and semantics as CPO
+charging-session reads. Existing `reason` remains a legacy compatibility
+projection; use `stop.requested_*` for requested-stop provenance and
+`stop.ocpp_reason` for charger protocol truth.
 
 ## 13. Client State Machine
 

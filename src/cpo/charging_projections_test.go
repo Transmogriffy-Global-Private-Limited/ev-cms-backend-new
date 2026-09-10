@@ -24,6 +24,8 @@ type chargingSessionProjectionRepository struct {
 	getCPOID     uuid.UUID
 	listCPOID    uuid.UUID
 	getSessionID uuid.UUID
+	getCalls     int
+	listCalls    int
 }
 
 func (r *chargingSessionProjectionRepository) GetAnalytics(context.Context, uuid.UUID, *uuid.UUID, AnalyticsQuery) (Analytics, error) {
@@ -35,7 +37,7 @@ func (r *chargingSessionProjectionRepository) ListWalletTransactions(context.Con
 }
 
 func (r *chargingSessionProjectionRepository) GetChargingSession(_ context.Context, cpoID, sessionID uuid.UUID) (*models.ChargingSession, error) {
-	r.getCPOID, r.getSessionID = cpoID, sessionID
+	r.getCPOID, r.getSessionID, r.getCalls = cpoID, sessionID, r.getCalls+1
 	if sessionID != r.session.ID {
 		return nil, gorm.ErrRecordNotFound
 	}
@@ -44,7 +46,7 @@ func (r *chargingSessionProjectionRepository) GetChargingSession(_ context.Conte
 }
 
 func (r *chargingSessionProjectionRepository) ListChargingSessions(_ context.Context, cpoID uuid.UUID, _ ChargingSessionListQuery) ([]models.ChargingSession, error) {
-	r.listCPOID = cpoID
+	r.listCPOID, r.listCalls = cpoID, r.listCalls+1
 	return []models.ChargingSession{r.session}, nil
 }
 
@@ -68,16 +70,21 @@ func TestCPOTransactionProjectionUsesJoinedHumanAndProtocolIdentity(t *testing.T
 
 	hubID, sessionID, halTransactionID := uuid.New(), uuid.New(), uuid.New()
 	connectorNumber := 2
+	requestedInitiator, requestedReason, ocppReason, legacyReason := "ENERGY_LIMIT", "energy_limit_reached", "Remote", "Remote"
 	transaction := ChargerTransaction{
 		ChargingSession: models.ChargingSession{
-			ID:               sessionID,
-			HALTransactionID: &halTransactionID,
-			TransactionID:    654321,
-			Status:           constants.SessionStatusReconciliationRequired,
-			SettlementStatus: "RECONCILIATION_REQUIRED",
-			TotalKWh:         decimal.RequireFromString("12.345"),
-			TotalAmount:      decimal.RequireFromString("123.45"),
-			CreatedAt:        time.Date(2026, 8, 25, 12, 0, 0, 0, time.UTC),
+			ID:                     sessionID,
+			HALTransactionID:       &halTransactionID,
+			TransactionID:          654321,
+			Status:                 constants.SessionStatusReconciliationRequired,
+			SettlementStatus:       "RECONCILIATION_REQUIRED",
+			TotalKWh:               decimal.RequireFromString("12.345"),
+			TotalAmount:            decimal.RequireFromString("123.45"),
+			CreatedAt:              time.Date(2026, 8, 25, 12, 0, 0, 0, time.UTC),
+			RequestedStopInitiator: &requestedInitiator,
+			RequestedStopReason:    &requestedReason,
+			OCPPStopReason:         &ocppReason,
+			StopReason:             &legacyReason,
 		},
 		ChargerCode:         "CP0001",
 		ChargerOCPPIdentity: "ocpp-identity-01",
@@ -98,6 +105,9 @@ func TestCPOTransactionProjectionUsesJoinedHumanAndProtocolIdentity(t *testing.T
 	}
 	if !view.ReconciliationRequired || view.SessionStatus != constants.SessionStatusReconciliationRequired || view.SettlementStatus != "RECONCILIATION_REQUIRED" {
 		t.Fatalf("reconciliation state=%+v", view)
+	}
+	if view.Stop == nil || view.Stop.RequestedInitiator == nil || *view.Stop.RequestedInitiator != requestedInitiator || view.Stop.RequestedReason == nil || *view.Stop.RequestedReason != requestedReason || view.Stop.OCPPReason == nil || *view.Stop.OCPPReason != ocppReason || view.Reason == nil || *view.Reason != legacyReason {
+		t.Fatalf("transaction stop provenance=%+v legacy=%v", view.Stop, view.Reason)
 	}
 }
 
@@ -203,31 +213,87 @@ func TestCPOChargingSessionGetAndListKeepCommercialProjectionTenantScoped(t *tes
 	cpoID := uuid.New()
 	criteria := constants.ChargingLimitTypeTime
 	requested := decimal.RequireFromString("45")
+	requestedInitiator, requestedReason, ocppReason := "ENERGY_LIMIT", "energy_limit_reached", "Remote"
 	session := models.ChargingSession{
-		ID:             uuid.New(),
-		CPOID:          cpoID,
-		TariffSnapshot: models.JSONB{"price_per_unit": "3", "units": "minutes"},
-		TaxSnapshot:    models.JSONB{"sgst_rate": "9", "cgst_rate": "9", "igst_rate": "0"},
-		StartIntent:    &models.ChargingStartIntent{LimitType: criteria, RequestedLimitValue: &requested},
+		ID:                     uuid.New(),
+		CPOID:                  cpoID,
+		TariffSnapshot:         models.JSONB{"price_per_unit": "3", "units": "minutes"},
+		TaxSnapshot:            models.JSONB{"sgst_rate": "9", "cgst_rate": "9", "igst_rate": "0"},
+		StartIntent:            &models.ChargingStartIntent{LimitType: criteria, RequestedLimitValue: &requested},
+		RequestedStopInitiator: &requestedInitiator,
+		RequestedStopReason:    &requestedReason,
+		OCPPStopReason:         &ocppReason,
 	}
 	repository := &chargingSessionProjectionRepository{session: session}
 	service := &Service{repository: repository}
 	principal := auth.Principal{Scope: constants.AuthScopeCPO, CPOID: &cpoID}
 
 	got, err := service.GetChargingSession(context.Background(), principal, session.ID)
-	if err != nil || repository.getCPOID != cpoID || repository.getSessionID != session.ID {
+	if err != nil || repository.getCPOID != cpoID || repository.getSessionID != session.ID || repository.getCalls != 1 {
 		t.Fatalf("single session read=%+v err=%v scope=%s/%s", got, err, repository.getCPOID, repository.getSessionID)
 	}
 	if !got.PricePerUnit.Equal(decimal.NewFromInt(3)) || got.StartCriteria == nil || *got.StartCriteria != criteria || got.RequestedLimitValue == nil || !got.RequestedLimitValue.Equal(requested) {
 		t.Fatalf("single session commercial projection=%+v", got)
 	}
+	if got.Stop == nil || got.Stop.RequestedInitiator == nil || *got.Stop.RequestedInitiator != requestedInitiator || got.Stop.RequestedReason == nil || *got.Stop.RequestedReason != requestedReason || got.Stop.OCPPReason == nil || *got.Stop.OCPPReason != ocppReason {
+		t.Fatalf("single session stop provenance=%+v", got.Stop)
+	}
 
 	listed, err := service.ListChargingSessions(context.Background(), principal, ChargingSessionListQuery{Limit: 1})
-	if err != nil || repository.listCPOID != cpoID || len(listed.Sessions) != 1 {
+	if err != nil || repository.listCPOID != cpoID || repository.listCalls != 1 || len(listed.Sessions) != 1 {
 		t.Fatalf("list session response=%+v err=%v scope=%s", listed, err, repository.listCPOID)
 	}
 	if !listed.Sessions[0].PricePerUnit.Equal(decimal.NewFromInt(3)) || listed.Sessions[0].StartCriteria == nil || *listed.Sessions[0].StartCriteria != criteria {
 		t.Fatalf("list session commercial projection=%+v", listed.Sessions[0])
+	}
+	if listed.Sessions[0].Stop == nil || listed.Sessions[0].Stop.RequestedInitiator == nil || *listed.Sessions[0].Stop.RequestedInitiator != requestedInitiator || listed.Sessions[0].Stop.RequestedReason == nil || *listed.Sessions[0].Stop.RequestedReason != requestedReason || listed.Sessions[0].Stop.OCPPReason == nil || *listed.Sessions[0].Stop.OCPPReason != ocppReason {
+		t.Fatalf("list session stop provenance=%+v", listed.Sessions[0].Stop)
+	}
+}
+
+func TestCPOStopProvenancePreservesCanonicalHALTruthWithoutLegacyInference(t *testing.T) {
+	t.Parallel()
+	for _, test := range []struct {
+		name, initiator, reason, ocpp string
+	}{
+		{"energy limit", "ENERGY_LIMIT", "energy_limit_reached", "Remote"},
+		{"money limit", "MONEY_LIMIT", "money_limit_reached", "Remote"},
+		{"wallet limit", "WALLET_LIMIT", "wallet_limit_reached", "Remote"},
+		{"charger spontaneous", "", "", "Local"},
+		{"canonical values absent", "", "", ""},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			legacyReason := "legacy-compatible"
+			session := models.ChargingSession{StopReason: &legacyReason}
+			if test.initiator != "" {
+				initiator, reason := test.initiator, test.reason
+				session.RequestedStopInitiator, session.RequestedStopReason = &initiator, &reason
+			}
+			if test.ocpp != "" {
+				ocpp := test.ocpp
+				session.OCPPStopReason = &ocpp
+			}
+			sessionView := toChargingSessionView(session)
+			transactionView := toChargerTransactionView(ChargerTransaction{ChargingSession: session})
+			for name, stop := range map[string]*ChargingSessionStopView{"session": sessionView.Stop, "transaction": transactionView.Stop} {
+				if test.ocpp == "" {
+					if stop != nil {
+						t.Fatalf("%s fabricated stop provenance from legacy reason: %#v", name, stop)
+					}
+					encoded, err := json.Marshal(map[string]any{"session": sessionView, "transaction": transactionView})
+					if err != nil || strings.Contains(string(encoded), `"stop"`) {
+						t.Fatalf("%s did not omit absent canonical stop provenance: %s err=%v", name, encoded, err)
+					}
+					continue
+				}
+				if stop == nil || stop.OCPPReason == nil || *stop.OCPPReason != test.ocpp || (test.initiator == "" && (stop.RequestedInitiator != nil || stop.RequestedReason != nil)) || (test.initiator != "" && (stop.RequestedInitiator == nil || *stop.RequestedInitiator != test.initiator || stop.RequestedReason == nil || *stop.RequestedReason != test.reason)) {
+					t.Fatalf("%s stop provenance=%#v", name, stop)
+				}
+			}
+			if sessionView.StopReason == nil || *sessionView.StopReason != legacyReason || transactionView.Reason == nil || *transactionView.Reason != legacyReason {
+				t.Fatalf("legacy compatibility fields changed session=%v transaction=%v", sessionView.StopReason, transactionView.Reason)
+			}
+		})
 	}
 }
 

@@ -115,6 +115,18 @@ schemas; `GET /cpo/access/me` is the frontend's authority snapshot.
 
 ## Commercial and network invariants the UI must preserve
 
+### Charging-session stop provenance
+
+CPO charging-session list/detail and charger-transaction responses may include
+an additive `stop` object. Use `stop.requested_initiator` and
+`stop.requested_reason` for the actual requested-stop actor/policy and
+machine-readable reason; use `stop.ocpp_reason` for the charger-reported OCPP
+`StopTransaction.reason`. `Remote` describes protocol delivery, not the
+business cause. A spontaneous charger stop may therefore contain only
+`stop.ocpp_reason`. Existing session `stop_reason` and transaction `reason`
+remain legacy compatibility fields; do not infer or synthesize canonical stop
+provenance from them.
+
 - A hub tariff root is the publication prerequisite. The safe path is hidden hub
   → enabled unbounded hub tariff → customer visibility. Do not optimistically
   present a hub as public before the server accepts it.

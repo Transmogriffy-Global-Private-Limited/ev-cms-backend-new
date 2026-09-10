@@ -823,6 +823,14 @@ type ChargingSessionConnectorView struct {
 	ConnectorTotalCapacity float64   `json:"connector_total_capacity"`
 }
 
+// ChargingSessionStopView preserves authoritative HAL/CMS stop provenance.
+// It deliberately does not derive values from legacy stop_reason fields.
+type ChargingSessionStopView struct {
+	RequestedInitiator *string `json:"requested_initiator,omitempty"`
+	RequestedReason    *string `json:"requested_reason,omitempty"`
+	OCPPReason         *string `json:"ocpp_reason,omitempty"`
+}
+
 type ChargingSessionView struct {
 	ID                  uuid.UUID                    `json:"id"`
 	TransactionID       int64                        `json:"transaction_id"`
@@ -836,6 +844,7 @@ type ChargingSessionView struct {
 	Currency            string                       `json:"currency"`
 	Status              constants.SessionStatus      `json:"status"`
 	StopReason          *string                      `json:"stop_reason,omitempty"`
+	Stop                *ChargingSessionStopView     `json:"stop,omitempty"`
 	InitialSoCPercent   *decimal.Decimal             `json:"initial_soc_percent,omitempty"`
 	FinalSoCPercent     *decimal.Decimal             `json:"final_soc_percent,omitempty"`
 	SoCObservedAt       *time.Time                   `json:"soc_observed_at,omitempty"`
@@ -920,6 +929,7 @@ type ChargerTransactionView struct {
 	CustomerDetails        CustomerDetailsView       `json:"customer_details"`
 	Timestamp              time.Time                 `json:"timestamp"`
 	Reason                 *string                   `json:"reason,omitempty"`
+	Stop                   *ChargingSessionStopView  `json:"stop,omitempty"`
 	SessionStatus          constants.SessionStatus   `json:"session_status"`
 	SettlementStatus       string                    `json:"settlement_status"`
 	ReconciliationRequired bool                      `json:"reconciliation_required"`

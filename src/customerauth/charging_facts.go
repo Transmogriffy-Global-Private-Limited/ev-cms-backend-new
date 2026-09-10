@@ -518,20 +518,15 @@ func (service *Service) applyCompletedFact(tx *gorm.DB, p models.JSONB) error {
 	if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&session, "hal_transaction_id = ?", halTx).Error; err != nil {
 		return invalidFact()
 	}
-	// A late duplicate must retain the established completion idempotency even
-	// when its non-identity terminal fields are no longer useful to CMS.
-	if session.Status == constants.SessionStatusCompleted {
-		return nil
-	}
 	ocppID, ok := factInt(p, "ocpp_transaction_id")
 	if !ok {
 		return invalidFact()
 	}
-	var stopReason *string
-	if reason, ok := factString(p, "stop_reason"); ok {
-		stopReason = &reason
+	stop, err := completionStopMetadataFromFact(p)
+	if err != nil {
+		return err
 	}
-	return service.finalizeAuthoritativeCompletion(tx, &session, ocppID, meterStop, stopped, stopReason)
+	return service.finalizeAuthoritativeCompletion(tx, &session, ocppID, meterStop, stopped, stop)
 }
 
 // MaterializeAuthoritativeCompletion is the reconciliation socket for an exact
@@ -543,18 +538,14 @@ func (service *Service) MaterializeAuthoritativeCompletion(ctx context.Context, 
 		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&session, "hal_transaction_id = ?", evidence.HALTransactionID).Error; err != nil {
 			return halops.NewFactProjectionError(409, "hal_completion_evidence_conflict", "The HAL completion evidence does not match a materialized CMS session.", err)
 		}
-		if session.Status == constants.SessionStatusCompleted {
-			return nil
-		}
 		if err := service.validateAuthoritativeCompletion(tx, session, evidence); err != nil {
 			return err
 		}
-		stopReason := strings.TrimSpace(evidence.StopReason)
-		var stopReasonPtr *string
-		if stopReason != "" {
-			stopReasonPtr = &stopReason
+		stop, err := completionStopMetadataFromEvidence(evidence)
+		if err != nil {
+			return err
 		}
-		if err := service.finalizeAuthoritativeCompletion(tx, &session, evidence.OCPPTransactionID, evidence.MeterStopWh, evidence.ActualCompletedAt, stopReasonPtr); err != nil {
+		if err := service.finalizeAuthoritativeCompletion(tx, &session, evidence.OCPPTransactionID, evidence.MeterStopWh, evidence.ActualCompletedAt, stop); err != nil {
 			return err
 		}
 		return service.emitChargingSessionChanged(tx, session)
@@ -606,11 +597,72 @@ func (service *Service) ObserveAuthoritativeCompletionReconciliation(ctx context
 	})
 }
 
+// completionStopMetadata keeps HAL's requested-stop provenance distinct from
+// the charger-reported OCPP StopTransaction reason.
+type completionStopMetadata struct {
+	RequestedStopInitiator *string
+	RequestedStopReason    *string
+	OCPPStopReason         *string
+}
+
+func completionStopMetadataFromFact(payload models.JSONB) (completionStopMetadata, error) {
+	requestedInitiator, err := factOptionalStopMetadataString(payload, "requested_stop_initiator")
+	if err != nil {
+		return completionStopMetadata{}, err
+	}
+	requestedReason, err := factOptionalStopMetadataString(payload, "requested_stop_reason")
+	if err != nil {
+		return completionStopMetadata{}, err
+	}
+	ocppReason, err := factOptionalStopMetadataString(payload, "ocpp_stop_reason")
+	if err != nil {
+		return completionStopMetadata{}, err
+	}
+	return completionStopMetadata{RequestedStopInitiator: requestedInitiator, RequestedStopReason: requestedReason, OCPPStopReason: ocppReason}, nil
+}
+
+func completionStopMetadataFromEvidence(evidence halops.CompletionEvidence) (completionStopMetadata, error) {
+	return completionStopMetadata{RequestedStopInitiator: optionalStopMetadataString(evidence.RequestedStopInitiator), RequestedStopReason: optionalStopMetadataString(evidence.RequestedStopReason), OCPPStopReason: optionalStopMetadataString(evidence.OCPPStopReason)}, nil
+}
+
+func factOptionalStopMetadataString(payload models.JSONB, key string) (*string, error) {
+	raw, present := payload[key]
+	if !present || raw == nil {
+		return nil, nil
+	}
+	value, ok := raw.(string)
+	value = strings.TrimSpace(value)
+	if !ok || value == "" {
+		return nil, invalidFact()
+	}
+	return &value, nil
+}
+
+func optionalStopMetadataString(value string) *string {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return nil
+	}
+	return &value
+}
+
 // finalizeAuthoritativeCompletion is the sole CMS completion/settlement path
 // for both immutable HAL facts and exact HAL recovery reads.
-func (service *Service) finalizeAuthoritativeCompletion(tx *gorm.DB, session *models.ChargingSession, ocppTransactionID, meterStop int64, stopped time.Time, stopReason *string) error {
+func (service *Service) finalizeAuthoritativeCompletion(tx *gorm.DB, session *models.ChargingSession, ocppTransactionID, meterStop int64, stopped time.Time, stop completionStopMetadata) error {
 	if session.Status == constants.SessionStatusCompleted {
-		return nil
+		metadataUpdates, err := mergeCompletedSessionStopMetadata(session, stop)
+		if err != nil {
+			return err
+		}
+		if len(metadataUpdates) == 0 {
+			return nil
+		}
+		metadataUpdates["updated_at"] = service.now()
+		return tx.Model(session).Updates(metadataUpdates).Error
+	}
+	metadataUpdates, err := mergeCompletionStopMetadata(session, stop)
+	if err != nil {
+		return err
 	}
 	if meterStop < session.MeterStartWh || ocppTransactionID != session.TransactionID || stopped.IsZero() {
 		return invalidFact()
@@ -620,21 +672,70 @@ func (service *Service) finalizeAuthoritativeCompletion(tx *gorm.DB, session *mo
 		return err
 	}
 	updates := map[string]any{"meter_stop_wh": meterStop, "latest_meter_wh": meterStop, "meter_observed_at": stopped, "end_time": stopped, "total_kwh": decimal.NewFromInt(meterStop - session.MeterStartWh).Div(decimal.NewFromInt(1000)), "total_amount": amount, "status": constants.SessionStatusReconciliationRequired, "settlement_status": "RECONCILIATION_REQUIRED", "updated_at": service.now()}
-	if stopReason != nil {
-		updates["stop_reason"] = *stopReason
+	for key, value := range metadataUpdates {
+		updates[key] = value
+	}
+	if stop.OCPPStopReason != nil {
+		// stop_reason remains a legacy compatibility projection of the charger
+		// OCPP reason; requested-stop reason is never flattened into it.
+		updates["stop_reason"] = *stop.OCPPStopReason
 	}
 	if err := tx.Model(session).Updates(updates).Error; err != nil {
 		return err
 	}
 	if session.TraceID != nil {
-		_ = service.recordChargingTraceWithRoot(tx, *session.TraceID, session.CPOID, chargingTraceRoot{StartIntentID: session.StartIntentID, SessionID: &session.ID}, "CMS", "CMS", "COMMERCIAL", "POSTGRES", "POST_STOP", "Final charge calculated from frozen commercial snapshot", "", models.JSONB{"amount": amount.String(), "currency": session.Currency, "meter_wh": meterStop, "stop_reason": updates["stop_reason"], "status": string(constants.SessionStatusReconciliationRequired), "settlement_status": "RECONCILIATION_REQUIRED"})
+		_ = service.recordChargingTraceWithRoot(tx, *session.TraceID, session.CPOID, chargingTraceRoot{StartIntentID: session.StartIntentID, SessionID: &session.ID}, "CMS", "CMS", "COMMERCIAL", "POSTGRES", "POST_STOP", "Final charge calculated from frozen commercial snapshot", "", models.JSONB{"amount": amount.String(), "currency": session.Currency, "meter_wh": meterStop, "stop_reason": updates["stop_reason"], "requested_stop_initiator": updates["requested_stop_initiator"], "requested_stop_reason": updates["requested_stop_reason"], "ocpp_stop_reason": updates["ocpp_stop_reason"], "status": string(constants.SessionStatusReconciliationRequired), "settlement_status": "RECONCILIATION_REQUIRED"})
 	}
 	session.MeterStopWh, session.LatestMeterWh, session.MeterObservedAt, session.EndTime, session.TotalAmount = &meterStop, &meterStop, &stopped, &stopped, amount
-	if stopReason != nil {
-		session.StopReason = stopReason
+	if stop.OCPPStopReason != nil {
+		session.StopReason = stop.OCPPStopReason
 	}
 	session.TotalKWh, session.Status, session.SettlementStatus = decimal.NewFromInt(meterStop-session.MeterStartWh).Div(decimal.NewFromInt(1000)), constants.SessionStatusReconciliationRequired, "RECONCILIATION_REQUIRED"
 	return service.settleCompletedSession(tx, session)
+}
+
+func mergeCompletionStopMetadata(session *models.ChargingSession, incoming completionStopMetadata) (map[string]any, error) {
+	updates := map[string]any{}
+	fields := []struct {
+		column   string
+		current  **string
+		incoming *string
+	}{
+		{"requested_stop_initiator", &session.RequestedStopInitiator, incoming.RequestedStopInitiator},
+		{"requested_stop_reason", &session.RequestedStopReason, incoming.RequestedStopReason},
+		{"ocpp_stop_reason", &session.OCPPStopReason, incoming.OCPPStopReason},
+	}
+	for _, field := range fields {
+		if field.incoming == nil {
+			continue
+		}
+		if *field.current != nil && **field.current != *field.incoming {
+			return nil, halops.NewFactProjectionError(409, "hal_completion_evidence_conflict", "The HAL completion stop metadata conflicts with established CMS session truth.", nil)
+		}
+	}
+	for _, field := range fields {
+		if field.incoming != nil && *field.current == nil {
+			updates[field.column] = *field.incoming
+			*field.current = field.incoming
+		}
+	}
+	return updates, nil
+}
+
+// mergeCompletedSessionStopMetadata preserves canonical HAL truth while also
+// filling the legacy OCPP projection only when that projection is absent.
+func mergeCompletedSessionStopMetadata(session *models.ChargingSession, incoming completionStopMetadata) (map[string]any, error) {
+	updates, err := mergeCompletionStopMetadata(session, incoming)
+	if err != nil {
+		return nil, err
+	}
+	if _, filledOCPPReason := updates["ocpp_stop_reason"]; filledOCPPReason && session.StopReason == nil {
+		// Historical stop_reason may not have canonical provenance, so it is
+		// never conflict evidence and is never overwritten during enrichment.
+		updates["stop_reason"] = *incoming.OCPPStopReason
+		session.StopReason = incoming.OCPPStopReason
+	}
+	return updates, nil
 }
 
 // settleCompletedSession is called under the session transaction by both the

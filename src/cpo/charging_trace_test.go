@@ -51,3 +51,57 @@ func TestChargingTraceGetResponseUsesPersistedRootIdentities(t *testing.T) {
 		}
 	}
 }
+
+func TestClassifyChargerOperationFollowOnUsesDurableAcceptanceAndClosure(t *testing.T) {
+	acceptedAt := time.Date(2026, 9, 10, 10, 0, 0, 0, time.UTC)
+	completedAt := acceptedAt.Add(5 * time.Second)
+	operation := models.ChargerOperation{
+		Kind: "TRIGGER_MESSAGE", State: "OCPP_CONFIRMED", OCPPResult: "Accepted",
+		Parameters: models.JSONB{"requested_message": "StatusNotification"}, CompletedAt: &completedAt,
+	}
+	root := models.ChargingTrace{ChargerOCPPIdentity: "charger-01", OCPPConnectorNumber: 2}
+	accepted := models.ChargingTraceEvent{Category: "CHARGER_OPERATION_OCPP", OccurredAt: acceptedAt, Data: models.JSONB{"action": "TriggerMessage", "message_type": "CALLRESULT", "payload": map[string]any{"status": "Accepted"}}}
+	valid := models.ChargingTraceEvent{Category: "CHARGER_OPERATION_FOLLOW_ON", OccurredAt: acceptedAt.Add(30 * time.Second), Data: models.JSONB{"expected_message": "StatusNotification", "observed_action": "StatusNotification", "charger_ocpp_identity": "charger-01", "connector_number": 2}}
+	closure := models.ChargingTraceEvent{Category: "CHARGER_OPERATION_FOLLOW_ON_CLOSED", OccurredAt: acceptedAt.Add(time.Minute), Data: models.JSONB{"expected_message": "StatusNotification", "charger_ocpp_identity": "charger-01", "connector_number": 2, "accepted_at": acceptedAt.Format(time.RFC3339Nano)}}
+
+	tests := []struct {
+		name              string
+		operation         models.ChargerOperation
+		rows              []models.ChargingTraceEvent
+		includeAcceptance bool
+		want              string
+	}{
+		{name: "delivery of accepted trace pending", operation: operation, includeAcceptance: false, want: "PENDING"},
+		{name: "no closure remains pending past nominal deadline", operation: operation, includeAcceptance: true, want: "PENDING"},
+		{name: "observed matching evidence", operation: operation, rows: []models.ChargingTraceEvent{valid}, includeAcceptance: true, want: "OBSERVED"},
+		{name: "durable closure proves not observed", operation: operation, rows: []models.ChargingTraceEvent{closure}, includeAcceptance: true, want: "NOT_OBSERVED"},
+		{name: "positive is classified defensively before delivered closure", operation: operation, rows: []models.ChargingTraceEvent{closure, valid}, includeAcceptance: true, want: "OBSERVED"},
+		{name: "wrong connector ignored without negative proof", operation: operation, rows: []models.ChargingTraceEvent{{Category: valid.Category, OccurredAt: valid.OccurredAt, Data: models.JSONB{"expected_message": "StatusNotification", "observed_action": "StatusNotification", "charger_ocpp_identity": "charger-01", "connector_number": 1}}}, includeAcceptance: true, want: "PENDING"},
+		{name: "wrong closure acceptance ignored", operation: operation, rows: []models.ChargingTraceEvent{{Category: closure.Category, OccurredAt: closure.OccurredAt, Data: models.JSONB{"expected_message": "StatusNotification", "charger_ocpp_identity": "charger-01", "connector_number": 2, "accepted_at": acceptedAt.Add(time.Nanosecond).Format(time.RFC3339Nano)}}}, includeAcceptance: true, want: "PENDING"},
+		{name: "outside strict interval ignored", operation: operation, rows: []models.ChargingTraceEvent{{Category: valid.Category, OccurredAt: acceptedAt.Add(time.Minute + time.Nanosecond), Data: valid.Data}}, includeAcceptance: true, want: "PENDING"},
+		{name: "not accepted is not applicable", operation: models.ChargerOperation{Kind: "TRIGGER_MESSAGE", State: "OCPP_CONFIRMED", OCPPResult: "Rejected", Parameters: operation.Parameters}, includeAcceptance: false, want: "NOT_APPLICABLE"},
+		{name: "non trigger is not applicable", operation: models.ChargerOperation{Kind: "RESET", State: "OCPP_CONFIRMED", OCPPResult: "Accepted", Parameters: operation.Parameters}, includeAcceptance: true, want: "NOT_APPLICABLE"},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			rows := append([]models.ChargingTraceEvent(nil), test.rows...)
+			if test.includeAcceptance {
+				rows = append([]models.ChargingTraceEvent{accepted}, rows...)
+			}
+			before := test.operation
+			got := classifyChargerOperationFollowOn(test.operation, root, rows, acceptedAt.Add(2*time.Minute))
+			if got.Status != test.want {
+				t.Fatalf("status = %s, want %s", got.Status, test.want)
+			}
+			if test.includeAcceptance && test.operation.Kind == "TRIGGER_MESSAGE" && (got.AcceptedAt == nil || !got.AcceptedAt.Equal(acceptedAt) || got.ObservationDeadline == nil || !got.ObservationDeadline.Equal(acceptedAt.Add(time.Minute))) {
+				t.Fatalf("accepted trace was not authoritative: %+v", got)
+			}
+			if got.Status == "OBSERVED" && (got.ObservedAt == nil || got.ObservedAction != "StatusNotification") {
+				t.Fatalf("observed result = %+v", got)
+			}
+			if before.State != test.operation.State || before.OCPPResult != test.operation.OCPPResult || before.CompletedAt != test.operation.CompletedAt {
+				t.Fatalf("diagnostic classification mutated operation: before=%+v after=%+v", before, test.operation)
+			}
+		})
+	}
+}

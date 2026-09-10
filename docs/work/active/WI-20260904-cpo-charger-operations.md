@@ -4,7 +4,7 @@ Status: In Progress
 Owner: Codex
 Collaborators: Anubhab Dey (CMS/HAL boundary owner)
 Started: 2026-09-04
-Last updated: 2026-09-08 (vehicle listing and audited GetConfiguration catalog correction deployed; paired HAL and hardware validation pending)
+Last updated: 2026-09-10 (CMS TriggerMessage follow-on rehost verified; paired HAL deployment and hardware validation pending)
 
 Development-plan reference: `docs/DEVELOPMENT_PLAN.md` — Charging lifecycle and HAL integration
 Detailed-plan reference: `docs/integrations/cpo-hal-operational-capability-manual.md`
@@ -26,6 +26,8 @@ existing CMS `halops -> halclient -> HAL v1 -> OCPP` boundary.
   list-side reconciliation.
 - Per-operation trace identity, safe OCPP CALL/CALLRESULT/CALLERROR evidence,
   lazy CPO operation-evidence projection, and audited GET_CONFIGURATION.
+- Diagnostic-only 60-second accepted TriggerMessage follow-on observation;
+  it is temporal evidence, not command, charger-effect, or charging truth.
 
 ## Non-goals
 
@@ -81,6 +83,23 @@ requested-key-only history and an optional transient safe response. CMS
 migration `000063` is applied; counterpart HAL migration `021` remains
 unapplied.
 
+CMS deployed; paired HAL runtime pending: paired HAL/CMS follow-on trace evidence for an
+allowlisted TriggerMessage durably accepted through HAL's persisted
+`CALLRESULT` trace. HAL migration `022` (unapplied) atomically persists the
+accepted trace, outbox record, and indexed durable window before later
+operation completion. It permits only `OPEN -> OBSERVED` or `OPEN -> CLOSED`,
+and the existing trace worker closes expired `OPEN` windows. CMS derives
+acceptance from delivered trace evidence,
+returns `NOT_OBSERVED` only from a matching delivered closure, keeps missing
+delivery `PENDING` past 60 seconds. Its positive-first scan is defensive only,
+not a correction of contradictory HAL closure. CMS source revision `7e5ea97`
+is rehosted with 242 OpenAPI operations; no new CMS migration was required and
+the database remains through `000067`. The paired HAL migration `022` is still
+unapplied, so no delivered follow-on observation is claimed by this CMS-only
+rehost. Requested action, charger identity, scoped connector for
+MeterValues/StatusNotification, strict temporal bounds, overlap, and the
+non-causal/no-command-session-connector-financial-truth invariant remain.
+
 Deployed CMS: migration `000064` owns the CPO/customer-scoped vehicle table and
 read route; migration `000065` adds the already supported `GET_CONFIGURATION`
 kind to the bounded CMS operation constraint. Its rollback refuses to
@@ -99,6 +118,14 @@ service/contract verification pass. Migrations `000064` and `000065` were
 applied after a retained mode-0600 custom-format dump. PostgreSQL-gated
 history/protocol integration coverage remains skipped because
 `TEST_DATABASE_URL` is absent; no paired charger was selected.
+
+Focused source checks for the TriggerMessage follow-on classifier, ingress
+redaction, OpenAPI contract, HAL observation/store/worker handling, full Go
+tests, vet, and production build pass. CMS post-rehost loopback/public health
+and readiness, OpenAPI, Swagger, workers, Caddy, and journal verification pass.
+PostgreSQL window/index, paired HAL runtime, virtual-charger, and physical OCPP
+validation remain pending because `TEST_DATABASE_URL` and a test charger are
+unavailable; `pwsh` is unavailable for the documentation verifier.
 
 ## Handoff
 
