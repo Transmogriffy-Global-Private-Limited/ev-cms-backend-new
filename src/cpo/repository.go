@@ -2,6 +2,9 @@ package cpo
 
 import (
 	"context"
+	"fmt"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/constants" // <-- added
@@ -164,8 +167,13 @@ func (r *repository) GetChargingSession(ctx context.Context, cpoID, sessionID uu
 	return &sessions[0], nil
 }
 
-func (r *repository) ListChargingSessions(ctx context.Context, cpoID uuid.UUID, query ChargingSessionListQuery) ([]models.ChargingSession, error) {
+func (r *repository) ListChargingSessions(
+	ctx context.Context,
+	cpoID uuid.UUID,
+	query ChargingSessionListQuery,
+) ([]models.ChargingSession, error) {
 	var sessions []models.ChargingSession
+
 	db := r.db.WithContext(ctx).
 		Preload("Customer").
 		Preload("Charger").
@@ -176,28 +184,143 @@ func (r *repository) ListChargingSessions(ctx context.Context, cpoID uuid.UUID, 
 		Preload("Connector.Charger.Hub").
 		Preload("Tariff", "cpo_id = ?", cpoID).
 		Preload("StartIntent", "cpo_id = ?", cpoID).
-		Where("cpo_id = ?", cpoID)
+		Where("charging_sessions.cpo_id = ?", cpoID)
 
+	// existing filters
 	if query.Status != nil {
-		db = db.Where("status = ?", *query.Status)
+		db = db.Where("charging_sessions.status = ?", *query.Status)
 	}
 	if query.ChargerID != nil {
-		db = db.Where("charger_id = ?", *query.ChargerID)
+		db = db.Where("charging_sessions.charger_id = ?", *query.ChargerID)
 	}
 	if query.CustomerID != nil {
-		db = db.Where("customer_id = ?", *query.CustomerID)
+		db = db.Where("charging_sessions.customer_id = ?", *query.CustomerID)
 	}
-	if query.Before != nil {
-		if query.BeforeID != nil {
-			db = db.Where("(created_at, id) < (?, ?)", *query.Before, *query.BeforeID)
-		} else {
-			db = db.Where("created_at < ?", *query.Before)
+
+	// new filters
+	if query.StartTimeFrom != nil {
+		db = db.Where("charging_sessions.start_time >= ?", *query.StartTimeFrom)
+	}
+	if query.StartTimeTo != nil {
+		db = db.Where("charging_sessions.start_time < ?", *query.StartTimeTo)
+	}
+	if query.EndTimeFrom != nil {
+		db = db.Where("charging_sessions.end_time >= ?", *query.EndTimeFrom)
+	}
+	if query.EndTimeTo != nil {
+		db = db.Where("charging_sessions.end_time < ?", *query.EndTimeTo)
+	}
+	if query.TotalKWhMin != nil {
+		db = db.Where("charging_sessions.total_kwh >= ?", *query.TotalKWhMin)
+	}
+	if query.TotalKWhMax != nil {
+		db = db.Where("charging_sessions.total_kwh <= ?", *query.TotalKWhMax)
+	}
+	if query.TotalAmountMin != nil {
+		db = db.Where("charging_sessions.total_amount >= ?", *query.TotalAmountMin)
+	}
+	if query.TotalAmountMax != nil {
+		db = db.Where("charging_sessions.total_amount <= ?", *query.TotalAmountMax)
+	}
+	if query.DurationMin != nil {
+		db = db.Where(
+			"EXTRACT(EPOCH FROM (COALESCE(charging_sessions.end_time, NOW()) - charging_sessions.start_time)) >= ?",
+			*query.DurationMin,
+		)
+	}
+	if query.DurationMax != nil {
+		db = db.Where(
+			"EXTRACT(EPOCH FROM (COALESCE(charging_sessions.end_time, NOW()) - charging_sessions.start_time)) <= ?",
+			*query.DurationMax,
+		)
+	}
+	if query.Currency != nil {
+		db = db.Where("charging_sessions.currency = ?", *query.Currency)
+	}
+	if query.StopReason != nil {
+		db = db.Where("charging_sessions.stop_reason = ?", *query.StopReason)
+	}
+	if query.SettlementStatus != nil {
+		db = db.Where("charging_sessions.settlement_status = ?", *query.SettlementStatus)
+	}
+	if query.ConnectorID != nil {
+		db = db.Where("charging_sessions.connector_id = ?", *query.ConnectorID)
+	}
+	if query.TariffID != nil {
+		db = db.Where("charging_sessions.tariff_id = ?", *query.TariffID)
+	}
+
+	// dynamic sort expression
+	sortExpr := "charging_sessions.created_at"
+	switch query.SortBy {
+	case "start_time":
+		sortExpr = "charging_sessions.start_time"
+	case "end_time":
+		sortExpr = "COALESCE(charging_sessions.end_time, 'infinity'::timestamptz)"
+	case "duration":
+		sortExpr = "EXTRACT(EPOCH FROM (COALESCE(charging_sessions.end_time, NOW()) - charging_sessions.start_time))"
+	case "usage":
+		sortExpr = "charging_sessions.total_kwh"
+	case "created_at":
+		sortExpr = "charging_sessions.created_at"
+	}
+
+	order := "DESC"
+	if strings.EqualFold(query.SortOrder, "asc") {
+		order = "ASC"
+	}
+
+	// keyset pagination
+	if query.CursorValue != nil && query.CursorID != nil {
+		op := "<"
+		if order == "ASC" {
+			op = ">"
+		}
+
+		switch query.SortBy {
+		case "usage":
+			val, err := decimal.NewFromString(*query.CursorValue)
+			if err != nil {
+				return nil, err
+			}
+			db = db.Where(
+				fmt.Sprintf("(%s, charging_sessions.id) %s (?, ?)", sortExpr, op),
+				val,
+				*query.CursorID,
+			)
+
+		case "start_time", "end_time", "created_at":
+			val, err := time.Parse(time.RFC3339Nano, *query.CursorValue)
+			if err != nil {
+				return nil, err
+			}
+			db = db.Where(
+				fmt.Sprintf("(%s, charging_sessions.id) %s (?, ?)", sortExpr, op),
+				val,
+				*query.CursorID,
+			)
+
+		case "duration":
+			val, err := strconv.ParseInt(*query.CursorValue, 10, 64)
+			if err != nil {
+				return nil, err
+			}
+			db = db.Where(
+				fmt.Sprintf("(%s, charging_sessions.id) %s (?, ?)", sortExpr, op),
+				val,
+				*query.CursorID,
+			)
 		}
 	}
+
 	if query.Limit > 0 {
 		db = db.Limit(query.Limit + 1)
 	}
-	err := db.Order("created_at DESC, id DESC").Find(&sessions).Error
+
+	err := db.
+		Order(sortExpr + " " + order).
+		Order("charging_sessions.id " + order).
+		Find(&sessions).Error
 	if err != nil {
 		return nil, err
 	}
@@ -205,6 +328,7 @@ func (r *repository) ListChargingSessions(ctx context.Context, cpoID uuid.UUID, 
 	if err := r.hydrateMissingSessionChargers(ctx, cpoID, sessions); err != nil {
 		return nil, err
 	}
+
 	return sessions, nil
 }
 

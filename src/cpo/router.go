@@ -20,6 +20,7 @@ import (
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/operationalrealtime"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"github.com/shopspring/decimal"
 	"gorm.io/gorm"
 )
 
@@ -1011,6 +1012,8 @@ func parseSessionID(ctx *gin.Context) (uuid.UUID, bool) {
 
 func parseChargingSessionListQuery(ctx *gin.Context) (ChargingSessionListQuery, bool) {
 	query := ChargingSessionListQuery{}
+
+	// ---- limit ----
 	if limitText := strings.TrimSpace(ctx.Query("limit")); limitText != "" {
 		limit, err := strconv.Atoi(limitText)
 		if err != nil {
@@ -1019,58 +1022,235 @@ func parseChargingSessionListQuery(ctx *gin.Context) (ChargingSessionListQuery, 
 		}
 		query.Limit = limit
 	}
-	if beforeText := strings.TrimSpace(ctx.Query("before")); beforeText != "" {
-		before, err := time.Parse(time.RFC3339, beforeText)
-		if err != nil {
-			writeError(
-				ctx,
-				invalid("before", "Before must be an RFC3339 timestamp."),
-			)
+
+	// ---- sort_by ----
+	query.SortBy = strings.TrimSpace(ctx.Query("sort_by"))
+	if query.SortBy == "" {
+		query.SortBy = "created_at"
+	}
+
+	// ---- sort_order ----
+	query.SortOrder = strings.ToLower(strings.TrimSpace(ctx.Query("sort_order")))
+	if query.SortOrder == "" {
+		query.SortOrder = "desc"
+	}
+
+	// ---- keyset cursor ----
+	if v := strings.TrimSpace(ctx.Query("cursor_value")); v != "" {
+		query.CursorValue = &v
+	}
+	if v := strings.TrimSpace(ctx.Query("cursor_id")); v != "" {
+		id, err := uuid.Parse(v)
+		if err != nil || id == uuid.Nil {
+			writeError(ctx, invalid("cursor_id", "Cursor ID must be a non-zero UUID."))
 			return ChargingSessionListQuery{}, false
 		}
-		query.Before = &before
+		query.CursorID = &id
 	}
-	if beforeIDText := strings.TrimSpace(ctx.Query("before_id")); beforeIDText != "" {
-		beforeID, err := uuid.Parse(beforeIDText)
-		if err != nil || beforeID == uuid.Nil {
-			writeError(
-				ctx,
-				invalid("before_id", "Before ID must be a non-zero UUID."),
-			)
-			return ChargingSessionListQuery{}, false
-		}
-		query.BeforeID = &beforeID
-	}
-	if statusText := strings.TrimSpace(ctx.Query("status")); statusText != "" {
-		status := constants.SessionStatus(strings.ToUpper(statusText))
+
+	// ---- status ----
+	if v := strings.TrimSpace(ctx.Query("status")); v != "" {
+		status := constants.SessionStatus(strings.ToUpper(v))
 		if !status.Valid() {
 			writeError(ctx, invalid("status", "Status is invalid."))
 			return ChargingSessionListQuery{}, false
 		}
 		query.Status = &status
 	}
-	if chargerIDText := strings.TrimSpace(ctx.Query("charger_id")); chargerIDText != "" {
-		chargerID, err := uuid.Parse(chargerIDText)
-		if err != nil || chargerID == uuid.Nil {
-			writeError(
-				ctx,
-				invalid("charger_id", "Charger ID must be a non-zero UUID."),
-			)
+
+	// ---- charger_id ----
+	if v := strings.TrimSpace(ctx.Query("charger_id")); v != "" {
+		id, err := uuid.Parse(v)
+		if err != nil || id == uuid.Nil {
+			writeError(ctx, invalid("charger_id", "Charger ID must be a non-zero UUID."))
 			return ChargingSessionListQuery{}, false
 		}
-		query.ChargerID = &chargerID
+		query.ChargerID = &id
 	}
-	if customerIDText := strings.TrimSpace(ctx.Query("customer_id")); customerIDText != "" {
-		customerID, err := uuid.Parse(customerIDText)
-		if err != nil || customerID == uuid.Nil {
-			writeError(
-				ctx,
-				invalid("customer_id", "Customer ID must be a non-zero UUID."),
-			)
+
+	// ---- customer_id ----
+	if v := strings.TrimSpace(ctx.Query("customer_id")); v != "" {
+		id, err := uuid.Parse(v)
+		if err != nil || id == uuid.Nil {
+			writeError(ctx, invalid("customer_id", "Customer ID must be a non-zero UUID."))
 			return ChargingSessionListQuery{}, false
 		}
-		query.CustomerID = &customerID
+		query.CustomerID = &id
 	}
+
+	// ================================================================
+	// START TIME RANGE  ← the piece the frontend relies on for
+	//   Today / Yesterday / Week / Month / Year / Custom
+	// ================================================================
+	if v := strings.TrimSpace(ctx.Query("start_time_from")); v != "" {
+		t, err := time.Parse(time.RFC3339Nano, v)
+		if err != nil {
+			writeError(ctx, invalid("start_time_from", "start_time_from must be RFC3339."))
+			return ChargingSessionListQuery{}, false
+		}
+		query.StartTimeFrom = &t
+	}
+	if v := strings.TrimSpace(ctx.Query("start_time_to")); v != "" {
+		t, err := time.Parse(time.RFC3339Nano, v)
+		if err != nil {
+			writeError(ctx, invalid("start_time_to", "start_time_to must be RFC3339."))
+			return ChargingSessionListQuery{}, false
+		}
+		query.StartTimeTo = &t
+	}
+
+	// ---- end_time range ----
+	if v := strings.TrimSpace(ctx.Query("end_time_from")); v != "" {
+		t, err := time.Parse(time.RFC3339Nano, v)
+		if err != nil {
+			writeError(ctx, invalid("end_time_from", "end_time_from must be RFC3339."))
+			return ChargingSessionListQuery{}, false
+		}
+		query.EndTimeFrom = &t
+	}
+	if v := strings.TrimSpace(ctx.Query("end_time_to")); v != "" {
+		t, err := time.Parse(time.RFC3339Nano, v)
+		if err != nil {
+			writeError(ctx, invalid("end_time_to", "end_time_to must be RFC3339."))
+			return ChargingSessionListQuery{}, false
+		}
+		query.EndTimeTo = &t
+	}
+
+	// ---- created_at range ----
+	if v := strings.TrimSpace(ctx.Query("created_at_from")); v != "" {
+		t, err := time.Parse(time.RFC3339Nano, v)
+		if err != nil {
+			writeError(ctx, invalid("created_at_from", "created_at_from must be RFC3339."))
+			return ChargingSessionListQuery{}, false
+		}
+		query.CreatedAtFrom = &t
+	}
+	if v := strings.TrimSpace(ctx.Query("created_at_to")); v != "" {
+		t, err := time.Parse(time.RFC3339Nano, v)
+		if err != nil {
+			writeError(ctx, invalid("created_at_to", "created_at_to must be RFC3339."))
+			return ChargingSessionListQuery{}, false
+		}
+		query.CreatedAtTo = &t
+	}
+
+	// ---- total_kwh (usage) filters ----
+	// Accept both "_min/_max" (inclusive, per openapi.yaml) and legacy
+	// "_gt/_lt" (strict) so old clients keep working.
+	if v := strings.TrimSpace(ctx.Query("total_kwh_min")); v != "" {
+		d, err := decimal.NewFromString(v)
+		if err != nil {
+			writeError(ctx, invalid("total_kwh_min", "total_kwh_min must be a decimal."))
+			return ChargingSessionListQuery{}, false
+		}
+		query.TotalKWhMin = &d
+	}
+	if v := strings.TrimSpace(ctx.Query("total_kwh_max")); v != "" {
+		d, err := decimal.NewFromString(v)
+		if err != nil {
+			writeError(ctx, invalid("total_kwh_max", "total_kwh_max must be a decimal."))
+			return ChargingSessionListQuery{}, false
+		}
+		query.TotalKWhMax = &d
+	}
+	if v := strings.TrimSpace(ctx.Query("total_kwh_gt")); v != "" {
+		d, err := decimal.NewFromString(v)
+		if err != nil {
+			writeError(ctx, invalid("total_kwh_gt", "total_kwh_gt must be a decimal."))
+			return ChargingSessionListQuery{}, false
+		}
+		query.TotalKWhMin = &d
+	}
+	if v := strings.TrimSpace(ctx.Query("total_kwh_lt")); v != "" {
+		d, err := decimal.NewFromString(v)
+		if err != nil {
+			writeError(ctx, invalid("total_kwh_lt", "total_kwh_lt must be a decimal."))
+			return ChargingSessionListQuery{}, false
+		}
+		query.TotalKWhMax = &d
+	}
+
+	// ---- total_amount filters ----
+	if v := strings.TrimSpace(ctx.Query("total_amount_min")); v != "" {
+		d, err := decimal.NewFromString(v)
+		if err != nil {
+			writeError(ctx, invalid("total_amount_min", "total_amount_min must be a decimal."))
+			return ChargingSessionListQuery{}, false
+		}
+		query.TotalAmountMin = &d
+	}
+	if v := strings.TrimSpace(ctx.Query("total_amount_max")); v != "" {
+		d, err := decimal.NewFromString(v)
+		if err != nil {
+			writeError(ctx, invalid("total_amount_max", "total_amount_max must be a decimal."))
+			return ChargingSessionListQuery{}, false
+		}
+		query.TotalAmountMax = &d
+	}
+	if v := strings.TrimSpace(ctx.Query("total_amount_gt")); v != "" {
+		d, err := decimal.NewFromString(v)
+		if err != nil {
+			writeError(ctx, invalid("total_amount_gt", "total_amount_gt must be a decimal."))
+			return ChargingSessionListQuery{}, false
+		}
+		query.TotalAmountMin = &d
+	}
+	if v := strings.TrimSpace(ctx.Query("total_amount_lt")); v != "" {
+		d, err := decimal.NewFromString(v)
+		if err != nil {
+			writeError(ctx, invalid("total_amount_lt", "total_amount_lt must be a decimal."))
+			return ChargingSessionListQuery{}, false
+		}
+		query.TotalAmountMax = &d
+	}
+
+	// ---- duration filters (seconds) ----
+	if v := strings.TrimSpace(ctx.Query("duration_min")); v != "" {
+		n, err := strconv.ParseInt(v, 10, 64)
+		if err != nil {
+			writeError(ctx, invalid("duration_min", "duration_min must be an integer."))
+			return ChargingSessionListQuery{}, false
+		}
+		query.DurationMin = &n
+	}
+	if v := strings.TrimSpace(ctx.Query("duration_max")); v != "" {
+		n, err := strconv.ParseInt(v, 10, 64)
+		if err != nil {
+			writeError(ctx, invalid("duration_max", "duration_max must be an integer."))
+			return ChargingSessionListQuery{}, false
+		}
+		query.DurationMax = &n
+	}
+
+	// ---- other equality filters ----
+	if v := strings.TrimSpace(ctx.Query("connector_id")); v != "" {
+		id, err := uuid.Parse(v)
+		if err != nil || id == uuid.Nil {
+			writeError(ctx, invalid("connector_id", "connector_id must be a non-zero UUID."))
+			return ChargingSessionListQuery{}, false
+		}
+		query.ConnectorID = &id
+	}
+	if v := strings.TrimSpace(ctx.Query("tariff_id")); v != "" {
+		id, err := uuid.Parse(v)
+		if err != nil || id == uuid.Nil {
+			writeError(ctx, invalid("tariff_id", "tariff_id must be a non-zero UUID."))
+			return ChargingSessionListQuery{}, false
+		}
+		query.TariffID = &id
+	}
+	if v := strings.TrimSpace(ctx.Query("currency")); v != "" {
+		c := strings.ToUpper(v)
+		query.Currency = &c
+	}
+	if v := strings.TrimSpace(ctx.Query("stop_reason")); v != "" {
+		query.StopReason = &v
+	}
+	if v := strings.TrimSpace(ctx.Query("settlement_status")); v != "" {
+		query.SettlementStatus = &v
+	}
+
 	return query, true
 }
 

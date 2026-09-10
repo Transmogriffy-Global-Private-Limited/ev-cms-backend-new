@@ -850,19 +850,49 @@ type ChargingSessionView struct {
 }
 
 type ChargingSessionListResponse struct {
-	Sessions     []ChargingSessionView `json:"sessions"`
-	NextBefore   *time.Time            `json:"next_before,omitempty"`
-	NextBeforeID *uuid.UUID            `json:"next_before_id,omitempty"`
-	HasMore      bool                  `json:"has_more"`
+	Sessions []ChargingSessionView `json:"sessions"`
+
+	NextCursorValue *string    `json:"next_cursor_value,omitempty"`
+	NextCursorID    *uuid.UUID `json:"next_cursor_id,omitempty"`
+
+	HasMore   bool   `json:"has_more"`
+	SortBy    string `json:"sort_by,omitempty"`
+	SortOrder string `json:"sort_order,omitempty"`
 }
 
 type ChargingSessionListQuery struct {
-	Before     *time.Time
-	BeforeID   *uuid.UUID
-	Limit      int
+	Limit int
+
 	Status     *constants.SessionStatus
 	ChargerID  *uuid.UUID
 	CustomerID *uuid.UUID
+
+	SortBy    string
+	SortOrder string
+
+	CursorValue *string
+	CursorID    *uuid.UUID
+
+	StartTimeFrom *time.Time
+	StartTimeTo   *time.Time
+	EndTimeFrom   *time.Time
+	EndTimeTo     *time.Time
+	CreatedAtFrom *time.Time
+	CreatedAtTo   *time.Time
+
+	TotalKWhMin    *decimal.Decimal
+	TotalKWhMax    *decimal.Decimal
+	TotalAmountMin *decimal.Decimal
+	TotalAmountMax *decimal.Decimal
+
+	DurationMin *int64
+	DurationMax *int64
+
+	Currency         *string
+	StopReason       *string
+	SettlementStatus *string
+	ConnectorID      *uuid.UUID
+	TariffID         *uuid.UUID
 }
 
 type ChargerTransactionView struct {

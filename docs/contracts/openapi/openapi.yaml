@@ -253,14 +253,71 @@ paths:
       tags: [CPO Operations - Charging Sessions]
       operationId: listCPOChargingSessions
       summary: List charging sessions for the CPO
-      description: Returns a paginated list of charging sessions for the authenticated CPO, ordered by newest first.
+      description: |
+        Returns a paginated list of charging sessions for the authenticated CPO.
+
+        Sorting is controlled by `sort_by` (default `created_at`) and `sort_order`
+        (default `desc`). Allowed `sort_by` values are `created_at`, `start_time`,
+        `end_time`, `duration`, and `usage` (total kWh).
+
+        Keyset pagination is generic because the sort field varies. When
+        `has_more` is true, send the returned `next_cursor_value` and
+        `next_cursor_id` back as `cursor_value` and `cursor_id`. You must also
+        resend the same `sort_by`, `sort_order`, and filters.
+
+        Numeric filters accept either inclusive min/max (`*_min` / `*_max`) or
+        strict comparison (`*_gt` / `*_lt`). Duration is expressed in seconds.
       security:
         - BearerAuth: []
           CPOAppID: []
       parameters:
+        # ---- page size ----
         - $ref: "#/components/parameters/ListLimit"
+
+        # ---- legacy cursor (kept for backward compatibility) ----
         - $ref: "#/components/parameters/ListBefore"
         - $ref: "#/components/parameters/ListBeforeID"
+
+        # ---- new generic keyset cursor ----
+        - name: cursor_value
+          in: query
+          required: false
+          description: |
+            Value of the sort field from the last row of the previous page.
+            For `created_at`, `start_time`, and `end_time` use RFC3339Nano.
+            For `usage` use a decimal string. For `duration` use whole seconds.
+            Must be supplied together with `cursor_id`.
+          schema:
+            type: string
+        - name: cursor_id
+          in: query
+          required: false
+          description: |
+            UUID tie-breaker of the last row of the previous page. Must be
+            supplied together with `cursor_value`.
+          schema:
+            type: string
+            format: uuid
+
+        # ---- sorting ----
+        - name: sort_by
+          in: query
+          required: false
+          description: Field to sort by.
+          schema:
+            type: string
+            enum: [created_at, start_time, end_time, duration, usage]
+            default: created_at
+        - name: sort_order
+          in: query
+          required: false
+          description: Sort direction.
+          schema:
+            type: string
+            enum: [asc, desc]
+            default: desc
+
+        # ---- existing equality filters ----
         - name: status
           in: query
           schema:
@@ -275,6 +332,140 @@ paths:
           schema:
             type: string
             format: uuid
+
+        # ---- new equality filters ----
+        - name: connector_id
+          in: query
+          schema:
+            type: string
+            format: uuid
+        - name: tariff_id
+          in: query
+          schema:
+            type: string
+            format: uuid
+        - name: currency
+          in: query
+          schema:
+            type: string
+            pattern: "^[A-Z]{3}$"
+            example: INR
+        - name: stop_reason
+          in: query
+          schema:
+            type: string
+            maxLength: 50
+        - name: settlement_status
+          in: query
+          schema:
+            type: string
+            maxLength: 32
+
+        # ---- start_time range ----
+        - name: start_time_from
+          in: query
+          description: Inclusive lower bound on `start_time` (RFC3339).
+          schema:
+            type: string
+            format: date-time
+        - name: start_time_to
+          in: query
+          description: Exclusive upper bound on `start_time` (RFC3339).
+          schema:
+            type: string
+            format: date-time
+
+        # ---- end_time range ----
+        - name: end_time_from
+          in: query
+          description: |
+            Inclusive lower bound on `end_time` (RFC3339). Rows without an
+            end time are excluded when this is set.
+          schema:
+            type: string
+            format: date-time
+        - name: end_time_to
+          in: query
+          description: |
+            Exclusive upper bound on `end_time` (RFC3339). Rows without an
+            end time are excluded when this is set.
+          schema:
+            type: string
+            format: date-time
+
+        # ---- created_at range ----
+        - name: created_at_from
+          in: query
+          description: Inclusive lower bound on `created_at` (RFC3339).
+          schema:
+            type: string
+            format: date-time
+        - name: created_at_to
+          in: query
+          description: Exclusive upper bound on `created_at` (RFC3339).
+          schema:
+            type: string
+            format: date-time
+
+        # ---- usage (total_kwh) filters ----
+        - name: total_kwh_gt
+          in: query
+          description: Strictly greater than this value.
+          schema:
+            $ref: "#/components/schemas/ExactDecimal"
+        - name: total_kwh_lt
+          in: query
+          description: Strictly less than this value.
+          schema:
+            $ref: "#/components/schemas/ExactDecimal"
+        - name: total_kwh_min
+          in: query
+          description: Inclusive lower bound.
+          schema:
+            $ref: "#/components/schemas/ExactDecimal"
+        - name: total_kwh_max
+          in: query
+          description: Inclusive upper bound.
+          schema:
+            $ref: "#/components/schemas/ExactDecimal"
+
+        # ---- amount filters ----
+        - name: total_amount_gt
+          in: query
+          schema:
+            $ref: "#/components/schemas/ExactDecimal"
+        - name: total_amount_lt
+          in: query
+          schema:
+            $ref: "#/components/schemas/ExactDecimal"
+        - name: total_amount_min
+          in: query
+          schema:
+            $ref: "#/components/schemas/ExactDecimal"
+        - name: total_amount_max
+          in: query
+          schema:
+            $ref: "#/components/schemas/ExactDecimal"
+
+        # ---- duration filters (seconds) ----
+        - name: duration_min
+          in: query
+          description: |
+            Inclusive minimum duration in seconds. Open sessions are measured
+            against the server's `now`.
+          schema:
+            type: integer
+            format: int64
+            minimum: 0
+        - name: duration_max
+          in: query
+          description: |
+            Inclusive maximum duration in seconds. Open sessions are measured
+            against the server's `now`.
+          schema:
+            type: integer
+            format: int64
+            minimum: 0
       responses:
         "200":
           description: A list of charging sessions.
@@ -283,7 +474,16 @@ paths:
               schema:
                 $ref: "#/components/schemas/ChargingSessionListResponse"
         "400":
-          $ref: "#/components/responses/InvalidRequest"
+          description: |
+            `invalid_request` — malformed query, e.g. `invalid_sort_by`,
+            `invalid_sort_order`, `invalid_cursor`, `invalid_start_time_range`,
+            `invalid_end_time_range`, `invalid_created_at_range`,
+            `invalid_total_kwh_range`, `invalid_total_amount_range`,
+            `invalid_duration_range`.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
         "401":
           $ref: "#/components/responses/Unauthorized"
         "403":
@@ -11902,19 +12102,52 @@ components:
 
     ChargingSessionListResponse:
       type: object
+      additionalProperties: false
+      required: [sessions, has_more, sort_by, sort_order]
       properties:
         sessions:
           type: array
           items:
             $ref: "#/components/schemas/ChargingSessionView"
+
+        # ---- generic keyset cursor (new) ----
+        next_cursor_value:
+          type: string
+          nullable: true
+          description: |
+            Sort value of the last row. Send back as `cursor_value` on the
+            next request. For `created_at`, `start_time`, and `end_time` it
+            is RFC3339Nano. For `usage` it is a decimal string. For
+            `duration` it is whole seconds.
+        next_cursor_id:
+          type: string
+          format: uuid
+          nullable: true
+          description: |
+            UUID tie-breaker of the last row. Send back as `cursor_id`.
+
+        # ---- sort echo (new) ----
+        sort_by:
+          type: string
+          enum: [created_at, start_time, end_time, duration, usage]
+        sort_order:
+          type: string
+          enum: [asc, desc]
+
+        # ---- legacy cursor (kept for backward compat) ----
         next_before:
           type: string
           format: date-time
           nullable: true
+          deprecated: true
+          description: Deprecated. Only emitted when the caller used `before` / `before_id`.
         next_before_id:
           type: string
           format: uuid
           nullable: true
+          deprecated: true
+          description: Deprecated. Only emitted when the caller used `before` / `before_id`.
+
         has_more:
           type: boolean
     AssignGSTToHubRequest:
