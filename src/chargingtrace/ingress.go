@@ -205,6 +205,9 @@ func validateEnvelope(e Envelope) error {
 	if e.Category == "CHARGER_OPERATION_OCPP" && (e.CMSChargerOperationID == nil || e.HALChargerOperationID == nil || !validOperationEvidence(e.Data)) {
 		return &Error{Status: 400, Code: "invalid_hal_trace_event", Message: "The trace envelope is invalid."}
 	}
+	if e.Category == "CHARGER_OPERATION_FOLLOW_ON" && (e.CMSChargerOperationID == nil || e.HALChargerOperationID == nil || !validTriggerMessageFollowOnEvidence(e.Data)) {
+		return &Error{Status: 400, Code: "invalid_hal_trace_event", Message: "The trace envelope is invalid."}
+	}
 	if len(e.Data) > 16 {
 		return &Error{Status: 400, Code: "invalid_hal_trace_event", Message: "The trace envelope is invalid."}
 	}
@@ -216,6 +219,9 @@ func validPhase(v string) bool {
 	return v == "STARTING" || v == "CHARGING" || v == "STOPPING" || v == "POST_STOP"
 }
 func sanitize(input models.JSONB) models.JSONB {
+	if input["expected_message"] != nil {
+		return sanitizeTriggerMessageFollowOnEvidence(input)
+	}
 	if input["message_type"] != nil {
 		return sanitizeOperationEvidence(input)
 	}
@@ -226,6 +232,57 @@ func sanitize(input models.JSONB) models.JSONB {
 		}
 	}
 	return output
+}
+
+func validTriggerMessageFollowOnEvidence(input models.JSONB) bool {
+	_, ok := sanitizeTriggerMessageFollowOnEvidence(input)["expected_message"]
+	return ok
+}
+
+func sanitizeTriggerMessageFollowOnEvidence(input models.JSONB) models.JSONB {
+	expected, expectedOK := input["expected_message"].(string)
+	observed, observedOK := input["observed_action"].(string)
+	identity, identityOK := input["charger_ocpp_identity"].(string)
+	if !expectedOK || !observedOK || !identityOK || expected != observed || !triggerMessageFollowOnAction(expected) || !validText(identity, 255) {
+		return models.JSONB{}
+	}
+	safe := models.JSONB{"expected_message": expected, "observed_action": observed, "charger_ocpp_identity": identity}
+	if triggerMessageFollowOnConnectorScoped(expected) {
+		connector, connectorOK := safeConnectorNumber(input["connector_number"])
+		if !connectorOK || connector < 1 || len(input) != 4 {
+			return models.JSONB{}
+		}
+		safe["connector_number"] = connector
+		return safe
+	}
+	if len(input) != 3 {
+		return models.JSONB{}
+	}
+	return safe
+}
+
+func triggerMessageFollowOnAction(action string) bool {
+	switch action {
+	case "BootNotification", "DiagnosticsStatusNotification", "FirmwareStatusNotification", "Heartbeat", "MeterValues", "StatusNotification":
+		return true
+	default:
+		return false
+	}
+}
+
+func triggerMessageFollowOnConnectorScoped(action string) bool {
+	return action == "MeterValues" || action == "StatusNotification"
+}
+
+func safeConnectorNumber(value any) (int, bool) {
+	switch connector := value.(type) {
+	case float64:
+		return int(connector), connector == float64(int(connector)) && connector >= 0 && connector <= 999
+	case int:
+		return connector, connector >= 0 && connector <= 999
+	default:
+		return 0, false
+	}
 }
 
 func validOperationEvidence(input models.JSONB) bool {

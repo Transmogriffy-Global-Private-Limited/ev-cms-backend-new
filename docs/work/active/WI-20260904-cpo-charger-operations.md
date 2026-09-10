@@ -4,7 +4,7 @@ Status: In Progress
 Owner: Codex
 Collaborators: Anubhab Dey (CMS/HAL boundary owner)
 Started: 2026-09-04
-Last updated: 2026-09-08 (vehicle listing and audited GetConfiguration catalog correction deployed; paired HAL and hardware validation pending)
+Last updated: 2026-09-10 (source-only TriggerMessage follow-on diagnostics added; paired deployment and hardware validation pending)
 
 Development-plan reference: `docs/DEVELOPMENT_PLAN.md` — Charging lifecycle and HAL integration
 Detailed-plan reference: `docs/integrations/cpo-hal-operational-capability-manual.md`
@@ -26,6 +26,8 @@ existing CMS `halops -> halclient -> HAL v1 -> OCPP` boundary.
   list-side reconciliation.
 - Per-operation trace identity, safe OCPP CALL/CALLRESULT/CALLERROR evidence,
   lazy CPO operation-evidence projection, and audited GET_CONFIGURATION.
+- Diagnostic-only 60-second accepted TriggerMessage follow-on observation;
+  it is temporal evidence, not command, charger-effect, or charging truth.
 
 ## Non-goals
 
@@ -81,6 +83,15 @@ requested-key-only history and an optional transient safe response. CMS
 migration `000063` is applied; counterpart HAL migration `021` remains
 unapplied.
 
+Source-only, not deployed: paired HAL/CMS follow-on trace evidence for an
+allowlisted TriggerMessage durably accepted by HAL. CMS returns a scoped
+`follow_on` diagnostic state (`PENDING`, `OBSERVED`, `NOT_OBSERVED`, or
+`NOT_APPLICABLE`) over the existing per-operation evidence read. The 60-second
+window is anchored to HAL acceptance, requires requested action and charger
+identity (and scoped connector for MeterValues/StatusNotification), permits
+overlap, and never changes command/session/connector/financial truth. No
+migration was added.
+
 Deployed CMS: migration `000064` owns the CPO/customer-scoped vehicle table and
 read route; migration `000065` adds the already supported `GET_CONFIGURATION`
 kind to the bounded CMS operation constraint. Its rollback refuses to
@@ -99,6 +110,11 @@ service/contract verification pass. Migrations `000064` and `000065` were
 applied after a retained mode-0600 custom-format dump. PostgreSQL-gated
 history/protocol integration coverage remains skipped because
 `TEST_DATABASE_URL` is absent; no paired charger was selected.
+
+Focused source checks for the TriggerMessage follow-on classifier, ingress
+redaction, OpenAPI contract, and HAL observation/store handling pass. Full
+source verification and paired runtime validation remain pending; neither
+service has been rehosted for this source-only slice.
 
 ## Handoff
 

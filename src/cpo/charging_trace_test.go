@@ -51,3 +51,53 @@ func TestChargingTraceGetResponseUsesPersistedRootIdentities(t *testing.T) {
 		}
 	}
 }
+
+func TestClassifyChargerOperationFollowOnIsTemporalDiagnosticOnly(t *testing.T) {
+	acceptedAt := time.Date(2026, 9, 10, 10, 0, 0, 0, time.UTC)
+	operation := models.ChargerOperation{
+		Kind:        "TRIGGER_MESSAGE",
+		State:       "OCPP_CONFIRMED",
+		OCPPResult:  "Accepted",
+		Parameters:  models.JSONB{"requested_message": "StatusNotification"},
+		CompletedAt: &acceptedAt,
+	}
+	root := models.ChargingTrace{ChargerOCPPIdentity: "charger-01", OCPPConnectorNumber: 2}
+	valid := models.ChargingTraceEvent{
+		Category:   "CHARGER_OPERATION_FOLLOW_ON",
+		OccurredAt: acceptedAt.Add(30 * time.Second),
+		Data:       models.JSONB{"expected_message": "StatusNotification", "observed_action": "StatusNotification", "charger_ocpp_identity": "charger-01", "connector_number": 2},
+	}
+
+	tests := []struct {
+		name      string
+		operation models.ChargerOperation
+		rows      []models.ChargingTraceEvent
+		now       time.Time
+		want      string
+	}{
+		{name: "pending before deadline", operation: operation, now: acceptedAt.Add(59 * time.Second), want: "PENDING"},
+		{name: "observed matching evidence", operation: operation, rows: []models.ChargingTraceEvent{valid}, now: acceptedAt.Add(61 * time.Second), want: "OBSERVED"},
+		{name: "not observed after deadline", operation: operation, now: acceptedAt.Add(time.Minute), want: "NOT_OBSERVED"},
+		{name: "wrong connector ignored", operation: operation, rows: []models.ChargingTraceEvent{{Category: valid.Category, OccurredAt: valid.OccurredAt, Data: models.JSONB{"expected_message": "StatusNotification", "observed_action": "StatusNotification", "charger_ocpp_identity": "charger-01", "connector_number": 1}}}, now: acceptedAt.Add(61 * time.Second), want: "NOT_OBSERVED"},
+		{name: "wrong action ignored", operation: operation, rows: []models.ChargingTraceEvent{{Category: valid.Category, OccurredAt: valid.OccurredAt, Data: models.JSONB{"expected_message": "Heartbeat", "observed_action": "Heartbeat", "charger_ocpp_identity": "charger-01"}}}, now: acceptedAt.Add(61 * time.Second), want: "NOT_OBSERVED"},
+		{name: "wrong identity ignored", operation: operation, rows: []models.ChargingTraceEvent{{Category: valid.Category, OccurredAt: valid.OccurredAt, Data: models.JSONB{"expected_message": "StatusNotification", "observed_action": "StatusNotification", "charger_ocpp_identity": "other-charger", "connector_number": 2}}}, now: acceptedAt.Add(61 * time.Second), want: "NOT_OBSERVED"},
+		{name: "outside window ignored", operation: operation, rows: []models.ChargingTraceEvent{{Category: valid.Category, OccurredAt: acceptedAt.Add(time.Minute + time.Nanosecond), Data: valid.Data}}, now: acceptedAt.Add(time.Minute + time.Second), want: "NOT_OBSERVED"},
+		{name: "not accepted is not applicable", operation: models.ChargerOperation{Kind: "TRIGGER_MESSAGE", State: "OCPP_CONFIRMED", OCPPResult: "Rejected", Parameters: operation.Parameters, CompletedAt: &acceptedAt}, rows: []models.ChargingTraceEvent{valid}, now: acceptedAt.Add(time.Second), want: "NOT_APPLICABLE"},
+		{name: "non trigger is not applicable", operation: models.ChargerOperation{Kind: "RESET", State: "OCPP_CONFIRMED", OCPPResult: "Accepted", CompletedAt: &acceptedAt}, rows: []models.ChargingTraceEvent{valid}, now: acceptedAt.Add(time.Second), want: "NOT_APPLICABLE"},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			before := test.operation
+			got := classifyChargerOperationFollowOn(test.operation, root, test.rows, test.now)
+			if got.Status != test.want {
+				t.Fatalf("status = %s, want %s", got.Status, test.want)
+			}
+			if got.Status == "OBSERVED" && (got.ObservedAt == nil || got.ObservedAction != "StatusNotification") {
+				t.Fatalf("observed result = %+v", got)
+			}
+			if before.State != test.operation.State || before.OCPPResult != test.operation.OCPPResult || before.CompletedAt != test.operation.CompletedAt {
+				t.Fatalf("diagnostic classification mutated operation: before=%+v after=%+v", before, test.operation)
+			}
+		})
+	}
+}

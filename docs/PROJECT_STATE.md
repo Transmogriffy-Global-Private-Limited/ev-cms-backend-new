@@ -91,6 +91,19 @@ history-projection coverage, full Go tests, vet, and documentation-contract
 verification pass. No database mutation, deployment, restart, commit, or push
 occurred.
 
+## 2026-09-10 - TriggerMessage follow-on diagnostics source change
+
+The source now records and exposes a strictly sanitized, diagnostic-only
+follow-on observation for an allowlisted TriggerMessage that HAL durably
+recorded as `Accepted`. The existing per-operation evidence read returns
+`PENDING`, `OBSERVED`, `NOT_OBSERVED`, or `NOT_APPLICABLE` for the 60-second
+window after that HAL acceptance record. It establishes no causal or physical
+charger-effect proof and mutates no operation, session, occupancy, or financial
+state. No migration was added or applied. CMS and HAL have not been
+rehosted/deployed for this source-only change; paired PostgreSQL/hardware
+verification remains unavailable without `TEST_DATABASE_URL` and a test
+charger.
+
 ## 2026-09-08 - Per-operation OCPP protocol-evidence deployed
 
 - The CMS source assigns every new charger operation a distinct

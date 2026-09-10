@@ -56,6 +56,7 @@ type ChargerOperationOCPPExchanges struct {
 	OperationID uuid.UUID                      `json:"operation_id"`
 	TraceID     uuid.UUID                      `json:"trace_id"`
 	Exchanges   []ChargerOperationOCPPExchange `json:"exchanges"`
+	FollowOn    ChargerOperationFollowOn       `json:"follow_on"`
 }
 type ChargerOperationOCPPExchange struct {
 	UniqueID string                     `json:"unique_id"`
@@ -69,6 +70,20 @@ type ChargerOperationOCPPFrame struct {
 	Payload     models.JSONB `json:"payload"`
 }
 
+const triggerMessageFollowOnObservationWindow = time.Minute
+
+// ChargerOperationFollowOn is diagnostic-only temporal evidence. It never
+// changes the durable operation result or infers that TriggerMessage caused a
+// charger call.
+type ChargerOperationFollowOn struct {
+	Status              string     `json:"status"`
+	RequestedMessage    string     `json:"requested_message,omitempty"`
+	AcceptedAt          *time.Time `json:"accepted_at,omitempty"`
+	ObservationDeadline *time.Time `json:"observation_deadline,omitempty"`
+	ObservedAt          *time.Time `json:"observed_at,omitempty"`
+	ObservedAction      string     `json:"observed_action,omitempty"`
+}
+
 func (service *Service) GetChargerOperationOCPPExchanges(ctx context.Context, principal auth.Principal, operationID uuid.UUID) (ChargerOperationOCPPExchanges, error) {
 	if err := requireCPOContext(principal); err != nil {
 		return ChargerOperationOCPPExchanges{}, err
@@ -77,16 +92,25 @@ func (service *Service) GetChargerOperationOCPPExchanges(ctx context.Context, pr
 	if err := service.database.WithContext(ctx).Where("id = ? AND cpo_id = ?", operationID, *principal.CPOID).First(&operation).Error; err != nil {
 		return ChargerOperationOCPPExchanges{}, &auth.APIError{Status: 404, Code: "charger_operation_not_found", Message: "The charger operation was not found."}
 	}
-	response := ChargerOperationOCPPExchanges{OperationID: operation.ID, TraceID: operation.TraceID, Exchanges: []ChargerOperationOCPPExchange{}}
+	now := service.now()
+	response := ChargerOperationOCPPExchanges{OperationID: operation.ID, TraceID: operation.TraceID, Exchanges: []ChargerOperationOCPPExchange{}, FollowOn: classifyChargerOperationFollowOn(operation, models.ChargingTrace{}, nil, now)}
 	if operation.TraceID == uuid.Nil {
 		return response, nil
 	}
-	var rows []models.ChargingTraceEvent
-	if err := service.database.WithContext(ctx).Where("cpo_id = ? AND trace_id = ? AND category = ?", *principal.CPOID, operation.TraceID, "CHARGER_OPERATION_OCPP").Order("ingestion_sequence ASC").Find(&rows).Error; err != nil {
+	var root models.ChargingTrace
+	if err := service.database.WithContext(ctx).Where("cpo_id = ? AND trace_id = ?", *principal.CPOID, operation.TraceID).First(&root).Error; err != nil && err != gorm.ErrRecordNotFound {
 		return ChargerOperationOCPPExchanges{}, err
 	}
+	var rows []models.ChargingTraceEvent
+	if err := service.database.WithContext(ctx).Where("cpo_id = ? AND trace_id = ? AND category IN ?", *principal.CPOID, operation.TraceID, []string{"CHARGER_OPERATION_OCPP", "CHARGER_OPERATION_FOLLOW_ON"}).Order("ingestion_sequence ASC").Find(&rows).Error; err != nil {
+		return ChargerOperationOCPPExchanges{}, err
+	}
+	response.FollowOn = classifyChargerOperationFollowOn(operation, root, rows, now)
 	byUnique := map[string]int{}
 	for _, row := range rows {
+		if row.Category != "CHARGER_OPERATION_OCPP" {
+			continue
+		}
 		uniqueID, _ := row.Data["unique_id"].(string)
 		action, _ := row.Data["action"].(string)
 		messageType, _ := row.Data["message_type"].(string)
@@ -109,6 +133,78 @@ func (service *Service) GetChargerOperationOCPPExchanges(ctx context.Context, pr
 		}
 	}
 	return response, nil
+}
+
+func classifyChargerOperationFollowOn(operation models.ChargerOperation, root models.ChargingTrace, rows []models.ChargingTraceEvent, now time.Time) ChargerOperationFollowOn {
+	followOn := ChargerOperationFollowOn{Status: "NOT_APPLICABLE"}
+	requested, requestedOK := operation.Parameters["requested_message"].(string)
+	if operation.Kind != "TRIGGER_MESSAGE" || !requestedOK || !triggerMessageFollowOnAction(requested) || operation.State != "OCPP_CONFIRMED" || operation.OCPPResult != "Accepted" || operation.CompletedAt == nil || operation.CompletedAt.IsZero() {
+		return followOn
+	}
+	acceptedAt := operation.CompletedAt.UTC()
+	deadline := acceptedAt.Add(triggerMessageFollowOnObservationWindow)
+	followOn.RequestedMessage = requested
+	followOn.AcceptedAt = &acceptedAt
+	followOn.ObservationDeadline = &deadline
+	for _, row := range rows {
+		if row.Category != "CHARGER_OPERATION_FOLLOW_ON" || !row.OccurredAt.After(acceptedAt) || row.OccurredAt.After(deadline) {
+			continue
+		}
+		observedAction, identity, connector, valid := triggerMessageFollowOnTraceData(row.Data)
+		if !valid || observedAction != requested || identity != root.ChargerOCPPIdentity {
+			continue
+		}
+		if triggerMessageFollowOnConnectorScoped(requested) && root.OCPPConnectorNumber > 0 && connector != root.OCPPConnectorNumber {
+			continue
+		}
+		observedAt := row.OccurredAt.UTC()
+		followOn.Status, followOn.ObservedAt, followOn.ObservedAction = "OBSERVED", &observedAt, observedAction
+		return followOn
+	}
+	if now.Before(deadline) {
+		followOn.Status = "PENDING"
+		return followOn
+	}
+	followOn.Status = "NOT_OBSERVED"
+	return followOn
+}
+
+func triggerMessageFollowOnTraceData(data models.JSONB) (action, identity string, connector int, valid bool) {
+	expected, expectedOK := data["expected_message"].(string)
+	action, actionOK := data["observed_action"].(string)
+	identity, identityOK := data["charger_ocpp_identity"].(string)
+	if !expectedOK || !actionOK || !identityOK || expected != action || !triggerMessageFollowOnAction(action) {
+		return "", "", 0, false
+	}
+	if triggerMessageFollowOnConnectorScoped(action) {
+		connector, valid = safeConnectorNumber(data["connector_number"])
+		return action, identity, connector, valid && connector > 0
+	}
+	return action, identity, 0, true
+}
+
+func triggerMessageFollowOnAction(action string) bool {
+	switch action {
+	case "BootNotification", "DiagnosticsStatusNotification", "FirmwareStatusNotification", "Heartbeat", "MeterValues", "StatusNotification":
+		return true
+	default:
+		return false
+	}
+}
+
+func triggerMessageFollowOnConnectorScoped(action string) bool {
+	return action == "MeterValues" || action == "StatusNotification"
+}
+
+func safeConnectorNumber(value any) (int, bool) {
+	switch connector := value.(type) {
+	case float64:
+		return int(connector), connector == float64(int(connector)) && connector >= 0 && connector <= 999
+	case int:
+		return connector, connector >= 0 && connector <= 999
+	default:
+		return 0, false
+	}
 }
 
 // ListChargingTraceReplay uses CMS ingestion sequence rather than occurred_at:

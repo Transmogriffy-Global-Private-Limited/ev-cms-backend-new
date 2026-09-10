@@ -1,5 +1,25 @@
 # AI Changelog
 
+## 2026-09-10 - Add accepted TriggerMessage follow-on diagnostic evidence (source only)
+
+- HAL now records a separate, sanitized diagnostic trace event for later
+  allowlisted charger messages observed within 60 seconds after its durable
+  `Accepted` TriggerMessage response record. CMS validates that strict trace
+  shape and returns `follow_on` on the existing CPO per-operation evidence
+  read with `PENDING`, `OBSERVED`, `NOT_OBSERVED`, or `NOT_APPLICABLE`.
+- Identity and requested action must match; `MeterValues` and
+  `StatusNotification` also require the connector when scoped. The time-only
+  association is intentionally non-causal, so overlapping accepted operations
+  may observe the same frame. This is diagnostic evidence only: no operation,
+  session, connector occupancy, settlement, HAL command, or worker behavior
+  changed. No migration was added.
+
+Verification: focused CMS classifier/trace-ingress/OpenAPI checks, focused HAL
+store/OCPP checks, both repositories' `go test -p 1 ./...`, `go vet -p 1
+./...`, `go build ./...`, and CMS documentation verification pass.
+PostgreSQL-gated tests remain unavailable without `TEST_DATABASE_URL`. Neither
+CMS nor HAL has been rehosted/deployed.
+
 ## 2026-09-09 - Reconcile durable HAL completion for materialized CMS sessions
 
 - Extended the existing bounded `halops` reconciliation loop with an exact
