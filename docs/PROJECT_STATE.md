@@ -7,8 +7,9 @@ stop initiator/reason and OCPP stop reason to charging sessions. HAL immutable
 completion facts and exact transaction reconciliation converge through one
 locked finalizer: matching/new metadata fills missing canonical fields, while
 conflicting established metadata fails safely without changing meter, time,
-settlement, wallet, connector, or command truth. Customer detail/current and
-history expose the additive `stop` object; legacy `stop_reason` remains the
+settlement, wallet, connector, or command truth. Customer and CPO session
+detail/list plus CPO charger-transaction reads expose the additive `stop`
+object; legacy `stop_reason`/transaction `reason` remain the
 compatibility OCPP projection for new completions and safe late OCPP-metadata
 enrichment when it was previously absent. No HAL source change,
 deployment, restart, or migration application occurred.

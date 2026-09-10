@@ -11552,6 +11552,9 @@ components:
         reason:
           type: string
           nullable: true
+          description: Legacy compatibility projection of the charger-reported OCPP stop reason when available.
+        stop:
+          $ref: "#/components/schemas/ChargingSessionStop"
         session_status:
           $ref: "#/components/schemas/SessionStatus"
         settlement_status:
@@ -11871,6 +11874,9 @@ components:
         stop_reason:
           type: string
           nullable: true
+          description: Legacy compatibility projection of the charger-reported OCPP stop reason when available.
+        stop:
+          $ref: "#/components/schemas/ChargingSessionStop"
         initial_soc_percent:
           type: string
           nullable: true

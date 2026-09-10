@@ -3523,6 +3523,16 @@ start intent: these describe the customer's `AUTO`, `ENERGY`, `TIME`, or
 `MONEY` limit selection and are independent of the tariff billing dimension.
 Legacy sessions without a start intent omit those two fields.
 
+The additive `stop` object preserves authoritative stop provenance: optional
+`requested_initiator` and `requested_reason` describe the actor/policy and
+machine-readable reason that requested a stop; `ocpp_reason` is the charger
+reported OCPP `StopTransaction.reason`. For example,
+`ENERGY_LIMIT` / `energy_limit_reached` / `Remote` means an energy limit
+requested the stop and the charger reported a remote protocol stop. `Remote`
+is not a business reason. A spontaneous charger stop may contain only
+`ocpp_reason: Local`. Existing `stop_reason` remains a legacy compatibility
+projection and must not be used to manufacture missing canonical provenance.
+
 ### 12.5 CPO charging diagnostic trace
 
 ```text
@@ -3577,6 +3587,11 @@ tenant-scoped and does not contact the HAL or issue charger commands. Financial
 status values are `PENDING`, `COMPLETED`, `FAILED`, `REVERSED`, or `REFUNDED`.
 Malformed filters return `400`; unauthenticated or unauthorized callers receive
 the standard `401`/`403` responses.
+
+Transactions expose the same additive `stop` object and semantics as CPO
+charging-session reads. Existing `reason` remains a legacy compatibility
+projection; use `stop.requested_*` for requested-stop provenance and
+`stop.ocpp_reason` for charger protocol truth.
 
 ## 13. Client State Machine
 
