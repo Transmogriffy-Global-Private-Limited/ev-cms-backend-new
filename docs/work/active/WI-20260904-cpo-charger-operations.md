@@ -4,7 +4,7 @@ Status: In Progress
 Owner: Codex
 Collaborators: Anubhab Dey (CMS/HAL boundary owner)
 Started: 2026-09-04
-Last updated: 2026-09-10 (source-only TriggerMessage follow-on diagnostics added; paired deployment and hardware validation pending)
+Last updated: 2026-09-10 (source-only TriggerMessage follow-on race/closure correction; paired deployment and hardware validation pending)
 
 Development-plan reference: `docs/DEVELOPMENT_PLAN.md` — Charging lifecycle and HAL integration
 Detailed-plan reference: `docs/integrations/cpo-hal-operational-capability-manual.md`
@@ -84,13 +84,15 @@ migration `000063` is applied; counterpart HAL migration `021` remains
 unapplied.
 
 Source-only, not deployed: paired HAL/CMS follow-on trace evidence for an
-allowlisted TriggerMessage durably accepted by HAL. CMS returns a scoped
-`follow_on` diagnostic state (`PENDING`, `OBSERVED`, `NOT_OBSERVED`, or
-`NOT_APPLICABLE`) over the existing per-operation evidence read. The 60-second
-window is anchored to HAL acceptance, requires requested action and charger
-identity (and scoped connector for MeterValues/StatusNotification), permits
-overlap, and never changes command/session/connector/financial truth. No
-migration was added.
+allowlisted TriggerMessage durably accepted through HAL's persisted
+`CALLRESULT` trace. HAL migration `022` (unapplied) holds indexed durable
+windows before later operation completion and lets the existing trace worker
+close expired windows. CMS derives acceptance from delivered trace evidence,
+returns `NOT_OBSERVED` only from a matching delivered closure, keeps missing
+delivery `PENDING` past 60 seconds, and lets positive evidence dominate
+closure. Requested action, charger identity, scoped connector for
+MeterValues/StatusNotification, strict temporal bounds, overlap, and the
+non-causal/no-command-session-connector-financial-truth invariant remain.
 
 Deployed CMS: migration `000064` owns the CPO/customer-scoped vehicle table and
 read route; migration `000065` adds the already supported `GET_CONFIGURATION`
@@ -112,9 +114,11 @@ history/protocol integration coverage remains skipped because
 `TEST_DATABASE_URL` is absent; no paired charger was selected.
 
 Focused source checks for the TriggerMessage follow-on classifier, ingress
-redaction, OpenAPI contract, and HAL observation/store handling pass. Full
-source verification and paired runtime validation remain pending; neither
-service has been rehosted for this source-only slice.
+redaction, OpenAPI contract, HAL observation/store/worker handling, full Go
+tests, vet, builds, diff checks, and CMS documentation verification pass.
+PostgreSQL window/index and paired runtime validation remain pending because
+`TEST_DATABASE_URL` and a test charger are unavailable; neither service has
+been rehosted for this source-only slice.
 
 ## Handoff
 

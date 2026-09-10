@@ -208,6 +208,9 @@ func validateEnvelope(e Envelope) error {
 	if e.Category == "CHARGER_OPERATION_FOLLOW_ON" && (e.CMSChargerOperationID == nil || e.HALChargerOperationID == nil || !validTriggerMessageFollowOnEvidence(e.Data)) {
 		return &Error{Status: 400, Code: "invalid_hal_trace_event", Message: "The trace envelope is invalid."}
 	}
+	if e.Category == "CHARGER_OPERATION_FOLLOW_ON_CLOSED" && (e.CMSChargerOperationID == nil || e.HALChargerOperationID == nil || !validTriggerMessageFollowOnClosureEvidence(e.Data)) {
+		return &Error{Status: 400, Code: "invalid_hal_trace_event", Message: "The trace envelope is invalid."}
+	}
 	if len(e.Data) > 16 {
 		return &Error{Status: 400, Code: "invalid_hal_trace_event", Message: "The trace envelope is invalid."}
 	}
@@ -219,6 +222,9 @@ func validPhase(v string) bool {
 	return v == "STARTING" || v == "CHARGING" || v == "STOPPING" || v == "POST_STOP"
 }
 func sanitize(input models.JSONB) models.JSONB {
+	if input["accepted_at"] != nil {
+		return sanitizeTriggerMessageFollowOnClosureEvidence(input)
+	}
 	if input["expected_message"] != nil {
 		return sanitizeTriggerMessageFollowOnEvidence(input)
 	}
@@ -232,6 +238,34 @@ func sanitize(input models.JSONB) models.JSONB {
 		}
 	}
 	return output
+}
+
+func validTriggerMessageFollowOnClosureEvidence(input models.JSONB) bool {
+	_, ok := sanitizeTriggerMessageFollowOnClosureEvidence(input)["accepted_at"]
+	return ok
+}
+
+func sanitizeTriggerMessageFollowOnClosureEvidence(input models.JSONB) models.JSONB {
+	expected, expectedOK := input["expected_message"].(string)
+	identity, identityOK := input["charger_ocpp_identity"].(string)
+	rawAcceptedAt, acceptedOK := input["accepted_at"].(string)
+	acceptedAt, parseErr := time.Parse(time.RFC3339Nano, rawAcceptedAt)
+	if !expectedOK || !identityOK || !acceptedOK || parseErr != nil || !triggerMessageFollowOnAction(expected) || !validText(identity, 255) {
+		return models.JSONB{}
+	}
+	safe := models.JSONB{"expected_message": expected, "charger_ocpp_identity": identity, "accepted_at": acceptedAt.UTC().Format(time.RFC3339Nano)}
+	if triggerMessageFollowOnConnectorScoped(expected) {
+		connector, connectorOK := safeConnectorNumber(input["connector_number"])
+		if !connectorOK || connector < 1 || len(input) != 4 {
+			return models.JSONB{}
+		}
+		safe["connector_number"] = connector
+		return safe
+	}
+	if len(input) != 3 {
+		return models.JSONB{}
+	}
+	return safe
 }
 
 func validTriggerMessageFollowOnEvidence(input models.JSONB) bool {

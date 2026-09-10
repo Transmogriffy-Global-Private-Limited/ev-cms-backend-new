@@ -1,24 +1,26 @@
 # AI Changelog
 
-## 2026-09-10 - Add accepted TriggerMessage follow-on diagnostic evidence (source only)
+## 2026-09-10 - Close TriggerMessage follow-on acceptance and negative-proof races (source only)
 
-- HAL now records a separate, sanitized diagnostic trace event for later
-  allowlisted charger messages observed within 60 seconds after its durable
-  `Accepted` TriggerMessage response record. CMS validates that strict trace
-  shape and returns `follow_on` on the existing CPO per-operation evidence
-  read with `PENDING`, `OBSERVED`, `NOT_OBSERVED`, or `NOT_APPLICABLE`.
-- Identity and requested action must match; `MeterValues` and
-  `StatusNotification` also require the connector when scoped. The time-only
-  association is intentionally non-causal, so overlapping accepted operations
-  may observe the same frame. This is diagnostic evidence only: no operation,
-  session, connector occupancy, settlement, HAL command, or worker behavior
-  changed. No migration was added.
+- HAL opens migration `022`'s indexed, durable follow-on window immediately
+  after it persists a `TriggerMessage` `CALLRESULT` `Accepted` trace event and
+  before ordinary operation completion bookkeeping. Inbound OCPP matching uses
+  this bounded window table, not a growing charger-operation ledger scan; the
+  existing trace worker durably closes expired windows. CMS derives acceptance
+  from the delivered Accepted trace, never local completion time.
+- CMS returns `NOT_OBSERVED` only for a matching delivered closure. Missing
+  delivery remains `PENDING` beyond 60 seconds; matching positive evidence
+  dominates closure. Identity, requested action, strict `(accepted_at,
+  deadline]` timing, and connector scope for `MeterValues` and
+  `StatusNotification` remain required. This is diagnostic evidence only: no
+  operation, session, connector occupancy, settlement, HAL command, or new
+  worker changes. Migration `022` is source-only and unapplied.
 
 Verification: focused CMS classifier/trace-ingress/OpenAPI checks, focused HAL
-store/OCPP checks, both repositories' `go test -p 1 ./...`, `go vet -p 1
-./...`, `go build ./...`, and CMS documentation verification pass.
-PostgreSQL-gated tests remain unavailable without `TEST_DATABASE_URL`. Neither
-CMS nor HAL has been rehosted/deployed.
+store/OCPP/trace-worker checks, both repositories' `go test -p 1 ./...`,
+`go vet -p 1 ./...`, `go build ./...`, `git diff --check`, and CMS
+documentation verification pass. PostgreSQL-gated tests remain unavailable
+without `TEST_DATABASE_URL`. Neither CMS nor HAL has been rehosted/deployed.
 
 ## 2026-09-09 - Reconcile durable HAL completion for materialized CMS sessions
 

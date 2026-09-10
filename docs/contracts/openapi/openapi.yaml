@@ -4460,7 +4460,7 @@ paths:
       tags: [CPO Charger Operations]
       operationId: getCPOChargerOperationOCPPExchanges
       summary: Read safe OCPP exchanges and TriggerMessage follow-on diagnostics for one operation
-      description: Requires chargers.operations, not generic trace permission. Delivery is asynchronous; a valid operation with no delivered evidence returns 200 and an empty exchanges array. For an Accepted allowlisted TriggerMessage, follow_on is a 60-second temporal diagnostic window anchored at HAL's durably recorded OCPP acceptance. OBSERVED proves only matching later charger traffic in that window, not causation or a physical effect; PENDING and NOT_OBSERVED do not alter operation state. No timeout response is fabricated.
+      description: Requires chargers.operations, not generic trace permission. Delivery is asynchronous; a valid operation with no delivered evidence returns 200 and an empty exchanges array. For an Accepted allowlisted TriggerMessage, follow_on is a 60-second temporal diagnostic window anchored at HAL's delivered TriggerMessage CALLRESULT Accepted trace, not CMS operation completion. OBSERVED proves only matching later charger traffic in that window, not causation or a physical effect. NOT_OBSERVED requires matching delivered HAL closure; without it, including after the nominal deadline, status remains PENDING. These diagnostics do not alter operation state.
       security: [{BearerAuth: [], CPOAppID: []}]
       parameters: [{name: operation_id, in: path, required: true, schema: {type: string, format: uuid}}, {$ref: "#/components/parameters/CPOAppIDHeader"}]
       responses: {"200": {description: Grouped frontend-safe protocol exchanges., content: {application/json: {schema: {$ref: "#/components/schemas/ChargerOperationOCPPExchanges"}}}}, "400": {$ref: "#/components/responses/InvalidRequest"}, "403": {$ref: "#/components/responses/CPOBusinessForbidden"}, "404": {description: Tenant-safe operation not found}}
@@ -7522,7 +7522,7 @@ components:
       properties:
         status: {type: string, enum: [PENDING, OBSERVED, NOT_OBSERVED, NOT_APPLICABLE]}
         requested_message: {type: string, enum: [BootNotification, DiagnosticsStatusNotification, FirmwareStatusNotification, Heartbeat, MeterValues, StatusNotification]}
-        accepted_at: {type: string, format: date-time, description: "HAL's durable OCPP Accepted record, propagated to CMS operation completion evidence."}
+        accepted_at: {type: string, format: date-time, description: "Occurred-at timestamp of HAL's delivered TriggerMessage CALLRESULT Accepted trace event; never inferred from CMS operation completion."}
         observation_deadline: {type: string, format: date-time, description: "accepted_at plus 60 seconds."}
         observed_at: {type: string, format: date-time}
         observed_action: {type: string, enum: [BootNotification, DiagnosticsStatusNotification, FirmwareStatusNotification, Heartbeat, MeterValues, StatusNotification]}

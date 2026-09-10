@@ -52,45 +52,49 @@ func TestChargingTraceGetResponseUsesPersistedRootIdentities(t *testing.T) {
 	}
 }
 
-func TestClassifyChargerOperationFollowOnIsTemporalDiagnosticOnly(t *testing.T) {
+func TestClassifyChargerOperationFollowOnUsesDurableAcceptanceAndClosure(t *testing.T) {
 	acceptedAt := time.Date(2026, 9, 10, 10, 0, 0, 0, time.UTC)
+	completedAt := acceptedAt.Add(5 * time.Second)
 	operation := models.ChargerOperation{
-		Kind:        "TRIGGER_MESSAGE",
-		State:       "OCPP_CONFIRMED",
-		OCPPResult:  "Accepted",
-		Parameters:  models.JSONB{"requested_message": "StatusNotification"},
-		CompletedAt: &acceptedAt,
+		Kind: "TRIGGER_MESSAGE", State: "OCPP_CONFIRMED", OCPPResult: "Accepted",
+		Parameters: models.JSONB{"requested_message": "StatusNotification"}, CompletedAt: &completedAt,
 	}
 	root := models.ChargingTrace{ChargerOCPPIdentity: "charger-01", OCPPConnectorNumber: 2}
-	valid := models.ChargingTraceEvent{
-		Category:   "CHARGER_OPERATION_FOLLOW_ON",
-		OccurredAt: acceptedAt.Add(30 * time.Second),
-		Data:       models.JSONB{"expected_message": "StatusNotification", "observed_action": "StatusNotification", "charger_ocpp_identity": "charger-01", "connector_number": 2},
-	}
+	accepted := models.ChargingTraceEvent{Category: "CHARGER_OPERATION_OCPP", OccurredAt: acceptedAt, Data: models.JSONB{"action": "TriggerMessage", "message_type": "CALLRESULT", "payload": map[string]any{"status": "Accepted"}}}
+	valid := models.ChargingTraceEvent{Category: "CHARGER_OPERATION_FOLLOW_ON", OccurredAt: acceptedAt.Add(30 * time.Second), Data: models.JSONB{"expected_message": "StatusNotification", "observed_action": "StatusNotification", "charger_ocpp_identity": "charger-01", "connector_number": 2}}
+	closure := models.ChargingTraceEvent{Category: "CHARGER_OPERATION_FOLLOW_ON_CLOSED", OccurredAt: acceptedAt.Add(time.Minute), Data: models.JSONB{"expected_message": "StatusNotification", "charger_ocpp_identity": "charger-01", "connector_number": 2, "accepted_at": acceptedAt.Format(time.RFC3339Nano)}}
 
 	tests := []struct {
-		name      string
-		operation models.ChargerOperation
-		rows      []models.ChargingTraceEvent
-		now       time.Time
-		want      string
+		name              string
+		operation         models.ChargerOperation
+		rows              []models.ChargingTraceEvent
+		includeAcceptance bool
+		want              string
 	}{
-		{name: "pending before deadline", operation: operation, now: acceptedAt.Add(59 * time.Second), want: "PENDING"},
-		{name: "observed matching evidence", operation: operation, rows: []models.ChargingTraceEvent{valid}, now: acceptedAt.Add(61 * time.Second), want: "OBSERVED"},
-		{name: "not observed after deadline", operation: operation, now: acceptedAt.Add(time.Minute), want: "NOT_OBSERVED"},
-		{name: "wrong connector ignored", operation: operation, rows: []models.ChargingTraceEvent{{Category: valid.Category, OccurredAt: valid.OccurredAt, Data: models.JSONB{"expected_message": "StatusNotification", "observed_action": "StatusNotification", "charger_ocpp_identity": "charger-01", "connector_number": 1}}}, now: acceptedAt.Add(61 * time.Second), want: "NOT_OBSERVED"},
-		{name: "wrong action ignored", operation: operation, rows: []models.ChargingTraceEvent{{Category: valid.Category, OccurredAt: valid.OccurredAt, Data: models.JSONB{"expected_message": "Heartbeat", "observed_action": "Heartbeat", "charger_ocpp_identity": "charger-01"}}}, now: acceptedAt.Add(61 * time.Second), want: "NOT_OBSERVED"},
-		{name: "wrong identity ignored", operation: operation, rows: []models.ChargingTraceEvent{{Category: valid.Category, OccurredAt: valid.OccurredAt, Data: models.JSONB{"expected_message": "StatusNotification", "observed_action": "StatusNotification", "charger_ocpp_identity": "other-charger", "connector_number": 2}}}, now: acceptedAt.Add(61 * time.Second), want: "NOT_OBSERVED"},
-		{name: "outside window ignored", operation: operation, rows: []models.ChargingTraceEvent{{Category: valid.Category, OccurredAt: acceptedAt.Add(time.Minute + time.Nanosecond), Data: valid.Data}}, now: acceptedAt.Add(time.Minute + time.Second), want: "NOT_OBSERVED"},
-		{name: "not accepted is not applicable", operation: models.ChargerOperation{Kind: "TRIGGER_MESSAGE", State: "OCPP_CONFIRMED", OCPPResult: "Rejected", Parameters: operation.Parameters, CompletedAt: &acceptedAt}, rows: []models.ChargingTraceEvent{valid}, now: acceptedAt.Add(time.Second), want: "NOT_APPLICABLE"},
-		{name: "non trigger is not applicable", operation: models.ChargerOperation{Kind: "RESET", State: "OCPP_CONFIRMED", OCPPResult: "Accepted", CompletedAt: &acceptedAt}, rows: []models.ChargingTraceEvent{valid}, now: acceptedAt.Add(time.Second), want: "NOT_APPLICABLE"},
+		{name: "delivery of accepted trace pending", operation: operation, includeAcceptance: false, want: "PENDING"},
+		{name: "no closure remains pending past nominal deadline", operation: operation, includeAcceptance: true, want: "PENDING"},
+		{name: "observed matching evidence", operation: operation, rows: []models.ChargingTraceEvent{valid}, includeAcceptance: true, want: "OBSERVED"},
+		{name: "durable closure proves not observed", operation: operation, rows: []models.ChargingTraceEvent{closure}, includeAcceptance: true, want: "NOT_OBSERVED"},
+		{name: "positive dominates delivered closure", operation: operation, rows: []models.ChargingTraceEvent{closure, valid}, includeAcceptance: true, want: "OBSERVED"},
+		{name: "wrong connector ignored without negative proof", operation: operation, rows: []models.ChargingTraceEvent{{Category: valid.Category, OccurredAt: valid.OccurredAt, Data: models.JSONB{"expected_message": "StatusNotification", "observed_action": "StatusNotification", "charger_ocpp_identity": "charger-01", "connector_number": 1}}}, includeAcceptance: true, want: "PENDING"},
+		{name: "wrong closure acceptance ignored", operation: operation, rows: []models.ChargingTraceEvent{{Category: closure.Category, OccurredAt: closure.OccurredAt, Data: models.JSONB{"expected_message": "StatusNotification", "charger_ocpp_identity": "charger-01", "connector_number": 2, "accepted_at": acceptedAt.Add(time.Nanosecond).Format(time.RFC3339Nano)}}}, includeAcceptance: true, want: "PENDING"},
+		{name: "outside strict interval ignored", operation: operation, rows: []models.ChargingTraceEvent{{Category: valid.Category, OccurredAt: acceptedAt.Add(time.Minute + time.Nanosecond), Data: valid.Data}}, includeAcceptance: true, want: "PENDING"},
+		{name: "not accepted is not applicable", operation: models.ChargerOperation{Kind: "TRIGGER_MESSAGE", State: "OCPP_CONFIRMED", OCPPResult: "Rejected", Parameters: operation.Parameters}, includeAcceptance: false, want: "NOT_APPLICABLE"},
+		{name: "non trigger is not applicable", operation: models.ChargerOperation{Kind: "RESET", State: "OCPP_CONFIRMED", OCPPResult: "Accepted", Parameters: operation.Parameters}, includeAcceptance: true, want: "NOT_APPLICABLE"},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
+			rows := append([]models.ChargingTraceEvent(nil), test.rows...)
+			if test.includeAcceptance {
+				rows = append([]models.ChargingTraceEvent{accepted}, rows...)
+			}
 			before := test.operation
-			got := classifyChargerOperationFollowOn(test.operation, root, test.rows, test.now)
+			got := classifyChargerOperationFollowOn(test.operation, root, rows, acceptedAt.Add(2*time.Minute))
 			if got.Status != test.want {
 				t.Fatalf("status = %s, want %s", got.Status, test.want)
+			}
+			if test.includeAcceptance && test.operation.Kind == "TRIGGER_MESSAGE" && (got.AcceptedAt == nil || !got.AcceptedAt.Equal(acceptedAt) || got.ObservationDeadline == nil || !got.ObservationDeadline.Equal(acceptedAt.Add(time.Minute))) {
+				t.Fatalf("accepted trace was not authoritative: %+v", got)
 			}
 			if got.Status == "OBSERVED" && (got.ObservedAt == nil || got.ObservedAction != "StatusNotification") {
 				t.Fatalf("observed result = %+v", got)

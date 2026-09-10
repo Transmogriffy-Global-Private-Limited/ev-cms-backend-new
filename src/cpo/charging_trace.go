@@ -102,7 +102,7 @@ func (service *Service) GetChargerOperationOCPPExchanges(ctx context.Context, pr
 		return ChargerOperationOCPPExchanges{}, err
 	}
 	var rows []models.ChargingTraceEvent
-	if err := service.database.WithContext(ctx).Where("cpo_id = ? AND trace_id = ? AND category IN ?", *principal.CPOID, operation.TraceID, []string{"CHARGER_OPERATION_OCPP", "CHARGER_OPERATION_FOLLOW_ON"}).Order("ingestion_sequence ASC").Find(&rows).Error; err != nil {
+	if err := service.database.WithContext(ctx).Where("cpo_id = ? AND trace_id = ? AND category IN ?", *principal.CPOID, operation.TraceID, []string{"CHARGER_OPERATION_OCPP", "CHARGER_OPERATION_FOLLOW_ON", "CHARGER_OPERATION_FOLLOW_ON_CLOSED"}).Order("ingestion_sequence ASC").Find(&rows).Error; err != nil {
 		return ChargerOperationOCPPExchanges{}, err
 	}
 	response.FollowOn = classifyChargerOperationFollowOn(operation, root, rows, now)
@@ -138,12 +138,23 @@ func (service *Service) GetChargerOperationOCPPExchanges(ctx context.Context, pr
 func classifyChargerOperationFollowOn(operation models.ChargerOperation, root models.ChargingTrace, rows []models.ChargingTraceEvent, now time.Time) ChargerOperationFollowOn {
 	followOn := ChargerOperationFollowOn{Status: "NOT_APPLICABLE"}
 	requested, requestedOK := operation.Parameters["requested_message"].(string)
-	if operation.Kind != "TRIGGER_MESSAGE" || !requestedOK || !triggerMessageFollowOnAction(requested) || operation.State != "OCPP_CONFIRMED" || operation.OCPPResult != "Accepted" || operation.CompletedAt == nil || operation.CompletedAt.IsZero() {
+	if operation.Kind != "TRIGGER_MESSAGE" || !requestedOK || !triggerMessageFollowOnAction(requested) {
 		return followOn
 	}
-	acceptedAt := operation.CompletedAt.UTC()
-	deadline := acceptedAt.Add(triggerMessageFollowOnObservationWindow)
 	followOn.RequestedMessage = requested
+	acceptedAt, accepted := triggerMessageAcceptedAt(rows)
+	if !accepted {
+		if operation.OCPPResult != "Accepted" {
+			return ChargerOperationFollowOn{Status: "NOT_APPLICABLE"}
+		}
+		// CMS knows only that HAL reported acceptance through the operation
+		// response, not its durable websocket-observation timestamp. Keep the
+		// diagnostic result conservative until that immutable trace evidence is
+		// delivered; do not manufacture a local deadline.
+		followOn.Status = "PENDING"
+		return followOn
+	}
+	deadline := acceptedAt.Add(triggerMessageFollowOnObservationWindow)
 	followOn.AcceptedAt = &acceptedAt
 	followOn.ObservationDeadline = &deadline
 	for _, row := range rows {
@@ -161,12 +172,41 @@ func classifyChargerOperationFollowOn(operation models.ChargerOperation, root mo
 		followOn.Status, followOn.ObservedAt, followOn.ObservedAction = "OBSERVED", &observedAt, observedAction
 		return followOn
 	}
-	if now.Before(deadline) {
-		followOn.Status = "PENDING"
+	for _, row := range rows {
+		if row.Category != "CHARGER_OPERATION_FOLLOW_ON_CLOSED" || row.OccurredAt.Before(deadline) {
+			continue
+		}
+		expected, identity, connector, closureAcceptedAt, valid := triggerMessageFollowOnClosureData(row.Data)
+		if !valid || expected != requested || identity != root.ChargerOCPPIdentity || !closureAcceptedAt.Equal(acceptedAt) {
+			continue
+		}
+		if triggerMessageFollowOnConnectorScoped(requested) && root.OCPPConnectorNumber > 0 && connector != root.OCPPConnectorNumber {
+			continue
+		}
+		followOn.Status = "NOT_OBSERVED"
 		return followOn
 	}
-	followOn.Status = "NOT_OBSERVED"
+	// A local deadline says only that the nominal window may have elapsed. HAL
+	// trace delivery is asynchronous, so absence of a delivered row cannot prove
+	// absence of durable HAL evidence or coverage.
+	followOn.Status = "PENDING"
 	return followOn
+}
+
+func triggerMessageAcceptedAt(rows []models.ChargingTraceEvent) (time.Time, bool) {
+	for _, row := range rows {
+		if row.Category != "CHARGER_OPERATION_OCPP" {
+			continue
+		}
+		action, _ := row.Data["action"].(string)
+		messageType, _ := row.Data["message_type"].(string)
+		payload, _ := row.Data["payload"].(map[string]any)
+		status, _ := payload["status"].(string)
+		if action == "TriggerMessage" && messageType == "CALLRESULT" && status == "Accepted" {
+			return row.OccurredAt.UTC(), true
+		}
+	}
+	return time.Time{}, false
 }
 
 func triggerMessageFollowOnTraceData(data models.JSONB) (action, identity string, connector int, valid bool) {
@@ -181,6 +221,21 @@ func triggerMessageFollowOnTraceData(data models.JSONB) (action, identity string
 		return action, identity, connector, valid && connector > 0
 	}
 	return action, identity, 0, true
+}
+
+func triggerMessageFollowOnClosureData(data models.JSONB) (expected, identity string, connector int, acceptedAt time.Time, valid bool) {
+	expected, expectedOK := data["expected_message"].(string)
+	identity, identityOK := data["charger_ocpp_identity"].(string)
+	rawAcceptedAt, acceptedOK := data["accepted_at"].(string)
+	acceptedAt, parseErr := time.Parse(time.RFC3339Nano, rawAcceptedAt)
+	if !expectedOK || !identityOK || !acceptedOK || parseErr != nil || !triggerMessageFollowOnAction(expected) {
+		return "", "", 0, time.Time{}, false
+	}
+	if triggerMessageFollowOnConnectorScoped(expected) {
+		connector, valid = safeConnectorNumber(data["connector_number"])
+		return expected, identity, connector, acceptedAt.UTC(), valid && connector > 0
+	}
+	return expected, identity, 0, acceptedAt.UTC(), true
 }
 
 func triggerMessageFollowOnAction(action string) bool {

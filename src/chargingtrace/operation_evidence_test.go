@@ -43,3 +43,22 @@ func TestTriggerMessageFollowOnEvidenceIsStrictlySanitized(t *testing.T) {
 		t.Fatal("expected unsafe follow-on envelope to be rejected")
 	}
 }
+
+func TestTriggerMessageFollowOnClosureEvidenceIsStrictlySanitized(t *testing.T) {
+	safe := models.JSONB{"expected_message": "StatusNotification", "charger_ocpp_identity": "charger-01", "connector_number": 2, "accepted_at": "2026-09-10T10:00:00Z"}
+	if !validTriggerMessageFollowOnClosureEvidence(safe) {
+		t.Fatal("expected bounded follow-on closure to be valid")
+	}
+	if got := sanitize(safe); len(got) != 4 || got["accepted_at"] != "2026-09-10T10:00:00Z" {
+		t.Fatalf("safe follow-on closure projection = %#v", got)
+	}
+	unsafe := models.JSONB{"expected_message": "StatusNotification", "charger_ocpp_identity": "charger-01", "connector_number": 2, "accepted_at": "2026-09-10T10:00:00Z", "id_tag": "must-not-persist"}
+	if validTriggerMessageFollowOnClosureEvidence(unsafe) || len(sanitize(unsafe)) != 0 {
+		t.Fatalf("unsafe follow-on closure was accepted: %#v", sanitize(unsafe))
+	}
+	operationID, halOperationID := uuid.New(), uuid.New()
+	err := validateEnvelope(Envelope{SchemaVersion: 1, TraceID: uuid.New(), EventID: uuid.New(), CPOID: uuid.New(), CMSChargerOperationID: &operationID, HALChargerOperationID: &halOperationID, ChargerOCPPIdentity: "charger-01", OCPPConnectorNumber: 2, Source: "HAL", Target: "CMS", Category: "CHARGER_OPERATION_FOLLOW_ON_CLOSED", Protocol: "OCPP1.6", Phase: "CHARGING", Summary: "TriggerMessage follow-on window closed", OccurredAt: time.Now().UTC(), Data: unsafe, ImmutableContentSHA256: "0000000000000000000000000000000000000000000000000000000000000000"})
+	if err == nil {
+		t.Fatal("expected unsafe follow-on closure envelope to be rejected")
+	}
+}

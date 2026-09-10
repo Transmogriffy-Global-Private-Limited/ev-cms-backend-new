@@ -179,16 +179,18 @@ Current implementation state:
   remains a separate counterpart deployment. PostgreSQL, paired-service, and
   physical OCPP verification remain pending without a disposable environment.
 
-- Source-only TriggerMessage follow-on diagnostics extend the existing
-  per-operation evidence read without a new command, worker, or migration.
-  After HAL durably records an allowlisted TriggerMessage `Accepted` response,
-  later matching charger traffic in the following 60 seconds is exposed only
-  as `PENDING`, `OBSERVED`, `NOT_OBSERVED`, or `NOT_APPLICABLE`. The temporal
-  observation does not establish causation or mutate operation, charging,
-  connector, or commercial state. Both CMS and HAL require rehost/deployment
-  before this source change can operate; PostgreSQL, paired-service, and
-  hardware verification remain pending without `TEST_DATABASE_URL` and a test
-  charger.
+- Source-only TriggerMessage follow-on diagnostics now have an indexed durable
+  HAL window migration (`022`, not applied) and no new CMS command or worker.
+  HAL opens the window from its persisted `CALLRESULT` `Accepted` trace before
+  later operation completion, so immediate follow-on traffic is not lost. CMS
+  derives acceptance from that delivered trace; it returns `NOT_OBSERVED` only
+  after matching delivered HAL closure, while missing delivery remains
+  `PENDING` beyond the nominal deadline and positive evidence dominates closure.
+  The temporal observation does not establish causation or mutate operation,
+  charging, connector, or commercial state. Both CMS and HAL require
+  rehost/deployment before this source change can operate; PostgreSQL,
+  paired-service, and hardware verification remain pending without
+  `TEST_DATABASE_URL` and a test charger.
 
 - CPO vehicle listing is implemented and deployed with migration `000064`.
   The CMS-owned vehicle table is CPO/customer scoped through foreign keys and

@@ -94,15 +94,17 @@ occurred.
 ## 2026-09-10 - TriggerMessage follow-on diagnostics source change
 
 The source now records and exposes a strictly sanitized, diagnostic-only
-follow-on observation for an allowlisted TriggerMessage that HAL durably
-recorded as `Accepted`. The existing per-operation evidence read returns
-`PENDING`, `OBSERVED`, `NOT_OBSERVED`, or `NOT_APPLICABLE` for the 60-second
-window after that HAL acceptance record. It establishes no causal or physical
-charger-effect proof and mutates no operation, session, occupancy, or financial
-state. No migration was added or applied. CMS and HAL have not been
-rehosted/deployed for this source-only change; paired PostgreSQL/hardware
-verification remains unavailable without `TEST_DATABASE_URL` and a test
-charger.
+follow-on observation for an allowlisted TriggerMessage whose HAL `CALLRESULT`
+is durably recorded as `Accepted`. HAL migration `022` (source only, not
+applied) stores an indexed, restart-safe 60-second evidence window at that
+observation before later operation completion. CMS derives acceptance only
+from the delivered Accepted trace, and returns `NOT_OBSERVED` only after a
+matching delivered HAL closure; missing delivery remains `PENDING` past the
+nominal deadline, while positive evidence dominates closure. It establishes no
+causal or physical charger-effect proof and mutates no operation, session,
+occupancy, or financial state. CMS and HAL have not been rehosted/deployed for
+this source-only change; paired PostgreSQL/hardware verification remains
+unavailable without `TEST_DATABASE_URL` and a test charger.
 
 ## 2026-09-08 - Per-operation OCPP protocol-evidence deployed
 

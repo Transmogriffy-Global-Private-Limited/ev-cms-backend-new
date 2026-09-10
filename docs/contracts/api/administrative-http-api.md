@@ -126,12 +126,14 @@ returns `409 idempotency_conflict`.
   `OCPP_CONFIRMED` is a protocol response, never proof of a later physical
   charger effect. For an `Accepted` allowlisted `TRIGGER_MESSAGE`, `follow_on`
   is `PENDING`, `OBSERVED`, or `NOT_OBSERVED`: the window is exactly 60 seconds
-  from HAL's durably recorded OCPP acceptance (copied into the CMS operation
-  completion evidence), not from the CMS request. `OBSERVED` requires matching
+  from the delivered HAL `TriggerMessage` `CALLRESULT` `Accepted` trace event,
+  not from the CMS request or later operation completion. `OBSERVED` requires matching
   later charger traffic with the requested action and charger identity; for
   `MeterValues` and `StatusNotification` it also requires the requested
   connector. Windows may overlap, and one observed frame may appear in every
-  matching operation. It is temporal diagnostic evidence only: it proves no
+  matching operation. `NOT_OBSERVED` requires a matching delivered HAL closure
+  after that exact window; the absence of delivered evidence remains `PENDING`
+  even after the nominal deadline. It is temporal diagnostic evidence only: it proves no
   causal uniqueness, physical effect, operation-state change, session change,
   connector release, or settlement outcome. Operations that are not an
   accepted allowlisted TriggerMessage return `NOT_APPLICABLE`.

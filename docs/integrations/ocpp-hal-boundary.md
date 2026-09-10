@@ -28,15 +28,20 @@ establish start and completion truth.
   validation and exact duplicate-digest verification. Its failure never
   changes authoritative charging projections. CPO trace reads query the CMS
   trace store only; they do not synchronously query or merge HAL.
-- For an allowlisted `TriggerMessage` whose OCPP response is durably recorded
-  by HAL as `Accepted`, HAL may append one independently sanitized
-  `CHARGER_OPERATION_FOLLOW_ON` trace event when later charger traffic matches
-  the requested message within 60 seconds. The window starts at the HAL
-  durable Accepted record, not the CMS request. CMS exposes this only as a
-  per-operation temporal diagnostic (`PENDING`, `OBSERVED`, `NOT_OBSERVED`, or
-  `NOT_APPLICABLE`): it does not change operation, session, connector, wallet,
-  or settlement truth. Matching is deliberately non-causal, so overlapping
-  accepted windows may all observe the same frame.
+- For an allowlisted `TriggerMessage` whose OCPP `CALLRESULT` is durably
+  recorded by HAL as `Accepted`, HAL opens an indexed, durable 60-second
+  diagnostic window before its later operation bookkeeping. Matching later
+  charger traffic appends sanitized `CHARGER_OPERATION_FOLLOW_ON` evidence;
+  the existing trace worker appends `CHARGER_OPERATION_FOLLOW_ON_CLOSED` only
+  after a window has expired without positive evidence. CMS derives
+  `accepted_at` from the delivered Accepted trace event, not operation
+  completion. It exposes `NOT_OBSERVED` only from matching delivered closure;
+  absent delivery remains `PENDING`, and delivered positive evidence dominates
+  closure. This remains a per-operation temporal diagnostic (`PENDING`,
+  `OBSERVED`, `NOT_OBSERVED`, or `NOT_APPLICABLE`): it does not change
+  operation, session, connector, wallet, or settlement truth. Matching is
+  deliberately non-causal, so overlapping accepted windows may all observe
+  the same frame.
 - CMS persists start intents, wallet holds, command records, mappings, fact
   receipts, and durable connection/connector runtime projections in migration
   `000028_cms_hal_charging_vertical`.
