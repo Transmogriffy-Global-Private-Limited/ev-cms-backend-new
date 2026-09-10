@@ -133,6 +133,11 @@ Approved current slice:
 
 Current implementation state:
 
+- CPO charging-session list filters and configurable sorting are deployed in
+  CMS revision `2ad082f` without a new migration. Generic keyset pagination
+  retains tenant scope and the legacy cursor compatibility path; the
+  242-operation contract and runtime verification passed.
+
 - Charging-session stop provenance is deployed in CMS revision `db16078` with
   migration `000068` applied and 242 OpenAPI operations. The additive
   requested-stop and charger-reported OCPP stop fields use the conflict-safe

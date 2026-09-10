@@ -29,7 +29,8 @@ that setting; it must not be used until the OCPP host is explicitly configured
 with TLS/WebSocket support.
 
 The active deployment was updated on September 10, 2026 to runtime source
-revision `db16078`, including the charging-session stop-provenance release.
+revision `2ad082f`, including the CPO charging-session filters and sorting
+release.
 It has migrations one through sixty-eight and the current 242-operation API.
 The
 binary SHA-256 is
@@ -266,7 +267,7 @@ content exclusions are defined in
 `docs/contracts/internal/http-request-logging.md`. Long-lived SSE requests are
 recorded when they disconnect. A recovered panic first emits a correlated safe
 JSON stack diagnostic without Gin's request dump or the panic value. The
-currently deployed `db16078`-based binary includes this logger. The stale prior
+currently deployed `2ad082f`-based binary includes this logger. The stale prior
 binary is retained at
 `/root/evcmsnew-backups/pre-db16078-20260910T164902+0530/evcmsnew`
 (SHA-256 `220789b31050240ecf2394c229489c72fa9fa6749ff05767830fe9d4d59b941a`).

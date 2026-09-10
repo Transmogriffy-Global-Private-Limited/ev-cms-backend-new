@@ -1,5 +1,15 @@
 # Project State
 
+## 2026-09-10 - CPO charging-session filters deployed
+
+CMS revision `2ad082f` is active with the CPO charging-session list's generic
+keyset cursor, configurable sort, and equality/range filters. No new migration
+was required; migration `000068` remains current and the binary SHA-256 is
+`88f7ee243a302ebb9fda06ef33dd7b0d04710299336eae630dcccec2d77a5543`.
+The 242-operation OpenAPI contract, health/readiness, workers, Caddy, and fresh
+post-rehost logs passed. PostgreSQL-gated lifecycle and paired HAL/physical
+OCPP checks remain unverified.
+
 ## 2026-09-10 - Charging-session stop provenance deployed
 
 CMS source migration `000068` (not applied) adds nullable canonical requested

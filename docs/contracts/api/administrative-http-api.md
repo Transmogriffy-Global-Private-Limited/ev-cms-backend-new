@@ -3502,8 +3502,13 @@ Both routes require the CPO bearer session and the matching
 there is no client-selectable CPO ID. The list route accepts `limit` (1-200,
 default 50), `before` (RFC3339), `before_id` (UUID), `status` (`START_PENDING`,
 `ACTIVE`, `STOP_PENDING`, `COMPLETED`, or `FAILED`), `charger_id` (UUID), and
-`customer_id` (UUID). Pagination is descending by `(created_at, id)` and the
-returned `next_before` plus `next_before_id` form the next exclusive cursor.
+`customer_id` (UUID), `connector_id`, `tariff_id`, `currency`, `stop_reason`,
+and `settlement_status`. It also accepts RFC3339 ranges for `start_time`,
+`end_time`, and `created_at`, inclusive/strict amount and usage filters, and
+duration bounds in seconds. The legacy cursor remains descending by
+`(created_at, id)`. Generic keyset pagination uses `cursor_value`/`cursor_id`,
+`sort_by` (`created_at`, `start_time`, `end_time`, `duration`, or `usage`), and
+`sort_order` (`asc` or `desc`); clients must resend the same sort and filters.
 
 Each result contains the CMS session UUID, OCPP transaction ID, tenant-owned
 customer/charger/connector UUIDs, start/end timestamps, exact decimal energy

@@ -127,6 +127,11 @@ business cause. A spontaneous charger stop may therefore contain only
 remain legacy compatibility fields; do not infer or synthesize canonical stop
 provenance from them.
 
+The charging-session list also supports `sort_by`/`sort_order`, generic
+`cursor_value`/`cursor_id` keyset pagination, and tenant-scoped equality and
+range filters. When continuing a generic cursor, preserve the same sort and
+filters; use the response's `next_cursor_value` and `next_cursor_id`.
+
 - A hub tariff root is the publication prerequisite. The safe path is hidden hub
   → enabled unbounded hub tariff → customer visibility. Do not optimistically
   present a hub as public before the server accepts it.

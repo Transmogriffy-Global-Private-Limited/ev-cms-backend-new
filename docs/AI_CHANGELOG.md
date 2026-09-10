@@ -1,5 +1,16 @@
 # AI Changelog
 
+## 2026-09-10 - Deploy CPO charging-session filters and sorting
+
+- Deployed the CPO charging-session list filters, generic keyset cursor, and
+  configurable sorting from CMS revision `2ad082f`. Equality, time, amount,
+  usage, and duration filters were added while the legacy cursor, tenant scope,
+  and read-only semantics remain compatible.
+- No new migration was required. Runtime binary SHA-256 remains
+  `88f7ee243a302ebb9fda06ef33dd7b0d04710299336eae630dcccec2d77a5543`.
+  Loopback/public health and readiness, 242-operation OpenAPI parity, workers,
+  Caddy, and fresh post-rehost logs passed.
+
 ## 2026-09-10 - Deploy authoritative charging-session stop provenance
 
 - CMS migration `000068` adds nullable requested-stop initiator/reason and
