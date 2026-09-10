@@ -2,15 +2,17 @@
 
 ## 2026-09-10 - Close TriggerMessage follow-on acceptance and negative-proof races (source only)
 
-- HAL opens migration `022`'s indexed, durable follow-on window immediately
-  after it persists a `TriggerMessage` `CALLRESULT` `Accepted` trace event and
-  before ordinary operation completion bookkeeping. Inbound OCPP matching uses
+- HAL atomically persists migration `022`'s indexed, durable follow-on window
+  with its `TriggerMessage` `CALLRESULT` `Accepted` trace event and trace
+  outbox record, before ordinary operation completion bookkeeping. Inbound OCPP matching uses
   this bounded window table, not a growing charger-operation ledger scan; the
   existing trace worker durably closes expired windows. CMS derives acceptance
   from the delivered Accepted trace, never local completion time.
 - CMS returns `NOT_OBSERVED` only for a matching delivered closure. Missing
-  delivery remains `PENDING` beyond 60 seconds; matching positive evidence
-  dominates closure. Identity, requested action, strict `(accepted_at,
+  delivery remains `PENDING` beyond 60 seconds. HAL makes a window's first
+  durable outcome final (`OPEN -> OBSERVED` or `OPEN -> CLOSED`), so CMS's
+  positive-first scan remains defensive compatibility handling rather than a
+  correction of a contradictory closure. Identity, requested action, strict `(accepted_at,
   deadline]` timing, and connector scope for `MeterValues` and
   `StatusNotification` remain required. This is diagnostic evidence only: no
   operation, session, connector occupancy, settlement, HAL command, or new

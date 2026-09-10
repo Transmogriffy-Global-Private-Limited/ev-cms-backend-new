@@ -96,11 +96,14 @@ occurred.
 The source now records and exposes a strictly sanitized, diagnostic-only
 follow-on observation for an allowlisted TriggerMessage whose HAL `CALLRESULT`
 is durably recorded as `Accepted`. HAL migration `022` (source only, not
-applied) stores an indexed, restart-safe 60-second evidence window at that
-observation before later operation completion. CMS derives acceptance only
+applied) atomically stores an indexed, restart-safe 60-second evidence window
+with that accepted trace and its outbox record before later operation
+completion. A HAL window can transition only from `OPEN` to either
+`OBSERVED` or `CLOSED`; its first durable outcome is final. CMS derives acceptance only
 from the delivered Accepted trace, and returns `NOT_OBSERVED` only after a
 matching delivered HAL closure; missing delivery remains `PENDING` past the
-nominal deadline, while positive evidence dominates closure. It establishes no
+nominal deadline. Its positive-first scan is defensive compatibility handling,
+not a correction of contradictory HAL closure evidence. It establishes no
 causal or physical charger-effect proof and mutates no operation, session,
 occupancy, or financial state. CMS and HAL have not been rehosted/deployed for
 this source-only change; paired PostgreSQL/hardware verification remains

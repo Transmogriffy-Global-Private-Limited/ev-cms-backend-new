@@ -4,7 +4,7 @@ Status: In Progress
 Owner: Codex
 Collaborators: Anubhab Dey (CMS/HAL boundary owner)
 Started: 2026-09-04
-Last updated: 2026-09-10 (source-only TriggerMessage follow-on race/closure correction; paired deployment and hardware validation pending)
+Last updated: 2026-09-10 (source-only TriggerMessage accepted/window atomicity and final-closure correction; paired deployment and hardware validation pending)
 
 Development-plan reference: `docs/DEVELOPMENT_PLAN.md` — Charging lifecycle and HAL integration
 Detailed-plan reference: `docs/integrations/cpo-hal-operational-capability-manual.md`
@@ -85,12 +85,14 @@ unapplied.
 
 Source-only, not deployed: paired HAL/CMS follow-on trace evidence for an
 allowlisted TriggerMessage durably accepted through HAL's persisted
-`CALLRESULT` trace. HAL migration `022` (unapplied) holds indexed durable
-windows before later operation completion and lets the existing trace worker
-close expired windows. CMS derives acceptance from delivered trace evidence,
+`CALLRESULT` trace. HAL migration `022` (unapplied) atomically persists the
+accepted trace, outbox record, and indexed durable window before later
+operation completion. It permits only `OPEN -> OBSERVED` or `OPEN -> CLOSED`,
+and the existing trace worker closes expired `OPEN` windows. CMS derives
+acceptance from delivered trace evidence,
 returns `NOT_OBSERVED` only from a matching delivered closure, keeps missing
-delivery `PENDING` past 60 seconds, and lets positive evidence dominate
-closure. Requested action, charger identity, scoped connector for
+delivery `PENDING` past 60 seconds. Its positive-first scan is defensive only,
+not a correction of contradictory HAL closure. Requested action, charger identity, scoped connector for
 MeterValues/StatusNotification, strict temporal bounds, overlap, and the
 non-causal/no-command-session-connector-financial-truth invariant remain.
 

@@ -181,11 +181,14 @@ Current implementation state:
 
 - Source-only TriggerMessage follow-on diagnostics now have an indexed durable
   HAL window migration (`022`, not applied) and no new CMS command or worker.
-  HAL opens the window from its persisted `CALLRESULT` `Accepted` trace before
-  later operation completion, so immediate follow-on traffic is not lost. CMS
+  HAL atomically persists the window with its `CALLRESULT` `Accepted` trace
+  and outbox record before later operation completion, so immediate follow-on
+  traffic is not lost. A window transitions only `OPEN -> OBSERVED` or
+  `OPEN -> CLOSED`; the first durable outcome is final. CMS
   derives acceptance from that delivered trace; it returns `NOT_OBSERVED` only
   after matching delivered HAL closure, while missing delivery remains
-  `PENDING` beyond the nominal deadline and positive evidence dominates closure.
+  `PENDING` beyond the nominal deadline. Its positive-first scan remains
+  defensive compatibility handling, not a correction of contradictory closure.
   The temporal observation does not establish causation or mutate operation,
   charging, connector, or commercial state. Both CMS and HAL require
   rehost/deployment before this source change can operate; PostgreSQL,
