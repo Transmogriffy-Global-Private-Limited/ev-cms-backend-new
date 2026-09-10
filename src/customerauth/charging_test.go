@@ -504,7 +504,8 @@ func TestChargingSessionStopMetadataViewsPreserveDistinctHALTruth(t *testing.T) 
 		{"customer manual", "CUSTOMER", "user_requested", "Remote"},
 		{"energy limit", "ENERGY_LIMIT", "energy_limit_reached", "Remote"},
 		{"time limit", "TIME_LIMIT", "time_limit_reached", "Remote"},
-		{"money limit", "MONEY_LIMIT", "wallet_limit_reached", "Remote"},
+		{"money limit", "MONEY_LIMIT", "money_limit_reached", "Remote"},
+		{"wallet limit", "WALLET_LIMIT", "wallet_limit_reached", "Remote"},
 		{"charger spontaneous", "", "", "Local"},
 	} {
 		t.Run(test.name, func(t *testing.T) {
@@ -554,6 +555,26 @@ func TestCompletionStopMetadataFactValidationAndConflictSafety(t *testing.T) {
 	}
 	if session.OCPPStopReason == nil || *session.OCPPStopReason != "Remote" {
 		t.Fatalf("conflict changed established metadata: %#v", session.OCPPStopReason)
+	}
+}
+
+func TestCompletedSessionLateOCPPStopMetadataPreservesLegacyCompatibility(t *testing.T) {
+	t.Parallel()
+	ocppReason := "Local"
+	session := models.ChargingSession{Status: constants.SessionStatusCompleted}
+	updates, err := mergeCompletedSessionStopMetadata(&session, completionStopMetadata{OCPPStopReason: &ocppReason})
+	if err != nil || updates["ocpp_stop_reason"] != ocppReason || updates["stop_reason"] != ocppReason || session.OCPPStopReason == nil || *session.OCPPStopReason != ocppReason || session.StopReason == nil || *session.StopReason != ocppReason {
+		t.Fatalf("late OCPP metadata did not fill canonical and empty legacy fields: updates=%#v session=%+v err=%v", updates, session, err)
+	}
+	if updates, err := mergeCompletedSessionStopMetadata(&session, completionStopMetadata{OCPPStopReason: &ocppReason}); err != nil || len(updates) != 0 {
+		t.Fatalf("duplicate late OCPP metadata was not idempotent: updates=%#v err=%v", updates, err)
+	}
+
+	historicalLegacyReason := "Remote"
+	historical := models.ChargingSession{Status: constants.SessionStatusCompleted, StopReason: &historicalLegacyReason}
+	updates, err = mergeCompletedSessionStopMetadata(&historical, completionStopMetadata{OCPPStopReason: &ocppReason})
+	if err != nil || updates["ocpp_stop_reason"] != ocppReason || len(updates) != 1 || historical.OCPPStopReason == nil || *historical.OCPPStopReason != ocppReason || historical.StopReason == nil || *historical.StopReason != historicalLegacyReason {
+		t.Fatalf("late OCPP metadata overwrote historical legacy reason: updates=%#v session=%+v err=%v", updates, historical, err)
 	}
 }
 

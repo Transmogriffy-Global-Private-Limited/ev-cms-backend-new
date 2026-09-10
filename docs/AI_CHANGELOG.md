@@ -7,8 +7,9 @@
   legacy `stop_reason` data. Immutable HAL completion facts and exact HAL
   transaction reconciliation use the same conflict-safe finalizer.
 - Customer session detail/current and history gain an additive `stop` object;
-  legacy `stop_reason` remains compatible as the OCPP-reason projection for
-  new authoritative completions. No HAL change, migration application,
+legacy `stop_reason` remains compatible as the OCPP-reason projection for
+new authoritative completions and safe late OCPP-metadata enrichment when it
+was previously absent. No HAL change, migration application,
   deployment, or financial/session-policy change occurred.
 
 ## 2026-09-10 - Rehost CMS TriggerMessage follow-on diagnostics

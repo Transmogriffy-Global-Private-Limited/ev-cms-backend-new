@@ -649,16 +649,20 @@ func optionalStopMetadataString(value string) *string {
 // finalizeAuthoritativeCompletion is the sole CMS completion/settlement path
 // for both immutable HAL facts and exact HAL recovery reads.
 func (service *Service) finalizeAuthoritativeCompletion(tx *gorm.DB, session *models.ChargingSession, ocppTransactionID, meterStop int64, stopped time.Time, stop completionStopMetadata) error {
-	metadataUpdates, err := mergeCompletionStopMetadata(session, stop)
-	if err != nil {
-		return err
-	}
 	if session.Status == constants.SessionStatusCompleted {
+		metadataUpdates, err := mergeCompletedSessionStopMetadata(session, stop)
+		if err != nil {
+			return err
+		}
 		if len(metadataUpdates) == 0 {
 			return nil
 		}
 		metadataUpdates["updated_at"] = service.now()
 		return tx.Model(session).Updates(metadataUpdates).Error
+	}
+	metadataUpdates, err := mergeCompletionStopMetadata(session, stop)
+	if err != nil {
+		return err
 	}
 	if meterStop < session.MeterStartWh || ocppTransactionID != session.TransactionID || stopped.IsZero() {
 		return invalidFact()
@@ -714,6 +718,22 @@ func mergeCompletionStopMetadata(session *models.ChargingSession, incoming compl
 			updates[field.column] = *field.incoming
 			*field.current = field.incoming
 		}
+	}
+	return updates, nil
+}
+
+// mergeCompletedSessionStopMetadata preserves canonical HAL truth while also
+// filling the legacy OCPP projection only when that projection is absent.
+func mergeCompletedSessionStopMetadata(session *models.ChargingSession, incoming completionStopMetadata) (map[string]any, error) {
+	updates, err := mergeCompletionStopMetadata(session, incoming)
+	if err != nil {
+		return nil, err
+	}
+	if _, filledOCPPReason := updates["ocpp_stop_reason"]; filledOCPPReason && session.StopReason == nil {
+		// Historical stop_reason may not have canonical provenance, so it is
+		// never conflict evidence and is never overwritten during enrichment.
+		updates["stop_reason"] = *incoming.OCPPStopReason
+		session.StopReason = incoming.OCPPStopReason
 	}
 	return updates, nil
 }
