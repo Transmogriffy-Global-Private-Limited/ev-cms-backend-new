@@ -1,5 +1,25 @@
 # AI Changelog
 
+## 2026-09-10 - Rehost CMS TriggerMessage follow-on diagnostics
+
+- Rehosted the CMS from source revision `7e5ea97` after source verification.
+  No new CMS migration was required; the development database remains through
+  migration `000067`. The active binary SHA-256 is
+  `220789b31050240ecf2394c229489c72fa9fa6749ff05767830fe9d4d59b941a`, with
+  242 live/source OpenAPI operations.
+- Retained the previous binary at
+  `/root/evcmsnew-backups/pre-b21020e-20260909T164022+0530/evcmsnew`
+  (SHA-256 `d226751d1dc0031a0b3bf369896c4f9c955abc864189f1ec33158e8aa6203167`).
+- Post-rehost loopback/public liveness and readiness, public OpenAPI and
+  Swagger, all current workers, Caddy validation, loopback binding, and the
+  post-rehost journal error scan passed. The CMS deployment does not claim the
+  paired HAL migration `022`, HAL runtime, virtual-charger, or physical-OCPP
+  acceptance; those remain separate pending validation.
+
+Verification: focused and full Go tests, vet, and production build passed
+before rehost. `TEST_DATABASE_URL` is unset, so PostgreSQL-gated tests were
+not run; `pwsh` is unavailable for the repository documentation verifier.
+
 ## 2026-09-10 - Close TriggerMessage follow-on acceptance and negative-proof races (source only)
 
 - HAL atomically persists migration `022`'s indexed, durable follow-on window

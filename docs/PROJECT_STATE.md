@@ -1,5 +1,19 @@
 # Project State
 
+## 2026-09-10 - TriggerMessage follow-on CMS rehost
+
+The CMS runtime is active from source revision `7e5ea97`, with binary SHA-256
+`220789b31050240ecf2394c229489c72fa9fa6749ff05767830fe9d4d59b941a` and 242
+live/source OpenAPI operations. No new CMS migration was required; the
+development database remains through `000067`. The preceding binary is
+retained at `/root/evcmsnew-backups/pre-b21020e-20260909T164022+0530/evcmsnew`.
+
+Loopback/public health and readiness, public OpenAPI and Swagger, workers,
+Caddy validation, loopback binding, and the post-rehost journal scan passed.
+This rehost covers CMS only: HAL migration `022`, paired HAL runtime,
+virtual-charger, physical OCPP, and PostgreSQL-gated tests remain unverified.
+`TEST_DATABASE_URL` and `pwsh` are unavailable.
+
 ## 2026-09-09 - Materialized-session completion reconciliation publication and fairness follow-up
 
 - CMS source now extends the existing bounded HAL reconciler to query only the
@@ -91,7 +105,7 @@ history-projection coverage, full Go tests, vet, and documentation-contract
 verification pass. No database mutation, deployment, restart, commit, or push
 occurred.
 
-## 2026-09-10 - TriggerMessage follow-on diagnostics source change
+## 2026-09-10 - TriggerMessage follow-on diagnostics source design checkpoint
 
 The source now records and exposes a strictly sanitized, diagnostic-only
 follow-on observation for an allowlisted TriggerMessage whose HAL `CALLRESULT`
@@ -105,9 +119,10 @@ matching delivered HAL closure; missing delivery remains `PENDING` past the
 nominal deadline. Its positive-first scan is defensive compatibility handling,
 not a correction of contradictory HAL closure evidence. It establishes no
 causal or physical charger-effect proof and mutates no operation, session,
-occupancy, or financial state. CMS and HAL have not been rehosted/deployed for
-this source-only change; paired PostgreSQL/hardware verification remains
-unavailable without `TEST_DATABASE_URL` and a test charger.
+occupancy, or financial state. The CMS rehost is recorded in the current
+deployment entry above; paired HAL deployment and PostgreSQL/hardware
+verification remain unavailable without `TEST_DATABASE_URL` and a test
+charger.
 
 ## 2026-09-08 - Per-operation OCPP protocol-evidence deployed
 

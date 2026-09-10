@@ -179,7 +179,14 @@ Current implementation state:
   remains a separate counterpart deployment. PostgreSQL, paired-service, and
   physical OCPP verification remain pending without a disposable environment.
 
-- Source-only TriggerMessage follow-on diagnostics now have an indexed durable
+- TriggerMessage follow-on diagnostics are now deployed in the CMS runtime
+  revision `7e5ea97` with 242 OpenAPI operations and no new CMS migration; the
+  database remains through `000067`. CMS rehost and health, contract, worker,
+  Caddy, and journal verification passed. The paired HAL runtime, migration
+  `022`, PostgreSQL lifecycle, virtual-charger, and physical-OCPP verification
+  remain pending.
+
+- The TriggerMessage follow-on diagnostics design has an indexed durable
   HAL window migration (`022`, not applied) and no new CMS command or worker.
   HAL atomically persists the window with its `CALLRESULT` `Accepted` trace
   and outbox record before later operation completion, so immediate follow-on
@@ -190,10 +197,9 @@ Current implementation state:
   `PENDING` beyond the nominal deadline. Its positive-first scan remains
   defensive compatibility handling, not a correction of contradictory closure.
   The temporal observation does not establish causation or mutate operation,
-  charging, connector, or commercial state. Both CMS and HAL require
-  rehost/deployment before this source change can operate; PostgreSQL,
-  paired-service, and hardware verification remain pending without
-  `TEST_DATABASE_URL` and a test charger.
+  charging, connector, or commercial state. The CMS rehost is recorded above;
+  HAL rehost/deployment, PostgreSQL, paired-service, and hardware verification
+  remain pending without `TEST_DATABASE_URL` and a test charger.
 
 - CPO vehicle listing is implemented and deployed with migration `000064`.
   The CMS-owned vehicle table is CPO/customer scoped through foreign keys and
