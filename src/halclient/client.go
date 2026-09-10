@@ -182,21 +182,23 @@ type ChargerConfigurationResponse struct {
 // used for stranded-start materialization and for completion recovery; CMS
 // never derives these identities or terminal values from runtime/trace state.
 type Transaction struct {
-	HALTransactionID    uuid.UUID  `json:"hal_transaction_id"`
-	CMSStartIntentID    uuid.UUID  `json:"cms_start_intent_id"`
-	CMSCommandID        uuid.UUID  `json:"cms_command_id"`
-	CPOID               uuid.UUID  `json:"cpo_id"`
-	CMSChargerID        uuid.UUID  `json:"cms_charger_id"`
-	CMSConnectorID      uuid.UUID  `json:"cms_connector_id"`
-	ChargerOCPPIdentity string     `json:"charger_ocpp_identity"`
-	OCPPConnectorNumber int        `json:"ocpp_connector_number"`
-	OCPPTransactionID   int64      `json:"ocpp_transaction_id"`
-	ActualStartedAt     time.Time  `json:"actual_started_at"`
-	MeterStartWh        int64      `json:"meter_start_wh"`
-	StopState           string     `json:"stop_state"`
-	CompletedAt         *time.Time `json:"completed_at"`
-	MeterStopWh         *int64     `json:"meter_stop_wh"`
-	OCPPStopReason      string     `json:"ocpp_stop_reason"`
+	HALTransactionID       uuid.UUID  `json:"hal_transaction_id"`
+	CMSStartIntentID       uuid.UUID  `json:"cms_start_intent_id"`
+	CMSCommandID           uuid.UUID  `json:"cms_command_id"`
+	CPOID                  uuid.UUID  `json:"cpo_id"`
+	CMSChargerID           uuid.UUID  `json:"cms_charger_id"`
+	CMSConnectorID         uuid.UUID  `json:"cms_connector_id"`
+	ChargerOCPPIdentity    string     `json:"charger_ocpp_identity"`
+	OCPPConnectorNumber    int        `json:"ocpp_connector_number"`
+	OCPPTransactionID      int64      `json:"ocpp_transaction_id"`
+	ActualStartedAt        time.Time  `json:"actual_started_at"`
+	MeterStartWh           int64      `json:"meter_start_wh"`
+	StopState              string     `json:"stop_state"`
+	CompletedAt            *time.Time `json:"completed_at"`
+	MeterStopWh            *int64     `json:"meter_stop_wh"`
+	RequestedStopInitiator string     `json:"requested_stop_initiator"`
+	RequestedStopReason    string     `json:"requested_stop_reason"`
+	OCPPStopReason         string     `json:"ocpp_stop_reason"`
 }
 
 func (client *Client) SyncMapping(ctx context.Context, mapping ChargerMapping, correlationID string) error {

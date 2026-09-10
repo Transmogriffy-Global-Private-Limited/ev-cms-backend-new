@@ -884,6 +884,17 @@ stop-pending rows deliberately omit final totals rather than presenting stored
 zeroes as a final bill. This is a bounded database read with charger, hub, and
 connector data preloaded; the frontend should not make per-card inventory calls.
 
+Completed-session detail and history may include an additive `stop` object:
+`requested_initiator`, `requested_reason`, and `ocpp_reason`. The first two
+describe an actual CMS/HAL stop request when one existed; `ocpp_reason` is the
+charger-reported OCPP `StopTransaction.reason`. For example, an energy-limit
+request can have `requested_reason="energy_limit_reached"` and
+`ocpp_reason="Remote"`; `Remote` describes the protocol outcome, not the
+business reason. Missing requested fields are valid for spontaneous
+charger-originated stops. Retain existing `stop_reason` handling as a legacy
+compatibility field; do not infer missing stop provenance or turn these codes
+into user-facing prose in the client without product-owned presentation rules.
+
 `GET /charging-sessions/{session_id}` remains the canonical active and
 historical detail route. In addition to its existing live projection fields, it
 returns `started_at`, meter start/final meter values, final totals when

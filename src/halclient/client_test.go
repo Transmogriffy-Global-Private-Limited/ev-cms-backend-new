@@ -125,7 +125,7 @@ func TestGetTransactionByHALTransactionIDDecodesCompletionEvidence(t *testing.T)
 			"cpo_id": cpoID, "cms_charger_id": chargerID, "cms_connector_id": connectorID,
 			"charger_ocpp_identity": "charger-1", "ocpp_connector_number": 1, "ocpp_transaction_id": 42,
 			"actual_started_at": completedAt.Add(-time.Hour), "meter_start_wh": 100,
-			"stop_state": "COMPLETED", "completed_at": completedAt, "meter_stop_wh": 140, "ocpp_stop_reason": "Local",
+			"stop_state": "COMPLETED", "completed_at": completedAt, "meter_stop_wh": 140, "requested_stop_initiator": "ENERGY_LIMIT", "requested_stop_reason": "energy_limit_reached", "ocpp_stop_reason": "Remote",
 		}})
 	}))
 	defer server.Close()
@@ -134,7 +134,7 @@ func TestGetTransactionByHALTransactionIDDecodesCompletionEvidence(t *testing.T)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if transaction.HALTransactionID != transactionID || transaction.CompletedAt == nil || !transaction.CompletedAt.Equal(completedAt) || transaction.MeterStopWh == nil || *transaction.MeterStopWh != 140 || transaction.StopState != "COMPLETED" || transaction.OCPPStopReason != "Local" {
+	if transaction.HALTransactionID != transactionID || transaction.CompletedAt == nil || !transaction.CompletedAt.Equal(completedAt) || transaction.MeterStopWh == nil || *transaction.MeterStopWh != 140 || transaction.StopState != "COMPLETED" || transaction.RequestedStopInitiator != "ENERGY_LIMIT" || transaction.RequestedStopReason != "energy_limit_reached" || transaction.OCPPStopReason != "Remote" {
 		t.Fatalf("decoded completion transaction = %#v", transaction)
 	}
 }

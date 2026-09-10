@@ -1,5 +1,17 @@
 # Project State
 
+## 2026-09-10 - Charging-session stop provenance source change
+
+CMS source migration `000068` (not applied) adds nullable canonical requested
+stop initiator/reason and OCPP stop reason to charging sessions. HAL immutable
+completion facts and exact transaction reconciliation converge through one
+locked finalizer: matching/new metadata fills missing canonical fields, while
+conflicting established metadata fails safely without changing meter, time,
+settlement, wallet, connector, or command truth. Customer detail/current and
+history expose the additive `stop` object; legacy `stop_reason` remains the
+compatibility OCPP projection for new completions. No HAL source change,
+deployment, restart, or migration application occurred.
+
 ## 2026-09-10 - TriggerMessage follow-on CMS rehost
 
 The CMS runtime is active from source revision `7e5ea97`, with binary SHA-256

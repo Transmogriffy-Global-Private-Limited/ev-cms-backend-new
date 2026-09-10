@@ -152,7 +152,7 @@ func sanitizedChargingTraceData(input models.JSONB) models.JSONB {
 		"start_intent_id", "cms_command_id", "hal_command_id", "connector_id", "hal_transaction_id", "ocpp_transaction_id",
 		"state", "error_class", "meter_wh", "reason", "amount", "currency", "status", "settlement_status",
 		"wallet_hold_id", "wallet_transaction_id", "payment_id", "limit_type", "energy_limit_wh", "energy_limit_source",
-		"max_duration_seconds", "duration_limit_source", "stop_reason",
+		"max_duration_seconds", "duration_limit_source", "stop_reason", "requested_stop_initiator", "requested_stop_reason", "ocpp_stop_reason",
 	} {
 		if value, ok := input[key]; ok {
 			output[key] = value

@@ -1169,3 +1169,29 @@ func TestDormantEntitlementRetirementMigrationPreservesSubscriptionTables(t *tes
 		}
 	}
 }
+
+func TestChargingSessionStopMetadataMigrationIsAdditiveAndReversible(t *testing.T) {
+	t.Parallel()
+	upBody, err := migrationFiles.ReadFile("migrations/000068_add_charging_session_stop_metadata.up.sql")
+	if err != nil {
+		t.Fatalf("read stop metadata up migration: %v", err)
+	}
+	downBody, err := migrationFiles.ReadFile("migrations/000068_add_charging_session_stop_metadata.down.sql")
+	if err != nil {
+		t.Fatalf("read stop metadata down migration: %v", err)
+	}
+	upSQL, downSQL := string(upBody), string(downBody)
+	for _, column := range []string{"requested_stop_initiator varchar(50)", "requested_stop_reason varchar(100)", "ocpp_stop_reason varchar(50)"} {
+		if !strings.Contains(upSQL, column) {
+			t.Errorf("stop metadata migration missing %q", column)
+		}
+	}
+	if strings.Contains(upSQL, "UPDATE charging_sessions") || strings.Contains(upSQL, "stop_reason =") {
+		t.Fatal("stop metadata migration must not fabricate historical provenance")
+	}
+	for _, column := range []string{"ocpp_stop_reason", "requested_stop_reason", "requested_stop_initiator"} {
+		if !strings.Contains(downSQL, "DROP COLUMN IF EXISTS "+column) {
+			t.Errorf("stop metadata rollback missing %q", column)
+		}
+	}
+}

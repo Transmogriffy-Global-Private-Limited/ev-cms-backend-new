@@ -496,6 +496,67 @@ func TestChargingSessionProjectionsUsePersistedCompletionAndSnapshots(t *testing
 	}
 }
 
+func TestChargingSessionStopMetadataViewsPreserveDistinctHALTruth(t *testing.T) {
+	t.Parallel()
+	for _, test := range []struct {
+		name, initiator, reason, ocpp string
+	}{
+		{"customer manual", "CUSTOMER", "user_requested", "Remote"},
+		{"energy limit", "ENERGY_LIMIT", "energy_limit_reached", "Remote"},
+		{"time limit", "TIME_LIMIT", "time_limit_reached", "Remote"},
+		{"money limit", "MONEY_LIMIT", "wallet_limit_reached", "Remote"},
+		{"charger spontaneous", "", "", "Local"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			initiator, reason, ocpp := test.initiator, test.reason, test.ocpp
+			session := models.ChargingSession{RequestedStopInitiator: optionalStopMetadataString(initiator), RequestedStopReason: optionalStopMetadataString(reason), OCPPStopReason: &ocpp, StopReason: &ocpp}
+			for name, view := range map[string]*ChargingSessionStopView{
+				"detail":  customerChargingSessionDetailView(session, models.ChargingStartIntent{ID: uuid.New()}, liveops.SessionState{}, liveops.ChargerState{}, liveops.ConnectorState{}).Stop,
+				"history": customerChargingSessionHistoryView(session).Stop,
+			} {
+				if view == nil || view.OCPPReason == nil || *view.OCPPReason != ocpp || (initiator != "" && (view.RequestedInitiator == nil || *view.RequestedInitiator != initiator || view.RequestedReason == nil || *view.RequestedReason != reason)) || (initiator == "" && (view.RequestedInitiator != nil || view.RequestedReason != nil)) {
+					t.Fatalf("%s stop view=%#v", name, view)
+				}
+			}
+		})
+	}
+	legacyReason := "Remote"
+	legacy := models.ChargingSession{StopReason: &legacyReason}
+	if customerChargingSessionStopView(legacy) != nil {
+		t.Fatal("legacy stop_reason fabricated canonical provenance")
+	}
+}
+
+func TestCompletionStopMetadataFactValidationAndConflictSafety(t *testing.T) {
+	t.Parallel()
+	valid := models.JSONB{"requested_stop_initiator": "TIME_LIMIT", "requested_stop_reason": "time_limit_reached", "ocpp_stop_reason": "Remote"}
+	metadata, err := completionStopMetadataFromFact(valid)
+	if err != nil || metadata.RequestedStopInitiator == nil || *metadata.RequestedStopInitiator != "TIME_LIMIT" || metadata.RequestedStopReason == nil || *metadata.RequestedStopReason != "time_limit_reached" || metadata.OCPPStopReason == nil || *metadata.OCPPStopReason != "Remote" {
+		t.Fatalf("valid metadata=%#v err=%v", metadata, err)
+	}
+	for _, payload := range []models.JSONB{
+		{"requested_stop_initiator": 1},
+		{"requested_stop_reason": "  "},
+		{"ocpp_stop_reason": false},
+	} {
+		if _, err := completionStopMetadataFromFact(payload); err == nil {
+			t.Fatalf("malformed metadata accepted: %#v", payload)
+		}
+	}
+	existing := "Remote"
+	session := models.ChargingSession{OCPPStopReason: &existing}
+	if updates, err := mergeCompletionStopMetadata(&session, completionStopMetadata{OCPPStopReason: &existing}); err != nil || len(updates) != 0 {
+		t.Fatalf("identical metadata was not idempotent: updates=%#v err=%v", updates, err)
+	}
+	conflict := "Local"
+	if _, err := mergeCompletionStopMetadata(&session, completionStopMetadata{OCPPStopReason: &conflict}); err == nil {
+		t.Fatal("conflicting metadata silently overwrote established truth")
+	}
+	if session.OCPPStopReason == nil || *session.OCPPStopReason != "Remote" {
+		t.Fatalf("conflict changed established metadata: %#v", session.OCPPStopReason)
+	}
+}
+
 func TestChargingSessionFinancialProjectionRejectsUnrelatedWalletRecord(t *testing.T) {
 	t.Parallel()
 

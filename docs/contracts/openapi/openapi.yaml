@@ -11093,7 +11093,8 @@ components:
         total_amount: {type: string, pattern: "^[0-9]+(?:\\.[0-9]{1,2})?$", description: Present only after a completed session has final persisted settlement.}
         currency: {type: string, pattern: "^[A-Z]{3}$"}
         settlement_status: {type: string}
-        stop_reason: {type: string}
+        stop_reason: {type: string, description: Legacy compatibility projection of the charger-reported OCPP stop reason when available.}
+        stop: {$ref: "#/components/schemas/ChargingSessionStop"}
         charger: {$ref: "#/components/schemas/ChargingSessionCharger"}
         connector: {$ref: "#/components/schemas/ChargingSessionConnector"}
         pricing: {$ref: "#/components/schemas/ChargingSessionPricing"}
@@ -11141,11 +11142,21 @@ components:
         total_amount: {type: string, pattern: "^[0-9]+(?:\\.[0-9]{1,2})?$", description: Present only after a completed session has final persisted settlement.}
         currency: {type: string, pattern: "^[A-Z]{3}$"}
         settlement_status: {type: string}
+        stop: {$ref: "#/components/schemas/ChargingSessionStop"}
         initial_soc_percent: {type: string, pattern: "^[0-9]+(?:\\.[0-9]{1,3})?$", description: First actual SoC observed during the session; absent if no SoC was reported.}
         final_soc_percent: {type: string, pattern: "^[0-9]+(?:\\.[0-9]{1,3})?$", description: "Last observed SoC, not necessarily a stop-time observation."}
         soc_observed_at: {type: string, format: date-time, description: Timestamp of final_soc_percent.}
         charger: {$ref: "#/components/schemas/ChargingSessionCharger"}
         connector: {$ref: "#/components/schemas/ChargingSessionConnector"}
+
+    ChargingSessionStop:
+      type: object
+      additionalProperties: false
+      description: Authoritative stop provenance. A requested reason explains why CMS/HAL requested a stop; ocpp_reason is the charger-reported OCPP StopTransaction.reason. Remote reports delivery mechanism, not the business reason. Missing requested fields are valid for charger-originated stops.
+      properties:
+        requested_initiator: {type: string, nullable: true, description: "Actor or automatic limit policy that requested a stop, when a stop request existed."}
+        requested_reason: {type: string, nullable: true, description: "Machine-readable reason the stop was requested, when known."}
+        ocpp_reason: {type: string, nullable: true, description: Charger-reported OCPP StopTransaction.reason; Remote alone does not identify the business reason.}
 
     ChargingSessionCharger:
       type: object
