@@ -1,6 +1,6 @@
 # AI Changelog
 
-## 2026-09-10 - Preserve authoritative charging-session stop provenance (source only)
+## 2026-09-10 - Deploy authoritative charging-session stop provenance
 
 - CMS migration `000068` adds nullable requested-stop initiator/reason and
   charger-reported OCPP stop-reason columns without backfilling ambiguous
@@ -10,8 +10,20 @@
   additive `stop` object; legacy `stop_reason`/transaction `reason` remain
   compatible as the OCPP-reason projection for
   new authoritative completions and safe late OCPP-metadata enrichment when it
-  was previously absent. No HAL change, migration application,
-  deployment, or financial/session-policy change occurred.
+  was previously absent. No HAL change or financial/session-policy change
+  occurred. Migration `000068` was applied
+  after a retained mode-0600 custom-format database dump; the CMS was
+  rehosted from source revision `db16078`.
+- The active binary SHA-256 is
+  `88f7ee243a302ebb9fda06ef33dd7b0d04710299336eae630dcccec2d77a5543`.
+  The preceding binary is retained at
+  `/root/evcmsnew-backups/pre-db16078-20260910T164902+0530/evcmsnew`
+  (SHA-256 `220789b31050240ecf2394c229489c72fa9fa6749ff05767830fe9d4d59b941a`).
+- Loopback/public health and readiness, live/source OpenAPI parity at 242
+  operations, workers, Caddy validation, and the post-rehost journal scan
+  passed. Paired HAL, virtual-charger, physical OCPP, and PostgreSQL-gated
+  lifecycle checks remain unverified; `TEST_DATABASE_URL` and `pwsh` are
+  unavailable.
 
 ## 2026-09-10 - Rehost CMS TriggerMessage follow-on diagnostics
 

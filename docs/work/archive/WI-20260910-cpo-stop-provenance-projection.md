@@ -63,5 +63,5 @@ session list/detail and charger-transaction projections.
 
 ## Completion
 
-- Source is verified and ready for CMS-only publication. No migration, HAL
-  change, deployment, or restart occurred.
+- The CPO projection is included in deployed CMS revision `db16078`. Paired
+  HAL and physical-OCPP verification remain outside this projection slice.

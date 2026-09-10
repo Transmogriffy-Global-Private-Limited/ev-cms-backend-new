@@ -133,6 +133,13 @@ Approved current slice:
 
 Current implementation state:
 
+- Charging-session stop provenance is deployed in CMS revision `db16078` with
+  migration `000068` applied and 242 OpenAPI operations. The additive
+  requested-stop and charger-reported OCPP stop fields use the conflict-safe
+  completion/reconciliation finalizer; no historical provenance is fabricated.
+  Paired HAL, PostgreSQL lifecycle, virtual-charger, and physical OCPP
+  verification remain pending.
+
 - Deployed reconciliation checkpoint: an open materialized CMS session can
   now recover from the paired HAL's existing exact transaction-by-HAL-ID view
   through the same completion/settlement finalizer as fact ingress. This is

@@ -1,6 +1,6 @@
 # Project State
 
-## 2026-09-10 - Charging-session stop provenance source change
+## 2026-09-10 - Charging-session stop provenance deployed
 
 CMS source migration `000068` (not applied) adds nullable canonical requested
 stop initiator/reason and OCPP stop reason to charging sessions. HAL immutable
@@ -11,8 +11,17 @@ settlement, wallet, connector, or command truth. Customer and CPO session
 detail/list plus CPO charger-transaction reads expose the additive `stop`
 object; legacy `stop_reason`/transaction `reason` remain the
 compatibility OCPP projection for new completions and safe late OCPP-metadata
-enrichment when it was previously absent. No HAL source change,
-deployment, restart, or migration application occurred.
+enrichment when it was previously absent. No HAL source or
+financial/session-policy change occurred. Migration `000068` is applied and
+the CMS runtime is source revision `db16078` with binary SHA-256
+`88f7ee243a302ebb9fda06ef33dd7b0d04710299336eae630dcccec2d77a5543`.
+The preceding binary is retained at
+`/root/evcmsnew-backups/pre-db16078-20260910T164902+0530/evcmsnew`.
+
+Loopback/public health and readiness, 242-operation OpenAPI parity, workers,
+Caddy, and post-rehost logs passed. Paired HAL, virtual-charger, physical
+OCPP, and PostgreSQL-gated lifecycle checks remain unverified; `pwsh` is
+unavailable.
 
 ## 2026-09-10 - TriggerMessage follow-on CMS rehost
 

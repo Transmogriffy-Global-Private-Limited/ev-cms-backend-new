@@ -23,7 +23,7 @@ projection and customer-readable session provenance.
 
 ## Non-goals
 
-- HAL changes, migration application, deployment, economics, connector state,
+- HAL changes, HAL deployment, economics, connector state,
   stop-command recovery, or frontend presentation copy.
 
 ## Claimed surfaces
@@ -45,7 +45,7 @@ projection and customer-readable session provenance.
 ## Data and migration impact
 
 - Three nullable columns; no historical backfill because legacy provenance is
-  ambiguous. Migration is source-only until explicitly applied.
+  ambiguous. Migration `000068` is applied after a retained database backup.
 
 ## Current state
 
@@ -69,5 +69,7 @@ projection and customer-readable session provenance.
 
 ## Completion
 
-- Source is verified and ready for CMS-only publication. Migration `000068` is
-  not applied; no deployment or restart occurred.
+- CMS revision `db16078` is deployed with migration `000068` applied. The
+  preceding binary is retained at
+  `/root/evcmsnew-backups/pre-db16078-20260910T164902+0530/evcmsnew`.
+  Paired HAL and physical-OCPP verification remain separate pending work.
