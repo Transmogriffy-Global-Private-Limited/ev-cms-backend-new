@@ -3,7 +3,6 @@ package cpo
 import (
 	"context"
 	"fmt"
-	"strconv"
 	"strings"
 	"time"
 
@@ -13,6 +12,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 type Repository interface {
@@ -174,6 +174,20 @@ func (r *repository) ListChargingSessions(
 	query ChargingSessionListQuery,
 ) ([]models.ChargingSession, error) {
 	var sessions []models.ChargingSession
+	// Keep SQL usage semantics identical to the list projection. Open sessions
+	// use their latest durable meter observation; finalized/non-live sessions
+	// retain their settled total_kwh value.
+	usageExpr := `CASE
+		WHEN charging_sessions.status IN ('START_PENDING', 'ACTIVE', 'STOP_PENDING')
+			AND charging_sessions.latest_meter_wh IS NOT NULL
+			AND charging_sessions.latest_meter_wh >= charging_sessions.meter_start_wh
+		THEN (charging_sessions.latest_meter_wh - charging_sessions.meter_start_wh)::numeric / 1000
+		ELSE charging_sessions.total_kwh
+	END`
+	durationExpr := ""
+	if query.AsOf != nil {
+		durationExpr = "GREATEST(0::bigint, FLOOR(EXTRACT(EPOCH FROM (COALESCE(charging_sessions.end_time, ?) - charging_sessions.start_time)))::bigint)"
+	}
 
 	db := r.db.WithContext(ctx).
 		Preload("Customer").
@@ -187,7 +201,6 @@ func (r *repository) ListChargingSessions(
 		Preload("StartIntent", "cpo_id = ?", cpoID).
 		Where("charging_sessions.cpo_id = ?", cpoID)
 
-	// existing filters
 	if query.Status != nil {
 		db = db.Where("charging_sessions.status = ?", *query.Status)
 	}
@@ -198,7 +211,6 @@ func (r *repository) ListChargingSessions(
 		db = db.Where("charging_sessions.customer_id = ?", *query.CustomerID)
 	}
 
-	// new filters
 	if query.StartTimeFrom != nil {
 		db = db.Where("charging_sessions.start_time >= ?", *query.StartTimeFrom)
 	}
@@ -211,11 +223,29 @@ func (r *repository) ListChargingSessions(
 	if query.EndTimeTo != nil {
 		db = db.Where("charging_sessions.end_time < ?", *query.EndTimeTo)
 	}
+	if query.CreatedAtFrom != nil {
+		db = db.Where("charging_sessions.created_at >= ?", *query.CreatedAtFrom)
+	}
+	if query.CreatedAtTo != nil {
+		db = db.Where("charging_sessions.created_at < ?", *query.CreatedAtTo)
+	}
+	if query.TotalKWhGT != nil {
+		db = db.Where(usageExpr+" > ?", *query.TotalKWhGT)
+	}
+	if query.TotalKWhLT != nil {
+		db = db.Where(usageExpr+" < ?", *query.TotalKWhLT)
+	}
 	if query.TotalKWhMin != nil {
-		db = db.Where("charging_sessions.total_kwh >= ?", *query.TotalKWhMin)
+		db = db.Where(usageExpr+" >= ?", *query.TotalKWhMin)
 	}
 	if query.TotalKWhMax != nil {
-		db = db.Where("charging_sessions.total_kwh <= ?", *query.TotalKWhMax)
+		db = db.Where(usageExpr+" <= ?", *query.TotalKWhMax)
+	}
+	if query.TotalAmountGT != nil {
+		db = db.Where("charging_sessions.total_amount > ?", *query.TotalAmountGT)
+	}
+	if query.TotalAmountLT != nil {
+		db = db.Where("charging_sessions.total_amount < ?", *query.TotalAmountLT)
 	}
 	if query.TotalAmountMin != nil {
 		db = db.Where("charging_sessions.total_amount >= ?", *query.TotalAmountMin)
@@ -224,16 +254,10 @@ func (r *repository) ListChargingSessions(
 		db = db.Where("charging_sessions.total_amount <= ?", *query.TotalAmountMax)
 	}
 	if query.DurationMin != nil {
-		db = db.Where(
-			"EXTRACT(EPOCH FROM (COALESCE(charging_sessions.end_time, NOW()) - charging_sessions.start_time)) >= ?",
-			*query.DurationMin,
-		)
+		db = db.Where(durationExpr+" >= ?", *query.AsOf, *query.DurationMin)
 	}
 	if query.DurationMax != nil {
-		db = db.Where(
-			"EXTRACT(EPOCH FROM (COALESCE(charging_sessions.end_time, NOW()) - charging_sessions.start_time)) <= ?",
-			*query.DurationMax,
-		)
+		db = db.Where(durationExpr+" <= ?", *query.AsOf, *query.DurationMax)
 	}
 	if query.Currency != nil {
 		db = db.Where("charging_sessions.currency = ?", *query.Currency)
@@ -251,17 +275,16 @@ func (r *repository) ListChargingSessions(
 		db = db.Where("charging_sessions.tariff_id = ?", *query.TariffID)
 	}
 
-	// dynamic sort expression
 	sortExpr := "charging_sessions.created_at"
 	switch query.SortBy {
 	case "start_time":
 		sortExpr = "charging_sessions.start_time"
 	case "end_time":
-		sortExpr = "COALESCE(charging_sessions.end_time, 'infinity'::timestamptz)"
+		sortExpr = "charging_sessions.end_time"
 	case "duration":
-		sortExpr = "EXTRACT(EPOCH FROM (COALESCE(charging_sessions.end_time, NOW()) - charging_sessions.start_time))"
+		sortExpr = durationExpr
 	case "usage":
-		sortExpr = "charging_sessions.total_kwh"
+		sortExpr = usageExpr
 	case "created_at":
 		sortExpr = "charging_sessions.created_at"
 	}
@@ -271,8 +294,15 @@ func (r *repository) ListChargingSessions(
 		order = "ASC"
 	}
 
-	// keyset pagination
-	if query.CursorValue != nil && query.CursorID != nil {
+	if query.Before != nil {
+		if query.BeforeID != nil {
+			db = db.Where("(charging_sessions.created_at, charging_sessions.id) < (?, ?)", *query.Before, *query.BeforeID)
+		} else {
+			db = db.Where("charging_sessions.created_at < ?", *query.Before)
+		}
+	}
+
+	if query.Cursor != nil {
 		op := "<"
 		if order == "ASC" {
 			op = ">"
@@ -280,36 +310,37 @@ func (r *repository) ListChargingSessions(
 
 		switch query.SortBy {
 		case "usage":
-			val, err := decimal.NewFromString(*query.CursorValue)
-			if err != nil {
-				return nil, err
-			}
 			db = db.Where(
 				fmt.Sprintf("(%s, charging_sessions.id) %s (?, ?)", sortExpr, op),
-				val,
-				*query.CursorID,
+				*query.Cursor.UsageKWh,
+				query.Cursor.ID,
 			)
 
-		case "start_time", "end_time", "created_at":
-			val, err := time.Parse(time.RFC3339Nano, *query.CursorValue)
-			if err != nil {
-				return nil, err
-			}
+		case "start_time", "created_at":
 			db = db.Where(
 				fmt.Sprintf("(%s, charging_sessions.id) %s (?, ?)", sortExpr, op),
-				val,
-				*query.CursorID,
+				*query.Cursor.Timestamp,
+				query.Cursor.ID,
 			)
+
+		case "end_time":
+			if query.Cursor.EndTimeIsNull {
+				db = db.Where("charging_sessions.end_time IS NULL AND charging_sessions.id "+op+" ?", query.Cursor.ID)
+			} else {
+				db = db.Where(
+					"(charging_sessions.end_time IS NULL OR charging_sessions.end_time "+op+" ? OR (charging_sessions.end_time = ? AND charging_sessions.id "+op+" ?))",
+					*query.Cursor.Timestamp,
+					*query.Cursor.Timestamp,
+					query.Cursor.ID,
+				)
+			}
 
 		case "duration":
-			val, err := strconv.ParseInt(*query.CursorValue, 10, 64)
-			if err != nil {
-				return nil, err
-			}
 			db = db.Where(
 				fmt.Sprintf("(%s, charging_sessions.id) %s (?, ?)", sortExpr, op),
-				val,
-				*query.CursorID,
+				*query.AsOf,
+				*query.Cursor.DurationSeconds,
+				query.Cursor.ID,
 			)
 		}
 	}
@@ -318,10 +349,15 @@ func (r *repository) ListChargingSessions(
 		db = db.Limit(query.Limit + 1)
 	}
 
-	err := db.
-		Order(sortExpr + " " + order).
-		Order("charging_sessions.id " + order).
-		Find(&sessions).Error
+	if query.SortBy == "end_time" {
+		db = db.Order("charging_sessions.end_time IS NULL ASC")
+	}
+	if query.SortBy == "duration" {
+		db = db.Order(clause.Expr{SQL: sortExpr + " " + order, Vars: []any{*query.AsOf}})
+	} else {
+		db = db.Order(sortExpr + " " + order)
+	}
+	err := db.Order("charging_sessions.id " + order).Find(&sessions).Error
 	if err != nil {
 		return nil, err
 	}

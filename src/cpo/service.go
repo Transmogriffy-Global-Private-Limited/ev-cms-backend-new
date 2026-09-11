@@ -182,22 +182,8 @@ func (service *Service) ListChargingSessions(
 	if err := requireCPOContext(principal); err != nil {
 		return ChargingSessionListResponse{}, err
 	}
-
-	if query.Limit == 0 {
-		query.Limit = defaultListLimit
-	}
-	if query.Limit < 1 || query.Limit > maxListLimit {
-		return ChargingSessionListResponse{}, invalid("limit", "Limit must be between 1 and 200.")
-	}
-
-	switch query.SortBy {
-	case "created_at", "start_time", "end_time", "duration", "usage":
-	default:
-		return ChargingSessionListResponse{}, invalid("sort_by", "sort_by must be created_at, start_time, end_time, duration, or usage.")
-	}
-
-	if query.SortOrder != "asc" && query.SortOrder != "desc" {
-		return ChargingSessionListResponse{}, invalid("sort_order", "sort_order must be asc or desc.")
+	if err := service.validateChargingSessionListQuery(&query); err != nil {
+		return ChargingSessionListResponse{}, err
 	}
 
 	sessions, err := service.repository.ListChargingSessions(ctx, *principal.CPOID, query)
@@ -212,11 +198,14 @@ func (service *Service) ListChargingSessions(
 
 	result := make([]ChargingSessionView, 0, len(sessions))
 	for _, session := range sessions {
-		result = append(result, toChargingSessionView(session))
+		view := toChargingSessionView(session)
+		// The repository uses this same latest-meter formula for usage filters
+		// and ordering. Keeping the returned value on the same durable snapshot
+		// prevents an active session from being filtered as one value but shown as
+		// another, without an N+1 live-operations read.
+		view.TotalKWh = chargingSessionListUsageKWh(session)
+		result = append(result, view)
 	}
-
-	// existing live kWh overlay stays here
-	// ...
 
 	response := ChargingSessionListResponse{
 		Sessions:  result,
@@ -225,42 +214,207 @@ func (service *Service) ListChargingSessions(
 		SortOrder: query.SortOrder,
 	}
 
+	if query.AsOf != nil {
+		asOf := *query.AsOf
+		response.AsOf = &asOf
+	}
+
 	if hasMore && len(sessions) > 0 {
 		last := sessions[len(sessions)-1]
-		var cursor string
+		cursor := chargingSessionCursorValue(last, query)
+		response.NextCursorValue, response.NextCursorID = &cursor, &last.ID
 
-		switch query.SortBy {
-		case "usage":
-			cursor = last.TotalKWh.String()
-		case "start_time":
-			cursor = last.StartTime.Format(time.RFC3339Nano)
-		case "end_time":
-			if last.EndTime != nil {
-				cursor = last.EndTime.Format(time.RFC3339Nano)
-			}
-			// If EndTime is nil, we cannot produce a cursor for an
-			// open session and must not emit has_more = true.
-		case "duration":
-			end := service.now()
-			if last.EndTime != nil {
-				end = *last.EndTime
-			}
-			cursor = strconv.FormatInt(int64(end.Sub(last.StartTime).Seconds()), 10)
-		default: // "created_at"
-			cursor = last.CreatedAt.Format(time.RFC3339Nano)
-		}
-
-		if cursor != "" {
-			response.NextCursorValue = &cursor
-			response.NextCursorID = &last.ID
-		} else {
-			// Cannot paginate past this row without a cursor value.
-			// Stop cleanly rather than emit has_more=true with no cursor.
-			response.HasMore = false
+		// Existing callers begin with the default created-at descending list and
+		// continue using next_before/next_before_id. Keep that complete legacy
+		// path available, but never mix its request cursor with the generic one.
+		if query.SortBy == "created_at" && query.SortOrder == "desc" && query.Cursor == nil {
+			nextBefore := last.CreatedAt
+			response.NextBefore, response.NextBeforeID = &nextBefore, &last.ID
 		}
 	}
 
 	return response, nil
+}
+
+func (service *Service) validateChargingSessionListQuery(query *ChargingSessionListQuery) error {
+	if query.Limit == 0 {
+		query.Limit = defaultListLimit
+	}
+	if query.Limit < 1 || query.Limit > maxListLimit {
+		return invalid("limit", "Limit must be between 1 and 200.")
+	}
+	if query.SortBy == "" {
+		query.SortBy = "created_at"
+	}
+	if query.SortOrder == "" {
+		query.SortOrder = "desc"
+	}
+	switch query.SortBy {
+	case "created_at", "start_time", "end_time", "duration", "usage":
+	default:
+		return invalid("sort_by", "sort_by must be created_at, start_time, end_time, duration, or usage.")
+	}
+	if query.SortOrder != "asc" && query.SortOrder != "desc" {
+		return invalid("sort_order", "sort_order must be asc or desc.")
+	}
+	if query.Before == nil && query.BeforeID != nil {
+		return invalid("before_id", "before is required when before_id is supplied.")
+	}
+	if query.Before != nil && query.Cursor != nil {
+		return invalid("cursor", "Legacy before pagination and generic cursor pagination cannot be combined.")
+	}
+	if query.Before != nil && (query.SortBy != "created_at" || query.SortOrder != "desc") {
+		return invalid("cursor", "Legacy before pagination is only available with created_at descending order.")
+	}
+	if err := validateChargingSessionCursor(query.SortBy, query.Cursor); err != nil {
+		return err
+	}
+	if err := validateChargingSessionTimeRange("start_time", query.StartTimeFrom, query.StartTimeTo); err != nil {
+		return err
+	}
+	if err := validateChargingSessionTimeRange("end_time", query.EndTimeFrom, query.EndTimeTo); err != nil {
+		return err
+	}
+	if err := validateChargingSessionTimeRange("created_at", query.CreatedAtFrom, query.CreatedAtTo); err != nil {
+		return err
+	}
+	if err := validateChargingSessionDecimalBounds("total_kwh", query.TotalKWhGT, query.TotalKWhMin, query.TotalKWhLT, query.TotalKWhMax); err != nil {
+		return err
+	}
+	if err := validateChargingSessionDecimalBounds("total_amount", query.TotalAmountGT, query.TotalAmountMin, query.TotalAmountLT, query.TotalAmountMax); err != nil {
+		return err
+	}
+	if query.DurationMin != nil && *query.DurationMin < 0 || query.DurationMax != nil && *query.DurationMax < 0 {
+		return invalid("duration", "Duration bounds must be non-negative whole seconds.")
+	}
+	if query.DurationMin != nil && query.DurationMax != nil && *query.DurationMin > *query.DurationMax {
+		return invalid("duration_range", "duration_min must not exceed duration_max.")
+	}
+	if query.Currency != nil && !isCanonicalCurrency(*query.Currency) {
+		return invalid("currency", "currency must be a three-letter code.")
+	}
+
+	durationSensitive := query.SortBy == "duration" || query.DurationMin != nil || query.DurationMax != nil
+	if !durationSensitive && query.AsOf != nil {
+		return invalid("as_of", "as_of is only valid with duration sorting or duration filters.")
+	}
+	if durationSensitive {
+		if query.AsOf == nil {
+			if query.Cursor != nil || query.Before != nil {
+				return invalid("as_of", "as_of from the preceding duration-sensitive page is required to continue pagination.")
+			}
+			now := time.Now().UTC()
+			if service.now != nil {
+				now = service.now().UTC()
+			}
+			asOf := now
+			query.AsOf = &asOf
+		}
+		asOf := query.AsOf.UTC()
+		query.AsOf = &asOf
+	}
+	return nil
+}
+
+func validateChargingSessionCursor(sortBy string, cursor *ChargingSessionCursor) error {
+	if cursor == nil {
+		return nil
+	}
+	if cursor.ID == uuid.Nil {
+		return invalid("cursor", "cursor_id must be a non-zero UUID.")
+	}
+	valid := false
+	switch sortBy {
+	case "created_at", "start_time":
+		valid = cursor.Timestamp != nil && !cursor.EndTimeIsNull && cursor.UsageKWh == nil && cursor.DurationSeconds == nil
+	case "end_time":
+		valid = (cursor.Timestamp != nil) != cursor.EndTimeIsNull && cursor.UsageKWh == nil && cursor.DurationSeconds == nil
+	case "usage":
+		valid = cursor.Timestamp == nil && !cursor.EndTimeIsNull && cursor.UsageKWh != nil && cursor.DurationSeconds == nil
+	case "duration":
+		valid = cursor.Timestamp == nil && !cursor.EndTimeIsNull && cursor.UsageKWh == nil && cursor.DurationSeconds != nil && *cursor.DurationSeconds >= 0
+	}
+	if !valid {
+		return invalid("cursor", "cursor_value does not match sort_by.")
+	}
+	return nil
+}
+
+func validateChargingSessionTimeRange(name string, from, to *time.Time) error {
+	if from != nil && to != nil && !from.Before(*to) {
+		return invalid(name+"_range", name+"_from must be before "+name+"_to.")
+	}
+	return nil
+}
+
+func validateChargingSessionDecimalBounds(name string, gt, min, lt, max *decimal.Decimal) error {
+	if gt != nil && min != nil {
+		return invalid(name+"_range", name+"_gt and "+name+"_min cannot be combined.")
+	}
+	if lt != nil && max != nil {
+		return invalid(name+"_range", name+"_lt and "+name+"_max cannot be combined.")
+	}
+	lower, lowerStrict := min, false
+	if gt != nil {
+		lower, lowerStrict = gt, true
+	}
+	upper, upperStrict := max, false
+	if lt != nil {
+		upper, upperStrict = lt, true
+	}
+	if lower == nil || upper == nil {
+		return nil
+	}
+	comparison := lower.Cmp(*upper)
+	if comparison > 0 || comparison == 0 && (lowerStrict || upperStrict) {
+		return invalid(name+"_range", name+" bounds are contradictory.")
+	}
+	return nil
+}
+
+func isCanonicalCurrency(currency string) bool {
+	if len(currency) != 3 {
+		return false
+	}
+	for _, character := range currency {
+		if character < 'A' || character > 'Z' {
+			return false
+		}
+	}
+	return true
+}
+
+func chargingSessionListUsageKWh(session models.ChargingSession) decimal.Decimal {
+	if (session.Status == constants.SessionStatusStartPending || session.Status == constants.SessionStatusActive || session.Status == constants.SessionStatusStopPending) && session.LatestMeterWh != nil && *session.LatestMeterWh >= session.MeterStartWh {
+		return decimal.NewFromInt(*session.LatestMeterWh - session.MeterStartWh).Div(decimal.NewFromInt(1000))
+	}
+	return session.TotalKWh
+}
+
+func chargingSessionCursorValue(session models.ChargingSession, query ChargingSessionListQuery) string {
+	switch query.SortBy {
+	case "usage":
+		return chargingSessionListUsageKWh(session).String()
+	case "start_time":
+		return session.StartTime.Format(time.RFC3339Nano)
+	case "end_time":
+		if session.EndTime == nil {
+			return "null"
+		}
+		return session.EndTime.Format(time.RFC3339Nano)
+	case "duration":
+		end := *query.AsOf
+		if session.EndTime != nil {
+			end = *session.EndTime
+		}
+		seconds := int64(end.Sub(session.StartTime) / time.Second)
+		if seconds < 0 {
+			seconds = 0
+		}
+		return strconv.FormatInt(seconds, 10)
+	default:
+		return session.CreatedAt.Format(time.RFC3339Nano)
+	}
 }
 
 func (service *Service) ListLiveChargingSessions(ctx context.Context, principal auth.Principal, query LiveChargingSessionListQuery) (LiveChargingSessionListResponse, error) {
@@ -2610,8 +2764,11 @@ func (service *Service) requireDelegationWithDatabase(ctx context.Context, datab
 		}
 	}
 	for _, override := range overrides {
-		if strings.EqualFold(strings.TrimSpace(override.Effect), "ALLOW") && !has[strings.TrimSpace(override.Permission)] {
-			return &auth.APIError{Status: http.StatusForbidden, Code: "permission_delegation_denied", Message: "You cannot grant a capability you do not currently possess."}
+		switch effect := strings.ToUpper(strings.TrimSpace(override.Effect)); effect {
+		case "ALLOW":
+			if !has[strings.TrimSpace(override.Permission)] {
+				return &auth.APIError{Status: http.StatusForbidden, Code: "permission_delegation_denied", Message: "You cannot grant a capability you do not currently possess."}
+			}
 		}
 	}
 	return nil
@@ -2696,9 +2853,10 @@ func (service *Service) staffViews(ctx context.Context, cpoID uuid.UUID, members
 		view := StaffView{MembershipID: membership.ID, User: cpoUserView(membership.User, cpoID, membership), IsPrimaryAdmin: membership.IsPrimaryAdmin, MembershipStatus: membership.Status, RoleDefaults: cpopermissions.RoleDefaults(membership.Role), Overrides: byMembership[membership.ID]}
 		allow, deny := make([]string, 0), make([]string, 0)
 		for _, override := range view.Overrides {
-			if override.Effect == "ALLOW" {
+			switch override.Effect {
+			case "ALLOW":
 				allow = append(allow, override.Permission)
-			} else if override.Effect == "DENY" {
+			case "DENY":
 				deny = append(deny, override.Permission)
 			}
 		}
@@ -4812,10 +4970,6 @@ func requireCPOContext(principal auth.Principal) error {
 	// for direct callers, but must not reintroduce an ADMIN-only bypass over the
 	// route's precise capability decision.
 	return nil
-}
-
-func forbiddenCPOAccess() error {
-	return &auth.APIError{Status: http.StatusForbidden, Code: "forbidden", Message: "An active CPO membership is required."}
 }
 
 func (service *Service) cpoOnboardingActionURL(cpoID uuid.UUID) (string, error) {

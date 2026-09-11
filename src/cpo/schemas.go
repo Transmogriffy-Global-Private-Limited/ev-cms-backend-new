@@ -875,14 +875,35 @@ type ChargingSessionListResponse struct {
 
 	NextCursorValue *string    `json:"next_cursor_value,omitempty"`
 	NextCursorID    *uuid.UUID `json:"next_cursor_id,omitempty"`
+	// NextBefore and NextBeforeID retain the pre-filter cursor contract for
+	// newest-first created-at traversal.
+	NextBefore   *time.Time `json:"next_before,omitempty"`
+	NextBeforeID *uuid.UUID `json:"next_before_id,omitempty"`
+	// AsOf freezes open-session duration filters and ordering for a page chain.
+	AsOf *time.Time `json:"as_of,omitempty"`
 
 	HasMore   bool   `json:"has_more"`
 	SortBy    string `json:"sort_by,omitempty"`
 	SortOrder string `json:"sort_order,omitempty"`
 }
 
+// ChargingSessionCursor is parsed at the HTTP boundary. Repository code never
+// receives raw user cursor text, so malformed cursors remain invalid requests.
+type ChargingSessionCursor struct {
+	ID uuid.UUID
+
+	Timestamp       *time.Time
+	UsageKWh        *decimal.Decimal
+	DurationSeconds *int64
+	EndTimeIsNull   bool
+}
+
 type ChargingSessionListQuery struct {
 	Limit int
+	// Before/BeforeID is the historical newest-first created-at cursor. It is
+	// intentionally separate from the generic sortable cursor.
+	Before   *time.Time
+	BeforeID *uuid.UUID
 
 	Status     *constants.SessionStatus
 	ChargerID  *uuid.UUID
@@ -891,8 +912,10 @@ type ChargingSessionListQuery struct {
 	SortBy    string
 	SortOrder string
 
-	CursorValue *string
-	CursorID    *uuid.UUID
+	Cursor *ChargingSessionCursor
+	// AsOf is required to continue any duration-sensitive page chain because
+	// open-session duration changes over time.
+	AsOf *time.Time
 
 	StartTimeFrom *time.Time
 	StartTimeTo   *time.Time
@@ -901,8 +924,13 @@ type ChargingSessionListQuery struct {
 	CreatedAtFrom *time.Time
 	CreatedAtTo   *time.Time
 
-	TotalKWhMin    *decimal.Decimal
-	TotalKWhMax    *decimal.Decimal
+	TotalKWhGT  *decimal.Decimal
+	TotalKWhLT  *decimal.Decimal
+	TotalKWhMin *decimal.Decimal
+	TotalKWhMax *decimal.Decimal
+
+	TotalAmountGT  *decimal.Decimal
+	TotalAmountLT  *decimal.Decimal
 	TotalAmountMin *decimal.Decimal
 	TotalAmountMax *decimal.Decimal
 

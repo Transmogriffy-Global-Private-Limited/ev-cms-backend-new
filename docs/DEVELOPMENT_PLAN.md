@@ -133,6 +133,22 @@ Approved current slice:
 
 Current implementation state:
 
+- The repaired CPO charging-session list contract is deployed in CMS revision
+  `990170f` without a new migration. Generic and legacy pagination, sorting,
+  filters, nullable-time traversal, and active-session usage semantics passed
+  runtime contract verification; PostgreSQL integration remains pending without
+  `TEST_DATABASE_URL`.
+
+- Emergency correction source-verified: the deployed `2ad082f` CPO
+  charging-session filter/sort implementation does not yet provide a coherent
+  HTTP-to-SQL contract. The source repair restores legacy pagination, typed
+  cursor validation, exact strict/inclusive bounds, created-at predicates,
+  stable duration pagination, nullable end-time traversal, and matching
+  active-session usage semantics. Focused parser/service and PostgreSQL-gated
+  repository coverage were added; the latter skips until a disposable
+  `TEST_DATABASE_URL` is selected. The repair remains source-only until a
+  separately authorized CMS rehost; no migration is expected.
+
 - Charging-session stop provenance is deployed in CMS revision `db16078` with
   migration `000068` applied and 242 OpenAPI operations. The additive
   requested-stop and charger-reported OCPP stop fields use the conflict-safe

@@ -92,8 +92,7 @@ func (service *Service) GetChargerOperationOCPPExchanges(ctx context.Context, pr
 	if err := service.database.WithContext(ctx).Where("id = ? AND cpo_id = ?", operationID, *principal.CPOID).First(&operation).Error; err != nil {
 		return ChargerOperationOCPPExchanges{}, &auth.APIError{Status: 404, Code: "charger_operation_not_found", Message: "The charger operation was not found."}
 	}
-	now := service.now()
-	response := ChargerOperationOCPPExchanges{OperationID: operation.ID, TraceID: operation.TraceID, Exchanges: []ChargerOperationOCPPExchange{}, FollowOn: classifyChargerOperationFollowOn(operation, models.ChargingTrace{}, nil, now)}
+	response := ChargerOperationOCPPExchanges{OperationID: operation.ID, TraceID: operation.TraceID, Exchanges: []ChargerOperationOCPPExchange{}, FollowOn: classifyChargerOperationFollowOn(operation, models.ChargingTrace{}, nil)}
 	if operation.TraceID == uuid.Nil {
 		return response, nil
 	}
@@ -105,7 +104,7 @@ func (service *Service) GetChargerOperationOCPPExchanges(ctx context.Context, pr
 	if err := service.database.WithContext(ctx).Where("cpo_id = ? AND trace_id = ? AND category IN ?", *principal.CPOID, operation.TraceID, []string{"CHARGER_OPERATION_OCPP", "CHARGER_OPERATION_FOLLOW_ON", "CHARGER_OPERATION_FOLLOW_ON_CLOSED"}).Order("ingestion_sequence ASC").Find(&rows).Error; err != nil {
 		return ChargerOperationOCPPExchanges{}, err
 	}
-	response.FollowOn = classifyChargerOperationFollowOn(operation, root, rows, now)
+	response.FollowOn = classifyChargerOperationFollowOn(operation, root, rows)
 	byUnique := map[string]int{}
 	for _, row := range rows {
 		if row.Category != "CHARGER_OPERATION_OCPP" {
@@ -135,7 +134,7 @@ func (service *Service) GetChargerOperationOCPPExchanges(ctx context.Context, pr
 	return response, nil
 }
 
-func classifyChargerOperationFollowOn(operation models.ChargerOperation, root models.ChargingTrace, rows []models.ChargingTraceEvent, now time.Time) ChargerOperationFollowOn {
+func classifyChargerOperationFollowOn(operation models.ChargerOperation, root models.ChargingTrace, rows []models.ChargingTraceEvent) ChargerOperationFollowOn {
 	followOn := ChargerOperationFollowOn{Status: "NOT_APPLICABLE"}
 	requested, requestedOK := operation.Parameters["requested_message"].(string)
 	if operation.Kind != "TRIGGER_MESSAGE" || !requestedOK || !triggerMessageFollowOnAction(requested) {

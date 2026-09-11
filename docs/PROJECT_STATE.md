@@ -1,5 +1,26 @@
 # Project State
 
+## 2026-09-11 - CPO charging-session list contract repair deployed
+
+The repaired CPO list contract restores legacy pagination and live-kWh
+semantics, typed generic cursors, exact strict/inclusive bounds, created-at
+predicates, stable duration pagination, and nullable end-time traversal. CMS
+revision `990170f` is deployed with binary SHA-256
+`8b360821c82bb8c6f8a0baf292c4b32afa4cc1a363a2eea8eb88073ed4b43cc0`.
+No migration was required. Health/readiness, 242-operation OpenAPI parity,
+workers, Caddy, and fresh logs passed; PostgreSQL integration remains
+unverified because `TEST_DATABASE_URL` is unset.
+
+## 2026-09-10 - CPO charging-session filters deployed
+
+CMS revision `2ad082f` is active with the CPO charging-session list's generic
+keyset cursor, configurable sort, and equality/range filters. No new migration
+was required; migration `000068` remains current and the binary SHA-256 is
+`88f7ee243a302ebb9fda06ef33dd7b0d04710299336eae630dcccec2d77a5543`.
+The 242-operation OpenAPI contract, health/readiness, workers, Caddy, and fresh
+post-rehost logs passed. PostgreSQL-gated lifecycle and paired HAL/physical
+OCPP checks remain unverified.
+
 ## 2026-09-10 - Charging-session stop provenance deployed
 
 CMS source migration `000068` (not applied) adds nullable canonical requested

@@ -3502,8 +3502,25 @@ Both routes require the CPO bearer session and the matching
 there is no client-selectable CPO ID. The list route accepts `limit` (1-200,
 default 50), `before` (RFC3339), `before_id` (UUID), `status` (`START_PENDING`,
 `ACTIVE`, `STOP_PENDING`, `COMPLETED`, or `FAILED`), `charger_id` (UUID), and
-`customer_id` (UUID). Pagination is descending by `(created_at, id)` and the
-returned `next_before` plus `next_before_id` form the next exclusive cursor.
+`customer_id` (UUID), `connector_id`, `tariff_id`, canonical three-letter
+`currency`, `stop_reason`, and `settlement_status`. It also accepts RFC3339
+ranges for `start_time`, `end_time`, and `created_at`; inclusive (`min`/`max`)
+and strict (`gt`/`lt`) amount and usage bounds; and non-negative duration
+bounds in whole seconds. Lower time bounds are inclusive and upper time bounds
+are exclusive. `min`/`max` are inclusive, while `gt`/`lt` are strict; callers
+cannot combine strict and inclusive bounds on the same side, and contradictory
+ranges fail with `400 invalid_request` rather than silently returning a page.
+
+The legacy `before` cursor remains descending by `created_at`; its optional
+`before_id` keeps the historic `(created_at, id)` tie-breaker for equal
+timestamps. It cannot be combined with generic cursors or non-default sorting. The
+generic `cursor_value`/`cursor_id` pair is mandatory together and is typed at
+the HTTP boundary: timestamps for creation/start, a decimal for usage, whole
+seconds for duration, and an RFC3339 timestamp or literal `null` for an open
+`end_time` row. Generic continuations resend the same sort and filters. For a
+duration sort or duration filter, the first response supplies `as_of`; every
+continuation must echo it so an open session's changing duration cannot skip or
+duplicate a row during traversal.
 
 Each result contains the CMS session UUID, OCPP transaction ID, tenant-owned
 customer/charger/connector UUIDs, start/end timestamps, exact decimal energy
@@ -3512,7 +3529,11 @@ creation time. These are read-only CMS projections; they do not query the HAL
 or issue charger commands. A missing session returns `404
 charging_session_not_found`; malformed UUIDs or invalid filters return `400`,
 and unauthenticated or unauthorized callers receive the standard `401`/`403`
-errors.
+errors. For an open `START_PENDING`, `ACTIVE`, or `STOP_PENDING` session,
+`total_kwh` is the latest durable meter delta in kWh; usage filtering and
+sorting use the identical expression. Completed and non-live sessions use the
+persisted final total. This historical list does not call HAL or issue charger
+commands, and it does not perform an N+1 live read.
 
 Each historical session includes `price_per_unit`, optional tariff `unit`, and
 `sgst_percent`, `cgst_percent`, and `igst_percent` from the immutable
