@@ -23,6 +23,7 @@ type Repository interface {
 	ListLiveChargingSessions(ctx context.Context, cpoID uuid.UUID, query LiveChargingSessionListQuery) ([]models.ChargingSession, error)
 	ListChargerTransactions(ctx context.Context, cpoID uuid.UUID, query ChargerTransactionListQuery) ([]ChargerTransaction, error)
 	ListChargersByHub(ctx context.Context, cpoID, hubID uuid.UUID) ([]models.Charger, error)
+	ListCustomerUsageWalletTransactions(ctx context.Context, cpoID, customerID uuid.UUID, limit int) ([]WalletTransactionDetail, error)
 	ListVehicles(ctx context.Context, cpoID uuid.UUID, query VehicleListQuery) ([]VehicleDetail, error)
 }
 type repository struct {
@@ -576,6 +577,36 @@ func (r *repository) ListWalletTransactions(ctx context.Context, cpoID uuid.UUID
 		return nil, err
 	}
 
+	return transactions, nil
+}
+
+// ListCustomerUsageWalletTransactions returns only wallet transactions that are
+// tied to a charging session (i.e., actual usage debits) for one customer in
+// one CPO. Recharge/top-up transactions are intentionally excluded.
+func (r *repository) ListCustomerUsageWalletTransactions(
+	ctx context.Context,
+	cpoID, customerID uuid.UUID,
+	limit int,
+) ([]WalletTransactionDetail, error) {
+	var transactions []WalletTransactionDetail
+	db := r.db.WithContext(ctx).
+		Table("wallet_transactions").
+		Select("wallet_transactions.*, customers.id as customer_id, customers.full_name as customer_name, customers.email as customer_email, wallets.currency").
+		Joins("JOIN wallets ON wallets.id = wallet_transactions.wallet_id").
+		Joins("JOIN customers ON customers.id = wallets.customer_id").
+		Where("wallet_transactions.cpo_id = ?", cpoID).
+		Where("customers.id = ?", customerID).
+		Where("wallet_transactions.session_id IS NOT NULL") // usage only
+
+	if limit > 0 {
+		db = db.Limit(limit)
+	}
+
+	if err := db.
+		Order("wallet_transactions.created_at DESC, wallet_transactions.id DESC").
+		Scan(&transactions).Error; err != nil {
+		return nil, err
+	}
 	return transactions, nil
 }
 

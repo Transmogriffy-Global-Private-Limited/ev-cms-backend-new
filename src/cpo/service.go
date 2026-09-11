@@ -5671,7 +5671,39 @@ func (service *Service) GetCustomer(
 		return CPOAdminCustomerView{}, fmt.Errorf("getting customer aggregates: %w", err)
 	}
 
-	return cpoAdminCustomerView(record, aggregates), nil
+	view := cpoAdminCustomerView(record, aggregates)
+
+	// --- NEW: attach usage-only wallet transactions for this customer ---
+	const defaultUsageTxLimit = 100
+	usageTxs, err := service.repository.ListCustomerUsageWalletTransactions(
+		ctx, *principal.CPOID, customerID, defaultUsageTxLimit,
+	)
+	if err != nil {
+		// Non-fatal: the customer view is still useful without the ledger tail.
+		// Log it and return the base view.
+		return view, fmt.Errorf("load customer usage wallet transactions: %w", err)
+	}
+
+	views := make([]WalletTransactionView, 0, len(usageTxs))
+	for _, tx := range usageTxs {
+		views = append(views, WalletTransactionView{
+			ID:              tx.ID,
+			CustomerID:      tx.CustomerID,
+			CustomerName:    tx.CustomerName,
+			CustomerEmail:   tx.CustomerEmail,
+			Amount:          tx.Amount,
+			Currency:        tx.Currency,
+			TransactionType: string(tx.TransactionType),
+			Status:          string(tx.Status),
+			Description:     &tx.Description,
+			SessionID:       tx.SessionID,
+			RechargeOrderID: tx.RechargeOrderID,
+			CreatedAt:       tx.CreatedAt,
+		})
+	}
+	view.UsageWalletTransactions = views
+
+	return view, nil
 }
 
 func (service *Service) getCustomerAggregates(ctx context.Context, customerID uuid.UUID) (*CustomerAggregates, error) {

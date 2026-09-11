@@ -36,6 +36,18 @@ func (r *chargingSessionProjectionRepository) ListWalletTransactions(context.Con
 	return nil, nil
 }
 
+// NEW: satisfies the extended Repository interface for the customer-detail
+// usage-transactions read. This projection test does not exercise the path,
+// so it returns an empty result rather than a partial mock.
+func (r *chargingSessionProjectionRepository) ListCustomerUsageWalletTransactions(
+	context.Context,
+	uuid.UUID,
+	uuid.UUID,
+	int,
+) ([]WalletTransactionDetail, error) {
+	return nil, nil
+}
+
 func (r *chargingSessionProjectionRepository) GetChargingSession(_ context.Context, cpoID, sessionID uuid.UUID) (*models.ChargingSession, error) {
 	r.getCPOID, r.getSessionID, r.getCalls = cpoID, sessionID, r.getCalls+1
 	if sessionID != r.session.ID {

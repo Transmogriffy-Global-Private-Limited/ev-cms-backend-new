@@ -4212,6 +4212,10 @@ paths:
       tags: [CPO Operations - Account & Notifications]
       operationId: getCPOCustomer
       summary: Get a specific customer for the authenticated CPO
+      description: |
+        Returns the customer profile, aggregate usage (total kWh, session
+        count), current wallet balance, and the customer's usage wallet
+        transactions (session-bound debits only, newest first).
       security:
         - BearerAuth: []
           CPOAppID: []
@@ -4225,7 +4229,7 @@ paths:
             format: uuid
       responses:
         "200":
-          description: The requested customer.
+          description: The requested customer, including usage wallet transactions.
           content:
             application/json:
               schema:
@@ -9495,6 +9499,15 @@ components:
           format: int64
         wallet_balance:
           $ref: "#/components/schemas/ExactDecimal"
+        usage_wallet_transactions:
+          type: array
+          description: |
+            Session-bound ("usage") wallet transactions for this customer,
+            newest first. Only transactions with a `session_id` are returned;
+            recharge/top-up transactions are intentionally excluded. Present
+            only on the single-customer detail endpoint.
+          items:
+            $ref: "#/components/schemas/WalletTransactionView"
         last_login_at:
           type: string
           format: date-time

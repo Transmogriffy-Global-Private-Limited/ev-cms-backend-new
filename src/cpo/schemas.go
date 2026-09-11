@@ -501,8 +501,12 @@ type CPOAdminCustomerView struct {
 	TotalUsage        decimal.Decimal          `json:"total_usage_kwh"`
 	NoOfSessions      int64                    `json:"session_count,omitempty"`
 	DriverWallet      decimal.Decimal          `json:"wallet_balance,omitempty"`
-	CreatedAt         time.Time                `json:"created_at"`
-	UpdatedAt         time.Time                `json:"updated_at"`
+
+	// NEW: usage-only wallet transactions (session-bound debits)
+	UsageWalletTransactions []WalletTransactionView `json:"usage_wallet_transactions,omitempty"`
+
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
 }
 
 // CPOAdminCustomerListQuery defines the query parameters for listing customers.
@@ -512,6 +516,14 @@ type CPOAdminCustomerListQuery struct {
 	Before   *time.Time
 	BeforeID *uuid.UUID
 	Limit    int
+}
+
+// CPOAdminCustomerDetailQuery carries optional filters for the single-customer
+// detail endpoint. It is intentionally separate from the list query.
+type CPOAdminCustomerDetailQuery struct {
+	// UsageTransactionLimit caps how many usage wallet transactions are
+	// embedded in the customer detail response. Zero means use a default.
+	UsageTransactionLimit int
 }
 
 // CPOAdminCustomerListResponse is the paginated list of customer views.
