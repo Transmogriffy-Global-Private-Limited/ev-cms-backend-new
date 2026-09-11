@@ -1,5 +1,20 @@
 # AI Changelog
 
+## 2026-09-11 - Repair CPO charging-session list contract (source only)
+
+- Repaired the faulty `2ad082f` list filter/sort feature end-to-end in source:
+  typed generic cursor validation, legacy created-at pagination, created-at
+  filtering, distinct strict/inclusive numeric bounds, fixed duration `as_of`
+  chains, nullable end-time traversal, and active-session live-kWh semantics.
+- No migration, HAL change, deployment, rehost, restart, or production database
+  action occurred. Disposable PostgreSQL verification remains unavailable until
+  `TEST_DATABASE_URL` is explicitly selected.
+
+Verification: focused parser/service tests, PostgreSQL-gated repository test
+(skipped because `TEST_DATABASE_URL` is unset), OpenAPI runtime coverage,
+documentation verification, `go test -p 1 ./...`, `go vet -p 1 ./...`,
+`go build ./...`, and `git diff --check` pass.
+
 ## 2026-09-10 - Deploy CPO charging-session filters and sorting
 
 - Deployed the CPO charging-session list filters, generic keyset cursor, and

@@ -1035,17 +1035,58 @@ func parseChargingSessionListQuery(ctx *gin.Context) (ChargingSessionListQuery, 
 		query.SortOrder = "desc"
 	}
 
-	// ---- keyset cursor ----
-	if v := strings.TrimSpace(ctx.Query("cursor_value")); v != "" {
-		query.CursorValue = &v
+	// The original list was always newest-first by (created_at, id). Keep its
+	// cursor separate from the generic sortable cursor rather than letting a
+	// legacy parameter silently change meaning with sort_by.
+	beforeText := strings.TrimSpace(ctx.Query("before"))
+	beforeIDText := strings.TrimSpace(ctx.Query("before_id"))
+	if beforeText == "" && beforeIDText != "" {
+		writeError(ctx, invalid("before_id", "before is required when before_id is supplied."))
+		return ChargingSessionListQuery{}, false
 	}
-	if v := strings.TrimSpace(ctx.Query("cursor_id")); v != "" {
-		id, err := uuid.Parse(v)
-		if err != nil || id == uuid.Nil {
+	if beforeText != "" {
+		before, err := time.Parse(time.RFC3339Nano, beforeText)
+		if err != nil {
+			writeError(ctx, invalid("before", "before must be RFC3339."))
+			return ChargingSessionListQuery{}, false
+		}
+		query.Before = &before
+		if beforeIDText != "" {
+			beforeID, err := uuid.Parse(beforeIDText)
+			if err != nil || beforeID == uuid.Nil {
+				writeError(ctx, invalid("before_id", "before_id must be a non-zero UUID."))
+				return ChargingSessionListQuery{}, false
+			}
+			query.BeforeID = &beforeID
+		}
+	}
+
+	cursorValue := strings.TrimSpace(ctx.Query("cursor_value"))
+	cursorIDText := strings.TrimSpace(ctx.Query("cursor_id"))
+	if (cursorValue == "") != (cursorIDText == "") {
+		writeError(ctx, invalid("cursor", "cursor_value and cursor_id must be supplied together."))
+		return ChargingSessionListQuery{}, false
+	}
+	if query.Before != nil && cursorValue != "" {
+		writeError(ctx, invalid("cursor", "Legacy before pagination and generic cursor pagination cannot be combined."))
+		return ChargingSessionListQuery{}, false
+	}
+	if query.Before != nil && (query.SortBy != "created_at" || query.SortOrder != "desc") {
+		writeError(ctx, invalid("cursor", "Legacy before pagination is only available with created_at descending order."))
+		return ChargingSessionListQuery{}, false
+	}
+	if cursorValue != "" {
+		cursorID, err := uuid.Parse(cursorIDText)
+		if err != nil || cursorID == uuid.Nil {
 			writeError(ctx, invalid("cursor_id", "Cursor ID must be a non-zero UUID."))
 			return ChargingSessionListQuery{}, false
 		}
-		query.CursorID = &id
+		cursor, err := parseChargingSessionCursor(query.SortBy, cursorValue, cursorID)
+		if err != nil {
+			writeError(ctx, invalid("cursor_value", err.Error()))
+			return ChargingSessionListQuery{}, false
+		}
+		query.Cursor = cursor
 	}
 
 	// ---- status ----
@@ -1078,10 +1119,6 @@ func parseChargingSessionListQuery(ctx *gin.Context) (ChargingSessionListQuery, 
 		query.CustomerID = &id
 	}
 
-	// ================================================================
-	// START TIME RANGE  ← the piece the frontend relies on for
-	//   Today / Yesterday / Week / Month / Year / Custom
-	// ================================================================
 	if v := strings.TrimSpace(ctx.Query("start_time_from")); v != "" {
 		t, err := time.Parse(time.RFC3339Nano, v)
 		if err != nil {
@@ -1135,9 +1172,6 @@ func parseChargingSessionListQuery(ctx *gin.Context) (ChargingSessionListQuery, 
 		query.CreatedAtTo = &t
 	}
 
-	// ---- total_kwh (usage) filters ----
-	// Accept both "_min/_max" (inclusive, per openapi.yaml) and legacy
-	// "_gt/_lt" (strict) so old clients keep working.
 	if v := strings.TrimSpace(ctx.Query("total_kwh_min")); v != "" {
 		d, err := decimal.NewFromString(v)
 		if err != nil {
@@ -1160,7 +1194,7 @@ func parseChargingSessionListQuery(ctx *gin.Context) (ChargingSessionListQuery, 
 			writeError(ctx, invalid("total_kwh_gt", "total_kwh_gt must be a decimal."))
 			return ChargingSessionListQuery{}, false
 		}
-		query.TotalKWhMin = &d
+		query.TotalKWhGT = &d
 	}
 	if v := strings.TrimSpace(ctx.Query("total_kwh_lt")); v != "" {
 		d, err := decimal.NewFromString(v)
@@ -1168,7 +1202,7 @@ func parseChargingSessionListQuery(ctx *gin.Context) (ChargingSessionListQuery, 
 			writeError(ctx, invalid("total_kwh_lt", "total_kwh_lt must be a decimal."))
 			return ChargingSessionListQuery{}, false
 		}
-		query.TotalKWhMax = &d
+		query.TotalKWhLT = &d
 	}
 
 	// ---- total_amount filters ----
@@ -1194,7 +1228,7 @@ func parseChargingSessionListQuery(ctx *gin.Context) (ChargingSessionListQuery, 
 			writeError(ctx, invalid("total_amount_gt", "total_amount_gt must be a decimal."))
 			return ChargingSessionListQuery{}, false
 		}
-		query.TotalAmountMin = &d
+		query.TotalAmountGT = &d
 	}
 	if v := strings.TrimSpace(ctx.Query("total_amount_lt")); v != "" {
 		d, err := decimal.NewFromString(v)
@@ -1202,13 +1236,13 @@ func parseChargingSessionListQuery(ctx *gin.Context) (ChargingSessionListQuery, 
 			writeError(ctx, invalid("total_amount_lt", "total_amount_lt must be a decimal."))
 			return ChargingSessionListQuery{}, false
 		}
-		query.TotalAmountMax = &d
+		query.TotalAmountLT = &d
 	}
 
 	// ---- duration filters (seconds) ----
 	if v := strings.TrimSpace(ctx.Query("duration_min")); v != "" {
 		n, err := strconv.ParseInt(v, 10, 64)
-		if err != nil {
+		if err != nil || n < 0 {
 			writeError(ctx, invalid("duration_min", "duration_min must be an integer."))
 			return ChargingSessionListQuery{}, false
 		}
@@ -1216,7 +1250,7 @@ func parseChargingSessionListQuery(ctx *gin.Context) (ChargingSessionListQuery, 
 	}
 	if v := strings.TrimSpace(ctx.Query("duration_max")); v != "" {
 		n, err := strconv.ParseInt(v, 10, 64)
-		if err != nil {
+		if err != nil || n < 0 {
 			writeError(ctx, invalid("duration_max", "duration_max must be an integer."))
 			return ChargingSessionListQuery{}, false
 		}
@@ -1242,6 +1276,10 @@ func parseChargingSessionListQuery(ctx *gin.Context) (ChargingSessionListQuery, 
 	}
 	if v := strings.TrimSpace(ctx.Query("currency")); v != "" {
 		c := strings.ToUpper(v)
+		if !isCanonicalCurrency(c) {
+			writeError(ctx, invalid("currency", "currency must be a three-letter code."))
+			return ChargingSessionListQuery{}, false
+		}
 		query.Currency = &c
 	}
 	if v := strings.TrimSpace(ctx.Query("stop_reason")); v != "" {
@@ -1250,8 +1288,53 @@ func parseChargingSessionListQuery(ctx *gin.Context) (ChargingSessionListQuery, 
 	if v := strings.TrimSpace(ctx.Query("settlement_status")); v != "" {
 		query.SettlementStatus = &v
 	}
+	if v := strings.TrimSpace(ctx.Query("as_of")); v != "" {
+		asOf, err := time.Parse(time.RFC3339Nano, v)
+		if err != nil {
+			writeError(ctx, invalid("as_of", "as_of must be RFC3339."))
+			return ChargingSessionListQuery{}, false
+		}
+		query.AsOf = &asOf
+	}
 
 	return query, true
+}
+
+func parseChargingSessionCursor(sortBy, value string, id uuid.UUID) (*ChargingSessionCursor, error) {
+	cursor := &ChargingSessionCursor{ID: id}
+	switch sortBy {
+	case "created_at", "start_time":
+		timestamp, err := time.Parse(time.RFC3339Nano, value)
+		if err != nil {
+			return nil, fmt.Errorf("cursor_value must be RFC3339 for %s", sortBy)
+		}
+		cursor.Timestamp = &timestamp
+	case "end_time":
+		if value == "null" {
+			cursor.EndTimeIsNull = true
+			return cursor, nil
+		}
+		timestamp, err := time.Parse(time.RFC3339Nano, value)
+		if err != nil {
+			return nil, errors.New("cursor_value must be RFC3339 or null for end_time")
+		}
+		cursor.Timestamp = &timestamp
+	case "usage":
+		usage, err := decimal.NewFromString(value)
+		if err != nil {
+			return nil, errors.New("cursor_value must be a decimal for usage")
+		}
+		cursor.UsageKWh = &usage
+	case "duration":
+		seconds, err := strconv.ParseInt(value, 10, 64)
+		if err != nil || seconds < 0 {
+			return nil, errors.New("cursor_value must be non-negative whole seconds for duration")
+		}
+		cursor.DurationSeconds = &seconds
+	default:
+		return nil, errors.New("sort_by must be created_at, start_time, end_time, duration, or usage")
+	}
+	return cursor, nil
 }
 
 func parseLiveChargingSessionListQuery(ctx *gin.Context) (LiveChargingSessionListQuery, bool) {

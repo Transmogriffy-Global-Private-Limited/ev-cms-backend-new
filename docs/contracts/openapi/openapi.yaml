@@ -260,13 +260,25 @@ paths:
         (default `desc`). Allowed `sort_by` values are `created_at`, `start_time`,
         `end_time`, `duration`, and `usage` (total kWh).
 
-        Keyset pagination is generic because the sort field varies. When
-        `has_more` is true, send the returned `next_cursor_value` and
-        `next_cursor_id` back as `cursor_value` and `cursor_id`. You must also
-        resend the same `sort_by`, `sort_order`, and filters.
+        Generic keyset pagination requires both `cursor_value` and `cursor_id`.
+        When `has_more` is true, send the returned pair back with the same
+        `sort_by`, `sort_order`, filters, and (where returned) `as_of`.
+        `before`/`before_id` is the separate legacy newest-first cursor.
+        `before` preserves its historic timestamp-only behavior; optionally
+        send `before_id` for the `(created_at,id)` tie-breaker. It cannot be
+        combined with the generic pair or another sort direction.
 
         Numeric filters accept either inclusive min/max (`*_min` / `*_max`) or
-        strict comparison (`*_gt` / `*_lt`). Duration is expressed in seconds.
+        strict comparison (`*_gt` / `*_lt`); a strict and inclusive bound on
+        the same side cannot be combined. Duration is expressed in whole,
+        non-negative seconds.
+
+        `total_kwh` for an open `START_PENDING`, `ACTIVE`, or `STOP_PENDING`
+        session is the latest durable meter consumption (`latest_meter_wh -
+        meter_start_wh`) in kWh. Usage filters and sorting use this exact same
+        value; completed and non-live sessions use persisted `total_kwh`.
+        Open `end_time` rows sort after timestamped rows in either direction
+        and use `null` as their generic cursor value.
       security:
         - BearerAuth: []
           CPOAppID: []
@@ -274,7 +286,7 @@ paths:
         # ---- page size ----
         - $ref: "#/components/parameters/ListLimit"
 
-        # ---- legacy cursor (kept for backward compatibility) ----
+        # ---- legacy cursor (newest-first created_at only) ----
         - $ref: "#/components/parameters/ListBefore"
         - $ref: "#/components/parameters/ListBeforeID"
 
@@ -284,7 +296,8 @@ paths:
           required: false
           description: |
             Value of the sort field from the last row of the previous page.
-            For `created_at`, `start_time`, and `end_time` use RFC3339Nano.
+            For `created_at` and `start_time` use RFC3339Nano. For `end_time`
+            use RFC3339Nano or the literal `null` for an open session.
             For `usage` use a decimal string. For `duration` use whole seconds.
             Must be supplied together with `cursor_id`.
           schema:
@@ -452,7 +465,7 @@ paths:
           in: query
           description: |
             Inclusive minimum duration in seconds. Open sessions are measured
-            against the server's `now`.
+            at the fixed `as_of` timestamp for the request/page chain.
           schema:
             type: integer
             format: int64
@@ -461,11 +474,22 @@ paths:
           in: query
           description: |
             Inclusive maximum duration in seconds. Open sessions are measured
-            against the server's `now`.
+            at the fixed `as_of` timestamp for the request/page chain.
           schema:
             type: integer
             format: int64
             minimum: 0
+        - name: as_of
+          in: query
+          required: false
+          description: |
+            Fixed RFC3339Nano timestamp for duration sorting or duration
+            filters. Omit it on the first request; the response returns it.
+            Supply that exact value on every continuation page. It is invalid
+            when neither duration sorting nor duration filtering is used.
+          schema:
+            type: string
+            format: date-time
       responses:
         "200":
           description: A list of charging sessions.
@@ -479,7 +503,7 @@ paths:
             `invalid_sort_order`, `invalid_cursor`, `invalid_start_time_range`,
             `invalid_end_time_range`, `invalid_created_at_range`,
             `invalid_total_kwh_range`, `invalid_total_amount_range`,
-            `invalid_duration_range`.
+            `invalid_duration_range`, or `invalid_as_of`.
           content:
             application/json:
               schema:
@@ -7465,7 +7489,8 @@ components:
       required: false
       description: |
         Exclusive RFC3339 `created_at` cursor. Supply together with
-        `before_id` from the previous response.
+        `before_id` from the previous response when a UUID tie-breaker is
+        needed for equal timestamps.
       schema:
         type: string
         format: date-time
@@ -7473,7 +7498,7 @@ components:
       name: before_id
       in: query
       required: false
-      description: Exclusive UUID tie-breaker supplied together with `before`.
+      description: Optional UUID tie-breaker for `before`; it requires `before`.
       schema:
         type: string
         format: uuid
@@ -12145,9 +12170,10 @@ components:
           nullable: true
           description: |
             Sort value of the last row. Send back as `cursor_value` on the
-            next request. For `created_at`, `start_time`, and `end_time` it
-            is RFC3339Nano. For `usage` it is a decimal string. For
-            `duration` it is whole seconds.
+            next request. For `created_at` and `start_time` it is RFC3339Nano.
+            For `end_time` it is RFC3339Nano or `null` for an open session.
+            For `usage` it is a decimal string; for `duration` it is whole
+            seconds.
         next_cursor_id:
           type: string
           format: uuid
@@ -12163,19 +12189,25 @@ components:
           type: string
           enum: [asc, desc]
 
+        as_of:
+          type: string
+          format: date-time
+          nullable: true
+          description: Returned for duration sorting or duration filters. Send it unchanged on every continuation page so open-session durations stay fixed for the page chain.
+
         # ---- legacy cursor (kept for backward compat) ----
         next_before:
           type: string
           format: date-time
           nullable: true
           deprecated: true
-          description: Deprecated. Only emitted when the caller used `before` / `before_id`.
+          description: Deprecated compatibility cursor for the default `created_at DESC` list. It is emitted on an initial/default or legacy page when more rows exist.
         next_before_id:
           type: string
           format: uuid
           nullable: true
           deprecated: true
-          description: Deprecated. Only emitted when the caller used `before` / `before_id`.
+          description: Deprecated UUID tie-breaker paired with `next_before`.
 
         has_more:
           type: boolean

@@ -127,10 +127,19 @@ business cause. A spontaneous charger stop may therefore contain only
 remain legacy compatibility fields; do not infer or synthesize canonical stop
 provenance from them.
 
-The charging-session list also supports `sort_by`/`sort_order`, generic
+The charging-session list supports `sort_by`/`sort_order`, generic
 `cursor_value`/`cursor_id` keyset pagination, and tenant-scoped equality and
-range filters. When continuing a generic cursor, preserve the same sort and
-filters; use the response's `next_cursor_value` and `next_cursor_id`.
+range filters. A generic cursor is a pair: preserve the same sort, filters,
+and both returned cursor values. Do not send it with legacy
+`before`/`before_id`; that legacy cursor is only for the historical newest-first
+created-at list (`before_id` is the optional equal-timestamp tie-breaker). For duration sorting or duration filters, echo the response
+`as_of` on every continuation page. An `end_time` cursor may be the string
+`null` for an open session.
+
+`total_kwh` for an open `START_PENDING`, `ACTIVE`, or `STOP_PENDING` session
+is the latest durable meter delta, not a final settlement value. The server
+applies usage filtering and sorting to that same displayed value. Continue to
+treat all decimal strings as exact decimals rather than JavaScript numbers.
 
 - A hub tariff root is the publication prerequisite. The safe path is hidden hub
   → enabled unbounded hub tariff → customer visibility. Do not optimistically

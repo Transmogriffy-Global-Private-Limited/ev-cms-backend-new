@@ -133,10 +133,15 @@ Approved current slice:
 
 Current implementation state:
 
-- CPO charging-session list filters and configurable sorting are deployed in
-  CMS revision `2ad082f` without a new migration. Generic keyset pagination
-  retains tenant scope and the legacy cursor compatibility path; the
-  242-operation contract and runtime verification passed.
+- Emergency correction source-verified: the deployed `2ad082f` CPO
+  charging-session filter/sort implementation does not yet provide a coherent
+  HTTP-to-SQL contract. The source repair restores legacy pagination, typed
+  cursor validation, exact strict/inclusive bounds, created-at predicates,
+  stable duration pagination, nullable end-time traversal, and matching
+  active-session usage semantics. Focused parser/service and PostgreSQL-gated
+  repository coverage were added; the latter skips until a disposable
+  `TEST_DATABASE_URL` is selected. The repair remains source-only until a
+  separately authorized CMS rehost; no migration is expected.
 
 - Charging-session stop provenance is deployed in CMS revision `db16078` with
   migration `000068` applied and 242 OpenAPI operations. The additive
