@@ -2764,8 +2764,11 @@ func (service *Service) requireDelegationWithDatabase(ctx context.Context, datab
 		}
 	}
 	for _, override := range overrides {
-		if strings.EqualFold(strings.TrimSpace(override.Effect), "ALLOW") && !has[strings.TrimSpace(override.Permission)] {
-			return &auth.APIError{Status: http.StatusForbidden, Code: "permission_delegation_denied", Message: "You cannot grant a capability you do not currently possess."}
+		switch effect := strings.ToUpper(strings.TrimSpace(override.Effect)); effect {
+		case "ALLOW":
+			if !has[strings.TrimSpace(override.Permission)] {
+				return &auth.APIError{Status: http.StatusForbidden, Code: "permission_delegation_denied", Message: "You cannot grant a capability you do not currently possess."}
+			}
 		}
 	}
 	return nil
@@ -4966,10 +4969,6 @@ func requireCPOContext(principal auth.Principal) error {
 	// for direct callers, but must not reintroduce an ADMIN-only bypass over the
 	// route's precise capability decision.
 	return nil
-}
-
-func forbiddenCPOAccess() error {
-	return &auth.APIError{Status: http.StatusForbidden, Code: "forbidden", Message: "An active CPO membership is required."}
 }
 
 func (service *Service) cpoOnboardingActionURL(cpoID uuid.UUID) (string, error) {

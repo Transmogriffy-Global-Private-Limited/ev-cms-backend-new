@@ -89,7 +89,7 @@ func TestClassifyChargerOperationFollowOnUsesDurableAcceptanceAndClosure(t *test
 				rows = append([]models.ChargingTraceEvent{accepted}, rows...)
 			}
 			before := test.operation
-			got := classifyChargerOperationFollowOn(test.operation, root, rows, acceptedAt.Add(2*time.Minute))
+			got := classifyChargerOperationFollowOn(test.operation, root, rows)
 			if got.Status != test.want {
 				t.Fatalf("status = %s, want %s", got.Status, test.want)
 			}
