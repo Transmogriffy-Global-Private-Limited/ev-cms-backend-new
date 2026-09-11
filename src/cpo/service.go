@@ -2853,9 +2853,10 @@ func (service *Service) staffViews(ctx context.Context, cpoID uuid.UUID, members
 		view := StaffView{MembershipID: membership.ID, User: cpoUserView(membership.User, cpoID, membership), IsPrimaryAdmin: membership.IsPrimaryAdmin, MembershipStatus: membership.Status, RoleDefaults: cpopermissions.RoleDefaults(membership.Role), Overrides: byMembership[membership.ID]}
 		allow, deny := make([]string, 0), make([]string, 0)
 		for _, override := range view.Overrides {
-			if override.Effect == "ALLOW" {
+			switch override.Effect {
+			case "ALLOW":
 				allow = append(allow, override.Permission)
-			} else if override.Effect == "DENY" {
+			case "DENY":
 				deny = append(deny, override.Permission)
 			}
 		}
