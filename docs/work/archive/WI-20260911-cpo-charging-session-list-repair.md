@@ -1,6 +1,6 @@
 # WI-20260911-cpo-charging-session-list-repair
 
-Status: Verified (source only)
+Status: Verified and deployed (CMS only)
 Owner: Codex
 Collaborators: None
 Started: 2026-09-11
@@ -25,7 +25,7 @@ service, SQL, and response semantics.
 ## Non-goals
 
 - HAL, migrations, invoices, CPO login, TriggerMessage, operation recovery,
-  deployment, or runtime database changes.
+  or runtime database changes.
 
 ## Claimed surfaces
 
@@ -54,8 +54,9 @@ None.
 
 ## Current state
 
-Source verification is complete. No deployment, rehost, migration, HAL change,
-or runtime database action has occurred.
+Source verification and CMS rehost are complete. Revision `990170f` is active;
+no migration or HAL change was required. PostgreSQL integration remains
+unverified because `TEST_DATABASE_URL` is unset.
 
 ## Verification
 
@@ -68,10 +69,10 @@ or runtime database action has occurred.
 
 ## Handoff
 
-The only next operational step is a separately authorized CMS rehost. It must
-not claim PostgreSQL integration or production verification before those are
-actually performed.
+Do not claim PostgreSQL integration, paired HAL, or physical-charger
+verification; those remain separate unverified boundaries.
 
 ## Completion
 
-Archived after source verification. Publication is authorized separately.
+Archived after CMS deployment verification. Publication is authorized
+separately.

@@ -1,17 +1,15 @@
 # Project State
 
-## 2026-09-11 - CPO charging-session list contract repair (source only)
+## 2026-09-11 - CPO charging-session list contract repair deployed
 
-The deployed `2ad082f` filter/sort implementation is not a trustworthy
-description of the source contract: it omitted `created_at` predicates,
-collapsed strict/inclusive numeric bounds, lost the legacy `before` cursor and
-list live-kWh overlay, and used unsafe cursor keys for nullable `end_time` and
-open-session duration. The emergency CMS-only source repair is verified by
-focused parser/service tests, the full Go test/vet/build suite, OpenAPI runtime
-coverage, and documentation validation. It has not been deployed, rehosted,
-migrated, or verified against a disposable PostgreSQL database; production
-behavior must not be inferred from this source record until a separately
-authorized CMS rehost completes.
+The repaired CPO list contract restores legacy pagination and live-kWh
+semantics, typed generic cursors, exact strict/inclusive bounds, created-at
+predicates, stable duration pagination, and nullable end-time traversal. CMS
+revision `990170f` is deployed with binary SHA-256
+`8b360821c82bb8c6f8a0baf292c4b32afa4cc1a363a2eea8eb88073ed4b43cc0`.
+No migration was required. Health/readiness, 242-operation OpenAPI parity,
+workers, Caddy, and fresh logs passed; PostgreSQL integration remains
+unverified because `TEST_DATABASE_URL` is unset.
 
 ## 2026-09-10 - CPO charging-session filters deployed
 

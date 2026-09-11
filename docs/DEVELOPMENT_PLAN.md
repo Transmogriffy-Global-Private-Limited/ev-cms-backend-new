@@ -133,6 +133,12 @@ Approved current slice:
 
 Current implementation state:
 
+- The repaired CPO charging-session list contract is deployed in CMS revision
+  `990170f` without a new migration. Generic and legacy pagination, sorting,
+  filters, nullable-time traversal, and active-session usage semantics passed
+  runtime contract verification; PostgreSQL integration remains pending without
+  `TEST_DATABASE_URL`.
+
 - Emergency correction source-verified: the deployed `2ad082f` CPO
   charging-session filter/sort implementation does not yet provide a coherent
   HTTP-to-SQL contract. The source repair restores legacy pagination, typed
