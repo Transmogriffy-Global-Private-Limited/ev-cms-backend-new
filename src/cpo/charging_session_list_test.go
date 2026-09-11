@@ -27,6 +27,9 @@ func (r *chargingSessionListRepository) GetAnalytics(context.Context, uuid.UUID,
 func (r *chargingSessionListRepository) ListWalletTransactions(context.Context, uuid.UUID, WalletTransactionListQuery) ([]WalletTransactionDetail, error) {
 	return nil, nil
 }
+func (r *chargingSessionListRepository) ListCustomerUsageWalletTransactions(context.Context, uuid.UUID, uuid.UUID, int) ([]WalletTransactionDetail, error) {
+	return nil, nil
+}
 func (r *chargingSessionListRepository) GetChargingSession(context.Context, uuid.UUID, uuid.UUID) (*models.ChargingSession, error) {
 	return nil, nil
 }

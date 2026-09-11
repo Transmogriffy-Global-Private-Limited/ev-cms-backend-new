@@ -7,11 +7,11 @@
   filtering, distinct strict/inclusive numeric bounds, fixed duration `as_of`
   chains, nullable end-time traversal, and active-session live-kWh semantics.
 - No migration or HAL change was required. The CMS was rehosted from source
-  revision `990170f` after a verified build; the active binary SHA-256 is
-  `8b360821c82bb8c6f8a0baf292c4b32afa4cc1a363a2eea8eb88073ed4b43cc0`.
+  revision `6d9d15a` after a verified build; the active binary SHA-256 is
+  `bcdcf702eb3b954f38506b1454c695b5f33879cfa892c4a9389f18d3d98ca45d`.
 - The preceding binary is retained at
-  `/root/evcmsnew-backups/pre-990170f-20260911T103904+0530/evcmsnew`
-  (SHA-256 `88f7ee243a302ebb9fda06ef33dd7b0d04710299336eae630dcccec2d77a5543`).
+  `/root/evcmsnew-backups/pre-990170f-20260911T110518+0530/evcmsnew`
+  (SHA-256 `8b360821c82bb8c6f8a0baf292c4b32afa4cc1a363a2eea8eb88073ed4b43cc0`).
 - Loopback/public health and readiness, 242-operation OpenAPI parity, workers,
   Caddy, and fresh post-rehost logs passed. Disposable PostgreSQL execution
   remains unavailable because `TEST_DATABASE_URL` is unset.

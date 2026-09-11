@@ -54,7 +54,7 @@ None.
 
 ## Current state
 
-Source verification and CMS rehost are complete. Revision `990170f` is active;
+Source verification and CMS rehost are complete. Revision `6d9d15a` is active;
 no migration or HAL change was required. PostgreSQL integration remains
 unverified because `TEST_DATABASE_URL` is unset.
 

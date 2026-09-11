@@ -5,8 +5,8 @@
 The repaired CPO list contract restores legacy pagination and live-kWh
 semantics, typed generic cursors, exact strict/inclusive bounds, created-at
 predicates, stable duration pagination, and nullable end-time traversal. CMS
-revision `990170f` is deployed with binary SHA-256
-`8b360821c82bb8c6f8a0baf292c4b32afa4cc1a363a2eea8eb88073ed4b43cc0`.
+revision `6d9d15a` is deployed with binary SHA-256
+`bcdcf702eb3b954f38506b1454c695b5f33879cfa892c4a9389f18d3d98ca45d`.
 No migration was required. Health/readiness, 242-operation OpenAPI parity,
 workers, Caddy, and fresh logs passed; PostgreSQL integration remains
 unverified because `TEST_DATABASE_URL` is unset.
