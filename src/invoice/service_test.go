@@ -86,6 +86,30 @@ func TestUnsupportedRendererVersionFailsClosed(t *testing.T) {
 	}
 }
 
+func TestCanvasRendererVersionsRemainDispatchable(t *testing.T) {
+	snapshot := customerPresentationSnapshot()
+	snapshot.Location.HubAddress = "42 River Road, West Bengal"
+	legacyLocation := customerInvoiceSectionsV1(snapshot, time.UTC)[2].Lines
+	currentLocation := customerInvoiceSections(snapshot, time.UTC)[2].Lines
+	if len(legacyLocation) != 3 || len(currentLocation) != 2 {
+		t.Fatalf("renderer-version location projection changed: v1=%q v2=%q", legacyLocation, currentLocation)
+	}
+	legacy, err := renderInvoice(snapshot, legacyCanvasRenderer, models.InvoiceAsset{}, false, time.UTC)
+	if err != nil {
+		t.Fatalf("render recorded v1 invoice: %v", err)
+	}
+	current, err := renderInvoice(snapshot, rendererVersion, models.InvoiceAsset{}, false, time.UTC)
+	if err != nil {
+		t.Fatalf("render current v2 invoice: %v", err)
+	}
+	if !bytes.HasPrefix(legacy, []byte("%PDF-")) || !bytes.HasPrefix(current, []byte("%PDF-")) {
+		t.Fatal("one of the supported Canvas renderer versions did not produce a PDF")
+	}
+	if bytes.Equal(legacy, current) {
+		t.Fatal("redesigned v2 renderer unexpectedly produced the v1 artifact")
+	}
+}
+
 func TestRenderPDFUsesUnicodeAndIssuanceSnapshot(t *testing.T) {
 	now := time.Date(2026, time.April, 2, 10, 0, 0, 0, time.UTC)
 	limitType, energySource := "ENERGY", "CUSTOMER"

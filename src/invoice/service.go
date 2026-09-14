@@ -42,7 +42,8 @@ import (
 )
 
 const (
-	rendererVersion       = "canvas-noto-v1"
+	rendererVersion       = "canvas-noto-v2"
+	legacyCanvasRenderer  = "canvas-noto-v1"
 	snapshotVersion       = 1
 	invoiceGenerationLock = 5 * time.Minute
 	invoiceDeliveryLock   = 5 * time.Minute
@@ -1062,6 +1063,8 @@ func renderInvoice(snapshot issuanceSnapshot, version string, asset models.Invoi
 	}
 	switch version {
 	case rendererVersion:
+		return renderPDFV2(snapshot, asset, hasAsset, zone)
+	case legacyCanvasRenderer:
 		return renderPDFV1(snapshot, asset, hasAsset, zone)
 	case "gofpdf-dejavu-v1":
 		return renderPDFLegacyGofpdf(snapshot, asset, hasAsset, zone)
@@ -1154,7 +1157,118 @@ func (fonts invoiceFonts) textBox(value string, size, width float64, bold bool) 
 	return rich.ToText(width, 0, canvas.Left, canvas.Top, 0, 0)
 }
 
+// renderPDFV1 remains available for invoice rows durably stamped before the
+// redesigned layout. READY artifacts are immutable; pending work continues to
+// use the renderer version recorded at issuance.
 func renderPDFV1(snapshot issuanceSnapshot, asset models.InvoiceAsset, hasAsset bool, zone *time.Location) ([]byte, error) {
+	fonts, err := newInvoiceFonts()
+	if err != nil {
+		return nil, err
+	}
+	defer fonts.latin.Destroy()
+	defer fonts.bengali.Destroy()
+	defer fonts.devanagari.Destroy()
+	var output bytes.Buffer
+	renderer := canvaspdf.New(&output, 210, 297, &canvaspdf.Options{Compress: false, SubsetFonts: true, ImageEncoding: canvas.Lossless})
+	renderer.SetInfo("Charging Session Invoice "+snapshot.InvoiceNumber, "Immutable charging-session invoice", "charging,invoice", snapshot.Supplier.Name, legacyCanvasRenderer)
+	var document *canvas.Canvas
+	var context *canvas.Context
+	y := 0.0
+	page := 0
+	finishPage := func() {
+		if document == nil {
+			return
+		}
+		footer := fonts.textBox(fmt.Sprintf("Invoice %s · Page %d", snapshot.InvoiceNumber, page), 7, 178, false)
+		context.DrawText(16, 10, footer)
+		document.RenderTo(renderer)
+	}
+	var newPage func()
+	newPage = func() {
+		if document != nil {
+			finishPage()
+			renderer.NewPage(210, 297)
+		}
+		page++
+		document = canvas.New(210, 297)
+		context = canvas.NewContext(document)
+		context.SetFillColor(canvas.Black)
+		y = 282
+		if page == 1 {
+			heading := fonts.textBox("Charging Session Invoice", 15, 178, true)
+			context.DrawText(16, y, heading)
+			issued := fonts.textBox("Invoice number: "+snapshot.InvoiceNumber+"\nIssued: "+formatInvoiceTime(snapshot.IssuedAt, zone), 8.5, 104, false)
+			context.DrawText(16, y-heading.Bounds().H()-1.8, issued)
+			amount := fonts.textBox("Final amount\n"+formatMoney(snapshot.Commercial.Currency, snapshot.Commercial.TotalAmount), 13, 58, true)
+			context.DrawText(136, y, amount)
+			status := invoiceHeaderStatus(snapshot.Commercial)
+			if status != "" {
+				statusText := fonts.textBox(status, 7.5, 58, false)
+				context.DrawText(136, y-amount.Bounds().H()-1.2, statusText)
+			}
+			if hasAsset && asset.SHA256 == snapshot.LogoSHA256 {
+				if imageValue, _, imageErr := image.Decode(bytes.NewReader(asset.Content)); imageErr == nil {
+					context.DrawImage(170, 249, imageValue, canvas.DPMM(4))
+				}
+			}
+			y -= maxFloat(heading.Bounds().H()+issued.Bounds().H()+3, amount.Bounds().H()+10)
+			return
+		}
+		continued := fonts.textBox("Charging Session Invoice · continued", 10.5, 178, true)
+		context.DrawText(16, y, continued)
+		y -= continued.Bounds().H() + 3
+	}
+	newPage()
+	draw := func(value string, size float64, bold bool) {
+		if strings.TrimSpace(value) == "" {
+			return
+		}
+		text := fonts.textBox(value, size, 178, bold)
+		if y-text.Bounds().H() < 18 {
+			newPage()
+		}
+		context.DrawText(16, y, text)
+		y -= text.Bounds().H() + 1.8
+	}
+	section := func(value customerInvoiceSection) {
+		lines := compactInvoiceLines(value.Lines)
+		if strings.TrimSpace(value.Title) == "" || len(lines) == 0 {
+			return
+		}
+		title := fonts.textBox(value.Title, 10.5, 178, true)
+		first := fonts.textBox(lines[0], 8.5, 178, false)
+		if y-title.Bounds().H()-first.Bounds().H()-4 < 18 {
+			newPage()
+		}
+		y -= 2
+		context.DrawText(16, y, title)
+		y -= title.Bounds().H() + 1.8
+		for _, line := range lines {
+			draw(line, 8.5, false)
+		}
+	}
+	for _, value := range customerInvoiceSectionsV1(snapshot, zone) {
+		section(value)
+	}
+	finishPage()
+	if err := renderer.Close(); err != nil {
+		return nil, err
+	}
+	return output.Bytes(), nil
+}
+
+func customerInvoiceSectionsV1(snapshot issuanceSnapshot, zone *time.Location) []customerInvoiceSection {
+	sections := customerInvoiceSections(snapshot, zone)
+	for index := range sections {
+		if sections[index].Title == "Charging location" {
+			sections[index].Lines = compactInvoiceLines([]string{snapshot.Location.HubName, snapshot.Location.HubAddress, snapshot.Location.HubState})
+			break
+		}
+	}
+	return sections
+}
+
+func renderPDFV2(snapshot issuanceSnapshot, asset models.InvoiceAsset, hasAsset bool, zone *time.Location) ([]byte, error) {
 	fonts, err := newInvoiceFonts()
 	if err != nil {
 		return nil, err
