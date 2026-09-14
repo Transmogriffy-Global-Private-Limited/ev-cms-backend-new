@@ -214,6 +214,9 @@ organization response omits privileged lifecycle reason and platform actor ID.
 - `GET/PATCH /tariffs/{tariff_id}`
 - `GET/POST/PUT /settings` for CPO invoice note and logo metadata
 - `GET /settings/invoice-logo` streams only the authenticated CPO's logo
+- `GET /charging-sessions/{session_id}/invoice` downloads the canonical,
+  financially-final session invoice; `POST /charging-sessions/{session_id}/invoice/delivery-recovery`
+  requires explicit duplicate-delivery confirmation and writes an audit record.
 
 ### Customer Directory
 

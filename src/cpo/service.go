@@ -1,10 +1,14 @@
 package cpo
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"image"
+	_ "image/jpeg"
+	_ "image/png"
 	"io"
 	"net/http"
 	netmail "net/mail"
@@ -21,6 +25,7 @@ import (
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/constants"
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/cpopermissions"
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/halops"
+	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/invoice"
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/liveops"
 	cmsmail "github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/mail"
 	cmsmiddleware "github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/middleware"
@@ -67,6 +72,52 @@ type Service struct {
 	operationalEvents    *operationalrealtime.Service
 	frontend             config.FrontendLinks
 	repository           Repository
+	invoices             *invoice.Service
+}
+
+func (service *Service) WithInvoices(invoices *invoice.Service) *Service {
+	service.invoices = invoices
+	return service
+}
+
+// RecoverChargingSessionInvoiceDelivery is a CPO-authorized, audited manual
+// recovery path. It queues an SMTP attempt; it never asserts mail delivery.
+func (service *Service) RecoverChargingSessionInvoiceDelivery(
+	ctx context.Context,
+	principal auth.Principal,
+	sessionID uuid.UUID,
+	confirmDuplicateDelivery bool,
+) (invoice.DeliveryRecovery, error) {
+	if err := requireCPOContext(principal); err != nil {
+		return invoice.DeliveryRecovery{}, err
+	}
+	if service.invoices == nil {
+		return invoice.DeliveryRecovery{}, &auth.APIError{Status: http.StatusServiceUnavailable, Code: "invoice_unavailable", Message: "Invoices are temporarily unavailable."}
+	}
+	cpoID := *principal.CPOID
+	recovery, err := service.invoices.RecoverDelivery(ctx, cpoID, sessionID, confirmDuplicateDelivery, func(tx *gorm.DB, result invoice.DeliveryRecovery) error {
+		return writeAudit(tx, principal.UserID, cpoID, "CPO_CHARGING_SESSION_INVOICE_DELIVERY_RECOVERY", models.JSONB{
+			"session_id":      sessionID.String(),
+			"invoice_id":      result.InvoiceID.String(),
+			"previous_status": result.PreviousStatus,
+			"queued":          result.Queued,
+		}, service.now())
+	})
+	if err == nil {
+		return recovery, nil
+	}
+	switch {
+	case errors.Is(err, invoice.ErrDeliveryConfirmationRequired):
+		return invoice.DeliveryRecovery{}, invalid("confirm_duplicate_delivery", "Confirm duplicate delivery before queueing an invoice email.")
+	case errors.Is(err, invoice.ErrDeliverySenderUnavailable):
+		return invoice.DeliveryRecovery{}, &auth.APIError{Status: http.StatusServiceUnavailable, Code: "invoice_delivery_unavailable", Message: "Invoice email delivery is temporarily unavailable."}
+	case errors.Is(err, invoice.ErrDeliveryInProgress):
+		return invoice.DeliveryRecovery{}, &auth.APIError{Status: http.StatusConflict, Code: "invoice_delivery_in_progress", Message: "An invoice delivery attempt is already in progress."}
+	case errors.Is(err, invoice.ErrDeliveryUnavailable):
+		return invoice.DeliveryRecovery{}, &auth.APIError{Status: http.StatusConflict, Code: "invoice_delivery_unavailable", Message: "Invoice email delivery cannot be recovered."}
+	default:
+		return invoice.DeliveryRecovery{}, err
+	}
 }
 
 type sessionRevocationCounts struct {
@@ -156,6 +207,11 @@ func (service *Service) GetChargingSession(
 	}
 
 	view := toChargingSessionView(*session)
+	invoiceSummary, err := service.cpoInvoiceSummary(ctx, *principal.CPOID, session.ID)
+	if err != nil {
+		return ChargingSessionView{}, fmt.Errorf("load invoice summary: %w", err)
+	}
+	view.Invoice = invoiceSummary
 
 	// Overlay live kWh for active sessions
 	if service.liveOperations != nil {
@@ -196,6 +252,14 @@ func (service *Service) ListChargingSessions(
 		sessions = sessions[:query.Limit]
 	}
 
+	sessionIDs := make([]uuid.UUID, 0, len(sessions))
+	for _, session := range sessions {
+		sessionIDs = append(sessionIDs, session.ID)
+	}
+	invoiceSummaries, err := service.cpoInvoiceSummaries(ctx, *principal.CPOID, sessionIDs)
+	if err != nil {
+		return ChargingSessionListResponse{}, fmt.Errorf("load invoice summaries: %w", err)
+	}
 	result := make([]ChargingSessionView, 0, len(sessions))
 	for _, session := range sessions {
 		view := toChargingSessionView(session)
@@ -204,6 +268,7 @@ func (service *Service) ListChargingSessions(
 		// prevents an active session from being filtered as one value but shown as
 		// another, without an N+1 live-operations read.
 		view.TotalKWh = chargingSessionListUsageKWh(session)
+		view.Invoice = invoiceSummaries[session.ID]
 		result = append(result, view)
 	}
 
@@ -234,6 +299,24 @@ func (service *Service) ListChargingSessions(
 	}
 
 	return response, nil
+}
+
+func (service *Service) cpoInvoiceSummary(ctx context.Context, cpoID, sessionID uuid.UUID) (invoice.CPOSummary, error) {
+	if service.invoices == nil {
+		return invoice.CPOSummary{Summary: invoice.Summary{State: invoice.PublicNotAvailable}}, nil
+	}
+	result, err := service.invoices.CPOSummary(ctx, cpoID, sessionID)
+	return result, err
+}
+func (service *Service) cpoInvoiceSummaries(ctx context.Context, cpoID uuid.UUID, sessionIDs []uuid.UUID) (map[uuid.UUID]invoice.CPOSummary, error) {
+	if service.invoices == nil {
+		result := make(map[uuid.UUID]invoice.CPOSummary, len(sessionIDs))
+		for _, sessionID := range sessionIDs {
+			result[sessionID] = invoice.CPOSummary{Summary: invoice.Summary{State: invoice.PublicNotAvailable}}
+		}
+		return result, nil
+	}
+	return service.invoices.CPOSummaries(ctx, cpoID, sessionIDs)
 }
 
 func (service *Service) validateChargingSessionListQuery(query *ChargingSessionListQuery) error {
@@ -493,9 +576,19 @@ func (service *Service) ListChargerTransactions(
 		transactions = transactions[:query.Limit]
 	}
 
+	sessionIDs := make([]uuid.UUID, 0, len(transactions))
+	for _, transaction := range transactions {
+		sessionIDs = append(sessionIDs, transaction.ID)
+	}
+	invoiceSummaries, err := service.cpoInvoiceSummaries(ctx, *principal.CPOID, sessionIDs)
+	if err != nil {
+		return ChargerTransactionListResponse{}, fmt.Errorf("load invoice summaries: %w", err)
+	}
 	result := make([]ChargerTransactionView, 0, len(transactions))
 	for _, transaction := range transactions {
-		result = append(result, toChargerTransactionView(transaction))
+		view := toChargerTransactionView(transaction)
+		view.Invoice = invoiceSummaries[transaction.ID]
+		result = append(result, view)
 	}
 
 	response := ChargerTransactionListResponse{
@@ -7709,26 +7802,12 @@ func (service *Service) CreateOrUpdateSettings(
 			}
 		}
 
-		file, header, err := ctx.Request.FormFile("invoice_logo")
+		file, _, err := ctx.Request.FormFile("invoice_logo")
 		if err == nil {
 			defer file.Close()
-			//- TODO: delete old file if it exists
-			filename := uuid.New().String() + filepath.Ext(header.Filename)
-			uploadsDir := "uploads"
-			if _, err := os.Stat(uploadsDir); os.IsNotExist(err) {
-				if err := os.Mkdir(uploadsDir, 0755); err != nil {
-					return fmt.Errorf("failed to create uploads directory: %w", err)
-				}
-			}
-			filePath := filepath.Join(uploadsDir, filename)
-			out, err := os.Create(filePath)
+			filePath, err := storeValidatedInvoiceLogo(file)
 			if err != nil {
-				return fmt.Errorf("failed to create file: %w", err)
-			}
-			defer out.Close()
-			_, err = io.Copy(out, file)
-			if err != nil {
-				return fmt.Errorf("failed to save file: %w", err)
+				return err
 			}
 			settings.InvoiceLogo = &filePath
 		} else if !errors.Is(err, http.ErrMissingFile) {
@@ -7765,6 +7844,72 @@ func (service *Service) CreateOrUpdateSettings(
 		WalletMinBalance:       settings.WalletMinBalance,
 		WalletBufferMinBalance: settings.WalletBufferMinBalance,
 	}, nil
+}
+
+// storeValidatedInvoiceLogo accepts only bounded, decodable PNG/JPEG bytes.
+// The generated extension and private controlled path prevent user filenames
+// from becoming renderer or download path input.
+func storeValidatedInvoiceLogo(source io.Reader) (string, error) {
+	const maxInvoiceLogoBytes = 2 << 20
+	content, err := io.ReadAll(io.LimitReader(source, maxInvoiceLogoBytes+1))
+	if err != nil {
+		return "", fmt.Errorf("read invoice logo: %w", err)
+	}
+	if len(content) == 0 || len(content) > maxInvoiceLogoBytes {
+		return "", invalid("invoice_logo", "Invoice logo must be a PNG or JPEG no larger than 2 MiB.")
+	}
+	mimeType := http.DetectContentType(content)
+	if mimeType != "image/png" && mimeType != "image/jpeg" {
+		return "", invalid("invoice_logo", "Invoice logo must be a PNG or JPEG image.")
+	}
+	configuration, _, err := image.DecodeConfig(bytes.NewReader(content))
+	if err != nil || configuration.Width < 1 || configuration.Height < 1 || configuration.Width > 4096 || configuration.Height > 4096 {
+		return "", invalid("invoice_logo", "Invoice logo dimensions are invalid.")
+	}
+	decoded, format, err := image.Decode(bytes.NewReader(content))
+	if err != nil || decoded.Bounds().Dx() != configuration.Width || decoded.Bounds().Dy() != configuration.Height || (mimeType == "image/png" && format != "png") || (mimeType == "image/jpeg" && format != "jpeg") {
+		return "", invalid("invoice_logo", "Invoice logo must be a complete PNG or JPEG image.")
+	}
+	uploadsDir := filepath.Join("uploads", "invoice-logos")
+	if err := os.MkdirAll(uploadsDir, 0750); err != nil {
+		return "", fmt.Errorf("create invoice logo directory: %w", err)
+	}
+	extension := ".jpg"
+	if mimeType == "image/png" {
+		extension = ".png"
+	}
+	path := filepath.Join(uploadsDir, uuid.NewString()+extension)
+	if err := os.WriteFile(path, content, 0600); err != nil {
+		return "", fmt.Errorf("store invoice logo: %w", err)
+	}
+	return path, nil
+}
+
+// controlledInvoiceLogoFile treats the database value as hostile legacy input
+// and permits only a regular, non-symlink file immediately beneath the private
+// upload directory created by storeValidatedInvoiceLogo.
+func controlledInvoiceLogoFile(storedPath string) (string, os.FileInfo, error) {
+	root, err := filepath.Abs(filepath.Join("uploads", "invoice-logos"))
+	if err != nil {
+		return "", nil, err
+	}
+	candidate, err := filepath.Abs(storedPath)
+	if err != nil {
+		return "", nil, err
+	}
+	relative, err := filepath.Rel(root, candidate)
+	if err != nil || relative == "." || relative != filepath.Base(relative) || filepath.IsAbs(relative) || relative == ".." || strings.HasPrefix(relative, ".."+string(filepath.Separator)) {
+		return "", nil, errors.New("invoice logo is outside controlled storage")
+	}
+	rootInfo, err := os.Lstat(root)
+	if err != nil || !rootInfo.IsDir() || rootInfo.Mode()&os.ModeSymlink != 0 {
+		return "", nil, errors.New("invoice logo root is not a controlled directory")
+	}
+	info, err := os.Lstat(candidate)
+	if err != nil || !info.Mode().IsRegular() || info.Mode()&os.ModeSymlink != 0 {
+		return "", nil, errors.New("invoice logo file is unsafe")
+	}
+	return candidate, info, nil
 }
 
 func optionalNonNegativeWholeCurrencyFormValue(ctx *gin.Context, field string) (*int, error) {
@@ -7808,8 +7953,8 @@ func (service *Service) DownloadInvoiceLogo(ctx context.Context, principal auth.
 		}
 	}
 
-	imagePath := *settings.InvoiceLogo
-	if strings.Contains(imagePath, "..") {
+	imagePath, info, pathErr := controlledInvoiceLogoFile(*settings.InvoiceLogo)
+	if pathErr != nil {
 		return nil, &auth.APIError{
 			Status:  http.StatusBadRequest,
 			Code:    "invalid_image_path",
@@ -7827,12 +7972,6 @@ func (service *Service) DownloadInvoiceLogo(ctx context.Context, principal auth.
 			}
 		}
 		return nil, fmt.Errorf("open invoice logo: %w", err)
-	}
-
-	info, err := file.Stat()
-	if err != nil {
-		file.Close()
-		return nil, fmt.Errorf("stat invoice logo: %w", err)
 	}
 
 	buffer := make([]byte, 512)

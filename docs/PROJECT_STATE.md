@@ -1,5 +1,21 @@
 # Project State
 
+## 2026-09-14 - Charging-session invoices implemented in source (not deployed)
+
+- Source migration `000069` introduces downstream-only immutable
+  charging-session invoices, content-addressed issuance-time logo assets,
+  bounded CPO financial-year serials, artifact/delivery state, and the
+  authoritative `settled_at` fact. Existing settled rows are intentionally not
+  backfilled with invented finality times.
+- The worker issues exactly one canonical `INV/YY-YY/000001`-style invoice per
+  `COMPLETED` + `SETTLED` session, keeps integrity failures terminal, and
+  separates pre-SMTP retries from ambiguous post-SMTP outcomes. CPO recovery is
+  explicit, audited, and duplicate-confirmed.
+- Customer/CPO downloads are session-scoped; customer projections omit mail
+  state while CPO projections may expose safe delivery status. This is source
+  state only: no migration, deployment, SMTP delivery, or live database
+  verification has occurred.
+
 ## 2026-09-11 - CPO charging-session list contract repair deployed
 
 The repaired CPO list contract restores legacy pagination and live-kWh

@@ -53,6 +53,25 @@ func TestMailConfigurationRequiresOneEncryptedTransportAndPairedCredentials(t *t
 	}
 }
 
+func TestInvoiceConfigurationRequiresOperationalValues(t *testing.T) {
+	t.Parallel()
+
+	for name, mutate := range map[string]func(*Config){
+		"blank storage root":   func(cfg *Config) { cfg.Invoice.StorageRoot = " \t" },
+		"zero worker interval": func(cfg *Config) { cfg.Invoice.WorkerPoll = 0 },
+		"zero batch size":      func(cfg *Config) { cfg.Invoice.BatchSize = 0 },
+		"oversized batch":      func(cfg *Config) { cfg.Invoice.BatchSize = 101 },
+	} {
+		t.Run(name, func(t *testing.T) {
+			cfg := validTestConfig()
+			mutate(&cfg)
+			if err := cfg.Validate(); err == nil || !strings.Contains(err.Error(), "invoice") {
+				t.Fatalf("Validate() = %v, want invoice configuration error", err)
+			}
+		})
+	}
+}
+
 func TestLoadHostingerImplicitSSLConfiguration(t *testing.T) {
 	key := base64.StdEncoding.EncodeToString([]byte(strings.Repeat("k", 32)))
 	environment := map[string]string{
@@ -138,6 +157,7 @@ func validTestConfig() Config {
 		Mail: Mail{
 			UseTLS: true, WorkerPoll: time.Second, SendTimeout: 5 * time.Second, DisplayLocation: time.UTC,
 		},
+		Invoice: Invoice{StorageRoot: "data/invoices", WorkerPoll: time.Second, BatchSize: 20},
 		Frontend: FrontendLinks{
 			AdminLoginVerifyTemplate:      "https://cms.example.invalid/auth/verify#challenge_id={challenge_id}",
 			AdminPasswordResetTemplate:    "https://cms.example.invalid/auth/reset-password#challenge_id={challenge_id}",

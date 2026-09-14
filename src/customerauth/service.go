@@ -18,6 +18,7 @@ import (
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/config"
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/constants"
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/halops"
+	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/invoice"
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/liveops"
 	cmsmail "github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/mail"
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/models"
@@ -64,6 +65,14 @@ type Service struct {
 	operationalEvents  *operationalrealtime.Service
 	halFactBearer      string
 	halMeterStaleAfter time.Duration
+	invoices           *invoice.Service
+}
+
+// WithInvoices wires a downstream read/download capability. Settlement never
+// calls invoice generation and remains authoritative without it.
+func (service *Service) WithInvoices(invoices *invoice.Service) *Service {
+	service.invoices = invoices
+	return service
 }
 
 // WithHALOperations connects User App charging to the shared CMS operational

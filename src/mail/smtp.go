@@ -1,9 +1,11 @@
 package mail
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
+	"html"
 	"strings"
 
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/config"
@@ -86,6 +88,49 @@ func (sender *SMTPSender) SendMessage(
 		return fmt.Errorf("send SMTP message: %w", err)
 	}
 	return nil
+}
+
+// PreparedInvoice is already fully MIME-validated before an SMTP connection is
+// attempted. A later Send error remains intentionally ambiguous to callers.
+type PreparedInvoice struct {
+	sender  *SMTPSender
+	message *gomail.Msg
+}
+
+func (prepared *PreparedInvoice) Send(ctx context.Context) error {
+	if err := prepared.sender.client.DialAndSendWithContext(ctx, prepared.message); err != nil {
+		return fmt.Errorf("send SMTP message: %w", err)
+	}
+	return nil
+}
+
+// PrepareInvoice completes all deterministic recipient, MIME, HTML escaping,
+// and attachment work before the caller crosses the irreversible SMTP boundary.
+func (sender *SMTPSender) PrepareInvoice(
+	toEmail string,
+	subject string,
+	textBody string,
+	pdf []byte,
+	filename string,
+) (func(context.Context) error, error) {
+	if len(pdf) == 0 || !strings.HasSuffix(strings.ToLower(filename), ".pdf") {
+		return nil, errors.New("invoice attachment is invalid")
+	}
+	message := gomail.NewMsg()
+	if err := message.FromFormat(sender.fromName, sender.fromAddress); err != nil {
+		return nil, fmt.Errorf("set mail sender: %w", err)
+	}
+	if err := message.To(toEmail); err != nil {
+		return nil, fmt.Errorf("set mail recipient: %w", err)
+	}
+	message.Subject(subject)
+	message.SetBodyString(gomail.TypeTextPlain, textBody)
+	message.AddAlternativeString(gomail.TypeTextHTML, "<p>"+strings.ReplaceAll(html.EscapeString(textBody), "\n", "<br>"+"\n")+"</p>")
+	if err := message.AttachReader(filename, bytes.NewReader(pdf)); err != nil {
+		return nil, fmt.Errorf("attach invoice PDF: %w", err)
+	}
+	prepared := &PreparedInvoice{sender: sender, message: message}
+	return prepared.Send, nil
 }
 
 // renderMessageContent is retained solely for previously queued legacy jobs

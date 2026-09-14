@@ -132,6 +132,14 @@ Migration files:
   open-session UUID index solely for fair bounded HAL completion polling. The
   cursor is not charging, financial, or occupancy truth and does not change
   `charging_sessions.updated_at` to schedule work.
+- Migration sixty-nine adds nullable `charging_sessions.settled_at`. Existing
+  settled rows retain `NULL` because migration time is not their historical
+  financial-finality time; new CMS settlement transitions persist the fact.
+  It also adds the downstream-only `charging_session_invoices` aggregate,
+  content-addressed immutable `invoice_assets` plus per-invoice references,
+  CPO/Indian-financial-year serial allocation, the one-row email-rollout
+  control, and independent invoice-delivery state. The invoice tables do not
+  participate in charging, wallet, payment, or HAL mutation.
 - Migration twenty-nine adds `tariff_type`, `price_type`, and `units` columns.
   Migration forty renames the durable tariff amount from `price_per_kwh` to
   `price_per_unit` without recreating values or inventing missing metadata.

@@ -86,6 +86,26 @@ retention is observed but does not block serving because it only cleans durable
 replay history. Realtime and retention configuration is loaded at startup and
 requires a restart to change.
 
+## Charging-session invoices
+
+| Variable | Default / validation |
+|---|---|
+| `INVOICE_STORAGE_ROOT` | `data/invoices`; non-blank controlled local filesystem root for private immutable PDFs. The process account must create/write it. No public static-file route uses this directory. |
+| `INVOICE_WORKER_POLL_INTERVAL` | `10s`; positive bounded generation/discovery and delivery reconciliation interval. |
+| `INVOICE_WORKER_BATCH_SIZE` | `20`; integer from 1 through 100 per worker pass. |
+
+The always-required invoice worker is downstream of charging. Invoice eligibility
+is exactly `charging_sessions.status = COMPLETED` and `settlement_status =
+SETTLED`; a payment row is not required for a valid zero-value settlement. The
+same authoritative settlement transition records `settled_at`. The durable
+rollout row initialized by migration `000069` compares its automatic-email
+cutoff against that fact, never against charging end time: historical settled
+rows whose original finality time is unknown can receive artifacts through
+reconciliation but are not automatically emailed. Enabling SMTP later also
+does not create retroactive automatic delivery intents; a CPO may use the
+explicit, audited delivery-recovery route when appropriate. Invoice generation
+and email delivery are separate states; every setting requires restart.
+
 ## HAL diagnostic trace ingress
 
 | Variable | Default / validation |

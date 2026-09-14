@@ -7,11 +7,14 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"mime"
 	"net/http"
+	"os"
 	"strconv"
 	"strings"
 	"time"
 
+	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/invoice"
 	cmsmiddleware "github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/middleware"
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/operationalrealtime"
 	"github.com/gin-gonic/gin"
@@ -81,6 +84,7 @@ func RegisterRoutes(group *gin.RouterGroup, service *Service) {
 	protected.GET("/charging-sessions", handler.listChargingSessions)
 	protected.GET("/charging-start-intents/:start_intent_id", handler.getChargingStartIntent)
 	protected.GET("/charging-sessions/:session_id", handler.getChargingSession)
+	protected.GET("/charging-sessions/:session_id/invoice", handler.downloadInvoice)
 	protected.POST("/charging-sessions/:session_id/stop", handler.stopCharging)
 	protected.GET("/operations/events", handler.operationalEvents)
 	protected.GET("/operations/realtime/stream", handler.operationalStream)
@@ -179,6 +183,45 @@ func (handler *Handler) getChargingSession(ctx *gin.Context) {
 		return
 	}
 	ctx.JSON(http.StatusOK, response)
+}
+
+func (handler *Handler) downloadInvoice(ctx *gin.Context) {
+	principal, ok := CurrentPrincipal(ctx)
+	if !ok {
+		writeError(ctx, errUnauthorized)
+		return
+	}
+	id, err := uuid.Parse(ctx.Param("session_id"))
+	if err != nil || id == uuid.Nil {
+		writeError(ctx, &APIError{Status: http.StatusBadRequest, Code: "invalid_session_id", Message: "The charging session ID is invalid."})
+		return
+	}
+	if handler.service.invoices == nil {
+		writeError(ctx, &APIError{Status: http.StatusServiceUnavailable, Code: "invoice_unavailable", Message: "Invoices are temporarily unavailable."})
+		return
+	}
+	download, err := handler.service.invoices.OpenCustomerSession(ctx.Request.Context(), principal.CPOID, principal.CustomerID, id)
+	if err != nil {
+		switch {
+		case errors.Is(err, os.ErrNotExist):
+			writeError(ctx, &APIError{Status: http.StatusNotFound, Code: "invoice_not_found", Message: "The invoice was not found."})
+		case errors.Is(err, invoice.ErrNotReady):
+			writeError(ctx, &APIError{Status: http.StatusConflict, Code: "invoice_pending", Message: "The invoice is not ready for download."})
+		case errors.Is(err, invoice.ErrNotEligible):
+			writeError(ctx, &APIError{Status: http.StatusConflict, Code: "invoice_not_eligible", Message: "An invoice is available after financial settlement completes."})
+		case errors.Is(err, invoice.ErrCorrupt):
+			writeError(ctx, &APIError{Status: http.StatusConflict, Code: "invoice_unavailable", Message: "The invoice is temporarily unavailable."})
+		default:
+			writeError(ctx, err)
+		}
+		return
+	}
+	defer download.Content.Close()
+	ctx.Header("Content-Disposition", mime.FormatMediaType("attachment", map[string]string{"filename": download.Name}))
+	ctx.Header("Content-Type", "application/pdf")
+	ctx.Header("Cache-Control", "no-store")
+	ctx.Header("X-Content-Type-Options", "nosniff")
+	http.ServeContent(ctx.Writer, ctx.Request, download.Name, download.ModTime, download.Content)
 }
 
 func (handler *Handler) operationalEvents(ctx *gin.Context) {

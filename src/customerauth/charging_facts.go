@@ -768,7 +768,7 @@ func (service *Service) settleCompletedSession(tx *gorm.DB, session *models.Char
 		if err := tx.Model(&hold).Updates(map[string]any{"status": constants.WalletHoldStatusCaptured, "captured_at": now, "updated_at": now}).Error; err != nil {
 			return err
 		}
-		if err := tx.Model(&models.ChargingSession{}).Where("id = ?", session.ID).Updates(map[string]any{"status": constants.SessionStatusCompleted, "settlement_status": "SETTLED", "updated_at": now}).Error; err != nil {
+		if err := tx.Model(&models.ChargingSession{}).Where("id = ?", session.ID).Updates(map[string]any{"status": constants.SessionStatusCompleted, "settlement_status": "SETTLED", "settled_at": now, "updated_at": now}).Error; err != nil {
 			return err
 		}
 		if session.TraceID != nil {
@@ -786,7 +786,7 @@ func (service *Service) settleCompletedSession(tx *gorm.DB, session *models.Char
 		if err := tx.Model(&hold).Updates(map[string]any{"status": constants.WalletHoldStatusCaptured, "captured_at": now, "updated_at": now}).Error; err != nil {
 			return err
 		}
-		if err := tx.Model(&models.ChargingSession{}).Where("id = ?", session.ID).Updates(map[string]any{"status": constants.SessionStatusCompleted, "settlement_status": "SETTLED", "updated_at": now}).Error; err != nil {
+		if err := tx.Model(&models.ChargingSession{}).Where("id = ?", session.ID).Updates(map[string]any{"status": constants.SessionStatusCompleted, "settlement_status": "SETTLED", "settled_at": now, "updated_at": now}).Error; err != nil {
 			return err
 		}
 		if session.TraceID != nil {
@@ -814,7 +814,7 @@ func (service *Service) settleCompletedSession(tx *gorm.DB, session *models.Char
 	if err := tx.Model(&hold).Updates(map[string]any{"status": constants.WalletHoldStatusCaptured, "captured_at": now, "updated_at": now}).Error; err != nil {
 		return err
 	}
-	if err := tx.Model(&models.ChargingSession{}).Where("id = ?", session.ID).Updates(map[string]any{"status": constants.SessionStatusCompleted, "settlement_status": "SETTLED", "updated_at": now}).Error; err != nil {
+	if err := tx.Model(&models.ChargingSession{}).Where("id = ?", session.ID).Updates(map[string]any{"status": constants.SessionStatusCompleted, "settlement_status": "SETTLED", "settled_at": now, "updated_at": now}).Error; err != nil {
 		return err
 	}
 	if session.TraceID != nil {

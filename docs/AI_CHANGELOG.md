@@ -1,5 +1,18 @@
 # AI Changelog
 
+## 2026-09-14 - Charging-session invoice implementation (source only)
+
+- Added the downstream charging-session invoice aggregate and migration,
+  including a factual settlement timestamp, atomic bounded financial-year
+  numbering, immutable snapshot/logo inputs, integrity-verified deterministic
+  PDF publication, and a pure-Go shaped Bengali/Devanagari renderer.
+- Added session-scoped customer/CPO PDF routes, customer-safe versus CPO-safe
+  invoice projections, separate SMTP delivery state, and explicit audited CPO
+  recovery with duplicate-delivery confirmation. No HAL behavior changed.
+- This entry records source work only. No migration, deployment, service
+  restart, or live SMTP send was performed; final local verification is tracked
+  with the active work item.
+
 ## 2026-09-11 - Deploy repaired CPO charging-session list contract
 
 - Repaired the faulty `2ad082f` list filter/sort feature end-to-end in source:

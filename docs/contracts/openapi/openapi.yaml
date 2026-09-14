@@ -7071,6 +7071,77 @@ paths:
         "409": {$ref: "#/components/responses/Conflict"}
         "503": {description: HAL charging service is unavailable.}
 
+  /api/v1/app/charging-sessions/{session_id}/invoice:
+    get:
+      tags: [App Charging]
+      operationId: downloadCustomerChargingInvoice
+      summary: Download the authenticated customer's financially-final charging-session invoice
+      description: Serves only the immutable, integrity-verified PDF for this authenticated customer's session. No file path or issuance snapshot is exposed. `409 invoice_not_eligible` means financial finality has not happened; `invoice_pending` means artifact generation is still in progress; `invoice_unavailable` is terminal integrity failure requiring operator intervention.
+      security: [{BearerAuth: []}]
+      parameters:
+        - {$ref: "#/components/parameters/CPOAppIDHeader"}
+        - name: session_id
+          in: path
+          required: true
+          schema: {type: string, format: uuid}
+      responses:
+        "200": {description: Immutable invoice PDF, content: {application/pdf: {schema: {type: string, format: binary}}}}
+        "400": {$ref: "#/components/responses/InvalidRequest"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {description: The charging session is absent or does not belong to this customer.}
+        "409": {description: "`invoice_not_eligible`, `invoice_pending`, or `invoice_unavailable`.", content: {application/json: {schema: {$ref: "#/components/schemas/ErrorEnvelope"}}}}
+        "503": {description: Invoice reads are temporarily unavailable.}
+
+  /api/v1/cpo/charging-sessions/{session_id}/invoice:
+    get:
+      tags: [CPO Operations - Charging Sessions]
+      operationId: downloadCPOChargingInvoice
+      summary: Download a financially-final charging-session invoice in the authenticated CPO tenant
+      description: Requires the existing CPO charging-session read authority. A foreign-CPO session is indistinguishable from absent. The response is an immutable, integrity-verified PDF and never exposes storage paths or its issuance snapshot.
+      security: [{BearerAuth: [], CPOAppID: []}]
+      parameters:
+        - {$ref: "#/components/parameters/CPOAppIDHeader"}
+        - name: session_id
+          in: path
+          required: true
+          schema: {type: string, format: uuid}
+      responses:
+        "200": {description: Immutable invoice PDF, content: {application/pdf: {schema: {type: string, format: binary}}}}
+        "400": {$ref: "#/components/responses/InvalidRequest"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {description: Charging session absent or outside the CPO tenant.}
+        "409": {description: "`invoice_not_eligible`, `invoice_pending`, or `invoice_unavailable`.", content: {application/json: {schema: {$ref: "#/components/schemas/ErrorEnvelope"}}}}
+        "503": {description: Invoice reads are temporarily unavailable.}
+
+  /api/v1/cpo/charging-sessions/{session_id}/invoice/delivery-recovery:
+    post:
+      tags: [CPO Operations - Charging Sessions]
+      operationId: recoverCPOChargingInvoiceDelivery
+      summary: Deliberately queue a customer invoice-email recovery attempt
+      description: Requires `charging_sessions.read` and `settings.manage`. The caller must explicitly acknowledge that a prior SMTP outcome may have delivered a duplicate. The response means only that a durable attempt was queued; SMTP completion remains visible through the CPO invoice delivery state.
+      security: [{BearerAuth: [], CPOAppID: []}]
+      parameters:
+        - {$ref: "#/components/parameters/CPOAppIDHeader"}
+        - name: session_id
+          in: path
+          required: true
+          schema: {type: string, format: uuid}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/RecoverInvoiceDeliveryRequest"}
+      responses:
+        "202": {description: Delivery work is queued or already pending, content: {application/json: {schema: {$ref: "#/components/schemas/InvoiceDeliveryRecovery"}}}}
+        "400": {$ref: "#/components/responses/InvalidRequest"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {description: Charging session absent or outside the CPO tenant.}
+        "409": {description: "`invoice_not_eligible`, `invoice_pending`, `invoice_unavailable`, `invoice_delivery_in_progress`, or `invoice_delivery_unavailable`.", content: {application/json: {schema: {$ref: "#/components/schemas/ErrorEnvelope"}}}}
+        "503": {description: Invoice delivery is unavailable because SMTP is not configured.}
+
   /api/v1/app/operations/events:
     get:
       tags: [App Charging]
@@ -11339,6 +11410,7 @@ components:
         limit: {$ref: "#/components/schemas/ChargingLimitView"}
         tax: {$ref: "#/components/schemas/ChargingSessionTax"}
         financial: {$ref: "#/components/schemas/ChargingSessionFinancial"}
+        invoice: {$ref: "#/components/schemas/ChargingSessionInvoiceSummary"}
 
     CustomerLiveChargingSessionListResponse:
       type: object
@@ -11386,6 +11458,51 @@ components:
         soc_observed_at: {type: string, format: date-time, description: Timestamp of final_soc_percent.}
         charger: {$ref: "#/components/schemas/ChargingSessionCharger"}
         connector: {$ref: "#/components/schemas/ChargingSessionConnector"}
+        invoice: {$ref: "#/components/schemas/ChargingSessionInvoiceSummary"}
+
+    ChargingSessionInvoiceSummary:
+      type: object
+      additionalProperties: false
+      required: [state]
+      description: Customer-safe invoice artifact lifecycle. It is separate from settlement and never exposes delivery state, a filesystem path, or an issuance snapshot.
+      properties:
+        state: {type: string, enum: [NOT_AVAILABLE, PENDING, READY, FAILED]}
+        invoice_id: {type: string, format: uuid, nullable: true}
+        invoice_number: {type: string, nullable: true, example: "INV/26-27/000001"}
+        issued_at: {type: string, format: date-time, nullable: true}
+        ready_at: {type: string, format: date-time, nullable: true}
+        download_available: {type: boolean, description: True only for an integrity-ready artifact.}
+
+    CPOChargingSessionInvoiceSummary:
+      type: object
+      additionalProperties: false
+      required: [state]
+      description: CPO-safe invoice artifact and email-delivery lifecycle. It never exposes a filesystem path or issuance snapshot.
+      properties:
+        state: {type: string, enum: [NOT_AVAILABLE, PENDING, READY, FAILED]}
+        invoice_id: {type: string, format: uuid, nullable: true}
+        invoice_number: {type: string, nullable: true, example: "INV/26-27/000001"}
+        issued_at: {type: string, format: date-time, nullable: true}
+        ready_at: {type: string, format: date-time, nullable: true}
+        download_available: {type: boolean, description: True only for an integrity-ready artifact.}
+        delivery_status: {type: string, enum: [PENDING, SENDING, SENT, FAILED, AMBIGUOUS], nullable: true, description: CPO-only email-delivery state. AMBIGUOUS is never automatically replayed.}
+
+    RecoverInvoiceDeliveryRequest:
+      type: object
+      additionalProperties: false
+      required: [confirm_duplicate_delivery]
+      properties:
+        confirm_duplicate_delivery: {type: boolean, description: Must be true to acknowledge that a prior SMTP outcome may already have delivered the email.}
+
+    InvoiceDeliveryRecovery:
+      type: object
+      additionalProperties: false
+      required: [invoice_id, delivery_status, queued]
+      properties:
+        invoice_id: {type: string, format: uuid}
+        previous_status: {type: string, enum: [PENDING, SENDING, SENT, FAILED, AMBIGUOUS], nullable: true}
+        delivery_status: {type: string, enum: [PENDING]}
+        queued: {type: boolean, description: True when this call queued a new worker attempt; false when one was already pending.}
 
     ChargingSessionStop:
       type: object
@@ -11799,6 +11916,8 @@ components:
           type: string
         reconciliation_required:
           type: boolean
+        invoice:
+          $ref: "#/components/schemas/CPOChargingSessionInvoiceSummary"
       required:
         - transaction_id
         - session_id
@@ -11915,6 +12034,8 @@ components:
         created_at:
           type: string
           format: date-time
+        invoice:
+          $ref: "#/components/schemas/CPOChargingSessionInvoiceSummary"
 
     WalletTransactionListResponse:
       type: object

@@ -15,6 +15,7 @@ import (
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/constants"
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/halclient"
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/halops"
+	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/invoice"
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/liveops"
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/models"
 	"github.com/google/uuid"
@@ -109,6 +110,7 @@ type ChargingSessionView struct {
 	Limit                ChargingLimitView             `json:"limit"`
 	Tax                  ChargingSessionTaxView        `json:"tax"`
 	Financial            *ChargingSessionFinancialView `json:"financial,omitempty"`
+	Invoice              invoice.Summary               `json:"invoice"`
 }
 
 // ChargingSessionStopView preserves distinct request provenance and charger
@@ -150,6 +152,7 @@ type ChargingSessionHistoryView struct {
 	SoCObservedAt     *time.Time                   `json:"soc_observed_at,omitempty"`
 	Charger           ChargingSessionChargerView   `json:"charger"`
 	Connector         ChargingSessionConnectorView `json:"connector"`
+	Invoice           invoice.Summary              `json:"invoice"`
 }
 
 type ChargingSessionChargerView struct {
@@ -1116,8 +1119,18 @@ func (service *Service) ListCustomerChargingSessions(ctx context.Context, princi
 		Sessions: make([]ChargingSessionHistoryView, 0, len(records)),
 		HasMore:  hasMore,
 	}
+	sessionIDs := make([]uuid.UUID, 0, len(records))
 	for _, record := range records {
-		response.Sessions = append(response.Sessions, customerChargingSessionHistoryView(record))
+		sessionIDs = append(sessionIDs, record.ID)
+	}
+	invoiceSummaries, err := service.customerInvoiceSummaries(ctx, principal, sessionIDs)
+	if err != nil {
+		return ChargingSessionHistoryResponse{}, fmt.Errorf("load invoice summaries: %w", err)
+	}
+	for _, record := range records {
+		view := customerChargingSessionHistoryView(record)
+		view.Invoice = invoiceSummaries[record.ID]
+		response.Sessions = append(response.Sessions, view)
 	}
 	if hasMore && len(records) > 0 {
 		last := records[len(records)-1]
@@ -1177,11 +1190,33 @@ func (service *Service) GetChargingSession(ctx context.Context, principal Princi
 		return ChargingSessionView{}, fmt.Errorf("load connector live state: %w", err)
 	}
 	view := customerChargingSessionDetailView(session, intent, live, charger, connector)
+	invoiceSummary, err := service.customerInvoiceSummary(ctx, principal, session.ID)
+	if err != nil {
+		return ChargingSessionView{}, fmt.Errorf("load invoice summary: %w", err)
+	}
+	view.Invoice = invoiceSummary
 	if session.Status == constants.SessionStatusStopPending || session.Status == constants.SessionStatusReconciliationRequired {
 		value := "REQUESTED"
 		view.StopProgress = &value
 	}
 	return view, nil
+}
+
+func (service *Service) customerInvoiceSummary(ctx context.Context, principal Principal, sessionID uuid.UUID) (invoice.Summary, error) {
+	if service.invoices == nil {
+		return invoice.Summary{State: invoice.PublicNotAvailable}, nil
+	}
+	return service.invoices.Summary(ctx, principal.CPOID, principal.CustomerID, sessionID)
+}
+func (service *Service) customerInvoiceSummaries(ctx context.Context, principal Principal, sessionIDs []uuid.UUID) (map[uuid.UUID]invoice.Summary, error) {
+	if service.invoices == nil {
+		result := make(map[uuid.UUID]invoice.Summary, len(sessionIDs))
+		for _, sessionID := range sessionIDs {
+			result[sessionID] = invoice.Summary{State: invoice.PublicNotAvailable}
+		}
+		return result, nil
+	}
+	return service.invoices.CustomerSummaries(ctx, principal.CPOID, principal.CustomerID, sessionIDs)
 }
 
 func customerChargingSessionHistoryView(session models.ChargingSession) ChargingSessionHistoryView {

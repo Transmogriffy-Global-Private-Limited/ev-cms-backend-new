@@ -18,6 +18,7 @@ import (
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/customerauth"
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/halops"
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/integrations"
+	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/invoice"
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/liveops"
 	cmsmail "github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/mail"
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/operationalrealtime"
@@ -102,8 +103,13 @@ func run() error {
 	halReconcilerInstanceKey := processInstanceKey + ":hal-reconciler"
 	operationalRetentionInstanceKey := processInstanceKey + ":operational-retention"
 	mailOutboxInstanceKey := processInstanceKey + ":mail-outbox"
+	invoiceWorkerInstanceKey := processInstanceKey + ":invoice-worker"
 	subscriptionLifecycleInstanceKey := processInstanceKey + ":subscription-lifecycle"
 	platformService := platformops.NewService(gormDB, cfg.Platform)
+	invoiceService, err := invoice.NewService(gormDB, cfg.Invoice, cfg.Mail.DisplayLocation)
+	if err != nil {
+		return fmt.Errorf("initialize invoice service: %w", err)
+	}
 	superadminService := superadmin.NewService(gormDB, platformService, outbox, cfg.Mail.Enabled)
 	subscriptionService := subscriptions.NewService(gormDB, platformService).WithOutbox(outbox)
 	supportService := support.NewService(gormDB).WithNotificationDelivery(outbox, platformService, cfg.Frontend)
@@ -116,6 +122,7 @@ func run() error {
 		{Name: "hal-reconciler", InstanceKey: halReconcilerInstanceKey, Required: true, Enabled: halOperations.Available()},
 		{Name: "operational-retention", InstanceKey: operationalRetentionInstanceKey, Required: false, Enabled: true},
 		{Name: "mail-outbox", InstanceKey: mailOutboxInstanceKey, Required: true, Enabled: cfg.Mail.Enabled},
+		{Name: "invoice-worker", InstanceKey: invoiceWorkerInstanceKey, Required: true, Enabled: true},
 		{Name: "subscription-lifecycle", InstanceKey: subscriptionLifecycleInstanceKey, Required: true, Enabled: true},
 	})
 	halOperations.WithWorkerObserver(platformService, "hal-reconciler", halReconcilerInstanceKey)
@@ -124,14 +131,15 @@ func run() error {
 		WithFrontendLinks(cfg.Frontend).
 		WithPlatformEvents(platformService).
 		WithOperationalCapabilities(halOperations, liveOperations).
-		WithOperationalEvents(operationalEvents)
+		WithOperationalEvents(operationalEvents).
+		WithInvoices(invoiceService)
 	customerAuthService, err := customerauth.NewService(
 		gormDB, cfg.Auth, cfg.Mail.Enabled, outbox, tokenManager,
 	)
 	if err != nil {
 		return err
 	}
-	customerAuthService.WithHALOperations(halOperations, liveOperations, cfg.HAL).WithOperationalEvents(operationalEvents)
+	customerAuthService.WithHALOperations(halOperations, liveOperations, cfg.HAL).WithOperationalEvents(operationalEvents).WithInvoices(invoiceService)
 	integrationService := integrations.NewService(gormDB, credentialSecretBox)
 	customerAuthService.WithRazorpayCredentialResolver(func(
 		ctx context.Context,
@@ -152,6 +160,7 @@ func run() error {
 	}
 	go operationalEvents.RunRetention(ctx, cfg.Platform.MaintenanceEvery)
 	go subscriptionService.RunLifecycle(ctx, cfg.Platform.MaintenanceEvery, platformService, subscriptionLifecycleInstanceKey)
+	invoiceService.WithWorkerObserver(platformService, "invoice-worker", invoiceWorkerInstanceKey)
 
 	if cfg.Mail.Enabled {
 		sender, err := cmsmail.NewSMTPSender(cfg.Mail)
@@ -170,7 +179,9 @@ func run() error {
 			mailOutboxInstanceKey,
 		)
 		go worker.Run(ctx)
+		invoiceService.WithDeliverySender(sender)
 	}
+	go invoiceService.Run(ctx)
 
 	server := &http.Server{
 		Addr: cfg.HTTPAddress,

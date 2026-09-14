@@ -380,10 +380,14 @@ type ChargingSession struct {
 	TaxSnapshot            JSONB                   `gorm:"type:jsonb;not null;default:'{}'" json:"tax_snapshot"`
 	Status                 constants.SessionStatus `gorm:"type:varchar(30);not null;default:'ACTIVE'" json:"status"`
 	SettlementStatus       string                  `gorm:"type:varchar(32);not null;default:'PENDING'" json:"settlement_status"`
-	WalletTransactions     []WalletTransaction     `gorm:"foreignKey:SessionID" json:"wallet_transactions,omitempty"`
-	Payment                *Payment                `gorm:"foreignKey:SessionID" json:"payment,omitempty"`
-	CreatedAt              time.Time               `gorm:"not null" json:"created_at"`
-	UpdatedAt              time.Time               `gorm:"not null" json:"updated_at"`
+	// SettledAt is set only by the authoritative transaction that first makes
+	// the commercial session final. It is intentionally distinct from end_time
+	// and updated_at so downstream rollout policy never guesses finality.
+	SettledAt          *time.Time          `gorm:"type:timestamptz" json:"settled_at,omitempty"`
+	WalletTransactions []WalletTransaction `gorm:"foreignKey:SessionID" json:"wallet_transactions,omitempty"`
+	Payment            *Payment            `gorm:"foreignKey:SessionID" json:"payment,omitempty"`
+	CreatedAt          time.Time           `gorm:"not null" json:"created_at"`
+	UpdatedAt          time.Time           `gorm:"not null" json:"updated_at"`
 }
 
 // ChargingReconciliationCursor is scheduler metadata, not charging truth. Its

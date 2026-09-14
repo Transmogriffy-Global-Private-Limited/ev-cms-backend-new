@@ -5,14 +5,17 @@ go 1.25.0
 require (
 	github.com/getkin/kin-openapi v0.133.0
 	github.com/gin-gonic/gin v1.12.0
+	github.com/go-fonts/dejavu v0.3.4
 	github.com/go-jose/go-jose/v4 v4.1.4
 	github.com/google/uuid v1.6.0
 	github.com/gowebpki/jcs v1.0.1
 	github.com/jackc/pgx/v5 v5.6.0
 	github.com/joho/godotenv v1.5.1
+	github.com/phpdave11/gofpdf v1.4.2
 	github.com/razorpay/razorpay-go v1.4.0
 	github.com/shopspring/decimal v1.4.0
 	github.com/swaggest/swgui v1.8.9
+	github.com/tdewolff/canvas v0.0.0-20241230094017-7d75044f9d6f
 	github.com/wneessen/go-mail v0.7.2
 	golang.org/x/crypto v0.48.0
 	gorm.io/driver/postgres v1.6.0
@@ -20,19 +23,26 @@ require (
 )
 
 require (
+	github.com/ByteArena/poly2tri-go v0.0.0-20170716161910-d102ad91854f // indirect
+	github.com/andybalholm/brotli v1.2.2 // indirect
+	github.com/benoitkugler/textlayout v0.3.0 // indirect
+	github.com/benoitkugler/textprocessing v0.0.3 // indirect
 	github.com/bytedance/gopkg v0.1.3 // indirect
 	github.com/bytedance/sonic v1.15.0 // indirect
 	github.com/bytedance/sonic/loader v0.5.0 // indirect
 	github.com/cloudwego/base64x v0.1.6 // indirect
 	github.com/gabriel-vasile/mimetype v1.4.12 // indirect
 	github.com/gin-contrib/sse v1.1.0 // indirect
+	github.com/go-fonts/latin-modern v0.3.3 // indirect
 	github.com/go-openapi/jsonpointer v0.21.0 // indirect
 	github.com/go-openapi/swag v0.23.0 // indirect
 	github.com/go-playground/locales v0.14.1 // indirect
 	github.com/go-playground/universal-translator v0.18.1 // indirect
 	github.com/go-playground/validator/v10 v10.30.1 // indirect
+	github.com/go-text/typesetting v0.2.0 // indirect
 	github.com/goccy/go-json v0.10.5 // indirect
 	github.com/goccy/go-yaml v1.19.2 // indirect
+	github.com/golang/freetype v0.0.0-20170609003504-e2365dfdc4a0 // indirect
 	github.com/jackc/pgpassfile v1.0.0 // indirect
 	github.com/jackc/pgservicefile v0.0.0-20240606120523-5a60cdf6a761 // indirect
 	github.com/jackc/puddle/v2 v2.2.2 // indirect
@@ -53,16 +63,21 @@ require (
 	github.com/perimeterx/marshmallow v1.1.5 // indirect
 	github.com/quic-go/qpack v0.6.0 // indirect
 	github.com/quic-go/quic-go v0.59.0 // indirect
+	github.com/tdewolff/font v0.0.0-20241125190050-d899fdc808fc // indirect
+	github.com/tdewolff/minify/v2 v2.21.1 // indirect
+	github.com/tdewolff/parse/v2 v2.7.19 // indirect
 	github.com/twitchyliquid64/golang-asm v0.15.1 // indirect
 	github.com/ugorji/go/codec v1.3.1 // indirect
 	github.com/vearutop/statigz v1.4.0 // indirect
 	github.com/woodsbury/decimal128 v1.3.0 // indirect
 	go.mongodb.org/mongo-driver/v2 v2.5.0 // indirect
 	golang.org/x/arch v0.22.0 // indirect
+	golang.org/x/image v0.22.0 // indirect
 	golang.org/x/net v0.51.0 // indirect
 	golang.org/x/sync v0.19.0 // indirect
 	golang.org/x/sys v0.41.0 // indirect
 	golang.org/x/text v0.34.0 // indirect
 	google.golang.org/protobuf v1.36.10 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
+	star-tex.org/x/tex v0.5.0 // indirect
 )

@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/constants"
+	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/invoice"
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/liveops"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
@@ -868,6 +869,7 @@ type ChargingSessionView struct {
 	CGSTPercent         decimal.Decimal              `json:"cgst_percent"`
 	IGSTPercent         decimal.Decimal              `json:"igst_percent"`
 	CreatedAt           time.Time                    `json:"created_at"`
+	Invoice             invoice.CPOSummary           `json:"invoice"`
 }
 
 type ChargingSessionListResponse struct {
@@ -885,6 +887,13 @@ type ChargingSessionListResponse struct {
 	HasMore   bool   `json:"has_more"`
 	SortBy    string `json:"sort_by,omitempty"`
 	SortOrder string `json:"sort_order,omitempty"`
+}
+
+// RecoverInvoiceDeliveryRequest makes the duplicate-delivery risk explicit.
+// It is intentionally required even when the prior status was FAILED because
+// an earlier SMTP outcome may be unknowable to an operator.
+type RecoverInvoiceDeliveryRequest struct {
+	ConfirmDuplicateDelivery bool `json:"confirm_duplicate_delivery"`
 }
 
 // ChargingSessionCursor is parsed at the HTTP boundary. Repository code never
@@ -973,6 +982,7 @@ type ChargerTransactionView struct {
 	SessionStatus          constants.SessionStatus   `json:"session_status"`
 	SettlementStatus       string                    `json:"settlement_status"`
 	ReconciliationRequired bool                      `json:"reconciliation_required"`
+	Invoice                invoice.CPOSummary        `json:"invoice"`
 }
 
 type HostDetailsView struct {

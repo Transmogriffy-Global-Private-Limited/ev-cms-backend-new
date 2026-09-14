@@ -529,6 +529,7 @@ alter the separate customer-selected time-bounded-session cutoff workflow.
 | `GET /charging-start-intents/{start_intent_id}` | Yes | `200 ChargingStartResponse` | Poll owned start progress and its materialized `session_id` when actual charging begins. |
 | `GET /charging-sessions` | Yes | `200 ChargingSessionHistoryResponse` | List this customer's actual materialized sessions with bounded history-card data. |
 | `GET /charging-sessions/{session_id}` | Yes | `200 ChargingSessionResponse` | Read owned durable active/completed session, exact projected meter, connection, connector, and freshness fields. |
+| `GET /charging-sessions/{session_id}/invoice` | Yes | `200 application/pdf` | Download the immutable invoice for this owned financially-final session. Treat `409 invoice_not_eligible`, `invoice_pending`, and `invoice_unavailable` as distinct UI states. |
 | `POST /charging-sessions/{session_id}/stop` | Yes | `202` | Persist/request an owned stop; actual charger completion remains asynchronous. |
 | `GET /operations/events` | Yes | `200 OperationalEventPage` | Recover retained, scoped charging/availability invalidations. |
 | `GET /operations/realtime/stream` | Yes | `200 text/event-stream` | One long-lived authenticated SSE invalidation stream for the app shell. |
@@ -900,6 +901,15 @@ historical detail route. In addition to its existing live projection fields, it
 returns `started_at`, meter start/final meter values, final totals when
 completed, currency, settlement status, optional stop reason, safe charger/
 hub/connector presentation data, and frozen `pricing`/`tax` snapshots. The
+
+Its additive `invoice` object is customer-safe: it contains artifact readiness,
+number, timestamps, and `download_available`, but never email-delivery state.
+When it is `READY`, download with
+`GET /charging-sessions/{session_id}/invoice`; do not construct an invoice-ID
+URL. `invoice_not_eligible` means the session has not reached both `COMPLETED`
+and `SETTLED`; `invoice_pending` means the downstream artifact worker has not
+finished; `invoice_unavailable` is a terminal integrity state for operator
+recovery. The app cannot request an email resend.
 price fields describe the tariff captured for this session; never replace them
 with the current hub or charger price. A completed historical detail still
 works when the charger has no current runtime row: current connection and

@@ -31,6 +31,7 @@ type Config struct {
 	Superadmin           Superadmin
 	Auth                 Auth
 	Mail                 Mail
+	Invoice              Invoice
 	Frontend             FrontendLinks
 	Platform             Platform
 	Credentials          Encryption
@@ -93,6 +94,14 @@ type Mail struct {
 	SendTimeout     time.Duration
 	DisplayLocation *time.Location
 	Frontend        FrontendLinks
+}
+
+// Invoice controls the downstream invoice artifact workers.  It intentionally
+// does not participate in charging admission or settlement.
+type Invoice struct {
+	StorageRoot string
+	WorkerPoll  time.Duration
+	BatchSize   int
 }
 
 type Platform struct {
@@ -178,6 +187,11 @@ func Load() (Config, error) {
 			UseSSL:      smtpUseSSL,
 			WorkerPoll:  durationOrDefault("MAIL_WORKER_POLL_INTERVAL", 2*time.Second),
 			SendTimeout: durationOrDefault("MAIL_SEND_TIMEOUT", 15*time.Second),
+		},
+		Invoice: Invoice{
+			StorageRoot: envOrDefault("INVOICE_STORAGE_ROOT", "data/invoices"),
+			WorkerPoll:  durationOrDefault("INVOICE_WORKER_POLL_INTERVAL", 10*time.Second),
+			BatchSize:   intOrDefault("INVOICE_WORKER_BATCH_SIZE", 20),
 		},
 		Frontend: FrontendLinks{
 			AdminLoginVerifyTemplate:      envOrDefault("ADMIN_LOGIN_VERIFY_URL_TEMPLATE", "https://cms.example.invalid/auth/verify#challenge_id={challenge_id}"),
@@ -266,6 +280,8 @@ func (cfg Config) Validate() error {
 		return errors.New("authentication attempt limits must be positive")
 	case cfg.Mail.WorkerPoll <= 0 || cfg.Mail.SendTimeout <= 0:
 		return errors.New("mail worker durations must be positive")
+	case strings.TrimSpace(cfg.Invoice.StorageRoot) == "" || cfg.Invoice.WorkerPoll <= 0 || cfg.Invoice.BatchSize < 1 || cfg.Invoice.BatchSize > 100:
+		return errors.New("invoice storage root must be nonblank, worker interval must be positive, and batch size must be between 1 and 100")
 	case cfg.Mail.DisplayLocation == nil:
 		return errors.New("APP_DISPLAY_TIMEZONE must resolve to an IANA location")
 	case cfg.Platform.EventRetention <= 0:

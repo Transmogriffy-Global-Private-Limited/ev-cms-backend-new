@@ -5,6 +5,8 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"image"
+	"image/png"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -30,6 +32,24 @@ func TestTariffRequestBodiesRejectTargetIDs(t *testing.T) {
 		if err := decodeJSON(ctx, destination); err == nil {
 			t.Fatalf("%T accepted a route-derived target ID", destination)
 		}
+	}
+}
+
+func TestStoreValidatedInvoiceLogoRejectsTruncatedPNG(t *testing.T) {
+	var encoded bytes.Buffer
+	if err := png.Encode(&encoded, image.NewRGBA(image.Rect(0, 0, 1, 1))); err != nil {
+		t.Fatalf("encode PNG: %v", err)
+	}
+	chunk := bytes.Index(encoded.Bytes(), []byte("IDAT"))
+	if chunk < 0 {
+		t.Fatal("test PNG lacks IDAT")
+	}
+	truncated := encoded.Bytes()[:chunk+4]
+	if _, _, err := image.DecodeConfig(bytes.NewReader(truncated)); err != nil {
+		t.Fatalf("truncated PNG must pass DecodeConfig: %v", err)
+	}
+	if _, err := storeValidatedInvoiceLogo(bytes.NewReader(truncated)); err == nil {
+		t.Fatal("truncated PNG was accepted as an uploaded invoice logo")
 	}
 }
 

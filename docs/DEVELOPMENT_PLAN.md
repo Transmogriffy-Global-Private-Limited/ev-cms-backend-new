@@ -49,6 +49,10 @@ and financial operations without accessing another CPO's data.
   never evidence that a required tariff or GST is missing.
 - A hubless charger is provisioning-only: it cannot be active or
   customer-visible, in application writes or PostgreSQL constraints.
+- Charging-session invoices are downstream CMS documents: financial finality
+  is exactly `COMPLETED` plus `SETTLED`; their worker, artifact, and email
+  lifecycle must never mutate charger, HAL, wallet, payment, or settlement
+  truth.
 
 ## Development Phases
 

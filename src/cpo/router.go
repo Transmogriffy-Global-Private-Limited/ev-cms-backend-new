@@ -9,6 +9,7 @@ import (
 	"io"
 	"mime"
 	"net/http"
+	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -16,6 +17,7 @@ import (
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/auth"
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/constants"
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/cpopermissions"
+	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/invoice"
 	cmsmiddleware "github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/middleware"
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/operationalrealtime"
 	"github.com/gin-gonic/gin"
@@ -497,6 +499,7 @@ func RegisterCPORoutes(
 	tariffsManage := by(cpopermissions.TariffsManage)
 	customersRead := by(cpopermissions.CustomersRead)
 	sessionsRead := by(cpopermissions.ChargingSessionsRead)
+	sessionDeliveryManage := group.Group("", auth.RequireCPOPermission(service.database, cpopermissions.ChargingSessionsRead), auth.RequireCPOPermission(service.database, cpopermissions.SettingsManage))
 	tracesRead := by(cpopermissions.ChargingTracesRead)
 	analyticsRead := by(cpopermissions.AnalyticsRead)
 	operations := by(cpopermissions.ChargersOperations)
@@ -603,6 +606,8 @@ func RegisterCPORoutes(
 	settingsRead.GET("/settings/invoice-logo", handler.getInvoiceLogo)
 	sessionsRead.GET("/charging-sessions", handler.listChargingSessions)
 	sessionsRead.GET("/charging-sessions/:session_id", handler.getChargingSession)
+	sessionsRead.GET("/charging-sessions/:session_id/invoice", handler.downloadInvoice)
+	sessionDeliveryManage.POST("/charging-sessions/:session_id/invoice/delivery-recovery", handler.recoverInvoiceDelivery)
 	tracesRead.GET("/charging-sessions/:session_id/trace", handler.getChargingSessionTrace)
 	tracesRead.GET("/charging-traces/:trace_id", handler.getChargingTrace)
 	tracesRead.GET("/charging-traces/:trace_id/stream", handler.chargingTraceStream)
@@ -995,6 +1000,72 @@ func (handler *Handler) getChargingSession(ctx *gin.Context) {
 		return
 	}
 	ctx.JSON(http.StatusOK, record)
+}
+
+func (handler *Handler) downloadInvoice(ctx *gin.Context) {
+	principal, _ := auth.CurrentPrincipal(ctx)
+	sessionID, ok := parseSessionID(ctx)
+	if !ok {
+		return
+	}
+	if handler.service.invoices == nil {
+		writeError(ctx, &auth.APIError{Status: http.StatusServiceUnavailable, Code: "invoice_unavailable", Message: "Invoices are temporarily unavailable."})
+		return
+	}
+	if principal.CPOID == nil {
+		writeError(ctx, &auth.APIError{Status: http.StatusForbidden, Code: "forbidden", Message: "CPO context is required."})
+		return
+	}
+	download, err := handler.service.invoices.OpenCPOSession(ctx.Request.Context(), *principal.CPOID, sessionID)
+	if err != nil {
+		switch {
+		case errors.Is(err, os.ErrNotExist):
+			writeError(ctx, &auth.APIError{Status: http.StatusNotFound, Code: "invoice_not_found", Message: "The invoice was not found."})
+		case errors.Is(err, invoice.ErrNotReady):
+			writeError(ctx, &auth.APIError{Status: http.StatusConflict, Code: "invoice_pending", Message: "The invoice is not ready for download."})
+		case errors.Is(err, invoice.ErrNotEligible):
+			writeError(ctx, &auth.APIError{Status: http.StatusConflict, Code: "invoice_not_eligible", Message: "An invoice is available after financial settlement completes."})
+		case errors.Is(err, invoice.ErrCorrupt):
+			writeError(ctx, &auth.APIError{Status: http.StatusConflict, Code: "invoice_unavailable", Message: "The invoice is temporarily unavailable."})
+		default:
+			writeError(ctx, err)
+		}
+		return
+	}
+	defer download.Content.Close()
+	ctx.Header("Content-Disposition", mime.FormatMediaType("attachment", map[string]string{"filename": download.Name}))
+	ctx.Header("Content-Type", "application/pdf")
+	ctx.Header("Cache-Control", "no-store")
+	ctx.Header("X-Content-Type-Options", "nosniff")
+	http.ServeContent(ctx.Writer, ctx.Request, download.Name, download.ModTime, download.Content)
+}
+
+func (handler *Handler) recoverInvoiceDelivery(ctx *gin.Context) {
+	principal, _ := auth.CurrentPrincipal(ctx)
+	sessionID, ok := parseSessionID(ctx)
+	if !ok {
+		return
+	}
+	var request RecoverInvoiceDeliveryRequest
+	if err := decodeJSON(ctx, &request); err != nil {
+		writeError(ctx, invalid("body", "The request body is invalid."))
+		return
+	}
+	recovery, err := handler.service.RecoverChargingSessionInvoiceDelivery(ctx.Request.Context(), principal, sessionID, request.ConfirmDuplicateDelivery)
+	if err != nil {
+		switch {
+		case errors.Is(err, invoice.ErrNotReady):
+			writeError(ctx, &auth.APIError{Status: http.StatusConflict, Code: "invoice_pending", Message: "The invoice is not ready for delivery."})
+		case errors.Is(err, invoice.ErrNotEligible):
+			writeError(ctx, &auth.APIError{Status: http.StatusConflict, Code: "invoice_not_eligible", Message: "An invoice is available after financial settlement completes."})
+		case errors.Is(err, invoice.ErrCorrupt):
+			writeError(ctx, &auth.APIError{Status: http.StatusConflict, Code: "invoice_unavailable", Message: "The invoice is temporarily unavailable."})
+		default:
+			writeError(ctx, err)
+		}
+		return
+	}
+	ctx.JSON(http.StatusAccepted, recovery)
 }
 
 func parseSessionID(ctx *gin.Context) (uuid.UUID, bool) {

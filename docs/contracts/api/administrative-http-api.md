@@ -2843,8 +2843,9 @@ zero-default wallet policy rather than requiring a preliminary settings write.
 following optional fields:
 
 - `invoice_note`: text retained with the CPO settings;
-- `invoice_logo`: an uploaded logo file, stored under the service `uploads`
-  directory and returned as the stored relative path.
+- `invoice_logo`: a PNG or JPEG no larger than 2 MiB with decodable dimensions
+  at most 4096×4096. The service chooses a private random upload filename;
+  callers never supply a filesystem path.
 - `wallet_min_balance`: optional non-negative whole-currency balance required
   before a customer can start a charging session; default `0`.
 - `wallet_buffer_min_balance`: optional non-negative whole-currency amount
@@ -3534,6 +3535,48 @@ errors. For an open `START_PENDING`, `ACTIVE`, or `STOP_PENDING` session,
 sorting use the identical expression. Completed and non-live sessions use the
 persisted final total. This historical list does not call HAL or issue charger
 commands, and it does not perform an N+1 live read.
+
+### 12.4.1 Charging-session invoices
+
+The immutable invoice is a downstream CMS artifact, not settlement truth. It
+is eligible only when the owned CMS session is exactly `COMPLETED` and
+`SETTLED`; an invoice worker failure never changes charging, wallet, payment,
+or HAL state. Customer and CPO download routes are session-scoped:
+
+```text
+GET /api/v1/app/charging-sessions/{session_id}/invoice
+GET /api/v1/cpo/charging-sessions/{session_id}/invoice
+```
+
+Both serve only an integrity-verified PDF and use `Content-Disposition`
+attachment filenames derived from the canonical immutable number. They never
+expose storage paths, issuance JSON, a recipient, or mail errors. A foreign or
+unowned session is `404`; a session not yet financially final is `409
+invoice_not_eligible`; a final session without a ready artifact is `409
+invoice_pending`; and a ready record whose bytes fail integrity verification is
+terminal `409 invoice_unavailable` rather than an automatic regeneration.
+
+Session/history projections expose a small invoice lifecycle object. Customer
+projections contain readiness, immutable number/timestamps, and
+`download_available`; CPO projections additionally contain safe
+`delivery_status`. Neither email delivery nor a download is evidence that a
+charging session settled.
+
+A CPO member with both `charging_sessions.read` and `settings.manage` can make
+one deliberate recovery request:
+
+```text
+POST /api/v1/cpo/charging-sessions/{session_id}/invoice/delivery-recovery
+{"confirm_duplicate_delivery":true}
+```
+
+The confirmation is mandatory because an earlier SMTP request may already have
+been accepted. The `202` response says only that durable delivery work was
+queued (or was already pending), never that an email was delivered. The action
+is tenant-scoped and audited. Automatic work never retries an `AMBIGUOUS`
+delivery; this is the explicit operator escape path. The initial automatic
+rollout uses `settled_at`, not session end time, and does not retroactively
+create mail work merely because SMTP is enabled later.
 
 Each historical session includes `price_per_unit`, optional tariff `unit`, and
 `sgst_percent`, `cgst_percent`, and `igst_percent` from the immutable
