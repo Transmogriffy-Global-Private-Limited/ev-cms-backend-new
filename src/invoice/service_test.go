@@ -305,6 +305,44 @@ func TestRenderPDFCustomerPresentationPaginatesLongUnicodeContent(t *testing.T) 
 	}
 }
 
+func TestInvoicePDFPresentationCommercialRowsAndLocationAreTruthful(t *testing.T) {
+	snapshot := customerPresentationSnapshot()
+	snapshot.Location.HubAddress = "42 River Road, West Bengal"
+	if lines := invoiceLocationLines(snapshot.Location); len(lines) != 2 || lines[1] != "42 River Road, West Bengal" {
+		t.Fatalf("location duplicated state: %q", lines)
+	}
+	rows := invoiceChargeRows(snapshot.Commercial)
+	if len(rows) != 4 || rows[0].Amount != "—" || rows[1].Description != "CGST" || rows[2].Description != "SGST" || !rows[3].Total || rows[3].Amount != "INR 126.00" {
+		t.Fatalf("CGST/SGST charge presentation = %+v", rows)
+	}
+	snapshot.Commercial.Tax = invoiceTaxSnapshot{IGSTRate: stringPointer("18")}
+	rows = invoiceChargeRows(snapshot.Commercial)
+	if len(rows) != 3 || rows[1].Description != "IGST" || rows[1].Amount != "—" {
+		t.Fatalf("IGST charge presentation = %+v", rows)
+	}
+}
+
+func TestInvoicePDFLogoBoundsStayWithinHeaderAndPage(t *testing.T) {
+	bounds := invoiceLogoBounds()
+	if bounds.W() > 40 || bounds.H() > 18 || bounds.X0 < 14 || bounds.Y0 < 0 || bounds.X1 > 196 || bounds.Y1 > 297 {
+		t.Fatalf("logo bounds are not safely contained: %+v", bounds)
+	}
+}
+
+func TestRenderInvoiceSampleWhenRequested(t *testing.T) {
+	path := os.Getenv("INVOICE_SAMPLE_PDF")
+	if path == "" {
+		t.Skip("set INVOICE_SAMPLE_PDF to generate a local visual-inspection artifact")
+	}
+	pdf, err := renderInvoice(customerPresentationSnapshot(), rendererVersion, models.InvoiceAsset{}, false, time.UTC)
+	if err != nil {
+		t.Fatalf("render inspection sample: %v", err)
+	}
+	if err := os.WriteFile(path, pdf, 0600); err != nil {
+		t.Fatalf("write inspection sample: %v", err)
+	}
+}
+
 func customerPresentationSnapshot() issuanceSnapshot {
 	now := time.Date(2026, time.September, 14, 10, 0, 0, 0, time.UTC)
 	end := now.Add(80 * time.Minute)

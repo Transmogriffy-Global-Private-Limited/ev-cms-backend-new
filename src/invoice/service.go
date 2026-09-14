@@ -13,6 +13,7 @@ import (
 	"errors"
 	"fmt"
 	"image"
+	"image/color"
 	_ "image/jpeg"
 	_ "image/png"
 	"io"
@@ -1162,92 +1163,273 @@ func renderPDFV1(snapshot issuanceSnapshot, asset models.InvoiceAsset, hasAsset 
 	defer fonts.bengali.Destroy()
 	defer fonts.devanagari.Destroy()
 	var output bytes.Buffer
-	renderer := canvaspdf.New(&output, 210, 297, &canvaspdf.Options{Compress: false, SubsetFonts: true, ImageEncoding: canvas.Lossless})
-	renderer.SetInfo("Charging Session Invoice "+snapshot.InvoiceNumber, "Immutable charging-session invoice", "charging,invoice", snapshot.Supplier.Name, rendererVersion)
-	var document *canvas.Canvas
-	var context *canvas.Context
+	renderer := canvaspdf.New(&output, 210, 297, &canvaspdf.Options{Compress: true, SubsetFonts: true, ImageEncoding: canvas.Lossless})
+	renderer.SetInfo("Charging Session Invoice "+snapshot.InvoiceNumber, "Charging session invoice", "charging,invoice", snapshot.Supplier.Name, rendererVersion)
+	pages := make([]invoiceCanvasPage, 0, 2)
+	var current *invoiceCanvasPage
 	y := 0.0
-	page := 0
-	finishPage := func() {
-		if document == nil {
-			return
-		}
-		footer := fonts.textBox(fmt.Sprintf("Invoice %s · Page %d", snapshot.InvoiceNumber, page), 7, 178, false)
-		context.DrawText(16, 10, footer)
-		document.RenderTo(renderer)
+	var logo image.Image
+	if hasAsset && asset.SHA256 == snapshot.LogoSHA256 {
+		logo, _, _ = image.Decode(bytes.NewReader(asset.Content))
 	}
-	var newPage func()
-	newPage = func() {
-		if document != nil {
-			finishPage()
-			renderer.NewPage(210, 297)
-		}
-		page++
-		document = canvas.New(210, 297)
-		context = canvas.NewContext(document)
-		context.SetFillColor(canvas.Black)
+	newPage := func() {
+		page := invoiceCanvasPage{document: canvas.New(210, 297)}
+		page.context = canvas.NewContext(page.document)
+		pages = append(pages, page)
+		current = &pages[len(pages)-1]
 		y = 282
-		if page == 1 {
-			heading := fonts.textBox("Charging Session Invoice", 15, 178, true)
-			context.DrawText(16, y, heading)
-			issued := fonts.textBox("Invoice number: "+snapshot.InvoiceNumber+"\nIssued: "+formatInvoiceTime(snapshot.IssuedAt, zone), 8.5, 104, false)
-			context.DrawText(16, y-heading.Bounds().H()-1.8, issued)
-			amount := fonts.textBox("Final amount\n"+formatMoney(snapshot.Commercial.Currency, snapshot.Commercial.TotalAmount), 13, 58, true)
-			context.DrawText(136, y, amount)
-			status := invoiceHeaderStatus(snapshot.Commercial)
-			if status != "" {
-				statusText := fonts.textBox(status, 7.5, 58, false)
-				context.DrawText(136, y-amount.Bounds().H()-1.2, statusText)
-			}
-			if hasAsset && asset.SHA256 == snapshot.LogoSHA256 {
-				if imageValue, _, imageErr := image.Decode(bytes.NewReader(asset.Content)); imageErr == nil {
-					context.DrawImage(170, 249, imageValue, canvas.DPMM(4))
-				}
-			}
-			y -= maxFloat(heading.Bounds().H()+issued.Bounds().H()+3, amount.Bounds().H()+10)
+		if len(pages) == 1 {
+			renderInvoiceFirstHeader(current.context, fonts, snapshot, logo, zone)
+			y = 210
 			return
 		}
-		continued := fonts.textBox("Charging Session Invoice · continued", 10.5, 178, true)
-		context.DrawText(16, y, continued)
-		y -= continued.Bounds().H() + 3
+		continued := fonts.textBox("Charging Session Invoice", 10.5, 120, true)
+		current.context.DrawText(14, y, continued)
+		identity := fonts.textBox(snapshot.InvoiceNumber+" · continued", 7.5, 70, false)
+		current.context.DrawText(196-identity.Bounds().W(), y, identity)
+		y -= continued.Bounds().H() + 7
 	}
 	newPage()
-	draw := func(value string, size float64, bold bool) {
-		if strings.TrimSpace(value) == "" {
-			return
-		}
-		text := fonts.textBox(value, size, 178, bold)
-		if y-text.Bounds().H() < 18 {
+	ensure := func(height float64) {
+		if y-height < 24 {
 			newPage()
 		}
-		context.DrawText(16, y, text)
-		y -= text.Bounds().H() + 1.8
 	}
-	section := func(value customerInvoiceSection) {
-		lines := compactInvoiceLines(value.Lines)
-		if strings.TrimSpace(value.Title) == "" || len(lines) == 0 {
+	sectionTitle := func(title string) {
+		ensure(10)
+		text := fonts.textBox(title, 10, 182, true)
+		current.context.DrawText(14, y, text)
+		y -= text.Bounds().H() + 3
+	}
+	drawTwoCards := func() {
+		left := compactInvoiceLines([]string{snapshot.Customer.FullName, snapshot.Customer.Email, optionalLine("Phone", snapshot.Customer.Phone)})
+		right := invoiceLocationLines(snapshot.Location)
+		leftHeight := invoiceCardHeight(fonts, left, 84)
+		rightHeight := invoiceCardHeight(fonts, right, 84)
+		height := maxFloat(leftHeight, rightHeight)
+		ensure(height + 3)
+		renderInvoiceCard(current.context, fonts, 14, y, 87, height, "Billed to", left)
+		renderInvoiceCard(current.context, fonts, 109, y, 87, height, "Charging at", right)
+		y -= height + 5
+	}
+	drawSummary := func() {
+		values := []invoiceSummaryValue{
+			{Label: "Started", Value: formatInvoiceTime(snapshot.Charging.StartedAt, zone)},
+			{Label: "Ended", Value: optionalTimeText(snapshot.Charging.EndedAt, zone)},
+			{Label: "Charging time", Value: formatDuration(snapshot.Charging.DurationSeconds)},
+			{Label: "Energy delivered", Value: formatKWh(snapshot.Commercial.TotalKWh)},
+		}
+		height := invoiceSummaryHeight(fonts, values)
+		ensure(height + 4)
+		renderInvoiceSummary(current.context, fonts, 14, y, 182, height, values)
+		y -= height + 2
+		secondary := joinInvoiceParts("   ·   ", invoiceChargerLines(snapshot.Location)...)
+		if secondary != "" {
+			line := fonts.textBox(secondary, 7.7, 182, false)
+			ensure(line.Bounds().H() + 4)
+			current.context.DrawText(14, y, line)
+			y -= line.Bounds().H() + 5
+		}
+	}
+	drawCharges := func() {
+		rows := invoiceChargeRows(snapshot.Commercial)
+		sectionTitle("Charges")
+		headerHeight := 8.0
+		ensure(headerHeight + 10)
+		renderInvoiceTableHeader(current.context, fonts, 14, y, 182)
+		y -= headerHeight
+		for _, row := range rows {
+			height := invoiceChargeRowHeight(fonts, row)
+			ensure(height + 1)
+			renderInvoiceChargeRow(current.context, fonts, 14, y, 182, height, row)
+			y -= height
+		}
+		y -= 5
+	}
+	drawNote := func() {
+		lines := splitInvoiceText(snapshot.InvoiceNote)
+		if len(lines) == 0 {
 			return
 		}
-		title := fonts.textBox(value.Title, 10.5, 178, true)
-		first := fonts.textBox(lines[0], 8.5, 178, false)
-		if y-title.Bounds().H()-first.Bounds().H()-4 < 18 {
-			newPage()
+		height := invoiceCardHeight(fonts, lines, 174)
+		ensure(height + 4)
+		renderInvoiceCard(current.context, fonts, 14, y, 182, height, "Message from supplier", lines)
+		y -= height + 5
+	}
+	drawDetails := func() {
+		lines := invoiceSessionDetailLines(snapshot.Charging, snapshot.Commercial.Currency)
+		if len(lines) == 0 {
+			return
 		}
-		y -= 2
-		context.DrawText(16, y, title)
-		y -= title.Bounds().H() + 1.8
+		sectionTitle("Session details")
 		for _, line := range lines {
-			draw(line, 8.5, false)
+			text := fonts.textBox(line, 7.1, 182, false)
+			ensure(text.Bounds().H() + 2)
+			current.context.DrawText(14, y, text)
+			y -= text.Bounds().H() + 1.1
 		}
 	}
-	for _, value := range customerInvoiceSections(snapshot, zone) {
-		section(value)
+	drawTwoCards()
+	drawSummary()
+	drawCharges()
+	drawNote()
+	drawDetails()
+	for index := range pages {
+		footer := fonts.textBox(fmt.Sprintf("Issued by %s", snapshot.Supplier.Name), 6.8, 100, false)
+		pages[index].context.DrawText(14, 10, footer)
+		page := fonts.textBox(fmt.Sprintf("Invoice %s · Page %d of %d", snapshot.InvoiceNumber, index+1, len(pages)), 6.8, 90, false)
+		pages[index].context.DrawText(196-page.Bounds().W(), 10, page)
+		if index > 0 {
+			renderer.NewPage(210, 297)
+		}
+		pages[index].document.RenderTo(renderer)
 	}
-	finishPage()
 	if err := renderer.Close(); err != nil {
 		return nil, err
 	}
 	return output.Bytes(), nil
+}
+
+type invoiceCanvasPage struct {
+	document *canvas.Canvas
+	context  *canvas.Context
+}
+
+type invoiceSummaryValue struct{ Label, Value string }
+type invoiceChargeRow struct {
+	Description, Basis, Amount string
+	Total                      bool
+}
+
+func renderInvoiceFirstHeader(context *canvas.Context, fonts invoiceFonts, snapshot issuanceSnapshot, logo image.Image, zone *time.Location) {
+	fillInvoiceRect(context, 14, 218, 182, 64, color.RGBA{R: 246, G: 248, B: 251, A: 255})
+	if logo != nil {
+		context.FitImage(logo, invoiceLogoBounds(), canvas.ImageContain)
+	}
+	issuerX := 56.0
+	issuer := fonts.textBox(snapshot.Supplier.Name, 11.5, 72, true)
+	context.DrawText(issuerX, 274, issuer)
+	supplier := compactInvoiceLines([]string{snapshot.Supplier.Address, joinInvoiceParts(", ", snapshot.Supplier.City, snapshot.Supplier.State, snapshot.Supplier.Pincode), optionalTextLine("GSTIN", snapshot.Supplier.GSTIN)})
+	y := 274 - issuer.Bounds().H() - 1.5
+	for _, line := range supplier {
+		text := fonts.textBox(line, 7.2, 72, false)
+		context.DrawText(issuerX, y, text)
+		y -= text.Bounds().H() + 0.8
+	}
+	title := fonts.textBox("Charging Session Invoice", 11, 76, true)
+	context.DrawText(120, 275, title)
+	amount := fonts.textBox(formatMoney(snapshot.Commercial.Currency, snapshot.Commercial.TotalAmount), 16, 76, true)
+	context.DrawText(120, 260, amount)
+	status := invoiceHeaderStatus(snapshot.Commercial)
+	if status != "" {
+		badge := fonts.textBox(status, 7, 76, false)
+		context.DrawText(120, 251, badge)
+	}
+	meta := fonts.textBox("Invoice "+snapshot.InvoiceNumber+"\nIssued "+formatInvoiceTime(snapshot.IssuedAt, zone), 7, 76, false)
+	context.DrawText(120, 237, meta)
+}
+
+func invoiceLogoBounds() canvas.Rect {
+	return canvas.Rect{X0: 14, Y0: 258, X1: 52, Y1: 276}
+}
+
+func fillInvoiceRect(context *canvas.Context, x, y, width, height float64, shade color.Color) {
+	context.SetFillColor(shade)
+	context.DrawPath(x, y, canvas.Rectangle(width, height))
+}
+
+func invoiceCardHeight(fonts invoiceFonts, lines []string, width float64) float64 {
+	height := 13.0
+	for _, line := range lines {
+		height += fonts.textBox(line, 8, width-8, false).Bounds().H() + 1
+	}
+	return maxFloat(height, 27)
+}
+
+func renderInvoiceCard(context *canvas.Context, fonts invoiceFonts, x, top, width, height float64, title string, lines []string) {
+	fillInvoiceRect(context, x, top-height, width, height, color.RGBA{R: 248, G: 249, B: 251, A: 255})
+	heading := fonts.textBox(title, 8.3, width-8, true)
+	context.DrawText(x+4, top-5, heading)
+	y := top - 5 - heading.Bounds().H() - 1.2
+	for _, line := range lines {
+		text := fonts.textBox(line, 8, width-8, false)
+		context.DrawText(x+4, y, text)
+		y -= text.Bounds().H() + 1
+	}
+}
+
+func invoiceSummaryHeight(fonts invoiceFonts, values []invoiceSummaryValue) float64 {
+	height := 20.0
+	for _, value := range values {
+		height = maxFloat(height, 11+fonts.textBox(value.Value, 8.2, 39, true).Bounds().H())
+	}
+	return height
+}
+
+func renderInvoiceSummary(context *canvas.Context, fonts invoiceFonts, x, top, width, height float64, values []invoiceSummaryValue) {
+	fillInvoiceRect(context, x, top-height, width, height, color.RGBA{R: 238, G: 244, B: 250, A: 255})
+	column := width / float64(len(values))
+	for index, value := range values {
+		left := x + float64(index)*column + 4
+		label := fonts.textBox(value.Label, 6.8, column-8, false)
+		context.DrawText(left, top-5, label)
+		amount := fonts.textBox(value.Value, 8.2, column-8, true)
+		context.DrawText(left, top-5-label.Bounds().H()-1, amount)
+	}
+}
+
+func invoiceChargeRows(commercial commercialSnapshot) []invoiceChargeRow {
+	basis := joinInvoiceParts(" · ", optionalTextLine("Energy", formatKWh(commercial.TotalKWh)), invoiceTariffBasis(commercial.Tariff))
+	rows := []invoiceChargeRow{{Description: "Charging energy", Basis: basis, Amount: "—"}}
+	for _, tax := range []struct {
+		name string
+		rate *string
+	}{{"CGST", commercial.Tax.CGSTRate}, {"SGST", commercial.Tax.SGSTRate}, {"IGST", commercial.Tax.IGSTRate}} {
+		if tax.rate != nil && strings.TrimSpace(*tax.rate) != "" {
+			rows = append(rows, invoiceChargeRow{Description: tax.name, Basis: *tax.rate + "% rate", Amount: "—"})
+		}
+	}
+	return append(rows, invoiceChargeRow{Description: "Final total", Basis: humanValueString(commercial.SettlementStatus), Amount: formatMoney(commercial.Currency, commercial.TotalAmount), Total: true})
+}
+
+func invoiceTariffBasis(tariff invoiceTariffSnapshot) string {
+	if tariff.PricePerUnit == nil || tariff.BillingUnit == nil {
+		return ""
+	}
+	return "Rate " + *tariff.PricePerUnit + "/" + *tariff.BillingUnit
+}
+
+func invoiceChargeRowHeight(fonts invoiceFonts, row invoiceChargeRow) float64 {
+	return maxFloat(8, maxFloat(fonts.textBox(row.Description, 8, 72, row.Total).Bounds().H(), fonts.textBox(row.Basis, 7.5, 66, false).Bounds().H())+3)
+}
+
+func renderInvoiceTableHeader(context *canvas.Context, fonts invoiceFonts, x, top, width float64) {
+	fillInvoiceRect(context, x, top-8, width, 8, color.RGBA{R: 33, G: 56, B: 82, A: 255})
+	context.SetFillColor(color.White)
+	for _, column := range []struct {
+		text string
+		x    float64
+	}{{"Description", x + 3}, {"Basis", x + 77}, {"Amount", x + 145}} {
+		context.DrawText(column.x, top-5.3, fonts.textBox(column.text, 7.2, 34, true))
+	}
+}
+
+func renderInvoiceChargeRow(context *canvas.Context, fonts invoiceFonts, x, top, width, height float64, row invoiceChargeRow) {
+	if row.Total {
+		fillInvoiceRect(context, x, top-height, width, height, color.RGBA{R: 238, G: 244, B: 250, A: 255})
+	}
+	context.SetFillColor(canvas.Black)
+	context.DrawText(x+3, top-3, fonts.textBox(row.Description, 8, 72, row.Total))
+	context.DrawText(x+77, top-3, fonts.textBox(row.Basis, 7.5, 64, false))
+	amount := fonts.textBox(row.Amount, 8, 36, row.Total)
+	context.DrawText(x+179-amount.Bounds().W(), top-3, amount)
+}
+
+func optionalTimeText(value *time.Time, zone *time.Location) string {
+	if value == nil {
+		return "Not recorded"
+	}
+	return formatInvoiceTime(*value, zone)
 }
 
 type customerInvoiceSection struct {
@@ -1276,7 +1458,12 @@ func invoiceLocationLines(location locationSnapshot) []string {
 	if strings.TrimSpace(location.HubName) == "" {
 		return []string{"Location unavailable"}
 	}
-	return compactInvoiceLines([]string{location.HubName, location.HubAddress, location.HubState})
+	lines := []string{location.HubName, location.HubAddress}
+	state := strings.TrimSpace(location.HubState)
+	if state != "" && !strings.Contains(strings.ToLower(location.HubAddress), strings.ToLower(state)) {
+		lines = append(lines, state)
+	}
+	return compactInvoiceLines(lines)
 }
 
 func invoiceChargerLines(location locationSnapshot) []string {
