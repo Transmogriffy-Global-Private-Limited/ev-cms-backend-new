@@ -123,11 +123,14 @@ Active work:
 - `docs/work/active/WI-20260901-charging-transaction-trace.md` root-identity
   enrichment remediation.
 
-Recently completed deployment: charging-session invoices. The deployed
-revision, migration, private storage boundary, runtime verification, and
-remaining SMTP/database-test limits are recorded in `docs/PROJECT_STATE.md`
-and `docs/guides/operations/dev-hosting.md`; the detailed work item is
-`docs/work/archive/WI-20260911-charging-session-invoices.md`.
+Recently completed deployment: charging-session invoices, including the
+follow-on presentation and issuer/hydration releases. The deployed revision,
+migration, private storage boundary, runtime verification, and remaining
+SMTP/database-test limits are recorded in `docs/PROJECT_STATE.md` and
+`docs/guides/operations/dev-hosting.md`; detailed implementation records are
+`docs/work/archive/WI-20260911-charging-session-invoices.md`,
+`docs/work/archive/WI-20260914-invoice-customer-presentation.md`, and
+`docs/work/archive/WI-20260914-invoice-hydration-issuer.md`.
 
 Approved current slice:
 

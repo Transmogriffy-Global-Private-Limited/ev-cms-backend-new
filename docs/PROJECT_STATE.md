@@ -1,5 +1,28 @@
 # Project State
 
+## 2026-09-14 - Invoice hydration and issuer identity update deployed
+
+- Runtime source revision `756e339` is active with binary SHA-256
+  `cfc621dd5e61a48af09bba0e8f70b9cb5de05b0e5b7ffa0f7cb6aa27cf23d8a8`.
+  The immediately prior executable is retained at
+  `/root/evcmsnew-backups/pre-invoice-hydration-issuer-756e339-20260914T091516Z/evcmsnew`
+  (SHA-256
+  `d4f08a0178d9460cacd951e461ac467e5f432395005be2d358e314084919b33c`). No
+  migration or HTTP/OpenAPI contract change was required; migration `000069`
+  remains current with 245 operations.
+- Future invoice issuance now explicitly hydrates and validates its owning
+  session entities, uses CPO supplier identity in the visible invoice email
+  sender/subject without changing the authenticated SMTP address, and safely
+  imports valid historical CPO logos into controlled storage. Historical
+  issued invoices remain immutable.
+- At post-rehost verification, the database aggregate showed 72 READY invoices
+  and two already-SENT deliveries. This deployment did not send or retry mail.
+  The service process matches the installed binary, has zero restarts, local
+  and HTTPS health/readiness/docs endpoints return 200, current required
+  workers are healthy, Caddy validates, and no new service error entries were
+  found. SMTP acceptance, disposable database tests, and the PowerShell docs
+  verifier remain unverified (`TEST_DATABASE_URL`/`pwsh` absent).
+
 ## 2026-09-14 - Invoice customer-presentation update deployed
 
 - Runtime source revision `3358ec8` is active with binary SHA-256

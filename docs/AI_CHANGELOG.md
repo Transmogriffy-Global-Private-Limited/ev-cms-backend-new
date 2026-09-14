@@ -1,5 +1,25 @@
 # AI Changelog
 
+## 2026-09-14 - Deploy invoice hydration and CPO issuer identity
+
+- Rehosted source revision `756e339` with explicit tenant-validated invoice
+  input hydration, CPO business identity in visible invoice email fields, and
+  controlled import/validation of valid legacy CPO invoice logos. Historical
+  issued invoices remain immutable; SMTP authentication identity is unchanged.
+- No migration or HTTP/OpenAPI change was required; migration `000069` remains
+  current and the contract remains at 245 operations. Binary SHA-256 is
+  `cfc621dd5e61a48af09bba0e8f70b9cb5de05b0e5b7ffa0f7cb6aa27cf23d8a8`; prior
+  executable is retained at
+  `/root/evcmsnew-backups/pre-invoice-hydration-issuer-756e339-20260914T091516Z/evcmsnew`
+  (SHA-256 `d4f08a0178d9460cacd951e461ac467e5f432395005be2d358e314084919b33c`).
+- Focused/full Go tests, vet, and OpenAPI parity passed. Post-rehost process and
+  installed hashes match, restart count is zero, local/HTTPS health,
+  readiness, Swagger and OpenAPI return 200, current required workers are
+  healthy, Caddy validates, and no new error-level service entries were found.
+  Database aggregates show 72 READY invoices and two already-SENT deliveries;
+  no email was sent or retried. `TEST_DATABASE_URL` and `pwsh` are unavailable;
+  SMTP acceptance is not claimed.
+
 ## 2026-09-14 - Deploy customer-facing invoice presentation update
 
 - Rehosted invoice presentation changes from source revision `3358ec8`:

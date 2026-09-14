@@ -29,13 +29,13 @@ that setting; it must not be used until the OCPP host is explicitly configured
 with TLS/WebSocket support.
 
 The active deployment was updated on September 14, 2026 to source revision
-`3358ec8`; migration `000069_add_charging_session_invoices` remains current
+`756e339`; migration `000069_add_charging_session_invoices` remains current
 and the API has 245 operations. The active binary SHA-256 is
-`d4f08a0178d9460cacd951e461ac467e5f432395005be2d358e314084919b33c`. The
+`cfc621dd5e61a48af09bba0e8f70b9cb5de05b0e5b7ffa0f7cb6aa27cf23d8a8`. The
 immediately preceding binary is retained at
-`/root/evcmsnew-backups/pre-invoice-presentation-3358ec8-20260914T122510+0530/evcmsnew`
+`/root/evcmsnew-backups/pre-invoice-hydration-issuer-756e339-20260914T091516Z/evcmsnew`
 (SHA-256
-`7c4fd89d00e0f19e97594017453aa9f0fbe78a1770cad84c23b09facab86a1a8`). The
+`d4f08a0178d9460cacd951e461ac467e5f432395005be2d358e314084919b33c`). The
 pre-`000069` database dump is
 `/root/evcmsnew-backups/devevcmsnew-before-000069-20260914T110817+0530.dump`
 (mode `0600`, SHA-256
@@ -55,6 +55,17 @@ presentation-update rehost, all 71 existing invoice artifacts remained READY
 and integrity-verified; they are immutable and were not regenerated. The
 database had one already-SENT delivery; no message was sent or retried during
 that rehost. SMTP attachment acceptance has not been tested.
+
+The subsequent hydration/issuer rehost made no migration or API change.
+Future issuance now validates its authoritative tenant-owned inputs, includes
+the CPO commercial identity in the visible invoice-email sender/subject, and
+imports valid historical logo files into controlled storage; prior READY
+invoices remain immutable. At post-rehost verification, aggregate state was 72
+READY invoices and two already-SENT deliveries; this rehost sent or retried no
+email. Process/install hashes matched, restart count was zero, local and HTTPS
+health/readiness/docs endpoints returned 200, required current workers were
+healthy, Caddy validated, and no new service error entries were found. SMTP
+acceptance remains untested.
 The pre-migration binary and database dump for migrations 49 through 53 are
 retained under `/root/evcmsnew-backups/` and
 `builds/evcmsnew.pre-162b3be-20260825-135452` and the newer
