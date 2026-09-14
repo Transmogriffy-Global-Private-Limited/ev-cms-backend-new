@@ -1,5 +1,27 @@
 # AI Changelog
 
+## 2026-09-14 - Deploy charging invoice PDF redesign
+
+- Rehosted invoice PDF composition in source revision `5116558`, based on
+  redesign commit `b2bccc1`, after adding a narrow
+  renderer-version compatibility fix: prior rows stamped `canvas-noto-v1`
+  retain their prior layout, while new issuance records `canvas-noto-v2`.
+  Immutable READY artifacts, invoice snapshots, numbering, delivery, HAL, and
+  migrations are unchanged.
+- Active binary SHA-256 is
+  `993b2fb66fe47ec6365eb1d16b0769da66fc99fef48f5bdf2ceb59add231b4e5`; the
+  previous executable is retained at
+  `/root/evcmsnew-backups/pre-invoice-pdf-uiux-b2bccc1-20260914T105841Z/evcmsnew`
+  (SHA-256 `cfc621dd5e61a48af09bba0e8f70b9cb5de05b0e5b7ffa0f7cb6aa27cf23d8a8`).
+- Focused/full Go tests, vet, OpenAPI parity, build, and generated sample PDF
+  checks passed. Runtime/process hashes match; restart count is zero; local
+  and HTTPS health/readiness/Swagger/OpenAPI return 200; 245 operations,
+  required workers, Caddy validation, and post-restart error scan pass.
+  Database aggregates remained 74 READY invoices and 4 already-SENT
+  deliveries; no mail or existing artifact was changed. `pdfcpu` is not
+  installed for an independent strict-validation rerun; the upstream work item
+  records its strict check. No visual-pass claim is made.
+
 ## 2026-09-14 - Deploy invoice hydration and CPO issuer identity
 
 - Rehosted source revision `756e339` with explicit tenant-validated invoice

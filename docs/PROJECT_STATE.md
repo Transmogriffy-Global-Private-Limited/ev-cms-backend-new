@@ -1,5 +1,27 @@
 # Project State
 
+## 2026-09-14 - Invoice PDF redesign deployed
+
+- Runtime source revision `5116558` (invoice redesign from `b2bccc1` plus the
+  renderer-version compatibility correction) is active. Binary SHA-256 is
+  `993b2fb66fe47ec6365eb1d16b0769da66fc99fef48f5bdf2ceb59add231b4e5`. The
+  immediately prior executable is retained at
+  `/root/evcmsnew-backups/pre-invoice-pdf-uiux-b2bccc1-20260914T105841Z/evcmsnew`
+  (SHA-256
+  `cfc621dd5e61a48af09bba0e8f70b9cb5de05b0e5b7ffa0f7cb6aa27cf23d8a8`). No
+  migration or HTTP/OpenAPI change was required; migration `000069` remains
+  current with 245 operations.
+- Redesigned only future invoice PDF composition. Existing READY artifacts
+  remain immutable; `canvas-noto-v1` continues to dispatch the prior layout,
+  while new issuance records `canvas-noto-v2`. At verification all 74 invoice
+  rows were READY and four deliveries already SENT; no invoice or email was
+  changed by this deployment.
+- The service/process hash matches the installed binary, restart count is zero,
+  local and HTTPS health/readiness/docs endpoints return 200, required current
+  workers are healthy, Caddy validates, and no new service error entries were
+  found. Focused/full tests, vet, OpenAPI parity, and all-package build passed.
+  `TEST_DATABASE_URL` and `pwsh` are unavailable; SMTP acceptance is untested.
+
 ## 2026-09-14 - Invoice hydration and issuer identity update deployed
 
 - Runtime source revision `756e339` is active with binary SHA-256

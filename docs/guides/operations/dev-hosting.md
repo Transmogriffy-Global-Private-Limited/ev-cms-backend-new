@@ -29,13 +29,15 @@ that setting; it must not be used until the OCPP host is explicitly configured
 with TLS/WebSocket support.
 
 The active deployment was updated on September 14, 2026 to source revision
-`756e339`; migration `000069_add_charging_session_invoices` remains current
-and the API has 245 operations. The active binary SHA-256 is
-`cfc621dd5e61a48af09bba0e8f70b9cb5de05b0e5b7ffa0f7cb6aa27cf23d8a8`. The
+`5116558` (invoice redesign from `b2bccc1` plus a renderer-version
+compatibility correction); migration
+`000069_add_charging_session_invoices` remains current and the API has 245
+operations. The active binary SHA-256 is
+`993b2fb66fe47ec6365eb1d16b0769da66fc99fef48f5bdf2ceb59add231b4e5`. The
 immediately preceding binary is retained at
-`/root/evcmsnew-backups/pre-invoice-hydration-issuer-756e339-20260914T091516Z/evcmsnew`
+`/root/evcmsnew-backups/pre-invoice-pdf-uiux-b2bccc1-20260914T105841Z/evcmsnew`
 (SHA-256
-`d4f08a0178d9460cacd951e461ac467e5f432395005be2d358e314084919b33c`). The
+`cfc621dd5e61a48af09bba0e8f70b9cb5de05b0e5b7ffa0f7cb6aa27cf23d8a8`). The
 pre-`000069` database dump is
 `/root/evcmsnew-backups/devevcmsnew-before-000069-20260914T110817+0530.dump`
 (mode `0600`, SHA-256
@@ -66,6 +68,18 @@ email. Process/install hashes matched, restart count was zero, local and HTTPS
 health/readiness/docs endpoints returned 200, required current workers were
 healthy, Caddy validated, and no new service error entries were found. SMTP
 acceptance remains untested.
+
+The subsequent PDF redesign changed only future Canvas composition. New
+issuance records renderer `canvas-noto-v2`; the prior Canvas v1 layout remains
+available for rows already stamped v1. At verification all 74 invoice rows
+were READY and four deliveries already SENT; the rehost changed none of them
+and sent/retried no email. Process/install hashes matched, restart count was
+zero, local and HTTPS health/readiness/docs routes returned 200, all required
+workers were healthy, Caddy validated, and no new service error entries were
+found. Focused/full tests, vet, OpenAPI parity, and build passed. Strict
+`pdfcpu` validation was recorded by the upstream work item but could not be
+independently rerun here because the tool is not installed; visual inspection
+is not claimed.
 The pre-migration binary and database dump for migrations 49 through 53 are
 retained under `/root/evcmsnew-backups/` and
 `builds/evcmsnew.pre-162b3be-20260825-135452` and the newer
