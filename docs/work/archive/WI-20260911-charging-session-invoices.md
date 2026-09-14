@@ -4,7 +4,7 @@ Status: Complete
 Owner: Codex
 Collaborators: Anubhab Dey (product and CMS/HAL boundary owner)
 Started: 2026-09-11
-Last updated: 2026-09-14 (all requested source corrections, verification, and authorized publication complete)
+Last updated: 2026-09-14 (deployment, runtime verification, and documentation reconciliation complete)
 
 Development-plan reference: `docs/DEVELOPMENT_PLAN.md` — charging lifecycle and commercial completion
 Detailed-plan reference: This work item (approved task handoff)
@@ -104,8 +104,32 @@ Final source-correction coverage passed on 2026-09-14:
 - `go build -p 1 ./...`
 - `git diff --check`
 
-`TEST_DATABASE_URL` is unset. PostgreSQL lifecycle, concurrency, and migration
-execution verification were deliberately not run; no live database was used.
+`TEST_DATABASE_URL` is unset. Disposable PostgreSQL lifecycle and concurrency
+tests were not run. Migration `000069` was instead applied to the explicitly
+targeted development database after a validated mode-0600 backup; the live
+ledger and invoice state are recorded below.
+
+## Deployment verification (2026-09-14)
+
+- Applied migration `000069_add_charging_session_invoices`; retained the
+  pre-migration dump at
+  `/root/evcmsnew-backups/devevcmsnew-before-000069-20260914T110817+0530.dump`
+  (SHA-256
+  `d9619ffc18615f7af1e7e80ddc6268171f44d87349c1c93246bb50e0a41f7a26`).
+- Rehosted source revision `367e2f5`; active binary SHA-256 is
+  `7c4fd89d00e0f19e97594017453aa9f0fbe78a1770cad84c23b09facab86a1a8`.
+  Prior binary remains at
+  `/root/evcmsnew-backups/pre-invoice-367e2f5-20260914T111017+0530/evcmsnew`.
+- Configured `/var/lib/evcmsnew/invoices` as the private storage root and added
+  only that directory to the systemd writable paths, preserving
+  `ProtectHome=read-only`. All 70 invoice artifacts reached READY; every file's
+  PDF signature, size, SHA-256, and `0600` mode matched PostgreSQL. Required
+  current workers are HEALTHY; loopback/public health, readiness, Swagger,
+  245-operation OpenAPI, and Caddy validation passed.
+- No invoice deliveries were queued for historical sessions with unknown
+  `settled_at`; no SMTP message was sent. SMTP attachment delivery and
+  PostgreSQL-gated integration/concurrency tests remain unverified.
+- `pwsh` is unavailable, so `scripts/verify-docs.ps1` could not be run.
 
 ## Handoff
 
@@ -115,6 +139,7 @@ wallet hold, wallet ledger, payment, or HAL truth.
 
 ## Completion
 
-Source work and the requested local verification are complete. Commit
-`ab8d125` was fast-forward published to both authorized CMS branches,
-`anubhab-work` and `main`.
+Source implementation was previously published in commit `ab8d125`. The
+development deployment and its documentation are now verified; this work
+item's deployment record will be published in the current authorized `main`
+update.

@@ -1,6 +1,6 @@
 # Project State
 
-## 2026-09-14 - Charging-session invoices implemented in source (not deployed)
+## 2026-09-14 - Charging-session invoices deployed
 
 - Source migration `000069` introduces downstream-only immutable
   charging-session invoices, content-addressed issuance-time logo assets,
@@ -12,9 +12,23 @@
   separates pre-SMTP retries from ambiguous post-SMTP outcomes. CPO recovery is
   explicit, audited, and duplicate-confirmed.
 - Customer/CPO downloads are session-scoped; customer projections omit mail
-  state while CPO projections may expose safe delivery status. This is source
-  state only: no migration, deployment, SMTP delivery, or live database
-  verification has occurred.
+  state while CPO projections may expose safe delivery status. Migration
+  `000069` is applied to the development database. Runtime revision `367e2f5`
+  is active with binary SHA-256
+  `7c4fd89d00e0f19e97594017453aa9f0fbe78a1770cad84c23b09facab86a1a8`.
+- The validated pre-migration custom-format dump is retained at
+  `/root/evcmsnew-backups/devevcmsnew-before-000069-20260914T110817+0530.dump`.
+  Private artifacts are stored at `/var/lib/evcmsnew/invoices`; systemd grants
+  that directory and the pre-existing uploads directory write access while
+  retaining `ProtectHome=read-only`. All 70 historical settled sessions have
+  READY PDFs whose hashes, sizes, signatures, and `0600` file modes were
+  checked against PostgreSQL. Their unknown historical `settled_at` values
+  prevented automatic email intent creation; there are zero invoice delivery
+  rows. SMTP attachment delivery remains untested.
+- Loopback/public health, readiness, Swagger, 245-operation OpenAPI, all
+  required current workers, and Caddy validation passed. PostgreSQL-gated
+  tests remain unrun because `TEST_DATABASE_URL` is unset; `pwsh` is
+  unavailable for the documentation verifier.
 
 ## 2026-09-11 - CPO charging-session list contract repair deployed
 

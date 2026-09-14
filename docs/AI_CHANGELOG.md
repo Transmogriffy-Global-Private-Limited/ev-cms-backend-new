@@ -1,6 +1,6 @@
 # AI Changelog
 
-## 2026-09-14 - Charging-session invoice implementation (source only)
+## 2026-09-14 - Deploy charging-session invoices
 
 - Added the downstream charging-session invoice aggregate and migration,
   including a factual settlement timestamp, atomic bounded financial-year
@@ -9,9 +9,23 @@
 - Added session-scoped customer/CPO PDF routes, customer-safe versus CPO-safe
   invoice projections, separate SMTP delivery state, and explicit audited CPO
   recovery with duplicate-delivery confirmation. No HAL behavior changed.
-- This entry records source work only. No migration, deployment, service
-  restart, or live SMTP send was performed; final local verification is tracked
-  with the active work item.
+- Migration `000069` was applied after a validated mode-0600 custom-format
+  backup at
+  `/root/evcmsnew-backups/devevcmsnew-before-000069-20260914T110817+0530.dump`.
+  Runtime source revision `367e2f5` is active; binary SHA-256 is
+  `7c4fd89d00e0f19e97594017453aa9f0fbe78a1770cad84c23b09facab86a1a8`.
+- The unit keeps `ProtectHome=read-only`; private invoice storage is
+  `/var/lib/evcmsnew/invoices` (directory mode `0750`, PDF mode `0600`) and is
+  the only new systemd writable path. All 70 historical settled sessions now
+  have integrity-verified READY PDFs. No historical delivery intents were
+  created because their original `settled_at` is unknown; no SMTP send was
+  performed or claimed.
+- Loopback/public liveness, readiness, Swagger, and OpenAPI returned 200;
+  OpenAPI has 245 operations. All required current workers are HEALTHY,
+  Caddy validation passed, and no post-restart error-level journal entries
+  were found. `TEST_DATABASE_URL` is unset and `pwsh` is unavailable, so the
+  disposable database test suite and PowerShell documentation verifier were
+  not run.
 
 ## 2026-09-11 - Deploy repaired CPO charging-session list contract
 

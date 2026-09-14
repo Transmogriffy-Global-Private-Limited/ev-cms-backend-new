@@ -123,6 +123,12 @@ Active work:
 - `docs/work/active/WI-20260901-charging-transaction-trace.md` root-identity
   enrichment remediation.
 
+Recently completed deployment: charging-session invoices. The deployed
+revision, migration, private storage boundary, runtime verification, and
+remaining SMTP/database-test limits are recorded in `docs/PROJECT_STATE.md`
+and `docs/guides/operations/dev-hosting.md`; the detailed work item is
+`docs/work/archive/WI-20260911-charging-session-invoices.md`.
+
 Approved current slice:
 
 - Extend the existing customer start-intent, wallet-hold, HAL command, and
