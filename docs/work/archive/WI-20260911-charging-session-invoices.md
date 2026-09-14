@@ -116,7 +116,7 @@ ledger and invoice state are recorded below.
   `/root/evcmsnew-backups/devevcmsnew-before-000069-20260914T110817+0530.dump`
   (SHA-256
   `d9619ffc18615f7af1e7e80ddc6268171f44d87349c1c93246bb50e0a41f7a26`).
-- Rehosted source revision `367e2f5`; active binary SHA-256 is
+- Initial invoice rehost used source revision `367e2f5`; its binary SHA-256 was
   `7c4fd89d00e0f19e97594017453aa9f0fbe78a1770cad84c23b09facab86a1a8`.
   Prior binary remains at
   `/root/evcmsnew-backups/pre-invoice-367e2f5-20260914T111017+0530/evcmsnew`.
@@ -126,10 +126,13 @@ ledger and invoice state are recorded below.
   PDF signature, size, SHA-256, and `0600` mode matched PostgreSQL. Required
   current workers are HEALTHY; loopback/public health, readiness, Swagger,
   245-operation OpenAPI, and Caddy validation passed.
-- No invoice deliveries were queued for historical sessions with unknown
-  `settled_at`; no SMTP message was sent. SMTP attachment delivery and
-  PostgreSQL-gated integration/concurrency tests remain unverified.
+- Historical sessions with unknown `settled_at` created no automatic delivery
+  intents. SMTP attachment delivery and PostgreSQL-gated integration/
+  concurrency tests remain unverified.
 - `pwsh` is unavailable, so `scripts/verify-docs.ps1` could not be run.
+
+The follow-on customer-presentation deployment on 2026-09-14 is documented in
+`WI-20260914-invoice-customer-presentation.md`.
 
 ## Handoff
 
@@ -139,7 +142,6 @@ wallet hold, wallet ledger, payment, or HAL truth.
 
 ## Completion
 
-Source implementation was previously published in commit `ab8d125`. The
-development deployment and its documentation are now verified; this work
-item's deployment record will be published in the current authorized `main`
-update.
+Source implementation was previously published in commit `ab8d125`; the first
+deployment record was published in `4c263e9`. Follow-on customer-presentation
+deployment is recorded in the linked archived work item.

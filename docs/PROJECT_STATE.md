@@ -1,5 +1,25 @@
 # Project State
 
+## 2026-09-14 - Invoice customer-presentation update deployed
+
+- Runtime source revision `3358ec8` is active with binary SHA-256
+  `d4f08a0178d9460cacd951e461ac467e5f432395005be2d358e314084919b33c`.
+  The immediately prior binary is retained at
+  `/root/evcmsnew-backups/pre-invoice-presentation-3358ec8-20260914T122510+0530/evcmsnew`
+  (SHA-256
+  `7c4fd89d00e0f19e97594017453aa9f0fbe78a1770cad84c23b09facab86a1a8`). No
+  migration or API contract change was required; migration `000069` remains
+  current with 245 OpenAPI operations.
+- Customer invoice PDFs now present the Hub location and charging/commercial
+  details with clearer units and omit absent optional values. All 71 prior
+  READY artifacts remain immutable and integrity-verified; new presentation
+  applies to future invoice generation. The existing delivery ledger showed
+  one SENT delivery; this deployment sent or retried no messages.
+- Service, all required current workers, loopback/public readiness and liveness,
+  Swagger/OpenAPI, Caddy validation, and post-restart error-log scan passed.
+  SMTP acceptance remains untested; disposable PostgreSQL tests and the docs
+  PowerShell verifier remain unavailable (`TEST_DATABASE_URL`/`pwsh` absent).
+
 ## 2026-09-14 - Charging-session invoices deployed
 
 - Source migration `000069` introduces downstream-only immutable
@@ -13,8 +33,8 @@
   explicit, audited, and duplicate-confirmed.
 - Customer/CPO downloads are session-scoped; customer projections omit mail
   state while CPO projections may expose safe delivery status. Migration
-  `000069` is applied to the development database. Runtime revision `367e2f5`
-  is active with binary SHA-256
+  `000069` is applied to the development database. The initial runtime
+  revision was `367e2f5`, with binary SHA-256
   `7c4fd89d00e0f19e97594017453aa9f0fbe78a1770cad84c23b09facab86a1a8`.
 - The validated pre-migration custom-format dump is retained at
   `/root/evcmsnew-backups/devevcmsnew-before-000069-20260914T110817+0530.dump`.

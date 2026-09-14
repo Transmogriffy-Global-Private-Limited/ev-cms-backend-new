@@ -1,5 +1,29 @@
 # AI Changelog
 
+## 2026-09-14 - Deploy customer-facing invoice presentation update
+
+- Rehosted invoice presentation changes from source revision `3358ec8`:
+  customer-facing Hub location, clearer summary/units/timestamps, omission of
+  absent optional values, and safer multi-page progression. No route, OpenAPI,
+  migration, settlement, or invoice-delivery behavior changed.
+- The active binary SHA-256 is
+  `d4f08a0178d9460cacd951e461ac467e5f432395005be2d358e314084919b33c`; the
+  immediately prior binary is retained at
+  `/root/evcmsnew-backups/pre-invoice-presentation-3358ec8-20260914T122510+0530/evcmsnew`
+  (SHA-256
+  `7c4fd89d00e0f19e97594017453aa9f0fbe78a1770cad84c23b09facab86a1a8`). No
+  migration was required; migration `000069` remains current.
+- All 71 existing READY PDFs remain unchanged and independently match their
+  stored SHA-256, size, PDF signature, and `0600` permissions. Existing
+  artifacts are immutable; the new layout applies to future invoice
+  generation. The database showed one already-SENT delivery; no email was
+  sent or retried as part of this release.
+- Invoice-focused and full Go tests, vet, and OpenAPI parity passed before
+  rehost. Local/public health, readiness, Swagger, 245-operation OpenAPI, all
+  required current workers, Caddy validation, and post-restart error-log scan
+  passed. `TEST_DATABASE_URL` and `pwsh` remain unavailable; SMTP acceptance is
+  not claimed.
+
 ## 2026-09-14 - Deploy charging-session invoices
 
 - Added the downstream charging-session invoice aggregate and migration,
@@ -12,7 +36,7 @@
 - Migration `000069` was applied after a validated mode-0600 custom-format
   backup at
   `/root/evcmsnew-backups/devevcmsnew-before-000069-20260914T110817+0530.dump`.
-  Runtime source revision `367e2f5` is active; binary SHA-256 is
+  The initial runtime source revision was `367e2f5`; its binary SHA-256 was
   `7c4fd89d00e0f19e97594017453aa9f0fbe78a1770cad84c23b09facab86a1a8`.
 - The unit keeps `ProtectHome=read-only`; private invoice storage is
   `/var/lib/evcmsnew/invoices` (directory mode `0750`, PDF mode `0600`) and is

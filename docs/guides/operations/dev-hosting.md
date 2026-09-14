@@ -29,13 +29,13 @@ that setting; it must not be used until the OCPP host is explicitly configured
 with TLS/WebSocket support.
 
 The active deployment was updated on September 14, 2026 to source revision
-`367e2f5`; migration `000069_add_charging_session_invoices` is applied and
-the API has 245 operations. The active binary SHA-256 is
-`7c4fd89d00e0f19e97594017453aa9f0fbe78a1770cad84c23b09facab86a1a8`. The
+`3358ec8`; migration `000069_add_charging_session_invoices` remains current
+and the API has 245 operations. The active binary SHA-256 is
+`d4f08a0178d9460cacd951e461ac467e5f432395005be2d358e314084919b33c`. The
 immediately preceding binary is retained at
-`/root/evcmsnew-backups/pre-invoice-367e2f5-20260914T111017+0530/evcmsnew`
+`/root/evcmsnew-backups/pre-invoice-presentation-3358ec8-20260914T122510+0530/evcmsnew`
 (SHA-256
-`bcdcf702eb3b954f38506b1454c695b5f33879cfa892c4a9389f18d3d98ca45d`). The
+`7c4fd89d00e0f19e97594017453aa9f0fbe78a1770cad84c23b09facab86a1a8`). The
 pre-`000069` database dump is
 `/root/evcmsnew-backups/devevcmsnew-before-000069-20260914T110817+0530.dump`
 (mode `0600`, SHA-256
@@ -50,8 +50,11 @@ access only to this path in addition to the pre-existing `uploads` path.
 `.env.example` is suitable only when the process sandbox permits it; for this
 VPS use the absolute `/var/lib` path. All 70 historical settled sessions have
 integrity-verified READY PDFs. Their original settlement timestamps are
-unknown, so no historical invoice email intents were created. SMTP attachment
-delivery has not been tested.
+unknown, so no historical invoice email intents were created. At the
+presentation-update rehost, all 71 existing invoice artifacts remained READY
+and integrity-verified; they are immutable and were not regenerated. The
+database had one already-SENT delivery; no message was sent or retried during
+that rehost. SMTP attachment acceptance has not been tested.
 The pre-migration binary and database dump for migrations 49 through 53 are
 retained under `/root/evcmsnew-backups/` and
 `builds/evcmsnew.pre-162b3be-20260825-135452` and the newer
