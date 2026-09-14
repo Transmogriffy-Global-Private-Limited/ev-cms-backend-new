@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"image"
+	"image/color"
 	"image/png"
 	"os"
 	"path/filepath"
@@ -17,6 +18,7 @@ import (
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/models"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
+	"github.com/tdewolff/canvas"
 	"gorm.io/gorm"
 )
 
@@ -313,6 +315,48 @@ func TestRenderPDFCustomerPresentationFitsOnePage(t *testing.T) {
 	}
 }
 
+func TestRenderPDFRemoteStopDetailsFitOnFirstPage(t *testing.T) {
+	snapshot := customerPresentationSnapshot()
+	snapshot.InvoiceNumber = "INV/26-27/000075"
+	phone := "+91 98765 43210"
+	remote := "Remote"
+	snapshot.Customer = customerSnapshot{FullName: "Anubhab Dey", Email: "anubhab@example.test", Phone: &phone}
+	snapshot.Supplier.Address = "Unit 405, Horizon Plaza, 14 Riverside Avenue"
+	snapshot.Location = locationSnapshot{HubName: "Riverside Mobility Hub", HubAddress: "42 River Road, Near Eastern Bypass", HubState: "West Bengal", ChargerCode: "CP0042", ChargerName: "Riverside DC", ChargerType: "Fast charger", ConnectorNumber: 2, ConnectorType: "CCS2", RatedPowerKW: 60}
+	snapshot.Charging.OCPPStopReason = &remote
+	pdf, err := renderInvoice(snapshot, rendererVersion, models.InvoiceAsset{}, false, time.UTC)
+	if err != nil {
+		t.Fatalf("render invoice with final remote stop: %v", err)
+	}
+	if pages := bytes.Count(pdf, []byte("/Type/Page/")); pages != 1 {
+		t.Fatalf("fitting final stop detail rendered %d pages, want 1", pages)
+	}
+}
+
+func TestInvoiceChargeHeaderUsesWhiteBoldMetricCenteredLabels(t *testing.T) {
+	fonts, err := newInvoiceFonts()
+	if err != nil {
+		t.Fatalf("load invoice fonts: %v", err)
+	}
+	defer fonts.latin.Destroy()
+	defer fonts.bengali.Destroy()
+	defer fonts.devanagari.Destroy()
+
+	for _, value := range []string{"Description", "Basis", "Amount"} {
+		label := fonts.textBoxColor(value, 7.2, 34, true, color.White)
+		face := label.MostCommonFontFace()
+		if face == nil || !face.Fill.IsColor() || face.Fill.Color != canvas.White || face.Style != canvas.FontBold {
+			t.Fatalf("header label %q face = %#v, want white bold", value, face)
+		}
+		top := 180.0
+		labelTop := invoiceTextTopCentered(top, 8, label)
+		bounds := label.Bounds()
+		if center := top - (labelTop - (bounds.Y0+bounds.Y1)/2); center != 4 {
+			t.Fatalf("header label %q center = %v, want 4", value, center)
+		}
+	}
+}
+
 func TestRenderPDFCustomerPresentationPaginatesLongUnicodeContent(t *testing.T) {
 	snapshot := customerPresentationSnapshot()
 	snapshot.Supplier.Name = strings.Repeat("দীর্ঘ সরবরাহকারী नाम ", 18)
@@ -326,6 +370,11 @@ func TestRenderPDFCustomerPresentationPaginatesLongUnicodeContent(t *testing.T) 
 	}
 	if pages := bytes.Count(pdf, []byte("/Type/Page/")); pages < 2 {
 		t.Fatalf("long Unicode invoice rendered %d pages, want multiple pages", pages)
+	}
+	if path := os.Getenv("INVOICE_OVERFLOW_SAMPLE_PDF"); path != "" {
+		if err := os.WriteFile(path, pdf, 0600); err != nil {
+			t.Fatalf("write overflow inspection sample: %v", err)
+		}
 	}
 }
 

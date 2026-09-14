@@ -1117,21 +1117,29 @@ func invoiceScriptFor(r rune) invoiceScript {
 }
 
 func (fonts invoiceFonts) faceFor(script invoiceScript, size float64, bold bool) *canvas.FontFace {
+	return fonts.faceForColor(script, size, bold, canvas.Black)
+}
+
+func (fonts invoiceFonts) faceForColor(script invoiceScript, size float64, bold bool, fill color.Color) *canvas.FontFace {
 	style := canvas.FontRegular
 	if bold && script == invoiceLatin {
 		style = canvas.FontBold
 	}
 	if script == invoiceBengali {
-		return fonts.bengali.Face(size, canvas.Black, canvas.FontRegular, canvas.FontNormal)
+		return fonts.bengali.Face(size, fill, canvas.FontRegular, canvas.FontNormal)
 	}
 	if script == invoiceDevanagari {
-		return fonts.devanagari.Face(size, canvas.Black, canvas.FontRegular, canvas.FontNormal)
+		return fonts.devanagari.Face(size, fill, canvas.FontRegular, canvas.FontNormal)
 	}
-	return fonts.latin.Face(size, canvas.Black, style, canvas.FontNormal)
+	return fonts.latin.Face(size, fill, style, canvas.FontNormal)
 }
 
 func (fonts invoiceFonts) textBox(value string, size, width float64, bold bool) *canvas.Text {
-	defaultFace := fonts.faceFor(invoiceLatin, size, bold)
+	return fonts.textBoxColor(value, size, width, bold, canvas.Black)
+}
+
+func (fonts invoiceFonts) textBoxColor(value string, size, width float64, bold bool, fill color.Color) *canvas.Text {
+	defaultFace := fonts.faceForColor(invoiceLatin, size, bold, fill)
 	rich := canvas.NewRichText(defaultFace)
 	var run strings.Builder
 	current := defaultFace
@@ -1149,12 +1157,12 @@ func (fonts invoiceFonts) textBox(value string, size, width float64, bold bool) 
 		if script != invoiceCommon && script != currentScript {
 			flush()
 			currentScript = script
-			current = fonts.faceFor(script, size, bold)
+			current = fonts.faceForColor(script, size, bold, fill)
 		}
 		run.WriteRune(r)
 	}
 	flush()
-	return rich.ToText(width, 0, canvas.Left, canvas.Top, 0, 0)
+	return rich.ToText(width, 0, canvas.Left, canvas.Top, nil)
 }
 
 // renderPDFV1 remains available for invoice rows durably stamped before the
@@ -1305,13 +1313,11 @@ func renderPDFV2(snapshot issuanceSnapshot, asset models.InvoiceAsset, hasAsset 
 	}
 	newPage()
 	ensure := func(height float64) {
-		if y-height < 24 {
+		if y-height < invoiceFooterSafeBottom {
 			newPage()
 		}
 	}
-	sectionTitle := func(title string) {
-		ensure(10)
-		text := fonts.textBox(title, 10, 182, true)
+	sectionTitle := func(text *canvas.Text) {
 		current.context.DrawText(14, y, text)
 		y -= text.Bounds().H() + 3
 	}
@@ -1321,7 +1327,7 @@ func renderPDFV2(snapshot issuanceSnapshot, asset models.InvoiceAsset, hasAsset 
 		leftHeight := invoiceCardHeight(fonts, left, 84)
 		rightHeight := invoiceCardHeight(fonts, right, 84)
 		height := maxFloat(leftHeight, rightHeight)
-		ensure(height + 3)
+		ensure(height)
 		renderInvoiceCard(current.context, fonts, 14, y, 87, height, "Billed to", left)
 		renderInvoiceCard(current.context, fonts, 109, y, 87, height, "Charging at", right)
 		y -= height + 5
@@ -1334,22 +1340,27 @@ func renderPDFV2(snapshot issuanceSnapshot, asset models.InvoiceAsset, hasAsset 
 			{Label: "Energy delivered", Value: formatKWh(snapshot.Commercial.TotalKWh)},
 		}
 		height := invoiceSummaryHeight(fonts, values)
-		ensure(height + 4)
+		ensure(height)
 		renderInvoiceSummary(current.context, fonts, 14, y, 182, height, values)
 		y -= height + 2
 		secondary := joinInvoiceParts("   ·   ", invoiceChargerLines(snapshot.Location)...)
 		if secondary != "" {
 			line := fonts.textBox(secondary, 7.7, 182, false)
-			ensure(line.Bounds().H() + 4)
+			ensure(line.Bounds().H())
 			current.context.DrawText(14, y, line)
 			y -= line.Bounds().H() + 5
 		}
 	}
 	drawCharges := func() {
 		rows := invoiceChargeRows(snapshot.Commercial)
-		sectionTitle("Charges")
+		if len(rows) == 0 {
+			return
+		}
+		title := fonts.textBox("Charges", 10, 182, true)
 		headerHeight := 8.0
-		ensure(headerHeight + 10)
+		firstRowHeight := invoiceChargeRowHeight(fonts, rows[0])
+		ensure(title.Bounds().H() + 3 + headerHeight + firstRowHeight)
+		sectionTitle(title)
 		renderInvoiceTableHeader(current.context, fonts, 14, y, 182)
 		y -= headerHeight
 		for _, row := range rows {
@@ -1366,7 +1377,7 @@ func renderPDFV2(snapshot issuanceSnapshot, asset models.InvoiceAsset, hasAsset 
 			return
 		}
 		height := invoiceCardHeight(fonts, lines, 174)
-		ensure(height + 4)
+		ensure(height)
 		renderInvoiceCard(current.context, fonts, 14, y, 182, height, "Message from supplier", lines)
 		y -= height + 5
 	}
@@ -1375,10 +1386,15 @@ func renderPDFV2(snapshot issuanceSnapshot, asset models.InvoiceAsset, hasAsset 
 		if len(lines) == 0 {
 			return
 		}
-		sectionTitle("Session details")
-		for _, line := range lines {
+		title := fonts.textBox("Session details", 10, 182, true)
+		first := fonts.textBox(lines[0], 7.1, 182, false)
+		ensure(title.Bounds().H() + 3 + first.Bounds().H())
+		sectionTitle(title)
+		current.context.DrawText(14, y, first)
+		y -= first.Bounds().H() + 1.1
+		for _, line := range lines[1:] {
 			text := fonts.textBox(line, 7.1, 182, false)
-			ensure(text.Bounds().H() + 2)
+			ensure(text.Bounds().H())
 			current.context.DrawText(14, y, text)
 			y -= text.Bounds().H() + 1.1
 		}
@@ -1403,6 +1419,8 @@ func renderPDFV2(snapshot issuanceSnapshot, asset models.InvoiceAsset, hasAsset 
 	}
 	return output.Bytes(), nil
 }
+
+const invoiceFooterSafeBottom = 18.0
 
 type invoiceCanvasPage struct {
 	document *canvas.Canvas
@@ -1518,14 +1536,25 @@ func invoiceChargeRowHeight(fonts invoiceFonts, row invoiceChargeRow) float64 {
 }
 
 func renderInvoiceTableHeader(context *canvas.Context, fonts invoiceFonts, x, top, width float64) {
-	fillInvoiceRect(context, x, top-8, width, 8, color.RGBA{R: 33, G: 56, B: 82, A: 255})
-	context.SetFillColor(color.White)
+	const headerHeight = 8.0
+	fillInvoiceRect(context, x, top-headerHeight, width, headerHeight, color.RGBA{R: 33, G: 56, B: 82, A: 255})
 	for _, column := range []struct {
-		text string
-		x    float64
-	}{{"Description", x + 3}, {"Basis", x + 77}, {"Amount", x + 145}} {
-		context.DrawText(column.x, top-5.3, fonts.textBox(column.text, 7.2, 34, true))
+		text  string
+		x     float64
+		right bool
+	}{{"Description", x + 3, false}, {"Basis", x + 77, false}, {"Amount", x + 179, true}} {
+		label := fonts.textBoxColor(column.text, 7.2, 34, true, color.White)
+		labelX := column.x
+		if column.right {
+			labelX -= label.Bounds().W()
+		}
+		context.DrawText(labelX, invoiceTextTopCentered(top, headerHeight, label), label)
 	}
+}
+
+func invoiceTextTopCentered(top, height float64, text *canvas.Text) float64 {
+	bounds := text.Bounds()
+	return top - height/2 + (bounds.Y0+bounds.Y1)/2
 }
 
 func renderInvoiceChargeRow(context *canvas.Context, fonts invoiceFonts, x, top, width, height float64, row invoiceChargeRow) {
