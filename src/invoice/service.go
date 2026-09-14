@@ -108,7 +108,7 @@ type Download struct {
 // DeliverySender performs deterministic message construction before the SMTP
 // boundary. Transport errors after PreparedDelivery.Send are ambiguous.
 type DeliverySender interface {
-	PrepareInvoice(string, string, string, []byte, string) (func(context.Context) error, error)
+	PrepareInvoice(string, string, string, []byte, string, string) (func(context.Context) error, error)
 }
 
 type WorkerObserver interface {
@@ -266,7 +266,6 @@ func (service *Service) EnsureInvoice(ctx context.Context, sessionID uuid.UUID) 
 	err := service.database.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		var session models.ChargingSession
 		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
-			Preload("Customer").Preload("Charger").Preload("Charger.Hub").Preload("Connector").Preload("StartIntent").Preload("Payment").
 			First(&session, "id = ?", sessionID).Error; err != nil {
 			return err
 		}
@@ -283,13 +282,18 @@ func (service *Service) EnsureInvoice(ctx context.Context, sessionID uuid.UUID) 
 		} else if !errors.Is(err, gorm.ErrRecordNotFound) {
 			return err
 		}
-		var cpo models.CPO
-		if err := tx.First(&cpo, "id = ?", session.CPOID).Error; err != nil {
+		inputs, err := hydrateInvoiceIssuance(tx, session)
+		if err != nil {
 			return err
 		}
-		var settings models.Settings
-		if err := tx.Where("cpo_id = ?", session.CPOID).First(&settings).Error; err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
-			return err
+		asset, hasLogo, migratedLogoPath, err := snapshotLogo(inputs.Settings.InvoiceLogo)
+		if err != nil {
+			return fmt.Errorf("snapshot configured CPO invoice logo: %w", err)
+		}
+		if migratedLogoPath != nil {
+			if err := tx.Model(&models.Settings{}).Where("cpo_id = ?", session.CPOID).Update("invoice_logo", *migratedLogoPath).Error; err != nil {
+				return fmt.Errorf("record imported legacy CPO invoice logo: %w", err)
+			}
 		}
 		issuedAt := service.now()
 		financialYear := indianFinancialYear(issuedAt, service.displayZone)
@@ -298,7 +302,11 @@ func (service *Service) EnsureInvoice(ctx context.Context, sessionID uuid.UUID) 
 			return err
 		}
 		invoiceID := uuid.New()
-		snapshot := buildSnapshot(invoiceID, session, cpo, settings, issuedAt, financialYear, serial)
+		hydratedSession := inputs.snapshotSession()
+		snapshot := buildSnapshot(invoiceID, hydratedSession, inputs.CPO, inputs.Settings, issuedAt, financialYear, serial)
+		if hasLogo {
+			snapshot.LogoSHA256 = asset.hash
+		}
 		snapshotJSON, err := toJSONB(snapshot)
 		if err != nil {
 			return err
@@ -307,22 +315,13 @@ func (service *Service) EnsureInvoice(ctx context.Context, sessionID uuid.UUID) 
 		if err := tx.Create(&result).Error; err != nil {
 			return err
 		}
-		if asset, ok := snapshotLogo(settings.InvoiceLogo); ok {
+		if hasLogo {
 			if err := tx.Clauses(clause.OnConflict{DoNothing: true}).Create(&models.InvoiceAsset{MIMEType: asset.mimeType, SHA256: asset.hash, Content: asset.content, CreatedAt: issuedAt}).Error; err != nil {
 				return err
 			}
 			if err := tx.Create(&models.InvoiceAssetReference{InvoiceID: invoiceID, SHA256: asset.hash, CreatedAt: issuedAt}).Error; err != nil {
 				return err
 			}
-			snapshot.LogoSHA256 = asset.hash
-			updated, marshalErr := toJSONB(snapshot)
-			if marshalErr != nil {
-				return marshalErr
-			}
-			if err := tx.Model(&result).Update("snapshot", updated).Error; err != nil {
-				return err
-			}
-			result.Snapshot = updated
 		}
 		var rollout models.InvoiceRollout
 		if err := tx.First(&rollout, 1).Error; err != nil {
@@ -331,8 +330,8 @@ func (service *Service) EnsureInvoice(ctx context.Context, sessionID uuid.UUID) 
 		// Artifacts are eligible for all settled sessions. Delivery is a separate
 		// rollout policy based on the durable financial-finality transition, and
 		// no intent is created when SMTP is unavailable at issuance time.
-		if service.sender != nil && session.SettledAt != nil && !session.SettledAt.Before(rollout.AutomaticEmailFrom) && strings.TrimSpace(session.Customer.Email) != "" {
-			return tx.Create(&models.InvoiceDelivery{ID: uuid.New(), InvoiceID: invoiceID, Recipient: session.Customer.Email, Status: "PENDING", MaxAttempts: 8, AvailableAt: issuedAt, CreatedAt: issuedAt, UpdatedAt: issuedAt}).Error
+		if service.sender != nil && session.SettledAt != nil && !session.SettledAt.Before(rollout.AutomaticEmailFrom) && strings.TrimSpace(hydratedSession.Customer.Email) != "" {
+			return tx.Create(&models.InvoiceDelivery{ID: uuid.New(), InvoiceID: invoiceID, Recipient: hydratedSession.Customer.Email, Status: "PENDING", MaxAttempts: 8, AvailableAt: issuedAt, CreatedAt: issuedAt, UpdatedAt: issuedAt}).Error
 		}
 		return nil
 	})
@@ -340,6 +339,112 @@ func (service *Service) EnsureInvoice(ctx context.Context, sessionID uuid.UUID) 
 		return models.ChargingSessionInvoice{}, fmt.Errorf("ensure charging-session invoice: %w", err)
 	}
 	return result, nil
+}
+
+// invoiceIssuanceInputs is the explicit boundary between mutable CMS records
+// and an immutable customer document. Do not add associations to the session
+// query and rely on GORM to populate them incidentally: every rendered input
+// below is loaded by its authoritative ID and tenant-checked before a number
+// is allocated.
+type invoiceIssuanceInputs struct {
+	Session     models.ChargingSession
+	Customer    models.Customer
+	Connector   models.Connector
+	Charger     models.Charger
+	Hub         *models.Hub
+	StartIntent *models.ChargingStartIntent
+	Payment     *models.Payment
+	CPO         models.CPO
+	Settings    models.Settings
+}
+
+func hydrateInvoiceIssuance(tx *gorm.DB, session models.ChargingSession) (invoiceIssuanceInputs, error) {
+	inputs := invoiceIssuanceInputs{Session: session}
+	if err := tx.First(&inputs.Customer, "id = ?", session.CustomerID).Error; err != nil {
+		return invoiceIssuanceInputs{}, fmt.Errorf("hydrate invoice customer: %w", err)
+	}
+	if err := tx.First(&inputs.Connector, "id = ?", session.ConnectorID).Error; err != nil {
+		return invoiceIssuanceInputs{}, fmt.Errorf("hydrate invoice connector: %w", err)
+	}
+	if err := tx.First(&inputs.Charger, "id = ?", session.ChargerID).Error; err != nil {
+		return invoiceIssuanceInputs{}, fmt.Errorf("hydrate invoice charger: %w", err)
+	}
+	if inputs.Charger.HubID != nil {
+		var hub models.Hub
+		if err := tx.First(&hub, "id = ?", *inputs.Charger.HubID).Error; err != nil {
+			return invoiceIssuanceInputs{}, fmt.Errorf("hydrate invoice charging hub: %w", err)
+		}
+		inputs.Hub = &hub
+	}
+	if session.StartIntentID != nil {
+		var intent models.ChargingStartIntent
+		if err := tx.First(&intent, "id = ?", *session.StartIntentID).Error; err != nil {
+			return invoiceIssuanceInputs{}, fmt.Errorf("hydrate invoice start intent: %w", err)
+		}
+		inputs.StartIntent = &intent
+	}
+	var payment models.Payment
+	if err := tx.Where("session_id = ?", session.ID).First(&payment).Error; err == nil {
+		inputs.Payment = &payment
+	} else if !errors.Is(err, gorm.ErrRecordNotFound) {
+		return invoiceIssuanceInputs{}, fmt.Errorf("hydrate invoice payment: %w", err)
+	}
+	if err := tx.First(&inputs.CPO, "id = ?", session.CPOID).Error; err != nil {
+		return invoiceIssuanceInputs{}, fmt.Errorf("hydrate invoice CPO: %w", err)
+	}
+	if err := tx.Where("cpo_id = ?", session.CPOID).First(&inputs.Settings).Error; err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+		return invoiceIssuanceInputs{}, fmt.Errorf("hydrate invoice CPO settings: %w", err)
+	}
+	if err := inputs.validate(); err != nil {
+		return invoiceIssuanceInputs{}, err
+	}
+	return inputs, nil
+}
+
+func (inputs invoiceIssuanceInputs) validate() error {
+	session := inputs.Session
+	switch {
+	case inputs.Customer.ID != session.CustomerID:
+		return errors.New("invoice customer does not match the charging session")
+	case inputs.Customer.CPOID != session.CPOID:
+		return errors.New("invoice customer does not belong to the charging-session CPO")
+	case inputs.Connector.ID != session.ConnectorID:
+		return errors.New("invoice connector does not match the charging session")
+	case inputs.Connector.CPOID != session.CPOID:
+		return errors.New("invoice connector does not belong to the charging-session CPO")
+	case inputs.Connector.ChargerID != session.ChargerID:
+		return errors.New("invoice connector does not belong to the charging-session charger")
+	case inputs.Charger.ID != session.ChargerID:
+		return errors.New("invoice charger does not match the charging session")
+	case inputs.Charger.CPOID != session.CPOID:
+		return errors.New("invoice charger does not belong to the charging-session CPO")
+	case inputs.Charger.HubID == nil && inputs.Hub != nil:
+		return errors.New("invoice hydration found a hub for a hubless charger")
+	case inputs.Charger.HubID != nil && inputs.Hub == nil:
+		return errors.New("invoice charger hub is required but was not hydrated")
+	case inputs.Hub != nil && (inputs.Hub.ID != *inputs.Charger.HubID || inputs.Hub.CPOID != session.CPOID):
+		return errors.New("invoice charging hub does not belong to the charging-session CPO")
+	case inputs.CPO.ID != session.CPOID:
+		return errors.New("invoice CPO does not match the charging session")
+	case session.StartIntentID != nil && (inputs.StartIntent == nil || inputs.StartIntent.ID != *session.StartIntentID):
+		return errors.New("invoice start intent does not match the charging session")
+	case inputs.StartIntent != nil && (inputs.StartIntent.CPOID != session.CPOID || inputs.StartIntent.CustomerID != session.CustomerID || inputs.StartIntent.ChargerID != session.ChargerID || inputs.StartIntent.ConnectorID != session.ConnectorID):
+		return errors.New("invoice start intent does not match the charging session")
+	case inputs.Payment != nil && (inputs.Payment.CPOID != session.CPOID || inputs.Payment.SessionID != session.ID):
+		return errors.New("invoice payment does not match the charging session")
+	}
+	return nil
+}
+
+func (inputs invoiceIssuanceInputs) snapshotSession() models.ChargingSession {
+	session := inputs.Session
+	session.Customer = inputs.Customer
+	session.Connector = inputs.Connector
+	session.Charger = inputs.Charger
+	session.Charger.Hub = inputs.Hub
+	session.StartIntent = inputs.StartIntent
+	session.Payment = inputs.Payment
+	return session
 }
 
 func allocateSerial(tx *gorm.DB, cpoID uuid.UUID, year string, now time.Time) (int64, error) {
@@ -535,19 +640,51 @@ type logoAsset struct {
 	mimeType, hash string
 }
 
-func snapshotLogo(path *string) (logoAsset, bool) {
+// snapshotLogo freezes a configured CPO logo before invoice creation. A blank
+// setting is intentionally optional. Any nonblank but unreadable, invalid, or
+// unsafe setting is an issuance failure, never an invisible loss of branding.
+// Valid pre-invoice paths directly under the historical uploads root are
+// imported to the current private root before the database setting is updated.
+func snapshotLogo(path *string) (logoAsset, bool, *string, error) {
 	if path == nil || strings.TrimSpace(*path) == "" {
-		return logoAsset{}, false
+		return logoAsset{}, false, nil, nil
 	}
 	resolved, info, err := controlledLogoFile(*path)
-	if err != nil || !info.Mode().IsRegular() || info.Size() <= 0 || info.Size() > maxLogoBytes {
-		return logoAsset{}, false
-	}
-	content, err := os.ReadFile(resolved)
+	legacy := false
 	if err != nil {
-		return logoAsset{}, false
+		resolved, info, err = controlledLegacyLogoFile(*path)
+		if err != nil {
+			return logoAsset{}, false, nil, fmt.Errorf("configured invoice logo is unsafe or unavailable: %w", err)
+		}
+		legacy = true
 	}
-	return logoAssetFromContent(content)
+	asset, err := logoAssetFromFile(resolved, info)
+	if err != nil {
+		return logoAsset{}, false, nil, fmt.Errorf("configured invoice logo is invalid: %w", err)
+	}
+	if !legacy {
+		return asset, true, nil, nil
+	}
+	migrated, err := importLegacyLogo(asset)
+	if err != nil {
+		return logoAsset{}, false, nil, fmt.Errorf("import legacy invoice logo: %w", err)
+	}
+	return asset, true, &migrated, nil
+}
+
+func logoAssetFromFile(path string, info os.FileInfo) (logoAsset, error) {
+	if info == nil || !info.Mode().IsRegular() || info.Size() <= 0 || info.Size() > maxLogoBytes {
+		return logoAsset{}, errors.New("invoice logo file is not a bounded regular file")
+	}
+	content, err := os.ReadFile(path)
+	if err != nil {
+		return logoAsset{}, err
+	}
+	asset, ok := logoAssetFromContent(content)
+	if !ok {
+		return logoAsset{}, errors.New("invoice logo is not a complete PNG or JPEG")
+	}
+	return asset, nil
 }
 
 func logoAssetFromContent(content []byte) (logoAsset, bool) {
@@ -594,6 +731,97 @@ func controlledLogoFile(storedPath string) (string, os.FileInfo, error) {
 		return "", nil, errors.New("invoice logo path is unsafe")
 	}
 	return candidate, info, nil
+}
+
+// controlledLegacyLogoFile recognizes only the old application behavior:
+// settings referenced a UUID-named image immediately below uploads/. It does
+// not treat arbitrary paths in the database as legacy files.
+func controlledLegacyLogoFile(storedPath string) (string, os.FileInfo, error) {
+	root, err := filepath.Abs("uploads")
+	if err != nil {
+		return "", nil, err
+	}
+	candidate, err := filepath.Abs(storedPath)
+	if err != nil {
+		return "", nil, err
+	}
+	relative, err := filepath.Rel(root, candidate)
+	if err != nil || relative == "." || relative != filepath.Base(relative) || filepath.IsAbs(relative) || relative == ".." || strings.HasPrefix(relative, ".."+string(filepath.Separator)) {
+		return "", nil, errors.New("invoice logo is outside the historical controlled uploads root")
+	}
+	base := filepath.Base(candidate)
+	if _, err := uuid.Parse(strings.TrimSuffix(base, filepath.Ext(base))); err != nil {
+		return "", nil, errors.New("historical invoice logo does not have an application-generated name")
+	}
+	rootInfo, err := os.Lstat(root)
+	if err != nil || !rootInfo.IsDir() || rootInfo.Mode()&os.ModeSymlink != 0 {
+		return "", nil, errors.New("historical invoice logo root is not a controlled directory")
+	}
+	info, err := os.Lstat(candidate)
+	if err != nil || !info.Mode().IsRegular() || info.Mode()&os.ModeSymlink != 0 {
+		return "", nil, errors.New("historical invoice logo path is unsafe")
+	}
+	return candidate, info, nil
+}
+
+func importLegacyLogo(asset logoAsset) (string, error) {
+	root, err := filepath.Abs(filepath.Join("uploads", "invoice-logos"))
+	if err != nil {
+		return "", err
+	}
+	if err := os.MkdirAll(root, 0750); err != nil {
+		return "", err
+	}
+	rootInfo, err := os.Lstat(root)
+	if err != nil || !rootInfo.IsDir() || rootInfo.Mode()&os.ModeSymlink != 0 {
+		return "", errors.New("invoice logo root is not a controlled directory")
+	}
+	temporary, err := os.CreateTemp(root, ".invoice-logo-*")
+	if err != nil {
+		return "", err
+	}
+	temporaryPath := temporary.Name()
+	defer os.Remove(temporaryPath)
+	if err := temporary.Chmod(0600); err != nil {
+		temporary.Close()
+		return "", err
+	}
+	if _, err := temporary.Write(asset.content); err != nil {
+		temporary.Close()
+		return "", err
+	}
+	if err := temporary.Sync(); err != nil {
+		temporary.Close()
+		return "", err
+	}
+	if err := temporary.Close(); err != nil {
+		return "", err
+	}
+	extension := ".jpg"
+	if asset.mimeType == "image/png" {
+		extension = ".png"
+	}
+	name := asset.hash + extension
+	destination := filepath.Join(root, name)
+	if existing, err := os.Lstat(destination); err == nil {
+		stored, readErr := logoAssetFromFile(destination, existing)
+		if readErr != nil || stored.hash != asset.hash {
+			return "", errors.New("existing imported invoice logo does not match its content hash")
+		}
+		return filepath.Join("uploads", "invoice-logos", name), nil
+	} else if !errors.Is(err, os.ErrNotExist) {
+		return "", err
+	}
+	if err := os.Rename(temporaryPath, destination); err != nil {
+		if existing, statErr := os.Lstat(destination); statErr == nil {
+			stored, readErr := logoAssetFromFile(destination, existing)
+			if readErr == nil && stored.hash == asset.hash {
+				return filepath.Join("uploads", "invoice-logos", name), nil
+			}
+		}
+		return "", err
+	}
+	return filepath.Join("uploads", "invoice-logos", name), nil
 }
 
 func (service *Service) claimGeneration(ctx context.Context) (models.ChargingSessionInvoice, bool, error) {
@@ -1797,7 +2025,7 @@ func (service *Service) deliver(ctx context.Context, delivery models.InvoiceDeli
 		return false, service.failDeliveryBeforeSMTP(ctx, delivery, err)
 	}
 	textBody := invoiceEmailText(snapshot, service.displayZone)
-	prepared, err := service.sender.PrepareInvoice(delivery.Recipient, "Your charging invoice "+invoice.InvoiceNumber, textBody, content, download.Name)
+	prepared, err := service.sender.PrepareInvoice(delivery.Recipient, invoiceEmailSubject(snapshot), textBody, content, download.Name, invoiceIssuerDisplayName(snapshot.Supplier))
 	if err != nil {
 		return false, service.failDeliveryBeforeSMTP(ctx, delivery, err)
 	}
@@ -1839,6 +2067,18 @@ func invoiceEmailText(snapshot issuanceSnapshot, zone *time.Location) string {
 		"Your invoice PDF is attached.",
 	}
 	return strings.Join(compactInvoiceLinesPreservingParagraphs(lines), "\n")
+}
+
+func invoiceEmailSubject(snapshot issuanceSnapshot) string {
+	issuer := invoiceIssuerDisplayName(snapshot.Supplier)
+	if issuer == "" {
+		return "Charging invoice " + snapshot.InvoiceNumber
+	}
+	return issuer + " charging invoice " + snapshot.InvoiceNumber
+}
+
+func invoiceIssuerDisplayName(supplier supplierSnapshot) string {
+	return strings.TrimSpace(supplier.Name)
 }
 
 func compactInvoiceLinesPreservingParagraphs(lines []string) []string {

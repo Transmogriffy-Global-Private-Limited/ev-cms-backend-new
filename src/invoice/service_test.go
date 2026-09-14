@@ -169,6 +169,84 @@ func TestBuildSnapshotUsesHubAsLocationAndKeepsChargerSeparate(t *testing.T) {
 	}
 }
 
+func TestInvoiceIssuanceHydrationFreezesAllAuthoritativeCustomerInputs(t *testing.T) {
+	now := time.Date(2026, time.September, 14, 10, 0, 0, 0, time.UTC)
+	end := now.Add(time.Hour)
+	cpoID, customerID, chargerID, connectorID, hubID, intentID := uuid.New(), uuid.New(), uuid.New(), uuid.New(), uuid.New(), uuid.New()
+	requested := decimal.RequireFromString("30")
+	inputs := invoiceIssuanceInputs{
+		Session:     models.ChargingSession{ID: uuid.New(), CPOID: cpoID, CustomerID: customerID, ChargerID: chargerID, ConnectorID: connectorID, StartIntentID: &intentID, TransactionID: 73, StartTime: now, EndTime: &end, MeterStartWh: 1000, MeterStopWh: int64Pointer(3000), TotalKWh: decimal.RequireFromString("2"), TotalAmount: decimal.RequireFromString("40"), Currency: "INR", SettlementStatus: "SETTLED", TariffSnapshot: models.JSONB{"price_per_unit": "20.00", "units": "kWh"}, TaxSnapshot: models.JSONB{"cgst_rate": "9"}},
+		Customer:    models.Customer{ID: customerID, CPOID: cpoID, FullName: "Customer Name", Email: "customer@example.test"},
+		Connector:   models.Connector{ID: connectorID, CPOID: cpoID, ChargerID: chargerID, ConnectorNumber: 1, ConnectorType: "CCS2", ConnectorTotalCapacity: 47},
+		Charger:     models.Charger{ID: chargerID, CPOID: cpoID, HubID: &hubID, ChargerID: "CH0001", ChargerName: "Station One", ChargerType: "DC"},
+		Hub:         &models.Hub{ID: hubID, CPOID: cpoID, Name: "Authoritative Hub", Address: "1 Charging Road", State: constants.IndianState("West Bengal")},
+		StartIntent: &models.ChargingStartIntent{ID: intentID, CPOID: cpoID, CustomerID: customerID, ChargerID: chargerID, ConnectorID: connectorID, LimitType: constants.ChargingLimitTypeTime, RequestedLimitValue: &requested},
+		Payment:     &models.Payment{ID: uuid.New(), CPOID: cpoID, SessionID: uuid.Nil, PaymentMethod: "WALLET"},
+		CPO:         models.CPO{ID: cpoID, BusinessName: "Issuer Charge Private Limited", CompanyType: constants.CPOCompanyTypeCompany, GSTIN: "27ABCDE1234F1Z5", Address: "10 Issuer Street", City: "Kolkata", State: constants.IndianState("West Bengal"), Pincode: "700001"},
+	}
+	inputs.Payment.SessionID = inputs.Session.ID
+	if err := inputs.validate(); err != nil {
+		t.Fatalf("valid issuance hydration rejected: %v", err)
+	}
+	snapshot := buildSnapshot(uuid.New(), inputs.snapshotSession(), inputs.CPO, inputs.Settings, end, "26-27", 1)
+	if snapshot.Customer.FullName != "Customer Name" || snapshot.Location.HubName != "Authoritative Hub" || snapshot.Location.ChargerName != "Station One" || snapshot.Location.ConnectorType != "CCS2" {
+		t.Fatalf("authoritative hydration was not frozen: %+v", snapshot)
+	}
+	if snapshot.Charging.LimitType == nil || *snapshot.Charging.LimitType != "TIME" || snapshot.Commercial.PaymentMethod == nil || *snapshot.Commercial.PaymentMethod != "WALLET" {
+		t.Fatalf("start intent or payment was not frozen: %+v", snapshot)
+	}
+}
+
+func TestInvoiceIssuanceHydrationRejectsRelationalMismatches(t *testing.T) {
+	valid := validInvoiceIssuanceInputs()
+	for name, mutate := range map[string]func(*invoiceIssuanceInputs){
+		"missing charger":   func(inputs *invoiceIssuanceInputs) { inputs.Charger = models.Charger{} },
+		"customer tenant":   func(inputs *invoiceIssuanceInputs) { inputs.Customer.CPOID = uuid.New() },
+		"connector tenant":  func(inputs *invoiceIssuanceInputs) { inputs.Connector.CPOID = uuid.New() },
+		"connector charger": func(inputs *invoiceIssuanceInputs) { inputs.Connector.ChargerID = uuid.New() },
+		"charger tenant":    func(inputs *invoiceIssuanceInputs) { inputs.Charger.CPOID = uuid.New() },
+		"hub tenant":        func(inputs *invoiceIssuanceInputs) { inputs.Hub.CPOID = uuid.New() },
+		"start intent":      func(inputs *invoiceIssuanceInputs) { inputs.StartIntent.CPOID = uuid.New() },
+		"payment":           func(inputs *invoiceIssuanceInputs) { inputs.Payment.CPOID = uuid.New() },
+	} {
+		t.Run(name, func(t *testing.T) {
+			inputs := valid
+			mutate(&inputs)
+			if err := inputs.validate(); err == nil {
+				t.Fatal("mismatched issuance inputs were accepted")
+			}
+		})
+	}
+}
+
+func TestInvoiceIssuanceHydrationAllowsHublessChargerWithExplicitFallback(t *testing.T) {
+	inputs := validInvoiceIssuanceInputs()
+	inputs.Charger.HubID = nil
+	inputs.Hub = nil
+	if err := inputs.validate(); err != nil {
+		t.Fatalf("hubless charger rejected: %v", err)
+	}
+	snapshot := buildSnapshot(uuid.New(), inputs.snapshotSession(), inputs.CPO, inputs.Settings, time.Now().UTC(), "26-27", 1)
+	location := invoiceLocationLines(snapshot.Location)
+	if snapshot.Location.ChargerName == "" || snapshot.Location.HubName != "" || len(location) != 1 || location[0] != "Location unavailable" {
+		t.Fatalf("hubless charging location snapshot = %+v, rendered %q", snapshot.Location, location)
+	}
+}
+
+func validInvoiceIssuanceInputs() invoiceIssuanceInputs {
+	cpoID, customerID, chargerID, connectorID, hubID, intentID, sessionID := uuid.New(), uuid.New(), uuid.New(), uuid.New(), uuid.New(), uuid.New(), uuid.New()
+	return invoiceIssuanceInputs{
+		Session:     models.ChargingSession{ID: sessionID, CPOID: cpoID, CustomerID: customerID, ChargerID: chargerID, ConnectorID: connectorID, StartIntentID: &intentID},
+		Customer:    models.Customer{ID: customerID, CPOID: cpoID},
+		Connector:   models.Connector{ID: connectorID, CPOID: cpoID, ChargerID: chargerID},
+		Charger:     models.Charger{ID: chargerID, CPOID: cpoID, HubID: &hubID, ChargerID: "CH0001", ChargerName: "Station One"},
+		Hub:         &models.Hub{ID: hubID, CPOID: cpoID},
+		StartIntent: &models.ChargingStartIntent{ID: intentID, CPOID: cpoID, CustomerID: customerID, ChargerID: chargerID, ConnectorID: connectorID},
+		Payment:     &models.Payment{ID: uuid.New(), CPOID: cpoID, SessionID: sessionID},
+		CPO:         models.CPO{ID: cpoID},
+	}
+}
+
 func TestCustomerInvoicePresentationOmitsBlankLabelsAndUsesHubFallback(t *testing.T) {
 	snapshot := customerPresentationSnapshot()
 	snapshot.Location = locationSnapshot{ChargerName: "Do not use as location"}
@@ -313,6 +391,130 @@ func TestLogoAssetFromContentRejectsTruncatedPNG(t *testing.T) {
 	if _, ok := logoAssetFromContent(truncatedPNG(t)); ok {
 		t.Fatal("truncated PNG was accepted as an invoice snapshot logo")
 	}
+}
+
+func TestSnapshotLogoCurrentAndLegacyStorageFreezeTheSameAsset(t *testing.T) {
+	root := t.TempDir()
+	t.Chdir(root)
+	content := validInvoiceLogoPNG(t)
+	if err := os.MkdirAll(filepath.Join("uploads", "invoice-logos"), 0750); err != nil {
+		t.Fatalf("create current logo root: %v", err)
+	}
+	currentPath := filepath.Join("uploads", "invoice-logos", "current.png")
+	if err := os.WriteFile(currentPath, content, 0600); err != nil {
+		t.Fatalf("write current logo: %v", err)
+	}
+	currentAsset, currentOK, currentMigration, err := snapshotLogo(&currentPath)
+	if err != nil || !currentOK || currentMigration != nil {
+		t.Fatalf("current configured logo = (%v, %v, %v), want frozen unchanged asset", currentOK, currentMigration, err)
+	}
+
+	legacyPath := filepath.Join("uploads", uuid.NewString()+".legacy-upload")
+	if err := os.WriteFile(legacyPath, content, 0600); err != nil {
+		t.Fatalf("write legacy logo: %v", err)
+	}
+	legacyAsset, legacyOK, legacyMigration, err := snapshotLogo(&legacyPath)
+	if err != nil || !legacyOK || legacyMigration == nil {
+		t.Fatalf("legacy configured logo = (%v, %v, %v), want safely imported frozen asset", legacyOK, legacyMigration, err)
+	}
+	if currentAsset.hash != legacyAsset.hash || currentAsset.mimeType != legacyAsset.mimeType {
+		t.Fatalf("legacy import changed frozen logo asset: current=%+v legacy=%+v", currentAsset, legacyAsset)
+	}
+	if _, info, err := controlledLogoFile(*legacyMigration); err != nil || info.Size() != int64(len(content)) {
+		t.Fatalf("legacy logo did not import into controlled storage: info=%v err=%v", info, err)
+	}
+	snapshot := customerPresentationSnapshot()
+	snapshot.LogoSHA256 = legacyAsset.hash
+	pdf, err := renderInvoice(snapshot, rendererVersion, models.InvoiceAsset{MIMEType: legacyAsset.mimeType, SHA256: legacyAsset.hash, Content: legacyAsset.content}, true, time.UTC)
+	withoutLogo, withoutErr := renderInvoice(customerPresentationSnapshot(), rendererVersion, models.InvoiceAsset{}, false, time.UTC)
+	if err != nil || withoutErr != nil || len(pdf) <= len(withoutLogo) {
+		t.Fatalf("frozen CPO logo was not rendered: err=%v", err)
+	}
+}
+
+func TestSnapshotLogoRejectsInvalidConfiguredPathsAndPreservesFrozenAsset(t *testing.T) {
+	root := t.TempDir()
+	t.Chdir(root)
+	if err := os.MkdirAll(filepath.Join("uploads", "invoice-logos"), 0750); err != nil {
+		t.Fatalf("create current logo root: %v", err)
+	}
+	malformed := filepath.Join("uploads", "invoice-logos", "malformed.png")
+	if err := os.WriteFile(malformed, []byte("not an image"), 0600); err != nil {
+		t.Fatalf("write malformed logo: %v", err)
+	}
+	missing := filepath.Join("uploads", "invoice-logos", "missing.png")
+	outside := filepath.Join(root, "outside.png")
+	if err := os.WriteFile(outside, validInvoiceLogoPNG(t), 0600); err != nil {
+		t.Fatalf("write outside logo: %v", err)
+	}
+	for _, path := range []string{malformed, missing, outside} {
+		if _, ok, _, err := snapshotLogo(&path); err == nil || ok {
+			t.Fatalf("invalid configured logo %q = (ok=%v, err=%v), want distinguishable failure", path, ok, err)
+		}
+	}
+	if asset, ok, migrated, err := snapshotLogo(nil); err != nil || ok || migrated != nil || asset.hash != "" {
+		t.Fatalf("no configured logo = (%+v, %v, %v, %v), want allowed absence", asset, ok, migrated, err)
+	}
+	first, ok := logoAssetFromContent(validInvoiceLogoPNG(t))
+	if !ok {
+		t.Fatal("create first frozen logo asset")
+	}
+	second, ok := logoAssetFromContent(validInvoiceLogoPNGWithSize(t, 5, 3))
+	if !ok || second.hash == first.hash {
+		t.Fatal("a later valid CPO logo did not produce a distinct asset")
+	}
+	snapshot := customerPresentationSnapshot()
+	snapshot.LogoSHA256 = first.hash
+	frozenPDF, frozenErr := renderInvoice(snapshot, rendererVersion, models.InvoiceAsset{MIMEType: first.mimeType, SHA256: first.hash, Content: first.content}, true, time.UTC)
+	laterPDF, laterErr := renderInvoice(snapshot, rendererVersion, models.InvoiceAsset{MIMEType: second.mimeType, SHA256: second.hash, Content: second.content}, true, time.UTC)
+	if frozenErr != nil || laterErr != nil || len(frozenPDF) <= len(laterPDF) {
+		t.Fatal("later CPO logo could alter the already-frozen invoice asset")
+	}
+
+	target := filepath.Join("uploads", "invoice-logos", "link.png")
+	if err := os.Symlink(outside, target); err != nil {
+		t.Skipf("symlink creation unavailable in this environment: %v", err)
+	}
+	if _, ok, _, err := snapshotLogo(&target); err == nil || ok {
+		t.Fatalf("symlinked configured logo = (ok=%v, err=%v), want rejection", ok, err)
+	}
+}
+
+func TestInvoiceIssuerIdentityUsesCPOWithoutPlatformBranding(t *testing.T) {
+	snapshot := customerPresentationSnapshot()
+	snapshot.Supplier = supplierSnapshot{Name: "CPO Sunrise Mobility", CompanyType: "Company", GSTIN: "27ABCDE1234F1Z5", Address: "5 Issuer Lane", City: "Kolkata", State: "West Bengal", Pincode: "700001"}
+	sections := customerInvoiceSections(snapshot, time.UTC)
+	if len(sections) == 0 || sections[0].Title != "Supplier" || !strings.Contains(strings.Join(sections[0].Lines, "\n"), "CPO Sunrise Mobility") {
+		t.Fatalf("PDF supplier section does not use CPO identity: %+v", sections)
+	}
+	email := invoiceEmailText(snapshot, time.UTC)
+	subject := invoiceEmailSubject(snapshot)
+	for _, value := range []string{"CPO Sunrise Mobility", "Riverside Hub", "42 River Road"} {
+		if !strings.Contains(email, value) {
+			t.Fatalf("CPO email omitted %q: %s", value, email)
+		}
+	}
+	if !strings.Contains(subject, "CPO Sunrise Mobility") || invoiceIssuerDisplayName(snapshot.Supplier) != "CPO Sunrise Mobility" {
+		t.Fatalf("invoice subject/sender do not identify the CPO: subject=%q sender=%q", subject, invoiceIssuerDisplayName(snapshot.Supplier))
+	}
+	for _, forbidden := range []string{"TransEV", "CMS", "platform", "Powered by"} {
+		if strings.Contains(email, forbidden) || strings.Contains(subject, forbidden) {
+			t.Fatalf("customer invoice identity leaked infrastructure wording %q", forbidden)
+		}
+	}
+}
+
+func validInvoiceLogoPNG(t *testing.T) []byte {
+	return validInvoiceLogoPNGWithSize(t, 4, 3)
+}
+
+func validInvoiceLogoPNGWithSize(t *testing.T, width, height int) []byte {
+	t.Helper()
+	var encoded bytes.Buffer
+	if err := png.Encode(&encoded, image.NewRGBA(image.Rect(0, 0, width, height))); err != nil {
+		t.Fatalf("encode invoice logo: %v", err)
+	}
+	return encoded.Bytes()
 }
 
 func truncatedPNG(t *testing.T) []byte {

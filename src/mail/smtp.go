@@ -112,12 +112,13 @@ func (sender *SMTPSender) PrepareInvoice(
 	textBody string,
 	pdf []byte,
 	filename string,
+	issuerDisplayName string,
 ) (func(context.Context) error, error) {
 	if len(pdf) == 0 || !strings.HasSuffix(strings.ToLower(filename), ".pdf") {
 		return nil, errors.New("invoice attachment is invalid")
 	}
 	message := gomail.NewMsg()
-	if err := message.FromFormat(sender.fromName, sender.fromAddress); err != nil {
+	if err := message.FromFormat(invoiceFromName(issuerDisplayName, sender.fromName), sender.fromAddress); err != nil {
 		return nil, fmt.Errorf("set mail sender: %w", err)
 	}
 	if err := message.To(toEmail); err != nil {
@@ -131,6 +132,15 @@ func (sender *SMTPSender) PrepareInvoice(
 	}
 	prepared := &PreparedInvoice{sender: sender, message: message}
 	return prepared.Send, nil
+}
+
+// invoiceFromName keeps the authenticated SMTP address unchanged while using
+// the CPO's commercial identity in clients that display a sender name.
+func invoiceFromName(issuerDisplayName, transportFromName string) string {
+	if issuer := strings.TrimSpace(issuerDisplayName); issuer != "" {
+		return issuer
+	}
+	return transportFromName
 }
 
 // renderMessageContent is retained solely for previously queued legacy jobs
