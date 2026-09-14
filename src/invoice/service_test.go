@@ -13,8 +13,10 @@ import (
 	"time"
 
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/config"
+	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/constants"
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/models"
 	"github.com/google/uuid"
+	"github.com/shopspring/decimal"
 	"gorm.io/gorm"
 )
 
@@ -115,6 +117,131 @@ func TestInvoiceFontsShapeIndicText(t *testing.T) {
 		if shaped == nil || shaped.Bounds().W() <= 0 || shaped.Bounds().H() <= 0 {
 			t.Fatalf("Indic text did not form a drawable shaped run: %q", text)
 		}
+	}
+}
+
+func TestBuildSnapshotUsesHubAsLocationAndKeepsChargerSeparate(t *testing.T) {
+	zone := time.FixedZone("IST", 5*60*60+30*60)
+	now := time.Date(2026, time.September, 14, 9, 30, 0, 0, time.UTC)
+	end := now.Add(75 * time.Minute)
+	phone, paymentMethod := "+919999999999", "WALLET"
+	requested := decimal.RequireFromString("45")
+	session := models.ChargingSession{
+		ID:               uuid.New(),
+		TransactionID:    42,
+		StartTime:        now,
+		EndTime:          &end,
+		MeterStartWh:     1000,
+		MeterStopWh:      int64Pointer(6250),
+		TotalKWh:         decimal.RequireFromString("5.250"),
+		TotalAmount:      decimal.RequireFromString("126.00"),
+		Currency:         "INR",
+		SettlementStatus: "SETTLED",
+		Customer:         models.Customer{ID: uuid.New(), FullName: "প্রিয়া शर्मा", Email: "priya@example.test", Phone: &phone},
+		Charger: models.Charger{ChargerID: "CP0042", ChargerName: "Riverside DC", ChargerType: "Fast charger", Hub: &models.Hub{
+			Name: "নদী তীর Hub", Address: "42 River Road", State: constants.IndianState("West Bengal"),
+		}},
+		Connector:   models.Connector{ConnectorNumber: 2, ConnectorType: "CCS2", ConnectorTotalCapacity: 60},
+		StartIntent: &models.ChargingStartIntent{LimitType: constants.ChargingLimitTypeTime, RequestedLimitValue: &requested},
+		Payment:     &models.Payment{PaymentMethod: paymentMethod},
+	}
+	snapshot := buildSnapshot(uuid.New(), session, models.CPO{BusinessName: "Example Charge", Address: "1 Supplier Street", City: "Kolkata", State: constants.IndianState("West Bengal"), Pincode: "700001"}, models.Settings{}, end, "26-27", 1)
+	if snapshot.Location.HubName != "নদী তীর Hub" || snapshot.Location.HubAddress != "42 River Road" || snapshot.Location.HubState != "West Bengal" {
+		t.Fatalf("Hub location snapshot = %+v", snapshot.Location)
+	}
+	if snapshot.Location.ChargerName != "Riverside DC" || snapshot.Location.ChargerCode != "CP0042" || snapshot.Location.ConnectorNumber != 2 {
+		t.Fatalf("charger identity was not kept separate: %+v", snapshot.Location)
+	}
+	if snapshot.Commercial.PaymentMethod == nil || *snapshot.Commercial.PaymentMethod != "WALLET" {
+		t.Fatalf("payment method snapshot = %v", snapshot.Commercial.PaymentMethod)
+	}
+	if location := invoiceLocationLines(snapshot.Location); len(location) != 3 || location[0] != "নদী তীর Hub" || location[1] != "42 River Road" || location[2] != "West Bengal" {
+		t.Fatalf("customer location presentation = %q", location)
+	}
+	email := invoiceEmailText(snapshot, zone)
+	for _, want := range []string{"নদী তীর Hub", "42 River Road", snapshot.InvoiceNumber} {
+		if !strings.Contains(email, want) {
+			t.Fatalf("email omitted customer-facing value %q: %s", want, email)
+		}
+	}
+	if strings.Contains(email, "Riverside DC") || strings.Contains(email, "immutable invoice") {
+		t.Fatalf("email leaked charger fallback or backend wording: %s", email)
+	}
+}
+
+func TestCustomerInvoicePresentationOmitsBlankLabelsAndUsesHubFallback(t *testing.T) {
+	snapshot := customerPresentationSnapshot()
+	snapshot.Location = locationSnapshot{ChargerName: "Do not use as location"}
+	snapshot.Customer.Email = ""
+	snapshot.Customer.Phone = nil
+	snapshot.Commercial.PaymentMethod = nil
+	snapshot.Charging.OCPPStopReason = nil
+	sections := customerInvoiceSections(snapshot, time.UTC)
+	var location []string
+	for _, section := range sections {
+		if section.Title == "Charging location" {
+			location = section.Lines
+		}
+		for _, line := range section.Lines {
+			if strings.TrimSpace(line) == "" || strings.HasSuffix(strings.TrimSpace(line), ":") {
+				t.Fatalf("blank customer-facing label in %q: %q", section.Title, line)
+			}
+			for _, forbidden := range []string{"Phone:", "Payment method:", "Charger stop reason:", "CMS/HAL", "OCPP"} {
+				if strings.Contains(line, forbidden) {
+					t.Fatalf("customer presentation contains %q in %q", forbidden, line)
+				}
+			}
+		}
+	}
+	if len(location) != 1 || location[0] != "Location unavailable" {
+		t.Fatalf("hubless location = %q, want explicit fallback", location)
+	}
+	if email := invoiceEmailText(snapshot, time.UTC); !strings.Contains(email, "Charging location: Location unavailable") || strings.Contains(email, "Do not use as location") {
+		t.Fatalf("hubless email location = %s", email)
+	}
+}
+
+func TestRenderPDFCustomerPresentationFitsOnePage(t *testing.T) {
+	pdf, err := renderInvoice(customerPresentationSnapshot(), rendererVersion, models.InvoiceAsset{}, false, time.UTC)
+	if err != nil {
+		t.Fatalf("render one-page invoice: %v", err)
+	}
+	if pages := bytes.Count(pdf, []byte("/Type/Page/")); pages != 1 {
+		t.Fatalf("one-page invoice rendered %d pages", pages)
+	}
+}
+
+func TestRenderPDFCustomerPresentationPaginatesLongUnicodeContent(t *testing.T) {
+	snapshot := customerPresentationSnapshot()
+	snapshot.Supplier.Name = strings.Repeat("দীর্ঘ সরবরাহকারী नाम ", 18)
+	snapshot.Customer.FullName = strings.Repeat("দীর্ঘ গ্রাহক नाम ", 18)
+	snapshot.Location.HubName = strings.Repeat("দীর্ঘ হাব स्थान ", 18)
+	snapshot.Location.HubAddress = strings.Repeat("42 দীর্ঘ রাস্তা मार्ग ", 30)
+	snapshot.InvoiceNote = strings.Repeat("আপনার চার্জিং অভিজ্ঞতার জন্য धन्यवाद।\n", 90)
+	pdf, err := renderInvoice(snapshot, rendererVersion, models.InvoiceAsset{}, false, time.UTC)
+	if err != nil {
+		t.Fatalf("render multi-page invoice: %v", err)
+	}
+	if pages := bytes.Count(pdf, []byte("/Type/Page/")); pages < 2 {
+		t.Fatalf("long Unicode invoice rendered %d pages, want multiple pages", pages)
+	}
+}
+
+func customerPresentationSnapshot() issuanceSnapshot {
+	now := time.Date(2026, time.September, 14, 10, 0, 0, 0, time.UTC)
+	end := now.Add(80 * time.Minute)
+	limit, requested, payment, initiator, reason, stop := "TIME", "45", "WALLET", "APP", "customer_requested", "Local"
+	energy, duration := int64(5250), int64(2700)
+	return issuanceSnapshot{
+		SchemaVersion: snapshotVersion,
+		InvoiceNumber: "INV/26-27/000001",
+		IssuedAt:      end,
+		Supplier:      supplierSnapshot{Name: "Example Charge", CompanyType: "Private Limited", GSTIN: "27ABCDE1234F1Z5", Address: "1 Supplier Street", City: "Kolkata", State: "West Bengal", Pincode: "700001"},
+		Customer:      customerSnapshot{FullName: "Priya Das", Email: "priya@example.test"},
+		Location:      locationSnapshot{HubName: "Riverside Hub", HubAddress: "42 River Road", HubState: "West Bengal", ChargerCode: "CP0042", ChargerName: "Riverside DC", ChargerType: "Fast charger", ConnectorNumber: 2, ConnectorType: "CCS2", RatedPowerKW: 60},
+		Charging:      chargingSnapshot{SessionID: "00000000-0000-0000-0000-000000000001", OCPPTransactionID: 42, StartedAt: now, EndedAt: &end, DurationSeconds: 4800, MeterStartWh: 1000, MeterStopWh: int64Pointer(6250), LimitType: &limit, RequestedLimitValue: &requested, EnergyLimitWh: &energy, MaxDurationSeconds: &duration, RequestedStopInitiator: &initiator, RequestedStopReason: &reason, OCPPStopReason: &stop},
+		Commercial:    commercialSnapshot{TotalKWh: "5.250", TotalAmount: "126.00", Currency: "INR", SettlementStatus: "SETTLED", PaymentMethod: &payment, Tariff: invoiceTariffSnapshot{BillingUnit: stringPointer("kWh"), PricePerUnit: stringPointer("20.00"), TariffType: stringPointer("FIXED")}, Tax: invoiceTaxSnapshot{CGSTRate: stringPointer("9"), SGSTRate: stringPointer("9")}},
+		InvoiceNote:   "Thank you for charging with us.",
 	}
 }
 

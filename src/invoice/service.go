@@ -944,12 +944,16 @@ func renderPDFV1(snapshot issuanceSnapshot, asset models.InvoiceAsset, hasAsset 
 		if document == nil {
 			return
 		}
-		footer := fonts.textBox(fmt.Sprintf("Charging Session Invoice %s · Page %d", snapshot.InvoiceNumber, page), 7, 178, false)
+		footer := fonts.textBox(fmt.Sprintf("Invoice %s · Page %d", snapshot.InvoiceNumber, page), 7, 178, false)
 		context.DrawText(16, 10, footer)
 		document.RenderTo(renderer)
 	}
-	newPage := func() {
-		finishPage()
+	var newPage func()
+	newPage = func() {
+		if document != nil {
+			finishPage()
+			renderer.NewPage(210, 297)
+		}
 		page++
 		document = canvas.New(210, 297)
 		context = canvas.NewContext(document)
@@ -958,18 +962,24 @@ func renderPDFV1(snapshot issuanceSnapshot, asset models.InvoiceAsset, hasAsset 
 		if page == 1 {
 			heading := fonts.textBox("Charging Session Invoice", 15, 178, true)
 			context.DrawText(16, y, heading)
-			y -= heading.Bounds().H() + 1.8
-			issued := fonts.textBox("Invoice "+snapshot.InvoiceNumber+" | Issued "+snapshot.IssuedAt.In(zone).Format("02 Jan 2006, 15:04 MST"), 9, 145, false)
-			context.DrawText(16, y, issued)
-			y -= issued.Bounds().H() + 2
+			issued := fonts.textBox("Invoice number: "+snapshot.InvoiceNumber+"\nIssued: "+formatInvoiceTime(snapshot.IssuedAt, zone), 8.5, 104, false)
+			context.DrawText(16, y-heading.Bounds().H()-1.8, issued)
+			amount := fonts.textBox("Final amount\n"+formatMoney(snapshot.Commercial.Currency, snapshot.Commercial.TotalAmount), 13, 58, true)
+			context.DrawText(136, y, amount)
+			status := invoiceHeaderStatus(snapshot.Commercial)
+			if status != "" {
+				statusText := fonts.textBox(status, 7.5, 58, false)
+				context.DrawText(136, y-amount.Bounds().H()-1.2, statusText)
+			}
 			if hasAsset && asset.SHA256 == snapshot.LogoSHA256 {
 				if imageValue, _, imageErr := image.Decode(bytes.NewReader(asset.Content)); imageErr == nil {
-					context.DrawImage(170, 260, imageValue, canvas.DPMM(5))
+					context.DrawImage(170, 249, imageValue, canvas.DPMM(4))
 				}
 			}
+			y -= maxFloat(heading.Bounds().H()+issued.Bounds().H()+3, amount.Bounds().H()+10)
 			return
 		}
-		continued := fonts.textBox("Charging Session Invoice "+snapshot.InvoiceNumber+" (continued)", 10.5, 178, true)
+		continued := fonts.textBox("Charging Session Invoice · continued", 10.5, 178, true)
 		context.DrawText(16, y, continued)
 		y -= continued.Bounds().H() + 3
 	}
@@ -985,32 +995,258 @@ func renderPDFV1(snapshot issuanceSnapshot, asset models.InvoiceAsset, hasAsset 
 		context.DrawText(16, y, text)
 		y -= text.Bounds().H() + 1.8
 	}
-	section := func(title string, lines []string) {
+	section := func(value customerInvoiceSection) {
+		lines := compactInvoiceLines(value.Lines)
+		if strings.TrimSpace(value.Title) == "" || len(lines) == 0 {
+			return
+		}
+		title := fonts.textBox(value.Title, 10.5, 178, true)
+		first := fonts.textBox(lines[0], 8.5, 178, false)
+		if y-title.Bounds().H()-first.Bounds().H()-4 < 18 {
+			newPage()
+		}
 		y -= 2
-		draw(title, 10.5, true)
+		context.DrawText(16, y, title)
+		y -= title.Bounds().H() + 1.8
 		for _, line := range lines {
 			draw(line, 8.5, false)
 		}
 	}
-	section("Supplier", []string{snapshot.Supplier.Name, snapshot.Supplier.CompanyType, optionalTextLine("GSTIN", snapshot.Supplier.GSTIN), snapshot.Supplier.Address, strings.TrimSpace(snapshot.Supplier.City + ", " + snapshot.Supplier.State + " " + snapshot.Supplier.Pincode)})
-	section("Customer", []string{snapshot.Customer.FullName, snapshot.Customer.Email, optionalLine("Phone", snapshot.Customer.Phone)})
-	section("Charging location", []string{nonEmpty(snapshot.Location.HubName, "Charging location not recorded"), snapshot.Location.HubAddress, "Charger: " + snapshot.Location.ChargerCode + " - " + snapshot.Location.ChargerName, fmt.Sprintf("Connector: %d %s", snapshot.Location.ConnectorNumber, snapshot.Location.ConnectorType)})
-	end := "not recorded"
-	if snapshot.Charging.EndedAt != nil {
-		end = snapshot.Charging.EndedAt.In(zone).Format(time.RFC3339)
-	}
-	section("Charging session", []string{"Session reference: " + snapshot.Charging.SessionID, fmt.Sprintf("OCPP transaction: %d", snapshot.Charging.OCPPTransactionID), "Started: " + snapshot.Charging.StartedAt.In(zone).Format(time.RFC3339), "Ended: " + end, fmt.Sprintf("Duration: %s", (time.Duration(snapshot.Charging.DurationSeconds) * time.Second).String()), fmt.Sprintf("Meter: %d Wh to %s", snapshot.Charging.MeterStartWh, optionalInt(snapshot.Charging.MeterStopWh)), "Energy delivered: " + snapshot.Commercial.TotalKWh + " kWh", optionalLine("Initial SoC", snapshot.Charging.InitialSoCPercent), optionalLine("Latest observed SoC", snapshot.Charging.LatestSoCPercent), optionalTime("SoC observed", snapshot.Charging.SoCObservedAt, zone)})
-	section("Requested plan", []string{optionalLine("Limit type", snapshot.Charging.LimitType), optionalLine("Requested limit", snapshot.Charging.RequestedLimitValue), optionalIntWithSource("Energy limit", snapshot.Charging.EnergyLimitWh, "Wh", snapshot.Charging.EnergyLimitSource), optionalIntWithSource("Time limit", snapshot.Charging.MaxDurationSeconds, "seconds", snapshot.Charging.DurationLimitSource)})
-	section("Stop provenance", []string{optionalLine("CMS/HAL requested stop initiator", snapshot.Charging.RequestedStopInitiator), optionalLine("CMS/HAL requested stop reason", snapshot.Charging.RequestedStopReason), optionalLine("Charger-reported OCPP stop reason", snapshot.Charging.OCPPStopReason)})
-	section("Commercial settlement", commercialLines(snapshot.Commercial))
-	if snapshot.InvoiceNote != "" {
-		section("Note", []string{snapshot.InvoiceNote})
+	for _, value := range customerInvoiceSections(snapshot, zone) {
+		section(value)
 	}
 	finishPage()
 	if err := renderer.Close(); err != nil {
 		return nil, err
 	}
 	return output.Bytes(), nil
+}
+
+type customerInvoiceSection struct {
+	Title string
+	Lines []string
+}
+
+func customerInvoiceSections(snapshot issuanceSnapshot, zone *time.Location) []customerInvoiceSection {
+	return []customerInvoiceSection{
+		{Title: "Supplier", Lines: supplierInvoiceLines(snapshot.Supplier)},
+		{Title: "Customer", Lines: compactInvoiceLines([]string{snapshot.Customer.FullName, snapshot.Customer.Email, optionalLine("Phone", snapshot.Customer.Phone)})},
+		{Title: "Charging location", Lines: invoiceLocationLines(snapshot.Location)},
+		{Title: "Charger and connector", Lines: invoiceChargerLines(snapshot.Location)},
+		{Title: "Charging summary", Lines: invoiceChargingLines(snapshot.Charging, snapshot.Commercial, zone)},
+		{Title: "Pricing and tax", Lines: commercialLines(snapshot.Commercial)},
+		{Title: "Session details", Lines: invoiceSessionDetailLines(snapshot.Charging, snapshot.Commercial.Currency)},
+		{Title: "Message from supplier", Lines: splitInvoiceText(snapshot.InvoiceNote)},
+	}
+}
+
+func supplierInvoiceLines(supplier supplierSnapshot) []string {
+	return compactInvoiceLines([]string{supplier.Name, supplier.CompanyType, optionalTextLine("GSTIN", supplier.GSTIN), supplier.Address, joinInvoiceParts(", ", supplier.City, supplier.State, supplier.Pincode)})
+}
+
+func invoiceLocationLines(location locationSnapshot) []string {
+	if strings.TrimSpace(location.HubName) == "" {
+		return []string{"Location unavailable"}
+	}
+	return compactInvoiceLines([]string{location.HubName, location.HubAddress, location.HubState})
+}
+
+func invoiceChargerLines(location locationSnapshot) []string {
+	charger := joinInvoiceParts(" · ", location.ChargerName, optionalTextLine("ID", location.ChargerCode))
+	if charger == "" {
+		charger = "Charger unavailable"
+	}
+	connector := ""
+	if location.ConnectorNumber > 0 {
+		connector = fmt.Sprintf("Connector %d", location.ConnectorNumber)
+	}
+	connector = joinInvoiceParts(" · ", connector, location.ConnectorType, optionalPower(location.RatedPowerKW))
+	return compactInvoiceLines([]string{charger, connector, location.ChargerType})
+}
+
+func invoiceChargingLines(charging chargingSnapshot, commercial commercialSnapshot, zone *time.Location) []string {
+	lines := []string{optionalInvoiceTime("Started", charging.StartedAt, zone), optionalInvoiceTime("Ended", charging.EndedAt, zone), "Charging time: " + formatDuration(charging.DurationSeconds), optionalTextLine("Energy delivered", formatKWh(commercial.TotalKWh))}
+	return compactInvoiceLines(lines)
+}
+
+func invoiceSessionDetailLines(charging chargingSnapshot, currency string) []string {
+	lines := []string{optionalTextLine("Session reference", charging.SessionID)}
+	if charging.OCPPTransactionID > 0 {
+		lines = append(lines, fmt.Sprintf("Charger transaction ID: %d", charging.OCPPTransactionID))
+	}
+	lines = append(lines, optionalMeterReadings(charging.MeterStartWh, charging.MeterStopWh), optionalLimitDescription(charging, currency), optionalLine("Requested stop", humanStopDescription(charging.RequestedStopInitiator, charging.RequestedStopReason)), optionalTextLine("Charger stop reason", humanValue(charging.OCPPStopReason)))
+	return compactInvoiceLines(lines)
+}
+
+func compactInvoiceLines(lines []string) []string {
+	result := make([]string, 0, len(lines))
+	for _, line := range lines {
+		if trimmed := strings.TrimSpace(line); trimmed != "" {
+			result = append(result, trimmed)
+		}
+	}
+	return result
+}
+
+func splitInvoiceText(value string) []string {
+	return compactInvoiceLines(strings.Split(value, "\n"))
+}
+
+func joinInvoiceParts(separator string, values ...string) string {
+	return strings.Join(compactInvoiceLines(values), separator)
+}
+
+func formatInvoiceTime(value time.Time, zone *time.Location) string {
+	if value.IsZero() {
+		return ""
+	}
+	return value.In(zone).Format("02 Jan 2006, 3:04 PM MST")
+}
+
+func optionalInvoiceTime(label string, value any, zone *time.Location) string {
+	switch typed := value.(type) {
+	case time.Time:
+		if text := formatInvoiceTime(typed, zone); text != "" {
+			return label + ": " + text
+		}
+	case *time.Time:
+		if typed != nil {
+			return optionalInvoiceTime(label, *typed, zone)
+		}
+	}
+	return ""
+}
+
+func formatDuration(seconds int64) string {
+	if seconds < 60 {
+		return "less than a minute"
+	}
+	hours, minutes := seconds/3600, (seconds%3600)/60
+	if hours == 0 {
+		return fmt.Sprintf("%d min", minutes)
+	}
+	if minutes == 0 {
+		return fmt.Sprintf("%d hr", hours)
+	}
+	return fmt.Sprintf("%d hr %d min", hours, minutes)
+}
+
+func formatKWh(value string) string {
+	if strings.TrimSpace(value) == "" {
+		return ""
+	}
+	return value + " kWh"
+}
+
+func formatKWhFromWh(value int64) string {
+	text := fmt.Sprintf("%.3f", float64(value)/1000)
+	text = strings.TrimRight(strings.TrimRight(text, "0"), ".")
+	return text + " kWh"
+}
+
+func formatMoney(currency, amount string) string {
+	return joinInvoiceParts(" ", currency, amount)
+}
+
+func optionalPower(power float64) string {
+	if power <= 0 {
+		return ""
+	}
+	return fmt.Sprintf("%.1f kW", power)
+}
+
+func optionalMeterReadings(start int64, stop *int64) string {
+	if stop == nil {
+		return ""
+	}
+	return "Meter readings: " + formatKWhFromWh(start) + " to " + formatKWhFromWh(*stop)
+}
+
+func optionalLimitDescription(charging chargingSnapshot, currency string) string {
+	if charging.LimitType == nil || strings.TrimSpace(*charging.LimitType) == "" {
+		return ""
+	}
+	limit := humanLimitType(*charging.LimitType)
+	if charging.RequestedLimitValue == nil || strings.TrimSpace(*charging.RequestedLimitValue) == "" {
+		return "Selected limit: " + limit
+	}
+	value := *charging.RequestedLimitValue
+	switch strings.TrimSpace(*charging.LimitType) {
+	case "ENERGY":
+		value += " kWh"
+	case "TIME":
+		value += " minutes"
+	case "MONEY":
+		value = formatMoney(currency, value)
+	}
+	return "Selected limit: " + limit + " (" + value + ")"
+}
+
+func humanLimitType(value string) string {
+	switch strings.TrimSpace(value) {
+	case "AUTO":
+		return "Automatic"
+	case "ENERGY":
+		return "Energy limit"
+	case "TIME":
+		return "Time limit"
+	case "MONEY":
+		return "Amount limit"
+	default:
+		return humanValueString(value)
+	}
+}
+
+func humanStopDescription(initiator, reason *string) *string {
+	parts := compactInvoiceLines([]string{humanValue(initiator), humanValue(reason)})
+	if len(parts) == 0 {
+		return nil
+	}
+	value := strings.Join(parts, " — ")
+	return &value
+}
+
+func humanValue(value *string) string {
+	if value == nil {
+		return ""
+	}
+	return humanValueString(*value)
+}
+
+func humanValueString(value string) string {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return ""
+	}
+	switch value {
+	case "APP":
+		return "Mobile app"
+	case "CMS":
+		return "Charging service"
+	case "HAL":
+		return "Charging network"
+	case "CHARGER":
+		return "Charger"
+	}
+	words := strings.FieldsFunc(strings.ToLower(value), func(r rune) bool { return r == '_' || r == '-' || r == ' ' })
+	for index, word := range words {
+		if len(word) > 0 {
+			words[index] = strings.ToUpper(word[:1]) + word[1:]
+		}
+	}
+	return strings.Join(words, " ")
+}
+
+func invoiceHeaderStatus(commercial commercialSnapshot) string {
+	parts := compactInvoiceLines([]string{optionalTextLine("Settlement", humanValueString(commercial.SettlementStatus)), optionalTextLine("Payment", humanValue(commercial.PaymentMethod))})
+	return strings.Join(parts, "\n")
+}
+
+func maxFloat(left, right float64) float64 {
+	if left > right {
+		return left
+	}
+	return right
 }
 
 func renderPDFLegacyGofpdf(snapshot issuanceSnapshot, asset models.InvoiceAsset, hasAsset bool, zone *time.Location) ([]byte, error) {
@@ -1113,8 +1349,50 @@ func nonEmpty(value, fallback string) string {
 	return value
 }
 func commercialLines(commercial commercialSnapshot) []string {
-	lines := []string{optionalLine("Billing unit", commercial.Tariff.BillingUnit), optionalLine("Rate per unit", commercial.Tariff.PricePerUnit), optionalLine("Price type", commercial.Tariff.PriceType), optionalLine("Tariff type", commercial.Tariff.TariffType), optionalLine("CGST rate", percentLine(commercial.Tax.CGSTRate)), optionalLine("SGST rate", percentLine(commercial.Tax.SGSTRate)), optionalLine("IGST rate", percentLine(commercial.Tax.IGSTRate)), "Settlement: " + commercial.SettlementStatus, optionalLine("Payment method", commercial.PaymentMethod), fmt.Sprintf("Final amount: %s %s", commercial.Currency, commercial.TotalAmount)}
-	return lines
+	lines := []string{tariffRateLine(commercial), optionalTextLine("Tariff", humanValue(commercial.Tariff.TariffType)), taxLine(commercial.Tax), optionalTextLine("Settlement", humanValueString(commercial.SettlementStatus)), optionalTextLine("Payment method", humanValue(commercial.PaymentMethod))}
+	return compactInvoiceLines(lines)
+}
+
+func tariffRateLine(commercial commercialSnapshot) string {
+	if commercial.Tariff.PricePerUnit == nil || strings.TrimSpace(*commercial.Tariff.PricePerUnit) == "" {
+		return ""
+	}
+	unit := humanBillingUnit(commercial.Tariff.BillingUnit)
+	if unit == "" {
+		return "Rate: " + formatMoney(commercial.Currency, *commercial.Tariff.PricePerUnit)
+	}
+	return "Rate: " + formatMoney(commercial.Currency, *commercial.Tariff.PricePerUnit) + " per " + unit
+}
+
+func humanBillingUnit(value *string) string {
+	if value == nil {
+		return ""
+	}
+	switch strings.ToLower(strings.TrimSpace(*value)) {
+	case "kwh", "kwhs":
+		return "kWh"
+	case "minute", "minutes", "min":
+		return "minute"
+	case "session", "sessions":
+		return "session"
+	default:
+		return humanValueString(*value)
+	}
+}
+
+func taxLine(tax invoiceTaxSnapshot) string {
+	parts := compactInvoiceLines([]string{optionalTextLine("CGST", percentValue(tax.CGSTRate)), optionalTextLine("SGST", percentValue(tax.SGSTRate)), optionalTextLine("IGST", percentValue(tax.IGSTRate))})
+	if len(parts) == 0 {
+		return ""
+	}
+	return "Tax: " + strings.Join(parts, ", ")
+}
+
+func percentValue(value *string) string {
+	if value == nil || strings.TrimSpace(*value) == "" {
+		return ""
+	}
+	return *value + "%"
 }
 func percentLine(value *string) *string {
 	if value == nil {
@@ -1540,15 +1818,44 @@ func (service *Service) deliver(ctx context.Context, delivery models.InvoiceDeli
 }
 
 func invoiceEmailText(snapshot issuanceSnapshot, zone *time.Location) string {
-	location := snapshot.Location.HubName
-	if strings.TrimSpace(location) == "" {
-		location = snapshot.Location.ChargerName
+	greeting := "Hello,"
+	if strings.TrimSpace(snapshot.Customer.FullName) != "" {
+		greeting = "Hello " + strings.TrimSpace(snapshot.Customer.FullName) + ","
 	}
-	end := "not recorded"
+	location := invoiceLocationLines(snapshot.Location)
+	chargingTime := optionalInvoiceTime("Charging time", snapshot.Charging.StartedAt, zone)
 	if snapshot.Charging.EndedAt != nil {
-		end = snapshot.Charging.EndedAt.In(zone).Format("02 Jan 2006, 15:04 MST")
+		chargingTime += " to " + formatInvoiceTime(*snapshot.Charging.EndedAt, zone)
 	}
-	return fmt.Sprintf("%s\n\n%s issued your charging-session invoice %s.\nLocation: %s\nCharging: %s to %s\nEnergy delivered: %s kWh\nFinal amount: %s %s\n\nYour immutable invoice PDF is attached.", snapshot.Customer.FullName, snapshot.Supplier.Name, snapshot.InvoiceNumber, location, snapshot.Charging.StartedAt.In(zone).Format("02 Jan 2006, 15:04 MST"), end, snapshot.Commercial.TotalKWh, snapshot.Commercial.Currency, snapshot.Commercial.TotalAmount)
+	lines := []string{
+		greeting,
+		"",
+		strings.TrimSpace(snapshot.Supplier.Name) + " has issued invoice " + snapshot.InvoiceNumber + " for your charging session.",
+		"Final amount: " + formatMoney(snapshot.Commercial.Currency, snapshot.Commercial.TotalAmount),
+		optionalTextLine("Energy delivered", formatKWh(snapshot.Commercial.TotalKWh)),
+		"Charging location: " + strings.Join(location, ", "),
+		chargingTime,
+		"",
+		"Your invoice PDF is attached.",
+	}
+	return strings.Join(compactInvoiceLinesPreservingParagraphs(lines), "\n")
+}
+
+func compactInvoiceLinesPreservingParagraphs(lines []string) []string {
+	result := make([]string, 0, len(lines))
+	previousBlank := false
+	for _, line := range lines {
+		if strings.TrimSpace(line) == "" {
+			if len(result) > 0 && !previousBlank {
+				result = append(result, "")
+				previousBlank = true
+			}
+			continue
+		}
+		result = append(result, strings.TrimSpace(line))
+		previousBlank = false
+	}
+	return result
 }
 func (service *Service) openInternal(ctx context.Context, invoice models.ChargingSessionInvoice) (*Download, error) {
 	if err := invoiceDownloadStateError(invoice); err != nil {
