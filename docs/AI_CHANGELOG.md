@@ -1,5 +1,30 @@
 # AI Changelog
 
+## 2026-09-14 - Deploy invoice PDF presentation polish
+
+- Rehosted source revision `16edaff`, correcting white/bold charge-header
+  labels and measured alignment, session-detail pagination fit, and the Canvas
+  PDF writer/dependency update. No invoice schema, migration, HTTP/OpenAPI
+  contract, numbering, settlement, or delivery behavior changed.
+- Candidate/process/install binary SHA-256 is
+  `a6200e596cc01d8f70cb113ab8518d93930364568652b58e72e6aa58fa35ce5c`. The
+  previous executable is retained at
+  `/root/evcmsnew-backups/pre-invoice-pdf-polish-16edaff-20260914T115128Z/evcmsnew`
+  (SHA-256 `993b2fb66fe47ec6365eb1d16b0769da66fc99fef48f5bdf2ceb59add231b4e5`).
+- Focused/full Go tests, vet, `go mod verify`, OpenAPI parity, sample
+  generation, build, and diff checks passed. Samples are PDF 1.7, one and
+  three pages, mode `0600`; `pdfcpu` strict validation was not independently
+  rerun because it is not installed, though it is recorded in the upstream
+  work item. No visual-pass claim is made. `TEST_DATABASE_URL` and `pwsh` are
+  unavailable.
+- Post-rehost process/install hashes match; service is active with zero
+  restarts; local/public health, readiness, docs, and OpenAPI return 200; the
+  contract remains at 245 operations; all six required current workers are
+  healthy, Caddy validates, and no new-process error/panic entries were found.
+  Migration `000069` remains current. Aggregate invoice/delivery state is 75
+  READY / five already SENT; this deployment did not alter invoice artifacts
+  or send/retry mail. SMTP acceptance remains untested.
+
 ## 2026-09-14 - Deploy charging invoice PDF redesign
 
 - Rehosted invoice PDF composition in source revision `5116558`, based on

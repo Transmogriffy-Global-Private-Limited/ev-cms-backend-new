@@ -124,14 +124,16 @@ Active work:
   enrichment remediation.
 
 Recently completed deployment: charging-session invoices, including the
-presentation, issuer/hydration, and PDF redesign releases. The deployed
+presentation, issuer/hydration, PDF redesign, and PDF presentation polish
+releases. The deployed
 revision, migration, private storage boundary, runtime verification, and
 remaining SMTP/database-test limits are recorded in `docs/PROJECT_STATE.md`
 and `docs/guides/operations/dev-hosting.md`; detailed implementation records are
 `docs/work/archive/WI-20260911-charging-session-invoices.md`,
 `docs/work/archive/WI-20260914-invoice-customer-presentation.md`, and
 `docs/work/archive/WI-20260914-invoice-hydration-issuer.md`, and
-`docs/work/archive/WI-20260914-invoice-pdf-uiux.md`.
+`docs/work/archive/WI-20260914-invoice-pdf-uiux.md`, and
+`docs/work/archive/WI-20260914-invoice-pdf-presentation-polish.md`.
 
 Approved current slice:
 

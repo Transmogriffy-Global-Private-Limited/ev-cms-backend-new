@@ -1,5 +1,32 @@
 # Project State
 
+## 2026-09-14 - Invoice PDF presentation polish deployed
+
+- Runtime source revision `16edaff` is active. Binary SHA-256 is
+  `a6200e596cc01d8f70cb113ab8518d93930364568652b58e72e6aa58fa35ce5c`;
+  the immediately preceding executable is retained at
+  `/root/evcmsnew-backups/pre-invoice-pdf-polish-16edaff-20260914T115128Z/evcmsnew`
+  (SHA-256
+  `993b2fb66fe47ec6365eb1d16b0769da66fc99fef48f5bdf2ceb59add231b4e5`). No
+  migration or HTTP/OpenAPI change was required; migration `000069` remains
+  current with 245 operations.
+- Invoice PDF V2 now uses explicit white bold charge-header faces with measured
+  vertical alignment, keeps the first session-detail line with its heading
+  when paginating, and uses the updated Canvas writer/dependency graph. Existing
+  issued READY artifacts remain immutable. Post-rehost aggregates were 75
+  READY invoices and five already-SENT deliveries; no artifact or mail was
+  changed or retried.
+- Process/install hashes match, service is active with zero restarts, local and
+  HTTPS liveness/readiness/docs/OpenAPI return 200, all six required current
+  workers are healthy with fresh heartbeats, Caddy validates, and the new
+  process has no error/panic log entries. Focused/full Go tests, vet, module
+  verification, OpenAPI parity, PDF sample generation, and production build
+  passed. The samples are structurally recognized as one-page and three-page
+  PDF 1.7 files. `pdfcpu` is unavailable locally, so strict validation is only
+  recorded from the upstream work item; no visual inspection is claimed.
+  `TEST_DATABASE_URL`, `pwsh`, and SMTP acceptance remain unavailable or
+  unverified.
+
 ## 2026-09-14 - Invoice PDF redesign deployed
 
 - Runtime source revision `5116558` (invoice redesign from `b2bccc1` plus the
