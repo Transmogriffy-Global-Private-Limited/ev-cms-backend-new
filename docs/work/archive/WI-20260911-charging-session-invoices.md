@@ -1,10 +1,10 @@
 # WI-20260911-charging-session-invoices
 
-Status: Complete (publication pending)
+Status: Complete
 Owner: Codex
 Collaborators: Anubhab Dey (product and CMS/HAL boundary owner)
 Started: 2026-09-11
-Last updated: 2026-09-14 (all requested source corrections and verification complete; authorized publication pending)
+Last updated: 2026-09-14 (all requested source corrections, verification, and authorized publication complete)
 
 Development-plan reference: `docs/DEVELOPMENT_PLAN.md` — charging lifecycle and commercial completion
 Detailed-plan reference: This work item (approved task handoff)
@@ -115,6 +115,6 @@ wallet hold, wallet ledger, payment, or HAL truth.
 
 ## Completion
 
-Source work and the requested local verification are complete. Commit and
-fast-forward publication of the authorized CMS branches are the only pending
-external actions.
+Source work and the requested local verification are complete. Commit
+`ab8d125` was fast-forward published to both authorized CMS branches,
+`anubhab-work` and `main`.
