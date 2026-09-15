@@ -1,5 +1,21 @@
 # Project State
 
+## 2026-09-15 - Invoice breakdown corrections (local)
+
+- Charges headers now center their visible glyph outlines using Canvas page
+  coordinates. Newly generated V2 PDFs populate net session charges and frozen
+  GST amounts, with an explicit rounding adjustment when needed; semantics are
+  in the charging-session invoice section of the human HTTP contract.
+- Existing READY artifacts, settlement, delivery, schema, and HTTP payloads are
+  unchanged. Branch publication is authorized; deployment is not included.
+- Focused invoice tests pass, including frozen snapshot hydration/JSON round-trip,
+  split/integrated/zero GST, free sessions, invalid/missing tax, positive/negative
+  rounding, and displayed-total reconciliation. Generated normal and overflow
+  PDFs open and rasterize successfully (one and three pages); the normal PDF was
+  visually inspected for header centering and populated tax amounts.
+- Repository-wide Go tests and vet pass; documentation verification passes. `TEST_DATABASE_URL` is unset; disposable
+  PostgreSQL lifecycle tests and live generation/delivery are unverified.
+
 ## 2026-09-14 - Invoice PDF presentation polish deployed
 
 - Runtime source revision `16edaff` is active. Binary SHA-256 is

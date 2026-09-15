@@ -1,5 +1,17 @@
 # AI Changelog
 
+## 2026-09-15 - Fix invoice charge headers and tax amounts
+
+- Corrected the vertical translation sign and centered visible header glyphs;
+  replaced the prior regression assertion that repeated the sign error.
+- Replaced charge/tax amount placeholders with a validated allocation of the
+  frozen GST-inclusive settled total. Displayed lines reconcile exactly using
+  an explicit rounding row. Incomplete/invalid historical snapshots do not
+  become zero tax; the generic session label also covers time/session tariffs.
+- Focused invoice tests and sample PDF generation/rasterization pass; the normal
+  PDF was visually inspected. Full Go tests and vet pass; documentation verification passes. No database,
+  delivery, or deployment was performed. Branch publication is authorized.
+
 ## 2026-09-14 - Deploy invoice PDF presentation polish
 
 - Rehosted source revision `16edaff`, correcting white/bold charge-header

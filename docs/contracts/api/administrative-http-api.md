@@ -3538,6 +3538,15 @@ commands, and it does not perform an N+1 live read.
 
 ### 12.4.1 Charging-session invoices
 
+Newly generated invoice PDFs show session charges before GST, each recorded
+CGST/SGST/IGST rate and amount (including configured zero rates), and the frozen
+settled total. The breakdown allocates that GST-inclusive total using the complete,
+validated issuance-time tax rates; it never re-evaluates current tariffs or GST.
+Each line is rounded to two decimals, with any residual shown separately as a
+rounding adjustment so the displayed amounts sum exactly to the settled total.
+Incomplete or invalid historical tax snapshots retain unavailable component
+amounts rather than assuming zero tax. Previously READY PDFs remain immutable.
+
 The immutable invoice is a downstream CMS artifact, not settlement truth. It
 is eligible only when the owned CMS session is exactly `COMPLETED` and
 `SETTLED`; an invoice worker failure never changes charging, wallet, payment,

@@ -135,6 +135,10 @@ and `docs/guides/operations/dev-hosting.md`; detailed implementation records are
 `docs/work/archive/WI-20260914-invoice-pdf-uiux.md`, and
 `docs/work/archive/WI-20260914-invoice-pdf-presentation-polish.md`.
 
+Local invoice follow-up: correct visible Charges header centering and populate
+the GST-inclusive settled-total breakdown. Scope and verification are recorded
+in `docs/work/archive/WI-20260915-invoice-breakdown.md`; deployment is not included.
+
 Approved current slice:
 
 - Extend the existing customer start-intent, wallet-hold, HAL command, and

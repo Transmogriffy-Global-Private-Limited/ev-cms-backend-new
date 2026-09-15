@@ -350,9 +350,9 @@ func TestInvoiceChargeHeaderUsesWhiteBoldMetricCenteredLabels(t *testing.T) {
 		}
 		top := 180.0
 		labelTop := invoiceTextTopCentered(top, 8, label)
-		bounds := label.Bounds()
-		if center := top - (labelTop - (bounds.Y0+bounds.Y1)/2); center != 4 {
-			t.Fatalf("header label %q center = %v, want 4", value, center)
+		ink := label.OutlineBounds().Translate(0, labelTop)
+		if gapAbove, gapBelow := top-ink.Y1, ink.Y0-(top-8); gapAbove < 0 || gapBelow < 0 || gapAbove-gapBelow > 0.000001 || gapBelow-gapAbove > 0.000001 {
+			t.Fatalf("header label %q visible gaps: above=%v below=%v", value, gapAbove, gapBelow)
 		}
 	}
 }
@@ -385,12 +385,12 @@ func TestInvoicePDFPresentationCommercialRowsAndLocationAreTruthful(t *testing.T
 		t.Fatalf("location duplicated state: %q", lines)
 	}
 	rows := invoiceChargeRows(snapshot.Commercial)
-	if len(rows) != 4 || rows[0].Amount != "—" || rows[1].Description != "CGST" || rows[2].Description != "SGST" || !rows[3].Total || rows[3].Amount != "INR 126.00" {
+	if len(rows) != 5 || rows[0].Amount != "INR 106.78" || rows[1].Description != "CGST" || rows[1].Amount != "INR 9.61" || rows[2].Description != "SGST" || rows[2].Amount != "INR 9.61" || !rows[4].Total || rows[4].Amount != "INR 126.00" {
 		t.Fatalf("CGST/SGST charge presentation = %+v", rows)
 	}
-	snapshot.Commercial.Tax = invoiceTaxSnapshot{IGSTRate: stringPointer("18")}
+	snapshot.Commercial.Tax = invoiceTaxSnapshot{CGSTRate: stringPointer("0"), SGSTRate: stringPointer("0"), IGSTRate: stringPointer("18")}
 	rows = invoiceChargeRows(snapshot.Commercial)
-	if len(rows) != 3 || rows[1].Description != "IGST" || rows[1].Amount != "—" {
+	if len(rows) != 5 || rows[3].Description != "IGST" || rows[3].Amount != "INR 19.22" {
 		t.Fatalf("IGST charge presentation = %+v", rows)
 	}
 }
@@ -429,7 +429,7 @@ func customerPresentationSnapshot() issuanceSnapshot {
 		Customer:      customerSnapshot{FullName: "Priya Das", Email: "priya@example.test"},
 		Location:      locationSnapshot{HubName: "Riverside Hub", HubAddress: "42 River Road", HubState: "West Bengal", ChargerCode: "CP0042", ChargerName: "Riverside DC", ChargerType: "Fast charger", ConnectorNumber: 2, ConnectorType: "CCS2", RatedPowerKW: 60},
 		Charging:      chargingSnapshot{SessionID: "00000000-0000-0000-0000-000000000001", OCPPTransactionID: 42, StartedAt: now, EndedAt: &end, DurationSeconds: 4800, MeterStartWh: 1000, MeterStopWh: int64Pointer(6250), LimitType: &limit, RequestedLimitValue: &requested, EnergyLimitWh: &energy, MaxDurationSeconds: &duration, RequestedStopInitiator: &initiator, RequestedStopReason: &reason, OCPPStopReason: &stop},
-		Commercial:    commercialSnapshot{TotalKWh: "5.250", TotalAmount: "126.00", Currency: "INR", SettlementStatus: "SETTLED", PaymentMethod: &payment, Tariff: invoiceTariffSnapshot{BillingUnit: stringPointer("kWh"), PricePerUnit: stringPointer("20.00"), TariffType: stringPointer("FIXED")}, Tax: invoiceTaxSnapshot{CGSTRate: stringPointer("9"), SGSTRate: stringPointer("9")}},
+		Commercial:    commercialSnapshot{TotalKWh: "5.250", TotalAmount: "126.00", Currency: "INR", SettlementStatus: "SETTLED", PaymentMethod: &payment, Tariff: invoiceTariffSnapshot{BillingUnit: stringPointer("kWh"), PricePerUnit: stringPointer("20.00"), TariffType: stringPointer("FIXED")}, Tax: invoiceTaxSnapshot{CGSTRate: stringPointer("9"), SGSTRate: stringPointer("9"), IGSTRate: stringPointer("0")}},
 		InvoiceNote:   "Thank you for charging with us.",
 	}
 }

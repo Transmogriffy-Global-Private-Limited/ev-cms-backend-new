@@ -27,6 +27,7 @@ import (
 	"time"
 	"unicode"
 
+	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/commercial"
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/config"
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/constants"
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/models"
@@ -1512,16 +1513,59 @@ func renderInvoiceSummary(context *canvas.Context, fonts invoiceFonts, x, top, w
 
 func invoiceChargeRows(commercial commercialSnapshot) []invoiceChargeRow {
 	basis := joinInvoiceParts(" · ", optionalTextLine("Energy", formatKWh(commercial.TotalKWh)), invoiceTariffBasis(commercial.Tariff))
-	rows := []invoiceChargeRow{{Description: "Charging energy", Basis: basis, Amount: "—"}}
-	for _, tax := range []struct {
+	rows := []invoiceChargeRow{{Description: "Charging session", Basis: basis, Amount: "—"}}
+	net, taxes, rounding, available := invoiceChargeAmounts(commercial)
+	if available {
+		rows[0].Amount = formatMoney(commercial.Currency, net.StringFixed(2))
+	}
+	for index, tax := range []struct {
 		name string
 		rate *string
 	}{{"CGST", commercial.Tax.CGSTRate}, {"SGST", commercial.Tax.SGSTRate}, {"IGST", commercial.Tax.IGSTRate}} {
 		if tax.rate != nil && strings.TrimSpace(*tax.rate) != "" {
-			rows = append(rows, invoiceChargeRow{Description: tax.name, Basis: *tax.rate + "% rate", Amount: "—"})
+			amount := "—"
+			if available {
+				amount = formatMoney(commercial.Currency, taxes[index].StringFixed(2))
+			}
+			rows = append(rows, invoiceChargeRow{Description: tax.name, Basis: *tax.rate + "% rate", Amount: amount})
 		}
 	}
+	if available && !rounding.IsZero() {
+		rows = append(rows, invoiceChargeRow{Description: "Rounding adjustment", Basis: "To settled total", Amount: formatMoney(commercial.Currency, rounding.StringFixed(2))})
+	}
 	return append(rows, invoiceChargeRow{Description: "Final total", Basis: humanValueString(commercial.SettlementStatus), Amount: formatMoney(commercial.Currency, commercial.TotalAmount), Total: true})
+}
+
+// Allocate the GST-inclusive settled total using only frozen invoice facts.
+// This is a document breakdown, not a new tariff/usage calculation. Round each
+// displayed line independently and expose the residual instead of changing
+// settlement truth or silently assigning an extra paisa to a tax component.
+func invoiceChargeAmounts(snapshot commercialSnapshot) (net decimal.Decimal, taxes [3]decimal.Decimal, rounding decimal.Decimal, available bool) {
+	total, err := decimal.NewFromString(snapshot.TotalAmount)
+	if err != nil || total.IsNegative() || !total.Equal(total.Round(2)) {
+		return
+	}
+	var rates [3]decimal.Decimal
+	for index, value := range []*string{snapshot.Tax.CGSTRate, snapshot.Tax.SGSTRate, snapshot.Tax.IGSTRate} {
+		if value == nil {
+			return
+		}
+		rates[index], err = decimal.NewFromString(*value)
+		if err != nil {
+			return
+		}
+	}
+	if commercial.ValidateGSTComponents(&rates[1], &rates[0], &rates[2]) != nil {
+		return
+	}
+	base := total.Div(commercial.GSTMultiplier(rates[1], rates[0], rates[2]))
+	net = base.Round(2)
+	sum := net
+	for index, rate := range rates {
+		taxes[index] = base.Mul(rate).Div(decimal.NewFromInt(100)).Round(2)
+		sum = sum.Add(taxes[index])
+	}
+	return net, taxes, total.Sub(sum), true
 }
 
 func invoiceTariffBasis(tariff invoiceTariffSnapshot) string {
@@ -1553,8 +1597,10 @@ func renderInvoiceTableHeader(context *canvas.Context, fonts invoiceFonts, x, to
 }
 
 func invoiceTextTopCentered(top, height float64, text *canvas.Text) float64 {
-	bounds := text.Bounds()
-	return top - height/2 + (bounds.Y0+bounds.Y1)/2
+	// DrawText translates the local glyph coordinates into page coordinates.
+	// Center the visible ink, rather than the font's ascent/descent line box.
+	bounds := text.OutlineBounds()
+	return top - height/2 - (bounds.Y0+bounds.Y1)/2
 }
 
 func renderInvoiceChargeRow(context *canvas.Context, fonts invoiceFonts, x, top, width, height float64, row invoiceChargeRow) {
