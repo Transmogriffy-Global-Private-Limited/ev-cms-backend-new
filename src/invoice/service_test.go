@@ -102,13 +102,17 @@ func TestCanvasRendererVersionsRemainDispatchable(t *testing.T) {
 	}
 	current, err := renderInvoice(snapshot, rendererVersion, models.InvoiceAsset{}, false, time.UTC)
 	if err != nil {
-		t.Fatalf("render current v2 invoice: %v", err)
+		t.Fatalf("render current v3 invoice: %v", err)
 	}
 	if !bytes.HasPrefix(legacy, []byte("%PDF-")) || !bytes.HasPrefix(current, []byte("%PDF-")) {
 		t.Fatal("one of the supported Canvas renderer versions did not produce a PDF")
 	}
 	if bytes.Equal(legacy, current) {
-		t.Fatal("redesigned v2 renderer unexpectedly produced the v1 artifact")
+		t.Fatal("redesigned v3 renderer unexpectedly produced the v1 artifact")
+	}
+	v2, err := renderInvoice(snapshot, legacyCanvasRendererV2, models.InvoiceAsset{}, false, time.UTC)
+	if err != nil || !bytes.HasPrefix(v2, []byte("%PDF-")) || bytes.Equal(v2, current) {
+		t.Fatalf("recorded v2 renderer was not preserved: %v", err)
 	}
 }
 
@@ -357,7 +361,7 @@ func TestInvoiceChargeHeaderUsesWhiteBoldMetricCenteredLabels(t *testing.T) {
 	}
 }
 
-func TestRenderPDFCustomerPresentationPaginatesLongUnicodeContent(t *testing.T) {
+func TestRenderPDFCustomerPresentationKeepsLongUnicodeContentOnOnePage(t *testing.T) {
 	snapshot := customerPresentationSnapshot()
 	snapshot.Supplier.Name = strings.Repeat("দীর্ঘ সরবরাহকারী नाम ", 18)
 	snapshot.Customer.FullName = strings.Repeat("দীর্ঘ গ্রাহক नाम ", 18)
@@ -366,10 +370,10 @@ func TestRenderPDFCustomerPresentationPaginatesLongUnicodeContent(t *testing.T) 
 	snapshot.InvoiceNote = strings.Repeat("আপনার চার্জিং অভিজ্ঞতার জন্য धन्यवाद।\n", 90)
 	pdf, err := renderInvoice(snapshot, rendererVersion, models.InvoiceAsset{}, false, time.UTC)
 	if err != nil {
-		t.Fatalf("render multi-page invoice: %v", err)
+		t.Fatalf("render long single-page invoice: %v", err)
 	}
-	if pages := bytes.Count(pdf, []byte("/Type/Page/")); pages < 2 {
-		t.Fatalf("long Unicode invoice rendered %d pages, want multiple pages", pages)
+	if pages := bytes.Count(pdf, []byte("/Type/Page/")); pages != 1 {
+		t.Fatalf("long Unicode invoice rendered %d pages, want one page", pages)
 	}
 	if path := os.Getenv("INVOICE_OVERFLOW_SAMPLE_PDF"); path != "" {
 		if err := os.WriteFile(path, pdf, 0600); err != nil {

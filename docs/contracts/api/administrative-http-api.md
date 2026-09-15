@@ -3538,6 +3538,15 @@ commands, and it does not perform an N+1 live read.
 
 ### 12.4.1 Charging-session invoices
 
+New issuance uses the V3 single-page layout: a padded, aspect-preserving supplier
+logo, invoice identity, billed-to/location blocks, session summary, charges, full
+session references, and supplier note. All source text is retained and wrapped;
+body text is at least 7.5 pt. Typical invoices are one A4 page. Exceptionally long
+content extends the same page vertically at A4 width instead of truncating text,
+shrinking it, or adding pages. Content exceeding the supported 5080 mm page height
+fails generation explicitly. Existing V2/V1 renderer versions remain dispatchable
+for invoices already stamped with them; existing READY artifacts are unchanged.
+
 Newly generated invoice PDFs show session charges before GST, each recorded
 CGST/SGST/IGST rate and amount (including configured zero rates), and the frozen
 settled total. The breakdown allocates that GST-inclusive total using the complete,

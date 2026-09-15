@@ -43,14 +43,15 @@ import (
 )
 
 const (
-	rendererVersion       = "canvas-noto-v2"
-	legacyCanvasRenderer  = "canvas-noto-v1"
-	snapshotVersion       = 1
-	invoiceGenerationLock = 5 * time.Minute
-	invoiceDeliveryLock   = 5 * time.Minute
-	maxLogoBytes          = 2 << 20
-	maxInvoiceSerial      = 999999
-	maxGenerationAttempts = 8
+	rendererVersion        = "canvas-noto-v3"
+	legacyCanvasRendererV2 = "canvas-noto-v2"
+	legacyCanvasRenderer   = "canvas-noto-v1"
+	snapshotVersion        = 1
+	invoiceGenerationLock  = 5 * time.Minute
+	invoiceDeliveryLock    = 5 * time.Minute
+	maxLogoBytes           = 2 << 20
+	maxInvoiceSerial       = 999999
+	maxGenerationAttempts  = 8
 )
 
 // Noto Sans Bengali and Noto Sans Devanagari are embedded under the SIL Open
@@ -1064,6 +1065,8 @@ func renderInvoice(snapshot issuanceSnapshot, version string, asset models.Invoi
 	}
 	switch version {
 	case rendererVersion:
+		return renderPDFV3(snapshot, asset, hasAsset, zone)
+	case legacyCanvasRendererV2:
 		return renderPDFV2(snapshot, asset, hasAsset, zone)
 	case legacyCanvasRenderer:
 		return renderPDFV1(snapshot, asset, hasAsset, zone)
@@ -1287,7 +1290,7 @@ func renderPDFV2(snapshot issuanceSnapshot, asset models.InvoiceAsset, hasAsset 
 	defer fonts.devanagari.Destroy()
 	var output bytes.Buffer
 	renderer := canvaspdf.New(&output, 210, 297, &canvaspdf.Options{Compress: true, SubsetFonts: true, ImageEncoding: canvas.Lossless})
-	renderer.SetInfo("Charging Session Invoice "+snapshot.InvoiceNumber, "Charging session invoice", "charging,invoice", snapshot.Supplier.Name, rendererVersion)
+	renderer.SetInfo("Charging Session Invoice "+snapshot.InvoiceNumber, "Charging session invoice", "charging,invoice", snapshot.Supplier.Name, legacyCanvasRendererV2)
 	pages := make([]invoiceCanvasPage, 0, 2)
 	var current *invoiceCanvasPage
 	y := 0.0

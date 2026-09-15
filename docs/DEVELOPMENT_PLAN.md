@@ -137,6 +137,10 @@ and `docs/guides/operations/dev-hosting.md`; detailed implementation records are
 `docs/work/archive/WI-20260914-invoice-pdf-presentation-polish.md`, and
 `docs/work/archive/WI-20260915-invoice-breakdown.md`.
 
+Completed local invoice presentation follow-up: professional V3 layout with logo
+padding and complete text on one page. Work and verification are recorded in
+`docs/work/archive/WI-20260915-invoice-one-page.md`; this slice is not deployed.
+
 Approved current slice:
 
 - Extend the existing customer start-intent, wallet-hold, HAL command, and

@@ -1,5 +1,23 @@
 # Project State
 
+## 2026-09-15 - Professional single-page invoice layout (local)
+
+- New issuance selects `canvas-noto-v3`: padded logos, separate supplier/invoice
+  columns, compact customer/location blocks, readable session summary, aligned
+  charge rows and a prominent final total. V2/V1 dispatch remains available.
+- All invoice text and financial facts are retained. Typical invoices fit one A4
+  page; exceptionally long text extends that single page vertically, as described
+  in the canonical charging-session invoice contract. No billing, snapshot schema,
+  delivery, migration, HTTP payload, or existing READY artifact changed.
+- Focused renderer tests pass for logo padding/aspect ratio, text retention,
+  text bounds and non-overlap, one-page output and V2 compatibility. Actual PDFs
+  for no/wide/tall logos and rounding are one A4 page; long text is one taller
+  page. All 90 note lines and the last marker were extracted from the long PDF.
+  Wide/tall logo PDFs were visually inspected. Full Go tests, vet, documentation
+  verification and diff checks pass. `TEST_DATABASE_URL` is unset; database
+  lifecycle tests and live generation/delivery remain unverified.
+- This slice is local; commit and synchronization of both local branches are authorized. It has not been pushed or deployed.
+
 ## 2026-09-15 - Invoice breakdown corrections deployed
 
 - Charges headers now center their visible glyph outlines using Canvas page

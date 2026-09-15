@@ -1,5 +1,17 @@
 # AI Changelog
 
+## 2026-09-15 - Refine invoice UX and preserve complete text on one page
+
+- Added the V3 renderer with 4 mm logo padding, preserved image proportions,
+  clear supplier/invoice separation, aligned metadata and charges, and stronger
+  total hierarchy. Normal output is A4; very long text extends one page vertically
+  with readable type instead of being omitted or shrunk. Earlier renderers remain
+  dispatchable for already-stamped invoice work.
+- Focused layout, preservation and compatibility tests pass. Generated PDF logo
+  variants were visually checked and long-note PDF text was independently extracted.
+  Full Go tests, vet and docs verification pass. `TEST_DATABASE_URL` is unset;
+  database lifecycle checks and live delivery are unverified. No deployment or data changes.
+
 ## 2026-09-15 - Deploy invoice charge-header and tax-amount corrections
 
 - Corrected the vertical translation sign and centered visible header glyphs;
