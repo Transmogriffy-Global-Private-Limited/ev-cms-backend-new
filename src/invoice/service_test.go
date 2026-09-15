@@ -385,12 +385,12 @@ func TestInvoicePDFPresentationCommercialRowsAndLocationAreTruthful(t *testing.T
 		t.Fatalf("location duplicated state: %q", lines)
 	}
 	rows := invoiceChargeRows(snapshot.Commercial)
-	if len(rows) != 5 || rows[0].Amount != "INR 106.78" || rows[1].Description != "CGST" || rows[1].Amount != "INR 9.61" || rows[2].Description != "SGST" || rows[2].Amount != "INR 9.61" || !rows[4].Total || rows[4].Amount != "INR 126.00" {
+	if len(rows) != 5 || rows[0].Amount != "INR 105.00" || rows[1].Description != "CGST" || rows[1].Amount != "INR 9.45" || rows[2].Description != "SGST" || rows[2].Amount != "INR 9.45" || !rows[4].Total || rows[4].Amount != "INR 123.90" {
 		t.Fatalf("CGST/SGST charge presentation = %+v", rows)
 	}
 	snapshot.Commercial.Tax = invoiceTaxSnapshot{CGSTRate: stringPointer("0"), SGSTRate: stringPointer("0"), IGSTRate: stringPointer("18")}
 	rows = invoiceChargeRows(snapshot.Commercial)
-	if len(rows) != 5 || rows[3].Description != "IGST" || rows[3].Amount != "INR 19.22" {
+	if len(rows) != 5 || rows[3].Description != "IGST" || rows[3].Amount != "INR 18.90" {
 		t.Fatalf("IGST charge presentation = %+v", rows)
 	}
 }
@@ -429,7 +429,7 @@ func customerPresentationSnapshot() issuanceSnapshot {
 		Customer:      customerSnapshot{FullName: "Priya Das", Email: "priya@example.test"},
 		Location:      locationSnapshot{HubName: "Riverside Hub", HubAddress: "42 River Road", HubState: "West Bengal", ChargerCode: "CP0042", ChargerName: "Riverside DC", ChargerType: "Fast charger", ConnectorNumber: 2, ConnectorType: "CCS2", RatedPowerKW: 60},
 		Charging:      chargingSnapshot{SessionID: "00000000-0000-0000-0000-000000000001", OCPPTransactionID: 42, StartedAt: now, EndedAt: &end, DurationSeconds: 4800, MeterStartWh: 1000, MeterStopWh: int64Pointer(6250), LimitType: &limit, RequestedLimitValue: &requested, EnergyLimitWh: &energy, MaxDurationSeconds: &duration, RequestedStopInitiator: &initiator, RequestedStopReason: &reason, OCPPStopReason: &stop},
-		Commercial:    commercialSnapshot{TotalKWh: "5.250", TotalAmount: "126.00", Currency: "INR", SettlementStatus: "SETTLED", PaymentMethod: &payment, Tariff: invoiceTariffSnapshot{BillingUnit: stringPointer("kWh"), PricePerUnit: stringPointer("20.00"), TariffType: stringPointer("FIXED")}, Tax: invoiceTaxSnapshot{CGSTRate: stringPointer("9"), SGSTRate: stringPointer("9"), IGSTRate: stringPointer("0")}},
+		Commercial:    commercialSnapshot{TotalKWh: "5.250", TotalAmount: "123.90", Currency: "INR", SettlementStatus: "SETTLED", PaymentMethod: &payment, Tariff: invoiceTariffSnapshot{BillingUnit: stringPointer("kWh"), PricePerUnit: stringPointer("20.00"), TariffType: stringPointer("FIXED")}, Tax: invoiceTaxSnapshot{CGSTRate: stringPointer("9"), SGSTRate: stringPointer("9"), IGSTRate: stringPointer("0")}},
 		InvoiceNote:   "Thank you for charging with us.",
 	}
 }
