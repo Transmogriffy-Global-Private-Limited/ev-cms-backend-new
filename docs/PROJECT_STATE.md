@@ -1,5 +1,21 @@
 # Project State
 
+## 2026-09-15 - Invoice Basis follows frozen tariff (local)
+
+- V3 charge Basis now follows energy, elapsed-time or fixed-session pricing,
+  independently of AUTO/ENERGY/TIME/MONEY execution limits. Exact start/end
+  timestamps supply time billing; a fixed-session rate needs no unit. Historical
+  per-kWh/per-Wh semantics are explicit; unsupported/missing facts stay unavailable.
+- Settled amounts, taxes, requested-stop details, one-page layout and legacy V2
+  rendering remain unchanged. No schema/API, HAL, live artifact or deployment
+  change. The canonical invoice contract documents the billing/stop matrix.
+- Focused tests cover all twelve tariff/stop-limit combinations, unchanged monetary
+  rows, fractional elapsed time and historical/invalid snapshots. Full Go tests,
+  vet, documentation verification and diff checks pass. All twelve generated PDFs
+  were independently parsed as one page with correct basis and separate limit;
+  time/session samples were visually inspected. `TEST_DATABASE_URL` is unset,
+  so database lifecycle/live generation is unverified. Branch publication is authorized; deployment is not included.
+
 ## 2026-09-15 - Professional single-page invoice layout deployed
 
 - New issuance selects `canvas-noto-v3`: padded logos, separate supplier/invoice

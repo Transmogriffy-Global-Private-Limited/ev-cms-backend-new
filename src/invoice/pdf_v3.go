@@ -57,7 +57,7 @@ func composeInvoicePageV3(fonts invoiceFonts, snapshot issuanceSnapshot, logo im
 	y := layout.header(snapshot, logo, zone)
 	y = layout.parties(snapshot, y-7)
 	y = layout.summary(snapshot, zone, y-7)
-	y = layout.charges(snapshot.Commercial, y-8)
+	y = layout.charges(snapshot, y-8)
 	y = layout.details(snapshot.Charging, snapshot.Commercial.Currency, y-8)
 	if note := strings.TrimSpace(snapshot.InvoiceNote); note != "" {
 		y = layout.note(note, y-7)
@@ -175,7 +175,7 @@ func invoiceSummaryTime(value time.Time, zone *time.Location) string {
 	return value.In(zone).Format("02 Jan 2006\n3:04 PM MST")
 }
 
-func (p invoicePageLayout) charges(snapshot commercialSnapshot, top float64) float64 {
+func (p invoicePageLayout) charges(snapshot issuanceSnapshot, top float64) float64 {
 	top = p.heading("Session charges", top)
 	fillInvoiceRect(p.context, 15, top-8, 180, 8, invoiceInk)
 	for index, title := range []string{"Description", "Basis", "Amount"} {
@@ -184,7 +184,7 @@ func (p invoicePageLayout) charges(snapshot commercialSnapshot, top float64) flo
 		p.context.DrawText(x, invoiceTextTopCentered(top, 8, label), label)
 	}
 	top -= 8
-	for _, row := range invoiceChargeRows(snapshot) {
+	for _, row := range invoiceSessionChargeRows(snapshot) {
 		size := 8.5
 		if row.Total {
 			size = 12

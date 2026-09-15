@@ -433,7 +433,7 @@ func customerPresentationSnapshot() issuanceSnapshot {
 		Customer:      customerSnapshot{FullName: "Priya Das", Email: "priya@example.test"},
 		Location:      locationSnapshot{HubName: "Riverside Hub", HubAddress: "42 River Road", HubState: "West Bengal", ChargerCode: "CP0042", ChargerName: "Riverside DC", ChargerType: "Fast charger", ConnectorNumber: 2, ConnectorType: "CCS2", RatedPowerKW: 60},
 		Charging:      chargingSnapshot{SessionID: "00000000-0000-0000-0000-000000000001", OCPPTransactionID: 42, StartedAt: now, EndedAt: &end, DurationSeconds: 4800, MeterStartWh: 1000, MeterStopWh: int64Pointer(6250), LimitType: &limit, RequestedLimitValue: &requested, EnergyLimitWh: &energy, MaxDurationSeconds: &duration, RequestedStopInitiator: &initiator, RequestedStopReason: &reason, OCPPStopReason: &stop},
-		Commercial:    commercialSnapshot{TotalKWh: "5.250", TotalAmount: "123.90", Currency: "INR", SettlementStatus: "SETTLED", PaymentMethod: &payment, Tariff: invoiceTariffSnapshot{BillingUnit: stringPointer("kWh"), PricePerUnit: stringPointer("20.00"), TariffType: stringPointer("FIXED")}, Tax: invoiceTaxSnapshot{CGSTRate: stringPointer("9"), SGSTRate: stringPointer("9"), IGSTRate: stringPointer("0")}},
+		Commercial:    commercialSnapshot{TotalKWh: "5.250", TotalAmount: "123.90", Currency: "INR", SettlementStatus: "SETTLED", PaymentMethod: &payment, Tariff: invoiceTariffSnapshot{BillingUnit: stringPointer("kwh"), PricePerUnit: stringPointer("20.00"), TariffType: stringPointer("fixed"), PriceType: stringPointer("energy")}, Tax: invoiceTaxSnapshot{CGSTRate: stringPointer("9"), SGSTRate: stringPointer("9"), IGSTRate: stringPointer("0")}},
 		InvoiceNote:   "Thank you for charging with us.",
 	}
 }

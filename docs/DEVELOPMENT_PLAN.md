@@ -137,6 +137,9 @@ are `docs/work/archive/WI-20260911-charging-session-invoices.md`,
 `docs/work/archive/WI-20260915-invoice-breakdown.md`, and
 `docs/work/archive/WI-20260915-invoice-one-page.md`.
 
+Completed local invoice Basis correction across the independent tariff/stop-limit
+matrix: `docs/work/archive/WI-20260915-invoice-tariff-basis.md`. Not deployed.
+
 Approved current slice:
 
 - Extend the existing customer start-intent, wallet-hold, HAL command, and

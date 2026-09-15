@@ -3538,6 +3538,23 @@ commands, and it does not perform an N+1 live read.
 
 ### 12.4.1 Charging-session invoices
 
+The current invoice's charge Basis follows the **frozen tariff**, independently
+of the customer's AUTO/ENERGY/TIME/MONEY stop selection:
+
+| Frozen billing type | Basis shown for every stop selection |
+| --- | --- |
+| `fixed / energy / kwh` | Actual delivered kWh × frozen currency/rate per kWh |
+| `fixed / time / minutes` | Actual elapsed minutes and remaining seconds at the frozen per-minute rate |
+| `fixed / sessions / no units` | One session × frozen currency/rate per session |
+
+Time uses the frozen start/end timestamps, including fractional seconds, not the
+requested time limit or rounded duration summary. Requested limits remain separate
+in Session details. Historical `price_per_kwh` snapshots are projected explicitly
+as energy pricing for new issuance; historical `watt/hour` billing is displayed
+as Wh at its frozen per-Wh rate. Missing/unsupported tariff facts or missing actual
+usage are explicitly unavailable; the renderer never infers billing from a stop
+limit. Monetary and tax amounts remain the frozen settled-total breakdown.
+
 New issuance uses the V3 single-page layout: a padded, aspect-preserving supplier
 logo, invoice identity, billed-to/location blocks, session summary, charges, full
 session references, and supplier note. All source text is retained and wrapped;

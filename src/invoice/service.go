@@ -597,6 +597,14 @@ func buildSnapshot(invoiceID uuid.UUID, s models.ChargingSession, cpo models.CPO
 }
 
 func invoiceTariffProjection(snapshot models.JSONB) invoiceTariffSnapshot {
+	// Match settlement's explicit historical per-kWh compatibility. A present
+	// canonical price key always wins, including when its value is invalid.
+	if _, canonical := snapshot["price_per_unit"]; !canonical {
+		if price := snapshotDecimalValue(snapshot, "price_per_kwh"); price != nil {
+			unit, kind, pricing := string(constants.UnitKWh), string(constants.TariffTypeFixed), string(constants.PriceTypeEnergy)
+			return invoiceTariffSnapshot{BillingUnit: &unit, PricePerUnit: price, PriceType: &pricing, TariffType: &kind}
+		}
+	}
 	return invoiceTariffSnapshot{BillingUnit: snapshotStringValue(snapshot, "units"), PricePerUnit: snapshotDecimalValue(snapshot, "price_per_unit"), PriceType: snapshotStringValue(snapshot, "price_type"), TariffType: snapshotStringValue(snapshot, "tariff_type")}
 }
 func invoiceTaxProjection(snapshot models.JSONB) invoiceTaxSnapshot {

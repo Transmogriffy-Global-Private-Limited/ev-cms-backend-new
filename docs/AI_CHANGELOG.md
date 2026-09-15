@@ -1,5 +1,19 @@
 # AI Changelog
 
+## 2026-09-15 - Correct invoice billing Basis across tariff types
+
+- Replaced V3's unconditional energy Basis with the frozen tariff's actual
+  quantity/rate: kWh, elapsed time including fractional seconds, or one session.
+  Customer-selected execution limits remain independent and visible in details.
+- Retained nil-unit session pricing, zero rates, explicit historical per-kWh and
+  per-Wh compatibility, and unavailable output for incomplete/invalid facts.
+  Added all twelve tariff/stop-selection cases plus precision and compatibility
+  coverage. Financial calculations and legacy V2 rendering are unchanged.
+- Focused/full Go tests, vet, docs and diff checks pass. Twelve generated PDFs
+  preserve one-page output and independent basis/limit text; representative time
+  and session PDFs were visually inspected. Database lifecycle tests remain
+  unverified (`TEST_DATABASE_URL` unset). Branch publication is authorized; no deployment or live data changes.
+
 ## 2026-09-15 - Deploy V3 single-page invoice renderer
 
 - Added the V3 renderer with 4 mm logo padding, preserved image proportions,
