@@ -1,16 +1,31 @@
 # AI Changelog
 
-## 2026-09-15 - Refine invoice UX and preserve complete text on one page
+## 2026-09-15 - Deploy V3 single-page invoice renderer
 
 - Added the V3 renderer with 4 mm logo padding, preserved image proportions,
   clear supplier/invoice separation, aligned metadata and charges, and stronger
   total hierarchy. Normal output is A4; very long text extends one page vertically
   with readable type instead of being omitted or shrunk. Earlier renderers remain
   dispatchable for already-stamped invoice work.
-- Focused layout, preservation and compatibility tests pass. Generated PDF logo
-  variants were visually checked and long-note PDF text was independently extracted.
-  Full Go tests, vet and docs verification pass. `TEST_DATABASE_URL` is unset;
-  database lifecycle checks and live delivery are unverified. No deployment or data changes.
+- Focused and full Go tests, vet, module verification, production build, route
+  parity, and diff checks passed. `pwsh` is unavailable, so the PowerShell docs
+  verifier could not be independently rerun; `TEST_DATABASE_URL` is unset and
+  SMTP acceptance remains unverified.
+- Rehosted source revision `d2e5393`; binary SHA-256 is
+  `6b7e076549b13e503f8eab5c90f01106b8a330421842ea14aef5f8023b6190c5`. The
+  immediately preceding executable is retained at
+  `/root/evcmsnew-backups/pre-invoice-v3-d2e5393-20260915T103514+0530/evcmsnew`
+  (SHA-256
+  `6d44079e64e788a7a12c920999829d047982d3723230d7bbb4d11c3d852835fa`). No
+  migration, schema, billing, delivery, API payload, or existing artifact
+  change was required.
+- Post-rehost service PID 177170 is active with zero restarts and matching
+  process/install hashes. Local/HTTPS liveness, readiness, docs, and OpenAPI
+  return 200; all six required workers are healthy/fresh, Caddy validates, and
+  the new process has no error or panic/fatal log entries. Migration 000069
+  remains current; aggregate state is 77 READY invoices, seven SENT invoice
+  deliveries, and 474 SENT mail-outbox jobs. No invoice artifact or mail was
+  changed, sent, or retried.
 
 ## 2026-09-15 - Deploy invoice charge-header and tax-amount corrections
 

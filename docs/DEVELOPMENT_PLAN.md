@@ -124,22 +124,18 @@ Active work:
   enrichment remediation.
 
 Recently completed deployment: charging-session invoices, including the
-presentation, issuer/hydration, PDF redesign, PDF presentation polish, and
-GST-breakdown/header-centering follow-up
-releases. The deployed
-revision, migration, private storage boundary, runtime verification, and
-remaining SMTP/database-test limits are recorded in `docs/PROJECT_STATE.md`
-and `docs/guides/operations/dev-hosting.md`; detailed implementation records are
-`docs/work/archive/WI-20260911-charging-session-invoices.md`,
+presentation, issuer/hydration, PDF redesign, PDF presentation polish,
+GST-breakdown/header-centering, and single-page V3 layout follow-up releases.
+The deployed revision, migration, private storage boundary, runtime verification,
+and remaining SMTP/database-test limits are recorded in `docs/PROJECT_STATE.md`
+and `docs/guides/operations/dev-hosting.md`; detailed implementation records
+are `docs/work/archive/WI-20260911-charging-session-invoices.md`,
 `docs/work/archive/WI-20260914-invoice-customer-presentation.md`, and
 `docs/work/archive/WI-20260914-invoice-hydration-issuer.md`, and
 `docs/work/archive/WI-20260914-invoice-pdf-uiux.md`, and
 `docs/work/archive/WI-20260914-invoice-pdf-presentation-polish.md`, and
-`docs/work/archive/WI-20260915-invoice-breakdown.md`.
-
-Completed local invoice presentation follow-up: professional V3 layout with logo
-padding and complete text on one page. Work and verification are recorded in
-`docs/work/archive/WI-20260915-invoice-one-page.md`; this slice is not deployed.
+`docs/work/archive/WI-20260915-invoice-breakdown.md`, and
+`docs/work/archive/WI-20260915-invoice-one-page.md`.
 
 Approved current slice:
 

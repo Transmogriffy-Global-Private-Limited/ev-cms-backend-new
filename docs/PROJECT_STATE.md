@@ -1,6 +1,6 @@
 # Project State
 
-## 2026-09-15 - Professional single-page invoice layout (local)
+## 2026-09-15 - Professional single-page invoice layout deployed
 
 - New issuance selects `canvas-noto-v3`: padded logos, separate supplier/invoice
   columns, compact customer/location blocks, readable session summary, aligned
@@ -9,14 +9,29 @@
   page; exceptionally long text extends that single page vertically, as described
   in the canonical charging-session invoice contract. No billing, snapshot schema,
   delivery, migration, HTTP payload, or existing READY artifact changed.
+- Runtime source revision `d2e5393` is active. Binary SHA-256 is
+  `6b7e076549b13e503f8eab5c90f01106b8a330421842ea14aef5f8023b6190c5`; the
+  preceding executable is retained at
+  `/root/evcmsnew-backups/pre-invoice-v3-d2e5393-20260915T103514+0530/evcmsnew`
+  (SHA-256
+  `6d44079e64e788a7a12c920999829d047982d3723230d7bbb4d11c3d852835fa`).
 - Focused renderer tests pass for logo padding/aspect ratio, text retention,
   text bounds and non-overlap, one-page output and V2 compatibility. Actual PDFs
   for no/wide/tall logos and rounding are one A4 page; long text is one taller
-  page. All 90 note lines and the last marker were extracted from the long PDF.
-  Wide/tall logo PDFs were visually inspected. Full Go tests, vet, documentation
-  verification and diff checks pass. `TEST_DATABASE_URL` is unset; database
-  lifecycle tests and live generation/delivery remain unverified.
-- This slice is local; commit and synchronization of both local branches are authorized. It has not been pushed or deployed.
+  page. The originating work item records extraction of all 90 note lines and
+  the last marker from its long PDF sample.
+  Wide/tall logo PDFs were visually inspected. In this release audit, focused
+  and full Go tests, vet, module verification, production build, route parity,
+  and diff checks passed. `pwsh` and `TEST_DATABASE_URL` are unavailable, so the
+  PowerShell docs verifier was not independently rerun and disposable database
+  lifecycle tests remain unverified.
+- Post-rehost, service PID 177170 is active with zero restarts and process/install
+  hashes match. Local/public liveness, readiness, docs, and OpenAPI returned
+  200; Caddy validates; all six required current workers are healthy with fresh
+  heartbeats; no new-process error or panic/fatal entries were found. Migration
+  000069 remains current and the 245-operation API is unchanged. Aggregates are
+  77 READY invoices, seven already-SENT deliveries, and 474 already-SENT mail
+  jobs. No existing artifact or mail was changed, sent, or retried.
 
 ## 2026-09-15 - Invoice breakdown corrections deployed
 

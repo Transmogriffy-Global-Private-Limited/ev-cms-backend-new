@@ -29,14 +29,14 @@ that setting; it must not be used until the OCPP host is explicitly configured
 with TLS/WebSocket support.
 
 The active deployment was updated on September 15, 2026 to source revision
-`2eeb5e0` (invoice breakdown corrections; application change `00023f2`); migration
+`d2e5393` (V3 single-page invoice renderer); migration
 `000069_add_charging_session_invoices` remains current and the API has 245
 operations. The active binary SHA-256 is
-`6d44079e64e788a7a12c920999829d047982d3723230d7bbb4d11c3d852835fa`. The
+`6b7e076549b13e503f8eab5c90f01106b8a330421842ea14aef5f8023b6190c5`. The
 immediately preceding binary is retained at
-`/root/evcmsnew-backups/pre-invoice-breakdown-2eeb5e0-20260915T042431Z/evcmsnew`
+`/root/evcmsnew-backups/pre-invoice-v3-d2e5393-20260915T103514+0530/evcmsnew`
 (SHA-256
-`a6200e596cc01d8f70cb113ab8518d93930364568652b58e72e6aa58fa35ce5`). The
+`6d44079e64e788a7a12c920999829d047982d3723230d7bbb4d11c3d852835fa`). The
 pre-`000069` database dump is
 `/root/evcmsnew-backups/devevcmsnew-before-000069-20260914T110817+0530.dump`
 (mode `0600`, SHA-256
@@ -115,6 +115,22 @@ and 474 already-SENT mail jobs. Ghostscript rasterized the one- and three-page
 samples and the normal sample was visually inspected; `pdfcpu` and `pwsh` were
 unavailable, `TEST_DATABASE_URL` was unset, and SMTP acceptance remains
 unverified.
+
+The subsequent V3 renderer rehost uses padded, aspect-preserving logos and
+keeps invoice identity, parties, charging summary, financial rows, complete
+session references, and supplier note on one continuous page. Ordinary PDFs
+are A4; unusually long text extends that page vertically rather than being
+truncated or shrunk. V1/V2 renderer dispatch remains available for stamped
+work, and READY artifacts remain immutable. No migration, billing, delivery,
+or API payload change was made. Post-rehost, PID 177170 is active with zero
+restarts and matching process/install SHA; local and HTTPS health/readiness/docs/
+OpenAPI return 200, migration 000069 and the 245-operation API remain current,
+all six required workers are healthy/fresh, Caddy validates, and the new-process
+error/panic/fatal scan is clear. Database aggregates were 77 READY invoices,
+seven already-SENT invoice deliveries, and 474 already-SENT mail jobs; no
+invoice or mail data was changed. Focused/full Go tests, vet, module verification,
+route parity, production build, and visual inspection passed. `pwsh`,
+`TEST_DATABASE_URL`, and SMTP acceptance remain unavailable or unverified.
 The pre-migration binary and database dump for migrations 49 through 53 are
 retained under `/root/evcmsnew-backups/` and
 `builds/evcmsnew.pre-162b3be-20260825-135452` and the newer
