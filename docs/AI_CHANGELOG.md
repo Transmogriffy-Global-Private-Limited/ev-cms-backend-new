@@ -1,6 +1,6 @@
 # AI Changelog
 
-## 2026-09-15 - Fix invoice charge headers and tax amounts
+## 2026-09-15 - Deploy invoice charge-header and tax-amount corrections
 
 - Corrected the vertical translation sign and centered visible header glyphs;
   replaced the prior regression assertion that repeated the sign error.
@@ -8,9 +8,27 @@
   frozen GST-inclusive settled total. Displayed lines reconcile exactly using
   an explicit rounding row. Incomplete/invalid historical snapshots do not
   become zero tax; the generic session label also covers time/session tariffs.
-- Focused invoice tests and sample PDF generation/rasterization pass; the normal
-  PDF was visually inspected. Full Go tests and vet pass; documentation verification passes. No database,
-  delivery, or deployment was performed. Branch publication is authorized.
+- The inconsistent sample fixture was corrected in test-only commit `2eeb5e0`
+  to match the frozen tariff total. Focused/full Go tests, vet, module
+  verification, OpenAPI parity, all-package build, and diff checks passed.
+  Ghostscript rasterized one- and three-page samples; the normal PDF was
+  visually inspected. The PowerShell docs verifier could not run because
+  `pwsh` is unavailable; `TEST_DATABASE_URL` is unset and SMTP acceptance is
+  unverified.
+- Rehosted revision `2eeb5e0` (application behavior from `00023f2`); active
+  binary SHA-256 is
+  `6d44079e64e788a7a12c920999829d047982d3723230d7bbb4d11c3d852835fa`. The
+  preceding executable is retained at
+  `/root/evcmsnew-backups/pre-invoice-breakdown-2eeb5e0-20260915T042431Z/evcmsnew`
+  (SHA-256
+  `a6200e596cc01d8f70cb113ab8518d93930364568652b58e72e6aa58fa35ce5`).
+  Migration 000069, schema, and the 245-operation HTTP contract are unchanged.
+- Post-rehost process/install hashes match; service PID 171693 is active with
+  zero restarts. Local/HTTPS liveness, readiness, docs, and OpenAPI return 200;
+  all six required workers are healthy/fresh, Caddy validates, and no new
+  process error/fatal/panic entries were found. Aggregate state is 76 READY
+  invoices, six SENT invoice deliveries, and 474 SENT mail-outbox jobs. No
+  artifact was changed and no mail was sent or retried.
 
 ## 2026-09-14 - Deploy invoice PDF presentation polish
 

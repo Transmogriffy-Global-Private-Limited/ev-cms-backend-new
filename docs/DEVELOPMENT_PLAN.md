@@ -124,7 +124,8 @@ Active work:
   enrichment remediation.
 
 Recently completed deployment: charging-session invoices, including the
-presentation, issuer/hydration, PDF redesign, and PDF presentation polish
+presentation, issuer/hydration, PDF redesign, PDF presentation polish, and
+GST-breakdown/header-centering follow-up
 releases. The deployed
 revision, migration, private storage boundary, runtime verification, and
 remaining SMTP/database-test limits are recorded in `docs/PROJECT_STATE.md`
@@ -133,11 +134,8 @@ and `docs/guides/operations/dev-hosting.md`; detailed implementation records are
 `docs/work/archive/WI-20260914-invoice-customer-presentation.md`, and
 `docs/work/archive/WI-20260914-invoice-hydration-issuer.md`, and
 `docs/work/archive/WI-20260914-invoice-pdf-uiux.md`, and
-`docs/work/archive/WI-20260914-invoice-pdf-presentation-polish.md`.
-
-Local invoice follow-up: correct visible Charges header centering and populate
-the GST-inclusive settled-total breakdown. Scope and verification are recorded
-in `docs/work/archive/WI-20260915-invoice-breakdown.md`; deployment is not included.
+`docs/work/archive/WI-20260914-invoice-pdf-presentation-polish.md`, and
+`docs/work/archive/WI-20260915-invoice-breakdown.md`.
 
 Approved current slice:
 

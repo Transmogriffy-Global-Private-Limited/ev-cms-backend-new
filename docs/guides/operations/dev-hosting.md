@@ -28,15 +28,15 @@ development host it is set in the ignored service environment to
 that setting; it must not be used until the OCPP host is explicitly configured
 with TLS/WebSocket support.
 
-The active deployment was updated on September 14, 2026 to source revision
-`16edaff` (invoice PDF presentation polish); migration
+The active deployment was updated on September 15, 2026 to source revision
+`2eeb5e0` (invoice breakdown corrections; application change `00023f2`); migration
 `000069_add_charging_session_invoices` remains current and the API has 245
 operations. The active binary SHA-256 is
-`a6200e596cc01d8f70cb113ab8518d93930364568652b58e72e6aa58fa35ce5c`. The
+`6d44079e64e788a7a12c920999829d047982d3723230d7bbb4d11c3d852835fa`. The
 immediately preceding binary is retained at
-`/root/evcmsnew-backups/pre-invoice-pdf-polish-16edaff-20260914T115128Z/evcmsnew`
+`/root/evcmsnew-backups/pre-invoice-breakdown-2eeb5e0-20260915T042431Z/evcmsnew`
 (SHA-256
-`993b2fb66fe47ec6365eb1d16b0769da66fc99fef48f5bdf2ceb59add231b4e5`). The
+`a6200e596cc01d8f70cb113ab8518d93930364568652b58e72e6aa58fa35ce5`). The
 pre-`000069` database dump is
 `/root/evcmsnew-backups/devevcmsnew-before-000069-20260914T110817+0530.dump`
 (mode `0600`, SHA-256
@@ -99,6 +99,21 @@ recognized as PDF 1.7 with one and three pages and mode `0600`; strict
 `pdfcpu` validation is recorded in the upstream work item but was unavailable
 for an independent local rerun, and no visual inspection is claimed.
 `TEST_DATABASE_URL`, `pwsh`, and SMTP acceptance remain unavailable or
+unverified.
+
+The subsequent invoice-breakdown rehost corrects visible Charges-header
+centering and displays net session charges and frozen GST amounts, with an
+explicit rounding adjustment where required. It does not reprice sessions,
+rewrite READY artifacts, send/retry mail, alter schema/migrations, or change
+the HTTP payload. Post-rehost the service was active at PID 171693 with zero
+restarts and matching process/install hashes; local and HTTPS liveness,
+readiness, docs, and OpenAPI returned 200, the 245-operation contract and
+migration 000069 remained current, all six required current workers were
+healthy/fresh, Caddy validated, and no new-process error/fatal/panic entries
+were found. Aggregates were 76 READY invoices, six already-SENT deliveries,
+and 474 already-SENT mail jobs. Ghostscript rasterized the one- and three-page
+samples and the normal sample was visually inspected; `pdfcpu` and `pwsh` were
+unavailable, `TEST_DATABASE_URL` was unset, and SMTP acceptance remains
 unverified.
 The pre-migration binary and database dump for migrations 49 through 53 are
 retained under `/root/evcmsnew-backups/` and

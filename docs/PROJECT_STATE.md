@@ -1,20 +1,38 @@
 # Project State
 
-## 2026-09-15 - Invoice breakdown corrections (local)
+## 2026-09-15 - Invoice breakdown corrections deployed
 
 - Charges headers now center their visible glyph outlines using Canvas page
   coordinates. Newly generated V2 PDFs populate net session charges and frozen
   GST amounts, with an explicit rounding adjustment when needed; semantics are
   in the charging-session invoice section of the human HTTP contract.
-- Existing READY artifacts, settlement, delivery, schema, and HTTP payloads are
-  unchanged. Branch publication is authorized; deployment is not included.
+- Runtime source revision `2eeb5e0` (application change `00023f2`) is active;
+  binary SHA-256 is
+  `6d44079e64e788a7a12c920999829d047982d3723230d7bbb4d11c3d852835fa`.
+  The immediately preceding executable is retained at
+  `/root/evcmsnew-backups/pre-invoice-breakdown-2eeb5e0-20260915T042431Z/evcmsnew`
+  (SHA-256
+  `a6200e596cc01d8f70cb113ab8518d93930364568652b58e72e6aa58fa35ce5`).
+  Existing READY artifacts, settlement, delivery, schema, migration 000069,
+  and HTTP payloads are unchanged; the contract remains at 245 operations.
 - Focused invoice tests pass, including frozen snapshot hydration/JSON round-trip,
   split/integrated/zero GST, free sessions, invalid/missing tax, positive/negative
   rounding, and displayed-total reconciliation. Generated normal and overflow
   PDFs open and rasterize successfully (one and three pages); the normal PDF was
   visually inspected for header centering and populated tax amounts.
-- Repository-wide Go tests and vet pass; documentation verification passes. `TEST_DATABASE_URL` is unset; disposable
-  PostgreSQL lifecycle tests and live generation/delivery are unverified.
+- Focused/full Go tests, vet, module verification, OpenAPI parity, all-package
+  build, and diff checks passed. Ghostscript rasterized one- and three-page
+  samples, and the normal sample was visually inspected. `pdfcpu` and `pwsh`
+  are unavailable here; strict independent PDF validation and the PowerShell
+  docs verifier were not run. `TEST_DATABASE_URL` is unset; disposable
+  PostgreSQL lifecycle tests and live SMTP acceptance remain unverified.
+- Post-rehost, service PID 171693 is active with zero restarts and matching
+  process/install hashes. Local and HTTPS liveness, readiness, docs, and
+  OpenAPI returned 200; Caddy validates; all six required current workers are
+  healthy with fresh heartbeats; no new-process error/fatal/panic entries were
+  found. Migration 000069 remains current. Aggregates were 76 READY invoices,
+  six already-SENT invoice deliveries, and 474 already-SENT mail-outbox jobs;
+  no invoice artifact or mail was changed, sent, or retried by this deployment.
 
 ## 2026-09-14 - Invoice PDF presentation polish deployed
 
