@@ -29,14 +29,14 @@ that setting; it must not be used until the OCPP host is explicitly configured
 with TLS/WebSocket support.
 
 The active deployment was updated on September 15, 2026 to source revision
-`d2e5393` (V3 single-page invoice renderer); migration
+`cb4056f` (frozen-tariff invoice billing Basis correction); migration
 `000069_add_charging_session_invoices` remains current and the API has 245
 operations. The active binary SHA-256 is
-`6b7e076549b13e503f8eab5c90f01106b8a330421842ea14aef5f8023b6190c5`. The
+`4a836493a7fc3197decfeb1d09d29a55f324fb600e306fb79394b447410aff70`. The
 immediately preceding binary is retained at
-`/root/evcmsnew-backups/pre-invoice-v3-d2e5393-20260915T103514+0530/evcmsnew`
+`/root/evcmsnew-backups/pre-invoice-tariff-basis-cb4056f-20260915T143959+0530/evcmsnew`
 (SHA-256
-`6d44079e64e788a7a12c920999829d047982d3723230d7bbb4d11c3d852835fa`). The
+`6b7e076549b13e503f8eab5c90f01106b8a330421842ea14aef5f8023b6190c5`). The
 pre-`000069` database dump is
 `/root/evcmsnew-backups/devevcmsnew-before-000069-20260914T110817+0530.dump`
 (mode `0600`, SHA-256
@@ -130,6 +130,22 @@ error/panic/fatal scan is clear. Database aggregates were 77 READY invoices,
 seven already-SENT invoice deliveries, and 474 already-SENT mail jobs; no
 invoice or mail data was changed. Focused/full Go tests, vet, module verification,
 route parity, production build, and visual inspection passed. `pwsh`,
+`TEST_DATABASE_URL`, and SMTP acceptance remain unavailable or unverified.
+
+The subsequent tariff-basis follow-up makes the V3 Basis column reflect the
+frozen tariff's actual billing measure (delivered kWh, exact elapsed time, or
+one session), independent of AUTO/ENERGY/TIME/MONEY stop selection. Monetary
+rows remain the frozen settled-total breakdown; requested limits remain in
+Session details. Historical per-kWh/per-Wh snapshots remain explicit and
+incomplete/invalid facts show unavailable. No migration, settlement, delivery,
+machine API route/schema, or existing READY artifact changed. Post-rehost,
+service PID 190918 is active with zero restarts and matching process/install SHA;
+local and HTTPS health/readiness/docs/OpenAPI return 200, migration 000069 and
+the 245-operation API remain current, all six required workers are healthy/fresh,
+Caddy validates, and the new-process log scan is clear. Aggregates were 79 READY
+invoices, nine already-SENT invoice deliveries, and 475 already-SENT mail jobs;
+no invoice or mail data was changed. Focused/full Go tests, vet, module
+verification, route parity, production build and visual review passed. `pwsh`,
 `TEST_DATABASE_URL`, and SMTP acceptance remain unavailable or unverified.
 The pre-migration binary and database dump for migrations 49 through 53 are
 retained under `/root/evcmsnew-backups/` and

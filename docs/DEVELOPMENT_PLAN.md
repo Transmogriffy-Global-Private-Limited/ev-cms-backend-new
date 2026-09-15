@@ -125,7 +125,8 @@ Active work:
 
 Recently completed deployment: charging-session invoices, including the
 presentation, issuer/hydration, PDF redesign, PDF presentation polish,
-GST-breakdown/header-centering, and single-page V3 layout follow-up releases.
+GST-breakdown/header-centering, single-page V3 layout, and tariff-basis follow-up
+releases.
 The deployed revision, migration, private storage boundary, runtime verification,
 and remaining SMTP/database-test limits are recorded in `docs/PROJECT_STATE.md`
 and `docs/guides/operations/dev-hosting.md`; detailed implementation records
@@ -135,10 +136,8 @@ are `docs/work/archive/WI-20260911-charging-session-invoices.md`,
 `docs/work/archive/WI-20260914-invoice-pdf-uiux.md`, and
 `docs/work/archive/WI-20260914-invoice-pdf-presentation-polish.md`, and
 `docs/work/archive/WI-20260915-invoice-breakdown.md`, and
-`docs/work/archive/WI-20260915-invoice-one-page.md`.
-
-Completed local invoice Basis correction across the independent tariff/stop-limit
-matrix: `docs/work/archive/WI-20260915-invoice-tariff-basis.md`. Not deployed.
+`docs/work/archive/WI-20260915-invoice-one-page.md`, and
+`docs/work/archive/WI-20260915-invoice-tariff-basis.md`.
 
 Approved current slice:
 

@@ -1,6 +1,6 @@
 # AI Changelog
 
-## 2026-09-15 - Correct invoice billing Basis across tariff types
+## 2026-09-15 - Deploy invoice billing Basis across tariff types
 
 - Replaced V3's unconditional energy Basis with the frozen tariff's actual
   quantity/rate: kWh, elapsed time including fractional seconds, or one session.
@@ -9,10 +9,26 @@
   per-Wh compatibility, and unavailable output for incomplete/invalid facts.
   Added all twelve tariff/stop-selection cases plus precision and compatibility
   coverage. Financial calculations and legacy V2 rendering are unchanged.
-- Focused/full Go tests, vet, docs and diff checks pass. Twelve generated PDFs
-  preserve one-page output and independent basis/limit text; representative time
-  and session PDFs were visually inspected. Database lifecycle tests remain
-  unverified (`TEST_DATABASE_URL` unset). Branch publication is authorized; no deployment or live data changes.
+- Focused/full Go tests, vet, module verification, production build, route parity,
+  and diff checks passed. Twelve generated PDFs were recognized as one-page PDF
+  1.7 files; tests verify separate basis/limit text and unchanged financial rows.
+  Representative time/session PDFs were visually inspected. `pwsh` is unavailable,
+  so the originating docs-verifier pass could not be independently rerun;
+  `TEST_DATABASE_URL` is unset and SMTP acceptance remains unverified.
+- Rehosted source revision `cb4056f`; active binary SHA-256 is
+  `4a836493a7fc3197decfeb1d09d29a55f324fb600e306fb79394b447410aff70`. The
+  immediately preceding executable is retained at
+  `/root/evcmsnew-backups/pre-invoice-tariff-basis-cb4056f-20260915T143959+0530/evcmsnew`
+  (SHA-256
+  `6b7e076549b13e503f8eab5c90f01106b8a330421842ea14aef5f8023b6190c5`). No
+  migration, machine API route/schema, settlement, delivery, or existing READY
+  artifact change was required; human invoice guidance was updated upstream.
+- Post-rehost service PID 190918 is active with zero restarts and matching
+  process/install hashes. Local/HTTPS health, readiness, docs, and OpenAPI
+  return 200; all six required workers are healthy/fresh, Caddy validates, and
+  the new process has no error/panic/fatal entries. Migration 000069 remains
+  current; all 79 invoices are READY, nine invoice deliveries and 475 mail
+  outbox jobs are already SENT. No invoice or mail was changed, sent, or retried.
 
 ## 2026-09-15 - Deploy V3 single-page invoice renderer
 

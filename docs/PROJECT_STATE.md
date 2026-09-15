@@ -1,20 +1,36 @@
 # Project State
 
-## 2026-09-15 - Invoice Basis follows frozen tariff (local)
+## 2026-09-15 - Invoice Basis follows frozen tariff (deployed)
 
 - V3 charge Basis now follows energy, elapsed-time or fixed-session pricing,
   independently of AUTO/ENERGY/TIME/MONEY execution limits. Exact start/end
   timestamps supply time billing; a fixed-session rate needs no unit. Historical
   per-kWh/per-Wh semantics are explicit; unsupported/missing facts stay unavailable.
 - Settled amounts, taxes, requested-stop details, one-page layout and legacy V2
-  rendering remain unchanged. No schema/API, HAL, live artifact or deployment
-  change. The canonical invoice contract documents the billing/stop matrix.
-- Focused tests cover all twelve tariff/stop-limit combinations, unchanged monetary
-  rows, fractional elapsed time and historical/invalid snapshots. Full Go tests,
-  vet, documentation verification and diff checks pass. All twelve generated PDFs
-  were independently parsed as one page with correct basis and separate limit;
-  time/session samples were visually inspected. `TEST_DATABASE_URL` is unset,
-  so database lifecycle/live generation is unverified. Branch publication is authorized; deployment is not included.
+  rendering remain unchanged. No schema, machine API, HAL, or existing artifact
+  change. The canonical human invoice contract documents the billing/stop matrix.
+- Runtime source revision `cb4056f` is active with binary SHA-256
+  `4a836493a7fc3197decfeb1d09d29a55f324fb600e306fb79394b447410aff70`. The
+  immediately preceding executable is retained at
+  `/root/evcmsnew-backups/pre-invoice-tariff-basis-cb4056f-20260915T143959+0530/evcmsnew`
+  (SHA-256
+  `6b7e076549b13e503f8eab5c90f01106b8a330421842ea14aef5f8023b6190c5`).
+- Focused tests cover all twelve tariff/stop-limit combinations, unchanged
+  monetary rows, fractional elapsed time and historical/invalid snapshots.
+  Focused/full Go tests, vet, module verification, production build, route
+  parity and diff checks passed. All twelve generated PDFs were recognized as
+  one-page PDF 1.7 files; tests assert correct basis and separate limit, and
+  representative time/session samples were visually inspected. `pwsh` is
+  unavailable, so the originating work item's docs-verifier pass could not be
+  independently rerun here; `TEST_DATABASE_URL` is unset, so database lifecycle
+  tests remain unverified.
+- Post-rehost service PID 190918 is active with zero restarts and matching
+  process/install hashes. Local/public health, readiness, docs, and OpenAPI
+  returned 200; Caddy validates; all six required current workers are healthy
+  with fresh heartbeats; no new-process error/panic/fatal entries were found.
+  Migration 000069 and the 245-operation API remain current. Aggregates are 79
+  READY invoices, nine already-SENT invoice deliveries, and 475 already-SENT
+  mail jobs. No invoice artifact or mail was changed, sent, or retried.
 
 ## 2026-09-15 - Professional single-page invoice layout deployed
 
