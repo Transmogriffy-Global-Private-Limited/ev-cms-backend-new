@@ -8342,3 +8342,84 @@ func (service *Service) ListCustomerVisitCounts(
 	}
 	return resp, nil
 }
+
+func (service *Service) UnassignChargerFromHub(
+	ctx context.Context,
+	principal auth.Principal,
+	hubID uuid.UUID,
+	chargerID uuid.UUID,
+) (ChargerResponse, error) {
+	if err := requireCPOContext(principal); err != nil {
+		return ChargerResponse{}, err
+	}
+	if chargerID == uuid.Nil {
+		return ChargerResponse{}, invalid("charger_id", "Charger ID is required.")
+	}
+
+	cpoID := *principal.CPOID
+	var charger models.Charger
+
+	err := service.database.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		// Lock the hub first to keep the same ordering as AssignChargerToHub.
+		var hub models.Hub
+		if err := tx.First(&hub, "id = ? AND cpo_id = ?", hubID, cpoID).Error; err != nil {
+			return mapHubNotFound(err)
+		}
+
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+			First(&charger, "id = ? AND cpo_id = ?", chargerID, cpoID).Error; err != nil {
+			return mapChargerNotFound(err)
+		}
+
+		// Idempotency / conflict check.
+		if charger.HubID == nil || *charger.HubID != hubID {
+			return &auth.APIError{
+				Status:  http.StatusConflict,
+				Code:    "charger_not_in_hub",
+				Message: "The charger is not assigned to this hub.",
+			}
+		}
+
+		now := service.now()
+		if err := tx.Model(&models.Charger{}).
+			Where("id = ? AND cpo_id = ?", charger.ID, cpoID).
+			Updates(map[string]any{
+				"hub_id":              nil,
+				"customer_visibility": false,
+				"status":              constants.ChargerStatusInactive,
+				"updated_at":          now,
+			}).Error; err != nil {
+			return mapChargerWriteError(err, "unassign charger from hub")
+		}
+
+		if err := writeAudit(
+			tx,
+			principal.UserID,
+			cpoID,
+			"CHARGER_HUB_UNASSIGNED",
+			models.JSONB{
+				"charger_id":      charger.ID,
+				"previous_hub_id": hubID,
+			},
+			now,
+		); err != nil {
+			return err
+		}
+		return nil
+	})
+	if err != nil {
+		return ChargerResponse{}, err
+	}
+
+	// Reload with associations for a consistent response shape.
+	if err := service.database.WithContext(ctx).
+		Preload("Connectors", func(tx *gorm.DB) *gorm.DB {
+			return tx.Order("connector_number ASC")
+		}).
+		Preload("Hub").
+		First(&charger, "id = ? AND cpo_id = ?", chargerID, cpoID).Error; err != nil {
+		return ChargerResponse{}, fmt.Errorf("reload charger after unassignment: %w", err)
+	}
+
+	return service.chargerView(charger, principal), nil
+}

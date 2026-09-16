@@ -5496,6 +5496,59 @@ paths:
                 $ref: "#/components/schemas/ErrorEnvelope"
         "500":
           $ref: "#/components/responses/InternalError"
+  /api/v1/cpo/hubs/{hub_id}/chargers/{charger_id}:
+    parameters:
+      - $ref: "#/components/parameters/HubID"
+      - $ref: "#/components/parameters/ChargerInternalID"
+    delete:
+      tags: [CPO Operations - Network]
+      operationId: unassignChargerFromCPOHub
+      summary: Unassign a tenant charger from a hub
+      description: |
+        Requires CPO ADMIN. Detaches an existing charger of the same CPO from
+        the specified hub. Because a charger must belong to a hub before it can
+        be active or customer-visible, the same transaction also clears
+        `customer_visibility` and forces the CMS administrative status back to
+        `INACTIVE`. The charger row itself is preserved. Repeating the request
+        for a charger that is not currently assigned to this hub returns
+        `409 charger_not_in_hub`; the operation is not silently ignored. The
+        change is atomic and audited as `CHARGER_HUB_UNASSIGNED`. No tariff
+        scope is changed: charger-targeted tariffs remain attached to the
+        charger and hub-targeted tariffs remain attached to their hub.
+      security:
+        - BearerAuth: []
+          CPOAppID: []
+      responses:
+        "200":
+          description: Charger successfully unassigned from the hub.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Charger"
+        "400":
+          description: Invalid hub ID, charger ID, or missing app-ID header.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/CPOBusinessForbidden"
+        "404":
+          description: "`hub_not_found` or `charger_not_found`."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "409":
+          description: "`charger_not_in_hub` — the charger is not currently assigned to this hub."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "500":
+          $ref: "#/components/responses/InternalError"
 
   /api/v1/cpo/hubs/{hub_id}/analytics:
     get:

@@ -556,6 +556,8 @@ func RegisterCPORoutes(
 	hubsManage.PUT("/hubs/:hub_id/customer-visibility", handler.updateHubCustomerVisibility)
 	chargersManage.PUT("/chargers/:charger_id/customer-visibility", handler.updateChargerCustomerVisibility)
 	hubsManage.POST("/hubs/:hub_id/chargers", handler.assignChargerToHub)
+	hubsManage.DELETE("/hubs/:hub_id/chargers/:charger_id", handler.unassignChargerFromHub)
+
 	hubsManage.POST("/hubs/:hub_id/gst", handler.assignGSTToHub)
 	hubsRead.GET("/hubs/:hub_id/gst", handler.getGSTForHub)
 	hubsManage.PATCH("/hubs/:hub_id/gst", handler.updateGSTForHub)
@@ -3706,4 +3708,47 @@ func (handler *Handler) listCustomerVisitCounts(ctx *gin.Context) {
 		return
 	}
 	ctx.JSON(http.StatusOK, records)
+}
+
+// @Summary Unassign a charger from a hub
+// @Description Removes a charger from its current hub. The charger is deactivated
+// and its customer visibility is cleared because a charger must belong to a hub
+// before it can be active or customer-visible.
+// @Tags CPO Network
+// @Produce json
+// @Param hub_id path string true "Hub ID"
+// @Param charger_id path string true "Charger ID (UUID)"
+// @Success 200 {object} ChargerResponse "Successfully unassigned charger"
+// @Failure 400 {object} auth.APIError "Invalid hub or charger ID"
+// @Failure 401 {object} auth.APIError "Unauthorized"
+// @Failure 403 {object} auth.APIError "Forbidden"
+// @Failure 404 {object} auth.APIError "Hub or charger not found"
+// @Failure 409 {object} auth.APIError "Charger is not assigned to this hub"
+// @Router /cpo/hubs/{hub_id}/chargers/{charger_id} [delete]
+func (handler *Handler) unassignChargerFromHub(ctx *gin.Context) {
+	principal, _ := auth.CurrentPrincipal(ctx)
+
+	hubID, ok := parseHubID(ctx)
+	if !ok {
+		return
+	}
+
+	chargerID, err := uuid.Parse(ctx.Param("charger_id"))
+	if err != nil || chargerID == uuid.Nil {
+		writeError(ctx, &auth.APIError{
+			Status:  http.StatusBadRequest,
+			Code:    "invalid_charger_id",
+			Message: "The charger ID is invalid.",
+		})
+		return
+	}
+
+	record, err := handler.service.UnassignChargerFromHub(
+		ctx.Request.Context(), principal, hubID, chargerID,
+	)
+	if err != nil {
+		writeError(ctx, err)
+		return
+	}
+	ctx.JSON(http.StatusOK, record)
 }
