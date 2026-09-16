@@ -4,7 +4,7 @@ Status: In Progress
 Owner: Codex
 Collaborators: Anubhab Dey (CMS/HAL boundary owner)
 Started: 2026-09-04
-Last updated: 2026-09-10 (CMS TriggerMessage follow-on rehost verified; paired HAL deployment and hardware validation pending)
+Last updated: 2026-09-16 (CMS durable-dispatch recovery deployed; paired HAL deployment and physical hardware acceptance remain pending)
 
 Development-plan reference: `docs/DEVELOPMENT_PLAN.md` — Charging lifecycle and HAL integration
 Detailed-plan reference: `docs/integrations/cpo-hal-operational-capability-manual.md`
@@ -144,3 +144,5 @@ The separate [durable-dispatch work item](../archive/WI-20260916-charger-operati
 adds CMS restart recovery and a no-replay boundary. It does not complete or
 change this item's paired-HAL/hardware acceptance. See
 [the recovery contract](../../integrations/charger-operation-recovery.md).
+The CMS release is active at source revision `8cd65ae` with migration 70;
+live exact-ID lookup results are documented in the archived follow-on item.

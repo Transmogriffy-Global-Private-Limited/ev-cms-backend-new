@@ -71,7 +71,8 @@ Authentication and tenant authorization remain enforced.
 Health endpoints:
 
 - `GET /health/live` reports process liveness.
-- `GET /health/ready` checks PostgreSQL readiness.
+- `GET /health/ready` checks PostgreSQL and every enabled required worker for
+  this process; stale or missing workers keep the service out of readiness.
 
 Authentication and tenant integration endpoints are documented in
 `docs/AUTHENTICATION.md`. Platform CPO management is documented in

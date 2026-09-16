@@ -9,7 +9,7 @@ CMS durable charger-operation dispatch only. Shared handler/recovery dispatcher,
 immutable dispatch inputs, fenced pre-delivery leases, committed delivery marker,
 exact-ID reconciliation, bounded lifecycle worker, additive migration70,
 operation-state contracts and crash-boundary tests. No HAL modifications,
-authentication, invoice, financial or customer behavior, and no deployment.
+authentication, invoice, financial or customer behavior, and no HAL code change.
 
 Overlaps the CMS reliability surface of WI-20260904-cpo-charger-operations;
 its paired-HAL/hardware acceptance remains separate. Existing legacy PERSISTED
@@ -17,8 +17,7 @@ rows must be treated as delivery-uncertain, never blindly replayed.
 
 ## Verification
 
-Pending focused PostgreSQL/HAL-stub crash-boundary tests, then one broad
-Go test/vet/build pass, docs verification and diff review. Commit/push authorized.
+See the final verification and deployment record below. Commit/push authorized.
 
 ## Implementation and safety review
 
@@ -58,8 +57,9 @@ Focused disposable-PostgreSQL crash-boundary, concurrency, immutable-envelope,
 legacy-migration and rollback tests passed. Dedicated HAL transport no-replay
 and redirect tests passed. Poison-claim isolation, in-flight cancellation,
 history-state parsing and OpenAPI state tests passed. Final merged-tree focused
-checks and one broad test/vet/build pass are recorded below.
-No deployed HAL, real charger, live database or production migration is used.
+checks and one broad test/vet/build pass are recorded below. The original
+implementation checks used only disposable PostgreSQL and a loopback HAL stub;
+the later live CMS deployment is recorded under Publication below.
 
 ## Final verification
 
@@ -72,9 +72,10 @@ No deployed HAL, real charger, live database or production migration is used.
 - Broad `go test -p 1 ./...` ran once with PostgreSQL enabled. It is not a clean
   pass; exact failures are retained below. This task's
   recovery behavior is independently covered by the focused passing tests.
-- No actual HAL service, OCPP charger or deployment was exercised. Migration 70
-  was applied only to the disposable local database. A pre-change baseline suite
-  was not rerun, so failures are identified by observed test/output and scope,
+- The original focused recovery suite used disposable PostgreSQL and HAL stubs;
+  no physical charger/OCPP effect was exercised. The live CMS rollout later
+  performed read-only exact-ID reconciliation only. A pre-change baseline suite
+  was not rerun, so broad failures are identified by observed output and scope,
   not presented as independently baseline-reproduced.
 
 ### Exact broad-suite failures
@@ -113,5 +114,11 @@ context. The disposable PostgreSQL cluster was stopped after verification.
 ## Publication
 
 Authorized publication targets are `anubhab-work` and `main`, preserving remote
-main ancestry with no force push. This is a source-only change; deployment,
-production migration and physical-charger acceptance remain unperformed.
+main ancestry with no force push. Source revision `8cd65ae` was rehosted on the
+development VPS with migration 70 after a verified custom-format dump. The old
+binary and dump are under
+`/root/evcmsnew-backups/pre-000070-20260916T094521Z/`. The down migration refuses
+while operation history exists; use a forward correction, not the old binary or
+deletion of records. Live CMS/HAL exact-ID lookup results and route/worker
+verification are recorded in `docs/PROJECT_STATE.md` and the hosting guide.
+Physical-charger acceptance remains unperformed.

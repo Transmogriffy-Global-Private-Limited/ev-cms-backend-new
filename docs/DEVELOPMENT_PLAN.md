@@ -9,7 +9,9 @@
   map to CMS `HAL_ACCEPTED`; uncertain operations do not appear completed.
   The dedicated operation POST disables transport replay and redirects.
 - Migration 70 conservatively moves old PERSISTED rows to reconciliation;
-  it does not reconstruct historical mappings. No HAL change or deployment.
+  it does not reconstruct historical mappings. Deployed on source `8cd65ae`
+  after a validated database dump; see the [hosting record](guides/operations/dev-hosting.md)
+  and [verification record](work/archive/WI-20260916-charger-operation-recovery.md).
 - See [the recovery contract](integrations/charger-operation-recovery.md) and
   [work item](work/archive/WI-20260916-charger-operation-recovery.md) for state
   invariants, rollout precautions and verification evidence.

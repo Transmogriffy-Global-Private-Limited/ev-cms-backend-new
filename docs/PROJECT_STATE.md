@@ -9,7 +9,29 @@
   map to CMS `HAL_ACCEPTED`; uncertain operations do not appear completed.
   The dedicated operation POST disables transport replay and redirects.
 - Migration 70 conservatively moves old PERSISTED rows to reconciliation;
-  it does not reconstruct historical mappings. No HAL change or deployment.
+  it does not reconstruct historical mappings. No HAL code or schema changed.
+- Deployed source revision `8cd65ae` with migration
+  `000070_durable_charger_operation_dispatch.up.sql`; active binary SHA-256 is
+  `7eccc0689da5b796ca8f4b4b9cecafd79a214fb805429924ba4d54542e7657d5`.
+  Pre-migration database dump and retained old binary are under
+  `/root/evcmsnew-backups/pre-000070-20260916T094521Z/`. Migration preserved all
+  30 operation records and reopened four stale reconciliation records by
+  clearing their misleading completion timestamps; there were zero legacy
+  PERSISTED rows. Startup's exact-ID HAL reconciliation resolved those four as
+  three `HAL_ACCEPTED` and one `CONFIRMED_ABSENT`; no charger operation was
+  redispatched, and this does not assert physical charger effect.
+- Post-rehost PID `10093` is active with zero restarts and matching process and
+  install hashes. Local/public liveness, readiness, Swagger and OpenAPI all
+  returned 200; the live OpenAPI has 246 operations. All seven required current
+  workers were healthy/fresh, Caddy validated, and new-process error/panic/fatal
+  checks were clear. Invoice (83 READY), invoice delivery (13 SENT), and mail
+  outbox (508 SENT) aggregates stayed unchanged.
+- The migration's down path refuses while operation history exists; with these
+  30 rows, recovery is forward-fix using migration 70, not swapping back to the
+  old binary. The retained dump is the emergency restore point, not an
+  automatic rollback. Broad Go tests passed with `TEST_DATABASE_URL` unset, so
+  disposable-DB integration suites were skipped; `pwsh`, physical OCPP and
+  SMTP acceptance remain unverified.
 - See [the recovery contract](integrations/charger-operation-recovery.md) and
   [work item](work/archive/WI-20260916-charger-operation-recovery.md) for state
   invariants, rollout precautions and verification evidence.

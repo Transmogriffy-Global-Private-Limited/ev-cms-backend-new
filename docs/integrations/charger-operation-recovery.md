@@ -111,7 +111,9 @@ For an authorized future rollout, quiesce all old CMS writers before migrating
 and starting the new version. Never run the old unfenced dispatcher against this
 schema. The down migration refuses to remove the safety boundary while any
 charger-operation records exist; use a forward correction, not deletion of
-operation history to force rollback. No deployment is part of this change.
+operation history to force rollback. The CMS deployment, migration effects and
+rollback artifact locations are recorded in the [development hosting guide](../guides/operations/dev-hosting.md);
+physical-charger acceptance remains a separate boundary.
 
 Inspect operation detail/history, worker health, failure category, lease expiry,
 `recovery_after` and exact HAL-ID evidence when diagnosing stalled work. Do not
