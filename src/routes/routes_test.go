@@ -634,3 +634,27 @@ func TestAPIDocumentationRoutesCanBeDisabled(t *testing.T) {
 		t.Errorf("health route got status %d with docs disabled, want 200", recorder.Code)
 	}
 }
+
+func TestAdministrativeLoginOpenAPIUsesAppIDHeader(t *testing.T) {
+	document, err := openapi3.NewLoader().LoadFromData(apidocs.Specification())
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, name := range []string{"CPOLoginRequest", "PlatformLoginRequest"} {
+		schema := document.Components.Schemas[name].Value
+		if len(schema.Properties) != 3 || len(schema.Required) != 3 || schema.Properties["cpo_id"] != nil {
+			t.Fatalf("%s must accept only email, password and scope", name)
+		}
+		if schema.AdditionalProperties.Has == nil || *schema.AdditionalProperties.Has {
+			t.Fatalf("%s must reject unknown fields", name)
+		}
+	}
+	operation := document.Paths.Value("/api/v1/auth/login").Post
+	for _, parameter := range operation.Parameters {
+		p := parameter.Value
+		if p.Name == "X-CPO-App-ID" && p.In == "header" && !p.Required && p.Schema.Value.Pattern == "^[a-z0-9_-]{16,100}$" {
+			return
+		}
+	}
+	t.Fatal("login must document the scope-dependent App-ID header")
+}

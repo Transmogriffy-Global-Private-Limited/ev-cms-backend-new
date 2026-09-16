@@ -2361,10 +2361,28 @@ paths:
     post:
       tags: [Authentication]
       operationId: startAdministrativeLogin
+      parameters:
+        - name: X-CPO-App-ID
+          in: header
+          required: false
+          description: Required exactly once for CPO scope; prohibited for PLATFORM scope. Public context selector only; active membership grants authority.
+          schema:
+            type: string
+            minLength: 16
+            maxLength: 100
+            pattern: "^[a-z0-9_-]{16,100}$"
       summary: Validate password and start an email-OTP challenge
       description: |
         Starts either a platform or a single-CPO administrative login. Platform
-        login must omit `cpo_id`; CPO login must include a non-zero `cpo_id`.
+        login rejects any supplied `X-CPO-App-ID`, including an empty header.
+        CPO login requires exactly one canonical `X-CPO-App-ID` header. It is a
+        public context selector, not a secret: the authenticated user's active
+        membership in the resolved active CPO grants authority. Both scopes
+        reject JSON `cpo_id` and other unknown fields with `400 invalid_request`.
+        Missing/malformed/unknown App IDs return `invalid_credentials`.
+        The resolved internal CPO UUID is frozen into the OTP challenge;
+        verify/resend revalidate it and refresh uses existing session context.
+        Those operations need no App-ID header and cannot reselect context.
         Invalid email, password, scope, identity state, platform authority,
         membership, CPO status, and lockout all collapse to
         `invalid_credentials` to avoid authority enumeration.
@@ -2390,7 +2408,6 @@ paths:
                   email: admin@example.com
                   password: ExampleOnly-Change-Me
                   scope: CPO
-                  cpo_id: c821a013-5041-42f7-80c8-aa153cf9d455
       responses:
         "202":
           description: OTP challenge created and mail queued.
@@ -8961,7 +8978,7 @@ components:
     CPOLoginRequest:
       type: object
       additionalProperties: false
-      required: [email, password, scope, cpo_id]
+      required: [email, password, scope]
       properties:
         email:
           type: string
@@ -8975,9 +8992,6 @@ components:
         scope:
           type: string
           enum: [CPO]
-        cpo_id:
-          type: string
-          format: uuid
 
     ChallengeVerificationRequest:
       type: object

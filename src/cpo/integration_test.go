@@ -497,11 +497,10 @@ func TestCPOProvisioningAndFirstAdminLifecycleWithPostgreSQL(t *testing.T) {
 
 	authService := newCPOIntegrationAuthService(t, gormDB, outbox)
 	metadata := auth.RequestMetadata{UserAgent: "cpo-provisioning-test"}
-	if _, err := authService.Login(ctx, auth.LoginRequest{
+	if _, err := authService.Login(ctx, created.CPO.AppID, auth.LoginRequest{
 		Email:    adminEmail,
 		Password: welcome.TemporaryPassword,
 		Scope:    constants.AuthScopeCPO,
-		CPOID:    &created.CPO.ID,
 	}, metadata); err == nil {
 		t.Fatal("pending CPO administrator was allowed to log in")
 	}
@@ -514,11 +513,10 @@ func TestCPOProvisioningAndFirstAdminLifecycleWithPostgreSQL(t *testing.T) {
 	); err != nil {
 		t.Fatalf("activate CPO: %v", err)
 	}
-	firstChallenge, err := authService.Login(ctx, auth.LoginRequest{
+	firstChallenge, err := authService.Login(ctx, created.CPO.AppID, auth.LoginRequest{
 		Email:    adminEmail,
 		Password: welcome.TemporaryPassword,
 		Scope:    constants.AuthScopeCPO,
-		CPOID:    &created.CPO.ID,
 	}, metadata)
 	if err != nil {
 		t.Fatalf("start first CPO login: %v", err)
@@ -575,11 +573,10 @@ func TestCPOProvisioningAndFirstAdminLifecycleWithPostgreSQL(t *testing.T) {
 		t.Fatalf("me did not return current onboarding state: %#v", firstMe)
 	}
 
-	reminderChallenge, err := authService.Login(ctx, auth.LoginRequest{
+	reminderChallenge, err := authService.Login(ctx, created.CPO.AppID, auth.LoginRequest{
 		Email:    adminEmail,
 		Password: welcome.TemporaryPassword,
 		Scope:    constants.AuthScopeCPO,
-		CPOID:    &created.CPO.ID,
 	}, metadata)
 	if err != nil {
 		t.Fatalf("start repeated temporary-password login: %v", err)
@@ -631,11 +628,10 @@ func TestCPOProvisioningAndFirstAdminLifecycleWithPostgreSQL(t *testing.T) {
 		t.Fatal("password change did not clear the onboarding flag")
 	}
 
-	secondChallenge, err := authService.Login(ctx, auth.LoginRequest{
+	secondChallenge, err := authService.Login(ctx, created.CPO.AppID, auth.LoginRequest{
 		Email:    adminEmail,
 		Password: replacementPassword,
 		Scope:    constants.AuthScopeCPO,
-		CPOID:    &created.CPO.ID,
 	}, metadata)
 	if err != nil {
 		t.Fatalf("start second CPO login: %v", err)
@@ -788,11 +784,10 @@ func TestCPOProvisioningAndFirstAdminLifecycleWithPostgreSQL(t *testing.T) {
 	}, metadata); err == nil {
 		t.Fatal("suspension did not invalidate the active refresh token")
 	}
-	if _, err := authService.Login(ctx, auth.LoginRequest{
+	if _, err := authService.Login(ctx, liveAppID, auth.LoginRequest{
 		Email:    adminEmail,
 		Password: replacementPassword,
 		Scope:    constants.AuthScopeCPO,
-		CPOID:    &created.CPO.ID,
 	}, metadata); err == nil {
 		t.Fatal("suspended CPO administrator was allowed to log in")
 	}

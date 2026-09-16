@@ -136,7 +136,8 @@ Rules the FE must preserve:
 - omit `cpo_id` from a platform login request;
 - send `Authorization: Bearer <access-token>` on protected operations;
 - never send a token in a URL or query string;
-- never send `X-CPO-App-ID` on the platform surface;
+- never send `X-CPO-App-ID` on the platform surface; initial PLATFORM login
+  rejects any supplied App-ID header, including an empty value;
 - never call `/api/v1/cpo/*` or `/api/v1/app/*` with a platform token;
 - never present SuperAdmin authority as tenant access;
 - never add an impersonation or “open tenant dashboard” feature without a new

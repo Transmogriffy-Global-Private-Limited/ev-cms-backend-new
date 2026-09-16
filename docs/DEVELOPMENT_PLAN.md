@@ -1,5 +1,14 @@
 # Development Plan
 
+
+## CPO administrative login simplification (2026-09-16)
+
+Implemented App-ID selection for initial administrative login, with active
+membership authority and immutable internal tenant context through OTP/session
+flows. The frontend no longer sends a login CPO UUID. See
+[authentication](AUTHENTICATION.md#start-cpo-login) and the
+[verification record](work/archive/WI-20260916-cpo-admin-appid-login.md).
+
 ## Project Objective
 
 Build a maintainable CMS that TransEV can sell to CPO organizations so each CPO

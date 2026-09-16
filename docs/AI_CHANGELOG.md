@@ -1,5 +1,20 @@
 # AI Changelog
 
+## 2026-09-16 - CPO administrative login selects context by App ID
+
+- Initial CPO administrative login now accepts email/password/scope in JSON
+  plus `X-CPO-App-ID`; JSON `cpo_id` is rejected. The App ID selects the active
+  CPO, while the authenticated user's active membership grants authority.
+- The resolved internal CPO UUID stays bound to the OTP challenge and session.
+  Verify/resend and refresh cannot switch tenants through a header. Existing
+  fresh membership/role/permission evaluation remains authoritative.
+- PLATFORM login rejects supplied App-ID headers. Authentication failures remain
+  generic; database failures remain internal. OpenAPI and administrative frontend
+  guidance describe the contract. No migration or deployment is included.
+- Verification details and unrelated database-suite failures are recorded in
+  [the work item](work/archive/WI-20260916-cpo-admin-appid-login.md).
+
+
 ## 2026-09-15 - Deploy invoice billing Basis across tariff types
 
 - Replaced V3's unconditional energy Basis with the frozen tariff's actual

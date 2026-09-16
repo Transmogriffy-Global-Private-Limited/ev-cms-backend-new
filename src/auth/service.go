@@ -93,6 +93,7 @@ func NewService(
 
 func (service *Service) Login(
 	ctx context.Context,
+	appID string,
 	request LoginRequest,
 	metadata RequestMetadata,
 ) (ChallengeResponse, error) {
@@ -100,11 +101,10 @@ func (service *Service) Login(
 	if !validEmail(email) || request.Password == "" || !request.Scope.Valid() {
 		return ChallengeResponse{}, errInvalidCredentials
 	}
-	if request.Scope == constants.AuthScopePlatform && request.CPOID != nil {
+	if request.Scope == constants.AuthScopePlatform && appID != "" {
 		return ChallengeResponse{}, errInvalidCredentials
 	}
-	if request.Scope == constants.AuthScopeCPO &&
-		(request.CPOID == nil || *request.CPOID == uuid.Nil) {
+	if request.Scope == constants.AuthScopeCPO && !validLoginAppID(appID) {
 		return ChallengeResponse{}, errInvalidCredentials
 	}
 	if !service.mailEnabled {
@@ -158,7 +158,21 @@ func (service *Service) Login(
 			outcome = errInvalidCredentials
 			return nil
 		}
-		if _, err := service.resolveLoginScopeTx(tx, lockedUser.ID, request.Scope, request.CPOID); err != nil {
+		// The public App ID selects context only. Authority is still the exact
+		// authenticated user's active membership, checked below and again at OTP.
+		var cpoID *uuid.UUID
+		if request.Scope == constants.AuthScopeCPO {
+			var cpo models.CPO
+			if err := tx.Select("id").Where("app_id = ? AND status = ?", appID, constants.CPOStatusActive).First(&cpo).Error; err != nil {
+				if errors.Is(err, gorm.ErrRecordNotFound) {
+					outcome = errInvalidCredentials
+					return nil
+				}
+				return fmt.Errorf("resolve CPO login context: %w", err)
+			}
+			cpoID = &cpo.ID
+		}
+		if _, err := service.resolveLoginScopeTx(tx, lockedUser.ID, request.Scope, cpoID); err != nil {
 			outcome = err
 			return nil
 		}
@@ -172,7 +186,7 @@ func (service *Service) Login(
 		}
 		response, err = service.createChallengeTx(
 			tx, lockedUser, constants.ChallengeLogin2FA, &request.Scope,
-			request.CPOID, metadata, loginMailTemplate, now,
+			cpoID, metadata, loginMailTemplate, now,
 		)
 		return err
 	})
@@ -183,6 +197,20 @@ func (service *Service) Login(
 		return ChallengeResponse{}, outcome
 	}
 	return response, nil
+}
+
+// Match the existing CPO App-ID write contract without treating the selector as
+// a credential. Reject ambiguous/noncanonical values rather than normalizing.
+func validLoginAppID(value string) bool {
+	if len(value) < 16 || len(value) > 100 {
+		return false
+	}
+	for _, r := range value {
+		if !(r >= 'a' && r <= 'z') && !(r >= '0' && r <= '9') && r != '_' && r != '-' {
+			return false
+		}
+	}
+	return true
 }
 
 func (service *Service) VerifyLoginChallenge(

@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/constants"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 )
@@ -44,8 +45,15 @@ func (handler *Handler) login(ctx *gin.Context) {
 		writeError(ctx, invalidRequest(err))
 		return
 	}
+	headers := ctx.Request.Header.Values(CPOAppIDHeader)
+	if (request.Scope == constants.AuthScopeCPO && len(headers) != 1) ||
+		(request.Scope == constants.AuthScopePlatform && len(headers) != 0) {
+		writeError(ctx, errInvalidCredentials)
+		return
+	}
 	response, err := handler.service.Login(
 		ctx.Request.Context(),
+		ctx.GetHeader(CPOAppIDHeader),
 		request,
 		requestMetadata(ctx),
 	)

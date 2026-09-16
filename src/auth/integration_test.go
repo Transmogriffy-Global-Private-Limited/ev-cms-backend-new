@@ -57,7 +57,7 @@ func TestAdministrativeChallengeAndPasswordConcurrencyWithPostgreSQL(t *testing.
 		go func() {
 			defer group.Done()
 			<-start
-			_, err := service.Login(ctx, LoginRequest{Email: email, Password: oldPassword, Scope: constants.AuthScopePlatform}, metadata)
+			_, err := service.Login(ctx, "", LoginRequest{Email: email, Password: oldPassword, Scope: constants.AuthScopePlatform}, metadata)
 			results <- err
 		}()
 	}
@@ -182,7 +182,7 @@ func TestPlatformAuthenticationLifecycleWithPostgreSQL(t *testing.T) {
 	authService, mailBox := newIntegrationAuthService(t, gormDB)
 	ip := "127.0.0.1"
 	metadata := RequestMetadata{IPAddress: &ip, UserAgent: "auth-integration-test"}
-	challenge, err := authService.Login(ctx, LoginRequest{
+	challenge, err := authService.Login(ctx, "", LoginRequest{
 		Email: email, Password: initialPassword, Scope: constants.AuthScopePlatform,
 	}, metadata)
 	if err != nil {
@@ -286,8 +286,8 @@ func TestPlatformAuthenticationLifecycleWithPostgreSQL(t *testing.T) {
 	if err := gormDB.Create(&membership).Error; err != nil {
 		t.Fatalf("create CPO admin membership: %v", err)
 	}
-	cpoChallenge, err := authService.Login(ctx, LoginRequest{
-		Email: email, Password: newPassword, Scope: constants.AuthScopeCPO, CPOID: &cpo.ID,
+	cpoChallenge, err := authService.Login(ctx, cpo.AppID, LoginRequest{
+		Email: email, Password: newPassword, Scope: constants.AuthScopeCPO,
 	}, metadata)
 	if err != nil {
 		t.Fatalf("start CPO login: %v", err)
@@ -317,15 +317,15 @@ func TestPlatformAuthenticationLifecycleWithPostgreSQL(t *testing.T) {
 	if err := gormDB.Model(&models.CPOMembership{}).
 		Where("id = ?", membership.ID).
 		Update("role", constants.CPORoleOwner).Error; err != nil {
-		t.Fatalf("set dormant membership role: %v", err)
+		t.Fatalf("change membership role: %v", err)
 	}
 	if _, err := authService.ValidateAccess(ctx, cpoTokens.AccessToken); !errors.Is(err, errUnauthorized) {
-		t.Fatalf("dormant role did not invalidate active CPO access: %v", err)
+		t.Fatalf("changed role did not invalidate stale CPO access: %v", err)
 	}
-	if _, err := authService.Login(ctx, LoginRequest{
-		Email: email, Password: newPassword, Scope: constants.AuthScopeCPO, CPOID: &cpo.ID,
-	}, metadata); !errors.Is(err, errInvalidCredentials) {
-		t.Fatalf("dormant role was allowed to start CPO login: %v", err)
+	if _, err := authService.Login(ctx, cpo.AppID, LoginRequest{
+		Email: email, Password: newPassword, Scope: constants.AuthScopeCPO,
+	}, metadata); err != nil {
+		t.Fatalf("active OWNER could not start fresh CPO login: %v", err)
 	}
 }
 

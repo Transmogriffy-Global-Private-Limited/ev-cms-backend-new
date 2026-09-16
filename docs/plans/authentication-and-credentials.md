@@ -1,5 +1,15 @@
 # Authentication and Credential Boundary
 
+## CPO administrative login context
+
+Initial administrative login accepts only email, password and scope in JSON.
+For CPO scope, `X-CPO-App-ID` selects an active CPO; the authenticated user's
+active membership in that exact CPO grants authority. JSON `cpo_id` is rejected.
+The existing challenge/session stores internal CPOID; OTP verify/resend and
+refresh cannot reselect it. Preserve fresh request-time access evaluation.
+See [authentication](../AUTHENTICATION.md#start-cpo-login) for the canonical header and failure contract.
+
+
 Status: Implemented
 
 ## Objective

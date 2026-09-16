@@ -151,12 +151,28 @@ cannot authorize a second concurrent replacement after the first commits.
 
 ### Start CPO login
 
+Send `X-CPO-App-ID: <cpo-app-id>` on initial CPO login. The public App ID
+selects context; the authenticated user's active membership in that exact active
+CPO grants authority. Never request or send an internal CPO UUID for login.
+The header must occur exactly once and match `^[a-z0-9_-]{16,100}$`.
+Missing, empty, malformed, unknown or inactive context and invalid credentials
+all return `401 invalid_credentials`; database failures remain `500 internal_error`.
+JSON `cpo_id` is rejected as `400 invalid_request` in either scope. PLATFORM
+login rejects any supplied `X-CPO-App-ID`, including an empty header, with
+`401 invalid_credentials`.
+
+The challenge freezes the resolved internal CPO UUID. OTP verify/resend need
+only their normal challenge fields, revalidate that exact active CPO/membership,
+and cannot change context through a header. Refresh uses the existing session
+context. A user with multiple memberships selects the intended CPO only during
+initial login. Current DB membership, role and permission overrides remain the
+authority for subsequent requests.
+
 ```json
 {
   "email": "cpo-admin@example.com",
   "password": "<password>",
-  "scope": "CPO",
-  "cpo_id": "c821a013-5041-42f7-80c8-aa153cf9d455"
+  "scope": "CPO"
 }
 ```
 

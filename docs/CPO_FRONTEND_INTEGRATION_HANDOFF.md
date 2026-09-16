@@ -23,9 +23,13 @@ table, old application, screen mockup, or a CPO permission-catalog item.
 
 The CPO app is an administrative client, not the customer User App.
 
-1. Start login with `POST /api/v1/auth/login`, `scope: "CPO"`, and the selected
-   `cpo_id`.
-2. Verify the emailed OTP with `POST /api/v1/auth/2fa/verify`.
+1. Configure the public CPO App ID in the frontend. Start login with
+   `POST /api/v1/auth/login`, header `X-CPO-App-ID: <cpo-app-id>`, and only
+   `email`, `password`, `scope: "CPO"` in JSON. Never ask a human for an internal
+   CPO UUID or send `cpo_id`; unknown body fields are rejected.
+2. Verify the emailed OTP with `POST /api/v1/auth/2fa/verify`. Verify/resend use
+   the challenge ID without tenant reselection or an App-ID header. The server
+   revalidates the challenge-bound CPO and membership before issuing tokens.
 3. Persist access/refresh tokens only in the frontend's approved secure storage.
    A refresh token is one-time: serialize refresh requests and replace both
    tokens atomically. Reuse revokes the whole session.
@@ -40,9 +44,25 @@ Authorization: Bearer <access-token>
 X-CPO-App-ID: <current-cpo-app-id>
 ```
 
-`X-CPO-App-ID` is routing metadata, not a user credential and never chooses a
-tenant. The server derives the CPO from the bearer session and rejects a stale
-or mismatching header. Never place either token or app ID in a URL.
+`X-CPO-App-ID` is a public context selector, not a secret or access grant.
+Initial login selects the intended active CPO and requires the authenticated
+user's active membership there. Unknown App IDs, inactive organizations or
+memberships, nonmembers and bad credentials share `invalid_credentials`.
+After login the internal CPO UUID is fixed in the challenge/session. Refresh
+cannot switch it. On protected requests the server derives the CPO from the
+bearer session and rejects a stale or mismatching header. Never place either
+token or app ID in a URL.
+
+```http
+POST /api/v1/auth/login
+Content-Type: application/json
+X-CPO-App-ID: <cpo-app-id>
+
+{"email":"admin@example.com","password":"<password>","scope":"CPO"}
+```
+
+See [authentication](AUTHENTICATION.md#start-cpo-login) for header validation
+and error details. PLATFORM login rejects a supplied App-ID header.
 
 Every capability-protected CPO business route requires an active CPO membership,
 the matching app ID, and its documented capability. Roles are source-controlled default bundles,
@@ -220,7 +240,7 @@ CPO member with tenant capabilities.
 
 ## Verification checklist for the frontend
 
-- [ ] CPO login sends `scope: "CPO"` and a selected CPO ID; OTP/refresh flows
+- [ ] CPO login sends `scope: "CPO"` and `X-CPO-App-ID`, with no body CPO UUID; OTP/refresh flows
   handle one-time refresh replacement.
 - [ ] Bootstrap validates `me.scope`, CPO context, and app ID before mounting.
 - [ ] Every CPO request, replay, and SSE connection carries both required

@@ -11,7 +11,6 @@ type LoginRequest struct {
 	Email    string              `json:"email"`
 	Password string              `json:"password"`
 	Scope    constants.AuthScope `json:"scope"`
-	CPOID    *uuid.UUID          `json:"cpo_id,omitempty"`
 }
 
 type ChallengeRequest struct {
