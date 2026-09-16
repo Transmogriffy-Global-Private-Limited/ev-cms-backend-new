@@ -1,5 +1,9 @@
 # CPO Backend AI-Agent Handoff
 
+## Durable charger-operation recovery
+
+Charger operations use one fenced dispatcher for HTTP and background recovery. Only definitely unattempted rows may dispatch; attempted rows use exact-ID reconciliation. Read [the recovery contract](integrations/charger-operation-recovery.md) before changing this boundary.
+
 ## CPO administrative login context
 
 Initial administrative login accepts only email, password and scope in JSON.

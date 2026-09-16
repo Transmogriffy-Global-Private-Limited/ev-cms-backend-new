@@ -101,6 +101,7 @@ func run() error {
 	processInstanceKey := uuid.NewString()
 	platformMaintenanceInstanceKey := processInstanceKey + ":platform-maintenance"
 	halReconcilerInstanceKey := processInstanceKey + ":hal-reconciler"
+	chargerOperationRecoveryInstanceKey := processInstanceKey + ":charger-operation-recovery"
 	operationalRetentionInstanceKey := processInstanceKey + ":operational-retention"
 	mailOutboxInstanceKey := processInstanceKey + ":mail-outbox"
 	invoiceWorkerInstanceKey := processInstanceKey + ":invoice-worker"
@@ -120,6 +121,7 @@ func run() error {
 	platformService.WithExpectedWorkers([]platformops.WorkerSpec{
 		{Name: "platform-maintenance", InstanceKey: platformMaintenanceInstanceKey, Required: true, Enabled: true},
 		{Name: "hal-reconciler", InstanceKey: halReconcilerInstanceKey, Required: true, Enabled: halOperations.Available()},
+		{Name: "charger-operation-recovery", InstanceKey: chargerOperationRecoveryInstanceKey, Required: true, Enabled: halOperations.Available()},
 		{Name: "operational-retention", InstanceKey: operationalRetentionInstanceKey, Required: false, Enabled: true},
 		{Name: "mail-outbox", InstanceKey: mailOutboxInstanceKey, Required: true, Enabled: cfg.Mail.Enabled},
 		{Name: "invoice-worker", InstanceKey: invoiceWorkerInstanceKey, Required: true, Enabled: true},
@@ -157,6 +159,13 @@ func run() error {
 	go platformService.RunMaintenance(ctx, platformMaintenanceInstanceKey)
 	if halOperations.Available() {
 		go halOperations.RunReconciler(ctx, time.Minute)
+		recoveryCtx, stopRecovery := context.WithCancel(ctx)
+		recoveryDone := make(chan struct{})
+		go func() {
+			defer close(recoveryDone)
+			cpoService.RunChargerOperationRecovery(recoveryCtx, platformService, chargerOperationRecoveryInstanceKey)
+		}()
+		defer func() { stopRecovery(); <-recoveryDone }()
 	}
 	go operationalEvents.RunRetention(ctx, cfg.Platform.MaintenanceEvery)
 	go subscriptionService.RunLifecycle(ctx, cfg.Platform.MaintenanceEvery, platformService, subscriptionLifecycleInstanceKey)

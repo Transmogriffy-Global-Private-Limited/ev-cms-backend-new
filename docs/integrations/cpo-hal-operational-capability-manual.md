@@ -680,7 +680,9 @@ The CPO control vertical adds typed non-commercial charger operations through
 the same boundary: Reset, UnlockConnector, ChangeAvailability, ClearCache,
 Get/ChangeConfiguration, and allowlisted TriggerMessage. Each mutation creates
 one CMS operation before HAL I/O and reuses that exact ID for HAL idempotency
-and reconciliation. It must never be represented as a Start/Stop command or
+and reconciliation. CMS dispatch leases, immutable inputs, crash recovery and
+no-replay semantics are defined in [durable charger-operation recovery](charger-operation-recovery.md).
+It must never be represented as a Start/Stop command or
 used to mutate sessions, holds, settlement, administrative inventory, or
 customer chargeability. `chargers.operations` is required; ChangeConfiguration
 also requires `chargers.manage`. HAL-owned configuration keys and sensitive

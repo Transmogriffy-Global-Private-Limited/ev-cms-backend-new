@@ -4674,7 +4674,7 @@ paths:
         - {name: connector_id, in: query, schema: {type: string, format: uuid}}
         - {name: actor_user_id, in: query, schema: {type: string, format: uuid}}
         - {name: kind, in: query, schema: {type: string, enum: [RESET, UNLOCK_CONNECTOR, CHANGE_AVAILABILITY, CLEAR_CACHE, CHANGE_CONFIGURATION, TRIGGER_MESSAGE, GET_CONFIGURATION]}}
-        - {name: state, in: query, schema: {type: string, enum: [PERSISTED, HAL_ACCEPTED, OCPP_CONFIRMED, RECONCILIATION_REQUIRED, CONFIRMED_ABSENT]}}
+        - {name: state, in: query, schema: {type: string, enum: [PERSISTED, DISPATCH_CLAIMED, DELIVERY_ATTEMPTED, HAL_ACCEPTED, OCPP_CONFIRMED, RECONCILIATION_REQUIRED, CONFIRMED_ABSENT]}}
         - {name: ocpp_result, in: query, description: Exact known OCPP response result., schema: {type: string, maxLength: 64}}
         - {name: failure_category, in: query, schema: {type: string, maxLength: 64}}
         - {name: created_after, in: query, description: Inclusive RFC3339 creation lower bound., schema: {type: string, format: date-time}}
@@ -7850,6 +7850,7 @@ components:
 
   schemas:
     ChargerOperationResponse:
+      description: PERSISTED and DISPATCH_CLAIMED are definitely unattempted. DELIVERY_ATTEMPTED commits before HAL I/O and can only reconcile; it is never replayed. HAL_ACCEPTED means HAL knows this operation.
       type: object
       additionalProperties: false
       required: [id, charger_id, kind, state, created_at, updated_at]
@@ -7858,14 +7859,14 @@ components:
         charger_id: {type: string, format: uuid}
         connector_id: {type: string, format: uuid}
         kind: {type: string, enum: [RESET, UNLOCK_CONNECTOR, CHANGE_AVAILABILITY, CLEAR_CACHE, CHANGE_CONFIGURATION, TRIGGER_MESSAGE, GET_CONFIGURATION]}
-        state: {type: string, enum: [PERSISTED, HAL_ACCEPTED, OCPP_CONFIRMED, RECONCILIATION_REQUIRED, CONFIRMED_ABSENT]}
+        state: {type: string, enum: [PERSISTED, DISPATCH_CLAIMED, DELIVERY_ATTEMPTED, HAL_ACCEPTED, OCPP_CONFIRMED, RECONCILIATION_REQUIRED, CONFIRMED_ABSENT]}
         ocpp_result: {type: string, description: Exact OCPP response result when HAL received one.}
         failure_category: {type: string, description: Safe reconciliation category; not a raw provider error.}
         hal_operation_id: {type: string, format: uuid}
         trace_id: {type: string, format: uuid}
         created_at: {type: string, format: date-time}
         updated_at: {type: string, format: date-time}
-        completed_at: {type: string, format: date-time}
+        completed_at: {type: string, format: date-time, description: Present only for terminal outcomes; reconciliation-required operations are not completed.}
     ChargerOperationOCPPExchanges:
       type: object
       additionalProperties: false
@@ -7921,7 +7922,7 @@ components:
       properties:
         id: {type: string, format: uuid}
         kind: {type: string, enum: [RESET, UNLOCK_CONNECTOR, CHANGE_AVAILABILITY, CLEAR_CACHE, CHANGE_CONFIGURATION, TRIGGER_MESSAGE, GET_CONFIGURATION]}
-        state: {type: string, enum: [PERSISTED, HAL_ACCEPTED, OCPP_CONFIRMED, RECONCILIATION_REQUIRED, CONFIRMED_ABSENT]}
+        state: {type: string, enum: [PERSISTED, DISPATCH_CLAIMED, DELIVERY_ATTEMPTED, HAL_ACCEPTED, OCPP_CONFIRMED, RECONCILIATION_REQUIRED, CONFIRMED_ABSENT]}
         ocpp_result: {type: string}
         failure_category: {type: string}
         hal_operation_id: {type: string, format: uuid}
@@ -7931,7 +7932,7 @@ components:
         parameters: {$ref: "#/components/schemas/ChargerOperationHistoryParameters"}
         created_at: {type: string, format: date-time}
         updated_at: {type: string, format: date-time}
-        completed_at: {type: string, format: date-time}
+        completed_at: {type: string, format: date-time, description: Present only for terminal outcomes; reconciliation-required operations are not completed.}
     ChargerOperationHistoryCharger:
       type: object
       additionalProperties: false

@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/halclient"
-	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/models"
 	"github.com/google/uuid"
 )
 
@@ -64,12 +63,8 @@ func (service *Service) ReconcileChargerOperation(ctx context.Context, operation
 		}
 		return ChargerOperation{}, err
 	}
-	result := fromWireChargerOperation(operation)
-	updates := map[string]any{"hal_operation_id": result.HALOperationID, "state": result.State, "ocpp_result": result.OCPPResult, "failure_category": result.ErrorCategory, "updated_at": service.now(), "completed_at": result.CompletedAt}
-	if err := service.database.WithContext(ctx).Model(&models.ChargerOperation{}).Where("id = ?", operationID).Updates(updates).Error; err != nil {
-		return ChargerOperation{}, fmt.Errorf("store reconciled charger operation: %w", err)
-	}
-	return result, nil
+	// The CPO owner commits state and its operation-change event atomically.
+	return fromWireChargerOperation(operation), nil
 }
 
 func (service *Service) GetChargerConfiguration(ctx context.Context, cpoID, chargerID uuid.UUID, identity string, keys []string) ([]halclient.ChargerConfigurationKey, []string, error) {

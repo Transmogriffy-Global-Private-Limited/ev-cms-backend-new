@@ -28,12 +28,20 @@ development host it is set in the ignored service environment to
 that setting; it must not be used until the OCPP host is explicitly configured
 with TLS/WebSocket support.
 
-The active deployment was updated on September 15, 2026 to source revision
-`cb4056f` (frozen-tariff invoice billing Basis correction); migration
-`000069_add_charging_session_invoices` remains current and the API has 245
+The current deployment was updated on September 16, 2026 to source revision
+`8cd65ae` (durable charger-operation dispatch/recovery); migration
+`000070_durable_charger_operation_dispatch` is current and the API has 246
 operations. The active binary SHA-256 is
-`4a836493a7fc3197decfeb1d09d29a55f324fb600e306fb79394b447410aff70`. The
+`7eccc0689da5b796ca8f4b4b9cecafd79a214fb805429924ba4d54542e7657d5`. The
 immediately preceding binary is retained at
+`/root/evcmsnew-backups/pre-000070-20260916T094521Z/evcmsnew`
+(SHA-256
+`7c31c0eb25ad0531bd87a18725e6d4376779825d77f485094156947bc9b0c587`). The
+pre-migration custom-format database dump is
+`/root/evcmsnew-backups/pre-000070-20260916T094521Z/devevcmsnewdb.dump`
+(mode `0600`, SHA-256
+`13e88a6e6c4573fde80af23d528de8558805199a9b4715cefa61b41b238f8883`). The
+preceding invoice tariff-basis binary is retained at
 `/root/evcmsnew-backups/pre-invoice-tariff-basis-cb4056f-20260915T143959+0530/evcmsnew`
 (SHA-256
 `6b7e076549b13e503f8eab5c90f01106b8a330421842ea14aef5f8023b6190c5`). The
@@ -41,6 +49,24 @@ pre-`000069` database dump is
 `/root/evcmsnew-backups/devevcmsnew-before-000069-20260914T110817+0530.dump`
 (mode `0600`, SHA-256
 `d9619ffc18615f7af1e7e80ddc6268171f44d87349c1c93246bb50e0a41f7a26`).
+
+For the September 16 durable charger-operation recovery release, the old CMS
+writer was stopped before applying migration 70. The pre-migration ledger
+ended at `000069`; the live table held 30 operations (18 OCPP_CONFIRMED, eight
+CONFIRMED_ABSENT, four RECONCILIATION_REQUIRED, and no PERSISTED rows). Migration
+70 preserved all records and cleared `completed_at` on the four nonterminal
+reconciliation rows. The new required recovery worker then performed exact-ID
+HAL lookups: three became `HAL_ACCEPTED`, one `CONFIRMED_ABSENT`; none was
+redispatched. These states do not claim a physical charger effect. Post-rehost,
+PID 10093 was active with zero restarts and matching binary/install hashes;
+local and HTTPS liveness/readiness/docs/OpenAPI returned 200, all seven required
+workers were healthy/fresh, Caddy validated, and new-process error/panic/fatal
+checks were clear. Invoice and mail aggregates were unchanged (83 READY
+invoices, 13 SENT invoice deliveries, 508 SENT outbox rows). The down migration
+refuses while operation records exist; keep migration 70 and use a forward fix
+rather than the previous executable if recovery is needed. `TEST_DATABASE_URL`
+and `pwsh` were unavailable; physical OCPP and SMTP acceptance remain
+unverified.
 
 Invoice PDFs are stored privately at `/var/lib/evcmsnew/invoices` (directories
 `0750`, files `0600`). The ignored service environment sets

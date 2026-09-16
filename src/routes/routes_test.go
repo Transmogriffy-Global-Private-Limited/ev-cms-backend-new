@@ -658,3 +658,34 @@ func TestAdministrativeLoginOpenAPIUsesAppIDHeader(t *testing.T) {
 	}
 	t.Fatal("login must document the scope-dependent App-ID header")
 }
+
+func TestChargerOperationOpenAPIIncludesDurableDispatchStates(t *testing.T) {
+	document, err := openapi3.NewLoader().LoadFromData(apidocs.Specification())
+	if err != nil {
+		t.Fatal(err)
+	}
+	check := func(values []any) {
+		t.Helper()
+		for _, wanted := range []string{"PERSISTED", "DISPATCH_CLAIMED", "DELIVERY_ATTEMPTED", "HAL_ACCEPTED", "OCPP_CONFIRMED", "RECONCILIATION_REQUIRED", "CONFIRMED_ABSENT"} {
+			found := false
+			for _, value := range values {
+				if value == wanted {
+					found = true
+				}
+			}
+			if !found {
+				t.Errorf("missing operation state %s", wanted)
+			}
+		}
+	}
+	for _, name := range []string{"ChargerOperationResponse", "ChargerOperationHistoryItem"} {
+		check(document.Components.Schemas[name].Value.Properties["state"].Value.Enum)
+	}
+	for _, parameter := range document.Paths.Value("/api/v1/cpo/operations/charger-operations").Get.Parameters {
+		if parameter.Value.Name == "state" {
+			check(parameter.Value.Schema.Value.Enum)
+			return
+		}
+	}
+	t.Fatal("operation history state filter missing")
+}

@@ -143,6 +143,11 @@ implemented.
 | `HAL_V1_CONNECTION_STALE_AFTER` | `15m`, positive CMS connection-liveness horizon. It must remain comfortably longer than HAL's requested Heartbeat cadence (v1 default `300s`); it never creates or infers `ONLINE`. |
 | `HAL_V1_START_RECONCILE_AFTER` | `2m`, positive age before CMS queries HAL's exact `GET /v1/transactions?cms_start_intent_id={uuid}` recovery socket for an unmaterialized `ACCEPTED_FOR_DELIVERY`, `PROTOCOL_ACKNOWLEDGED`, or reconciliation-required start. A HAL 404 never creates a session. |
 
+The `charger-operation-recovery` worker is enabled/required when HAL is configured.
+Its bounded dispatch and reconciliation timing is defined in
+[the recovery contract](../integrations/charger-operation-recovery.md#worker-and-failures);
+no additional environment settings are required.
+
 Changing any HAL setting requires restart. Never substitute a legacy HAL token,
 customer bearer, staff bearer, or a shared database connection. See
 `integrations/ocpp-hal-boundary.md` for ownership and recovery rules.

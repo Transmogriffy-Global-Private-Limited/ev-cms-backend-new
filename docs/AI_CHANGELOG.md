@@ -1,5 +1,34 @@
 # AI Changelog
 
+## 2026-09-16 - Durable CMS charger-operation dispatch
+
+- CMS now freezes the dispatch destination and fences pre-delivery claims with
+  a lease/token. It commits `DELIVERY_ATTEMPTED` before HAL I/O; possible delivery
+  is reconciled by exact CMS operation ID and never automatically replayed.
+- HTTP and the bounded background worker share one dispatcher. HAL queue states
+  map to CMS `HAL_ACCEPTED`; uncertain operations do not appear completed.
+  The dedicated operation POST disables transport replay and redirects.
+- Migration 70 conservatively moves old PERSISTED rows to reconciliation;
+  it does not reconstruct historical mappings. No HAL code or schema changed.
+- Rehosted source revision `8cd65ae` with migration 70 after a validated
+  mode-0600 database dump. All 30 CMS operation records were preserved; four
+  previously completed reconciliation-required rows were reopened, then
+  exact-ID reconciliation resolved them as three `HAL_ACCEPTED` and one
+  `CONFIRMED_ABSENT`. No operation was replayed and physical charger effect is
+  not inferred. The prior executable and database dump are retained under
+  `/root/evcmsnew-backups/pre-000070-20260916T094521Z/`.
+- The active process/install SHA matches
+  `7eccc0689da5b796ca8f4b4b9cecafd79a214fb805429924ba4d54542e7657d5`;
+  service/readiness, seven required workers, public docs/health routes (246
+  OpenAPI operations), Caddy and new-process log checks passed. Invoice and mail
+  queues were unchanged. `TEST_DATABASE_URL` and `pwsh` were unavailable;
+  physical OCPP and SMTP acceptance remain unverified. Rollback is forward-fix:
+  migration 70's down path refuses while operation records exist.
+- See [the recovery contract](integrations/charger-operation-recovery.md) and
+  [work item](work/archive/WI-20260916-charger-operation-recovery.md) for state
+  invariants, rollout precautions and verification evidence.
+
+
 ## 2026-09-16 - CPO administrative login selects context by App ID
 
 - Initial CPO administrative login now accepts email/password/scope in JSON
