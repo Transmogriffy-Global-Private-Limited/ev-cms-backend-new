@@ -4893,6 +4893,33 @@ func (service *Service) DeleteCharger(
 			return mapChargerNotFound(err)
 		}
 
+		connectorIDs := make([]uuid.UUID, 0, len(record.Connectors))
+		for _, c := range record.Connectors {
+			connectorIDs = append(connectorIDs, c.ID)
+		}
+
+		// HAL-owned lifecycle rows are charger-scoped metadata, not business
+		// dependents. They must be removed in the same transaction as the
+		// inventory they describe, or the FK from hal_charger_mappings
+		// (and the *_runtime tables) will block every delete.
+		if len(connectorIDs) > 0 {
+			if err := tx.
+				Where("cms_connector_id IN ?", connectorIDs).
+				Delete(&models.HALConnectorRuntime{}).Error; err != nil {
+				return mapChargerDeleteError(err)
+			}
+		}
+		if err := tx.
+			Where("cms_charger_id = ?", record.ID).
+			Delete(&models.HALChargerRuntime{}).Error; err != nil {
+			return mapChargerDeleteError(err)
+		}
+		if err := tx.
+			Where("cms_charger_id = ?", record.ID).
+			Delete(&models.HALChargerMapping{}).Error; err != nil {
+			return mapChargerDeleteError(err)
+		}
+
 		if err := tx.Where("charger_id = ?", record.ID).Delete(&models.Connector{}).Error; err != nil {
 			return mapChargerDeleteError(err)
 		}
