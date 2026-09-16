@@ -12,7 +12,7 @@ verify/resend/refresh retain that binding and fresh request permissions remain.
 
 Claimed surfaces: administrative auth, its CPO integration-test callers, OpenAPI,
 administrative/CPO frontend documentation and project records. No customer auth,
-invoice, charging, HAL, commercial/payment, deployment or migration changes.
+invoice, charging, HAL, commercial/payment, or migration changes.
 
 ## Verification and publication
 
@@ -21,7 +21,8 @@ memberships, generic failures, infrastructure errors, challenge binding,
 deactivation, resend/verify/refresh isolation, platform regression and fresh
 permissions. Use an isolated local PostgreSQL cluster, never application data.
 Focused tests precede one broad test/vet/build pass and documentation checks.
-Commit/push authorized by the user after verification; deployment excluded.
+Commit/push and development-VPS rehost were authorized by the user after
+verification; no live migration or data mutation was authorized or performed.
 
 ## Authority audit
 

@@ -8,6 +8,9 @@ membership authority and immutable internal tenant context through OTP/session
 flows. The frontend no longer sends a login CPO UUID. See
 [authentication](AUTHENTICATION.md#start-cpo-login) and the
 [verification record](work/archive/WI-20260916-cpo-admin-appid-login.md).
+The verified runtime rehost is source revision `2440378`; no migration was
+required. The active binary hash, retained rollback binary, and live checks are
+recorded in [the development hosting guide](guides/operations/dev-hosting.md).
 
 ## Project Objective
 

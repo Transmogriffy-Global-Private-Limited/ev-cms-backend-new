@@ -132,6 +132,22 @@ invoice or mail data was changed. Focused/full Go tests, vet, module verificatio
 route parity, production build, and visual inspection passed. `pwsh`,
 `TEST_DATABASE_URL`, and SMTP acceptance remain unavailable or unverified.
 
+The subsequent CPO administrative-login rehost is source revision `2440378`.
+Initial CPO login now selects the active tenant context with
+`X-CPO-App-ID`; the internal CPO UUID remains bound through OTP and session
+flows. No migration was required. The active binary SHA-256 is
+`7c31c0eb25ad0531bd87a18725e6d4376779825d77f485094156947bc9b0c587`, and the
+replaced binary is retained at
+`/root/evcmsnew-backups/pre-auth-appid-2440378-20260916T1450+0530/evcmsnew`
+(SHA-256
+`4a836493a7fc3197decfeb1d09d29a55f324fb600e306fb79394b447410aff70`).
+Post-rehost, the service is active with zero restarts and matching
+process/install hashes; local and HTTPS liveness, readiness, docs, and
+OpenAPI returned 200, migration `000069` remained current, all six required
+current workers were healthy with fresh heartbeats, Caddy validated, and the
+new-process error/panic/fatal scan was clear. Invoice and mail aggregates were
+unchanged. Database-gated tests and SMTP acceptance remain unverified.
+
 The subsequent tariff-basis follow-up makes the V3 Basis column reflect the
 frozen tariff's actual billing measure (delivered kWh, exact elapsed time, or
 one session), independent of AUTO/ENERGY/TIME/MONEY stop selection. Monetary
