@@ -17,7 +17,7 @@ var chargerOperationKinds = map[string]struct{}{
 }
 
 var chargerOperationStates = map[string]struct{}{
-	"PERSISTED": {}, "HAL_ACCEPTED": {}, "OCPP_CONFIRMED": {},
+	"PERSISTED": {}, "DISPATCH_CLAIMED": {}, "DELIVERY_ATTEMPTED": {}, "HAL_ACCEPTED": {}, "OCPP_CONFIRMED": {},
 	"RECONCILIATION_REQUIRED": {}, "CONFIRMED_ABSENT": {},
 }
 

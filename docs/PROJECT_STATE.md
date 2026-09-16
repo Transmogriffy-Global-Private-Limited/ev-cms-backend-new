@@ -1,5 +1,20 @@
 # Project State
 
+## 2026-09-16 - Durable CMS charger-operation dispatch
+
+- CMS now freezes the dispatch destination and fences pre-delivery claims with
+  a lease/token. It commits `DELIVERY_ATTEMPTED` before HAL I/O; possible delivery
+  is reconciled by exact CMS operation ID and never automatically replayed.
+- HTTP and the bounded background worker share one dispatcher. HAL queue states
+  map to CMS `HAL_ACCEPTED`; uncertain operations do not appear completed.
+  The dedicated operation POST disables transport replay and redirects.
+- Migration 70 conservatively moves old PERSISTED rows to reconciliation;
+  it does not reconstruct historical mappings. No HAL change or deployment.
+- See [the recovery contract](integrations/charger-operation-recovery.md) and
+  [work item](work/archive/WI-20260916-charger-operation-recovery.md) for state
+  invariants, rollout precautions and verification evidence.
+
+
 ## 2026-09-16 - CPO administrative login selects context by App ID
 
 - Initial CPO administrative login now accepts email/password/scope in JSON

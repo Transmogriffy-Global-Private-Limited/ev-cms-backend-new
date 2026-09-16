@@ -1,5 +1,9 @@
 # CMS Schema
 
+## Charger-operation dispatch (migration 70)
+
+Migration `000070_durable_charger_operation_dispatch` freezes mapping identity and connector number, adds fenced claim/attempt/recovery scheduling fields, and conservatively reclassifies legacy PERSISTED rows. See [the transition and migration contract](integrations/charger-operation-recovery.md).
+
 ## Purpose
 
 The initial migration preserves every business area from the supplied CMS

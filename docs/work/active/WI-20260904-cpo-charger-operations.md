@@ -137,3 +137,10 @@ commands; do not route generic operations through Start/Stop records.
 The original CMS execution and this CMS history slice are deployed and
 complete. Keep this item active for paired HAL runtime, dual-service, and
 physical OCPP acceptance.
+
+## CMS dispatch recovery follow-on (2026-09-16)
+
+The separate [durable-dispatch work item](../archive/WI-20260916-charger-operation-recovery.md)
+adds CMS restart recovery and a no-replay boundary. It does not complete or
+change this item's paired-HAL/hardware acceptance. See
+[the recovery contract](../../integrations/charger-operation-recovery.md).

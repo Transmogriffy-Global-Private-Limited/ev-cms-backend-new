@@ -302,3 +302,47 @@ func TestGetCommandRejectsMalformedSuccessfulResponse(t *testing.T) {
 		t.Fatalf("error=%v, want ErrInvalidCommandResponse", err)
 	}
 }
+
+func TestChargerOperationDoesNotReplayOnConnectionLossOrRedirect(t *testing.T) {
+	for _, mode := range []string{"connection_loss", "redirect_302", "redirect_307"} {
+		t.Run(mode, func(t *testing.T) {
+			var attempts atomic.Int32
+			id := uuid.New()
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.URL.Path == "/warm" {
+					w.WriteHeader(http.StatusNoContent)
+					return
+				}
+				attempts.Add(1)
+				if mode == "connection_loss" {
+					conn, _, err := w.(http.Hijacker).Hijack()
+					if err != nil {
+						t.Error(err)
+						return
+					}
+					_ = conn.Close()
+					return
+				}
+				status := http.StatusFound
+				if mode == "redirect_307" {
+					status = http.StatusTemporaryRedirect
+				}
+				http.Redirect(w, r, "/replayed", status)
+			}))
+			defer server.Close()
+			client := New(config.HAL{BaseURL: server.URL, CMSBearerToken: "test", RequestTimeout: time.Second})
+			response, err := client.http.Get(server.URL + "/warm")
+			if err != nil {
+				t.Fatal(err)
+			}
+			_ = response.Body.Close()
+			_, err = client.OperateCharger(context.Background(), ChargerOperationRequest{CMSOperationID: id, Kind: "CLEAR_CACHE", Parameters: map[string]string{}}, uuid.NewString())
+			if err == nil {
+				t.Fatal("ambiguous/redirected operation succeeded")
+			}
+			if got := attempts.Load(); got != 1 {
+				t.Fatalf("external attempts=%d want1", got)
+			}
+		})
+	}
+}

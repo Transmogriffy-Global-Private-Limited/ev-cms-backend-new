@@ -86,3 +86,11 @@ func TestParseChargerOperationHistoryQueryRequiresCanonicalUUID(t *testing.T) {
 		t.Fatalf("status=%d body=%s", writer.Code, writer.Body.String())
 	}
 }
+
+func TestChargerOperationHistoryAcceptsDurableDispatchStates(t *testing.T) {
+	for _, state := range []string{"DISPATCH_CLAIMED", "DELIVERY_ATTEMPTED"} {
+		if _, err := validateChargerOperationHistoryQuery(ChargerOperationHistoryQuery{State: &state}); err != nil {
+			t.Fatalf("state %s: %v", state, err)
+		}
+	}
+}

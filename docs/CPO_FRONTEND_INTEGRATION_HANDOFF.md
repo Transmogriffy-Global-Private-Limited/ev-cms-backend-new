@@ -1,5 +1,9 @@
 # CPO Frontend Integration Handoff
 
+## Charger-operation recovery states
+
+Handle `DISPATCH_CLAIMED` and `DELIVERY_ATTEMPTED` alongside existing operation states. They are pending states, not success or failure. Never automatically issue a new key to retry an ambiguous operation. Re-fetch on `charger.operation_changed`; detail reads may reconcile while history remains side-effect-free. Nonterminal operations omit `completed_at`. See [the recovery contract](integrations/charger-operation-recovery.md).
+
 ## Purpose and authority
 
 This is the complete browser-integration guide for the CPO administration

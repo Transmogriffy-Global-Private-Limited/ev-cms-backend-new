@@ -483,6 +483,15 @@ type ChargerOperation struct {
 	CreatedAt       time.Time  `gorm:"not null" json:"created_at"`
 	UpdatedAt       time.Time  `gorm:"not null" json:"updated_at"`
 	CompletedAt     *time.Time `gorm:"type:timestamptz" json:"completed_at,omitempty"`
+
+	// Frozen destination and fenced CMS delivery/recovery state.
+	DispatchChargerIdentity *string    `gorm:"type:text" json:"-"`
+	DispatchConnectorNumber *int       `json:"-"`
+	DispatchClaimToken      *uuid.UUID `gorm:"type:uuid" json:"-"`
+	DispatchClaimExpiresAt  *time.Time `gorm:"type:timestamptz" json:"-"`
+	DeliveryAttemptedAt     *time.Time `gorm:"type:timestamptz" json:"-"`
+	RecoveryToken           *uuid.UUID `gorm:"type:uuid" json:"-"`
+	RecoveryAfter           time.Time  `gorm:"not null;default:now()" json:"-"`
 }
 
 // ChargingTraceEvent stores immutable diagnostic evidence. It never owns

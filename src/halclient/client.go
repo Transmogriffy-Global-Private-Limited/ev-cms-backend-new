@@ -299,7 +299,12 @@ func (client *Client) mutateOperation(ctx context.Context, method, path, idempot
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Idempotency-Key", idempotency)
 	req.Header.Set("X-Correlation-ID", correlation)
-	resp, err := client.http.Do(req)
+	// A transport must not replay a charger operation, even with an
+	// Idempotency-Key. Go otherwise treats a rewindable body as replayable.
+	req.GetBody = nil
+	operationClient := *client.http
+	operationClient.CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
+	resp, err := operationClient.Do(req)
 	if err != nil {
 		return fmt.Errorf("send HAL v1 operation request: %w", err)
 	}

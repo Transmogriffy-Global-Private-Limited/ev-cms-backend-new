@@ -116,8 +116,9 @@ returns `409 idempotency_conflict`.
   `configuration` projection only when the synchronous OCPP confirmation is
   available; it never persists configuration values in operation history.
 - `GET /api/v1/cpo/operations/charger-operations/{operation_id}` is the
-  recovery resource. For `RECONCILIATION_REQUIRED` it performs only exact
-  same-ID HAL lookup; it never sends another physical OCPP command.
+  recovery resource. Due `DELIVERY_ATTEMPTED`, `HAL_ACCEPTED` and
+  `RECONCILIATION_REQUIRED` rows use a rate-bounded exact same-ID HAL lookup;
+  the read never sends another physical OCPP command.
 - `GET /api/v1/cpo/operations/charger-operations/{operation_id}/ocpp-exchanges`
   requires the same operation capability (not generic trace permission), is
   tenant-safe, and returns grouped safe CALL/CALLRESULT/CALLERROR evidence for
@@ -160,10 +161,17 @@ requested key names. It never returns the configuration
 value, raw JSONB, internal connector helper, idempotency key/digest,
 correlation ID, or provider payload.
 
-`PERSISTED` means CMS accepted the operation durably. `OCPP_CONFIRMED` means
+`PERSISTED` means CMS accepted the operation durably with no external delivery
+attempt. `DISPATCH_CLAIMED` is an exclusive pre-delivery lease;
+`DELIVERY_ATTEMPTED` is committed before HAL I/O and never automatically replayed.
+`HAL_ACCEPTED` means HAL knows the operation. These nonterminal states and
+`RECONCILIATION_REQUIRED` have no `completed_at`. A background worker recovers
+unattempted work and reconciles uncertain work using the same machinery as the
+request/detail paths. See [durable operation recovery](../../integrations/charger-operation-recovery.md)
+for leases, immutable snapshots and migration compatibility. `OCPP_CONFIRMED` means
 HAL received an OCPP response, whose exact result is retained in
 `ocpp_result`; it does not prove a later physical effect. `CONFIRMED_ABSENT`
-means HAL's exact lookup proves the operation was never created there. A
+means HAL's exact lookup reported the operation absent; it never permits replay. A
 `RECONCILIATION_REQUIRED` response is honest about ambiguous delivery. These
 operations are distinct from customer RemoteStart/RemoteStop, sessions,
 wallets, chargeability, firmware, and diagnostics; none of those states are

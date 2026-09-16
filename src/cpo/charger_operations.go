@@ -13,11 +13,11 @@ import (
 
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/auth"
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/halclient"
-	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/halops"
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/models"
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/operationalrealtime"
 	"github.com/google/uuid"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 type ChargerOperationInput struct {
@@ -81,10 +81,10 @@ func (service *Service) RequestChargerOperation(ctx context.Context, principal a
 	var existing models.ChargerOperation
 	err = service.database.WithContext(ctx).Where("cpo_id = ? AND idempotency_key = ?", *principal.CPOID, input.IdempotencyKey).First(&existing).Error
 	if err == nil {
-		if existing.RequestDigest != digest {
+		if existing.RequestDigest != digest || existing.ChargerID != chargerID {
 			return ChargerOperationResponse{}, &auth.APIError{Status: http.StatusConflict, Code: "idempotency_conflict", Message: "The Idempotency-Key was already used for a different operation."}
 		}
-		return chargerOperationView(existing), nil
+		return service.dispatchChargerOperation(ctx, existing.ID)
 	}
 	if !errors.Is(err, gorm.ErrRecordNotFound) {
 		return ChargerOperationResponse{}, fmt.Errorf("load idempotent charger operation: %w", err)
@@ -93,18 +93,19 @@ func (service *Service) RequestChargerOperation(ctx context.Context, principal a
 	if err := service.database.WithContext(ctx).First(&charger, "id = ? AND cpo_id = ?", chargerID, *principal.CPOID).Error; err != nil {
 		return ChargerOperationResponse{}, mapChargerNotFound(err)
 	}
+	connectorNumber := 0
 	if input.ConnectorID != nil {
 		var connector models.Connector
 		if err := service.database.WithContext(ctx).First(&connector, "id = ? AND cpo_id = ? AND charger_id = ?", *input.ConnectorID, *principal.CPOID, chargerID).Error; err != nil {
 			return ChargerOperationResponse{}, &auth.APIError{Status: http.StatusNotFound, Code: "connector_not_found", Message: "The connector was not found."}
 		}
-		input.Parameters["_connector_number"] = fmt.Sprint(connector.ConnectorNumber)
+		connectorNumber = connector.ConnectorNumber
 	}
 	var mapping models.HALChargerMapping
 	if err := service.database.WithContext(ctx).First(&mapping, "cms_charger_id = ? AND cpo_id = ? AND sync_state = ?", chargerID, *principal.CPOID, "SYNCHRONIZED").Error; err != nil {
 		return ChargerOperationResponse{}, &auth.APIError{Status: http.StatusServiceUnavailable, Code: "mapping_unavailable", Message: "The charger mapping is not ready for operations."}
 	}
-	operation := models.ChargerOperation{ID: uuid.New(), TraceID: uuid.New(), CPOID: *principal.CPOID, ChargerID: chargerID, ConnectorID: input.ConnectorID, ActorUserID: principal.UserID, IdempotencyKey: input.IdempotencyKey, RequestDigest: digest, CorrelationID: input.CorrelationID, Kind: input.Kind, Parameters: models.JSONB{}, State: "PERSISTED", CreatedAt: service.now(), UpdatedAt: service.now()}
+	operation := models.ChargerOperation{ID: uuid.New(), TraceID: uuid.New(), CPOID: *principal.CPOID, ChargerID: chargerID, ConnectorID: input.ConnectorID, ActorUserID: principal.UserID, IdempotencyKey: input.IdempotencyKey, RequestDigest: digest, CorrelationID: input.CorrelationID, Kind: input.Kind, Parameters: models.JSONB{}, State: "PERSISTED", DispatchChargerIdentity: &mapping.ChargerOCPPIdentity, DispatchConnectorNumber: &connectorNumber, CreatedAt: service.now(), UpdatedAt: service.now()}
 	for key, value := range input.Parameters {
 		if key != "_connector_number" {
 			operation.Parameters[key] = value
@@ -114,45 +115,25 @@ func (service *Service) RequestChargerOperation(ctx context.Context, principal a
 		operation.Parameters["configuration_keys"] = append([]string(nil), input.ConfigurationKeys...)
 	}
 	if err := service.database.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		if err := tx.Create(&operation).Error; err != nil {
-			return err
+		insert := tx.Clauses(clause.OnConflict{Columns: []clause.Column{{Name: "cpo_id"}, {Name: "idempotency_key"}}, DoNothing: true}).Create(&operation)
+		if insert.Error != nil {
+			return insert.Error
+		}
+		if insert.RowsAffected == 0 {
+			operation = models.ChargerOperation{} // Do not constrain the winner lookup by our losing UUID.
+			if err := tx.Where("cpo_id = ? AND idempotency_key = ?", *principal.CPOID, input.IdempotencyKey).First(&operation).Error; err != nil {
+				return err
+			}
+			if operation.RequestDigest != digest || operation.ChargerID != chargerID {
+				return &auth.APIError{Status: http.StatusConflict, Code: "idempotency_conflict", Message: "The Idempotency-Key was already used for a different operation."}
+			}
+			return nil
 		}
 		return service.emitChargerOperationEvent(tx, operation)
 	}); err != nil {
 		return ChargerOperationResponse{}, fmt.Errorf("persist charger operation: %w", err)
 	}
-	connectorNumber := 0
-	if input.ConnectorID != nil {
-		fmt.Sscan(input.Parameters["_connector_number"], &connectorNumber)
-	}
-	result, callErr := service.halOperations.RequestChargerOperation(ctx, halops.ChargerOperationRequest{CMSOperationID: operation.ID, TraceID: operation.TraceID, CPOID: operation.CPOID, CMSChargerID: chargerID, CMSConnectorID: input.ConnectorID, ChargerOCPPIdentity: mapping.ChargerOCPPIdentity, OCPPConnectorNumber: connectorNumber, Kind: input.Kind, Parameters: operationParameters(operation.Parameters), ConfigurationKeys: input.ConfigurationKeys}, input.CorrelationID)
-	updates := map[string]any{"updated_at": service.now()}
-	if callErr != nil {
-		updates["state"] = "RECONCILIATION_REQUIRED"
-		updates["failure_category"] = chargerOperationFailure(callErr)
-		now := service.now()
-		updates["completed_at"] = &now
-	} else {
-		updates["hal_operation_id"] = result.HALOperationID
-		updates["state"] = result.State
-		updates["ocpp_result"] = result.OCPPResult
-		updates["failure_category"] = result.ErrorCategory
-		updates["completed_at"] = result.CompletedAt
-	}
-	if err := service.database.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		if err := tx.Model(&operation).Updates(updates).Error; err != nil {
-			return err
-		}
-		if err := tx.First(&operation, "id = ?", operation.ID).Error; err != nil {
-			return err
-		}
-		return service.emitChargerOperationEvent(tx, operation)
-	}); err != nil {
-		return ChargerOperationResponse{}, fmt.Errorf("record charger operation result: %w", err)
-	}
-	response := chargerOperationView(operation)
-	response.Configuration = result.Configuration
-	return response, nil
+	return service.dispatchChargerOperation(ctx, operation.ID)
 }
 
 func operationParameters(parameters models.JSONB) map[string]string {
@@ -191,27 +172,12 @@ func (service *Service) GetChargerOperation(ctx context.Context, principal auth.
 	if err := service.database.WithContext(ctx).First(&operation, "id = ? AND cpo_id = ?", id, *principal.CPOID).Error; err != nil {
 		return ChargerOperationResponse{}, &auth.APIError{Status: http.StatusNotFound, Code: "charger_operation_not_found", Message: "The charger operation was not found."}
 	}
-	if operation.State == "RECONCILIATION_REQUIRED" && service.halOperations != nil && service.halOperations.Available() {
-		result, reconcileErr := service.halOperations.ReconcileChargerOperation(ctx, operation.ID)
-		updates := map[string]any(nil)
-		if reconcileErr == nil {
-			updates = map[string]any{"hal_operation_id": result.HALOperationID, "state": result.State, "ocpp_result": result.OCPPResult, "failure_category": result.ErrorCategory, "updated_at": service.now(), "completed_at": result.CompletedAt}
-		} else if errors.Is(reconcileErr, halops.ErrChargerOperationNotFound) {
-			now := service.now()
-			updates = map[string]any{"state": "CONFIRMED_ABSENT", "failure_category": "confirmed_absent", "updated_at": now, "completed_at": now}
+	if operationNeedsReconciliation(operation.State) && service.halOperations != nil && service.halOperations.Available() {
+		if err := service.reconcileChargerOperation(ctx, operation.ID); err != nil {
+			return ChargerOperationResponse{}, err
 		}
-		if updates != nil {
-			if err := service.database.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-				if err := tx.Model(&operation).Updates(updates).Error; err != nil {
-					return err
-				}
-				if err := tx.First(&operation, "id = ?", operation.ID).Error; err != nil {
-					return err
-				}
-				return service.emitChargerOperationEvent(tx, operation)
-			}); err != nil {
-				return ChargerOperationResponse{}, fmt.Errorf("record charger operation reconciliation: %w", err)
-			}
+		if err := service.database.WithContext(ctx).First(&operation, "id = ?", operation.ID).Error; err != nil {
+			return ChargerOperationResponse{}, err
 		}
 	}
 	return chargerOperationView(operation), nil
