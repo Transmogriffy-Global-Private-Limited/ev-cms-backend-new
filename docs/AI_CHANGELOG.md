@@ -10,7 +10,17 @@
   fresh membership/role/permission evaluation remains authoritative.
 - PLATFORM login rejects supplied App-ID headers. Authentication failures remain
   generic; database failures remain internal. OpenAPI and administrative frontend
-  guidance describe the contract. No migration or deployment is included.
+  guidance describe the contract. No migration was required.
+- Built and rehosted source revision `2440378`. The active binary SHA-256 is
+  `7c31c0eb25ad0531bd87a18725e6d4376779825d77f485094156947bc9b0c587`; the
+  replaced binary is retained at
+  `/root/evcmsnew-backups/pre-auth-appid-2440378-20260916T1450+0530/evcmsnew`
+  (SHA-256
+  `4a836493a7fc3197decfeb1d09d29a55f324fb600e306fb79394b447410aff70`).
+- Post-rehost service, local/HTTPS health and documentation routes, migration,
+  current worker heartbeats, Caddy configuration, and new-process log checks
+  passed. No invoice or mail data changed; database-gated tests and SMTP
+  acceptance remain unverified.
 - Verification details and unrelated database-suite failures are recorded in
   [the work item](work/archive/WI-20260916-cpo-admin-appid-login.md).
 
