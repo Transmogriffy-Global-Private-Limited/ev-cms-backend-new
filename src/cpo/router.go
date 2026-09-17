@@ -619,6 +619,7 @@ func RegisterCPORoutes(
 	analyticsRead.GET("/hubs/:hub_id/analytics", handler.getHubAnalytics)
 	customersRead.GET("/vehicles", handler.listVehicles)
 	customersRead.GET("/customers/visit-counts", handler.listCustomerVisitCounts)
+	customersRead.GET("/customer-ratings", handler.listCustomerRatings)
 }
 
 func (handler *Handler) getChargingSessionTrace(ctx *gin.Context) {
@@ -3751,4 +3752,103 @@ func (handler *Handler) unassignChargerFromHub(ctx *gin.Context) {
 		return
 	}
 	ctx.JSON(http.StatusOK, record)
+}
+
+func (handler *Handler) listCustomerRatings(ctx *gin.Context) {
+	principal, _ := auth.CurrentPrincipal(ctx)
+	query, ok := parseCustomerRatingListQuery(ctx)
+	if !ok {
+		return
+	}
+	records, err := handler.service.ListCustomerRatings(
+		ctx.Request.Context(), principal, query,
+	)
+	if err != nil {
+		writeError(ctx, err)
+		return
+	}
+	ctx.JSON(http.StatusOK, records)
+}
+
+func parseCustomerRatingListQuery(ctx *gin.Context) (CustomerRatingListQuery, bool) {
+	query := CustomerRatingListQuery{}
+
+	if limitText := strings.TrimSpace(ctx.Query("limit")); limitText != "" {
+		limit, err := strconv.Atoi(limitText)
+		if err != nil {
+			writeError(ctx, invalid("limit", "Limit must be an integer."))
+			return CustomerRatingListQuery{}, false
+		}
+		query.Limit = limit
+	}
+	if beforeText := strings.TrimSpace(ctx.Query("before")); beforeText != "" {
+		before, err := time.Parse(time.RFC3339Nano, beforeText)
+		if err != nil {
+			writeError(ctx, invalid("before", "before must be RFC3339."))
+			return CustomerRatingListQuery{}, false
+		}
+		query.Before = &before
+	}
+	if beforeIDText := strings.TrimSpace(ctx.Query("before_id")); beforeIDText != "" {
+		beforeID, err := uuid.Parse(beforeIDText)
+		if err != nil || beforeID == uuid.Nil {
+			writeError(ctx, invalid("before_id", "before_id must be a non-zero UUID."))
+			return CustomerRatingListQuery{}, false
+		}
+		query.BeforeID = &beforeID
+	}
+	if query.Before == nil && query.BeforeID != nil {
+		writeError(ctx, invalid("before_id", "before is required when before_id is supplied."))
+		return CustomerRatingListQuery{}, false
+	}
+
+	if v := strings.TrimSpace(ctx.Query("customer_id")); v != "" {
+		id, err := uuid.Parse(v)
+		if err != nil || id == uuid.Nil {
+			writeError(ctx, invalid("customer_id", "customer_id must be a non-zero UUID."))
+			return CustomerRatingListQuery{}, false
+		}
+		query.CustomerID = &id
+	}
+	if v := strings.TrimSpace(ctx.Query("charger_id")); v != "" {
+		id, err := uuid.Parse(v)
+		if err != nil || id == uuid.Nil {
+			writeError(ctx, invalid("charger_id", "charger_id must be a non-zero UUID."))
+			return CustomerRatingListQuery{}, false
+		}
+		query.ChargerID = &id
+	}
+	if v := strings.TrimSpace(ctx.Query("hub_id")); v != "" {
+		id, err := uuid.Parse(v)
+		if err != nil || id == uuid.Nil {
+			writeError(ctx, invalid("hub_id", "hub_id must be a non-zero UUID."))
+			return CustomerRatingListQuery{}, false
+		}
+		query.HubID = &id
+	}
+	if v := strings.TrimSpace(ctx.Query("session_id")); v != "" {
+		id, err := uuid.Parse(v)
+		if err != nil || id == uuid.Nil {
+			writeError(ctx, invalid("session_id", "session_id must be a non-zero UUID."))
+			return CustomerRatingListQuery{}, false
+		}
+		query.SessionID = &id
+	}
+	if v := strings.TrimSpace(ctx.Query("min_overall_rating")); v != "" {
+		n, err := strconv.Atoi(v)
+		if err != nil {
+			writeError(ctx, invalid("min_overall_rating", "min_overall_rating must be an integer."))
+			return CustomerRatingListQuery{}, false
+		}
+		query.MinOverall = &n
+	}
+	if v := strings.TrimSpace(ctx.Query("max_overall_rating")); v != "" {
+		n, err := strconv.Atoi(v)
+		if err != nil {
+			writeError(ctx, invalid("max_overall_rating", "max_overall_rating must be an integer."))
+			return CustomerRatingListQuery{}, false
+		}
+		query.MaxOverall = &n
+	}
+	return query, true
 }

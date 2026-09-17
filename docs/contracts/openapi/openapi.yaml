@@ -809,6 +809,74 @@ paths:
           $ref: "#/components/responses/CPOBusinessForbidden"
         "500":
           $ref: "#/components/responses/InternalError"
+  /api/v1/cpo/customer-ratings:
+    get:
+      tags: [CPO Operations - Account & Notifications]
+      operationId: listCPOCustomerRatings
+      summary: List customer ratings and reviews for the CPO
+      description: |
+        Returns a paginated, newest-first list of customer ratings/reviews for
+        the authenticated CPO. Each rating exposes the overall score, the
+        optional hub (station) and charger scores, the free-text reason, and
+        flattened customer/charger/hub display fields.
+
+        Ratings are always scoped to the authenticated CPO's tenant; the
+        `cpo_id` is never accepted from the client. Use `before` and `before_id`
+        together to continue a page. `min_overall_rating` and
+        `max_overall_rating` are inclusive and cannot cross.
+      security:
+        - BearerAuth: []
+          CPOAppID: []
+      parameters:
+        - $ref: "#/components/parameters/CPOAppIDHeader"
+        - $ref: "#/components/parameters/ListBefore"
+        - $ref: "#/components/parameters/ListBeforeID"
+        - $ref: "#/components/parameters/ListLimit"
+        - name: customer_id
+          in: query
+          required: false
+          description: Filter ratings by the customer who authored them.
+          schema: {type: string, format: uuid}
+        - name: charger_id
+          in: query
+          required: false
+          description: Filter ratings by the internal charger UUID.
+          schema: {type: string, format: uuid}
+        - name: hub_id
+          in: query
+          required: false
+          description: Filter ratings by the charging-station (hub) UUID.
+          schema: {type: string, format: uuid}
+        - name: session_id
+          in: query
+          required: false
+          description: Filter ratings tied to a specific charging session.
+          schema: {type: string, format: uuid}
+        - name: min_overall_rating
+          in: query
+          required: false
+          description: Inclusive lower bound on overall_rating (1..5).
+          schema: {type: integer, minimum: 1, maximum: 5}
+        - name: max_overall_rating
+          in: query
+          required: false
+          description: Inclusive upper bound on overall_rating (1..5).
+          schema: {type: integer, minimum: 1, maximum: 5}
+      responses:
+        "200":
+          description: A page of customer ratings for the CPO.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CustomerRatingListResponse"
+        "400":
+          $ref: "#/components/responses/InvalidRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/CPOBusinessForbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
   /health/live:
     get:
       tags: [Health]
@@ -12489,3 +12557,50 @@ components:
         charger_id: {type: string}
         status: {type: string}
         created_at: {type: string, format: date-time}
+        
+    CustomerRatingView:
+      type: object
+      additionalProperties: false
+      required:
+        - id
+        - cpo_id
+        - customer_id
+        - customer_name
+        - customer_email
+        - charger_id
+        - charger_code
+        - charger_name
+        - overall_rating
+        - created_at
+        - updated_at
+      properties:
+        id: {type: string, format: uuid}
+        cpo_id: {type: string, format: uuid}
+        customer_id: {type: string, format: uuid}
+        customer_name: {type: string}
+        customer_email: {type: string, format: email}
+        charger_id: {type: string, format: uuid, description: Internal charger UUID.}
+        charger_code: {type: string, description: Six-character public charger ID.}
+        charger_name: {type: string}
+        hub_id: {type: string, format: uuid, nullable: true}
+        hub_name: {type: string, nullable: true}
+        session_id: {type: string, format: uuid, nullable: true}
+        overall_rating: {type: integer, minimum: 1, maximum: 5}
+        station_rating: {type: integer, minimum: 1, maximum: 5, nullable: true}
+        charger_rating: {type: integer, minimum: 1, maximum: 5, nullable: true}
+        reason: {type: string, maxLength: 1000, nullable: true}
+        created_at: {type: string, format: date-time}
+        updated_at: {type: string, format: date-time}
+
+    CustomerRatingListResponse:
+      type: object
+      additionalProperties: false
+      required: [ratings, has_more]
+      properties:
+        ratings:
+          type: array
+          items:
+            $ref: "#/components/schemas/CustomerRatingView"
+        next_before: {type: string, format: date-time, nullable: true}
+        next_before_id: {type: string, format: uuid, nullable: true}
+        has_more: {type: boolean}

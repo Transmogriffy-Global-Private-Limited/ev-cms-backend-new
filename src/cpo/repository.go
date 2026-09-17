@@ -25,6 +25,7 @@ type Repository interface {
 	ListChargersByHub(ctx context.Context, cpoID, hubID uuid.UUID) ([]models.Charger, error)
 	ListCustomerUsageWalletTransactions(ctx context.Context, cpoID, customerID uuid.UUID, limit int) ([]WalletTransactionDetail, error)
 	ListVehicles(ctx context.Context, cpoID uuid.UUID, query VehicleListQuery) ([]VehicleDetail, error)
+	ListCustomerRatings(ctx context.Context, cpoID uuid.UUID, query CustomerRatingListQuery) ([]models.CustomerRating, error)
 }
 type repository struct {
 	db *gorm.DB
@@ -674,4 +675,65 @@ func (r *repository) ListVehicles(ctx context.Context, cpoID uuid.UUID, query Ve
 		return nil, err
 	}
 	return vehicles, nil
+}
+
+// ListCustomerRatings returns CPO-scoped ratings in newest-first order with
+// the parent customer, charger, hub, and session associations preloaded.
+// It follows the same keyset pagination contract as the other list endpoints.
+func (r *repository) ListCustomerRatings(
+	ctx context.Context,
+	cpoID uuid.UUID,
+	query CustomerRatingListQuery,
+) ([]models.CustomerRating, error) {
+	var ratings []models.CustomerRating
+
+	db := r.db.WithContext(ctx).
+		Model(&models.CustomerRating{}).
+		Preload("Customer").
+		Preload("Charger").
+		Preload("Hub").
+		Preload("Session").
+		Where("customer_ratings.cpo_id = ?", cpoID)
+
+	if query.CustomerID != nil {
+		db = db.Where("customer_ratings.customer_id = ?", *query.CustomerID)
+	}
+	if query.ChargerID != nil {
+		db = db.Where("customer_ratings.charger_id = ?", *query.ChargerID)
+	}
+	if query.HubID != nil {
+		db = db.Where("customer_ratings.hub_id = ?", *query.HubID)
+	}
+	if query.SessionID != nil {
+		db = db.Where("customer_ratings.session_id = ?", *query.SessionID)
+	}
+	if query.MinOverall != nil {
+		db = db.Where("customer_ratings.overall_rating >= ?", *query.MinOverall)
+	}
+	if query.MaxOverall != nil {
+		db = db.Where("customer_ratings.overall_rating <= ?", *query.MaxOverall)
+	}
+
+	if query.Before != nil {
+		if query.BeforeID != nil {
+			db = db.Where(
+				"(customer_ratings.created_at, customer_ratings.id) < (?, ?)",
+				*query.Before,
+				*query.BeforeID,
+			)
+		} else {
+			db = db.Where("customer_ratings.created_at < ?", *query.Before)
+		}
+	}
+
+	if query.Limit > 0 {
+		db = db.Limit(query.Limit + 1)
+	}
+
+	if err := db.
+		Order("customer_ratings.created_at DESC, customer_ratings.id DESC").
+		Find(&ratings).Error; err != nil {
+		return nil, err
+	}
+	return ratings, nil
 }

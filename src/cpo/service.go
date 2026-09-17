@@ -8460,3 +8460,113 @@ func (service *Service) UnassignChargerFromHub(
 
 	return service.chargerView(charger, principal), nil
 }
+
+func (service *Service) ListCustomerRatings(
+	ctx context.Context,
+	principal auth.Principal,
+	query CustomerRatingListQuery,
+) (CustomerRatingListResponse, error) {
+	if err := requireCPOContext(principal); err != nil {
+		return CustomerRatingListResponse{}, err
+	}
+
+	if query.Limit == 0 {
+		query.Limit = defaultListLimit
+	}
+	if query.Limit < 1 || query.Limit > maxListLimit {
+		return CustomerRatingListResponse{}, invalid(
+			"limit",
+			"Limit must be between 1 and 200.",
+		)
+	}
+	if (query.Before == nil) != (query.BeforeID == nil) {
+		return CustomerRatingListResponse{}, invalid(
+			"cursor",
+			"before and before_id must be supplied together.",
+		)
+	}
+	if query.MinOverall != nil && (*query.MinOverall < 1 || *query.MinOverall > 5) {
+		return CustomerRatingListResponse{}, invalid(
+			"min_overall_rating",
+			"min_overall_rating must be between 1 and 5.",
+		)
+	}
+	if query.MaxOverall != nil && (*query.MaxOverall < 1 || *query.MaxOverall > 5) {
+		return CustomerRatingListResponse{}, invalid(
+			"max_overall_rating",
+			"max_overall_rating must be between 1 and 5.",
+		)
+	}
+	if query.MinOverall != nil && query.MaxOverall != nil &&
+		*query.MinOverall > *query.MaxOverall {
+		return CustomerRatingListResponse{}, invalid(
+			"overall_rating_range",
+			"min_overall_rating must not exceed max_overall_rating.",
+		)
+	}
+
+	ratings, err := service.repository.ListCustomerRatings(
+		ctx, *principal.CPOID, query,
+	)
+	if err != nil {
+		return CustomerRatingListResponse{}, fmt.Errorf(
+			"list customer ratings: %w", err,
+		)
+	}
+
+	hasMore := len(ratings) > query.Limit
+	if hasMore {
+		ratings = ratings[:query.Limit]
+	}
+
+	result := make([]CustomerRatingView, 0, len(ratings))
+	for _, rating := range ratings {
+		result = append(result, toCustomerRatingView(rating))
+	}
+
+	response := CustomerRatingListResponse{
+		Ratings: result,
+		HasMore: hasMore,
+	}
+	if hasMore && len(ratings) > 0 {
+		nextBefore := ratings[len(ratings)-1].CreatedAt
+		nextBeforeID := ratings[len(ratings)-1].ID
+		response.NextBefore = &nextBefore
+		response.NextBeforeID = &nextBeforeID
+	}
+	return response, nil
+}
+
+// toCustomerRatingView flattens the rating's parent associations into
+// display-friendly fields. Parent rows may be absent if a historical rating
+// references a deleted relation, so each association is guarded.
+func toCustomerRatingView(rating models.CustomerRating) CustomerRatingView {
+	view := CustomerRatingView{
+		ID:            rating.ID,
+		CPOID:         rating.CPOID,
+		CustomerID:    rating.CustomerID,
+		ChargerID:     rating.ChargerID,
+		HubID:         rating.HubID,
+		SessionID:     rating.SessionID,
+		OverallRating: rating.OverallRating,
+		StationRating: rating.StationRating,
+		ChargerRating: rating.ChargerRating,
+		Reason:        rating.Reason,
+		CreatedAt:     rating.CreatedAt,
+		UpdatedAt:     rating.UpdatedAt,
+	}
+
+	if rating.Customer.ID != uuid.Nil {
+		view.CustomerName = rating.Customer.FullName
+		view.CustomerEmail = rating.Customer.Email
+	}
+	if rating.Charger.ID != uuid.Nil {
+		view.ChargerCode = rating.Charger.ChargerID
+		view.ChargerName = rating.Charger.ChargerName
+	}
+	if rating.Hub != nil {
+		hubName := rating.Hub.Name
+		view.HubName = &hubName
+	}
+	return view
+}

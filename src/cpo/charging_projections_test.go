@@ -77,6 +77,14 @@ func (r *chargingSessionProjectionRepository) ListChargersByHub(context.Context,
 func (r *chargingSessionProjectionRepository) ListVehicles(context.Context, uuid.UUID, VehicleListQuery) ([]VehicleDetail, error) {
 	return nil, nil
 }
+
+func (r *chargingSessionProjectionRepository) ListCustomerRatings(
+	context.Context,
+	uuid.UUID,
+	CustomerRatingListQuery,
+) ([]models.CustomerRating, error) {
+	return nil, nil
+}
 func TestCPOTransactionProjectionUsesJoinedHumanAndProtocolIdentity(t *testing.T) {
 	t.Parallel()
 

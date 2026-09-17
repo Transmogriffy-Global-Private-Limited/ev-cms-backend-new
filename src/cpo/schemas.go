@@ -1098,3 +1098,53 @@ type CustomerVisitCountListResponse struct {
 	NextBefore   *time.Time               `json:"next_before,omitempty"`
 	NextBeforeID *uuid.UUID               `json:"next_before_id,omitempty"`
 }
+
+// CustomerRatingListQuery defines query parameters for listing customer ratings.
+// Ratings are CPO-scoped, so cpo_id is always taken from the authenticated
+// session and never accepted from the client.
+type CustomerRatingListQuery struct {
+	Before   *time.Time
+	BeforeID *uuid.UUID
+	Limit    int
+
+	CustomerID *uuid.UUID
+	ChargerID  *uuid.UUID
+	HubID      *uuid.UUID
+	SessionID  *uuid.UUID
+
+	// Overall rating range filter (1..5). Inclusive.
+	MinOverall *int
+	MaxOverall *int
+}
+
+// CustomerRatingView is the CPO admin projection of a single rating/review.
+// It flattens the parent associations into display-friendly fields so the
+// frontend does not need to walk nested objects.
+type CustomerRatingView struct {
+	ID            uuid.UUID  `json:"id"`
+	CPOID         uuid.UUID  `json:"cpo_id"`
+	CustomerID    uuid.UUID  `json:"customer_id"`
+	CustomerName  string     `json:"customer_name"`
+	CustomerEmail string     `json:"customer_email"`
+	ChargerID     uuid.UUID  `json:"charger_id"`
+	ChargerCode   string     `json:"charger_code"`
+	ChargerName   string     `json:"charger_name"`
+	HubID         *uuid.UUID `json:"hub_id,omitempty"`
+	HubName       *string    `json:"hub_name,omitempty"`
+	SessionID     *uuid.UUID `json:"session_id,omitempty"`
+
+	OverallRating int     `json:"overall_rating"`
+	StationRating *int    `json:"station_rating,omitempty"`
+	ChargerRating *int    `json:"charger_rating,omitempty"`
+	Reason        *string `json:"reason,omitempty"`
+
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+}
+
+type CustomerRatingListResponse struct {
+	Ratings      []CustomerRatingView `json:"ratings"`
+	NextBefore   *time.Time           `json:"next_before,omitempty"`
+	NextBeforeID *uuid.UUID           `json:"next_before_id,omitempty"`
+	HasMore      bool                 `json:"has_more"`
+}

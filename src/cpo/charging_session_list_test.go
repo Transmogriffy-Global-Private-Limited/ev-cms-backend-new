@@ -49,6 +49,13 @@ func (r *chargingSessionListRepository) ListChargersByHub(context.Context, uuid.
 func (r *chargingSessionListRepository) ListVehicles(context.Context, uuid.UUID, VehicleListQuery) ([]VehicleDetail, error) {
 	return nil, nil
 }
+func (r *chargingSessionListRepository) ListCustomerRatings(
+	context.Context,
+	uuid.UUID,
+	CustomerRatingListQuery,
+) ([]models.CustomerRating, error) {
+	return nil, nil
+}
 
 func chargingSessionListQueryForTest(t *testing.T, rawQuery string) (ChargingSessionListQuery, bool, *httptest.ResponseRecorder) {
 	t.Helper()
