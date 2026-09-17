@@ -1,5 +1,14 @@
 # Development Plan
 
+## 2026-09-16 - Charger serial identity and customer-rating storage
+
+- Non-empty charger serial numbers are unique within their CPO at the database
+  boundary. Customer rating persistence is tenant-scoped groundwork; rating
+  submission/read APIs remain unimplemented and must be planned separately.
+- Migration 71 and the corrected model/API error documentation are deployed;
+  see [schema](SCHEMA.md), [hosting record](guides/operations/dev-hosting.md),
+  and [release verification](work/archive/WI-20260916-customer-rating-schema-serial-identity.md).
+
 ## 2026-09-16 - Durable CMS charger-operation dispatch
 
 - CMS now freezes the dispatch destination and fences pre-delivery claims with
