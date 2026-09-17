@@ -610,6 +610,19 @@ func TestMapChargerDeleteErrorRecognizesPostgresDependencyViolations(t *testing.
 	}
 }
 
+func TestMapChargerWriteErrorRecognizesCPOScopedSerialConflict(t *testing.T) {
+	t.Parallel()
+
+	err := mapChargerWriteError(&pgconn.PgError{
+		Code:           "23505",
+		ConstraintName: "uq_chargers_cpo_serial_number",
+	}, "create")
+	var apiErr *auth.APIError
+	if !errors.As(err, &apiErr) || apiErr.Status != http.StatusConflict || apiErr.Code != "charger_serial_number_conflict" {
+		t.Fatalf("got error %v, want 409 charger_serial_number_conflict", err)
+	}
+}
+
 func TestMapWriteErrorExplainsKnownCPOUniquenessConflicts(t *testing.T) {
 	t.Parallel()
 

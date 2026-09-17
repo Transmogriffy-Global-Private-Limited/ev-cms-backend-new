@@ -213,7 +213,7 @@ type Hub struct {
 	GST             *GST                  `gorm:"foreignKey:GSTID;constraint:OnUpdate:CASCADE,OnDelete:RESTRICT" json:"gst,omitempty"`
 	Chargers        []Charger             `gorm:"foreignKey:HubID" json:"chargers,omitempty"`
 	Tariffs         []Tariff              `gorm:"foreignKey:HubID" json:"tariffs,omitempty"`
-	Ratings         []CustomerRating      `gorm:"foreignKey:CustomerID" json:"ratings,omitempty"`
+	Ratings         []CustomerRating      `gorm:"foreignKey:HubID" json:"ratings,omitempty"`
 	CreatedAt       time.Time             `gorm:"not null" json:"created_at"`
 	UpdatedAt       time.Time             `gorm:"not null" json:"updated_at"`
 }
@@ -247,7 +247,7 @@ type Charger struct {
 	CustomerVisibility  bool                    `gorm:"column:customer_visibility;not null;default:false" json:"customer_visibility"`
 	Connectors          []Connector             `gorm:"foreignKey:ChargerID" json:"connectors,omitempty"`
 	Tariffs             []Tariff                `gorm:"foreignKey:ChargerID" json:"tariffs,omitempty"`
-	Ratings             []CustomerRating        `gorm:"foreignKey:CustomerID" json:"ratings,omitempty"`
+	Ratings             []CustomerRating        `gorm:"foreignKey:ChargerID" json:"ratings,omitempty"`
 	CreatedAt           time.Time               `gorm:"not null" json:"created_at"`
 	UpdatedAt           time.Time               `gorm:"not null" json:"updated_at"`
 }
@@ -389,7 +389,7 @@ type ChargingSession struct {
 	SettledAt          *time.Time          `gorm:"type:timestamptz" json:"settled_at,omitempty"`
 	WalletTransactions []WalletTransaction `gorm:"foreignKey:SessionID" json:"wallet_transactions,omitempty"`
 	Payment            *Payment            `gorm:"foreignKey:SessionID" json:"payment,omitempty"`
-	Ratings            []CustomerRating    `gorm:"foreignKey:CustomerID" json:"ratings,omitempty"`
+	Ratings            []CustomerRating    `gorm:"foreignKey:SessionID" json:"ratings,omitempty"`
 	CreatedAt          time.Time           `gorm:"not null" json:"created_at"`
 	UpdatedAt          time.Time           `gorm:"not null" json:"updated_at"`
 }

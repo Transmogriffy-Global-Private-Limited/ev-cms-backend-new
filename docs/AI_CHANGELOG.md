@@ -1,5 +1,19 @@
 # AI Changelog
 
+## 2026-09-16 - Deploy CPO serial uniqueness and rating persistence
+
+- Added a database-enforced per-CPO uniqueness rule for non-empty charger
+  serial numbers and conflict translation to `charger_serial_number_conflict`.
+- Added migration 71 and model persistence for CPO-scoped customer ratings.
+  Composite foreign keys enforce same-CPO customer/charger/hub/session
+  references. No customer rating route or API is shipped.
+- Rehosted after clean data preflight and a validated database dump. Migration
+  71 is current; no legacy serial duplicates existed. Runtime checks passed;
+  the existing 508 SENT mail rows remained unchanged and none were pending.
+- Full Go tests, vet, build and OpenAPI parity passed. `TEST_DATABASE_URL` and
+  `pwsh` were unavailable, so DB integration tests and the PowerShell docs
+  verifier were not run. See the [release record](work/archive/WI-20260916-customer-rating-schema-serial-identity.md).
+
 ## 2026-09-16 - Durable CMS charger-operation dispatch
 
 - CMS now freezes the dispatch destination and fences pre-delivery claims with

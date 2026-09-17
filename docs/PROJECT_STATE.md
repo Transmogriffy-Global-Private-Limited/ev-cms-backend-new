@@ -1,5 +1,32 @@
 # Project State
 
+## 2026-09-16 - CPO-scoped charger serial identity and rating storage
+
+- Deployed the charger serial conflict behavior with a database-enforced
+  unique index for non-empty serial numbers per CPO. The preflight found no
+  existing duplicates; the index is the concurrent-write authority.
+- Migration `000071_customer_ratings.up.sql` adds CPO-scoped rating persistence,
+  1–5 checks, one rating per customer/session/CPO, and composite tenant foreign
+  keys. This is schema/model groundwork only; there is no rating HTTP API.
+- Rehosted from source commit `38ce906`, binary SHA-256
+  `5ebd8ac1853750bbfbe6b3dabbd880aadb05cb24208e002447d927d7d15c6cb0`.
+  The preceding binary and validated mode-0600 database dump are retained at
+  `/root/evcmsnew-backups/pre-000071-customer-ratings-20260916T110548Z/`.
+- Migration 71 applied with the CMS stopped; rating table has zero rows.
+  Post-rehost the process/install hashes match, service has zero restarts,
+  loopback and HTTPS liveness/readiness/docs return 200, OpenAPI remains at
+  246 operations, all seven required workers are healthy, Caddy validates,
+  and no new-process errors were logged. Mail remains 508 SENT with zero
+  pending/processing; no mail was sent or retried by this release.
+- `.env` mode is 0600 and has exactly the 64 keys in `.env.example`, with no
+  missing or extra names; no configuration keys changed. Full Go tests, vet,
+  production build and route/OpenAPI parity passed. `TEST_DATABASE_URL` and
+  `pwsh` were unavailable; PostgreSQL-gated tests, docs verifier, physical
+  charger/OCPP validation and SMTP acceptance remain unverified.
+- See the [hosting record](guides/operations/dev-hosting.md),
+  [schema reference](SCHEMA.md), and
+  [release work item](work/archive/WI-20260916-customer-rating-schema-serial-identity.md).
+
 ## 2026-09-16 - Durable CMS charger-operation dispatch
 
 - CMS now freezes the dispatch destination and fences pre-delivery claims with

@@ -2443,7 +2443,9 @@ The server generates:
 
 `last_seen_at` is omitted until available. The transaction writes
 `CHARGER_CREATED`. Additional errors: field-specific `400 invalid_*`,
-`404 hub_not_found`, `409 charger_conflict`, or `409 connector_conflict`.
+`404 hub_not_found`, `409 charger_conflict`, `409 charger_serial_number_conflict`
+(the non-empty serial number is already assigned within this CPO), or
+`409 connector_conflict`.
 
 When unassigned, `hub_id` is omitted and `assigned` is `false`; after
 attachment, `hub_id` is returned and `assigned` is `true`. `assigned` is a

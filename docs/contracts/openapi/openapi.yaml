@@ -4866,7 +4866,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorEnvelope"
         "409":
-          description: "`charger_conflict` or `connector_conflict`."
+          description: "`charger_conflict`, `charger_serial_number_conflict` (non-empty serial already assigned within this CPO), or `connector_conflict`."
           content:
             application/json:
               schema:

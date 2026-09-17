@@ -29,11 +29,27 @@ that setting; it must not be used until the OCPP host is explicitly configured
 with TLS/WebSocket support.
 
 The current deployment was updated on September 16, 2026 to source revision
-`8cd65ae` (durable charger-operation dispatch/recovery); migration
-`000070_durable_charger_operation_dispatch` is current and the API has 246
-operations. The active binary SHA-256 is
-`7eccc0689da5b796ca8f4b4b9cecafd79a214fb805429924ba4d54542e7657d5`. The
+`38ce906` (customer-rating/serial-identity release); migration
+`000071_customer_ratings` is current and the API has 246 operations. The active
+binary SHA-256 is
+`5ebd8ac1853750bbfbe6b3dabbd880aadb05cb24208e002447d927d7d15c6cb0`. The
 immediately preceding binary is retained at
+`/root/evcmsnew-backups/pre-000071-customer-ratings-20260916T110548Z/evcmsnew`
+(SHA-256
+`7eccc0689da5b796ca8f4b4b9cecafd79a214fb805429924ba4d54542e7657d5`). The
+pre-migration custom-format dump is
+`/root/evcmsnew-backups/pre-000071-customer-ratings-20260916T110548Z/devevcmsnewdb.dump`
+(mode `0600`, SHA-256
+`0f5a336ddec48c581b03428b0bdc527f7c94a80abf404a148ba33f4e8006fce7`). The
+service was stopped before migration 71; the preflight found no duplicate
+non-empty `(cpo_id, serial_number)` values. After rehost PID 16348 is active
+with zero restarts and matching process/install hashes; loopback and HTTPS
+liveness/readiness/docs return 200, all seven required workers are healthy,
+Caddy validates, and no new-process error entries exist. The ratings table is
+empty, and mail remains 508 SENT with zero pending/processing rows. The `.env`
+file is mode `0600` with exactly 64/64 example keys; no key values are recorded.
+
+For the prior migration-70 release, the replaced binary is retained at
 `/root/evcmsnew-backups/pre-000070-20260916T094521Z/evcmsnew`
 (SHA-256
 `7c31c0eb25ad0531bd87a18725e6d4376779825d77f485094156947bc9b0c587`). The
