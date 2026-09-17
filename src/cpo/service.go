@@ -3485,11 +3485,6 @@ func (service *Service) CreateCharger(
 			}
 		}
 
-		// Serial number must be unique per CPO.
-		if err := service.ensureUniqueSerialNumber(tx, cpoID, request.SerialNumber, nil); err != nil {
-			return err
-		}
-
 		chargerID, err := generateUniqueChargerIDTx(tx)
 		if err != nil {
 			return err
@@ -4633,10 +4628,6 @@ func (service *Service) UpdateCharger(
 			changedFields["model"] = *request.Model
 		}
 		if request.SerialNumber != nil {
-			// Serial number must be unique per CPO, excluding this charger.
-			if err := service.ensureUniqueSerialNumber(tx, cpoID, *request.SerialNumber, &record.ID); err != nil {
-				return err
-			}
 			updates["serial_number"] = *request.SerialNumber
 			record.SerialNumber = *request.SerialNumber
 			changedFields["serial_number"] = *request.SerialNumber
@@ -5177,8 +5168,7 @@ func mapChargerWriteError(err error, operation string) error {
 			// Prefer a precise message when the DB backstop fires on the
 			// CPO-scoped serial number constraint. Fall back to the generic
 			// message for other unique keys (charger_id, ocpp_identity, ...).
-			if strings.Contains(postgresError.ConstraintName, "serial_number") ||
-				strings.Contains(postgresError.Detail, "serial_number") {
+			if strings.Contains(postgresError.ConstraintName, "serial_number") {
 				return &auth.APIError{
 					Status:  http.StatusConflict,
 					Code:    "charger_serial_number_conflict",
@@ -8469,33 +8459,4 @@ func (service *Service) UnassignChargerFromHub(
 	}
 
 	return service.chargerView(charger, principal), nil
-}
-
-// ensureUniqueSerialNumber guarantees a charger serial number is unique within
-// one CPO. The DB constraint remains the authoritative backstop for concurrent
-// writers; this check gives clients a precise, actionable conflict response
-// instead of a generic unique-violation error.
-func (service *Service) ensureUniqueSerialNumber(
-	tx *gorm.DB,
-	cpoID uuid.UUID,
-	serialNumber string,
-	excludeChargerID *uuid.UUID,
-) error {
-	query := tx.Model(&models.Charger{}).
-		Where("cpo_id = ? AND serial_number = ?", cpoID, serialNumber)
-	if excludeChargerID != nil {
-		query = query.Where("id <> ?", *excludeChargerID)
-	}
-	var count int64
-	if err := query.Count(&count).Error; err != nil {
-		return fmt.Errorf("check charger serial number uniqueness: %w", err)
-	}
-	if count > 0 {
-		return &auth.APIError{
-			Status:  http.StatusConflict,
-			Code:    "charger_serial_number_conflict",
-			Message: "A charger with this serial number already exists for this CPO.",
-		}
-	}
-	return nil
 }

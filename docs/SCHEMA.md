@@ -4,6 +4,16 @@
 
 Migration `000070_durable_charger_operation_dispatch` freezes mapping identity and connector number, adds fenced claim/attempt/recovery scheduling fields, and conservatively reclassifies legacy PERSISTED rows. See [the transition and migration contract](integrations/charger-operation-recovery.md).
 
+## Customer ratings and charger serial identity (migration 71)
+
+Migration `000071_customer_ratings` adds CPO-scoped customer feedback persistence
+and a partial unique index for non-empty charger serial numbers within a CPO.
+The rating model is persistence groundwork only: no HTTP route or customer
+submission/read contract is exposed yet. Composite foreign keys ensure each
+rating's customer, charger, optional hub, and optional session belong to its
+declared CPO. Ratings are 1–5; at most one rating per customer/session/CPO is
+allowed. Do not treat storage as a shipped customer-facing feature.
+
 ## Purpose
 
 The initial migration preserves every business area from the supplied CMS
