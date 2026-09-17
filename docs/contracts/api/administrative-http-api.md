@@ -3091,9 +3091,36 @@ The response is a safe projection:
   "is_verified": true,
   "usergroup_assigned": false,
   "created_at": "2026-07-23T12:00:00Z",
-  "last_login_at": "2026-07-23T12:05:00Z"
+"last_login_at": "2026-07-23T12:05:00Z"
 }
 ```
+
+#### 9.24.4 `GET /api/v1/cpo/customer-ratings`
+
+Returns customer ratings for the authenticated CPO. Requires an active CPO
+membership, matching `X-CPO-App-ID`, and `customers.read`. The tenant comes
+from the authenticated principal; no CPO identifier is accepted.
+
+Query parameters:
+
+- `limit`: 1–200, default 50.
+- `before` and `before_id`: required together for newest-first keyset
+  pagination; use both returned cursor values unchanged.
+- `customer_id`, `charger_id`, `hub_id`, `session_id`: optional UUID filters.
+- `min_overall_rating`, `max_overall_rating`: inclusive 1–5 bounds; minimum
+  cannot exceed maximum.
+
+Response shape: `{ratings, has_more, next_before?, next_before_id?}`. Each rating
+includes customer name/email, charger UUID/code/name, optional hub/session
+identifiers and hub name, overall/station/charger scores, optional review text,
+and timestamps. Customer email is personal data and is disclosed only under
+the same CPO `customers.read` authority as the customer directory. Treat review
+text as untrusted plain text and escape it when rendering; do not interpret it
+as HTML. Empty next-cursor fields are omitted when there is no next page.
+
+Errors: shared CPO authentication/capability failures, `400 invalid_*` for
+malformed filters/cursors/ranges or limits, and `500 internal_error`. This is a
+read-only endpoint; no rating submission or mutation route is provided.
 
 ## 10. CPO Integration Credentials
 

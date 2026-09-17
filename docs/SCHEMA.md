@@ -8,11 +8,11 @@ Migration `000070_durable_charger_operation_dispatch` freezes mapping identity a
 
 Migration `000071_customer_ratings` adds CPO-scoped customer feedback persistence
 and a partial unique index for non-empty charger serial numbers within a CPO.
-The rating model is persistence groundwork only: no HTTP route or customer
-submission/read contract is exposed yet. Composite foreign keys ensure each
-rating's customer, charger, optional hub, and optional session belong to its
-declared CPO. Ratings are 1–5; at most one rating per customer/session/CPO is
-allowed. Do not treat storage as a shipped customer-facing feature.
+Composite foreign keys ensure each rating's customer, charger, optional hub,
+and optional session belong to its declared CPO. Ratings are 1–5; at most one
+rating per customer/session/CPO is allowed. The CPO admin read endpoint is
+`GET /api/v1/cpo/customer-ratings`, gated by `customers.read`; there is no
+customer submission or rating mutation endpoint.
 
 ## Purpose
 

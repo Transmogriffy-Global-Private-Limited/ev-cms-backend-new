@@ -1,5 +1,15 @@
 # Development Plan
 
+## 2026-09-17 - CPO customer-rating read
+
+- CPO members with `customers.read` can list same-tenant customer ratings with
+  bounded filters and keyset pagination. Rating create/update/delete APIs are
+  not part of this slice. See the administrative HTTP contract and CPO frontend
+  handoff.
+- Hosting verification and deployment evidence are recorded after rehost in
+  [project state](PROJECT_STATE.md) and the hosting guide. The read-only API
+  is deployed from `64504d5`; no migration or environment change was required.
+
 ## 2026-09-16 - Charger serial identity and customer-rating storage
 
 - Non-empty charger serial numbers are unique within their CPO at the database

@@ -105,7 +105,7 @@ capability to an otherwise lower-role member. Support has separate
 | Staff and permissions | catalog, staff list/detail/lifecycle | Gate each action from effective staff capabilities; creation/delegation requires both `staff.manage` and `staff.permissions.manage`. |
 | Hubs and chargers | network CRUD, visibility, assignment, static status | CMS configuration is not OCPP transport truth. |
 | Commercial | GST, nested tariffs, user groups, settings | Use decimal strings; follow tariff/GST precedence. |
-| Customers and reports | customers, sessions, charger transactions, wallet ledger | Read-only CPO insight; no CPO customer mutation API. |
+| Customers and reports | customers, customer ratings (`GET /cpo/customer-ratings`), sessions, charger transactions, wallet ledger | Requires effective `customers.read`; rating pages use paired keyset cursors. Treat customer email as personal data and review text as untrusted plain text; no CPO customer/rating mutation is exposed. |
 | Operations | fleet, charger live detail, replay, SSE | Replay then stream; REST remains authoritative. |
 | Integrations | provider metadata and credential replacement/removal | Never render or expect secret readback. |
 | Support | CPO ticket list/create/detail/reply | CPO can see only its own conversation. |

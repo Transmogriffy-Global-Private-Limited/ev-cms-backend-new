@@ -28,12 +28,27 @@ development host it is set in the ignored service environment to
 that setting; it must not be used until the OCPP host is explicitly configured
 with TLS/WebSocket support.
 
-The current deployment was updated on September 16, 2026 to source revision
-`38ce906` (customer-rating/serial-identity release); migration
-`000071_customer_ratings` is current and the API has 246 operations. The active
-binary SHA-256 is
-`5ebd8ac1853750bbfbe6b3dabbd880aadb05cb24208e002447d927d7d15c6cb0`. The
+The current deployment was updated on September 17, 2026 to source revision
+`64504d5` (CPO customer-rating read); migration
+`000071_customer_ratings` remains current and the API has 247 operations. The
+active binary SHA-256 is
+`c072ae5bbf8e5d7d108af59960a776f9ce45a99ce9c96987747cb797293af850`. The
 immediately preceding binary is retained at
+`/root/evcmsnew-backups/pre-customer-rating-read-64504d5-20260917T095439Z/evcmsnew`
+(SHA-256
+`5ebd8ac1853750bbfbe6b3dabbd880aadb05cb24208e002447d927d7d15c6cb0`). No
+database dump or migration was needed for this API-only change. The process
+started as PID 5244 with zero restarts and matching process/install hashes;
+local and HTTPS liveness/readiness/docs returned 200, all seven required
+workers were healthy, Caddy validated, and no new-process error entries were
+found. The endpoint returns 401 without credentials. There were 509 SENT mail
+jobs and zero pending/processing; the latest SENT timestamp predates this
+rehost, so no mail delivery is attributed to it. `.env` remained mode `0600`
+with exactly the 64 example keys and no extras; no config key changed. The
+PostgreSQL tenant/paging integration test is skipped because `TEST_DATABASE_URL`
+is unset, and `pwsh` is unavailable for the docs verifier.
+
+For the prior migration-71 schema release, the immediately preceding binary is retained at
 `/root/evcmsnew-backups/pre-000071-customer-ratings-20260916T110548Z/evcmsnew`
 (SHA-256
 `7eccc0689da5b796ca8f4b4b9cecafd79a214fb805429924ba4d54542e7657d5`). The

@@ -1,5 +1,29 @@
 # Project State
 
+## 2026-09-17 - CPO customer-rating read endpoint
+
+- Added `GET /api/v1/cpo/customer-ratings`, gated by the existing
+  `customers.read` capability, matching CPO App ID and authenticated tenant.
+  It supports bounded newest-first keyset pagination and customer/charger/hub/
+  session/rating filters. No customer rating write route was added.
+- The response includes customer email and free-text review; the handoff now
+  marks email as personal data and review text as untrusted plain text.
+- Deployed source revision `64504d5`; binary SHA-256
+  `c072ae5bbf8e5d7d108af59960a776f9ce45a99ce9c96987747cb797293af850`.
+  Previous binary is retained at
+  `/root/evcmsnew-backups/pre-customer-rating-read-64504d5-20260917T095439Z/evcmsnew`
+  (SHA-256
+  `5ebd8ac1853750bbfbe6b3dabbd880aadb05cb24208e002447d927d7d15c6cb0`).
+- Post-rehost PID 5244 is active with zero restarts and matching process/install
+  hashes. Loopback/public health, readiness and docs return 200; the live
+  OpenAPI has 247 operations; all seven required workers are healthy; Caddy
+  validates; no new-process errors were logged. Migration 71 remains current.
+- The database-gated tenant/paging test is present but skipped because
+  `TEST_DATABASE_URL` is unset; the new path returns 401 without credentials.
+  Full Go tests, vet, build, and OpenAPI parity passed. No mail was sent by the
+  rehost (latest SENT timestamp predates it); 509 SENT rows and zero pending
+  rows remain. `pwsh`, physical OCPP and SMTP acceptance remain unverified.
+
 ## 2026-09-16 - CPO-scoped charger serial identity and rating storage
 
 - Deployed the charger serial conflict behavior with a database-enforced

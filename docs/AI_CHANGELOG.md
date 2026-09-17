@@ -1,5 +1,16 @@
 # AI Changelog
 
+## 2026-09-17 - CPO customer-rating list
+
+- Added a CPO-scoped, `customers.read`-protected rating list endpoint with
+  newest-first cursor pagination and optional identity/rating filters.
+- The projection includes customer email and review text; tenant boundaries and
+  frontend handling of personal/untrusted content are documented. No rating
+  write API exists.
+- Rehosted source revision `64504d5` with migration 71 unchanged. The binary
+  SHA, retained prior build, runtime checks, and remaining verification limits
+  are recorded in [project state](PROJECT_STATE.md) and the hosting guide.
+
 ## 2026-09-16 - Deploy CPO serial uniqueness and rating persistence
 
 - Added a database-enforced per-CPO uniqueness rule for non-empty charger
