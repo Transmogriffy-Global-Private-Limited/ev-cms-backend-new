@@ -84,6 +84,8 @@ func RegisterRoutes(group *gin.RouterGroup, service *Service) {
 	protected.GET("/charging-sessions", handler.listChargingSessions)
 	protected.GET("/charging-start-intents/:start_intent_id", handler.getChargingStartIntent)
 	protected.GET("/charging-sessions/:session_id", handler.getChargingSession)
+	protected.GET("/charging-sessions/:session_id/rating", handler.getChargingSessionRating)
+	protected.PUT("/charging-sessions/:session_id/rating", handler.putChargingSessionRating)
 	protected.GET("/charging-sessions/:session_id/invoice", handler.downloadInvoice)
 	protected.POST("/charging-sessions/:session_id/stop", handler.stopCharging)
 	protected.GET("/operations/events", handler.operationalEvents)

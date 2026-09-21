@@ -1,5 +1,17 @@
 # Development Plan
 
+## 2026-09-21 - Customer charging-session ratings
+
+- Customers can read and PUT one session-owned rating only for their own CMS
+  session when its durable status is exactly `COMPLETED`. The existing rating
+  table and partial session/customer/CPO unique index are reused; no migration,
+  rating history, delete route, direct charger review, or public aggregate is
+  added.
+- Concurrent first PUTs use PostgreSQL's existing partial unique-index predicate
+  as the authority. Charger and optional hub identity come from the durable
+  owned session and charger, never the request. The existing CPO rating list
+  projects the same stored row.
+
 ## 2026-09-17 - CPO customer-rating read
 
 - CPO members with `customers.read` can list same-tenant customer ratings with

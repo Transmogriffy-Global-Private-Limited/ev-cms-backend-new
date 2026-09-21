@@ -529,6 +529,8 @@ alter the separate customer-selected time-bounded-session cutoff workflow.
 | `GET /charging-start-intents/{start_intent_id}` | Yes | `200 ChargingStartResponse` | Poll owned start progress and its materialized `session_id` when actual charging begins. |
 | `GET /charging-sessions` | Yes | `200 ChargingSessionHistoryResponse` | List this customer's actual materialized sessions with bounded history-card data. |
 | `GET /charging-sessions/{session_id}` | Yes | `200 ChargingSessionResponse` | Read owned durable active/completed session, exact projected meter, connection, connector, and freshness fields. |
+| `GET /charging-sessions/{session_id}/rating` | Yes | `200 CustomerSessionRating` | Read this customer's existing session-owned feedback; an owned session without feedback returns `404 rating_not_found`. |
+| `PUT /charging-sessions/{session_id}/rating` | Yes | `201/200 CustomerSessionRating` | Create or replace one rating only when the owned durable session state is `COMPLETED`; `409 session_not_rateable` means it is still incomplete or reconciling. |
 | `GET /charging-sessions/{session_id}/invoice` | Yes | `200 application/pdf` | Download the immutable invoice for this owned financially-final session. Treat `409 invoice_not_eligible`, `invoice_pending`, and `invoice_unavailable` as distinct UI states. |
 | `POST /charging-sessions/{session_id}/stop` | Yes | `202` | Persist/request an owned stop; actual charger completion remains asynchronous. |
 | `GET /operations/events` | Yes | `200 OperationalEventPage` | Recover retained, scoped charging/availability invalidations. |
@@ -547,6 +549,17 @@ alter the separate customer-selected time-bounded-session cutoff workflow.
 
 Every listed path is relative to `USER_APP_ROOT` (`/api/v1/app`). Only rows
 whose path starts with `/auth` use `USER_APP_AUTH_ROOT`.
+
+### 5.0.1 Session-owned feedback
+
+Customer ratings belong to one completed charging session, not directly to a
+charger, hub, or CPO. Send only `overall_rating` (required 1–5), optional
+`station_rating`/`charger_rating` (each 1–5), and optional plain-text `reason`
+(maximum 1000 characters) to the session-rating PUT path. Do not send tenant,
+customer, charger, hub, or session identity in JSON. A repeated equivalent PUT
+returns the same resource rather than creating feedback history. Omitted
+optional fields replace and clear prior optional values. Escape `reason` as
+text in every renderer.
 
 ### 5.1 Published Network Discovery
 
@@ -901,6 +914,20 @@ historical detail route. In addition to its existing live projection fields, it
 returns `started_at`, meter start/final meter values, final totals when
 completed, currency, settlement status, optional stop reason, safe charger/
 hub/connector presentation data, and frozen `pricing`/`tax` snapshots. The
+
+Session feedback is a separate private resource, not an additive session-detail
+field. First call `GET /charging-sessions/{session_id}/rating`; show the
+no-rating state only for `404 rating_not_found`, while any other `404` means the
+session is unavailable to this customer. Submit a full replacement through
+`PUT /charging-sessions/{session_id}/rating` with required `overall_rating`
+and optional `station_rating`, `charger_rating`, and `reason`. Scores are
+integers 1-5, review text is at most 1,000 Unicode characters and must be
+rendered as text, and omitted optional fields clear prior values. Enable the
+control only for a detail projection whose durable `state` is `COMPLETED`, but
+still handle `409 session_not_rateable` as authoritative because state can
+change before submission. The app never sends customer, CPO, charger, hub, or
+session identity in the body; it does not offer delete, direct station/charger
+review, aggregate, or public review UI.
 
 Its additive `invoice` object is customer-safe: it contains artifact readiness,
 number, timestamps, and `download_available`, but never email-delivery state.

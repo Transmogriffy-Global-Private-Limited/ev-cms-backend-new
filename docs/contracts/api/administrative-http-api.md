@@ -3590,7 +3590,54 @@ sorting use the identical expression. Completed and non-live sessions use the
 persisted final total. This historical list does not call HAL or issue charger
 commands, and it does not perform an N+1 live read.
 
-### 12.4.1 Charging-session invoices
+### 12.4.1 Customer charging-session ratings
+
+The User App exposes one private feedback resource per materialized CMS
+charging session:
+
+```text
+GET /api/v1/app/charging-sessions/{session_id}/rating
+PUT /api/v1/app/charging-sessions/{session_id}/rating
+```
+
+Both require the normal customer bearer token and its matching
+`X-CPO-App-ID`; the CPO and customer are derived from that principal, never
+from the path or body. The session must be owned by that CPO-local customer.
+An absent or foreign session returns the ordinary customer session-not-found
+response, so the resource does not reveal another customer's or CPO's session.
+For an owned session with no stored rating, `GET` returns `404
+rating_not_found`.
+
+`PUT` is a complete replacement, with this strict JSON object:
+
+```json
+{
+  "overall_rating": 5,
+  "station_rating": 4,
+  "charger_rating": 5,
+  "reason": "Clean site and reliable charging."
+}
+```
+
+`overall_rating` is required and every supplied score is an integer from 1 to
+5. `station_rating`, `charger_rating`, and `reason` are optional; omission on
+a later PUT clears a previously stored optional value. `reason` is at most
+1,000 Unicode characters; blank or whitespace-only input persists as absent.
+Unknown JSON fields, malformed JSON, invalid IDs, and invalid values return
+`400`. Review text is untrusted plain text and must never be rendered as HTML.
+
+Only the durable CMS session status `COMPLETED` is rateable. Active, pending,
+failed, and `RECONCILIATION_REQUIRED` sessions return `409
+session_not_rateable`; timestamps, invoice state, settlement state, and HAL
+projections are not substitutes for that lifecycle authority. The first PUT
+returns `201`; every later PUT returns `200`, including an equivalent payload.
+The existing partial unique index on `(cpo_id, session_id, customer_id)` is the
+concurrent-write authority, so concurrent first requests converge to one row.
+The API derives charger identity from the session and hub identity from that
+charger at write time. It has no delete endpoint, event, mail, HAL command,
+public review, aggregate, or separate direct charger/station review route.
+
+### 12.4.2 Charging-session invoices
 
 The current invoice's charge Basis follows the **frozen tariff**, independently
 of the customer's AUTO/ENERGY/TIME/MONEY stop selection:

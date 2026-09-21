@@ -7183,6 +7183,51 @@ paths:
         "401": {$ref: "#/components/responses/Unauthorized"}
         "404": {description: Customer charging session was not found.}
 
+  /api/v1/app/charging-sessions/{session_id}/rating:
+    get:
+      tags: [App Charging]
+      operationId: getCustomerChargingSessionRating
+      summary: Read the authenticated customer's rating for one owned charging session
+      description: The session must belong to the authenticated CPO-local customer. A rating remains readable after creation even if the session no longer meets current write eligibility.
+      security: [{BearerAuth: []}]
+      parameters:
+        - {$ref: "#/components/parameters/CPOAppIDHeader"}
+        - name: session_id
+          in: path
+          required: true
+          schema: {type: string, format: uuid}
+      responses:
+        "200": {description: Customer-owned session feedback, content: {application/json: {schema: {$ref: "#/components/schemas/CustomerSessionRating"}}}}
+        "400": {description: "`invalid_session_id`", content: {application/json: {schema: {$ref: "#/components/schemas/ErrorEnvelope"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {description: "`charging session_not_found` for an unowned/absent session, or `rating_not_found` for an owned session without feedback.", content: {application/json: {schema: {$ref: "#/components/schemas/ErrorEnvelope"}}}}
+    put:
+      tags: [App Charging]
+      operationId: putCustomerChargingSessionRating
+      summary: Create or replace the authenticated customer's rating for one completed charging session
+      description: Customer ratings are charging-session-owned feedback. One customer may have at most one rating for one completed charging session. Optional station and charger scores are dimensions of that same feedback, never independent reviews. CPO, customer, charger, and hub context is derived server-side from the authenticated customer and durable CMS session; CPO, customer, and session identity never change. The endpoint is idempotent for equivalent representations.
+      security: [{BearerAuth: []}]
+      parameters:
+        - {$ref: "#/components/parameters/CPOAppIDHeader"}
+        - name: session_id
+          in: path
+          required: true
+          schema: {type: string, format: uuid}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/CustomerSessionRatingRequest"}
+      responses:
+        "201": {description: First rating created, content: {application/json: {schema: {$ref: "#/components/schemas/CustomerSessionRating"}}}}
+        "200": {description: Existing rating replaced or returned unchanged for an equivalent representation, content: {application/json: {schema: {$ref: "#/components/schemas/CustomerSessionRating"}}}}
+        "400": {description: "`invalid_session_id`, `invalid_overall_rating`, `invalid_station_rating`, `invalid_charger_rating`, `invalid_reason`, or strict JSON failure.", content: {application/json: {schema: {$ref: "#/components/schemas/ErrorEnvelope"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {description: Customer charging session was not found.}
+        "409": {description: "`session_not_rateable`: the owned session is not exactly COMPLETED.", content: {application/json: {schema: {$ref: "#/components/schemas/ErrorEnvelope"}}}}
+
   /api/v1/app/charging-sessions/{session_id}/stop:
     post:
       tags: [App Charging]
@@ -11573,6 +11618,30 @@ components:
         next_before: {type: string, format: date-time}
         next_before_id: {type: string, format: uuid}
         has_more: {type: boolean}
+
+    CustomerSessionRatingRequest:
+      type: object
+      additionalProperties: false
+      required: [overall_rating]
+      properties:
+        overall_rating: {type: integer, minimum: 1, maximum: 5}
+        station_rating: {type: integer, minimum: 1, maximum: 5, nullable: true}
+        charger_rating: {type: integer, minimum: 1, maximum: 5, nullable: true}
+        reason: {type: string, maxLength: 1000, nullable: true, description: "Untrusted plain text. Blank or whitespace-only values are stored as absent; render as text, never HTML."}
+
+    CustomerSessionRating:
+      type: object
+      additionalProperties: false
+      required: [id, session_id, overall_rating, created_at, updated_at]
+      properties:
+        id: {type: string, format: uuid}
+        session_id: {type: string, format: uuid}
+        overall_rating: {type: integer, minimum: 1, maximum: 5}
+        station_rating: {type: integer, minimum: 1, maximum: 5, nullable: true}
+        charger_rating: {type: integer, minimum: 1, maximum: 5, nullable: true}
+        reason: {type: string, nullable: true}
+        created_at: {type: string, format: date-time}
+        updated_at: {type: string, format: date-time}
 
     ChargingSessionHistoryItem:
       type: object

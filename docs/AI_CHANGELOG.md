@@ -1,5 +1,15 @@
 # AI Changelog
 
+## 2026-09-21 - Add customer session-owned ratings
+
+- Added authenticated User App `GET`/`PUT` rating resources under an owned
+  charging session. PUT creates or replaces one completed-session rating using
+  the shipped partial unique index while retaining immutable CPO/customer/session
+  identity and deriving charger/hub context server-side.
+- Added strict score/text validation, customer/CPO ownership checks, durable
+  `COMPLETED` eligibility, tenant-safe absence behavior, and customer-safe
+  projections. Existing CPO rating reads consume the same rows unchanged.
+
 ## 2026-09-17 - CPO customer-rating list
 
 - Added a CPO-scoped, `customers.read`-protected rating list endpoint with

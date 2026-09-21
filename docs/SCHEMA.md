@@ -11,8 +11,10 @@ and a partial unique index for non-empty charger serial numbers within a CPO.
 Composite foreign keys ensure each rating's customer, charger, optional hub,
 and optional session belong to its declared CPO. Ratings are 1–5; at most one
 rating per customer/session/CPO is allowed. The CPO admin read endpoint is
-`GET /api/v1/cpo/customer-ratings`, gated by `customers.read`; there is no
-customer submission or rating mutation endpoint.
+`GET /api/v1/cpo/customer-ratings`, gated by `customers.read`. Customer
+session-owned ratings use `GET`/`PUT /api/v1/app/charging-sessions/{session_id}/rating`;
+the API requires a non-null session identity and derives tenant/customer/charger/
+hub fields from durable CMS rows while retaining the historical nullable shape.
 
 ## Purpose
 

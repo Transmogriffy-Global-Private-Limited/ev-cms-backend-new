@@ -1,5 +1,19 @@
 # Project State
 
+## 2026-09-21 - Customer-owned charging-session ratings
+
+- `GET` and `PUT /api/v1/app/charging-sessions/{session_id}/rating` are an
+  authenticated User App resource. A customer can create or replace exactly
+  one rating for an owned CPO-local session only when its durable CMS status is
+  `COMPLETED`; reads remain available after valid creation.
+- The request contains scores and bounded untrusted plain-text feedback only.
+  Customer, CPO, session, charger, and optional hub identity are derived from
+  durable CMS rows. Optional station/charger scores are dimensions of the same
+  session feedback, not direct charger or hub reviews.
+- The existing `customer_ratings` table and partial unique index provide
+  concurrent PUT authority. No migration, event, mail, HAL, deployment, or
+  CPO read-route change was required.
+
 ## 2026-09-17 - CPO customer-rating read endpoint
 
 - Added `GET /api/v1/cpo/customer-ratings`, gated by the existing
