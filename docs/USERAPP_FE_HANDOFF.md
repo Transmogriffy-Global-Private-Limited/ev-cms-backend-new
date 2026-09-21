@@ -327,6 +327,8 @@ export type CustomerCharger = {
   twenty_four_seven_open_status: boolean;
   hub_open_24_hours?: boolean;
   distance_km?: number;
+  average_rating?: number; // 1.00-5.00, rounded to at most two decimals; absent when no ratings
+  rating_count: number; // session-owned overall-rating rows contributing to average_rating
   availability: "UNKNOWN";
   can_charge: boolean;
   chargeability_reason: CustomerChargeabilityReason;
@@ -1038,6 +1040,19 @@ selected-charger SSE) includes `can_charge` and `chargeability_reason` on the
 charger and each connector. Connector `can_charge` is the actual answer.
 Charger `can_charge` is true when any connector is true; a fully blocked
 charger reports `NO_CHARGEABLE_CONNECTOR` even when connector reasons differ.
+
+The same full projections include customer-visible session-feedback summary
+fields. `average_rating` is the rounded (at most two decimal places) arithmetic
+mean of mandatory `overall_rating` across this charger's session-owned ratings
+within the current CPO; `rating_count` is the number of those rows. When the
+count is zero, `average_rating` is absent and `rating_count` is `0`. Do not
+substitute `charger_rating` or `station_rating`, and do not combine their
+optional dimensions with `overall_rating`. A later session-rating PUT replaces
+its existing row, so a client obtains the current aggregate by reading the
+ordinary charger projection again; no separate aggregate endpoint exists.
+
+`GET /chargers/locations` deliberately remains the compact map-marker payload
+of charger name and hub coordinates only. It does not include rating fields.
 
 This decision uses committed customer/CPO commercial state, wallet and held
 funds, tariff/GST eligibility, administrative status, mapping/readiness,

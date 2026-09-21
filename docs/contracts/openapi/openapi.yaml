@@ -8813,7 +8813,7 @@ components:
     CustomerCharger:
       type: object
       additionalProperties: false
-      required: [id, hub_id, charger_id, max_power_kw, ocpp_version, status, twenty_four_seven_open_status, availability, availability_freshness, can_charge, chargeability_reason, is_favorite, connectors]
+      required: [id, hub_id, charger_id, max_power_kw, ocpp_version, status, twenty_four_seven_open_status, rating_count, availability, availability_freshness, can_charge, chargeability_reason, is_favorite, connectors]
       properties:
         id: {type: string, format: uuid}
         hub_id: {type: string, format: uuid}
@@ -8848,6 +8848,18 @@ components:
           type: boolean
           description: Opening-hours flag for the attached hub.
         distance_km: {type: number, minimum: 0}
+        average_rating:
+          type: number
+          minimum: 1
+          maximum: 5
+          multipleOf: 0.01
+          nullable: true
+          description: Rounded-to-two-decimals arithmetic mean of overall_rating across this current-CPO charger's session-owned ratings. Omitted when rating_count is zero; optional station_rating and charger_rating do not contribute.
+        rating_count:
+          type: integer
+          format: int64
+          minimum: 0
+          description: Number of this current-CPO charger's session-owned ratings contributing to average_rating.
         availability:
           type: string
           enum: [AVAILABLE, CHARGING, FAULTED, UNAVAILABLE, UNKNOWN]

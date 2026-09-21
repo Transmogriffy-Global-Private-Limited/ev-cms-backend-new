@@ -153,8 +153,6 @@ func (service *Service) PutCustomerSessionRating(ctx context.Context, principal 
 		}
 
 		updates := map[string]any{
-			"charger_id":     charger.ID,
-			"hub_id":         charger.HubID,
 			"overall_rating": request.OverallRating,
 			"station_rating": request.StationRating,
 			"charger_rating": request.ChargerRating,
@@ -163,7 +161,7 @@ func (service *Service) PutCustomerSessionRating(ctx context.Context, principal 
 		}
 		if err := tx.Model(&models.CustomerRating{}).
 			Where("cpo_id = ? AND customer_id = ? AND session_id = ?", principal.CPOID, principal.CustomerID, session.ID).
-			Where("charger_id IS DISTINCT FROM ? OR hub_id IS DISTINCT FROM ? OR overall_rating IS DISTINCT FROM ? OR station_rating IS DISTINCT FROM ? OR charger_rating IS DISTINCT FROM ? OR reason IS DISTINCT FROM ?", charger.ID, charger.HubID, request.OverallRating, request.StationRating, request.ChargerRating, request.Reason).
+			Where("overall_rating IS DISTINCT FROM ? OR station_rating IS DISTINCT FROM ? OR charger_rating IS DISTINCT FROM ? OR reason IS DISTINCT FROM ?", request.OverallRating, request.StationRating, request.ChargerRating, request.Reason).
 			Updates(updates).Error; err != nil {
 			return fmt.Errorf("update customer session rating: %w", err)
 		}

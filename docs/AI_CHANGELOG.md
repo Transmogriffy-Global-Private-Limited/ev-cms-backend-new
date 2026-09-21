@@ -1,11 +1,21 @@
 # AI Changelog
 
+## 2026-09-21 - Add customer-visible charger rating aggregate
+
+- Added `average_rating` and `rating_count` to full customer charger
+  projections from one current-CPO grouped read over session-owned
+  `overall_rating` rows. Optional station/charger score dimensions, nullable
+  historical ratings, and compact map markers are intentionally excluded.
+- Corrected session-rating replacement to preserve the original rating row's
+  charger and hub context after a charger is reassigned.
+
 ## 2026-09-21 - Add customer session-owned ratings
 
 - Added authenticated User App `GET`/`PUT` rating resources under an owned
   charging session. PUT creates or replaces one completed-session rating using
-  the shipped partial unique index while retaining immutable CPO/customer/session
-  identity and deriving charger/hub context server-side.
+  the shipped partial unique index while retaining immutable CPO/customer/
+  session/charger/hub identity. First creation derives charger/hub context
+  server-side and freezes it on the rating row.
 - Added strict score/text validation, customer/CPO ownership checks, durable
   `COMPLETED` eligibility, tenant-safe absence behavior, and customer-safe
   projections. Existing CPO rating reads consume the same rows unchanged.

@@ -14,6 +14,7 @@ import (
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/liveops"
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/models"
 	"github.com/google/uuid"
+	"github.com/shopspring/decimal"
 	"gorm.io/gorm"
 )
 
@@ -116,6 +117,8 @@ type CustomerChargerView struct {
 	TwentyFourSevenOpen   bool                    `json:"twenty_four_seven_open_status"`
 	HubOpen24Hours        *bool                   `json:"hub_open_24_hours,omitempty"`
 	DistanceKM            *float64                `json:"distance_km,omitempty"`
+	AverageRating         *float64                `json:"average_rating,omitempty"`
+	RatingCount           int64                   `json:"rating_count"`
 	Availability          string                  `json:"availability"`
 	AvailabilityFreshness string                  `json:"availability_freshness"`
 	CanCharge             bool                    `json:"can_charge"`
@@ -143,6 +146,9 @@ func (service *Service) ListCustomerChargers(ctx context.Context, principal Prin
 			view.DistanceKM = &distance
 		}
 		chargers = append(chargers, view)
+	}
+	if err := service.enrichCustomerChargerRatings(ctx, principal.CPOID, chargers); err != nil {
+		return CustomerChargerListResponse{}, err
 	}
 	if err := service.enrichCustomerChargerChargeability(ctx, principal, chargers); err != nil {
 		return CustomerChargerListResponse{}, err
@@ -326,6 +332,9 @@ func (service *Service) GetCustomerHub(ctx context.Context, principal Principal,
 	for _, charger := range record.Chargers {
 		chargers = append(chargers, customerChargerView(charger, favoriteChargers[charger.ID]))
 	}
+	if err := service.enrichCustomerChargerRatings(ctx, principal.CPOID, chargers); err != nil {
+		return CustomerHubView{}, err
+	}
 	if err := service.enrichCustomerChargerChargeability(ctx, principal, chargers); err != nil {
 		return CustomerHubView{}, err
 	}
@@ -355,6 +364,9 @@ func (service *Service) GetCustomerCharger(ctx context.Context, principal Princi
 	}
 	view := customerChargerView(charger, favoriteChargers[charger.ID])
 	views := []CustomerChargerView{view}
+	if err := service.enrichCustomerChargerRatings(ctx, principal.CPOID, views); err != nil {
+		return CustomerChargerView{}, err
+	}
 	if err := service.enrichCustomerChargerChargeability(ctx, principal, views); err != nil {
 		return CustomerChargerView{}, err
 	}
@@ -507,6 +519,57 @@ func customerChargerView(record models.Charger, favorite bool) CustomerChargerVi
 		view.Availability = "UNAVAILABLE"
 	}
 	return view
+}
+
+type customerChargerRatingAggregate struct {
+	ChargerID     uuid.UUID       `gorm:"column:charger_id"`
+	AverageRating decimal.Decimal `gorm:"column:average_rating"`
+	RatingCount   int64           `gorm:"column:rating_count"`
+}
+
+// enrichCustomerChargerRatings overlays the one authoritative aggregate for
+// already-authorized chargers. It deliberately aggregates only session-owned
+// feedback and does one grouped query for the supplied bounded view set.
+func (service *Service) enrichCustomerChargerRatings(ctx context.Context, cpoID uuid.UUID, views []CustomerChargerView) error {
+	if len(views) == 0 {
+		return nil
+	}
+	chargerIDs := make([]uuid.UUID, 0, len(views))
+	seen := make(map[uuid.UUID]struct{}, len(views))
+	for _, view := range views {
+		if _, exists := seen[view.ID]; exists {
+			continue
+		}
+		seen[view.ID] = struct{}{}
+		chargerIDs = append(chargerIDs, view.ID)
+	}
+	var aggregates []customerChargerRatingAggregate
+	if err := service.database.WithContext(ctx).
+		Model(&models.CustomerRating{}).
+		Select("charger_id, ROUND(AVG(overall_rating)::numeric, 2) AS average_rating, COUNT(*) AS rating_count").
+		Where("cpo_id = ? AND charger_id IN ? AND session_id IS NOT NULL", cpoID, chargerIDs).
+		Group("charger_id").
+		Scan(&aggregates).Error; err != nil {
+		return fmt.Errorf("aggregate customer charger ratings: %w", err)
+	}
+	applyCustomerChargerRatingAggregates(views, aggregates)
+	return nil
+}
+
+func applyCustomerChargerRatingAggregates(views []CustomerChargerView, aggregates []customerChargerRatingAggregate) {
+	byChargerID := make(map[uuid.UUID]customerChargerRatingAggregate, len(aggregates))
+	for _, aggregate := range aggregates {
+		byChargerID[aggregate.ChargerID] = aggregate
+	}
+	for index := range views {
+		views[index].AverageRating = nil
+		views[index].RatingCount = 0
+		if aggregate, ok := byChargerID[views[index].ID]; ok {
+			average := aggregate.AverageRating.InexactFloat64()
+			views[index].AverageRating = &average
+			views[index].RatingCount = aggregate.RatingCount
+		}
+	}
 }
 
 // overlayCustomerChargerLiveStates combines an already-authorized customer

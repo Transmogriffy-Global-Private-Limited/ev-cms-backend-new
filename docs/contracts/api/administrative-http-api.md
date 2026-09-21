@@ -684,6 +684,17 @@ implemented, charger and connector `availability` is always `UNKNOWN`; this
 endpoint makes no HAL call and does not claim live or online state. Unknown,
 unpublished, and cross-CPO hubs all return `404 hub_not_found`.
 
+Every embedded full charger projection also contains `rating_count` and an
+optional `average_rating`. They are a read-time, current-CPO aggregate of
+session-owned `customer_ratings` rows grouped by charger: `rating_count` is
+the row count and `average_rating` is the arithmetic mean of mandatory
+`overall_rating`, rounded for the response to at most two decimals. A charger
+with no contributing ratings returns `rating_count: 0` and omits
+`average_rating`. Nullable-session historical/general ratings and optional
+`station_rating`/`charger_rating` dimensions never contribute. This is an
+enrichment only; it does not make a hidden charger visible or create a new
+rating endpoint.
+
 ### 4.12 `GET /api/v1/app/chargers/{charger_id}`
 
 Uses the six-character public charger ID, not the CMS charger UUID. The charger

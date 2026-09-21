@@ -1,5 +1,15 @@
 # Project State
 
+## 2026-09-21 - Customer-visible charger rating aggregate
+
+- Full User App charger list, detail, hub-detail, and shared favorites charger
+  projections now include `rating_count` and nullable `average_rating`. They
+  are a bounded, tenant-scoped read-time aggregate of session-owned
+  `overall_rating` rows only; the compact map-location projection is unchanged.
+- Existing ratings remain the sole source of truth. No aggregate storage,
+  migration, event, worker, CPO API change, or deployment is required. Rating
+  replacement preserves frozen row identity, including charger and hub context.
+
 ## 2026-09-21 - Customer-owned charging-session ratings
 
 - `GET` and `PUT /api/v1/app/charging-sessions/{session_id}/rating` are an

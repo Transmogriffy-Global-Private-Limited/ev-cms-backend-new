@@ -192,6 +192,9 @@ func (service *Service) ListCustomerFavorites(ctx context.Context, principal Pri
 				response.Chargers = append(response.Chargers, customerChargerView(charger, true))
 			}
 		}
+		if err := service.enrichCustomerChargerRatings(ctx, principal.CPOID, response.Chargers); err != nil {
+			return CustomerFavoritesResponse{}, err
+		}
 		if err := service.enrichCustomerChargerChargeability(ctx, principal, response.Chargers); err != nil {
 			return CustomerFavoritesResponse{}, err
 		}

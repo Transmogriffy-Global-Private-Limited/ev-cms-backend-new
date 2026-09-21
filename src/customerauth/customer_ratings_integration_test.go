@@ -48,9 +48,21 @@ func TestCustomerSessionRatingWithPostgreSQL(t *testing.T) {
 	if err := database.First(&stored, "id = ?", created.ID).Error; err != nil || stored.CPOID != fixture.cpo.ID || stored.CustomerID != fixture.firstPrincipal.CustomerID || stored.ChargerID != fixture.charger.ID || stored.HubID == nil || *stored.HubID != *fixture.charger.HubID || stored.SessionID == nil || *stored.SessionID != completed.ID {
 		t.Fatalf("derived identity=%+v err=%v", stored, err)
 	}
+	originalHubID, originalCreatedAt := *stored.HubID, stored.CreatedAt
+	otherHub := models.Hub{ID: uuid.New(), CPOID: fixture.cpo.ID, Name: "Later assigned hub", Address: "2 Test Road", State: constants.WestBengal, Latitude: 22.5730, Longitude: 88.3640, CustomerVisible: true, CreatedAt: time.Now().UTC(), UpdatedAt: time.Now().UTC()}
+	if err := database.Create(&otherHub).Error; err != nil {
+		t.Fatalf("create later assigned hub: %v", err)
+	}
+	if err := database.Model(&models.Charger{}).Where("id = ? AND cpo_id = ?", fixture.charger.ID, fixture.cpo.ID).Update("hub_id", otherHub.ID).Error; err != nil {
+		t.Fatalf("reassign charger hub: %v", err)
+	}
 	updated, secondCreated, err := service.PutCustomerSessionRating(ctx, fixture.firstPrincipal, completed.ID, CustomerSessionRatingRequest{OverallRating: 1})
 	if err != nil || secondCreated || updated.ID != created.ID || updated.StationRating != nil || updated.ChargerRating != nil || updated.Reason != nil || updated.OverallRating != 1 {
 		t.Fatalf("replacement rating=%+v created=%t err=%v", updated, secondCreated, err)
+	}
+	var frozen models.CustomerRating
+	if err := database.First(&frozen, "id = ?", created.ID).Error; err != nil || frozen.CPOID != fixture.cpo.ID || frozen.CustomerID != fixture.firstPrincipal.CustomerID || frozen.SessionID == nil || *frozen.SessionID != completed.ID || frozen.ChargerID != fixture.charger.ID || frozen.HubID == nil || *frozen.HubID != originalHubID || !frozen.CreatedAt.Equal(originalCreatedAt) {
+		t.Fatalf("rating identity mutated after charger hub reassignment: %+v err=%v", frozen, err)
 	}
 	repeated, repeatedCreated, err := service.PutCustomerSessionRating(ctx, fixture.firstPrincipal, completed.ID, CustomerSessionRatingRequest{OverallRating: 1})
 	if err != nil || repeatedCreated || repeated.ID != created.ID || !repeated.UpdatedAt.Equal(updated.UpdatedAt) {

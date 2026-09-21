@@ -9,6 +9,7 @@ import (
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/liveops"
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/models"
 	"github.com/google/uuid"
+	"github.com/shopspring/decimal"
 )
 
 func TestCustomerHubListQueryValidation(t *testing.T) {
@@ -109,6 +110,9 @@ func TestCustomerNetworkProjectionDoesNotClaimLiveAvailability(t *testing.T) {
 	if projection.Connectors[0].ConnectorTotalCapacity != 7.4 {
 		t.Fatalf("connector capacity=%v, want 7.4", projection.Connectors[0].ConnectorTotalCapacity)
 	}
+	if projection.AverageRating != nil || projection.RatingCount != 0 {
+		t.Fatalf("unrated charger projection=%#v", projection)
+	}
 	encoded, err := json.Marshal(struct {
 		Hub     CustomerHubSummary  `json:"hub"`
 		Charger CustomerChargerView `json:"charger"`
@@ -148,6 +152,32 @@ func TestCustomerNetworkProjectionDoesNotClaimLiveAvailability(t *testing.T) {
 		if err := json.Unmarshal(value, &got); err != nil || got != want {
 			t.Fatalf("charger %s=%s, want %t", key, value, want)
 		}
+	}
+	if _, exists := payload.Charger["average_rating"]; exists {
+		t.Fatalf("unrated charger response exposed average_rating: %s", encoded)
+	}
+	value, ok := payload.Charger["rating_count"]
+	if !ok {
+		t.Fatalf("charger response omitted rating_count: %s", encoded)
+	}
+	var ratingCount int64
+	if err := json.Unmarshal(value, &ratingCount); err != nil || ratingCount != 0 {
+		t.Fatalf("rating_count=%s, want 0", value)
+	}
+}
+
+func TestApplyCustomerChargerRatingAggregates(t *testing.T) {
+	t.Parallel()
+	first, second := uuid.New(), uuid.New()
+	views := []CustomerChargerView{{ID: first, RatingCount: 99}, {ID: second}}
+	applyCustomerChargerRatingAggregates(views, []customerChargerRatingAggregate{{
+		ChargerID: first, AverageRating: decimal.RequireFromString("4.33"), RatingCount: 3,
+	}})
+	if views[0].AverageRating == nil || *views[0].AverageRating != 4.33 || views[0].RatingCount != 3 {
+		t.Fatalf("rated charger aggregate=%#v", views[0])
+	}
+	if views[1].AverageRating != nil || views[1].RatingCount != 0 {
+		t.Fatalf("unrated charger aggregate=%#v", views[1])
 	}
 }
 

@@ -1,5 +1,16 @@
 # Development Plan
 
+## 2026-09-21 - Customer-visible charger rating aggregate
+
+- Full customer charger projections expose the current-CPO arithmetic mean of
+  session-owned mandatory `overall_rating` rows and their count. The bounded
+  read is grouped by authorized charger IDs and rounded only for response
+  presentation; no aggregate state, route, CPO surface, or migration is added.
+- The session-rating replacement path preserves its frozen CPO/customer/session/
+  charger/hub/creation identity. A session has no durable historical hub field,
+  so first creation uses the owned charger's then-current hub and never rewrites
+  it after a later charger reassignment.
+
 ## 2026-09-21 - Customer charging-session ratings
 
 - Customers can read and PUT one session-owned rating only for their own CMS

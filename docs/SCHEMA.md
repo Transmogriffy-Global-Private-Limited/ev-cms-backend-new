@@ -15,6 +15,14 @@ rating per customer/session/CPO is allowed. The CPO admin read endpoint is
 session-owned ratings use `GET`/`PUT /api/v1/app/charging-sessions/{session_id}/rating`;
 the API requires a non-null session identity and derives tenant/customer/charger/
 hub fields from durable CMS rows while retaining the historical nullable shape.
+The customer-visible charger aggregate is not stored: it is a read projection
+grouped by `(cpo_id, charger_id)` over rows whose `session_id IS NOT NULL`,
+using mandatory `overall_rating` only. The existing
+`idx_customer_ratings_charger (cpo_id, charger_id)` supports that bounded
+per-page lookup, so no aggregate table, counter, trigger, worker, or migration
+is required. `charging_sessions` has no durable hub snapshot; first rating
+creation records the owned session charger's then-current `hub_id`, and later
+rating replacements preserve that frozen rating context.
 
 ## Purpose
 
