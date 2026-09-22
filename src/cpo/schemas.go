@@ -382,6 +382,8 @@ type ChargerView struct {
 	Assigned                bool                    `json:"assigned"`
 	CreatedAt               time.Time               `json:"created_at"`
 	UpdatedAt               time.Time               `json:"updated_at"`
+	AverageRating           *float64                `json:"average_rating,omitempty"`
+	RatingCount             int64                   `json:"rating_count"`
 }
 
 type ChargerResponse struct {
@@ -398,10 +400,12 @@ type TenantListQuery struct {
 }
 
 type ChargerListResponse struct {
-	Chargers     []ChargerResponse `json:"chargers"`
-	NextBefore   *time.Time        `json:"next_before,omitempty"`
-	NextBeforeID *uuid.UUID        `json:"next_before_id,omitempty"`
-	HasMore      bool              `json:"has_more"`
+	Chargers        []ChargerResponse `json:"chargers"`
+	NextBefore      *time.Time        `json:"next_before,omitempty"`
+	NextBeforeID    *uuid.UUID        `json:"next_before_id,omitempty"`
+	HasMore         bool              `json:"has_more"`
+	NextCursorValue *string           `json:"next_cursor_value,omitempty"`
+	NextCursorID    *uuid.UUID        `json:"next_cursor_id,omitempty"`
 }
 
 type ConnectorView struct {
@@ -1113,8 +1117,17 @@ type CustomerRatingListQuery struct {
 	SessionID  *uuid.UUID
 
 	// Overall rating range filter (1..5). Inclusive.
-	MinOverall *int
-	MaxOverall *int
+	MinOverall  *int
+	MaxOverall  *int
+	HasReview   *bool
+	MinStation  *int
+	MaxStation  *int
+	MinCharger  *int
+	MaxCharger  *int
+	SortBy      string
+	SortOrder   string
+	CursorValue *string
+	CursorID    *uuid.UUID
 }
 
 // CustomerRatingView is the CPO admin projection of a single rating/review.
@@ -1138,13 +1151,46 @@ type CustomerRatingView struct {
 	ChargerRating *int    `json:"charger_rating,omitempty"`
 	Reason        *string `json:"reason,omitempty"`
 
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
+	CreatedAt time.Time                  `json:"created_at"`
+	UpdatedAt time.Time                  `json:"updated_at"`
+	Session   *CustomerRatingSessionView `json:"session,omitempty"`
+}
+
+type CustomerRatingSessionView struct {
+	ID               uuid.UUID                    `json:"id"`
+	Status           string                       `json:"status"`
+	StartTime        time.Time                    `json:"start_time"`
+	EndTime          *time.Time                   `json:"end_time,omitempty"`
+	TotalKWh         string                       `json:"total_kwh"`
+	TotalAmount      string                       `json:"total_amount"`
+	Currency         string                       `json:"currency"`
+	SettlementStatus string                       `json:"settlement_status"`
+	Connector        *CustomerRatingConnectorView `json:"connector,omitempty"`
+}
+type CustomerRatingConnectorView struct {
+	ID     uuid.UUID `json:"id"`
+	Number int       `json:"number"`
+	Type   string    `json:"type"`
 }
 
 type CustomerRatingListResponse struct {
-	Ratings      []CustomerRatingView `json:"ratings"`
-	NextBefore   *time.Time           `json:"next_before,omitempty"`
-	NextBeforeID *uuid.UUID           `json:"next_before_id,omitempty"`
-	HasMore      bool                 `json:"has_more"`
+	Ratings         []CustomerRatingView `json:"ratings"`
+	NextBefore      *time.Time           `json:"next_before,omitempty"`
+	NextBeforeID    *uuid.UUID           `json:"next_before_id,omitempty"`
+	HasMore         bool                 `json:"has_more"`
+	NextCursorValue *string              `json:"next_cursor_value,omitempty"`
+	NextCursorID    *uuid.UUID           `json:"next_cursor_id,omitempty"`
+}
+
+// ChargerListQuery keeps charger-specific rating selection separate from the
+// generic TenantListQuery used by unrelated CPO collections.
+type ChargerListQuery struct {
+	TenantListQuery
+	MinAverageRating *float64
+	MaxAverageRating *float64
+	HasRatings       *bool
+	SortBy           string
+	SortOrder        string
+	CursorValue      *string
+	CursorID         *uuid.UUID
 }

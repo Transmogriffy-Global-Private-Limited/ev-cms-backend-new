@@ -59,6 +59,20 @@ func TestCustomerChargerListQueryValidation(t *testing.T) {
 	if err := validateCustomerChargerListQuery(&query); err == nil {
 		t.Fatal("reversed charger power range was accepted")
 	}
+	min, max := 4.0, 5.0
+	query = CustomerChargerListQuery{MinAverageRating: &min, MaxAverageRating: &max, SortBy: "average_rating"}
+	if err := validateCustomerChargerListQuery(&query); err != nil || query.SortOrder != "desc" {
+		t.Fatalf("rating sort rejected or defaulted incorrectly: query=%+v err=%v", query, err)
+	}
+	hasRatings := false
+	query = CustomerChargerListQuery{HasRatings: &hasRatings, MinAverageRating: &min}
+	if err := validateCustomerChargerListQuery(&query); err == nil {
+		t.Fatal("has_ratings=false combined with range was accepted")
+	}
+	query = CustomerChargerListQuery{Latitude: &latitude, Longitude: &longitude, SortBy: "rating_count"}
+	if err := validateCustomerChargerListQuery(&query); err == nil {
+		t.Fatal("geographic rating sort was accepted")
+	}
 }
 
 func TestCustomerChargerDistance(t *testing.T) {

@@ -2489,3 +2489,9 @@ HAL-owned live runtime state.
   migration twenty and the 113-operation contract; the two dormant feature-key
   tables are in
   `retired_commercial` while automatic lifecycle workers remain disabled.
+# 2026-09-22 - Rating discovery and histories (source-only)
+
+`main` now contains the rating discovery/history source slice, but this entry
+does not claim deployment, migration, hosted database, or runtime evidence.
+The recorded deployment remains the prior 249-operation revision until a
+separate authorized rehost verifies the new 250-operation contract.

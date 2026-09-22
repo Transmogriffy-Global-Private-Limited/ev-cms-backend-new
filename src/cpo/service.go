@@ -32,6 +32,7 @@ import (
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/models"
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/operationalrealtime"
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/platformops"
+	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/ratingaggregate"
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/security"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -3101,18 +3102,60 @@ func (service *Service) ListChargersByHub(
 	principal auth.Principal,
 	hubID uuid.UUID,
 ) (ChargerListResponse, error) {
+	return service.ListChargersByHubWithQuery(ctx, principal, hubID, ChargerListQuery{})
+}
+
+// ListChargersByHubWithQuery preserves the historical unbounded hub response:
+// rating filters/sorts are evaluated in SQL, but it never introduces a page
+// limit or cursor where the established endpoint had none.
+func (service *Service) ListChargersByHubWithQuery(ctx context.Context, principal auth.Principal, hubID uuid.UUID, query ChargerListQuery) (ChargerListResponse, error) {
 	if err := requireCPOContext(principal); err != nil {
 		return ChargerListResponse{}, err
 	}
 
-	chargers, err := service.repository.ListChargersByHub(ctx, *principal.CPOID, hubID)
-	if err != nil {
+	query.SortBy = strings.ToLower(strings.TrimSpace(query.SortBy))
+	query.SortOrder = strings.ToLower(strings.TrimSpace(query.SortOrder))
+	if query.SortBy == "" {
+		query.SortBy = "created_at"
+	}
+	if query.SortOrder == "" {
+		query.SortOrder = "desc"
+	}
+	if query.Limit != 0 || query.Before != nil || query.BeforeID != nil || query.CursorValue != nil || query.CursorID != nil {
+		return ChargerListResponse{}, invalid("cursor", "Hub charger listings do not use pagination.")
+	}
+	if err := validateChargerListQuery(&query); err != nil {
+		return ChargerListResponse{}, err
+	}
+	db := service.database.WithContext(ctx).Model(&models.Charger{}).Where("chargers.cpo_id = ? AND chargers.hub_id = ?", *principal.CPOID, hubID)
+	ratingAware := query.MinAverageRating != nil || query.MaxAverageRating != nil || query.HasRatings != nil || query.SortBy == "average_rating" || query.SortBy == "rating_count"
+	if ratingAware {
+		db = db.Joins(ratingaggregate.JoinSQL)
+	}
+	if query.MinAverageRating != nil {
+		db = db.Where("rating_aggregate.average_rating >= ?", *query.MinAverageRating)
+	}
+	if query.MaxAverageRating != nil {
+		db = db.Where("rating_aggregate.average_rating <= ?", *query.MaxAverageRating)
+	}
+	if query.HasRatings != nil {
+		if *query.HasRatings {
+			db = db.Where("COALESCE(rating_aggregate.rating_count, 0) > 0")
+		} else {
+			db = db.Where("COALESCE(rating_aggregate.rating_count, 0) = 0")
+		}
+	}
+	var chargers []models.Charger
+	if err := db.Preload("Connectors", func(tx *gorm.DB) *gorm.DB { return tx.Order("connector_number ASC") }).Preload("Hub").Order(cpoChargerOrder(query)).Find(&chargers).Error; err != nil {
 		return ChargerListResponse{}, fmt.Errorf("list chargers by hub: %w", err)
 	}
 
 	result := make([]ChargerResponse, 0, len(chargers))
 	for _, charger := range chargers {
 		result = append(result, service.chargerView(charger, principal))
+	}
+	if err := service.enrichChargerRatings(ctx, *principal.CPOID, result); err != nil {
+		return ChargerListResponse{}, err
 	}
 
 	return ChargerListResponse{
@@ -3599,7 +3642,11 @@ func (service *Service) CreateCharger(
 		_ = service.halOperations.EnsureChargerMapping(ctx.Request.Context(), record.ID, correlationID)
 	}
 
-	return service.chargerView(record, principal), nil
+	response := service.chargerView(record, principal)
+	if err := service.enrichOneChargerRating(ctx.Request.Context(), *principal.CPOID, &response); err != nil {
+		return ChargerResponse{}, err
+	}
+	return response, nil
 }
 
 func (service *Service) CreateHubTariff(
@@ -3695,11 +3742,7 @@ func (service *Service) ListHubTariffs(
 	databaseQuery := service.database.WithContext(ctx).
 		Where("cpo_id = ? AND assigned_to = ? AND hub_id = ?", *principal.CPOID, constants.TariffAssignedHub, hubID)
 	if query.Before != nil {
-		databaseQuery = databaseQuery.Where(
-			"(created_at, id) < (?, ?)",
-			*query.Before,
-			*query.BeforeID,
-		)
+		databaseQuery = databaseQuery.Where("(created_at, id) < (?, ?)", *query.Before, *query.BeforeID)
 	}
 	var records []*models.Tariff
 	if err := databaseQuery.
@@ -4414,6 +4457,9 @@ func (service *Service) GetCharger(
 	}
 
 	response := service.chargerView(record, principal)
+	if err := service.enrichOneChargerRating(ctx, *principal.CPOID, &response); err != nil {
+		return ChargerResponse{}, err
+	}
 
 	if service.liveOperations != nil {
 		live, err := service.liveOperations.GetChargerDetail(ctx, *principal.CPOID, record.ID)
@@ -4445,7 +4491,11 @@ func (service *Service) GetOperationalCharger(ctx context.Context, principal aut
 	if err != nil {
 		return OperationalChargerResponse{}, fmt.Errorf("load charger operational state: %w", err)
 	}
-	return OperationalChargerResponse{Charger: service.chargerView(record, principal), Live: live}, nil
+	response := service.chargerView(record, principal)
+	if err := service.enrichOneChargerRating(ctx, *principal.CPOID, &response); err != nil {
+		return OperationalChargerResponse{}, err
+	}
+	return OperationalChargerResponse{Charger: response, Live: live}, nil
 }
 
 func (service *Service) GetFleetOperations(ctx context.Context, principal auth.Principal) (FleetOperationsResponse, error) {
@@ -4497,7 +4547,11 @@ func (service *Service) GetPlatformOperationalCharger(ctx context.Context, princ
 	if err != nil {
 		return OperationalChargerResponse{}, fmt.Errorf("load platform charger operational state: %w", err)
 	}
-	return OperationalChargerResponse{Charger: service.chargerView(record, principal), Live: live}, nil
+	response := service.chargerView(record, principal)
+	if err := service.enrichOneChargerRating(ctx, cpoID, &response); err != nil {
+		return OperationalChargerResponse{}, err
+	}
+	return OperationalChargerResponse{Charger: response, Live: live}, nil
 }
 
 func (service *Service) ListOperationalEvents(ctx context.Context, principal auth.Principal, after int64, limit int) (operationalrealtime.Page, error) {
@@ -4863,7 +4917,11 @@ func (service *Service) UpdateCharger(
 		}
 	}
 
-	return service.chargerView(record, principal), nil
+	response := service.chargerView(record, principal)
+	if err := service.enrichOneChargerRating(ctx, *principal.CPOID, &response); err != nil {
+		return ChargerResponse{}, err
+	}
+	return response, nil
 }
 
 func (service *Service) DeleteCharger(
@@ -5287,27 +5345,126 @@ func (service *Service) chargerView(record models.Charger, principal auth.Princi
 	}
 }
 
+// enrichChargerRatings applies the same session-owned overall-rating
+// aggregate used by the customer API to an already CPO-authorized projection.
+func (service *Service) enrichChargerRatings(ctx context.Context, cpoID uuid.UUID, views []ChargerResponse) error {
+	ids := make([]uuid.UUID, 0, len(views))
+	for _, view := range views {
+		ids = append(ids, view.ID)
+	}
+	aggregates, err := ratingaggregate.Load(ctx, service.database, cpoID, ids)
+	if err != nil {
+		return fmt.Errorf("aggregate charger ratings: %w", err)
+	}
+	for i := range views {
+		views[i].AverageRating, views[i].RatingCount = nil, 0
+		if aggregate, ok := aggregates[views[i].ID]; ok {
+			average := aggregate.AverageRating.InexactFloat64()
+			views[i].AverageRating, views[i].RatingCount = &average, aggregate.RatingCount
+		}
+	}
+	return nil
+}
+
+func (service *Service) enrichOneChargerRating(ctx context.Context, cpoID uuid.UUID, view *ChargerResponse) error {
+	views := []ChargerResponse{*view}
+	if err := service.enrichChargerRatings(ctx, cpoID, views); err != nil {
+		return err
+	}
+	*view = views[0]
+	return nil
+}
+
 func (service *Service) ListChargers(
 	ctx context.Context,
 	principal auth.Principal,
 	query TenantListQuery,
 ) (ChargerListResponse, error) {
+	return service.ListChargersWithQuery(ctx, principal, ChargerListQuery{TenantListQuery: query})
+}
+
+func (service *Service) ListChargersWithQuery(
+	ctx context.Context,
+	principal auth.Principal,
+	query ChargerListQuery,
+) (ChargerListResponse, error) {
 	if err := requireCPOContext(principal); err != nil {
 		return ChargerListResponse{}, err
 	}
-	query, err := validateTenantListQuery(query)
+	legacy, err := validateTenantListQuery(query.TenantListQuery)
 	if err != nil {
+		return ChargerListResponse{}, err
+	}
+	query.TenantListQuery = legacy
+	if err := validateChargerListQuery(&query); err != nil {
 		return ChargerListResponse{}, err
 	}
 
 	databaseQuery := service.database.WithContext(ctx).
-		Where("cpo_id = ?", *principal.CPOID)
+		Model(&models.Charger{}).Where("chargers.cpo_id = ?", *principal.CPOID)
+	ratingAware := query.MinAverageRating != nil || query.MaxAverageRating != nil || query.HasRatings != nil || query.SortBy == "average_rating" || query.SortBy == "rating_count"
+	if ratingAware {
+		databaseQuery = databaseQuery.Joins(ratingaggregate.JoinSQL)
+	}
+	if query.Search != "" {
+		pattern := "%" + query.Search + "%"
+		databaseQuery = databaseQuery.Where("chargers.charger_id ILIKE ? OR chargers.charger_name ILIKE ? OR chargers.vendor ILIKE ? OR chargers.model ILIKE ?", pattern, pattern, pattern, pattern)
+	}
+	if query.MinAverageRating != nil {
+		databaseQuery = databaseQuery.Where("rating_aggregate.average_rating >= ?", *query.MinAverageRating)
+	}
+	if query.MaxAverageRating != nil {
+		databaseQuery = databaseQuery.Where("rating_aggregate.average_rating <= ?", *query.MaxAverageRating)
+	}
+	if query.HasRatings != nil {
+		if *query.HasRatings {
+			databaseQuery = databaseQuery.Where("COALESCE(rating_aggregate.rating_count, 0) > 0")
+		} else {
+			databaseQuery = databaseQuery.Where("COALESCE(rating_aggregate.rating_count, 0) = 0")
+		}
+	}
 	if query.Before != nil {
+		operator := "<"
+		if query.SortBy == "created_at" && query.SortOrder == "asc" {
+			operator = ">"
+		}
 		databaseQuery = databaseQuery.Where(
-			"(created_at, id) < (?, ?)",
+			"(chargers.created_at, chargers.id) "+operator+" (?, ?)",
 			*query.Before,
 			*query.BeforeID,
 		)
+	}
+	if query.CursorValue != nil {
+		operator := "<"
+		if query.SortOrder == "asc" {
+			operator = ">"
+		}
+		column := "rating_aggregate.average_rating"
+		if query.SortBy == "rating_count" {
+			column = "COALESCE(rating_aggregate.rating_count, 0)"
+		}
+		var cursor any = *query.CursorValue
+		if query.SortBy == "average_rating" && *query.CursorValue != "null" {
+			value, err := strconv.ParseFloat(*query.CursorValue, 64)
+			if err != nil {
+				return ChargerListResponse{}, invalid("cursor_value", "cursor_value must be a numeric average rating.")
+			}
+			cursor = value
+		}
+		if query.SortBy == "rating_count" {
+			value, err := strconv.ParseInt(*query.CursorValue, 10, 64)
+			if err != nil || value < 0 {
+				return ChargerListResponse{}, invalid("cursor_value", "cursor_value must be a non-negative rating count.")
+			}
+			cursor = value
+		}
+		if query.SortBy == "average_rating" && *query.CursorValue == "null" {
+			databaseQuery = databaseQuery.Where("rating_aggregate.average_rating IS NULL AND chargers.id "+operator+" ?", *query.CursorID)
+		} else if query.SortBy == "average_rating" {
+			databaseQuery = databaseQuery.Where("rating_aggregate.average_rating IS NULL OR ("+column+", chargers.id) "+operator+" (?, ?)", cursor, *query.CursorID)
+		} else {
+			databaseQuery = databaseQuery.Where("("+column+", chargers.id) "+operator+" (?, ?)", cursor, *query.CursorID)
+		}
 	}
 	var chargers []models.Charger
 	if err := databaseQuery.
@@ -5315,7 +5472,7 @@ func (service *Service) ListChargers(
 			return tx.Order("connector_number ASC")
 		}).
 		Preload("Hub").
-		Order("created_at DESC, id DESC").
+		Order(cpoChargerOrder(query)).
 		Limit(query.Limit + 1).
 		Find(&chargers).Error; err != nil {
 		return ChargerListResponse{}, fmt.Errorf("list chargers: %w", err)
@@ -5328,6 +5485,9 @@ func (service *Service) ListChargers(
 	responses := make([]ChargerResponse, len(chargers))
 	for i, charger := range chargers {
 		responses[i] = service.chargerView(charger, principal)
+	}
+	if err := service.enrichChargerRatings(ctx, *principal.CPOID, responses); err != nil {
+		return ChargerListResponse{}, err
 	}
 
 	if service.liveOperations != nil {
@@ -5347,12 +5507,80 @@ func (service *Service) ListChargers(
 
 	result := ChargerListResponse{Chargers: responses, HasMore: hasMore}
 	if hasMore && len(chargers) > 0 {
-		nextBefore := chargers[len(chargers)-1].CreatedAt
-		nextBeforeID := chargers[len(chargers)-1].ID
-		result.NextBefore = &nextBefore
-		result.NextBeforeID = &nextBeforeID
+		last := chargers[len(chargers)-1]
+		if query.SortBy == "average_rating" || query.SortBy == "rating_count" {
+			value, err := cpoChargerCursorValue(ctx, service.database, *principal.CPOID, last.ID, query.SortBy)
+			if err != nil {
+				return ChargerListResponse{}, err
+			}
+			result.NextCursorValue, result.NextCursorID = &value, &last.ID
+		} else {
+			result.NextBefore, result.NextBeforeID = &last.CreatedAt, &last.ID
+		}
 	}
 	return result, nil
+}
+
+func validateChargerListQuery(query *ChargerListQuery) error {
+	query.SortBy = strings.ToLower(strings.TrimSpace(query.SortBy))
+	query.SortOrder = strings.ToLower(strings.TrimSpace(query.SortOrder))
+	if query.SortBy == "" {
+		query.SortBy = "created_at"
+	}
+	if query.SortOrder == "" {
+		query.SortOrder = "desc"
+	}
+	if query.SortBy != "created_at" && query.SortBy != "average_rating" && query.SortBy != "rating_count" {
+		return invalid("sort_by", "sort_by must be created_at, average_rating, or rating_count.")
+	}
+	if query.SortOrder != "asc" && query.SortOrder != "desc" {
+		return invalid("sort_order", "sort_order must be asc or desc.")
+	}
+	if query.MinAverageRating != nil && (*query.MinAverageRating < 1 || *query.MinAverageRating > 5) {
+		return invalid("min_average_rating", "min_average_rating must be between 1 and 5.")
+	}
+	if query.MaxAverageRating != nil && (*query.MaxAverageRating < 1 || *query.MaxAverageRating > 5) {
+		return invalid("max_average_rating", "max_average_rating must be between 1 and 5.")
+	}
+	if query.MinAverageRating != nil && query.MaxAverageRating != nil && *query.MinAverageRating > *query.MaxAverageRating {
+		return invalid("average_rating_range", "min_average_rating must not exceed max_average_rating.")
+	}
+	if query.HasRatings != nil && !*query.HasRatings && (query.MinAverageRating != nil || query.MaxAverageRating != nil) {
+		return invalid("rating_filter", "has_ratings=false cannot be combined with an average-rating range.")
+	}
+	if (query.CursorValue == nil) != (query.CursorID == nil) {
+		return invalid("cursor", "cursor_value and cursor_id must be supplied together.")
+	}
+	if query.CursorValue != nil && query.SortBy == "created_at" {
+		return invalid("cursor", "created_at uses before and before_id.")
+	}
+	return nil
+}
+
+func cpoChargerOrder(query ChargerListQuery) string {
+	if query.SortBy == "average_rating" {
+		return "rating_aggregate.average_rating " + strings.ToUpper(query.SortOrder) + " NULLS LAST, chargers.id " + strings.ToUpper(query.SortOrder)
+	}
+	if query.SortBy == "rating_count" {
+		return "COALESCE(rating_aggregate.rating_count, 0) " + strings.ToUpper(query.SortOrder) + ", chargers.id " + strings.ToUpper(query.SortOrder)
+	}
+	return "chargers.created_at " + strings.ToUpper(query.SortOrder) + ", chargers.id " + strings.ToUpper(query.SortOrder)
+}
+func cpoChargerCursorValue(ctx context.Context, database *gorm.DB, cpoID, chargerID uuid.UUID, sortBy string) (string, error) {
+	if sortBy == "rating_count" {
+		var count int64
+		err := database.WithContext(ctx).Model(&models.CustomerRating{}).Where("cpo_id = ? AND charger_id = ? AND session_id IS NOT NULL", cpoID, chargerID).Count(&count).Error
+		return strconv.FormatInt(count, 10), err
+	}
+	var value *decimal.Decimal
+	err := database.WithContext(ctx).Table("customer_ratings").Select("ROUND(AVG(overall_rating)::numeric, 2)").Where("cpo_id = ? AND charger_id = ? AND session_id IS NOT NULL", cpoID, chargerID).Scan(&value).Error
+	if err != nil {
+		return "", err
+	}
+	if value == nil {
+		return "null", nil
+	}
+	return value.String(), nil
 }
 
 func validateTenantListQuery(query TenantListQuery) (TenantListQuery, error) {
@@ -5587,6 +5815,9 @@ func (service *Service) GetHub(
 	chargerResponses := make([]ChargerResponse, 0, len(chargers))
 	for _, charger := range chargers {
 		chargerResponses = append(chargerResponses, service.chargerView(charger, principal))
+	}
+	if err := service.enrichChargerRatings(ctx, *principal.CPOID, chargerResponses); err != nil {
+		return HubResponse{}, err
 	}
 
 	chargerListResponse := ChargerListResponse{
@@ -6187,7 +6418,11 @@ func (service *Service) AssignChargerToHub(
 		return ChargerResponse{}, fmt.Errorf("reload charger after assignment: %w", err)
 	}
 
-	return service.chargerView(charger, principal), nil
+	response := service.chargerView(charger, principal)
+	if err := service.enrichOneChargerRating(ctx, cpoID, &response); err != nil {
+		return ChargerResponse{}, err
+	}
+	return response, nil
 }
 
 func normalizeCreateHubRequest(request CreateHubRequest) CreateHubRequest {
@@ -8088,7 +8323,11 @@ func (service *Service) UpdateChargerCustomerVisibility(
 	}
 
 	// Reload associations if needed (they are already preloaded in the transaction)
-	return service.chargerView(charger, principal), nil
+	response := service.chargerView(charger, principal)
+	if err := service.enrichOneChargerRating(ctx, cpoID, &response); err != nil {
+		return ChargerResponse{}, err
+	}
+	return response, nil
 }
 
 // Add this method to the Service (around line 350, after existing list methods)
@@ -8208,6 +8447,9 @@ func (service *Service) GetHubAnalytics(
 			resp.Live = &live
 		}
 		chargerResponses = append(chargerResponses, resp)
+	}
+	if err := service.enrichChargerRatings(ctx, cpoID, chargerResponses); err != nil {
+		return HubAnalyticsResponse{}, err
 	}
 
 	// 6) Build final response
@@ -8458,7 +8700,11 @@ func (service *Service) UnassignChargerFromHub(
 		return ChargerResponse{}, fmt.Errorf("reload charger after unassignment: %w", err)
 	}
 
-	return service.chargerView(charger, principal), nil
+	response := service.chargerView(charger, principal)
+	if err := service.enrichOneChargerRating(ctx, cpoID, &response); err != nil {
+		return ChargerResponse{}, err
+	}
+	return response, nil
 }
 
 func (service *Service) ListCustomerRatings(
@@ -8504,6 +8750,50 @@ func (service *Service) ListCustomerRatings(
 			"min_overall_rating must not exceed max_overall_rating.",
 		)
 	}
+	for _, item := range []struct {
+		key      string
+		min, max *int
+	}{{"station_rating", query.MinStation, query.MaxStation}, {"charger_rating", query.MinCharger, query.MaxCharger}} {
+		if item.min != nil && (*item.min < 1 || *item.min > 5) {
+			return CustomerRatingListResponse{}, invalid("min_"+item.key, "minimum rating must be between 1 and 5.")
+		}
+		if item.max != nil && (*item.max < 1 || *item.max > 5) {
+			return CustomerRatingListResponse{}, invalid("max_"+item.key, "maximum rating must be between 1 and 5.")
+		}
+		if item.min != nil && item.max != nil && *item.min > *item.max {
+			return CustomerRatingListResponse{}, invalid(item.key+"_range", "minimum rating must not exceed maximum rating.")
+		}
+	}
+	query.SortBy, query.SortOrder = strings.ToLower(strings.TrimSpace(query.SortBy)), strings.ToLower(strings.TrimSpace(query.SortOrder))
+	if query.SortBy == "" {
+		query.SortBy = "created_at"
+	}
+	if query.SortOrder == "" {
+		query.SortOrder = "desc"
+	}
+	if query.SortBy != "created_at" && query.SortBy != "updated_at" && query.SortBy != "overall_rating" && query.SortBy != "station_rating" && query.SortBy != "charger_rating" {
+		return CustomerRatingListResponse{}, invalid("sort_by", "sort_by must be created_at, updated_at, overall_rating, station_rating, or charger_rating.")
+	}
+	if query.SortOrder != "asc" && query.SortOrder != "desc" {
+		return CustomerRatingListResponse{}, invalid("sort_order", "sort_order must be asc or desc.")
+	}
+	if (query.CursorValue == nil) != (query.CursorID == nil) {
+		return CustomerRatingListResponse{}, invalid("cursor", "cursor_value and cursor_id must be supplied together.")
+	}
+	if query.CursorValue != nil && query.SortBy == "created_at" {
+		return CustomerRatingListResponse{}, invalid("cursor", "created_at uses before and before_id.")
+	}
+	if query.CursorValue != nil {
+		if query.SortBy == "updated_at" {
+			if _, err := time.Parse(time.RFC3339Nano, *query.CursorValue); err != nil {
+				return CustomerRatingListResponse{}, invalid("cursor_value", "cursor_value must be an RFC3339 timestamp.")
+			}
+		} else if *query.CursorValue != "null" {
+			if _, err := strconv.Atoi(*query.CursorValue); err != nil {
+				return CustomerRatingListResponse{}, invalid("cursor_value", "cursor_value must be a rating integer.")
+			}
+		}
+	}
 
 	ratings, err := service.repository.ListCustomerRatings(
 		ctx, *principal.CPOID, query,
@@ -8529,10 +8819,13 @@ func (service *Service) ListCustomerRatings(
 		HasMore: hasMore,
 	}
 	if hasMore && len(ratings) > 0 {
-		nextBefore := ratings[len(ratings)-1].CreatedAt
-		nextBeforeID := ratings[len(ratings)-1].ID
-		response.NextBefore = &nextBefore
-		response.NextBeforeID = &nextBeforeID
+		last := ratings[len(ratings)-1]
+		if query.SortBy == "created_at" {
+			response.NextBefore, response.NextBeforeID = &last.CreatedAt, &last.ID
+		} else {
+			value := cpoRatingCursorValue(last, query.SortBy)
+			response.NextCursorValue, response.NextCursorID = &value, &last.ID
+		}
 	}
 	return response, nil
 }
@@ -8568,5 +8861,32 @@ func toCustomerRatingView(rating models.CustomerRating) CustomerRatingView {
 		hubName := rating.Hub.Name
 		view.HubName = &hubName
 	}
+	if rating.Session != nil {
+		session := rating.Session
+		view.Session = &CustomerRatingSessionView{ID: session.ID, Status: string(session.Status), StartTime: session.StartTime, EndTime: session.EndTime, TotalKWh: session.TotalKWh.StringFixed(3), TotalAmount: session.TotalAmount.StringFixed(2), Currency: session.Currency, SettlementStatus: session.SettlementStatus}
+		if session.Connector.ID != uuid.Nil {
+			view.Session.Connector = &CustomerRatingConnectorView{ID: session.Connector.ID, Number: session.Connector.ConnectorNumber, Type: session.Connector.ConnectorType}
+		}
+	}
 	return view
+}
+
+func cpoRatingCursorValue(rating models.CustomerRating, sortBy string) string {
+	switch sortBy {
+	case "updated_at":
+		return rating.UpdatedAt.Format(time.RFC3339Nano)
+	case "overall_rating":
+		return strconv.Itoa(rating.OverallRating)
+	case "station_rating":
+		if rating.StationRating != nil {
+			return strconv.Itoa(*rating.StationRating)
+		}
+		return "null"
+	case "charger_rating":
+		if rating.ChargerRating != nil {
+			return strconv.Itoa(*rating.ChargerRating)
+		}
+		return "null"
+	}
+	return ""
 }

@@ -800,3 +800,11 @@ The agent's final report must state:
 
 If any of these facts cannot be established from the repository, the agent
 must inspect further or report the uncertainty instead of inventing an answer.
+# 2026-09-22 rating-list extension (source-only)
+
+The CPO charger aggregate is the shared read-time `customer_ratings` grouped
+relation, scoped by `(cpo_id, charger_id)` and restricted to non-null
+`session_id`; it never imports `customerauth`, stores counters, or calls HAL.
+See the canonical OpenAPI contract and work item
+`docs/work/active/WI-20260922-rating-discovery-and-history.md` for filters,
+cursor semantics, and verification boundaries.

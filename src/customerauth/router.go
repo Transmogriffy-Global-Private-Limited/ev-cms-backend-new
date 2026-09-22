@@ -82,6 +82,7 @@ func RegisterRoutes(group *gin.RouterGroup, service *Service) {
 	protected.POST("/wallet/recharge/verify", handler.verifyRecharge)
 	protected.POST("/charging-sessions", handler.startCharging)
 	protected.GET("/charging-sessions", handler.listChargingSessions)
+	protected.GET("/charging-session-ratings", handler.listChargingSessionRatings)
 	protected.GET("/charging-start-intents/:start_intent_id", handler.getChargingStartIntent)
 	protected.GET("/charging-sessions/:session_id", handler.getChargingSession)
 	protected.GET("/charging-sessions/:session_id/rating", handler.getChargingSessionRating)
@@ -1209,6 +1210,39 @@ func customerChargerListQuery(ctx *gin.Context) (CustomerChargerListQuery, error
 			return CustomerChargerListQuery{}, &APIError{http.StatusBadRequest, "invalid_open_24_hours", "open_24_hours must be true or false."}
 		}
 		query.Open24Hours = &value
+	}
+	query.SortBy = ctx.Query("sort_by")
+	query.SortOrder = ctx.Query("sort_order")
+	if raw := strings.TrimSpace(ctx.Query("min_average_rating")); raw != "" {
+		value, err := strconv.ParseFloat(raw, 64)
+		if err != nil {
+			return CustomerChargerListQuery{}, &APIError{http.StatusBadRequest, "invalid_min_average_rating", "min_average_rating must be a number."}
+		}
+		query.MinAverageRating = &value
+	}
+	if raw := strings.TrimSpace(ctx.Query("max_average_rating")); raw != "" {
+		value, err := strconv.ParseFloat(raw, 64)
+		if err != nil {
+			return CustomerChargerListQuery{}, &APIError{http.StatusBadRequest, "invalid_max_average_rating", "max_average_rating must be a number."}
+		}
+		query.MaxAverageRating = &value
+	}
+	if raw := strings.TrimSpace(ctx.Query("has_ratings")); raw != "" {
+		value, err := strconv.ParseBool(raw)
+		if err != nil {
+			return CustomerChargerListQuery{}, &APIError{http.StatusBadRequest, "invalid_has_ratings", "has_ratings must be true or false."}
+		}
+		query.HasRatings = &value
+	}
+	if raw := strings.TrimSpace(ctx.Query("cursor_value")); raw != "" {
+		query.CursorValue = &raw
+	}
+	if raw := strings.TrimSpace(ctx.Query("cursor_id")); raw != "" {
+		value, err := uuid.Parse(raw)
+		if err != nil || value == uuid.Nil {
+			return CustomerChargerListQuery{}, &APIError{http.StatusBadRequest, "invalid_cursor", "cursor_id must be a non-zero UUID."}
+		}
+		query.CursorID = &value
 	}
 	return query, validateCustomerChargerListQuery(&query)
 }

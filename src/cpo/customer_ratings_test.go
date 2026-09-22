@@ -46,7 +46,7 @@ func TestParseCustomerRatingListQuery(t *testing.T) {
 	query, ok, recorder := parseCustomerRatingsForTest(t,
 		"limit=25&before=2026-09-17T12:00:00Z&before_id="+id.String()+
 			"&customer_id="+id.String()+"&charger_id="+id.String()+"&hub_id="+id.String()+
-			"&session_id="+id.String()+"&min_overall_rating=2&max_overall_rating=5")
+			"&session_id="+id.String()+"&min_overall_rating=2&max_overall_rating=5&has_review=true&min_station_rating=2&max_station_rating=4&min_charger_rating=3&max_charger_rating=5&sort_by=station_rating&sort_order=asc&cursor_value=4&cursor_id="+id.String())
 	if !ok || recorder.Code != http.StatusOK || query.Limit != 25 || query.Before == nil || query.BeforeID == nil {
 		t.Fatalf("query=%+v ok=%t status=%d body=%s", query, ok, recorder.Code, recorder.Body.String())
 	}
@@ -54,6 +54,9 @@ func TestParseCustomerRatingListQuery(t *testing.T) {
 		query.HubID == nil || *query.HubID != id || query.SessionID == nil || *query.SessionID != id ||
 		query.MinOverall == nil || *query.MinOverall != 2 || query.MaxOverall == nil || *query.MaxOverall != 5 {
 		t.Fatalf("typed filters were not parsed: %+v", query)
+	}
+	if query.HasReview == nil || !*query.HasReview || query.MinStation == nil || *query.MinStation != 2 || query.MaxCharger == nil || *query.MaxCharger != 5 || query.CursorID == nil || query.SortBy != "station_rating" {
+		t.Fatalf("extended filters were not parsed: %+v", query)
 	}
 
 	for _, raw := range []string{

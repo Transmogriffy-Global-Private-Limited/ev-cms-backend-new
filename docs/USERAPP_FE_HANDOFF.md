@@ -1558,3 +1558,17 @@ until their routes appear in the same OpenAPI document.
 - Session revocation handles current-session revocation.
 - Errors branch on stable codes and handle `429`/`503` without retry loops.
 - No unsupported customer-product endpoint is assumed.
+# 2026-09-22 rating discovery and own-history (source-only)
+
+Published charger search and compact locations accept `min_average_rating`,
+`max_average_rating`, and `has_ratings`. Full charger search also accepts
+`sort_by=created_at|average_rating|rating_count` and `sort_order=asc|desc`.
+For rating sorts, continue with `cursor_value` and `cursor_id`; average-rating
+cursor value `null` is the explicit final unrated segment. Geographic searches
+retain distance priority and reject an explicit rating sort. Marker objects
+remain only name/latitude/longitude.
+
+`GET /api/v1/app/charging-session-ratings` returns only the caller's
+session-owned ratings. Each `rating` is paired with durable `session` context
+(charger, hub, connector, persisted energy/settlement); it does not make a
+live/HAL call and historical rows do not depend on current visibility.

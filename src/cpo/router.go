@@ -2074,12 +2074,12 @@ func (handler *Handler) createCharger(ctx *gin.Context) {
 
 func (handler *Handler) listChargers(ctx *gin.Context) {
 	principal, _ := auth.CurrentPrincipal(ctx)
-	query, ok := parseTenantListQuery(ctx)
+	query, ok := parseChargerListQuery(ctx)
 	if !ok {
 		return
 	}
 
-	records, err := handler.service.ListChargers(
+	records, err := handler.service.ListChargersWithQuery(
 		ctx.Request.Context(),
 		principal,
 		query,
@@ -2090,6 +2090,47 @@ func (handler *Handler) listChargers(ctx *gin.Context) {
 	}
 
 	ctx.JSON(http.StatusOK, records)
+}
+
+func parseChargerListQuery(ctx *gin.Context) (ChargerListQuery, bool) {
+	legacy, ok := parseTenantListQuery(ctx)
+	if !ok {
+		return ChargerListQuery{}, false
+	}
+	query := ChargerListQuery{TenantListQuery: legacy, SortBy: ctx.Query("sort_by"), SortOrder: ctx.Query("sort_order")}
+	for _, item := range []struct {
+		key    string
+		target **float64
+	}{{"min_average_rating", &query.MinAverageRating}, {"max_average_rating", &query.MaxAverageRating}} {
+		if raw := strings.TrimSpace(ctx.Query(item.key)); raw != "" {
+			value, err := strconv.ParseFloat(raw, 64)
+			if err != nil {
+				writeError(ctx, invalid(item.key, item.key+" must be a number."))
+				return ChargerListQuery{}, false
+			}
+			*item.target = &value
+		}
+	}
+	if raw := strings.TrimSpace(ctx.Query("has_ratings")); raw != "" {
+		value, err := strconv.ParseBool(raw)
+		if err != nil {
+			writeError(ctx, invalid("has_ratings", "has_ratings must be true or false."))
+			return ChargerListQuery{}, false
+		}
+		query.HasRatings = &value
+	}
+	if raw := strings.TrimSpace(ctx.Query("cursor_value")); raw != "" {
+		query.CursorValue = &raw
+	}
+	if raw := strings.TrimSpace(ctx.Query("cursor_id")); raw != "" {
+		value, err := uuid.Parse(raw)
+		if err != nil || value == uuid.Nil {
+			writeError(ctx, invalid("cursor_id", "cursor_id must be a non-zero UUID."))
+			return ChargerListQuery{}, false
+		}
+		query.CursorID = &value
+	}
+	return query, true
 }
 
 func parseTenantListQuery(ctx *gin.Context) (TenantListQuery, bool) {
@@ -2541,7 +2582,11 @@ func (handler *Handler) listChargersByHub(ctx *gin.Context) {
 	if !ok {
 		return
 	}
-	records, err := handler.service.ListChargersByHub(ctx.Request.Context(), principal, hubID)
+	query, ok := parseChargerListQuery(ctx)
+	if !ok {
+		return
+	}
+	records, err := handler.service.ListChargersByHubWithQuery(ctx.Request.Context(), principal, hubID, query)
 	if err != nil {
 		writeError(ctx, err)
 		return
@@ -3849,6 +3894,39 @@ func parseCustomerRatingListQuery(ctx *gin.Context) (CustomerRatingListQuery, bo
 			return CustomerRatingListQuery{}, false
 		}
 		query.MaxOverall = &n
+	}
+	for _, item := range []struct {
+		key    string
+		target **int
+	}{{"min_station_rating", &query.MinStation}, {"max_station_rating", &query.MaxStation}, {"min_charger_rating", &query.MinCharger}, {"max_charger_rating", &query.MaxCharger}} {
+		if v := strings.TrimSpace(ctx.Query(item.key)); v != "" {
+			n, err := strconv.Atoi(v)
+			if err != nil {
+				writeError(ctx, invalid(item.key, item.key+" must be an integer."))
+				return CustomerRatingListQuery{}, false
+			}
+			*item.target = &n
+		}
+	}
+	if v := strings.TrimSpace(ctx.Query("has_review")); v != "" {
+		value, err := strconv.ParseBool(v)
+		if err != nil {
+			writeError(ctx, invalid("has_review", "has_review must be true or false."))
+			return CustomerRatingListQuery{}, false
+		}
+		query.HasReview = &value
+	}
+	query.SortBy, query.SortOrder = ctx.Query("sort_by"), ctx.Query("sort_order")
+	if v := strings.TrimSpace(ctx.Query("cursor_value")); v != "" {
+		query.CursorValue = &v
+	}
+	if v := strings.TrimSpace(ctx.Query("cursor_id")); v != "" {
+		value, err := uuid.Parse(v)
+		if err != nil || value == uuid.Nil {
+			writeError(ctx, invalid("cursor_id", "cursor_id must be a non-zero UUID."))
+			return CustomerRatingListQuery{}, false
+		}
+		query.CursorID = &value
 	}
 	return query, true
 }

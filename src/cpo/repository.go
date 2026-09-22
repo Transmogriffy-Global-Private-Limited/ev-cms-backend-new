@@ -3,6 +3,7 @@ package cpo
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -692,7 +693,8 @@ func (r *repository) ListCustomerRatings(
 		Preload("Customer").
 		Preload("Charger").
 		Preload("Hub").
-		Preload("Session").
+		Preload("Session", "cpo_id = ?", cpoID).
+		Preload("Session.Connector", "cpo_id = ?", cpoID).
 		Where("customer_ratings.cpo_id = ?", cpoID)
 
 	if query.CustomerID != nil {
@@ -713,11 +715,34 @@ func (r *repository) ListCustomerRatings(
 	if query.MaxOverall != nil {
 		db = db.Where("customer_ratings.overall_rating <= ?", *query.MaxOverall)
 	}
+	if query.MinStation != nil {
+		db = db.Where("customer_ratings.station_rating >= ?", *query.MinStation)
+	}
+	if query.MaxStation != nil {
+		db = db.Where("customer_ratings.station_rating <= ?", *query.MaxStation)
+	}
+	if query.MinCharger != nil {
+		db = db.Where("customer_ratings.charger_rating >= ?", *query.MinCharger)
+	}
+	if query.MaxCharger != nil {
+		db = db.Where("customer_ratings.charger_rating <= ?", *query.MaxCharger)
+	}
+	if query.HasReview != nil {
+		if *query.HasReview {
+			db = db.Where("NULLIF(BTRIM(customer_ratings.reason), '') IS NOT NULL")
+		} else {
+			db = db.Where("NULLIF(BTRIM(customer_ratings.reason), '') IS NULL")
+		}
+	}
 
 	if query.Before != nil {
 		if query.BeforeID != nil {
+			operator := "<"
+			if query.SortBy == "created_at" && query.SortOrder == "asc" {
+				operator = ">"
+			}
 			db = db.Where(
-				"(customer_ratings.created_at, customer_ratings.id) < (?, ?)",
+				"(customer_ratings.created_at, customer_ratings.id) "+operator+" (?, ?)",
 				*query.Before,
 				*query.BeforeID,
 			)
@@ -725,13 +750,39 @@ func (r *repository) ListCustomerRatings(
 			db = db.Where("customer_ratings.created_at < ?", *query.Before)
 		}
 	}
+	if query.CursorValue != nil {
+		column := "customer_ratings." + query.SortBy
+		operator := "<"
+		if query.SortOrder == "asc" {
+			operator = ">"
+		}
+		var cursor any = *query.CursorValue
+		if query.SortBy == "updated_at" {
+			cursor, _ = time.Parse(time.RFC3339Nano, *query.CursorValue)
+		} else if *query.CursorValue != "null" {
+			cursor, _ = strconv.Atoi(*query.CursorValue)
+		}
+		if (query.SortBy == "station_rating" || query.SortBy == "charger_rating") && *query.CursorValue == "null" {
+			db = db.Where(column+" IS NULL AND customer_ratings.id "+operator+" ?", *query.CursorID)
+		} else if query.SortBy == "station_rating" || query.SortBy == "charger_rating" {
+			db = db.Where(column+" IS NULL OR ("+column+", customer_ratings.id) "+operator+" (?, ?)", cursor, *query.CursorID)
+		} else {
+			db = db.Where("("+column+", customer_ratings.id) "+operator+" (?, ?)", cursor, *query.CursorID)
+		}
+	}
 
 	if query.Limit > 0 {
 		db = db.Limit(query.Limit + 1)
 	}
 
+	order := "customer_ratings.created_at DESC, customer_ratings.id DESC"
+	if query.SortBy != "" && query.SortBy != "created_at" {
+		order = "customer_ratings." + query.SortBy + " " + strings.ToUpper(query.SortOrder) + " NULLS LAST, customer_ratings.id " + strings.ToUpper(query.SortOrder)
+	} else if query.SortOrder == "asc" {
+		order = "customer_ratings.created_at ASC, customer_ratings.id ASC"
+	}
 	if err := db.
-		Order("customer_ratings.created_at DESC, customer_ratings.id DESC").
+		Order(order).
 		Find(&ratings).Error; err != nil {
 		return nil, err
 	}

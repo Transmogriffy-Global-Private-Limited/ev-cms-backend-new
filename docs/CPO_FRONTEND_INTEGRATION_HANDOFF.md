@@ -257,3 +257,12 @@ CPO member with tenant capabilities.
 - [ ] Integration secret values never appear after save or in diagnostics.
 - [ ] Staff permissions are described as current metadata plus future backend
   capability potential, not a client-side bypass.
+# 2026-09-22 rating-list extension (source-only)
+
+Charger cards from the CPO list/detail/hub-list surfaces now carry
+`average_rating` (absent when none) and `rating_count` (always present). The
+charger collections accept `min_average_rating`, `max_average_rating`,
+`has_ratings`, `sort_by`, and `sort_order`; primary-list rating cursors are
+`cursor_value` and `cursor_id`, while hub lists remain unpaged. CPO review
+lists add review/optional-score ranges and sort fields. Render review `reason`
+as plain text only and use the nested durable session context when supplied.

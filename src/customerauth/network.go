@@ -7,12 +7,14 @@ import (
 	"math"
 	"net/http"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/constants"
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/liveops"
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/models"
+	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/ratingaggregate"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 	"gorm.io/gorm"
@@ -41,24 +43,33 @@ type CustomerHubListResponse struct {
 }
 
 type CustomerChargerListQuery struct {
-	Before        *time.Time
-	BeforeID      *uuid.UUID
-	Limit         int
-	Search        string
-	ConnectorType string
-	MinPowerKW    *float64
-	MaxPowerKW    *float64
-	Latitude      *float64
-	Longitude     *float64
-	RadiusKM      *float64
-	Open24Hours   *bool `json:"open_24_hours"`
+	Before           *time.Time
+	BeforeID         *uuid.UUID
+	Limit            int
+	Search           string
+	ConnectorType    string
+	MinPowerKW       *float64
+	MaxPowerKW       *float64
+	Latitude         *float64
+	Longitude        *float64
+	RadiusKM         *float64
+	Open24Hours      *bool `json:"open_24_hours"`
+	MinAverageRating *float64
+	MaxAverageRating *float64
+	HasRatings       *bool
+	SortBy           string
+	SortOrder        string
+	CursorValue      *string
+	CursorID         *uuid.UUID
 }
 
 type CustomerChargerListResponse struct {
-	Chargers     []CustomerChargerView `json:"chargers"`
-	NextBefore   *time.Time            `json:"next_before,omitempty"`
-	NextBeforeID *uuid.UUID            `json:"next_before_id,omitempty"`
-	HasMore      bool                  `json:"has_more"`
+	Chargers        []CustomerChargerView `json:"chargers"`
+	NextBefore      *time.Time            `json:"next_before,omitempty"`
+	NextBeforeID    *uuid.UUID            `json:"next_before_id,omitempty"`
+	HasMore         bool                  `json:"has_more"`
+	NextCursorValue *string               `json:"next_cursor_value,omitempty"`
+	NextCursorID    *uuid.UUID            `json:"next_cursor_id,omitempty"`
 }
 
 // CustomerChargerLocationView is the compact map-marker projection for a
@@ -71,10 +82,12 @@ type CustomerChargerLocationView struct {
 }
 
 type CustomerChargerLocationListResponse struct {
-	Chargers     []CustomerChargerLocationView `json:"chargers"`
-	NextBefore   *time.Time                    `json:"next_before,omitempty"`
-	NextBeforeID *uuid.UUID                    `json:"next_before_id,omitempty"`
-	HasMore      bool                          `json:"has_more"`
+	Chargers        []CustomerChargerLocationView `json:"chargers"`
+	NextBefore      *time.Time                    `json:"next_before,omitempty"`
+	NextBeforeID    *uuid.UUID                    `json:"next_before_id,omitempty"`
+	NextCursorValue *string                       `json:"next_cursor_value,omitempty"`
+	NextCursorID    *uuid.UUID                    `json:"next_cursor_id,omitempty"`
+	HasMore         bool                          `json:"has_more"`
 }
 
 type CustomerHubSummary struct {
@@ -154,10 +167,12 @@ func (service *Service) ListCustomerChargers(ctx context.Context, principal Prin
 		return CustomerChargerListResponse{}, err
 	}
 	return CustomerChargerListResponse{
-		Chargers:     chargers,
-		NextBefore:   page.nextBefore,
-		NextBeforeID: page.nextBeforeID,
-		HasMore:      page.hasMore,
+		Chargers:        chargers,
+		NextBefore:      page.nextBefore,
+		NextBeforeID:    page.nextBeforeID,
+		HasMore:         page.hasMore,
+		NextCursorValue: page.nextCursorValue,
+		NextCursorID:    page.nextCursorID,
 	}, nil
 }
 
@@ -171,18 +186,22 @@ func (service *Service) ListCustomerChargerLocations(ctx context.Context, princi
 		chargers = append(chargers, customerChargerLocationView(record))
 	}
 	return CustomerChargerLocationListResponse{
-		Chargers:     chargers,
-		NextBefore:   page.nextBefore,
-		NextBeforeID: page.nextBeforeID,
-		HasMore:      page.hasMore,
+		Chargers:        chargers,
+		NextBefore:      page.nextBefore,
+		NextBeforeID:    page.nextBeforeID,
+		NextCursorValue: page.nextCursorValue,
+		NextCursorID:    page.nextCursorID,
+		HasMore:         page.hasMore,
 	}, nil
 }
 
 type customerChargerPage struct {
-	records      []models.Charger
-	nextBefore   *time.Time
-	nextBeforeID *uuid.UUID
-	hasMore      bool
+	records         []models.Charger
+	nextBefore      *time.Time
+	nextBeforeID    *uuid.UUID
+	hasMore         bool
+	nextCursorValue *string
+	nextCursorID    *uuid.UUID
 }
 
 func (service *Service) listCustomerChargerPage(ctx context.Context, principal Principal, query CustomerChargerListQuery, includeConnectors bool) (customerChargerPage, error) {
@@ -192,6 +211,10 @@ func (service *Service) listCustomerChargerPage(ctx context.Context, principal P
 	databaseQuery := service.database.WithContext(ctx).Model(&models.Charger{}).
 		Joins("JOIN hubs ON hubs.id = chargers.hub_id AND hubs.cpo_id = chargers.cpo_id").
 		Where("chargers.cpo_id = ? AND chargers.customer_visibility = ? AND hubs.customer_visible = ?", principal.CPOID, true, true)
+	ratingAware := query.MinAverageRating != nil || query.MaxAverageRating != nil || query.HasRatings != nil || query.SortBy == "average_rating" || query.SortBy == "rating_count"
+	if ratingAware {
+		databaseQuery = databaseQuery.Joins(ratingaggregate.JoinSQL)
+	}
 	if query.Search != "" {
 		pattern := "%" + query.Search + "%"
 		databaseQuery = databaseQuery.Where(
@@ -215,8 +238,52 @@ func (service *Service) listCustomerChargerPage(ctx context.Context, principal P
 	if query.Open24Hours != nil {
 		databaseQuery = databaseQuery.Where("hubs.open_24_hours = ?", *query.Open24Hours)
 	}
+	if query.MinAverageRating != nil {
+		databaseQuery = databaseQuery.Where("rating_aggregate.average_rating >= ?", *query.MinAverageRating)
+	}
+	if query.MaxAverageRating != nil {
+		databaseQuery = databaseQuery.Where("rating_aggregate.average_rating <= ?", *query.MaxAverageRating)
+	}
+	if query.HasRatings != nil {
+		if *query.HasRatings {
+			databaseQuery = databaseQuery.Where("COALESCE(rating_aggregate.rating_count, 0) > 0")
+		} else {
+			databaseQuery = databaseQuery.Where("COALESCE(rating_aggregate.rating_count, 0) = 0")
+		}
+	}
 	if query.Before != nil {
-		databaseQuery = databaseQuery.Where("(chargers.created_at, chargers.id) < (?, ?)", *query.Before, *query.BeforeID)
+		if query.SortBy == "created_at" && query.SortOrder == "asc" {
+			databaseQuery = databaseQuery.Where("(chargers.created_at, chargers.id) > (?, ?)", *query.Before, *query.BeforeID)
+		} else {
+			databaseQuery = databaseQuery.Where("(chargers.created_at, chargers.id) < (?, ?)", *query.Before, *query.BeforeID)
+		}
+	}
+	if query.CursorValue != nil {
+		if query.SortBy == "average_rating" {
+			if *query.CursorValue == "null" {
+				if query.SortOrder == "asc" {
+					databaseQuery = databaseQuery.Where("rating_aggregate.average_rating IS NULL AND chargers.id > ?", *query.CursorID)
+				} else {
+					databaseQuery = databaseQuery.Where("rating_aggregate.average_rating IS NULL AND chargers.id < ?", *query.CursorID)
+				}
+			} else if value, err := strconv.ParseFloat(*query.CursorValue, 64); err != nil {
+				return customerChargerPage{}, &APIError{Status: http.StatusBadRequest, Code: "invalid_cursor", Message: "cursor_value must be a numeric average rating."}
+			} else if query.SortOrder == "asc" {
+				databaseQuery = databaseQuery.Where("rating_aggregate.average_rating IS NULL OR (rating_aggregate.average_rating, chargers.id) > (?, ?)", value, *query.CursorID)
+			} else {
+				databaseQuery = databaseQuery.Where("rating_aggregate.average_rating IS NULL OR (rating_aggregate.average_rating, chargers.id) < (?, ?)", value, *query.CursorID)
+			}
+		} else {
+			value, err := strconv.ParseInt(*query.CursorValue, 10, 64)
+			if err != nil || value < 0 {
+				return customerChargerPage{}, &APIError{Status: http.StatusBadRequest, Code: "invalid_cursor", Message: "cursor_value must be a non-negative rating count."}
+			}
+			if query.SortOrder == "asc" {
+				databaseQuery = databaseQuery.Where("(COALESCE(rating_aggregate.rating_count, 0), chargers.id) > (?, ?)", value, *query.CursorID)
+			} else {
+				databaseQuery = databaseQuery.Where("(COALESCE(rating_aggregate.rating_count, 0), chargers.id) < (?, ?)", value, *query.CursorID)
+			}
+		}
 	}
 	if query.Latitude != nil {
 		distanceExpression := customerChargerDistanceExpression()
@@ -224,12 +291,26 @@ func (service *Service) listCustomerChargerPage(ctx context.Context, principal P
 			Select("chargers.*, "+distanceExpression+" AS customer_distance_km", *query.Latitude, *query.Longitude, *query.Latitude).
 			Where(distanceExpression+" <= ?", *query.Latitude, *query.Longitude, *query.Latitude, *query.RadiusKM).
 			Order("customer_distance_km ASC, chargers.created_at DESC, chargers.id DESC")
+	} else if query.SortBy == "average_rating" {
+		if query.SortOrder == "asc" {
+			databaseQuery = databaseQuery.Order("rating_aggregate.average_rating ASC NULLS LAST, chargers.id ASC")
+		} else {
+			databaseQuery = databaseQuery.Order("rating_aggregate.average_rating DESC NULLS LAST, chargers.id DESC")
+		}
+	} else if query.SortBy == "rating_count" {
+		if query.SortOrder == "asc" {
+			databaseQuery = databaseQuery.Order("COALESCE(rating_aggregate.rating_count, 0) ASC, chargers.id ASC")
+		} else {
+			databaseQuery = databaseQuery.Order("COALESCE(rating_aggregate.rating_count, 0) DESC, chargers.id DESC")
+		}
+	} else if query.SortOrder == "asc" {
+		databaseQuery = databaseQuery.Order("chargers.created_at ASC, chargers.id ASC")
 	} else {
 		databaseQuery = databaseQuery.Order("chargers.created_at DESC, chargers.id DESC")
 	}
 	var records []models.Charger
 	limit := query.Limit
-	if query.Latitude == nil {
+	if includeConnectors {
 		limit++
 	}
 	databaseQuery = databaseQuery.Preload("Hub")
@@ -241,13 +322,35 @@ func (service *Service) listCustomerChargerPage(ctx context.Context, principal P
 	if err := databaseQuery.Limit(limit).Find(&records).Error; err != nil {
 		return customerChargerPage{}, fmt.Errorf("list customer chargers: %w", err)
 	}
-	hasMore := false
-	if query.Latitude == nil && len(records) > query.Limit {
-		hasMore = true
+	hasMore := includeConnectors && len(records) > query.Limit
+	if hasMore {
 		records = records[:query.Limit]
 	}
 	page := customerChargerPage{records: records, hasMore: hasMore}
-	if hasMore && len(records) > 0 {
+	if hasMore && len(records) > 0 && (query.SortBy == "average_rating" || query.SortBy == "rating_count") {
+		last := records[len(records)-1]
+		var value string
+		if query.SortBy == "average_rating" {
+			var aggregate struct {
+				AverageRating *decimal.Decimal `gorm:"column:average_rating"`
+			}
+			if err := service.database.WithContext(ctx).Table("customer_ratings").Select("ROUND(AVG(overall_rating)::numeric, 2) AS average_rating").Where("cpo_id = ? AND charger_id = ? AND session_id IS NOT NULL", principal.CPOID, last.ID).Scan(&aggregate).Error; err != nil {
+				return customerChargerPage{}, fmt.Errorf("load rating cursor: %w", err)
+			}
+			if aggregate.AverageRating == nil {
+				value = "null"
+			} else {
+				value = aggregate.AverageRating.String()
+			}
+		} else {
+			var count int64
+			if err := service.database.WithContext(ctx).Model(&models.CustomerRating{}).Where("cpo_id = ? AND charger_id = ? AND session_id IS NOT NULL", principal.CPOID, last.ID).Count(&count).Error; err != nil {
+				return customerChargerPage{}, fmt.Errorf("load rating cursor: %w", err)
+			}
+			value = fmt.Sprintf("%d", count)
+		}
+		page.nextCursorValue, page.nextCursorID = &value, &last.ID
+	} else if hasMore && len(records) > 0 {
 		last := records[len(records)-1]
 		page.nextBefore = &last.CreatedAt
 		page.nextBeforeID = &last.ID
@@ -440,6 +543,41 @@ func validateCustomerChargerListQuery(query *CustomerChargerListQuery) error {
 	if (query.Before == nil) != (query.BeforeID == nil) {
 		return &APIError{http.StatusBadRequest, "invalid_cursor", "Both before and before_id are required together."}
 	}
+	query.SortBy = strings.ToLower(strings.TrimSpace(query.SortBy))
+	query.SortOrder = strings.ToLower(strings.TrimSpace(query.SortOrder))
+	if query.SortBy == "" {
+		query.SortBy = "created_at"
+	}
+	if query.SortOrder == "" {
+		query.SortOrder = "desc"
+	}
+	if query.SortBy != "created_at" && query.SortBy != "average_rating" && query.SortBy != "rating_count" {
+		return &APIError{http.StatusBadRequest, "invalid_sort_by", "sort_by must be created_at, average_rating, or rating_count."}
+	}
+	if query.SortOrder != "asc" && query.SortOrder != "desc" {
+		return &APIError{http.StatusBadRequest, "invalid_sort_order", "sort_order must be asc or desc."}
+	}
+	if query.MinAverageRating != nil && (*query.MinAverageRating < 1 || *query.MinAverageRating > 5) {
+		return &APIError{http.StatusBadRequest, "invalid_min_average_rating", "min_average_rating must be between 1 and 5."}
+	}
+	if query.MaxAverageRating != nil && (*query.MaxAverageRating < 1 || *query.MaxAverageRating > 5) {
+		return &APIError{http.StatusBadRequest, "invalid_max_average_rating", "max_average_rating must be between 1 and 5."}
+	}
+	if query.MinAverageRating != nil && query.MaxAverageRating != nil && *query.MinAverageRating > *query.MaxAverageRating {
+		return &APIError{http.StatusBadRequest, "invalid_average_rating_range", "min_average_rating must not exceed max_average_rating."}
+	}
+	if query.HasRatings != nil && !*query.HasRatings && (query.MinAverageRating != nil || query.MaxAverageRating != nil) {
+		return &APIError{http.StatusBadRequest, "invalid_rating_filter", "has_ratings=false cannot be combined with an average-rating range."}
+	}
+	if (query.CursorValue == nil) != (query.CursorID == nil) {
+		return &APIError{http.StatusBadRequest, "invalid_cursor", "cursor_value and cursor_id are required together."}
+	}
+	if query.CursorValue != nil && query.SortBy != "average_rating" && query.SortBy != "rating_count" {
+		return &APIError{http.StatusBadRequest, "invalid_cursor", "Generic cursors require a rating sort."}
+	}
+	if locationSupplied && (query.SortBy == "average_rating" || query.SortBy == "rating_count") {
+		return &APIError{http.StatusBadRequest, "invalid_sort_by", "Rating sorting is not supported with geographic search."}
+	}
 	return nil
 }
 
@@ -521,11 +659,7 @@ func customerChargerView(record models.Charger, favorite bool) CustomerChargerVi
 	return view
 }
 
-type customerChargerRatingAggregate struct {
-	ChargerID     uuid.UUID       `gorm:"column:charger_id"`
-	AverageRating decimal.Decimal `gorm:"column:average_rating"`
-	RatingCount   int64           `gorm:"column:rating_count"`
-}
+type customerChargerRatingAggregate = ratingaggregate.ChargerAggregate
 
 // enrichCustomerChargerRatings overlays the one authoritative aggregate for
 // already-authorized chargers. It deliberately aggregates only session-owned
@@ -543,14 +677,13 @@ func (service *Service) enrichCustomerChargerRatings(ctx context.Context, cpoID 
 		seen[view.ID] = struct{}{}
 		chargerIDs = append(chargerIDs, view.ID)
 	}
-	var aggregates []customerChargerRatingAggregate
-	if err := service.database.WithContext(ctx).
-		Model(&models.CustomerRating{}).
-		Select("charger_id, ROUND(AVG(overall_rating)::numeric, 2) AS average_rating, COUNT(*) AS rating_count").
-		Where("cpo_id = ? AND charger_id IN ? AND session_id IS NOT NULL", cpoID, chargerIDs).
-		Group("charger_id").
-		Scan(&aggregates).Error; err != nil {
+	aggregateMap, err := ratingaggregate.Load(ctx, service.database, cpoID, chargerIDs)
+	if err != nil {
 		return fmt.Errorf("aggregate customer charger ratings: %w", err)
+	}
+	aggregates := make([]customerChargerRatingAggregate, 0, len(aggregateMap))
+	for _, aggregate := range aggregateMap {
+		aggregates = append(aggregates, aggregate)
 	}
 	applyCustomerChargerRatingAggregates(views, aggregates)
 	return nil

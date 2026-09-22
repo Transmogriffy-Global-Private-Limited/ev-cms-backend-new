@@ -4444,3 +4444,9 @@ Verification:
 Verification: focused `src/support` and `src/mail` tests pass. Repository-wide
 verification is recorded with this implementation slice; disposable PostgreSQL
 coverage remains conditional on `TEST_DATABASE_URL`.
+# 2026-09-22 - Customer/CPO rating discovery and history source slice
+
+- Added the customer-owned `GET /api/v1/app/charging-session-ratings` route.
+- Added pre-pagination, tenant-scoped charger aggregate selection for customer
+  and CPO rating filters/sorts, plus durable CPO review session context.
+- No migration or deployment was performed.

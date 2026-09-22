@@ -3844,3 +3844,20 @@ The contract does not provide:
 - OpenAPI-generated SDKs.
 
 Database tables for several future domains do not imply callable APIs.
+# Rating discovery and review-history extension (source-only, 2026-09-22)
+
+`GET /api/v1/cpo/chargers` accepts `q`, `min_average_rating`,
+`max_average_rating`, `has_ratings`, `sort_by` (`created_at`,
+`average_rating`, `rating_count`), and `sort_order` (`asc`, `desc`). Legacy
+created-at pagination remains `before` plus `before_id`; rating sorts use
+`cursor_value` plus `cursor_id`. Average ordering is `NULLS LAST` in either
+direction. `GET /api/v1/cpo/hubs/{hub_id}/chargers` accepts the same rating
+filters/sort fields but stays unpaged, preserving its existing return-all
+contract.
+
+`GET /api/v1/cpo/customer-ratings` additionally accepts `has_review`,
+`min_station_rating`, `max_station_rating`, `min_charger_rating`,
+`max_charger_rating`, `sort_by`, `sort_order`, and generic cursor fields.
+Station and charger optional-score ordering is `NULLS LAST`. A session-owned
+rating returns a bounded nested session context (status, times, final amounts,
+currency, settlement state, and connector); a legacy null-session row omits it.

@@ -862,6 +862,15 @@ paths:
           required: false
           description: Inclusive upper bound on overall_rating (1..5).
           schema: {type: integer, minimum: 1, maximum: 5}
+        - {name: has_review, in: query, schema: {type: boolean}, description: Filter meaningful nonblank review text.}
+        - {name: min_station_rating, in: query, schema: {type: integer, minimum: 1, maximum: 5}}
+        - {name: max_station_rating, in: query, schema: {type: integer, minimum: 1, maximum: 5}}
+        - {name: min_charger_rating, in: query, schema: {type: integer, minimum: 1, maximum: 5}}
+        - {name: max_charger_rating, in: query, schema: {type: integer, minimum: 1, maximum: 5}}
+        - {name: sort_by, in: query, schema: {type: string, enum: [created_at, updated_at, overall_rating, station_rating, charger_rating], default: created_at}}
+        - {name: sort_order, in: query, schema: {type: string, enum: [asc, desc], default: desc}}
+        - {name: cursor_value, in: query, schema: {type: string}}
+        - {name: cursor_id, in: query, schema: {type: string, format: uuid}}
       responses:
         "200":
           description: A page of customer ratings for the CPO.
@@ -1827,6 +1836,13 @@ paths:
           in: query
           schema: {type: number, minimum: 0, exclusiveMinimum: true, maximum: 100}
           description: Must be greater than zero; defaults to 10 km.
+        - {name: min_average_rating, in: query, schema: {type: number, minimum: 1, maximum: 5}}
+        - {name: max_average_rating, in: query, schema: {type: number, minimum: 1, maximum: 5}}
+        - {name: has_ratings, in: query, schema: {type: boolean}}
+        - {name: sort_by, in: query, schema: {type: string, enum: [created_at, average_rating, rating_count], default: created_at}}
+        - {name: sort_order, in: query, schema: {type: string, enum: [asc, desc], default: desc}}
+        - {name: cursor_value, in: query, schema: {type: string}, description: Rating-sort cursor value; `null` continues the NULLS LAST unrated average segment.}
+        - {name: cursor_id, in: query, schema: {type: string, format: uuid}}
       responses:
         "200":
           description: Published customer chargers matching the filters.
@@ -4956,6 +4972,14 @@ paths:
         - $ref: "#/components/parameters/ListBefore"
         - $ref: "#/components/parameters/ListBeforeID"
         - $ref: "#/components/parameters/ListLimit"
+        - {name: q, in: query, schema: {type: string, maxLength: 200}}
+        - {name: min_average_rating, in: query, schema: {type: number, minimum: 1, maximum: 5}}
+        - {name: max_average_rating, in: query, schema: {type: number, minimum: 1, maximum: 5}}
+        - {name: has_ratings, in: query, schema: {type: boolean}}
+        - {name: sort_by, in: query, schema: {type: string, enum: [created_at, average_rating, rating_count], default: created_at}}
+        - {name: sort_order, in: query, schema: {type: string, enum: [asc, desc], default: desc}}
+        - {name: cursor_value, in: query, schema: {type: string}}
+        - {name: cursor_id, in: query, schema: {type: string, format: uuid}}
       responses:
         "200":
           description: One bounded page of chargers.
@@ -5484,10 +5508,16 @@ paths:
       tags: [CPO Operations - Network]
       operationId: listChargersByHub
       summary: List chargers by hub
-      description: Get a list of chargers for a specific hub.
+      description: Get every charger for a specific hub. Rating filters and deterministic rating sorting are evaluated before rendering, but this historical unpaged endpoint never truncates results or accepts cursors.
       security:
         - BearerAuth: []
           CPOAppID: []
+      parameters:
+        - {name: min_average_rating, in: query, schema: {type: number, minimum: 1, maximum: 5}}
+        - {name: max_average_rating, in: query, schema: {type: number, minimum: 1, maximum: 5}}
+        - {name: has_ratings, in: query, schema: {type: boolean}}
+        - {name: sort_by, in: query, schema: {type: string, enum: [created_at, average_rating, rating_count], default: created_at}}
+        - {name: sort_order, in: query, schema: {type: string, enum: [asc, desc], default: desc}}
       responses:
         "200":
           description: Successfully retrieved chargers
@@ -7110,6 +7140,34 @@ paths:
         "403": {$ref: "#/components/responses/PlatformForbidden"}
         "500": {$ref: "#/components/responses/InternalError"}
 
+  /api/v1/app/charging-session-ratings:
+    get:
+      tags: [App Charging]
+      operationId: listCustomerChargingSessionRatings
+      summary: List the authenticated customer's session ratings and durable session context
+      description: Only session-owned ratings whose charging session belongs to the authenticated customer and CPO are returned. This history never calls HAL and remains available if the charger or hub is no longer customer-visible. Default ordering is `created_at DESC, id DESC`; use `before` plus `before_id` for that traversal, or `cursor_value` plus `cursor_id` for other sorts.
+      security: [{BearerAuth: []}]
+      parameters:
+        - $ref: "#/components/parameters/CPOAppIDHeader"
+        - $ref: "#/components/parameters/ListBefore"
+        - $ref: "#/components/parameters/ListBeforeID"
+        - $ref: "#/components/parameters/ListLimit"
+        - {name: min_overall_rating, in: query, schema: {type: integer, minimum: 1, maximum: 5}}
+        - {name: max_overall_rating, in: query, schema: {type: integer, minimum: 1, maximum: 5}}
+        - {name: has_review, in: query, schema: {type: boolean}}
+        - {name: charger_id, in: query, schema: {type: string, pattern: "^[a-z0-9]{6}$"}}
+        - {name: hub_id, in: query, schema: {type: string, format: uuid}}
+        - {name: sort_by, in: query, schema: {type: string, enum: [created_at, updated_at, overall_rating, session_start_time], default: created_at}}
+        - {name: sort_order, in: query, schema: {type: string, enum: [asc, desc], default: desc}}
+        - {name: cursor_value, in: query, schema: {type: string}}
+        - {name: cursor_id, in: query, schema: {type: string, format: uuid}}
+      responses:
+        "200": {description: Bounded own-rating history, content: {application/json: {schema: {$ref: "#/components/schemas/CustomerRatingHistoryResponse"}}}}
+        "400": {$ref: "#/components/responses/InvalidRequest"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/CPOBusinessForbidden"}
+        "500": {$ref: "#/components/responses/InternalError"}
+
   /api/v1/app/charging-sessions:
     get:
       tags: [App Charging]
@@ -8027,6 +8085,8 @@ components:
         operations: {type: array, items: {$ref: "#/components/schemas/ChargerOperationHistoryItem"}}
         next_before: {type: string, format: date-time}
         next_before_id: {type: string, format: uuid}
+        next_cursor_value: {type: string}
+        next_cursor_id: {type: string, format: uuid}
         has_more: {type: boolean}
     ChargerOperationHistoryItem:
       type: object
@@ -10949,6 +11009,7 @@ components:
         - charger_connection_url_ws
         - charger_connection_url_wss
         - assigned
+        - rating_count
       properties:
         id: {type: string, format: uuid}
         cpo_id: {type: string, format: uuid}
@@ -11017,6 +11078,8 @@ components:
         assigned:
           type: boolean
           description: Whether the charger is assigned to a hub.
+        average_rating: {type: number, minimum: 1, maximum: 5, multipleOf: 0.01, nullable: true, description: Mean overall_rating over session-owned ratings only.}
+        rating_count: {type: integer, format: int64, minimum: 0, description: Count of session-owned ratings contributing to average_rating.}
         email:
           type: string
           format: email
@@ -11676,6 +11739,26 @@ components:
         charger: {$ref: "#/components/schemas/ChargingSessionCharger"}
         connector: {$ref: "#/components/schemas/ChargingSessionConnector"}
         invoice: {$ref: "#/components/schemas/ChargingSessionInvoiceSummary"}
+
+    CustomerRatingHistoryItem:
+      type: object
+      additionalProperties: false
+      required: [rating, session]
+      properties:
+        rating: {$ref: "#/components/schemas/CustomerSessionRating"}
+        session: {$ref: "#/components/schemas/ChargingSessionHistoryItem"}
+
+    CustomerRatingHistoryResponse:
+      type: object
+      additionalProperties: false
+      required: [ratings, has_more]
+      properties:
+        ratings: {type: array, items: {$ref: "#/components/schemas/CustomerRatingHistoryItem"}}
+        next_before: {type: string, format: date-time}
+        next_before_id: {type: string, format: uuid}
+        next_cursor_value: {type: string}
+        next_cursor_id: {type: string, format: uuid}
+        has_more: {type: boolean}
 
     ChargingSessionInvoiceSummary:
       type: object
@@ -12670,6 +12753,8 @@ components:
         station_rating: {type: integer, minimum: 1, maximum: 5, nullable: true}
         charger_rating: {type: integer, minimum: 1, maximum: 5, nullable: true}
         reason: {type: string, maxLength: 1000, nullable: true}
+        session:
+          $ref: "#/components/schemas/CustomerRatingSession"
         created_at: {type: string, format: date-time}
         updated_at: {type: string, format: date-time}
 
@@ -12684,4 +12769,27 @@ components:
             $ref: "#/components/schemas/CustomerRatingView"
         next_before: {type: string, format: date-time, nullable: true}
         next_before_id: {type: string, format: uuid, nullable: true}
+        next_cursor_value: {type: string, nullable: true}
+        next_cursor_id: {type: string, format: uuid, nullable: true}
         has_more: {type: boolean}
+
+    CustomerRatingSession:
+      type: object
+      additionalProperties: false
+      required: [id, status, start_time, total_kwh, total_amount, currency, settlement_status]
+      properties:
+        id: {type: string, format: uuid}
+        status: {type: string}
+        start_time: {type: string, format: date-time}
+        end_time: {type: string, format: date-time, nullable: true}
+        total_kwh: {type: string}
+        total_amount: {type: string}
+        currency: {type: string, pattern: "^[A-Z]{3}$"}
+        settlement_status: {type: string}
+        connector:
+          type: object
+          nullable: true
+          properties:
+            id: {type: string, format: uuid}
+            number: {type: integer}
+            type: {type: string}
