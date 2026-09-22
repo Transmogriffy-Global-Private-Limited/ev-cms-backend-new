@@ -3120,14 +3120,22 @@ Query parameters:
 - `customer_id`, `charger_id`, `hub_id`, `session_id`: optional UUID filters.
 - `min_overall_rating`, `max_overall_rating`: inclusive 1–5 bounds; minimum
   cannot exceed maximum.
+- `has_review`, optional station/charger score bounds, `sort_by`, and
+  `sort_order` refine the list. `created_at` uses `before`/`before_id`; other
+  sorts use `cursor_value`/`cursor_id`. `updated_at` cursor values are
+  RFC3339 timestamps, `overall_rating` values are integers 1–5, and nullable
+  `station_rating`/`charger_rating` cursors accept either 1–5 or literal
+  `null`. `null` is invalid for the non-null overall score.
 
-Response shape: `{ratings, has_more, next_before?, next_before_id?}`. Each rating
-includes customer name/email, charger UUID/code/name, optional hub/session
-identifiers and hub name, overall/station/charger scores, optional review text,
-and timestamps. Customer email is personal data and is disclosed only under
-the same CPO `customers.read` authority as the customer directory. Treat review
-text as untrusted plain text and escape it when rendering; do not interpret it
-as HTML. Empty next-cursor fields are omitted when there is no next page.
+Response shape includes `{ratings, has_more}` and one matching next-cursor
+pair (`next_before`/`next_before_id` or `next_cursor_value`/`next_cursor_id`)
+when another page exists. Each rating includes customer name/email, charger
+UUID/code/name, optional hub/session identifiers and hub name,
+overall/station/charger scores, optional review text, and timestamps. Customer
+email is personal data and is disclosed only under the same CPO `customers.read`
+authority as the customer directory. Treat review text as untrusted plain text
+and escape it when rendering; do not interpret it as HTML. Empty next-cursor
+fields are omitted when there is no next page.
 
 Errors: shared CPO authentication/capability failures, `400 invalid_*` for
 malformed filters/cursors/ranges or limits, and `500 internal_error`. This is a
@@ -3844,7 +3852,7 @@ The contract does not provide:
 - OpenAPI-generated SDKs.
 
 Database tables for several future domains do not imply callable APIs.
-# Rating discovery and review-history extension (source-only, 2026-09-22)
+# Rating discovery and review-history extension (deployed 2026-09-22)
 
 `GET /api/v1/cpo/chargers` accepts `q`, `min_average_rating`,
 `max_average_rating`, `has_ratings`, `sort_by` (`created_at`,
@@ -3855,9 +3863,22 @@ direction. `GET /api/v1/cpo/hubs/{hub_id}/chargers` accepts the same rating
 filters/sort fields but stays unpaged, preserving its existing return-all
 contract.
 
+For paged charger discovery, `average_rating` cursors are decimal values from
+1 through 5 or the literal `null` for the final unrated (`NULLS LAST`) segment;
+`rating_count` cursors are non-negative integers. Both use the returned
+`cursor_id` UUID as a tie breaker. Filters, sort, direction, and page size must
+remain unchanged while continuing; do not send a generic cursor with
+`created_at` sorting. The hub charger route remains unpaged and does not use
+cursor fields.
+
 `GET /api/v1/cpo/customer-ratings` additionally accepts `has_review`,
 `min_station_rating`, `max_station_rating`, `min_charger_rating`,
 `max_charger_rating`, `sort_by`, `sort_order`, and generic cursor fields.
 Station and charger optional-score ordering is `NULLS LAST`. A session-owned
 rating returns a bounded nested session context (status, times, final amounts,
 currency, settlement state, and connector); a legacy null-session row omits it.
+For those customer-rating cursors, `updated_at` requires an RFC3339 timestamp,
+`overall_rating` requires an integer from 1 through 5, and optional station or
+charger score sorts accept an integer from 1 through 5 or literal `null` for
+the final absent-score segment. `created_at` uses the legacy `before` pair;
+`null` is not a valid overall-rating cursor.

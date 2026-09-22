@@ -1735,9 +1735,10 @@ retired.
 The CMS is complete only when tenant boundaries, network management, HAL
 integration, charging recovery, exact billing, operational verification, and
 current project documentation work together end to end.
-# 2026-09-22 - Rating discovery and histories (source complete, not deployed)
+# 2026-09-22 - Rating discovery and histories (deployed)
 
 Customer/CPO charger rating filtering and ordering, customer-owned durable
 rating history, and CPO review context are implemented as read-time
-projections. Deployment and runtime verification remain explicitly out of
-scope for this change.
+projections. The service is rehosted on migration 71 with the 250-operation
+contract. Runtime checks and the remaining database/physical acceptance limits
+are recorded in [project state](PROJECT_STATE.md).

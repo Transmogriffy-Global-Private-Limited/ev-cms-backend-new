@@ -497,4 +497,4 @@ Charger rating projections are not persisted columns. They are read-time
 `AVG(customer_ratings.overall_rating)` and `COUNT(*)` over session-owned rows,
 tenant-scoped by `cpo_id` and `charger_id`. Migration 71's
 `idx_customer_ratings_charger (cpo_id, charger_id)` supports that bounded
-relation; no migration was added for this source-only slice.
+relation; no migration was added for the rating discovery/history release.

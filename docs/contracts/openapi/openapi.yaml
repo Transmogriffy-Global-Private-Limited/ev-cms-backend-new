@@ -823,7 +823,11 @@ paths:
         Ratings are always scoped to the authenticated CPO's tenant; the
         `cpo_id` is never accepted from the client. Use `before` and `before_id`
         together to continue a page. `min_overall_rating` and
-        `max_overall_rating` are inclusive and cannot cross.
+        `max_overall_rating` are inclusive and cannot cross. `created_at` uses
+        that legacy cursor pair; other sorts use `cursor_value` and `cursor_id`.
+        Updated-time cursors are RFC3339 timestamps, overall-rating cursors are
+        integers 1..5, and nullable station/charger score cursors are integers
+        1..5 or literal `null` for the NULLS LAST segment.
       security:
         - BearerAuth: []
           CPOAppID: []
@@ -869,7 +873,7 @@ paths:
         - {name: max_charger_rating, in: query, schema: {type: integer, minimum: 1, maximum: 5}}
         - {name: sort_by, in: query, schema: {type: string, enum: [created_at, updated_at, overall_rating, station_rating, charger_rating], default: created_at}}
         - {name: sort_order, in: query, schema: {type: string, enum: [asc, desc], default: desc}}
-        - {name: cursor_value, in: query, schema: {type: string}}
+        - {name: cursor_value, in: query, schema: {type: string}, description: "Sort-specific value: RFC3339 timestamp, overall score 1..5, or optional station/charger score 1..5 or literal `null`."}
         - {name: cursor_id, in: query, schema: {type: string, format: uuid}}
       responses:
         "200":
@@ -1841,7 +1845,7 @@ paths:
         - {name: has_ratings, in: query, schema: {type: boolean}}
         - {name: sort_by, in: query, schema: {type: string, enum: [created_at, average_rating, rating_count], default: created_at}}
         - {name: sort_order, in: query, schema: {type: string, enum: [asc, desc], default: desc}}
-        - {name: cursor_value, in: query, schema: {type: string}, description: Rating-sort cursor value; `null` continues the NULLS LAST unrated average segment.}
+        - {name: cursor_value, in: query, schema: {type: string}, description: "Average rating 1..5 or literal `null` for the NULLS LAST unrated segment; or a non-negative rating count, according to `sort_by`."}
         - {name: cursor_id, in: query, schema: {type: string, format: uuid}}
       responses:
         "200":
@@ -4962,9 +4966,12 @@ paths:
       operationId: listCPOChargers
       summary: List tenant chargers with connectors
       description: |
-        Requires the currently supported CPO ADMIN authority. Results use stable descending
-        `(created_at, id)` keyset pagination and never cross the authenticated
-        CPO boundary.
+        Requires the currently supported CPO ADMIN authority. Results never
+        cross the authenticated CPO boundary. `created_at` sorting uses the
+        `before`/`before_id` pair; average-rating and rating-count sorting use
+        `cursor_value`/`cursor_id`. Average cursors are values 1..5 or literal
+        `null` for the NULLS LAST unrated segment; count cursors are
+        non-negative integers.
       security:
         - BearerAuth: []
           CPOAppID: []
@@ -4978,7 +4985,7 @@ paths:
         - {name: has_ratings, in: query, schema: {type: boolean}}
         - {name: sort_by, in: query, schema: {type: string, enum: [created_at, average_rating, rating_count], default: created_at}}
         - {name: sort_order, in: query, schema: {type: string, enum: [asc, desc], default: desc}}
-        - {name: cursor_value, in: query, schema: {type: string}}
+        - {name: cursor_value, in: query, schema: {type: string}, description: "Average rating 1..5 or literal `null`, or a non-negative rating count, according to `sort_by`."}
         - {name: cursor_id, in: query, schema: {type: string, format: uuid}}
       responses:
         "200":
@@ -7159,7 +7166,7 @@ paths:
         - {name: hub_id, in: query, schema: {type: string, format: uuid}}
         - {name: sort_by, in: query, schema: {type: string, enum: [created_at, updated_at, overall_rating, session_start_time], default: created_at}}
         - {name: sort_order, in: query, schema: {type: string, enum: [asc, desc], default: desc}}
-        - {name: cursor_value, in: query, schema: {type: string}}
+        - {name: cursor_value, in: query, schema: {type: string}, description: "For non-created_at sorts: overall_rating integer 1..5; updated_at or session_start_time RFC3339 timestamp."}
         - {name: cursor_id, in: query, schema: {type: string, format: uuid}}
       responses:
         "200": {description: Bounded own-rating history, content: {application/json: {schema: {$ref: "#/components/schemas/CustomerRatingHistoryResponse"}}}}

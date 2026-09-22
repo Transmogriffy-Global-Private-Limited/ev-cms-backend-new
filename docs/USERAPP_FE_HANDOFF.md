@@ -809,7 +809,7 @@ queries default to `limit=25` and reject a limit above 100.
 | `has_ratings` | `true` selects `rating_count > 0`; `false` selects only `rating_count = 0`. Do not combine `false` with an average-rating bound. |
 | `sort_by` | `created_at` (legacy default), `average_rating`, or `rating_count`. A rating sort defaults to descending order. |
 | `sort_order` | `asc` or `desc`. |
-| `cursor_value`, `cursor_id` | Required together only for `average_rating` or `rating_count` traversal. Preserve the original sort and every filter. `cursor_id` is the deterministic charger UUID tie-breaker. Literal `null` continues the final unrated average segment. |
+| `cursor_value`, `cursor_id` | Required together only for `average_rating` or `rating_count` traversal. Preserve the original sort and every filter. `cursor_id` is the deterministic charger UUID tie-breaker. Average values are finite 1–5 decimals or literal `null` for the final unrated segment; counts are non-negative integers. |
 
 Near-me results are ordered by calculated distance and are intentionally
 bounded without a continuation cursor (`has_more` is false and no `next_*`
@@ -1109,6 +1109,11 @@ must retain its filters and sorting unchanged while continuing a page, never
 mix the two cursor styles, and never use offsets. A `403`/`401` means the
 authentication/app-ID context is invalid; an empty `ratings` array is a valid
 no-history state, not an error.
+
+Generic cursor values remain sort-specific: `overall_rating` is an integer
+from 1 through 5, while `updated_at` and `session_start_time` are RFC3339
+timestamps. These history sort values are non-null; use the two exact values
+returned by the previous response rather than converting them locally.
 
 Keep the query and its continuation as one immutable client value. A filter,
 sort, or CPO-app change discards the current rows and both cursor pairs; it

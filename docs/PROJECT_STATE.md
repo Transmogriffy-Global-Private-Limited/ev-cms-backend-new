@@ -1,5 +1,32 @@
 # Project State
 
+## 2026-09-22 - Rehost rating discovery/history and cursor validation
+
+- Rehosted source commit `b924cae84fa35a2168e6e545550fc243257ff9b5`;
+  active binary SHA-256 is
+  `1a2819c96224d1016e3d2655b591993f405954cbe153faa71cfd6735e4e8d4b0`.
+  The replaced binary is retained at
+  `/root/evcmsnew-backups/pre-rating-cursor-validation-fbcfc39-20260922T115310+0530/evcmsnew`
+  (SHA-256
+  `85fcdad6285df7759f0438ab1949cb701b3b74f2a38d44473dd0c2925ab8af7a`).
+- No configuration or schema changed; migration 71 remains current. The live
+  OpenAPI contract has 250 operations. Local and HTTPS liveness, readiness,
+  Swagger, and OpenAPI return 200; both customer rating history and CPO rating
+  list return 401 without credentials. PID 225852 is active with zero restarts
+  and matching process/install hashes. Caddy validates; all seven required/
+  current workers are healthy; post-start error/panic/fatal log match count is
+  zero. Mail remains 518 SENT.
+- `.env` remains mode `0600`; its 64 key names match `.env.example` exactly,
+  with no missing, extra, or blank entries. The feature introduced no new
+  environment fields. Focused customer/CPO tests, route/OpenAPI parity,
+  `go test -p 1 ./...`, `go vet -p 1 ./...`, production build, and diff checks
+  passed. PostgreSQL-gated integration tests were skipped because
+  `TEST_DATABASE_URL` is unset; `pwsh` is unavailable for the docs verifier.
+  Physical OCPP and SMTP acceptance remain unverified.
+- See the [hosting record](guides/operations/dev-hosting.md) and the archived
+  [release work item](work/archive/WI-20260922-rating-discovery-history-rehost.md)
+  for the full evidence and verification boundary.
+
 ## 2026-09-22 - Rehost customer session ratings and charger aggregate
 
 - Rehosted the already-reviewed source through `9e2940c`; the current binary
@@ -2489,9 +2516,10 @@ HAL-owned live runtime state.
   migration twenty and the 113-operation contract; the two dormant feature-key
   tables are in
   `retired_commercial` while automatic lifecycle workers remain disabled.
-# 2026-09-22 - Rating discovery and histories (source-only)
+# 2026-09-22 - Rating discovery and histories
 
-`main` now contains the rating discovery/history source slice, but this entry
-does not claim deployment, migration, hosted database, or runtime evidence.
-The recorded deployment remains the prior 249-operation revision until a
-separate authorized rehost verifies the new 250-operation contract.
+The customer rating-history endpoint and CPO/customer charger rating filters
+and sorts are deployed without a schema or configuration change. The live
+250-operation contract and rehost evidence are recorded above. Invalid and
+sort-incompatible cursors now fail validation before SQL; nullable rating
+cursors are accepted only for optional rating dimensions.

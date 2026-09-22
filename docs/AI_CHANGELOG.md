@@ -10,6 +10,16 @@
 - This is documentation-only source work. It changes no API, schema,
   configuration, deployment, data, HAL behavior, or prior release evidence.
 
+## 2026-09-22 - Rehost rating discovery and history
+
+- Rehosted source commit `b924cae84fa35a2168e6e545550fc243257ff9b5`, including
+  customer rating history, customer/CPO charger rating discovery, and strict
+  cursor validation. The live OpenAPI contract has 250 operations; migration 71
+  and runtime environment fields are unchanged.
+- The prior executable is retained, and local/public health, docs, OpenAPI,
+  auth boundaries, worker health, and post-start logs were verified. See
+  [project state](PROJECT_STATE.md) for exact hashes and unverified boundaries.
+
 ## 2026-09-22 - Rehost customer ratings release
 
 - Rehosted source revision `9e2940c` containing the customer-owned session
@@ -4454,9 +4464,10 @@ Verification:
 Verification: focused `src/support` and `src/mail` tests pass. Repository-wide
 verification is recorded with this implementation slice; disposable PostgreSQL
 coverage remains conditional on `TEST_DATABASE_URL`.
-# 2026-09-22 - Customer/CPO rating discovery and history source slice
+# 2026-09-22 - Customer/CPO rating discovery and history
 
 - Added the customer-owned `GET /api/v1/app/charging-session-ratings` route.
 - Added pre-pagination, tenant-scoped charger aggregate selection for customer
   and CPO rating filters/sorts, plus durable CPO review session context.
-- No migration or deployment was performed.
+- No migration was required. The source was rehosted and verified in the
+  September 22 rating discovery/history release above.

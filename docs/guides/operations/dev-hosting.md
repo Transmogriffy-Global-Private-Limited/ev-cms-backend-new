@@ -28,28 +28,39 @@ development host it is set in the ignored service environment to
 that setting; it must not be used until the OCPP host is explicitly configured
 with TLS/WebSocket support.
 
-The current deployment was updated on September 22, 2026 to source revision
-`9e2940c` (customer session ratings and charger-rating aggregate). Migration
-`000071_customer_ratings` remains current and the API has 249 operations. The
-active binary SHA-256 is
-`85fcdad6285df7759f0438ab1949cb701b3b74f2a38d44473dd0c2925ab8af7a`. The
+The current deployment was updated on September 22, 2026 to source commit
+`b924cae84fa35a2168e6e545550fc243257ff9b5` (rating discovery/history and
+cursor validation). The active binary SHA-256 is
+`1a2819c96224d1016e3d2655b591993f405954cbe153faa71cfd6735e4e8d4b0`; PID
+225852 is active with zero restarts and matching process/install hashes. The
+replaced binary is retained at
+`/root/evcmsnew-backups/pre-rating-cursor-validation-fbcfc39-20260922T115310+0530/evcmsnew`
+(SHA-256
+`85fcdad6285df7759f0438ab1949cb701b3b74f2a38d44473dd0c2925ab8af7a`).
+Migration `000071_customer_ratings` remains current and the live API has 250
+operations. No schema or runtime configuration change was needed, so no
+database dump or migration was performed. The seven required/current workers
+are healthy; mail remains 518 SENT. Caddy validates; loopback and HTTPS
+liveness, readiness, Swagger, and OpenAPI return 200. The customer rating
+history and CPO customer-rating paths return 401 without credentials. `.env`
+remains mode `0600`; its key names match `.env.example` (64/64), with no
+blank entries; no new environment fields were needed. Post-start
+error/panic/fatal log match count is zero. Focused rating tests, OpenAPI route
+parity, full Go tests, vet, production build, and diff checks passed.
+PostgreSQL-gated tests remain skipped (`TEST_DATABASE_URL`
+unset); `pwsh` is unavailable for the docs verifier. Physical OCPP and SMTP
+acceptance remain unverified.
+
+The immediately preceding deployment, before rating discovery/history, was
+source revision `9e2940c` (customer session ratings and charger-rating
+aggregate), with binary SHA-256
+`85fcdad6285df7759f0438ab1949cb701b3b74f2a38d44473dd0c2925ab8af7a`. Its
 immediately preceding binary is retained at
 `/root/evcmsnew-backups/pre-customer-ratings-9e2940c-20260922T102358+0530/evcmsnew`
 (SHA-256
 `c072ae5bbf8e5d7d108af59960a776f9ce45a99ce9c96987747cb797293af850`). This
-API/projection-only release changed no configuration or schema, so no database
-dump or migration was needed. The process started as PID 218638 with zero
-restarts and matching process/install hashes; loopback and HTTPS liveness,
-readiness, Swagger, and OpenAPI returned 200. The session-rating and CPO
-rating paths returned 401 without credentials. All seven required/current
-workers were healthy, Caddy validated, and no new-process error/panic/fatal
-entries were found. The mail outbox remained at 518 SENT rows, with no new SENT
-row during the post-rehost verification window. `.env` remained mode `0600`;
-its 64 key names match `.env.example` exactly, with no blank entries or missing
-or extra names. No new environment fields were required. PostgreSQL-gated
-rating lifecycle/aggregate tests were skipped because `TEST_DATABASE_URL` is
-unset, and `pwsh` is unavailable for the docs verifier. Physical OCPP and SMTP
-acceptance were not part of this release verification.
+API/projection-only release was rehosted and verified as recorded in the
+September 22 release work item.
 
 For the prior migration-71 schema release, the immediately preceding binary is retained at
 `/root/evcmsnew-backups/pre-000071-customer-ratings-20260916T110548Z/evcmsnew`

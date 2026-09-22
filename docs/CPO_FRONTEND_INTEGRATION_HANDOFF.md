@@ -621,6 +621,13 @@ GET /api/v1/cpo/customer-ratings?sort_by=charger_rating&sort_order=desc&cursor_v
 GET /api/v1/cpo/chargers?min_average_rating=4&sort_by=average_rating&sort_order=desc&cursor_value=4.25&cursor_id=3e1c...
 ```
 
+Cursor values are sort-specific: charger `average_rating` is a finite value
+from 1 through 5 or literal `null` for the final unrated segment;
+`rating_count` is a non-negative integer. For customer ratings, `updated_at`
+uses an RFC3339 timestamp, `overall_rating` uses an integer 1 through 5, and
+nullable station/charger scores use an integer 1 through 5 or literal `null`.
+Use only the matching pair returned by the API; do not synthesize a cursor.
+
 Do not attach a cursor to a first request, copy a `before` pair into a generic
 sort, use page numbers/offsets, or derive a cursor from a rendered cell. When
 filters, sort, current CPO app, or effective permission change, discard rows
