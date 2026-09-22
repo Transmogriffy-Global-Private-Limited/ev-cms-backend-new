@@ -28,25 +28,28 @@ development host it is set in the ignored service environment to
 that setting; it must not be used until the OCPP host is explicitly configured
 with TLS/WebSocket support.
 
-The current deployment was updated on September 17, 2026 to source revision
-`64504d5` (CPO customer-rating read); migration
-`000071_customer_ratings` remains current and the API has 247 operations. The
+The current deployment was updated on September 22, 2026 to source revision
+`9e2940c` (customer session ratings and charger-rating aggregate). Migration
+`000071_customer_ratings` remains current and the API has 249 operations. The
 active binary SHA-256 is
-`c072ae5bbf8e5d7d108af59960a776f9ce45a99ce9c96987747cb797293af850`. The
+`85fcdad6285df7759f0438ab1949cb701b3b74f2a38d44473dd0c2925ab8af7a`. The
 immediately preceding binary is retained at
-`/root/evcmsnew-backups/pre-customer-rating-read-64504d5-20260917T095439Z/evcmsnew`
+`/root/evcmsnew-backups/pre-customer-ratings-9e2940c-20260922T102358+0530/evcmsnew`
 (SHA-256
-`5ebd8ac1853750bbfbe6b3dabbd880aadb05cb24208e002447d927d7d15c6cb0`). No
-database dump or migration was needed for this API-only change. The process
-started as PID 5244 with zero restarts and matching process/install hashes;
-local and HTTPS liveness/readiness/docs returned 200, all seven required
-workers were healthy, Caddy validated, and no new-process error entries were
-found. The endpoint returns 401 without credentials. There were 509 SENT mail
-jobs and zero pending/processing; the latest SENT timestamp predates this
-rehost, so no mail delivery is attributed to it. `.env` remained mode `0600`
-with exactly the 64 example keys and no extras; no config key changed. The
-PostgreSQL tenant/paging integration test is skipped because `TEST_DATABASE_URL`
-is unset, and `pwsh` is unavailable for the docs verifier.
+`c072ae5bbf8e5d7d108af59960a776f9ce45a99ce9c96987747cb797293af850`). This
+API/projection-only release changed no configuration or schema, so no database
+dump or migration was needed. The process started as PID 218638 with zero
+restarts and matching process/install hashes; loopback and HTTPS liveness,
+readiness, Swagger, and OpenAPI returned 200. The session-rating and CPO
+rating paths returned 401 without credentials. All seven required/current
+workers were healthy, Caddy validated, and no new-process error/panic/fatal
+entries were found. The mail outbox remained at 518 SENT rows, with no new SENT
+row during the post-rehost verification window. `.env` remained mode `0600`;
+its 64 key names match `.env.example` exactly, with no blank entries or missing
+or extra names. No new environment fields were required. PostgreSQL-gated
+rating lifecycle/aggregate tests were skipped because `TEST_DATABASE_URL` is
+unset, and `pwsh` is unavailable for the docs verifier. Physical OCPP and SMTP
+acceptance were not part of this release verification.
 
 For the prior migration-71 schema release, the immediately preceding binary is retained at
 `/root/evcmsnew-backups/pre-000071-customer-ratings-20260916T110548Z/evcmsnew`

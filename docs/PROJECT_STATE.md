@@ -1,5 +1,25 @@
 # Project State
 
+## 2026-09-22 - Rehost customer session ratings and charger aggregate
+
+- Rehosted the already-reviewed source through `9e2940c`; the current binary
+  SHA-256 is `85fcdad6285df7759f0438ab1949cb701b3b74f2a38d44473dd0c2925ab8af7a`.
+  The replaced binary is retained at
+  `/root/evcmsnew-backups/pre-customer-ratings-9e2940c-20260922T102358+0530/evcmsnew`.
+- No configuration or schema change was included; migration 71 remains current.
+  The seven required/current workers are healthy, local and HTTPS liveness,
+  readiness, docs and OpenAPI return 200, and the live contract has 249
+  operations. The rating routes reject unauthenticated requests with 401.
+- The `.env` mode is `0600`; all 64 key names match `.env.example`, with no
+  missing, extra, or blank entries. Mail remained 518 SENT with no new SENT row
+  during verification. See the [hosting record](guides/operations/dev-hosting.md)
+  and [release work item](work/archive/WI-20260922-customer-ratings-rehost.md)
+  for the full evidence and verification limits.
+- Focused/full Go tests, OpenAPI parity, vet, module verification, build, and
+  diff checks passed. PostgreSQL-gated lifecycle tests were skipped because
+  `TEST_DATABASE_URL` is unset; `pwsh` is unavailable, so the docs verifier
+  could not run. Physical OCPP and SMTP acceptance remain unverified.
+
 ## 2026-09-21 - Customer-visible charger rating aggregate
 
 - Full User App charger list, detail, hub-detail, and shared favorites charger

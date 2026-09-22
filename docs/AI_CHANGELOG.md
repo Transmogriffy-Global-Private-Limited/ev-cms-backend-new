@@ -1,5 +1,14 @@
 # AI Changelog
 
+## 2026-09-22 - Rehost customer ratings release
+
+- Rehosted source revision `9e2940c` containing the customer-owned session
+  rating resource and bounded customer charger-rating projection. Migration 71
+  and runtime configuration were unchanged; the live OpenAPI contract now has
+  249 operations. Binary, rollback, host checks, and remaining verification
+  boundaries are recorded in [project state](PROJECT_STATE.md) and the
+  [hosting guide](guides/operations/dev-hosting.md).
+
 ## 2026-09-21 - Add customer-visible charger rating aggregate
 
 - Added `average_rating` and `rating_count` to full customer charger

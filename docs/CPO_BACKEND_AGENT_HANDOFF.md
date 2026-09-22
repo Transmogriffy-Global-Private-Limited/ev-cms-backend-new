@@ -159,7 +159,7 @@ UUID or a row UUID.
 ## Current Implemented CPO Surface
 
 The authoritative machine contract is
-`docs/contracts/openapi/openapi.yaml`. The source currently has 247 total
+`docs/contracts/openapi/openapi.yaml`. The source currently has 249 total
 HTTP operations across all planes. Runtime/OpenAPI parity is tested. The
 canonical CMS-side CPO operational capability manual is
 `docs/integrations/cpo-hal-operational-capability-manual.md`.
@@ -247,7 +247,7 @@ Current behavior:
   scope and paired `(before, before_id)` keyset cursors, and expose only that
   CPO's ratings. The display projection includes customer email and untrusted
   review text; handle email as personal data and render review text as text;
-  no rating mutation route is implemented;
+  no CPO-side rating mutation route is implemented;
 - IDs are server-generated;
 - hub create requires a 1–100 character state, hub update may replace it, and
   CPO hub list/detail projections return the stored state;
