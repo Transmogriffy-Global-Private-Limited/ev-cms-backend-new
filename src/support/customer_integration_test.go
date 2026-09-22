@@ -230,12 +230,41 @@ func TestCustomerCPOWorkflowWithPostgreSQL(t *testing.T) {
 	if err := gormDB.Exec(`INSERT INTO support_ticket_messages (id,ticket_id,author_user_id,author_scope,body,created_at) VALUES (?,?,?,'CUSTOMER',?,?)`, uuid.New(), created.ID, cpo.UserID, "masquerading admin", now).Error; err == nil {
 		t.Fatal("CUSTOMER actor backed by users row accepted")
 	}
-	if err := db.RollbackLastMigration(ctx, sqlDB); err == nil {
-		t.Fatal("rollback migration 72 destroyed customer-support history")
+	if err := gormDB.Exec(`INSERT INTO support_ticket_events (id,ticket_id,event_type,actor_scope,created_at) VALUES (?,?,'MESSAGE_ADDED','CUSTOMER',?)`, uuid.New(), created.ID, now).Error; err == nil {
+		t.Fatal("CUSTOMER event without customer actor accepted")
+	}
+	if err := gormDB.Exec(`INSERT INTO support_ticket_events (id,ticket_id,event_type,actor_user_id,actor_scope,created_at) VALUES (?,?, 'MESSAGE_ADDED',?,'CUSTOMER',?)`, uuid.New(), created.ID, cpo.UserID, now).Error; err == nil {
+		t.Fatal("CUSTOMER event backed by users row accepted")
+	}
+	for _, wrongCustomer := range []uuid.UUID{second.CustomerID, other.CustomerID, uuid.New()} {
+		if err := gormDB.Exec(`INSERT INTO support_ticket_messages (id,ticket_id,author_customer_id,author_scope,body,created_at) VALUES (?,?,?,'CUSTOMER',?,?)`, uuid.New(), created.ID, wrongCustomer, "wrong customer", now).Error; err == nil {
+			t.Fatalf("wrong CUSTOMER message actor %s accepted", wrongCustomer)
+		}
+		if err := gormDB.Exec(`INSERT INTO support_ticket_events (id,ticket_id,event_type,actor_customer_id,actor_scope,created_at) VALUES (?,?,'MESSAGE_ADDED',?,'CUSTOMER',?)`, uuid.New(), created.ID, wrongCustomer, now).Error; err == nil {
+			t.Fatalf("wrong CUSTOMER event actor %s accepted", wrongCustomer)
+		}
+	}
+	if err := gormDB.Exec(`INSERT INTO support_ticket_messages (id,ticket_id,author_user_id,author_customer_id,author_scope,body,created_at) VALUES (?,?,?,?,'CUSTOMER',?,?)`, uuid.New(), created.ID, cpo.UserID, first.CustomerID, "mixed actor", now).Error; err == nil {
+		t.Fatal("mixed CUSTOMER message actor accepted")
+	}
+	if err := gormDB.Exec(`INSERT INTO support_ticket_events (id,ticket_id,event_type,actor_user_id,actor_customer_id,actor_scope,created_at) VALUES (?,?, 'MESSAGE_ADDED',?,?,'CUSTOMER',?)`, uuid.New(), created.ID, cpo.UserID, first.CustomerID, now).Error; err == nil {
+		t.Fatal("mixed CUSTOMER event actor accepted")
+	}
+	if err := gormDB.Exec(`INSERT INTO support_ticket_messages (id,ticket_id,author_customer_id,author_scope,body,created_at) VALUES (?,?,?,'CUSTOMER',?,?)`, uuid.New(), created.ID, first.CustomerID, "valid direct customer actor", now).Error; err != nil {
+		t.Fatalf("valid CUSTOMER message actor rejected: %v", err)
+	}
+	if err := gormDB.Exec(`INSERT INTO support_ticket_events (id,ticket_id,event_type,actor_customer_id,actor_scope,created_at) VALUES (?,?,'MESSAGE_ADDED',?,'CUSTOMER',?)`, uuid.New(), created.ID, first.CustomerID, now).Error; err != nil {
+		t.Fatalf("valid CUSTOMER event actor rejected: %v", err)
+	}
+	if err := db.RollbackLastMigration(ctx, sqlDB); err != nil {
+		t.Fatalf("rollback migration 73: %v", err)
 	}
 	var preserved int64
 	if err := gormDB.Table("support_tickets").Where("id=? AND channel='CUSTOMER_CPO'", created.ID).Count(&preserved).Error; err != nil || preserved != 1 {
-		t.Fatalf("rollback refusal did not preserve customer support history count=%d err=%v", preserved, err)
+		t.Fatalf("migration 73 rollback did not preserve customer support history count=%d err=%v", preserved, err)
+	}
+	if err := db.ApplyMigrations(ctx, sqlDB); err != nil {
+		t.Fatalf("reapply migration 73 after rollback: %v", err)
 	}
 }
 

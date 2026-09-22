@@ -49,6 +49,8 @@ PostgreSQL-gated lifecycle/isolation tests, followed by repository checks.
 - The PostgreSQL-gated customer-support and mail-constraint tests were invoked
   with `TEST_DATABASE_URL` absent and skipped with the exact reason
   `TEST_DATABASE_URL is not set`. No development/live database was selected.
-- No commit, push, deployment/restart, migration execution, SMTP contact, or
-  HAL change occurred. This completed item is archived with the source slice;
-  runtime/deployment acceptance remains externally unverified.
+- The source slice was subsequently committed and pushed to `main` as
+  `48f2ecae43d07dbda30cec673b3c3c4faf985da4`. The original verification did
+  not deploy/restart/rehost, execute a development/live migration, contact
+  SMTP, or modify HAL. Runtime/deployment acceptance remains externally
+  unverified.

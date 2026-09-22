@@ -1,5 +1,19 @@
 # AI Changelog
 
+## 2026-09-22 - Customer support actor ownership hardening source implementation
+
+- Added forward migration 73 after the published migration 72 contract. It
+  replaces weak actor-to-customer foreign keys with ticket/owner-bound
+  composite foreign keys, after a preflight that rejects inconsistent CUSTOMER
+  actor history without rewriting or deleting it.
+- Added PostgreSQL-gated negative coverage for same-CPO and cross-CPO wrong
+  customer actors, missing/mixed actor identity, valid owner actors, and safe
+  migration-73 rollback/reapplication. This source work is committed and
+  published to `main` and `anubhab-work`, but not deployed; no development/live
+  migration, rehost/restart, SMTP delivery, or
+  HAL change occurred. The PostgreSQL gate was skipped because
+  `TEST_DATABASE_URL` is not set.
+
 ## 2026-09-22 - Customer-to-CPO durable support source implementation
 
 - Added migration 72, the isolated CUSTOMER_CPO support channel, eight App/CPO
@@ -7,10 +21,12 @@
   safe frontend action URLs, OpenAPI contract entries, and focused workflow/
   frontend handoffs. Existing CPO_PLATFORM ticket reads and mutations now carry
   explicit channel predicates.
-- This is uncommitted source work only. It did not contact SMTP, apply a live
-  migration, deploy/restart/rehost, or modify HAL. PostgreSQL-gated evidence is
-  skipped because it was unset; see the archived work item for the exact source
-  verification and remaining runtime boundary.
+- This source slice was published to `main` as
+  `48f2ecae43d07dbda30cec673b3c3c4faf985da4`. It did not contact SMTP, apply
+  a development/live migration, deploy/restart/rehost, or modify HAL.
+  PostgreSQL-gated evidence was skipped because `TEST_DATABASE_URL` was unset;
+  see the archived work item for the exact source verification and remaining
+  runtime boundary.
 
 ## 2026-09-22 - Complete User App and CPO frontend handoffs
 

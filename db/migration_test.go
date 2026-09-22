@@ -79,6 +79,44 @@ func TestCustomerCPOChangeMigrationPreservesHistoricalSupportAndRefusesUnsafeRol
 	}
 }
 
+func TestCustomerCPOActorOwnershipHardeningMigrationBindsActorsToTicketOwner(t *testing.T) {
+	t.Parallel()
+	upBody, err := migrationFiles.ReadFile("migrations/000073_harden_customer_cpo_support_actor_ownership.up.sql")
+	if err != nil {
+		t.Fatalf("read customer actor ownership migration: %v", err)
+	}
+	downBody, err := migrationFiles.ReadFile("migrations/000073_harden_customer_cpo_support_actor_ownership.down.sql")
+	if err != nil {
+		t.Fatalf("read customer actor ownership rollback migration: %v", err)
+	}
+	upSQL, downSQL := string(upBody), string(downBody)
+	for _, required := range []string{
+		"uq_support_tickets_id_customer UNIQUE (id, customer_id)",
+		"FOREIGN KEY (ticket_id, author_customer_id)",
+		"FOREIGN KEY (ticket_id, actor_customer_id)",
+		"REFERENCES support_tickets (id, customer_id)",
+		"actor ownership does not match its ticket",
+	} {
+		if !strings.Contains(upSQL, required) {
+			t.Errorf("customer actor ownership migration missing %q", required)
+		}
+	}
+	if regexp.MustCompile(`(?mi)^\s*(DELETE\s+FROM|UPDATE\s+support_ticket)`).MatchString(upSQL) {
+		t.Fatal("customer actor ownership migration must not rewrite or delete support history")
+	}
+	for _, required := range []string{
+		"DROP CONSTRAINT fk_support_ticket_events_ticket_customer",
+		"DROP CONSTRAINT fk_support_ticket_messages_ticket_customer",
+		"DROP CONSTRAINT uq_support_tickets_id_customer",
+		"FOREIGN KEY (actor_customer_id) REFERENCES customers(id)",
+		"FOREIGN KEY (author_customer_id) REFERENCES customers(id)",
+	} {
+		if !strings.Contains(downSQL, required) {
+			t.Errorf("customer actor ownership rollback missing %q", required)
+		}
+	}
+}
+
 func TestMatchingDownMigrationRejectsInvalidVersion(t *testing.T) {
 	t.Parallel()
 

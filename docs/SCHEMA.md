@@ -1,6 +1,6 @@
 # CMS Schema
 
-## Customer-to-CPO support (migration 72)
+## Customer-to-CPO support (migrations 72 and 73)
 
 Migration `000072_customer_cpo_support` extends the existing durable support
 tables with `CPO_PLATFORM` and `CUSTOMER_CPO` channel authority. Existing rows
@@ -9,6 +9,14 @@ and no administrative creator; CUSTOMER messages/events carry a real customer
 foreign key while CPO/PLATFORM actors retain real administrative user identity.
 CHECK constraints reject mixed actor scopes and identities. Its down migration
 refuses while CUSTOMER_CPO history exists rather than deleting it.
+
+Migration `000073_harden_customer_cpo_support_actor_ownership` adds a unique
+`(id, customer_id)` ticket key and replaces the weak customer-only message/event
+foreign keys with `(ticket_id, customer_id)` foreign keys to `support_tickets`.
+Therefore a CUSTOMER actor must be the exact owner of its ticket, not merely an
+existing customer. It preflights mismatched historical actors and fails rather
+than rewriting or deleting history; its down migration only restores the prior
+weaker foreign-key shape and preserves every row.
 
 ## Charger-operation dispatch (migration 70)
 

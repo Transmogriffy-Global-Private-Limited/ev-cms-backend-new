@@ -1,18 +1,33 @@
 # Project State
 
-## 2026-09-22 - Customer-to-CPO support source slice (not deployed)
+## 2026-09-22 - Customer support actor-ownership hardening (not deployed)
 
-- Source now contains migration 72 and eight CUSTOMER_CPO routes for App
-  Customer and own-CPO support. Existing CPO_PLATFORM support remains isolated
-  in CPO and Platform endpoints. This is source state only: no migration,
-  rehost, SMTP delivery, or production/runtime verification was performed.
+- Source now includes forward migration 73 after the published migration 72
+  release. It binds CUSTOMER message/event actors to the exact `(ticket_id,
+  customer_id)` owner relationship and preflights inconsistent history rather
+  than rewriting it. No HTTP route, mail, permission, or privacy behavior
+  changed.
+- This hardening source is committed and published, but not deployed. Neither
+  migration 72 nor 73 has been applied to development/live runtime; no rehost, restart, SMTP
+  acceptance, or production/runtime verification occurred. The PostgreSQL gate
+  was skipped because `TEST_DATABASE_URL` is not set.
+- The source-verification record is
+  `work/archive/WI-20260922-customer-cpo-support-actor-ownership.md`.
+
+## 2026-09-22 - Customer-to-CPO support source slice (published, not deployed)
+
+- Source published to `main` at `48f2ecae43d07dbda30cec673b3c3c4faf985da4`
+  contains migration 72 and eight CUSTOMER_CPO routes for App Customer and
+  own-CPO support. Existing CPO_PLATFORM support remains isolated in CPO and
+  Platform endpoints. It is not deployed: neither migration 72 nor a later
+  hardening migration has been applied to development/live runtime, and no
+  rehost, restart, SMTP delivery, or production/runtime verification occurred.
 - The authoritative source work record is
   `work/archive/WI-20260922-customer-cpo-support.md`. Focused checks, route
   parity, docs verification, full tests, vet, build, and diff checks passed.
   PostgreSQL integration verification was deliberately skipped because no
   explicitly selected disposable `TEST_DATABASE_URL` was present; do not infer
   runtime/deployment verification from this source entry.
-
 ## 2026-09-22 - Rehost rating discovery/history and cursor validation
 
 - Rehosted source commit `b924cae84fa35a2168e6e545550fc243257ff9b5`;

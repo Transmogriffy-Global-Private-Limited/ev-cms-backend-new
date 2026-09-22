@@ -92,9 +92,9 @@ type PlatformAnnouncementCPO struct {
 	CreatedAt      time.Time `gorm:"not null" json:"created_at"`
 }
 
-// SupportTicket is a tenant-scoped conversation between CPO staff and the
-// platform. The CPO owns visibility of its own tickets; platform staff own the
-// administrative status transition.
+// SupportTicket is a tenant-scoped support conversation. CPO_PLATFORM tickets
+// are between CPO staff and Platform; CUSTOMER_CPO tickets are between an App
+// Customer and that customer's CPO.
 type SupportTicket struct {
 	ID              uuid.UUID  `gorm:"type:uuid;primaryKey;default:gen_random_uuid()" json:"id"`
 	CPOID           uuid.UUID  `gorm:"type:uuid;not null;index" json:"cpo_id"`
