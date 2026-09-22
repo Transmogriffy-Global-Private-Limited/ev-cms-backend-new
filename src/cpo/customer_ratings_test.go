@@ -2,6 +2,7 @@ package cpo
 
 import (
 	"context"
+	"math"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -93,6 +94,10 @@ func TestListCustomerRatingsValidatesAndBuildsPage(t *testing.T) {
 		{MinOverall: intPointerForTest(0)},
 		{MaxOverall: intPointerForTest(6)},
 		{MinOverall: intPointerForTest(5), MaxOverall: intPointerForTest(4)},
+		{SortBy: "overall_rating", CursorValue: stringPointerForRatingTest("null"), CursorID: uuidPointerForRatingTest(uuid.New())},
+		{SortBy: "overall_rating", CursorValue: stringPointerForRatingTest("6"), CursorID: uuidPointerForRatingTest(uuid.New())},
+		{SortBy: "station_rating", CursorValue: stringPointerForRatingTest("7"), CursorID: uuidPointerForRatingTest(uuid.New())},
+		{SortBy: "updated_at", CursorValue: stringPointerForRatingTest("not-a-time"), CursorID: uuidPointerForRatingTest(uuid.New())},
 	} {
 		if _, err := service.ListCustomerRatings(context.Background(), principal, query); err == nil {
 			t.Errorf("invalid query accepted: %+v", query)
@@ -111,3 +116,44 @@ func TestListCustomerRatingsValidatesAndBuildsPage(t *testing.T) {
 }
 
 func intPointerForTest(value int) *int { return &value }
+
+func stringPointerForRatingTest(value string) *string { return &value }
+
+func uuidPointerForRatingTest(value uuid.UUID) *uuid.UUID { return &value }
+
+func TestValidateChargerListQueryCursorValues(t *testing.T) {
+	t.Parallel()
+
+	for _, rating := range []float64{math.NaN(), math.Inf(1), 0, 6} {
+		query := ChargerListQuery{MinAverageRating: &rating}
+		if err := validateChargerListQuery(&query); err == nil {
+			t.Errorf("invalid average-rating filter %v was accepted", rating)
+		}
+	}
+
+	id := uuid.New()
+	for _, test := range []struct {
+		sort, value string
+		wantErr     bool
+	}{
+		{sort: "average_rating", value: "null"},
+		{sort: "average_rating", value: "4.25"},
+		{sort: "rating_count", value: "0"},
+		{sort: "average_rating", value: "NaN", wantErr: true},
+		{sort: "average_rating", value: "Inf", wantErr: true},
+		{sort: "average_rating", value: "6", wantErr: true},
+		{sort: "rating_count", value: "null", wantErr: true},
+		{sort: "rating_count", value: "-1", wantErr: true},
+		{sort: "created_at", value: "4", wantErr: true},
+	} {
+		t.Run(test.sort+"/"+test.value, func(t *testing.T) {
+			t.Parallel()
+			value := test.value
+			query := ChargerListQuery{SortBy: test.sort, CursorValue: &value, CursorID: &id}
+			err := validateChargerListQuery(&query)
+			if (err != nil) != test.wantErr {
+				t.Fatalf("validation error=%v, wantErr=%t", err, test.wantErr)
+			}
+		})
+	}
+}

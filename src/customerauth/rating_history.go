@@ -162,6 +162,19 @@ func validateCustomerRatingHistoryQuery(query *CustomerRatingHistoryQuery) error
 	if query.CursorValue != nil && query.SortBy == "created_at" {
 		return &APIError{http.StatusBadRequest, "invalid_cursor", "created_at sorting uses before and before_id."}
 	}
+	if query.CursorValue != nil {
+		switch query.SortBy {
+		case "overall_rating":
+			value, err := strconv.Atoi(*query.CursorValue)
+			if err != nil || value < 1 || value > 5 {
+				return &APIError{http.StatusBadRequest, "invalid_cursor", "cursor_value must be an overall rating between 1 and 5."}
+			}
+		case "updated_at", "session_start_time":
+			if _, err := time.Parse(time.RFC3339Nano, *query.CursorValue); err != nil {
+				return &APIError{http.StatusBadRequest, "invalid_cursor", "cursor_value must be an RFC3339 timestamp."}
+			}
+		}
+	}
 	return nil
 }
 
@@ -209,7 +222,15 @@ func (service *Service) ListCustomerRatingHistory(ctx context.Context, principal
 		if query.SortOrder == "asc" {
 			operator = ">"
 		}
-		db = db.Where("("+column+", customer_ratings.id) "+operator+" (?, ?)", *query.CursorValue, *query.CursorID)
+		var cursor any = *query.CursorValue
+		if query.SortBy == "overall_rating" {
+			value, _ := strconv.Atoi(*query.CursorValue) // validated above
+			cursor = value
+		} else {
+			value, _ := time.Parse(time.RFC3339Nano, *query.CursorValue) // validated above
+			cursor = value
+		}
+		db = db.Where("("+column+", customer_ratings.id) "+operator+" (?, ?)", cursor, *query.CursorID)
 	}
 	direction := strings.ToUpper(query.SortOrder)
 	var rows []models.CustomerRating

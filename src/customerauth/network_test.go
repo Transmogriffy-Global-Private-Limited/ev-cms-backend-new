@@ -2,6 +2,7 @@ package customerauth
 
 import (
 	"encoding/json"
+	"math"
 	"testing"
 	"time"
 
@@ -72,6 +73,28 @@ func TestCustomerChargerListQueryValidation(t *testing.T) {
 	query = CustomerChargerListQuery{Latitude: &latitude, Longitude: &longitude, SortBy: "rating_count"}
 	if err := validateCustomerChargerListQuery(&query); err == nil {
 		t.Fatal("geographic rating sort was accepted")
+	}
+	for _, value := range []float64{math.NaN(), math.Inf(1), 0, 6} {
+		query = CustomerChargerListQuery{MinAverageRating: &value}
+		if err := validateCustomerChargerListQuery(&query); err == nil {
+			t.Errorf("invalid average rating %v was accepted", value)
+		}
+	}
+	id := uuid.New()
+	for _, cursor := range []struct{ sort, value string }{
+		{"average_rating", "NaN"}, {"average_rating", "Inf"}, {"average_rating", "6"},
+		{"rating_count", "null"}, {"rating_count", "-1"}, {"created_at", "4"},
+	} {
+		value := cursor.value
+		query = CustomerChargerListQuery{SortBy: cursor.sort, CursorValue: &value, CursorID: &id}
+		if err := validateCustomerChargerListQuery(&query); err == nil {
+			t.Errorf("invalid %s cursor %q was accepted", cursor.sort, cursor.value)
+		}
+	}
+	value := "null"
+	query = CustomerChargerListQuery{SortBy: "average_rating", CursorValue: &value, CursorID: &id}
+	if err := validateCustomerChargerListQuery(&query); err != nil {
+		t.Fatalf("null average-rating cursor rejected: %v", err)
 	}
 }
 

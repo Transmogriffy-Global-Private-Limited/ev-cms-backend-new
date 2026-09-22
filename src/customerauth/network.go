@@ -557,10 +557,10 @@ func validateCustomerChargerListQuery(query *CustomerChargerListQuery) error {
 	if query.SortOrder != "asc" && query.SortOrder != "desc" {
 		return &APIError{http.StatusBadRequest, "invalid_sort_order", "sort_order must be asc or desc."}
 	}
-	if query.MinAverageRating != nil && (*query.MinAverageRating < 1 || *query.MinAverageRating > 5) {
+	if query.MinAverageRating != nil && (math.IsNaN(*query.MinAverageRating) || math.IsInf(*query.MinAverageRating, 0) || *query.MinAverageRating < 1 || *query.MinAverageRating > 5) {
 		return &APIError{http.StatusBadRequest, "invalid_min_average_rating", "min_average_rating must be between 1 and 5."}
 	}
-	if query.MaxAverageRating != nil && (*query.MaxAverageRating < 1 || *query.MaxAverageRating > 5) {
+	if query.MaxAverageRating != nil && (math.IsNaN(*query.MaxAverageRating) || math.IsInf(*query.MaxAverageRating, 0) || *query.MaxAverageRating < 1 || *query.MaxAverageRating > 5) {
 		return &APIError{http.StatusBadRequest, "invalid_max_average_rating", "max_average_rating must be between 1 and 5."}
 	}
 	if query.MinAverageRating != nil && query.MaxAverageRating != nil && *query.MinAverageRating > *query.MaxAverageRating {
@@ -574,6 +574,19 @@ func validateCustomerChargerListQuery(query *CustomerChargerListQuery) error {
 	}
 	if query.CursorValue != nil && query.SortBy != "average_rating" && query.SortBy != "rating_count" {
 		return &APIError{http.StatusBadRequest, "invalid_cursor", "Generic cursors require a rating sort."}
+	}
+	if query.CursorValue != nil {
+		if query.SortBy == "average_rating" && *query.CursorValue != "null" {
+			value, err := strconv.ParseFloat(*query.CursorValue, 64)
+			if err != nil || math.IsNaN(value) || math.IsInf(value, 0) || value < 1 || value > 5 {
+				return &APIError{http.StatusBadRequest, "invalid_cursor", "cursor_value must be null or an average rating between 1 and 5."}
+			}
+		} else if query.SortBy == "rating_count" {
+			value, err := strconv.ParseInt(*query.CursorValue, 10, 64)
+			if err != nil || value < 0 {
+				return &APIError{http.StatusBadRequest, "invalid_cursor", "cursor_value must be a non-negative rating count."}
+			}
+		}
 	}
 	if locationSupplied && (query.SortBy == "average_rating" || query.SortBy == "rating_count") {
 		return &APIError{http.StatusBadRequest, "invalid_sort_by", "Rating sorting is not supported with geographic search."}

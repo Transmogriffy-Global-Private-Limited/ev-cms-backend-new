@@ -10,6 +10,7 @@ import (
 	_ "image/jpeg"
 	_ "image/png"
 	"io"
+	"math"
 	"net/http"
 	netmail "net/mail"
 	"os"
@@ -5536,10 +5537,10 @@ func validateChargerListQuery(query *ChargerListQuery) error {
 	if query.SortOrder != "asc" && query.SortOrder != "desc" {
 		return invalid("sort_order", "sort_order must be asc or desc.")
 	}
-	if query.MinAverageRating != nil && (*query.MinAverageRating < 1 || *query.MinAverageRating > 5) {
+	if query.MinAverageRating != nil && (math.IsNaN(*query.MinAverageRating) || math.IsInf(*query.MinAverageRating, 0) || *query.MinAverageRating < 1 || *query.MinAverageRating > 5) {
 		return invalid("min_average_rating", "min_average_rating must be between 1 and 5.")
 	}
-	if query.MaxAverageRating != nil && (*query.MaxAverageRating < 1 || *query.MaxAverageRating > 5) {
+	if query.MaxAverageRating != nil && (math.IsNaN(*query.MaxAverageRating) || math.IsInf(*query.MaxAverageRating, 0) || *query.MaxAverageRating < 1 || *query.MaxAverageRating > 5) {
 		return invalid("max_average_rating", "max_average_rating must be between 1 and 5.")
 	}
 	if query.MinAverageRating != nil && query.MaxAverageRating != nil && *query.MinAverageRating > *query.MaxAverageRating {
@@ -5553,6 +5554,22 @@ func validateChargerListQuery(query *ChargerListQuery) error {
 	}
 	if query.CursorValue != nil && query.SortBy == "created_at" {
 		return invalid("cursor", "created_at uses before and before_id.")
+	}
+	if query.CursorValue != nil {
+		switch query.SortBy {
+		case "average_rating":
+			if *query.CursorValue != "null" {
+				value, err := strconv.ParseFloat(*query.CursorValue, 64)
+				if err != nil || math.IsNaN(value) || math.IsInf(value, 0) || value < 1 || value > 5 {
+					return invalid("cursor_value", "cursor_value must be null or an average rating between 1 and 5.")
+				}
+			}
+		case "rating_count":
+			value, err := strconv.ParseInt(*query.CursorValue, 10, 64)
+			if err != nil || value < 0 {
+				return invalid("cursor_value", "cursor_value must be a non-negative rating count.")
+			}
+		}
 	}
 	return nil
 }
@@ -8788,9 +8805,17 @@ func (service *Service) ListCustomerRatings(
 			if _, err := time.Parse(time.RFC3339Nano, *query.CursorValue); err != nil {
 				return CustomerRatingListResponse{}, invalid("cursor_value", "cursor_value must be an RFC3339 timestamp.")
 			}
-		} else if *query.CursorValue != "null" {
-			if _, err := strconv.Atoi(*query.CursorValue); err != nil {
-				return CustomerRatingListResponse{}, invalid("cursor_value", "cursor_value must be a rating integer.")
+		} else if query.SortBy == "station_rating" || query.SortBy == "charger_rating" {
+			if *query.CursorValue != "null" {
+				value, err := strconv.Atoi(*query.CursorValue)
+				if err != nil || value < 1 || value > 5 {
+					return CustomerRatingListResponse{}, invalid("cursor_value", "cursor_value must be null or a rating integer between 1 and 5.")
+				}
+			}
+		} else {
+			value, err := strconv.Atoi(*query.CursorValue)
+			if err != nil || value < 1 || value > 5 {
+				return CustomerRatingListResponse{}, invalid("cursor_value", "cursor_value must be a rating integer between 1 and 5.")
 			}
 		}
 	}
