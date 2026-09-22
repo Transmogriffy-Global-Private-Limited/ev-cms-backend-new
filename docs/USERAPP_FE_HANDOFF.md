@@ -1,12 +1,103 @@
 # User App Frontend Handoff
 
-This is the implementation handoff for the customer-facing User App HTTP
-surface: customer authentication, published-network discovery, favorites,
-informational pricing, wallet history, and Razorpay wallet recharge. It
-describes the currently routed backend contract. The authoritative
-machine-readable contract is `docs/contracts/openapi/openapi.yaml`; when
-`API_DOCS_ENABLED=true`, the same contract is available through Swagger UI at
-`/docs/` and as YAML at `/openapi.yaml`.
+This is the complete implementation and operations handoff for the
+customer-facing User App HTTP surface: customer identity and credential
+lifecycle, published-network discovery, favorites, informational pricing,
+wallet/recharge, charging start/stop/recovery, sessions/invoices/ratings, and
+operational realtime. It is written for a frontend engineer, QA engineer, or
+operator who has no prior EV-CMS context.
+
+## 0. Scope, evidence, and how to use this document
+
+This document is the standalone behavioral reference for the User App. It
+describes the checked-out backend source at
+`a1f8717bf2346ed63277ca871f994faf25851b8e` and the route/OpenAPI contract in
+this repository. It does **not** claim that this checkout is deployed, that a
+named remote host serves this revision, that a configured payment provider is
+live, or that a physical charger completed an OCPP action. Those are separate
+runtime facts requiring the verification procedure below.
+
+Evidence labels used here are deliberate:
+
+| Label | Meaning |
+| --- | --- |
+| Source-verified | Confirmed in the checked-out routes, handlers, OpenAPI, configuration, and tests. |
+| Prior deployment record | Recorded in `docs/PROJECT_STATE.md`; useful history, but not evidence of a currently running revision. |
+| Runtime-verified | Directly exercised against the intended running deployment during the current release procedure. This document makes no new runtime-verified claim. |
+| Unverified | Requires credentials, a disposable database, payment sandbox, HAL, or charger not supplied to the reader. |
+
+The embedded OpenAPI file is the exact machine-readable schema and is served
+at `/openapi.yaml` only when docs are enabled. This document contains all
+frontend ownership, sequencing, security, state, recovery, and verification
+rules; generate types from the matching served/schema revision rather than
+copying a stale browser model. A frontend built from another API revision must
+stop at contract verification rather than assuming compatibility.
+
+### 0.1 System model and non-negotiable boundaries
+
+```text
+User App browser
+  -> CMS /api/v1/app (customer identity, admission, wallet, sessions, views)
+  -> Razorpay browser/provider flow (only after CMS creates an order)
+CMS <-> HAL service boundary (CMS command/fact contract, never browser access)
+HAL <-> charge point (OCPP and raw meter/protocol truth)
+```
+
+The CMS PostgreSQL database is authoritative for customer identity, wallet,
+commercial admission, durable start intents, materialized charging sessions,
+settlement, ratings, and CMS projections. HAL is authoritative for OCPP
+connection/protocol activity, raw meter communication, and exact OCPP
+transaction identifiers. The browser is never authoritative: it must not
+calculate wallet admission, invent meter values, create a session after a
+command acknowledgement, send a CPO/customer ID to select ownership, or call
+HAL directly.
+
+### 0.2 Prerequisites and safe local preparation
+
+This repository contains the Go CMS backend, not a User App frontend project.
+There is therefore no source-verified `npm`, `pnpm`, mobile build, or browser
+deployment command to run here. Obtain the frontend repository and its own
+approved build/run instructions separately; do not fabricate one from this Go
+repository.
+
+To prepare a local CMS only, install Go 1.25+ and PostgreSQL, then from the
+repository root run:
+
+```powershell
+Copy-Item .env.example .env
+go mod download
+go run .
+```
+
+Populate the ignored `.env` with valid database, bootstrap, crypto, and mail
+configuration before starting. Never commit it or copy its values into a
+frontend environment. The process applies pending **up** migrations at startup
+and bootstraps the configured initial SuperAdmin; it does not create customer
+data, CPOs, or a charge point. The default listener is `127.0.0.1:8080`.
+
+For browser testing from a distinct origin, the current source offers only the
+global `CORS_ALLOW_ALL=true` switch, which emits wildcard CORS headers. It is
+off by default. Enable it only for an explicitly approved non-production test
+environment; the current backend has no configured origin allowlist. Never
+work around a blocked preflight by moving credentials/app IDs into URLs or by
+disabling the required headers.
+
+Before using any endpoint, establish all of the following:
+
+1. The intended CMS origin responds to `GET /health/live` with `200`.
+2. `GET /health/ready` returns `200`; otherwise PostgreSQL or a required worker
+   is not ready and workflow results are not trustworthy.
+3. If the environment exposes docs, fetch `{API_ORIGIN}/openapi.yaml` and
+   verify it contains the endpoint before integrating it. A docs `404` can be
+   intentional when `API_DOCS_ENABLED=false`; it is not evidence that the
+   business route is absent.
+4. Configure the correct public CPO App ID out of customer-editable state.
+   It is required even before authentication and cannot be recovered from a
+   customer token belonging to another CPO.
+5. For charging, use an environment with the approved HAL integration and a
+   test account/charger. If HAL configuration is absent, a truthful
+   `hal_unavailable`/mapping/availability result is expected; do not test by
+   bypassing CMS or writing database rows.
 
 ## 1. Identity and CPO Rules
 
@@ -340,6 +431,53 @@ export type CustomerChargerList = {
   chargers: CustomerCharger[];
   next_before?: string;
   next_before_id?: string;
+  next_cursor_value?: string;
+  next_cursor_id?: string;
+  has_more: boolean;
+};
+
+export type CustomerSessionRating = {
+  id: string;
+  session_id: string;
+  overall_rating: 1 | 2 | 3 | 4 | 5;
+  station_rating?: 1 | 2 | 3 | 4 | 5;
+  charger_rating?: 1 | 2 | 3 | 4 | 5;
+  reason?: string; // untrusted plain text, never HTML
+  created_at: string;
+  updated_at: string;
+};
+
+export type CustomerSessionRatingRequest = {
+  overall_rating: 1 | 2 | 3 | 4 | 5;
+  station_rating?: 1 | 2 | 3 | 4 | 5;
+  charger_rating?: 1 | 2 | 3 | 4 | 5;
+  reason?: string;
+};
+
+export type CustomerRatingHistoryItem = {
+  rating: CustomerSessionRating;
+  session: {
+    id: string;
+    state: string;
+    started_at: string;
+    completed_at?: string;
+    consumed_wh?: number;
+    total_kwh?: string;
+    total_amount?: string;
+    currency: string;
+    settlement_status: string;
+    charger: { id: string; charger_id: string; name?: string; hub?: { id: string; name: string; address?: string } };
+    connector: { id: string; number: number; type: string };
+    invoice: { state: "NOT_AVAILABLE" | "PENDING" | "READY" | "FAILED"; download_available?: boolean };
+  };
+};
+
+export type CustomerRatingHistoryResponse = {
+  ratings: CustomerRatingHistoryItem[];
+  next_before?: string;
+  next_before_id?: string;
+  next_cursor_value?: string;
+  next_cursor_id?: string;
   has_more: boolean;
 };
 
@@ -533,6 +671,7 @@ alter the separate customer-selected time-bounded-session cutoff workflow.
 | `GET /charging-sessions/{session_id}` | Yes | `200 ChargingSessionResponse` | Read owned durable active/completed session, exact projected meter, connection, connector, and freshness fields. |
 | `GET /charging-sessions/{session_id}/rating` | Yes | `200 CustomerSessionRating` | Read this customer's existing session-owned feedback; an owned session without feedback returns `404 rating_not_found`. |
 | `PUT /charging-sessions/{session_id}/rating` | Yes | `201/200 CustomerSessionRating` | Create or replace one rating only when the owned durable session state is `COMPLETED`; `409 session_not_rateable` means it is still incomplete or reconciling. |
+| `GET /charging-session-ratings` | Yes | `200 CustomerRatingHistoryResponse` | List only this customer's session-owned ratings, each paired with durable session, charger, hub, and connector context. |
 | `GET /charging-sessions/{session_id}/invoice` | Yes | `200 application/pdf` | Download the immutable invoice for this owned financially-final session. Treat `409 invoice_not_eligible`, `invoice_pending`, and `invoice_unavailable` as distinct UI states. |
 | `POST /charging-sessions/{session_id}/stop` | Yes | `202` | Persist/request an owned stop; actual charger completion remains asynchronous. |
 | `GET /operations/events` | Yes | `200 OperationalEventPage` | Recover retained, scoped charging/availability invalidations. |
@@ -589,10 +728,9 @@ flag, while `CustomerCharger.hub_open_24_hours` is the attached hub's flag.
 They are distinct fields and may have different values. The `open_24_hours`
 charger-list query filter applies to the hub field.
 
-`GET /chargers/locations` accepts exactly the same optional query filters as
-`GET /chargers`: `q`, `connector_type`, `min_power_kw`, `max_power_kw`,
-`open_24_hours`, `limit`, paired `before`/`before_id`, and optional near-me
-`lat`/`lng`/`radius_km`. It applies the same published-hub and current-CPO
+`GET /chargers/locations` accepts the same discovery filters, including
+`min_average_rating`, `max_average_rating`, and `has_ratings`; it does not add
+rating fields to a marker. It applies the same published-hub and current-CPO
 scope, pagination, ordering, and validation. Each `chargers` item has exactly
 `charger_name`, `latitude`, and `longitude`; the coordinates are from the
 attached hub because chargers do not have independent coordinate fields. Do
@@ -667,10 +805,20 @@ queries default to `limit=25` and reject a limit above 100.
 | `before`, `before_id` | Ordinary descending `(created_at, id)` keyset cursor; both are required together. |
 | `lat`, `lng` | Customer location for a near-me query; both are required together (`-90..90`, `-180..180`). |
 | `radius_km` | Only valid with `lat` and `lng`; greater than 0 and at most 100; defaults to 10. |
+| `min_average_rating`, `max_average_rating` | Inclusive canonical overall-rating bounds, each `1..5`; a charger with no session-owned ratings does not match either bound. The minimum cannot exceed the maximum. |
+| `has_ratings` | `true` selects `rating_count > 0`; `false` selects only `rating_count = 0`. Do not combine `false` with an average-rating bound. |
+| `sort_by` | `created_at` (legacy default), `average_rating`, or `rating_count`. A rating sort defaults to descending order. |
+| `sort_order` | `asc` or `desc`. |
+| `cursor_value`, `cursor_id` | Required together only for `average_rating` or `rating_count` traversal. Preserve the original sort and every filter. `cursor_id` is the deterministic charger UUID tie-breaker. Literal `null` continues the final unrated average segment. |
 
 Near-me results are ordered by calculated distance and are intentionally
 bounded without a continuation cursor (`has_more` is false and no `next_*`
 cursor is returned). A location query cannot include `before`/`before_id`.
+Rating filters may narrow a near-me result, but an explicit rating `sort_by`
+with `lat`/`lng` is rejected because distance remains the ordering authority.
+For non-geographic average ordering, unrated chargers are always `NULLS LAST`,
+including ascending order. Never reproduce this order with client-side sorting
+or offset pagination; send the returned keyset cursor unchanged.
 All results remain limited to attached chargers whose own publication gate and
 hub publication gate are both true in the authenticated CPO. Stored CMS status is not live availability, but it is a
 customer-safety gate: full response availability combines it with committed
@@ -930,6 +1078,83 @@ still handle `409 session_not_rateable` as authoritative because state can
 change before submission. The app never sends customer, CPO, charger, hub, or
 session identity in the body; it does not offer delete, direct station/charger
 review, aggregate, or public review UI.
+
+### 5.4.1 Rating and review history
+
+`GET /charging-session-ratings` is the authenticated customer's private,
+durable review-history collection. It returns only ratings with a non-null
+`session_id` whose joined session belongs to the same authenticated customer
+and CPO. It never calls HAL and does not require the charger or hub to remain
+customer-visible, so it is the correct source for a "My reviews" screen.
+
+Each item is `{ rating, session }`. `rating` is the existing
+`CustomerSessionRating` shape (`id`, `session_id`, overall/optional dimension
+scores, optional plain-text `reason`, `created_at`, `updated_at`). `session`
+uses the safe history shape: durable state and times, persisted energy/totals
+when final, currency, settlement status, plus the materialized charger/public
+charger ID/name, optional hub, and connector ID/number/type. Do not fetch one
+session per row, make a live request, or reconstruct a session from charger
+discovery state.
+
+The collection accepts `limit` (default 25, maximum 100), inclusive
+`min_overall_rating`/`max_overall_rating` (1 through 5), `has_review`, public
+six-character `charger_id`, hub UUID `hub_id`, `sort_by`, and `sort_order`.
+`has_review=true` means nonblank persisted review text; `false` means absent or
+historically blank text. Supported sort fields are `created_at` (default),
+`updated_at`, `overall_rating`, and `session_start_time`.
+
+For `created_at`, continue with `next_before` and `next_before_id`. For every
+other sort, continue with `next_cursor_value` and `next_cursor_id`. The client
+must retain its filters and sorting unchanged while continuing a page, never
+mix the two cursor styles, and never use offsets. A `403`/`401` means the
+authentication/app-ID context is invalid; an empty `ratings` array is a valid
+no-history state, not an error.
+
+Keep the query and its continuation as one immutable client value. A filter,
+sort, or CPO-app change discards the current rows and both cursor pairs; it
+never appends a new query's first page to an old query's rows. For example, an
+updated-time view continues only with its generic pair:
+
+```text
+GET /api/v1/app/charging-session-ratings?has_review=true&sort_by=updated_at&sort_order=desc&cursor_value=2026-09-22T10%3A15%3A00Z&cursor_id=3e1c...
+```
+
+The default newest-first view instead uses only its legacy pair:
+
+```text
+GET /api/v1/app/charging-session-ratings?min_overall_rating=4&before=2026-09-22T10%3A15%3A00Z&before_id=3e1c...
+```
+
+Do not manufacture either cursor from a visible timestamp or rating. Use the
+two values returned by the immediately preceding page exactly as strings. A
+missing `next_*` pair with `has_more=false` is the end of that immutable query.
+
+The screen has four distinct states: initial loading, a valid empty history,
+loaded rows, and a continuation failure. On `400`, preserve the last valid
+rows but reset an invalid local filter to its documented range; on `401`, use
+the normal one-at-a-time refresh flow; on `403`, remove the private screen
+after re-bootstrap rather than treating it as an empty history; and on `500`
+or a network failure, retain already loaded rows with a retry control that
+repeats the same request. Do not retry a rating write automatically: a user
+may have changed the replacement values before a delayed retry is sent.
+
+For a feedback form, `PUT` is a complete replacement, not a patch. Send only
+the fields the user currently chose, for example:
+
+```json
+{
+  "overall_rating": 5,
+  "station_rating": 4,
+  "reason": "Easy to find and use."
+}
+```
+
+Omitting `station_rating`, `charger_rating`, or `reason` clears an existing
+value. Reject a client-side score outside 1 through 5 or review text over
+1,000 Unicode characters before sending, but still render server `400` as the
+authoritative validation outcome. On `200` or `201`, replace the detail/form
+rating with the returned resource and re-fetch any visible charger list whose
+aggregate may have changed.
 
 Its additive `invoice` object is customer-safe: it contains artifact readiness,
 number, timestamps, and `download_available`, but never email-delivery state.
@@ -1536,10 +1761,10 @@ routed contract and the frontend must not invent calls for them:
 
 - edit email;
 - RFID/access-token management;
-- start/stop charging and live transaction telemetry;
 - refunds, charging bills, or payment-provider history beyond the recharge
   order/verification flow;
-- customer notifications and realtime feeds.
+- customer notifications beyond the documented operational event and live
+  charging feeds.
 
 Authenticated name and phone editing is now available through `PATCH /profile`.
 Keep email editing and the other listed customer-product surfaces disabled
@@ -1558,17 +1783,137 @@ until their routes appear in the same OpenAPI document.
 - Session revocation handles current-session revocation.
 - Errors branch on stable codes and handle `429`/`503` without retry loops.
 - No unsupported customer-product endpoint is assumed.
-# 2026-09-22 rating discovery and own-history (source-only)
+- Charger discovery preserves rating filters, sort order, and the matching
+  keyset cursor; geographic search retains distance ordering.
+- The private rating-history screen renders paired durable session context,
+  does not depend on current charger visibility, and renders review text as
+  plain text.
 
-Published charger search and compact locations accept `min_average_rating`,
-`max_average_rating`, and `has_ratings`. Full charger search also accepts
-`sort_by=created_at|average_rating|rating_count` and `sort_order=asc|desc`.
-For rating sorts, continue with `cursor_value` and `cursor_id`; average-rating
-cursor value `null` is the explicit final unrated segment. Geographic searches
-retain distance priority and reject an explicit rating sort. Marker objects
-remain only name/latitude/longitude.
+## 15. Verification: source, API, browser, and workflow evidence
 
-`GET /api/v1/app/charging-session-ratings` returns only the caller's
-session-owned ratings. Each `rating` is paired with durable `session` context
-(charger, hub, connector, persisted energy/settlement); it does not make a
-live/HAL call and historical rows do not depend on current visibility.
+Use the smallest test that proves the property in question, and state the
+result at its real strength. A TypeScript compile does not prove an API route;
+a `202` charging response does not prove charging started; a successful
+Razorpay browser return does not prove the CMS wallet was credited until the
+CMS verification/read response says so.
+
+### 15.1 Backend-contract verification for a frontend change
+
+From this repository root, run the following before publishing a frontend that
+depends on a changed User App contract:
+
+```powershell
+.\scripts\verify-docs.ps1
+go test ./src/customerauth -count=1
+go test ./src/routes -run TestOpenAPIContractMatchesRuntimeRoutesAndServesUI -count=1
+go test ./...
+go vet ./...
+git diff --check
+```
+
+The first command checks documentation/contract consistency; the route test
+checks runtime path and OpenAPI parity in a local test server; package and
+repository tests check source behavior. They do not select a PostgreSQL test
+database, invoke Razorpay, send email, call HAL, or control a charge point.
+If Go linking exhausts Windows resources, retry the Go commands with bounded
+parallelism, for example `GOMAXPROCS=2 go test -p 1 ./...`; report that as the
+actual command used.
+
+Database lifecycle/concurrency verification is opt-in only. Set
+`TEST_DATABASE_URL` to a disposable database you own, inspect it first, then
+run the relevant package tests. Never point it at a development/shared/live
+database merely to obtain a green result.
+
+### 15.2 Runtime and contract-match gate
+
+Use an explicitly selected origin, never a remembered hostname:
+
+```powershell
+$cmsOrigin = 'http://127.0.0.1:8080' # replace only with an approved target
+Invoke-WebRequest "$cmsOrigin/health/live" -UseBasicParsing
+Invoke-WebRequest "$cmsOrigin/health/ready" -UseBasicParsing
+Invoke-WebRequest "$cmsOrigin/openapi.yaml" -UseBasicParsing
+```
+
+Expected liveness/readiness result is HTTP `200`. The OpenAPI request is also
+`200` only when `API_DOCS_ENABLED=true`; a `404` in a docs-disabled deployment
+is expected and must be resolved by obtaining the exact deployed contract by
+an approved release artifact, not by assuming local source matches it. Compare
+the operation paths and schemas consumed by the frontend before releasing it.
+Never paste a bearer, refresh token, OTP, App ID, customer email, or payment
+payload into a shared terminal transcript, test script, browser console log,
+or issue.
+
+### 15.3 End-to-end User App acceptance matrix
+
+Run this only in an authorized non-production tenant with a test mailbox,
+test customer, test provider configuration, and where charging is included, a
+test charger/HAL topology. Record request IDs and safe status/code outcomes,
+not credentials or bodies.
+
+| Journey | Pass condition | Failure/recovery condition |
+| --- | --- | --- |
+| Signup/login/refresh | Account/login OTP completes; `me` has the expected CPO-local customer identity; a single refresh replaces the token pair. | Expired/invalid challenge, reused refresh, or app mismatch clears the appropriate local state and never switches CPO context. |
+| Discovery/favorites | Only current-CPO, published inventory is shown; filters/cursors reproduce the server page; favorite toggle survives refetch. | Empty is valid. A `404`/omitted item is not an existence disclosure or a reason to use an internal UUID. |
+| Wallet/recharge | Exact string balances and CMS transaction/order state agree after CMS verification. | Provider redirect/callback alone is insufficient; preserve the order and invoke only the documented verification flow. |
+| Start/stop/session | A start intent becomes an active session only after `ACTUALLY_STARTED` plus `session_id`; stop remains pending until durable completion. | `RECONCILIATION_REQUIRED`, HAL timeout, conflict, or stale availability keeps the user in an inspectable/polling state, never sends a duplicate start/stop. |
+| Invoice/rating | Invoice readiness and session rating reflect the owned completed session. | Pending/unavailable invoice and `session_not_rateable` are explicit states; no delete/direct-public-review UI is invented. |
+| Realtime/reconnect | REST catch-up precedes one authenticated stream; full live-session frames replace their collection. | On disconnect/cursor expiry/token rotation, refetch/catch up then reconnect; do not merge guessed deltas. |
+
+### 15.4 Troubleshooting and safe recovery
+
+| Symptom | Evidence to collect | Safe action | Do not do |
+| --- | --- | --- | --- |
+| Browser preflight/header failure | Browser network status, origin, response headers, no tokens | Confirm approved CORS/environment configuration and required headers. | Put credentials/App ID in a URL or relax production CORS without approval. |
+| Repeated `401` | Safe status/code, current app build/version, whether one refresh ran | Clear customer state after one failed serialized refresh and re-authenticate. | Run parallel refresh loops or reuse a consumed token. |
+| `403 cpo_app_id_mismatch` | Configured App ID and safe `me` context if available | Clear state; correct deploy-time App ID; sign in again. | Guess another App ID or send a CPO UUID. |
+| Start never materializes | Start-intent ID, state, safe request ID, session poll result | Continue the documented poll/reconciliation path; report the IDs to CMS/HAL operators. | Create a session locally, resubmit a new start, or call HAL. |
+| Charging data stale/unknown | Returned freshness/state/time, not a browser clock | Render uncertainty and refresh the CMS projection/stream. | Turn stale into offline/available or extrapolate meter/SoC values. |
+| Payment appears captured but wallet unchanged | CMS recharge order ID/state and safe request ID | Use the documented CMS verification/read flow once the provider result is available. | Manually credit a wallet, replay verification blindly, or trust provider UI alone. |
+| Invoice not downloadable | Session ID and returned invoice state | Show pending/unavailable semantics and retry the documented owned download only when ready. | Guess an asset path or request an email resend from the customer app. |
+
+## 16. Maintenance and safe contract evolution
+
+The User App and CMS must change as one compatibility slice. For any route,
+payload, state, authorization, pagination, realtime, or configuration change:
+
+1. Trace every route producer and consumer: handler, service, persistence
+   projection, OpenAPI, this document, tests/fixtures, and deployed frontend
+   builds.
+2. Preserve the ownership model. A client-provided CPO/customer/session ID,
+   browser-calculated money, or HAL result cannot replace server authority.
+3. Keep historical session/tariff/GST/rating identity immutable. New current
+   inventory must not rewrite a finished session card or invoice.
+4. Preserve keyset compatibility. Never silently reinterpret legacy
+   `before`/`before_id` as generic cursor fields or change ordering without a
+   versioned consumer plan.
+5. Additive fields may be absent on older deployments. A breaking removal,
+   enum/state change, request validation tightening, or authorization change
+   requires an explicit rollout/compatibility decision and synchronized client
+   release, not a documentation-only note.
+6. Update the OpenAPI source, source tests, this document, project state, and
+   active work record together. Regenerate frontend types from the exact
+   contract and run the verification gate above.
+
+Do not change frontend configuration to point at a new origin/App ID, enable
+wildcard CORS, run migrations, restart/deploy CMS, alter a wallet, or control a
+real charger as part of a frontend release unless separately authorized. If a
+release must be rolled back, first determine whether its CMS API change was
+additive and whether any persisted operation/session/payment state exists.
+Frontend rollback is safe only when it continues to understand the already
+persisted server state; database and charger-operation recovery are
+forward-fix domains, not browser rollback actions.
+
+## 17. Known limits and explicit non-goals
+
+- This repository supplies no User App build artifact or frontend deployment
+  procedure; those must come from the actual frontend project.
+- Physical charger/OCPP, real payment-provider, real SMTP, and disposable
+  PostgreSQL lifecycle acceptance are not proven by this document or its
+  source checks.
+- The browser has no direct HAL, raw OCPP, provider-secret, wallet-adjustment,
+  customer email-edit, RFID/access-token, refund, direct review moderation, or
+  public-review authority.
+- Documentation disabled at runtime prevents Swagger/OpenAPI retrieval but
+  does not disable ordinary API routes. Do not treat docs availability as a
+  health/authorization signal.

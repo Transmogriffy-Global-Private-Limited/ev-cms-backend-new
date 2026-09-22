@@ -1,5 +1,15 @@
 # AI Changelog
 
+## 2026-09-22 - Complete User App and CPO frontend handoffs
+
+- Reworked `USERAPP_FE_HANDOFF.md` and
+  `CPO_FRONTEND_INTEGRATION_HANDOFF.md` as standalone frontend integration
+  documents. They now identify source versus runtime evidence, local/runtime
+  preparation, tenant and HAL boundaries, contracts, failure/recovery paths,
+  verification gates, troubleshooting, maintenance, and explicit limits.
+- This is documentation-only source work. It changes no API, schema,
+  configuration, deployment, data, HAL behavior, or prior release evidence.
+
 ## 2026-09-22 - Rehost customer ratings release
 
 - Rehosted source revision `9e2940c` containing the customer-owned session
