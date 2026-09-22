@@ -1,5 +1,15 @@
 # Development Plan
 
+## 2026-09-22 - Customer-to-own-CPO support
+
+- Source implementation adds the distinct CUSTOMER_CPO durable support channel
+  on top of the CPO_PLATFORM core. It is tenant/customer scoped, capability
+  gated, idempotent, and has no Platform-support visibility. Migration 72 adds
+  channel/customer/actor constraints and safe rollback refusal. Source checks
+  are recorded in the archived work item; PostgreSQL-gated tests were skipped
+  because no disposable `TEST_DATABASE_URL` was selected. Deployment and live
+  migration are not part of this plan entry.
+
 ## 2026-09-21 - Customer-visible charger rating aggregate
 
 - Full customer charger projections expose the current-CPO arithmetic mean of

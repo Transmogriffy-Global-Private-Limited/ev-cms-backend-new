@@ -16,6 +16,7 @@ This directory is the durable project memory for the EV CMS backend.
 | Detailed platform CPO API semantics | `CPO_ADMINISTRATION.md` |
 | Complete SuperAdmin frontend integration handoff | `SUPERADMIN_FRONTEND_HANDOFF.md` |
 | Complete SuperAdmin support-desk workflow and frontend contract | `guides/workflows/superadmin-support-tickets.md` |
+| Customer-to-own-CPO durable support workflow | `guides/workflows/customer-cpo-support.md` |
 | Complete CPO frontend integration handoff | `CPO_FRONTEND_INTEGRATION_HANDOFF.md` |
 | SuperAdmin versus CPO frontend authority boundary | `SUPERADMIN_CPO_FRONTEND_BOUNDARY.md` |
 | Manual classification of every SuperAdmin API authority/risk | `contracts/api/superadmin-permission-matrix.md` |

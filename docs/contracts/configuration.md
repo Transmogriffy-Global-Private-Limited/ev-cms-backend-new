@@ -18,6 +18,12 @@ the normal Gin `404`. The setting contains no secret but should normally be
 disabled where exposing API shape is not operationally desired. Changes require
 a process restart.
 
+Customer-to-CPO support mail links use `CPO_CUSTOMER_SUPPORT_TICKET_URL_TEMPLATE`
+and `CUSTOMER_SUPPORT_TICKET_URL_TEMPLATE`. Both must be absolute HTTP(S) URLs
+containing only the required `{ticket_id}` placeholder. They are navigation
+links, not authorization; opening one never replaces the required bearer and
+matching CPO App ID.
+
 Safe JSON HTTP completion and panic logging is always enabled and writes to
 stdout; the process supervisor owns capture and retention. `LOG_LEVEL` defaults
 to `INFO` and accepts only `INFO` or `DEBUG`. `DEBUG` adds safe request-start

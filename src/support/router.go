@@ -155,6 +155,13 @@ func listQuery(c *gin.Context) (ListQuery, error) {
 		}
 		query.CPOID = &value
 	}
+	if raw := strings.TrimSpace(c.Query("customer_id")); raw != "" {
+		value, err := uuid.Parse(raw)
+		if err != nil || value == uuid.Nil {
+			return ListQuery{}, &auth.APIError{Status: http.StatusBadRequest, Code: "invalid_customer_id", Message: "The customer filter is invalid."}
+		}
+		query.CustomerID = &value
+	}
 	return normalizeListQuery(query)
 }
 func write(c *gin.Context, status int, v any, e error) {

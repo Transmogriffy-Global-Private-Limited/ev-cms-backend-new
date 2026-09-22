@@ -145,16 +145,17 @@ type CPOMembershipPermissionOverride struct {
 }
 
 type SupportTicketEvent struct {
-	ID             uuid.UUID  `gorm:"type:uuid;primaryKey" json:"id"`
-	TicketID       uuid.UUID  `gorm:"type:uuid;not null;index" json:"ticket_id"`
-	EventType      string     `gorm:"type:varchar(30);not null" json:"event_type"`
-	ActorScope     string     `gorm:"type:varchar(20);not null" json:"actor_scope"`
-	ActorUserID    *uuid.UUID `gorm:"type:uuid" json:"actor_user_id,omitempty"`
-	PreviousStatus *string    `gorm:"type:varchar(20)" json:"previous_status,omitempty"`
-	NextStatus     *string    `gorm:"type:varchar(20)" json:"next_status,omitempty"`
-	Reason         *string    `gorm:"type:varchar(500)" json:"reason,omitempty"`
-	IdempotencyKey *string    `gorm:"type:varchar(120)" json:"-"`
-	CreatedAt      time.Time  `gorm:"not null" json:"created_at"`
+	ID              uuid.UUID  `gorm:"type:uuid;primaryKey" json:"id"`
+	TicketID        uuid.UUID  `gorm:"type:uuid;not null;index" json:"ticket_id"`
+	EventType       string     `gorm:"type:varchar(30);not null" json:"event_type"`
+	ActorScope      string     `gorm:"type:varchar(20);not null" json:"actor_scope"`
+	ActorUserID     *uuid.UUID `gorm:"type:uuid" json:"actor_user_id,omitempty"`
+	ActorCustomerID *uuid.UUID `gorm:"type:uuid" json:"actor_customer_id,omitempty"`
+	PreviousStatus  *string    `gorm:"type:varchar(20)" json:"previous_status,omitempty"`
+	NextStatus      *string    `gorm:"type:varchar(20)" json:"next_status,omitempty"`
+	Reason          *string    `gorm:"type:varchar(500)" json:"reason,omitempty"`
+	IdempotencyKey  *string    `gorm:"type:varchar(120)" json:"-"`
+	CreatedAt       time.Time  `gorm:"not null" json:"created_at"`
 }
 
 type UserGroup struct {

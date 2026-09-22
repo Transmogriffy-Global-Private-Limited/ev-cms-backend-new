@@ -42,6 +42,8 @@ func (links FrontendLinks) Validate() error {
 		{"CUSTOMER_PASSWORD_RESET_URL_TEMPLATE", links.CustomerPasswordResetTemplate, "challenge_id"},
 		{"CPO_ONBOARDING_URL_TEMPLATE", links.CPOOnboardingTemplate, "cpo_id"},
 		{"CPO_SUPPORT_TICKET_URL_TEMPLATE", links.CPOSupportTicketTemplate, "ticket_id"},
+		{"CPO_CUSTOMER_SUPPORT_TICKET_URL_TEMPLATE", links.CPOCustomerSupportTicketTemplate, "ticket_id"},
+		{"CUSTOMER_SUPPORT_TICKET_URL_TEMPLATE", links.CustomerSupportTicketTemplate, "ticket_id"},
 	}
 	for _, check := range checks {
 		if _, err := BuildActionURL(check.template, map[string]string{check.key: "opaque-test-value"}, check.key); err != nil {

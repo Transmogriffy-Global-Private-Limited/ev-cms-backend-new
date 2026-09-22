@@ -889,6 +889,41 @@ documented forward recovery/reconciliation path. A frontend rollback is safe
 only if the older client continues to understand every persisted API state it
 will render.
 
+## Customer-to-CPO support queue
+
+This is a separate `CUSTOMER_CPO` channel. It must not be merged with the
+existing `/api/v1/cpo/support` CPO-to-Platform queue, and Platform cannot view
+it. Every route requires the CPO bearer plus matching `X-CPO-App-ID`; the
+backend, not UI gating, derives the CPO tenant.
+
+- `GET /api/v1/cpo/customer-support/tickets` requires `customer_support.read`.
+  Query: `limit` (1-100, default 20), paired `before`/`before_id`, `status`,
+  `customer_id`, and `q`. Results are SQL-filtered before limit and ordered
+  `updated_at DESC, id DESC`; `q` searches ticket ID, subject, customer name,
+  and email inside the authorized tenant. Summary rows have no body.
+- `GET /api/v1/cpo/customer-support/tickets/{ticket_id}` requires read and
+  includes only support-useful customer `{ id, full_name, email }` plus CPO
+  author audit IDs where the backend provides them. Do not request or infer
+  phone, credentials, session, wallet, or profile authority.
+- `POST /api/v1/cpo/customer-support/tickets/{ticket_id}/replies` requires
+  read plus `customer_support.reply`; send `{ body, idempotency_key }` and
+  reuse the exact key after an ambiguous response.
+- `PATCH /api/v1/cpo/customer-support/tickets/{ticket_id}/status` requires
+  read plus `customer_support.manage`; send `{ status, reason? }`. The graph
+  is OPEN -> IN_PROGRESS/RESOLVED/CLOSED, IN_PROGRESS -> RESOLVED/CLOSED,
+  RESOLVED -> OPEN/CLOSED, CLOSED -> OPEN. A same-status PATCH is side-effect
+  free; an invalid graph edge is 409.
+
+Use `effective_permissions` from `/api/v1/cpo/access/me` to disable queue,
+reply, or status controls, but retain backend error handling because explicit
+DENY wins even over role defaults. Owner/Admin receive all three capabilities,
+Operator receives all three, Viewer receives read only. A CPO reply does not
+change status. Customer replies can reopen resolved/closed work, so refetch the
+detail after any reply/status mutation. A 404 means foreign/missing ticket;
+403 means current effective capability is absent; 400 means repair input; 409
+means refetch and select a valid transition. Mail is a notification only;
+queue/detail REST remains authoritative after retries or reconnect.
+
 ## Explicit limits and unsupported authority
 
 - This repository contains no CPO browser source/build/deploy procedure; this

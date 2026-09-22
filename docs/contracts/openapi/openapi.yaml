@@ -36,6 +36,8 @@ tags:
     description: Password, email OTP, token, password, and session operations.
   - name: App User Authentication
     description: Public signup and complete customer credential/session operations.
+  - name: User App
+    description: Customer-owned application resources, including durable customer-to-CPO support.
   - name: Superadmin - Platform CPOs
     description: Platform-superadmin CPO provisioning and lifecycle control.
   - name: Superadmin - Platform Operations
@@ -98,6 +100,72 @@ paths:
       parameters: [{$ref: "#/components/parameters/SupportTicketID"}]
       requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/SupportReplyRequest"}}}}
       responses: {"200": {description: Updated ticket with messages and history. Reusing idempotency_key does not add another reply., content: {application/json: {schema: {$ref: "#/components/schemas/SupportTicketDetail"}}}}}
+  /api/v1/app/support/tickets:
+    get:
+      tags: [User App]
+      operationId: listCustomerSupportTickets
+      summary: List the authenticated customer's support tickets
+      security: [{BearerAuth: [], CPOAppID: []}]
+      parameters: [{$ref: "#/components/parameters/SupportListLimit"}, {$ref: "#/components/parameters/SupportListBefore"}, {$ref: "#/components/parameters/SupportListBeforeID"}, {$ref: "#/components/parameters/SupportListStatus"}]
+      responses: {"200": {description: Bounded customer ticket summaries., content: {application/json: {schema: {$ref: "#/components/schemas/CustomerSupportTicketPage"}}}}}
+    post:
+      tags: [User App]
+      operationId: createCustomerSupportTicket
+      summary: Create a support ticket for the authenticated customer
+      security: [{BearerAuth: [], CPOAppID: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/CreateSupportTicketRequest"}}}}
+      responses: {"201": {description: Created customer support ticket., content: {application/json: {schema: {$ref: "#/components/schemas/CustomerSupportTicket"}}}}}
+  /api/v1/app/support/tickets/{ticket_id}:
+    get:
+      tags: [User App]
+      operationId: getCustomerSupportTicket
+      summary: Get one owned customer support ticket
+      security: [{BearerAuth: [], CPOAppID: []}]
+      parameters: [{$ref: "#/components/parameters/SupportTicketID"}]
+      responses: {"200": {description: Customer ticket details., content: {application/json: {schema: {$ref: "#/components/schemas/CustomerSupportTicket"}}}}}
+  /api/v1/app/support/tickets/{ticket_id}/replies:
+    post:
+      tags: [User App]
+      operationId: replyToCustomerSupportTicket
+      summary: Reply to one owned customer support ticket
+      security: [{BearerAuth: [], CPOAppID: []}]
+      parameters: [{$ref: "#/components/parameters/SupportTicketID"}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/SupportReplyRequest"}}}}
+      responses: {"200": {description: Updated customer ticket., content: {application/json: {schema: {$ref: "#/components/schemas/CustomerSupportTicket"}}}}}
+  /api/v1/cpo/customer-support/tickets:
+    get:
+      tags: [CPO Operations - Account & Notifications]
+      operationId: listCPOCustomerSupportTickets
+      summary: List customer-to-CPO support tickets
+      security: [{BearerAuth: [], CPOAppID: []}]
+      parameters: [{$ref: "#/components/parameters/SupportListLimit"}, {$ref: "#/components/parameters/SupportListBefore"}, {$ref: "#/components/parameters/SupportListBeforeID"}, {$ref: "#/components/parameters/SupportListStatus"}, {$ref: "#/components/parameters/SupportListSearch"}, {name: customer_id, in: query, schema: {type: string, format: uuid}}]
+      responses: {"200": {description: Bounded customer support ticket summaries., content: {application/json: {schema: {$ref: "#/components/schemas/CPOCustomerSupportTicketPage"}}}}}
+  /api/v1/cpo/customer-support/tickets/{ticket_id}:
+    get:
+      tags: [CPO Operations - Account & Notifications]
+      operationId: getCPOCustomerSupportTicket
+      summary: Get one customer-to-CPO support ticket
+      security: [{BearerAuth: [], CPOAppID: []}]
+      parameters: [{$ref: "#/components/parameters/SupportTicketID"}]
+      responses: {"200": {description: Customer support ticket detail., content: {application/json: {schema: {$ref: "#/components/schemas/CPOCustomerSupportTicket"}}}}}
+  /api/v1/cpo/customer-support/tickets/{ticket_id}/replies:
+    post:
+      tags: [CPO Operations - Account & Notifications]
+      operationId: replyToCPOCustomerSupportTicket
+      summary: Reply to a customer support ticket
+      security: [{BearerAuth: [], CPOAppID: []}]
+      parameters: [{$ref: "#/components/parameters/SupportTicketID"}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/SupportReplyRequest"}}}}
+      responses: {"200": {description: Updated customer support ticket., content: {application/json: {schema: {$ref: "#/components/schemas/CPOCustomerSupportTicket"}}}}}
+  /api/v1/cpo/customer-support/tickets/{ticket_id}/status:
+    patch:
+      tags: [CPO Operations - Account & Notifications]
+      operationId: updateCPOCustomerSupportTicketStatus
+      summary: Change customer support ticket status
+      security: [{BearerAuth: [], CPOAppID: []}]
+      parameters: [{$ref: "#/components/parameters/SupportTicketID"}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/SupportTicketStatusRequest"}}}}
+      responses: {"200": {description: Updated customer support ticket., content: {application/json: {schema: {$ref: "#/components/schemas/CPOCustomerSupportTicket"}}}}}
   /api/v1/platform/support/tickets:
     get:
       tags: [Superadmin - Governance]
@@ -10512,6 +10580,130 @@ components:
         module: {type: string}
         name: {type: string}
         description: {type: string}
+    CustomerSupportMessage:
+      type: object
+      additionalProperties: false
+      required: [id, author_scope, body, created_at]
+      properties:
+        id: {type: string, format: uuid}
+        author_scope: {type: string, enum: [CUSTOMER, CPO]}
+        body: {type: string}
+        created_at: {type: string, format: date-time}
+    CustomerSupportEvent:
+      type: object
+      additionalProperties: false
+      required: [id, event_type, actor_scope, created_at]
+      properties:
+        id: {type: string, format: uuid}
+        event_type: {type: string, enum: [CREATED, MESSAGE_ADDED, STATUS_CHANGED]}
+        actor_scope: {type: string, enum: [CUSTOMER, CPO]}
+        previous_status: {allOf: [{$ref: "#/components/schemas/SupportTicketStatus"}], nullable: true}
+        next_status: {allOf: [{$ref: "#/components/schemas/SupportTicketStatus"}], nullable: true}
+        created_at: {type: string, format: date-time}
+    CustomerSupportTicket:
+      type: object
+      additionalProperties: false
+      required: [id, cpo_id, customer_id, subject, status, created_at, updated_at, messages, events]
+      properties:
+        id: {type: string, format: uuid}
+        cpo_id: {type: string, format: uuid}
+        customer_id: {type: string, format: uuid}
+        subject: {type: string}
+        status: {$ref: "#/components/schemas/SupportTicketStatus"}
+        closed_at: {type: string, format: date-time, nullable: true}
+        created_at: {type: string, format: date-time}
+        updated_at: {type: string, format: date-time}
+        messages: {type: array, items: {$ref: "#/components/schemas/CustomerSupportMessage"}}
+        events: {type: array, items: {$ref: "#/components/schemas/CustomerSupportEvent"}}
+    CustomerSupportTicketPage:
+      type: object
+      additionalProperties: false
+      required: [tickets, has_more]
+      properties:
+        tickets: {type: array, items: {$ref: "#/components/schemas/CustomerSupportTicketSummary"}}
+        next_before: {type: string, format: date-time, nullable: true}
+        next_before_id: {type: string, format: uuid, nullable: true}
+        has_more: {type: boolean}
+    CustomerSupportCustomer:
+      type: object
+      additionalProperties: false
+      required: [id, full_name, email]
+      properties:
+        id: {type: string, format: uuid}
+        full_name: {type: string}
+        email: {type: string, format: email}
+    CustomerSupportTicketSummary:
+      type: object
+      additionalProperties: false
+      required: [id, customer_id, subject, status, created_at, updated_at]
+      properties:
+        id: {type: string, format: uuid}
+        customer_id: {type: string, format: uuid}
+        subject: {type: string}
+        status: {$ref: "#/components/schemas/SupportTicketStatus"}
+        created_at: {type: string, format: date-time}
+        updated_at: {type: string, format: date-time}
+    CPOCustomerSupportTicket:
+      type: object
+      additionalProperties: false
+      required: [id, cpo_id, customer_id, customer, subject, status, created_at, updated_at, messages, events]
+      properties:
+        id: {type: string, format: uuid}
+        cpo_id: {type: string, format: uuid}
+        customer_id: {type: string, format: uuid}
+        customer: {$ref: "#/components/schemas/CustomerSupportCustomer"}
+        subject: {type: string}
+        status: {$ref: "#/components/schemas/SupportTicketStatus"}
+        closed_at: {type: string, format: date-time, nullable: true}
+        created_at: {type: string, format: date-time}
+        updated_at: {type: string, format: date-time}
+        messages: {type: array, items: {$ref: "#/components/schemas/CPOCustomerSupportMessage"}}
+        events: {type: array, items: {$ref: "#/components/schemas/CPOCustomerSupportEvent"}}
+    CPOCustomerSupportTicketPage:
+      type: object
+      additionalProperties: false
+      required: [tickets, has_more]
+      properties:
+        tickets:
+          type: array
+          items:
+            type: object
+            additionalProperties: false
+            required: [id, customer_id, customer, subject, status, created_at, updated_at]
+            properties:
+              id: {type: string, format: uuid}
+              customer_id: {type: string, format: uuid}
+              customer: {$ref: "#/components/schemas/CustomerSupportCustomer"}
+              subject: {type: string}
+              status: {$ref: "#/components/schemas/SupportTicketStatus"}
+              created_at: {type: string, format: date-time}
+              updated_at: {type: string, format: date-time}
+        next_before: {type: string, format: date-time, nullable: true}
+        next_before_id: {type: string, format: uuid, nullable: true}
+        has_more: {type: boolean}
+    CPOCustomerSupportMessage:
+      type: object
+      additionalProperties: false
+      required: [id, author_scope, body, created_at]
+      properties:
+        id: {type: string, format: uuid}
+        author_scope: {type: string, enum: [CUSTOMER, CPO]}
+        author_user_id: {type: string, format: uuid, nullable: true, description: Present only for a CPO-authored message.}
+        body: {type: string}
+        created_at: {type: string, format: date-time}
+    CPOCustomerSupportEvent:
+      type: object
+      additionalProperties: false
+      required: [id, event_type, actor_scope, created_at]
+      properties:
+        id: {type: string, format: uuid}
+        event_type: {type: string, enum: [CREATED, MESSAGE_ADDED, STATUS_CHANGED]}
+        actor_scope: {type: string, enum: [CUSTOMER, CPO]}
+        actor_user_id: {type: string, format: uuid, nullable: true, description: Present only for a CPO actor.}
+        previous_status: {allOf: [{$ref: "#/components/schemas/SupportTicketStatus"}], nullable: true}
+        next_status: {allOf: [{$ref: "#/components/schemas/SupportTicketStatus"}], nullable: true}
+        reason: {type: string, maxLength: 500, nullable: true, description: CPO lifecycle note; it is never exposed to the User App.}
+        created_at: {type: string, format: date-time}
     SupportTicketMessage:
       type: object
       additionalProperties: false

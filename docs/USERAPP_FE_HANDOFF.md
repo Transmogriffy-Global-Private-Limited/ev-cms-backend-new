@@ -1877,7 +1877,29 @@ not credentials or bodies.
 | Payment appears captured but wallet unchanged | CMS recharge order ID/state and safe request ID | Use the documented CMS verification/read flow once the provider result is available. | Manually credit a wallet, replay verification blindly, or trust provider UI alone. |
 | Invoice not downloadable | Session ID and returned invoice state | Show pending/unavailable semantics and retry the documented owned download only when ready. | Guess an asset path or request an email resend from the customer app. |
 
-## 16. Maintenance and safe contract evolution
+## 16. Customer support with the owning CPO
+
+The callable customer-support channel is `CUSTOMER_CPO`, never Platform support.
+Every request below requires the ordinary customer bearer and matching
+`X-CPO-App-ID`; do not send CPO/customer IDs in request bodies. REST is the
+durable recovery source, and mail is only a notification.
+
+```ts
+type SupportStatus = "OPEN" | "IN_PROGRESS" | "RESOLVED" | "CLOSED";
+type SupportMessage = { id: string; author_scope: "CUSTOMER" | "CPO"; body: string; created_at: string };
+type SupportEvent = { id: string; event_type: "CREATED" | "MESSAGE_ADDED" | "STATUS_CHANGED"; actor_scope: "CUSTOMER" | "CPO"; previous_status?: SupportStatus; next_status?: SupportStatus; created_at: string };
+type CustomerSupportTicket = { id: string; cpo_id: string; customer_id: string; subject: string; status: SupportStatus; closed_at?: string; created_at: string; updated_at: string; messages: SupportMessage[]; events: SupportEvent[] };
+type CustomerSupportPage = { tickets: Array<Pick<CustomerSupportTicket, "id" | "customer_id" | "subject" | "status" | "created_at" | "updated_at">>; next_before?: string; next_before_id?: string; has_more: boolean };
+```
+
+- `GET /api/v1/app/support/tickets?limit=20&before=<RFC3339>&before_id=<UUID>&status=<status>` lists only the authenticated customer's tickets, newest `(updated_at, id)` first. `limit` is 1-100; send both cursor fields together and preserve filters for the next page.
+- `POST /api/v1/app/support/tickets` accepts `{ subject, body }` with trimmed nonblank limits of 200/10,000 characters.
+- `GET /api/v1/app/support/tickets/{ticket_id}` reads one owned ticket.
+- `POST /api/v1/app/support/tickets/{ticket_id}/replies` accepts `{ body, idempotency_key }`; generate a UUID once per click and reuse it after timeout/reload. Do not retry with a new key.
+
+Show `CUSTOMER` and `CPO` as author labels only. Do not assume or render a CPO staff name, ID, email, permission, or event reason: none is returned to this surface. A 404 covers another customer's or another CPO's ticket. A customer reply reopens RESOLVED/CLOSED to OPEN; replies to OPEN/IN_PROGRESS preserve status. Recommended UI: queue -> detail -> compose, refetching detail after a successful or ambiguous mutation. For 400 repair client input/cursor, 401 refresh once then sign in, 404 return to queue, and 409 refetch the lifecycle before presenting another action.
+
+## 17. Maintenance and safe contract evolution
 
 The User App and CMS must change as one compatibility slice. For any route,
 payload, state, authorization, pagination, realtime, or configuration change:
@@ -1909,7 +1931,7 @@ Frontend rollback is safe only when it continues to understand the already
 persisted server state; database and charger-operation recovery are
 forward-fix domains, not browser rollback actions.
 
-## 17. Known limits and explicit non-goals
+## 18. Known limits and explicit non-goals
 
 - This repository supplies no User App build artifact or frontend deployment
   procedure; those must come from the actual frontend project.

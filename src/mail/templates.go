@@ -31,7 +31,7 @@ type semanticMessage struct {
 }
 
 // durableTemplateCatalog is the single application source for template names
-// that may be persisted in mail_outbox. The database CHECK in migration 000058
+// that may be persisted in mail_outbox. The database CHECK in migration 000072
 // deliberately carries the same catalogue for the durable boundary.
 var durableTemplateCatalog = []string{
 	"LOGIN_OTP",
@@ -58,6 +58,9 @@ var durableTemplateCatalog = []string{
 	"CPO_SUPPORT_TICKET_RESOLVED",
 	"CPO_SUPPORT_TICKET_CLOSED",
 	"CPO_SUPPORT_TICKET_REOPENED",
+	"CUSTOMER_CPO_SUPPORT_TICKET_CREATED",
+	"CUSTOMER_CPO_SUPPORT_TICKET_REPLY",
+	"CUSTOMER_CPO_SUPPORT_TICKET_STATUS_CHANGED",
 }
 
 var legacyTemplateNames = map[string]struct{}{
@@ -96,6 +99,7 @@ var semanticSubjects = map[string]string{
 	"CPO_STAFF_ROLE_CHANGED": "Your CPO role has changed", "CPO_STAFF_SUSPENDED": "Your CPO access has been suspended", "CPO_STAFF_REACTIVATED": "Your CPO access has been restored", "CPO_STAFF_REVOKED": "Your CPO access has been removed",
 	"CPO_SUBSCRIPTION_EXPIRY_WARNING": "Your CPO subscription is ending soon", "CPO_SUBSCRIPTION_EXPIRED": "Your CPO subscription has expired",
 	"CPO_SUPPORT_TICKET_CREATED": "Support ticket received", "CPO_SUPPORT_TICKET_PLATFORM_REPLY": "Support replied to your ticket", "CPO_SUPPORT_TICKET_RESOLVED": "Support ticket resolved", "CPO_SUPPORT_TICKET_CLOSED": "Support ticket closed", "CPO_SUPPORT_TICKET_REOPENED": "Support ticket reopened",
+	"CUSTOMER_CPO_SUPPORT_TICKET_CREATED": "New customer support ticket", "CUSTOMER_CPO_SUPPORT_TICKET_REPLY": "Customer support ticket updated", "CUSTOMER_CPO_SUPPORT_TICKET_STATUS_CHANGED": "Customer support ticket status changed",
 }
 
 func renderSemanticTemplates(templateName string, data semanticMessage) (string, string, string, error) {

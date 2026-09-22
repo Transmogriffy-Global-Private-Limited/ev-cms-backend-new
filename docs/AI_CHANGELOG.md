@@ -1,5 +1,17 @@
 # AI Changelog
 
+## 2026-09-22 - Customer-to-CPO durable support source implementation
+
+- Added migration 72, the isolated CUSTOMER_CPO support channel, eight App/CPO
+  routes, dedicated customer-support capabilities, durable outbox templates,
+  safe frontend action URLs, OpenAPI contract entries, and focused workflow/
+  frontend handoffs. Existing CPO_PLATFORM ticket reads and mutations now carry
+  explicit channel predicates.
+- This is uncommitted source work only. It did not contact SMTP, apply a live
+  migration, deploy/restart/rehost, or modify HAL. PostgreSQL-gated evidence is
+  skipped because it was unset; see the archived work item for the exact source
+  verification and remaining runtime boundary.
+
 ## 2026-09-22 - Complete User App and CPO frontend handoffs
 
 - Reworked `USERAPP_FE_HANDOFF.md` and

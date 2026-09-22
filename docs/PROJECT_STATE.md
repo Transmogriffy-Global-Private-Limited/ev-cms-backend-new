@@ -1,5 +1,18 @@
 # Project State
 
+## 2026-09-22 - Customer-to-CPO support source slice (not deployed)
+
+- Source now contains migration 72 and eight CUSTOMER_CPO routes for App
+  Customer and own-CPO support. Existing CPO_PLATFORM support remains isolated
+  in CPO and Platform endpoints. This is source state only: no migration,
+  rehost, SMTP delivery, or production/runtime verification was performed.
+- The authoritative source work record is
+  `work/archive/WI-20260922-customer-cpo-support.md`. Focused checks, route
+  parity, docs verification, full tests, vet, build, and diff checks passed.
+  PostgreSQL integration verification was deliberately skipped because no
+  explicitly selected disposable `TEST_DATABASE_URL` was present; do not infer
+  runtime/deployment verification from this source entry.
+
 ## 2026-09-22 - Rehost rating discovery/history and cursor validation
 
 - Rehosted source commit `b924cae84fa35a2168e6e545550fc243257ff9b5`;

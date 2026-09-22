@@ -65,6 +65,23 @@ func TestNormalizeSupportListQuery(t *testing.T) {
 	}
 }
 
+func TestCustomerSupportValidation(t *testing.T) {
+	t.Parallel()
+	if err := validCustomerRequest(CreateRequest{Subject: " subject ", Body: " body "}); err != nil {
+		t.Fatalf("valid create: %v", err)
+	}
+	for _, request := range []CreateRequest{{}, {Subject: " ", Body: "body"}, {Subject: "subject", Body: " "}, {Subject: strings.Repeat("x", 201), Body: "body"}, {Subject: "subject", Body: strings.Repeat("x", 10001)}} {
+		if err := validCustomerRequest(request); err == nil {
+			t.Fatalf("accepted invalid create %#v", request)
+		}
+	}
+	for _, request := range []ReplyRequest{{Body: "body"}, {Body: " ", IdempotencyKey: "key"}, {Body: "body", IdempotencyKey: " "}, {Body: strings.Repeat("x", 10001), IdempotencyKey: "key"}, {Body: "body", IdempotencyKey: strings.Repeat("x", 121)}} {
+		if err := validCustomerReply(request); err == nil {
+			t.Fatalf("accepted invalid reply %#v", request)
+		}
+	}
+}
+
 func TestDecodeSupportRequestStrictly(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	valid := `{"subject":"Charging question","body":"Please help."}`
@@ -100,14 +117,15 @@ func TestSupportListQueryParsesCursorAndFilters(t *testing.T) {
 	before := "2026-08-26T10:00:00Z"
 	id := uuid.New()
 	cpoID := uuid.New()
+	customerID := uuid.New()
 	recorder := httptest.NewRecorder()
 	context, _ := gin.CreateTestContext(recorder)
-	context.Request = httptest.NewRequest(http.MethodGet, "/?limit=25&before="+before+"&before_id="+id.String()+"&status=in_progress&cpo_id="+cpoID.String()+"&q=charger", nil)
+	context.Request = httptest.NewRequest(http.MethodGet, "/?limit=25&before="+before+"&before_id="+id.String()+"&status=in_progress&cpo_id="+cpoID.String()+"&customer_id="+customerID.String()+"&q=charger", nil)
 	query, err := listQuery(context)
 	if err != nil {
 		t.Fatalf("listQuery: %v", err)
 	}
-	if query.Limit != 25 || query.Before == nil || query.BeforeID == nil || query.Status != "IN_PROGRESS" || query.CPOID == nil || query.Search != "charger" {
+	if query.Limit != 25 || query.Before == nil || query.BeforeID == nil || query.Status != "IN_PROGRESS" || query.CPOID == nil || query.CustomerID == nil || query.Search != "charger" {
 		t.Fatalf("parsed query = %#v", query)
 	}
 
@@ -118,6 +136,15 @@ func TestSupportListQueryParsesCursorAndFilters(t *testing.T) {
 	apiError, ok := err.(*auth.APIError)
 	if !ok || apiError.Code != "invalid_cursor" {
 		t.Fatalf("one-sided cursor error = %#v, want invalid_cursor", err)
+	}
+
+	recorder = httptest.NewRecorder()
+	context, _ = gin.CreateTestContext(recorder)
+	context.Request = httptest.NewRequest(http.MethodGet, "/?customer_id=not-a-uuid", nil)
+	_, err = listQuery(context)
+	apiError, ok = err.(*auth.APIError)
+	if !ok || apiError.Code != "invalid_customer_id" {
+		t.Fatalf("invalid customer filter = %#v", err)
 	}
 }
 

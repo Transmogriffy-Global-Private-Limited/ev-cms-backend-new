@@ -42,14 +42,16 @@ type Config struct {
 // FrontendLinks is the explicit, validated browser handoff used by email. The
 // backend never treats visiting one of these URLs as an authenticated action.
 type FrontendLinks struct {
-	AdminLoginVerifyTemplate      string
-	AdminPasswordResetTemplate    string
-	CustomerLoginVerifyTemplate   string
-	CustomerSignupVerifyTemplate  string
-	CustomerPasswordResetTemplate string
-	CPOOnboardingTemplate         string
-	CPOSupportTicketTemplate      string
-	CPOSubscriptionURL            string
+	AdminLoginVerifyTemplate         string
+	AdminPasswordResetTemplate       string
+	CustomerLoginVerifyTemplate      string
+	CustomerSignupVerifyTemplate     string
+	CustomerPasswordResetTemplate    string
+	CPOOnboardingTemplate            string
+	CPOSupportTicketTemplate         string
+	CPOCustomerSupportTicketTemplate string
+	CustomerSupportTicketTemplate    string
+	CPOSubscriptionURL               string
 }
 
 type Superadmin struct {
@@ -194,14 +196,16 @@ func Load() (Config, error) {
 			BatchSize:   intOrDefault("INVOICE_WORKER_BATCH_SIZE", 20),
 		},
 		Frontend: FrontendLinks{
-			AdminLoginVerifyTemplate:      envOrDefault("ADMIN_LOGIN_VERIFY_URL_TEMPLATE", "https://cms.example.invalid/auth/verify#challenge_id={challenge_id}"),
-			AdminPasswordResetTemplate:    envOrDefault("ADMIN_PASSWORD_RESET_URL_TEMPLATE", "https://cms.example.invalid/auth/reset-password#challenge_id={challenge_id}"),
-			CustomerLoginVerifyTemplate:   envOrDefault("CUSTOMER_LOGIN_VERIFY_URL_TEMPLATE", "https://app.example.invalid/auth/verify#challenge_id={challenge_id}"),
-			CustomerSignupVerifyTemplate:  envOrDefault("CUSTOMER_SIGNUP_VERIFY_URL_TEMPLATE", "https://app.example.invalid/auth/verify-signup#challenge_id={challenge_id}"),
-			CustomerPasswordResetTemplate: envOrDefault("CUSTOMER_PASSWORD_RESET_URL_TEMPLATE", "https://app.example.invalid/auth/reset-password#challenge_id={challenge_id}"),
-			CPOOnboardingTemplate:         envOrDefault("CPO_ONBOARDING_URL_TEMPLATE", "https://cms.example.invalid/login#cpo_id={cpo_id}"),
-			CPOSupportTicketTemplate:      envOrDefault("CPO_SUPPORT_TICKET_URL_TEMPLATE", "https://cms.example.invalid/support/tickets/{ticket_id}"),
-			CPOSubscriptionURL:            envOrDefault("CPO_SUBSCRIPTION_URL", "https://cms.example.invalid/subscription"),
+			AdminLoginVerifyTemplate:         envOrDefault("ADMIN_LOGIN_VERIFY_URL_TEMPLATE", "https://cms.example.invalid/auth/verify#challenge_id={challenge_id}"),
+			AdminPasswordResetTemplate:       envOrDefault("ADMIN_PASSWORD_RESET_URL_TEMPLATE", "https://cms.example.invalid/auth/reset-password#challenge_id={challenge_id}"),
+			CustomerLoginVerifyTemplate:      envOrDefault("CUSTOMER_LOGIN_VERIFY_URL_TEMPLATE", "https://app.example.invalid/auth/verify#challenge_id={challenge_id}"),
+			CustomerSignupVerifyTemplate:     envOrDefault("CUSTOMER_SIGNUP_VERIFY_URL_TEMPLATE", "https://app.example.invalid/auth/verify-signup#challenge_id={challenge_id}"),
+			CustomerPasswordResetTemplate:    envOrDefault("CUSTOMER_PASSWORD_RESET_URL_TEMPLATE", "https://app.example.invalid/auth/reset-password#challenge_id={challenge_id}"),
+			CPOOnboardingTemplate:            envOrDefault("CPO_ONBOARDING_URL_TEMPLATE", "https://cms.example.invalid/login#cpo_id={cpo_id}"),
+			CPOSupportTicketTemplate:         envOrDefault("CPO_SUPPORT_TICKET_URL_TEMPLATE", "https://cms.example.invalid/support/tickets/{ticket_id}"),
+			CPOCustomerSupportTicketTemplate: envOrDefault("CPO_CUSTOMER_SUPPORT_TICKET_URL_TEMPLATE", "https://cms.example.invalid/customer-support/tickets/{ticket_id}"),
+			CustomerSupportTicketTemplate:    envOrDefault("CUSTOMER_SUPPORT_TICKET_URL_TEMPLATE", "https://app.example.invalid/support/tickets/{ticket_id}"),
+			CPOSubscriptionURL:               envOrDefault("CPO_SUBSCRIPTION_URL", "https://cms.example.invalid/subscription"),
 		},
 		Platform: Platform{
 			EventRetention:    durationOrDefault("PLATFORM_EVENT_RETENTION", 7*24*time.Hour),

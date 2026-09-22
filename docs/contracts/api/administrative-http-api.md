@@ -27,6 +27,20 @@ Mail layouts are source-controlled under
 `src/mail/templates/`; the encrypted outbox remains the authoritative delivery
 queue and message payload store.
 
+Customer-to-CPO support is a distinct `CUSTOMER_CPO` channel. Authenticated app
+customers use `GET`/`POST /api/v1/app/support/tickets`, `GET
+/api/v1/app/support/tickets/{ticket_id}`, and `POST
+/api/v1/app/support/tickets/{ticket_id}/replies`; tenant and customer identity
+come only from the bearer and matching App ID. CPO staff use
+`/api/v1/cpo/customer-support/tickets` for list/detail/reply/status. The
+separate `customer_support.read`, `.reply`, and `.manage` capabilities govern
+that surface, and explicit DENY wins. Platform and legacy `/cpo/support` views
+are permanently constrained to `CPO_PLATFORM`; neither sees this channel.
+Customer replies reopen RESOLVED/CLOSED tickets atomically. Replies require a
+bounded idempotency key. Customer views contain only CUSTOMER/CPO author scope;
+CPO views may contain the minimal owning customer identity. Mail intents are
+transactional encrypted outbox records and never contain the message body.
+
 ## CMS HAL Operational Projections
 
 Live operational REST snapshots are derived solely from committed CMS HAL

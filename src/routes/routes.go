@@ -126,7 +126,11 @@ func New(
 	}
 	if authService != nil && supportService != nil {
 		support.RegisterCPORoutes(router.Group("/api/v1/cpo/support"), authService, supportService)
+		support.RegisterCPOCustomerRoutes(router.Group("/api/v1/cpo/customer-support/tickets"), authService, supportService)
 		support.RegisterPlatformRoutes(router.Group("/api/v1/platform/support/tickets"), authService, supportService)
+	}
+	if customerAuthService != nil && supportService != nil {
+		support.RegisterCustomerRoutes(router.Group("/api/v1/app"), customerAuthService, supportService)
 	}
 	return router
 }

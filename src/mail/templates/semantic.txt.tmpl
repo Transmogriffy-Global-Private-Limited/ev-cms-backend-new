@@ -119,3 +119,21 @@ View support ticket: {{.ActionURL}}
 
 View support ticket: {{.ActionURL}}
 {{end}}
+{{define "CUSTOMER_CPO_SUPPORT_TICKET_CREATED"}}Hi {{.RecipientName}},
+
+{{.CPOName}} has a customer support ticket, "{{.SupportSubject}}". Its status is {{.SupportStatus}} as of {{.OccurredAt}}.
+
+Open support ticket: {{.ActionURL}}
+{{end}}
+{{define "CUSTOMER_CPO_SUPPORT_TICKET_REPLY"}}Hi {{.RecipientName}},
+
+"{{.SupportSubject}}" has a new support reply. Its status is {{.SupportStatus}} as of {{.OccurredAt}}.
+
+Open support ticket: {{.ActionURL}}
+{{end}}
+{{define "CUSTOMER_CPO_SUPPORT_TICKET_STATUS_CHANGED"}}Hi {{.RecipientName}},
+
+"{{.SupportSubject}}" now has status {{.SupportStatus}} as of {{.OccurredAt}}.
+
+Open support ticket: {{.ActionURL}}
+{{end}}

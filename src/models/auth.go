@@ -98,21 +98,24 @@ type PlatformAnnouncementCPO struct {
 type SupportTicket struct {
 	ID              uuid.UUID  `gorm:"type:uuid;primaryKey;default:gen_random_uuid()" json:"id"`
 	CPOID           uuid.UUID  `gorm:"type:uuid;not null;index" json:"cpo_id"`
+	Channel         string     `gorm:"type:varchar(20);not null;default:'CPO_PLATFORM';index" json:"channel"`
+	CustomerID      *uuid.UUID `gorm:"type:uuid;index" json:"customer_id,omitempty"`
 	Subject         string     `gorm:"type:varchar(200);not null" json:"subject"`
 	Status          string     `gorm:"type:varchar(20);not null;default:'OPEN';index" json:"status"`
-	CreatedByUserID uuid.UUID  `gorm:"type:uuid;not null" json:"created_by_user_id"`
+	CreatedByUserID *uuid.UUID `gorm:"type:uuid" json:"created_by_user_id,omitempty"`
 	ClosedAt        *time.Time `gorm:"type:timestamptz" json:"closed_at,omitempty"`
 	CreatedAt       time.Time  `gorm:"not null" json:"created_at"`
 	UpdatedAt       time.Time  `gorm:"not null" json:"updated_at"`
 }
 
 type SupportTicketMessage struct {
-	ID           uuid.UUID `gorm:"type:uuid;primaryKey;default:gen_random_uuid()" json:"id"`
-	TicketID     uuid.UUID `gorm:"type:uuid;not null;index" json:"ticket_id"`
-	AuthorUserID uuid.UUID `gorm:"type:uuid;not null" json:"author_user_id"`
-	AuthorScope  string    `gorm:"type:varchar(20);not null" json:"author_scope"`
-	Body         string    `gorm:"type:text;not null" json:"body"`
-	CreatedAt    time.Time `gorm:"not null" json:"created_at"`
+	ID               uuid.UUID  `gorm:"type:uuid;primaryKey;default:gen_random_uuid()" json:"id"`
+	TicketID         uuid.UUID  `gorm:"type:uuid;not null;index" json:"ticket_id"`
+	AuthorUserID     *uuid.UUID `gorm:"type:uuid" json:"author_user_id,omitempty"`
+	AuthorScope      string     `gorm:"type:varchar(20);not null" json:"author_scope"`
+	AuthorCustomerID *uuid.UUID `gorm:"type:uuid;index" json:"author_customer_id,omitempty"`
+	Body             string     `gorm:"type:text;not null" json:"body"`
+	CreatedAt        time.Time  `gorm:"not null" json:"created_at"`
 }
 
 type PlatformNotification struct {

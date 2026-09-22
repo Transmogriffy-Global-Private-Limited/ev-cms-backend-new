@@ -35,6 +35,9 @@ Supported templates and payload fields:
 | `CPO_SUPPORT_TICKET_RESOLVED` | recipient name, CPO name, ticket subject, current status, occurred time, support action URL |
 | `CPO_SUPPORT_TICKET_CLOSED` | recipient name, CPO name, ticket subject, current status, occurred time, support action URL |
 | `CPO_SUPPORT_TICKET_REOPENED` | recipient name, CPO name, ticket subject, current status, occurred time, support action URL |
+| `CUSTOMER_CPO_SUPPORT_TICKET_CREATED` | recipient name, CPO name, ticket subject, current status, occurred time, CPO customer-support action URL |
+| `CUSTOMER_CPO_SUPPORT_TICKET_REPLY` | recipient name, CPO name, ticket subject, current status, occurred time, recipient-channel action URL |
+| `CUSTOMER_CPO_SUPPORT_TICKET_STATUS_CHANGED` | recipient name, CPO name, ticket subject, current status, occurred time, User App action URL |
 
 Migration `000058_reconcile_mail_outbox_template_catalog` makes this exact
 current catalogue the `chk_mail_outbox_template` rule for every newly inserted

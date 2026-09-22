@@ -147,6 +147,10 @@ func validateMessagePayload(template string, payload MessagePayload) error {
 		if strings.TrimSpace(payload.CPOName) == "" || strings.TrimSpace(payload.SupportSubject) == "" || strings.TrimSpace(payload.SupportStatus) == "" || payload.OccurredAt.IsZero() || strings.TrimSpace(payload.ActionURL) == "" {
 			return fmt.Errorf("validate %s mail payload: CPO name, subject, status, time, and action URL are required", template)
 		}
+	case "CUSTOMER_CPO_SUPPORT_TICKET_CREATED", "CUSTOMER_CPO_SUPPORT_TICKET_REPLY", "CUSTOMER_CPO_SUPPORT_TICKET_STATUS_CHANGED":
+		if strings.TrimSpace(payload.CPOName) == "" || strings.TrimSpace(payload.SupportSubject) == "" || strings.TrimSpace(payload.SupportStatus) == "" || payload.OccurredAt.IsZero() || strings.TrimSpace(payload.ActionURL) == "" {
+			return fmt.Errorf("validate %s mail payload: CPO name, subject, status, time, and action URL are required", template)
+		}
 	default:
 		return fmt.Errorf("validate mail payload: template %q has no validation rule", template)
 	}

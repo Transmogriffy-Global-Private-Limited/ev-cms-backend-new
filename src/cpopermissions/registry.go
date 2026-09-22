@@ -29,6 +29,9 @@ const (
 	SupportRead            = "support.read"
 	SupportCreate          = "support.create"
 	SupportReply           = "support.reply"
+	CustomerSupportRead    = "customer_support.read"
+	CustomerSupportReply   = "customer_support.reply"
+	CustomerSupportManage  = "customer_support.manage"
 	SettingsRead           = "settings.read"
 	SettingsManage         = "settings.manage"
 )
@@ -60,6 +63,9 @@ var catalog = []Definition{
 	{SupportRead, "support", "View support", "View the CPO's support queue and ticket history."},
 	{SupportCreate, "support", "Create support tickets", "Open a new support ticket for the CPO."},
 	{SupportReply, "support", "Reply to support tickets", "Reply to an existing CPO support ticket."},
+	{CustomerSupportRead, "customer_support", "View customer support", "View customer-to-CPO support conversations and their minimal customer identity."},
+	{CustomerSupportReply, "customer_support", "Reply to customer support", "Reply to a customer-to-CPO support conversation."},
+	{CustomerSupportManage, "customer_support", "Manage customer support", "Change customer-to-CPO support ticket status."},
 	{SettingsRead, "settings", "View settings", "View CPO settings and invoice branding."},
 	{SettingsManage, "settings", "Manage settings", "Change CPO settings and invoice branding."},
 }
@@ -71,10 +77,12 @@ var roleDefaults = map[constants.CPORole][]string{
 		OrganizationRead, HubsRead, HubsManage, ChargersRead, ChargersManage,
 		ChargersOperations, TariffsRead, CustomersRead, ChargingSessionsRead, ChargingTracesRead,
 		AnalyticsRead, SupportRead, SupportCreate, SupportReply, SettingsRead,
+		CustomerSupportRead, CustomerSupportReply, CustomerSupportManage,
 	},
 	constants.CPORoleViewer: {
 		OrganizationRead, HubsRead, ChargersRead, TariffsRead, CustomersRead,
 		ChargingSessionsRead, AnalyticsRead, SupportRead, SettingsRead,
+		CustomerSupportRead,
 	},
 }
 

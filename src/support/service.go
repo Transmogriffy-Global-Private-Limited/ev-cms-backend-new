@@ -70,12 +70,13 @@ type TicketSummary struct {
 }
 
 type ListQuery struct {
-	Limit    int
-	Before   *time.Time
-	BeforeID *uuid.UUID
-	Status   string
-	CPOID    *uuid.UUID
-	Search   string
+	Limit      int
+	Before     *time.Time
+	BeforeID   *uuid.UUID
+	Status     string
+	CPOID      *uuid.UUID
+	CustomerID *uuid.UUID
+	Search     string
 }
 
 type TicketListPage struct {
@@ -94,12 +95,12 @@ func (service *Service) Create(ctx context.Context, principal auth.Principal, re
 		return TicketView{}, invalid()
 	}
 	now := service.now()
-	ticket := models.SupportTicket{ID: uuid.New(), CPOID: *principal.CPOID, Subject: request.Subject, Status: "OPEN", CreatedByUserID: principal.UserID, CreatedAt: now, UpdatedAt: now}
+	ticket := models.SupportTicket{ID: uuid.New(), CPOID: *principal.CPOID, Subject: request.Subject, Status: "OPEN", CreatedByUserID: &principal.UserID, CreatedAt: now, UpdatedAt: now}
 	err := service.database.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if err := tx.Create(&ticket).Error; err != nil {
 			return err
 		}
-		if err := tx.Create(&models.SupportTicketMessage{ID: uuid.New(), TicketID: ticket.ID, AuthorUserID: principal.UserID, AuthorScope: "CPO", Body: request.Body, CreatedAt: now}).Error; err != nil {
+		if err := tx.Create(&models.SupportTicketMessage{ID: uuid.New(), TicketID: ticket.ID, AuthorUserID: &principal.UserID, AuthorScope: "CPO", Body: request.Body, CreatedAt: now}).Error; err != nil {
 			return err
 		}
 		event, err := recordEvent(tx, ticket.ID, "CREATED", "CPO", &principal.UserID, nil, nil, "", "", now)
@@ -140,7 +141,7 @@ func (service *Service) List(ctx context.Context, principal auth.Principal, requ
 			(SELECT author_scope FROM support_ticket_messages last_message WHERE last_message.ticket_id = support_tickets.id ORDER BY created_at DESC, id DESC LIMIT 1) AS last_message_scope`).
 		Joins("JOIN cpos ON cpos.id = support_tickets.cpo_id").
 		Order("support_tickets.updated_at DESC, support_tickets.id DESC").
-		Limit(request.Limit + 1)
+		Where("support_tickets.channel = ?", "CPO_PLATFORM").Limit(request.Limit + 1)
 
 	if principal.Scope == constants.AuthScopeCPO {
 		query = query.Where("support_tickets.cpo_id = ?", *principal.CPOID)
@@ -190,7 +191,7 @@ func (service *Service) Get(ctx context.Context, principal auth.Principal, ticke
 
 func (service *Service) loadTicket(ctx context.Context, principal auth.Principal, ticketID uuid.UUID) (TicketView, error) {
 	var ticket models.SupportTicket
-	query := service.database.WithContext(ctx).Where("id = ?", ticketID)
+	query := service.database.WithContext(ctx).Where("id = ? AND channel = ?", ticketID, "CPO_PLATFORM")
 	if principal.Scope == constants.AuthScopeCPO {
 		query = query.Where("cpo_id = ?", *principal.CPOID)
 	}
@@ -231,7 +232,7 @@ func (service *Service) Reply(ctx context.Context, principal auth.Principal, tic
 	now := service.now()
 	if err := service.database.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		var locked models.SupportTicket
-		query := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("id = ?", ticketID)
+		query := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("id = ? AND channel = ?", ticketID, "CPO_PLATFORM")
 		if principal.Scope == constants.AuthScopeCPO {
 			query = query.Where("cpo_id = ?", *principal.CPOID)
 		}
@@ -254,7 +255,7 @@ func (service *Service) Reply(ctx context.Context, principal auth.Principal, tic
 		if principal.Scope == constants.AuthScopeCPO && (previous == "RESOLVED" || previous == "CLOSED") {
 			next = "OPEN"
 		}
-		if err := tx.Create(&models.SupportTicketMessage{ID: uuid.New(), TicketID: locked.ID, AuthorUserID: principal.UserID, AuthorScope: scope, Body: request.Body, CreatedAt: now}).Error; err != nil {
+		if err := tx.Create(&models.SupportTicketMessage{ID: uuid.New(), TicketID: locked.ID, AuthorUserID: &principal.UserID, AuthorScope: scope, Body: request.Body, CreatedAt: now}).Error; err != nil {
 			return err
 		}
 		updates := map[string]any{"updated_at": now, "status": next}
@@ -310,7 +311,7 @@ func (service *Service) SetStatus(ctx context.Context, principal auth.Principal,
 	now := service.now()
 	if err := service.database.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		var ticket models.SupportTicket
-		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&ticket, "id = ?", ticketID).Error; err != nil {
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&ticket, "id = ? AND channel = ?", ticketID, "CPO_PLATFORM").Error; err != nil {
 			if errors.Is(err, gorm.ErrRecordNotFound) {
 				return notFound()
 			}

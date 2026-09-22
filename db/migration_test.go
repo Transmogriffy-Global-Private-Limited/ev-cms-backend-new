@@ -46,6 +46,39 @@ func TestEmbeddedMigrationsArePresentAndOrdered(t *testing.T) {
 	}
 }
 
+func TestCustomerCPOChangeMigrationPreservesHistoricalSupportAndRefusesUnsafeRollback(t *testing.T) {
+	t.Parallel()
+	upBody, err := migrationFiles.ReadFile("migrations/000072_customer_cpo_support.up.sql")
+	if err != nil {
+		t.Fatalf("read customer CPO support migration: %v", err)
+	}
+	downBody, err := migrationFiles.ReadFile("migrations/000072_customer_cpo_support.down.sql")
+	if err != nil {
+		t.Fatalf("read customer CPO support rollback migration: %v", err)
+	}
+	upSQL, downSQL := string(upBody), string(downBody)
+	for _, required := range []string{
+		"DEFAULT 'CPO_PLATFORM'",
+		"fk_support_tickets_customer_cpo FOREIGN KEY (cpo_id, customer_id)",
+		"chk_support_tickets_channel_actor",
+		"author_customer_id uuid",
+		"actor_customer_id uuid",
+		"CUSTOMER_CPO_SUPPORT_TICKET_CREATED",
+	} {
+		if !strings.Contains(upSQL, required) {
+			t.Errorf("customer CPO support migration missing %q", required)
+		}
+	}
+	for _, required := range []string{
+		"cannot roll back migration 72 while CUSTOMER_CPO support history exists",
+		"cannot roll back migration 72 while customer support mail intents exist",
+	} {
+		if !strings.Contains(downSQL, required) {
+			t.Errorf("customer CPO support rollback does not preserve history: missing %q", required)
+		}
+	}
+}
+
 func TestMatchingDownMigrationRejectsInvalidVersion(t *testing.T) {
 	t.Parallel()
 
@@ -95,11 +128,11 @@ func TestChargerOperationGetConfigurationMigrationPreservesBoundedKindCatalog(t 
 func TestMailOutboxTemplateCatalogMigrationMatchesApplication(t *testing.T) {
 	t.Parallel()
 
-	upBody, err := migrationFiles.ReadFile("migrations/000058_reconcile_mail_outbox_template_catalog.up.sql")
+	upBody, err := migrationFiles.ReadFile("migrations/000072_customer_cpo_support.up.sql")
 	if err != nil {
 		t.Fatalf("read mail outbox template-catalog up migration: %v", err)
 	}
-	downBody, err := migrationFiles.ReadFile("migrations/000058_reconcile_mail_outbox_template_catalog.down.sql")
+	downBody, err := migrationFiles.ReadFile("migrations/000072_customer_cpo_support.down.sql")
 	if err != nil {
 		t.Fatalf("read mail outbox template-catalog down migration: %v", err)
 	}
@@ -113,7 +146,11 @@ func TestMailOutboxTemplateCatalogMigrationMatchesApplication(t *testing.T) {
 	for _, template := range cmsmail.SupportedDurableTemplateNames() {
 		expected[template] = struct{}{}
 	}
-	actual := mailOutboxTemplateNames(upSQL)
+	mailConstraintAt := strings.Index(upSQL, "ALTER TABLE mail_outbox ADD CONSTRAINT chk_mail_outbox_template")
+	if mailConstraintAt < 0 {
+		t.Fatal("up migration does not add the mail outbox template constraint")
+	}
+	actual := mailOutboxTemplateNames(upSQL[mailConstraintAt:])
 	if len(actual) != len(expected) {
 		t.Errorf("up migration template count = %d, want %d; got %#v", len(actual), len(expected), actual)
 	}
@@ -133,11 +170,12 @@ func TestMailOutboxTemplateCatalogMigrationMatchesApplication(t *testing.T) {
 		}
 	}
 	for _, required := range []string{
-		"cannot roll back mail outbox template catalogue while current semantic mail rows exist",
+		"cannot roll back migration 72 while customer support mail intents exist",
 		"CPO_SUPPORT_TICKET_CREATED",
 		"CPO_SUPPORT_TICKET_REOPENED",
-		"CPO_SUBSCRIPTION_CHANGED",
-		"CPO_PLATFORM_INVOICE_ISSUED",
+		"CUSTOMER_CPO_SUPPORT_TICKET_CREATED",
+		"CUSTOMER_CPO_SUPPORT_TICKET_REPLY",
+		"CUSTOMER_CPO_SUPPORT_TICKET_STATUS_CHANGED",
 	} {
 		if !strings.Contains(downSQL, required) {
 			t.Errorf("down migration is missing %q", required)

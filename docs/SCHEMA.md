@@ -1,5 +1,15 @@
 # CMS Schema
 
+## Customer-to-CPO support (migration 72)
+
+Migration `000072_customer_cpo_support` extends the existing durable support
+tables with `CPO_PLATFORM` and `CUSTOMER_CPO` channel authority. Existing rows
+remain CPO_PLATFORM. CUSTOMER_CPO tickets have a required same-CPO `customer_id`
+and no administrative creator; CUSTOMER messages/events carry a real customer
+foreign key while CPO/PLATFORM actors retain real administrative user identity.
+CHECK constraints reject mixed actor scopes and identities. Its down migration
+refuses while CUSTOMER_CPO history exists rather than deleting it.
+
 ## Charger-operation dispatch (migration 70)
 
 Migration `000070_durable_charger_operation_dispatch` freezes mapping identity and connector number, adds fenced claim/attempt/recovery scheduling fields, and conservatively reclassifies legacy PERSISTED rows. See [the transition and migration contract](integrations/charger-operation-recovery.md).
