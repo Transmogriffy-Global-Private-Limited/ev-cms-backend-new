@@ -1,5 +1,38 @@
 # Project State
 
+## 2026-09-23 - Customer-to-CPO support rehosted
+
+- Rehosted source commit `ea0f8fe5d5a3c99370be3e86963408b475ee15f7` after
+  applying migrations 72, 73, and 74 to the development database. The active
+  binary SHA-256 is
+  `28b6de6c028c4ccc44ad83d352e2904dba1173d7e7d8f381b3d0b7fe5bd215cc`.
+  The replaced binary is retained at
+  `/root/evcmsnew-backups/pre-customer-cpo-support-ea0f8fe-20260923T112639Z/evcmsnew.before`
+  (SHA-256
+  `1a2819c96224d1016e3d2655b591993f405954cbe153faa71cfd6735e4e8d4b0`).
+  The pre-migration custom-format database dump is at
+  `/root/evcmsnew-backups/pre-customer-cpo-support-ea0f8fe-20260923T112639Z/devevcmsnewdb.dump`
+  (mode `0600`, SHA-256
+  `cf5e3ae8f82e2092ac2b68239a5be8d68e9edf47051c5aa2d9b2418c1ab4b4cd`).
+- The service is active with zero restarts and matching process/install hashes.
+  Migration 74 is current; the owner-bound actor foreign keys are
+  `ON UPDATE RESTRICT ON DELETE CASCADE`. Local and HTTPS liveness, readiness,
+  Swagger, and OpenAPI return 200; the source and live OpenAPI contracts each
+  expose 210 paths. The new App Customer and CPO customer-support routes return
+  401 without credentials. Caddy validates, and all seven required/current
+  workers are healthy; the separately disabled billing-maintenance worker is
+  not a failed required worker.
+- `.env` remains mode `0600`; its key names match `.env.example` exactly, with
+  no missing, extra, or blank entries. The two customer-support URL template
+  keys are present. Full tests, vet, module verification, production build,
+  and diff checks passed. PostgreSQL-gated disposable tests remain skipped
+  because `TEST_DATABASE_URL` is unset; `pwsh` is unavailable for the docs
+  verifier. SMTP delivery, HAL, and physical-charger acceptance remain
+  unverified.
+- See the [hosting record](guides/operations/dev-hosting.md) and the archived
+  [release work item](work/archive/WI-20260923-customer-cpo-support-rehost.md)
+  for the detailed evidence.
+
 ## 2026-09-23 - Customer support owner immutability hardening (not deployed)
 
 - Source now includes forward migration 74 after published migration 73. It

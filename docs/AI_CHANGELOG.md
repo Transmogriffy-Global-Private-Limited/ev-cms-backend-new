@@ -1,5 +1,20 @@
 # AI Changelog
 
+## 2026-09-23 - Rehost customer-to-CPO support
+
+- Rehosted source commit `ea0f8fe5d5a3c99370be3e86963408b475ee15f7` with
+  migrations 72, 73, and 74. The active binary SHA-256 is
+  `28b6de6c028c4ccc44ad83d352e2904dba1173d7e7d8f381b3d0b7fe5bd215cc` and
+  the pre-migration database dump and prior binary are retained as recorded in
+  the hosting guide.
+- Verified local/public liveness and readiness, Swagger/OpenAPI, 210-path
+  source/live parity, protected customer-support route boundaries, process and
+  install hashes, current worker health, Caddy validation, and configuration
+  key parity. `TEST_DATABASE_URL` and `pwsh` were unavailable; SMTP, HAL, and
+  physical-charger acceptance were not claimed.
+- See the [project state](PROJECT_STATE.md), [hosting record](guides/operations/dev-hosting.md),
+  and archived [release work item](work/archive/WI-20260923-customer-cpo-support-rehost.md).
+
 ## 2026-09-23 - Customer support owner immutability source implementation
 
 - Added forward migration 74 after the published migration 73 contract. It

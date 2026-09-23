@@ -28,6 +28,30 @@ development host it is set in the ignored service environment to
 that setting; it must not be used until the OCPP host is explicitly configured
 with TLS/WebSocket support.
 
+The current deployment was rehosted on September 23, 2026 from source commit
+`ea0f8fe5d5a3c99370be3e86963408b475ee15f7`. The active binary SHA-256 is
+`28b6de6c028c4ccc44ad83d352e2904dba1173d7e7d8f381b3d0b7fe5bd215cc`; the
+previous binary is retained at
+`/root/evcmsnew-backups/pre-customer-cpo-support-ea0f8fe-20260923T112639Z/evcmsnew.before`
+(SHA-256
+`1a2819c96224d1016e3d2655b591993f405954cbe153faa71cfd6735e4e8d4b0`). The
+pre-migration custom-format dump is at
+`/root/evcmsnew-backups/pre-customer-cpo-support-ea0f8fe-20260923T112639Z/devevcmsnewdb.dump`
+(mode `0600`, SHA-256
+`cf5e3ae8f82e2092ac2b68239a5be8d68e9edf47051c5aa2d9b2418c1ab4b4cd`).
+Migrations 72, 73, and 74 are applied, with migration 74 current. The service
+is active on PID 62535 with zero restarts and matching process/install hashes.
+Local and HTTPS liveness, readiness, Swagger, and OpenAPI return 200; source
+and live OpenAPI each expose 210 paths. The new App Customer and CPO
+customer-support routes return 401 without credentials. Caddy validates, and
+the seven required/current workers are healthy; billing-maintenance is
+separately disabled. The `.env` key set matches `.env.example` exactly, with
+the two customer-support URL template keys present and no blank entries.
+Full Go tests, vet, module verification, production build, and diff checks
+passed. `TEST_DATABASE_URL` is unset and `pwsh` is unavailable, so the
+disposable PostgreSQL integration gate and PowerShell docs verifier were not
+run. SMTP delivery, HAL, and physical-charger acceptance remain unverified.
+
 The current deployment was updated on September 22, 2026 to source commit
 `b924cae84fa35a2168e6e545550fc243257ff9b5` (rating discovery/history and
 cursor validation). The active binary SHA-256 is

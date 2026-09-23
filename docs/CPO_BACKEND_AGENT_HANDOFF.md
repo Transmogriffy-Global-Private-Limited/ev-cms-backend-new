@@ -159,7 +159,7 @@ UUID or a row UUID.
 ## Current Implemented CPO Surface
 
 The authoritative machine contract is
-`docs/contracts/openapi/openapi.yaml`. The deployed source currently has 250
+`docs/contracts/openapi/openapi.yaml`. The deployed source currently has 210
 total HTTP operations across all planes. Runtime/OpenAPI parity is tested. The
 canonical CMS-side CPO operational capability manual is
 `docs/integrations/cpo-hal-operational-capability-manual.md`.
@@ -805,7 +805,7 @@ must inspect further or report the uncertainty instead of inventing an answer.
 The CPO charger aggregate is the shared read-time `customer_ratings` grouped
 relation, scoped by `(cpo_id, charger_id)` and restricted to non-null
 `session_id`; it never imports `customerauth`, stores counters, or calls HAL.
-The deployed contract has 250 operations. See the canonical OpenAPI contract
+The deployed contract has 210 operations. See the canonical OpenAPI contract
 and archived feature work item
 `docs/work/archive/WI-20260922-rating-discovery-and-history.md` for filters,
 cursor semantics, and verification boundaries.

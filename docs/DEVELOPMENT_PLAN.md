@@ -1,5 +1,17 @@
 # Development Plan
 
+## 2026-09-23 - Customer-to-own-CPO support deployed
+
+- The CUSTOMER_CPO support source slice and migrations 72, 73, and 74 were
+  rehosted from `ea0f8fe5d5a3c99370be3e86963408b475ee15f7` after a validated
+  pre-migration database dump. Runtime verification passed for health,
+  readiness, OpenAPI/Swagger, unauthenticated route boundaries, process hash,
+  current workers, and Caddy. SMTP delivery, HAL, physical-charger acceptance,
+  and the disposable PostgreSQL integration gate remain outside this evidence.
+- The archived [release work item](work/archive/WI-20260923-customer-cpo-support-rehost.md)
+  and [hosting record](guides/operations/dev-hosting.md) contain exact
+  rollback, migration, configuration, and verification details.
+
 ## 2026-09-22 - Customer-to-own-CPO support
 
 - Source implementation adds the distinct CUSTOMER_CPO durable support channel
