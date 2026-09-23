@@ -1,6 +1,6 @@
 # Project State
 
-## 2026-09-22 - Customer support owner immutability hardening (not deployed)
+## 2026-09-23 - Customer support owner immutability hardening (not deployed)
 
 - Source now includes forward migration 74 after published migration 73. It
   keeps CUSTOMER message/event actors bound to the exact ticket owner and
@@ -13,7 +13,7 @@
   occurred. The PostgreSQL gate was skipped because `TEST_DATABASE_URL` is not
   set.
 - The source-verification record is
-  `work/archive/WI-20260922-customer-cpo-support-owner-immutability.md`.
+  `work/archive/WI-20260923-customer-cpo-support-owner-immutability.md`.
 
 ## 2026-09-22 - Customer support actor-ownership hardening (not deployed)
 

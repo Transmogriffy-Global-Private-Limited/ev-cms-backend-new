@@ -1,6 +1,6 @@
 # AI Changelog
 
-## 2026-09-22 - Customer support owner immutability source implementation
+## 2026-09-23 - Customer support owner immutability source implementation
 
 - Added forward migration 74 after the published migration 73 contract. It
   recreates the two CUSTOMER ticket/owner composite foreign keys with `ON
