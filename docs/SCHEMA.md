@@ -1,6 +1,6 @@
 # CMS Schema
 
-## Customer-to-CPO support (migrations 72 and 73)
+## Customer-to-CPO support (migrations 72, 73, and 74)
 
 Migration `000072_customer_cpo_support` extends the existing durable support
 tables with `CPO_PLATFORM` and `CUSTOMER_CPO` channel authority. Existing rows
@@ -17,6 +17,14 @@ Therefore a CUSTOMER actor must be the exact owner of its ticket, not merely an
 existing customer. It preflights mismatched historical actors and fails rather
 than rewriting or deleting history; its down migration only restores the prior
 weaker foreign-key shape and preserves every row.
+
+Migration `000074_harden_customer_support_owner_immutability` preserves that
+exact-owner relationship while making its historical meaning immutable. It
+recreates the message/event composite foreign keys with `ON UPDATE RESTRICT`
+and the existing `ON DELETE CASCADE`: a ticket-owner update fails if CUSTOMER
+history refers to the current owner, instead of cascading a new owner into
+historical actor IDs. Its schema-only down migration restores migration 73's
+`ON UPDATE CASCADE ON DELETE CASCADE` behavior without changing rows.
 
 ## Charger-operation dispatch (migration 70)
 

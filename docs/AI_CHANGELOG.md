@@ -1,5 +1,19 @@
 # AI Changelog
 
+## 2026-09-22 - Customer support owner immutability source implementation
+
+- Added forward migration 74 after the published migration 73 contract. It
+  recreates the two CUSTOMER ticket/owner composite foreign keys with `ON
+  UPDATE RESTRICT ON DELETE CASCADE`, so a direct ticket-owner mutation cannot
+  cascade-rewrite historical CUSTOMER message/event actors.
+- Added source and PostgreSQL-gated coverage for the exact FK actions, rejected
+  same-CPO owner transfer, preservation of ticket/message/event identities,
+  normal reply after rejection, and schema-only rollback/reapplication. This
+  source work is committed and published to `main` and `anubhab-work`, but not
+  deployed; no development/live migration, rehost/restart, SMTP delivery, or
+  HAL change occurred. The PostgreSQL gate was skipped because
+  `TEST_DATABASE_URL` is not set.
+
 ## 2026-09-22 - Customer support actor ownership hardening source implementation
 
 - Added forward migration 73 after the published migration 72 contract. It

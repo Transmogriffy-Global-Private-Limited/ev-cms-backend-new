@@ -117,6 +117,35 @@ func TestCustomerCPOActorOwnershipHardeningMigrationBindsActorsToTicketOwner(t *
 	}
 }
 
+func TestCustomerCPOOwnerImmutabilityMigrationPreventsActorHistoryRewrite(t *testing.T) {
+	t.Parallel()
+	upBody, err := migrationFiles.ReadFile("migrations/000074_harden_customer_support_owner_immutability.up.sql")
+	if err != nil {
+		t.Fatalf("read customer owner immutability migration: %v", err)
+	}
+	downBody, err := migrationFiles.ReadFile("migrations/000074_harden_customer_support_owner_immutability.down.sql")
+	if err != nil {
+		t.Fatalf("read customer owner immutability rollback migration: %v", err)
+	}
+	upSQL, downSQL := string(upBody), string(downBody)
+	for name, actorColumn := range map[string]string{
+		"fk_support_ticket_messages_ticket_customer": "author_customer_id",
+		"fk_support_ticket_events_ticket_customer":   "actor_customer_id",
+	} {
+		upConstraint := regexp.MustCompile(`(?is)ADD\s+CONSTRAINT\s+` + name + `\s+FOREIGN\s+KEY\s*\(\s*ticket_id\s*,\s*` + actorColumn + `\s*\)\s+REFERENCES\s+support_tickets\s*\(\s*id\s*,\s*customer_id\s*\)\s+ON\s+UPDATE\s+RESTRICT\s+ON\s+DELETE\s+CASCADE`)
+		if !upConstraint.MatchString(upSQL) {
+			t.Errorf("migration 74 does not make %s restrict ticket-owner updates while preserving cascade delete", name)
+		}
+		downConstraint := regexp.MustCompile(`(?is)ADD\s+CONSTRAINT\s+` + name + `\s+FOREIGN\s+KEY\s*\(\s*ticket_id\s*,\s*` + actorColumn + `\s*\)\s+REFERENCES\s+support_tickets\s*\(\s*id\s*,\s*customer_id\s*\)\s+ON\s+UPDATE\s+CASCADE\s+ON\s+DELETE\s+CASCADE`)
+		if !downConstraint.MatchString(downSQL) {
+			t.Errorf("migration 74 rollback does not restore migration 73 behavior for %s", name)
+		}
+	}
+	if regexp.MustCompile(`(?mi)^\s*(DELETE\s+FROM|UPDATE\s+support_ticket)`).MatchString(upSQL) || regexp.MustCompile(`(?mi)^\s*(DELETE\s+FROM|UPDATE\s+support_ticket)`).MatchString(downSQL) {
+		t.Fatal("migration 74 must be schema-only and must not rewrite or delete support history")
+	}
+}
+
 func TestMatchingDownMigrationRejectsInvalidVersion(t *testing.T) {
 	t.Parallel()
 

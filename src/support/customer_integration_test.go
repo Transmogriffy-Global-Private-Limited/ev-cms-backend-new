@@ -35,7 +35,7 @@ func TestCustomerCPOWorkflowWithPostgreSQL(t *testing.T) {
 	}
 	defer sqlDB.Close()
 	if err := db.ApplyMigrations(ctx, sqlDB); err != nil {
-		t.Fatalf("apply migrations including 72: %v", err)
+		t.Fatalf("apply migrations including 74: %v", err)
 	}
 	now := time.Now().UTC().Truncate(time.Microsecond)
 	box, err := security.NewSecretBox("customer-support-test", []byte("0123456789abcdef0123456789abcdef"))
@@ -250,21 +250,81 @@ func TestCustomerCPOWorkflowWithPostgreSQL(t *testing.T) {
 	if err := gormDB.Exec(`INSERT INTO support_ticket_events (id,ticket_id,event_type,actor_user_id,actor_customer_id,actor_scope,created_at) VALUES (?,?, 'MESSAGE_ADDED',?,?,'CUSTOMER',?)`, uuid.New(), created.ID, cpo.UserID, first.CustomerID, now).Error; err == nil {
 		t.Fatal("mixed CUSTOMER event actor accepted")
 	}
-	if err := gormDB.Exec(`INSERT INTO support_ticket_messages (id,ticket_id,author_customer_id,author_scope,body,created_at) VALUES (?,?,?,'CUSTOMER',?,?)`, uuid.New(), created.ID, first.CustomerID, "valid direct customer actor", now).Error; err != nil {
+	validMessageID := uuid.New()
+	if err := gormDB.Exec(`INSERT INTO support_ticket_messages (id,ticket_id,author_customer_id,author_scope,body,created_at) VALUES (?,?,?,'CUSTOMER',?,?)`, validMessageID, created.ID, first.CustomerID, "valid direct customer actor", now).Error; err != nil {
 		t.Fatalf("valid CUSTOMER message actor rejected: %v", err)
 	}
-	if err := gormDB.Exec(`INSERT INTO support_ticket_events (id,ticket_id,event_type,actor_customer_id,actor_scope,created_at) VALUES (?,?,'MESSAGE_ADDED',?,'CUSTOMER',?)`, uuid.New(), created.ID, first.CustomerID, now).Error; err != nil {
+	assertCustomerSupportTicketActorForeignKeyRules(t, gormDB, "RESTRICT", "CASCADE")
+	if err := gormDB.Exec(`UPDATE support_tickets SET customer_id=? WHERE id=?`, second.CustomerID, created.ID).Error; err == nil {
+		t.Fatal("ticket-owner change after CUSTOMER message cascaded into actor history")
+	}
+	var ticketAfterMessage struct {
+		CustomerID uuid.UUID `gorm:"column:customer_id"`
+	}
+	if err := gormDB.Table("support_tickets").Select("customer_id").Where("id=?", created.ID).Take(&ticketAfterMessage).Error; err != nil || ticketAfterMessage.CustomerID != first.CustomerID {
+		t.Fatalf("failed ticket-owner change after message mutated ticket owner=%s err=%v", ticketAfterMessage.CustomerID, err)
+	}
+	var messageAfterFailedOwnerChange struct {
+		AuthorCustomerID uuid.UUID `gorm:"column:author_customer_id"`
+	}
+	if err := gormDB.Table("support_ticket_messages").Select("author_customer_id").Where("id=?", validMessageID).Take(&messageAfterFailedOwnerChange).Error; err != nil || messageAfterFailedOwnerChange.AuthorCustomerID != first.CustomerID {
+		t.Fatalf("failed ticket-owner change mutated message actor=%s err=%v", messageAfterFailedOwnerChange.AuthorCustomerID, err)
+	}
+	validEventID := uuid.New()
+	if err := gormDB.Exec(`INSERT INTO support_ticket_events (id,ticket_id,event_type,actor_customer_id,actor_scope,created_at) VALUES (?,?,'MESSAGE_ADDED',?,'CUSTOMER',?)`, validEventID, created.ID, first.CustomerID, now).Error; err != nil {
 		t.Fatalf("valid CUSTOMER event actor rejected: %v", err)
 	}
-	if err := db.RollbackLastMigration(ctx, sqlDB); err != nil {
-		t.Fatalf("rollback migration 73: %v", err)
+	if err := gormDB.Exec(`UPDATE support_tickets SET customer_id=? WHERE id=?`, second.CustomerID, created.ID).Error; err == nil {
+		t.Fatal("ticket-owner change after CUSTOMER event cascaded into actor history")
 	}
+	var persistedTicket struct {
+		CustomerID uuid.UUID `gorm:"column:customer_id"`
+	}
+	if err := gormDB.Table("support_tickets").Select("customer_id").Where("id=?", created.ID).Take(&persistedTicket).Error; err != nil || persistedTicket.CustomerID != first.CustomerID {
+		t.Fatalf("failed ticket-owner change mutated ticket owner=%s err=%v", persistedTicket.CustomerID, err)
+	}
+	var persistedMessage struct {
+		AuthorCustomerID uuid.UUID `gorm:"column:author_customer_id"`
+	}
+	if err := gormDB.Table("support_ticket_messages").Select("author_customer_id").Where("id=?", validMessageID).Take(&persistedMessage).Error; err != nil || persistedMessage.AuthorCustomerID != first.CustomerID {
+		t.Fatalf("failed ticket-owner change mutated message actor=%s err=%v", persistedMessage.AuthorCustomerID, err)
+	}
+	var persistedEvent struct {
+		ActorCustomerID uuid.UUID `gorm:"column:actor_customer_id"`
+	}
+	if err := gormDB.Table("support_ticket_events").Select("actor_customer_id").Where("id=?", validEventID).Take(&persistedEvent).Error; err != nil || persistedEvent.ActorCustomerID != first.CustomerID {
+		t.Fatalf("failed ticket-owner change mutated event actor=%s err=%v", persistedEvent.ActorCustomerID, err)
+	}
+	if _, err := s.ReplyCustomer(ctx, first, created.ID, ReplyRequest{Body: "Customer reply after rejected owner change", IdempotencyKey: "owner-unchanged"}); err != nil {
+		t.Fatalf("valid customer reply after rejected owner change: %v", err)
+	}
+	if err := db.RollbackLastMigration(ctx, sqlDB); err != nil {
+		t.Fatalf("rollback migration 74: %v", err)
+	}
+	assertCustomerSupportTicketActorForeignKeyRules(t, gormDB, "CASCADE", "CASCADE")
 	var preserved int64
 	if err := gormDB.Table("support_tickets").Where("id=? AND channel='CUSTOMER_CPO'", created.ID).Count(&preserved).Error; err != nil || preserved != 1 {
-		t.Fatalf("migration 73 rollback did not preserve customer support history count=%d err=%v", preserved, err)
+		t.Fatalf("migration 74 rollback did not preserve customer support history count=%d err=%v", preserved, err)
 	}
 	if err := db.ApplyMigrations(ctx, sqlDB); err != nil {
-		t.Fatalf("reapply migration 73 after rollback: %v", err)
+		t.Fatalf("reapply migration 74 after rollback: %v", err)
+	}
+	assertCustomerSupportTicketActorForeignKeyRules(t, gormDB, "RESTRICT", "CASCADE")
+}
+
+func assertCustomerSupportTicketActorForeignKeyRules(t *testing.T, database *gorm.DB, wantUpdate, wantDelete string) {
+	t.Helper()
+	for _, name := range []string{"fk_support_ticket_messages_ticket_customer", "fk_support_ticket_events_ticket_customer"} {
+		var rule struct {
+			UpdateRule string `gorm:"column:update_rule"`
+			DeleteRule string `gorm:"column:delete_rule"`
+		}
+		if err := database.Raw(`SELECT update_rule, delete_rule FROM information_schema.referential_constraints WHERE constraint_schema = current_schema() AND constraint_name = ?`, name).Scan(&rule).Error; err != nil {
+			t.Fatalf("load %s referential rule: %v", name, err)
+		}
+		if rule.UpdateRule != wantUpdate || rule.DeleteRule != wantDelete {
+			t.Fatalf("%s rules update=%q delete=%q, want update=%q delete=%q", name, rule.UpdateRule, rule.DeleteRule, wantUpdate, wantDelete)
+		}
 	}
 }
 
