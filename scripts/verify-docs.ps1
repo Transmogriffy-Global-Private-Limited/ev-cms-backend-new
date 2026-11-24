@@ -215,6 +215,16 @@ $operationCount = ([regex]::Matches($openAPI, '(?m)^\s{6}operationId:\s+')).Coun
 if ($operationCount -ne 260) {
 	throw "OpenAPI contains $operationCount operations; expected 260."
 }
+# The SuperAdmin handoff must not silently retain an outdated operation count.
+$feOperationMatch = [regex]::Match($superadminFEHandoff,
+    '(?m)^- Current source-tree backend contract: (\d+) HTTP operations')
+if (-not $feOperationMatch.Success) {
+    throw 'SuperAdmin frontend handoff is missing its source operation count.'
+}
+if ([int]$feOperationMatch.Groups[1].Value -ne $operationCount) {
+    throw "SuperAdmin frontend handoff operation count differs from OpenAPI: $($feOperationMatch.Groups[1].Value) vs $operationCount."
+}
+
 
 if ($openAPI.Contains('/api/v1/cpo/profile')) {
     throw 'Tenant-side CPO organization profile route remains in OpenAPI.'

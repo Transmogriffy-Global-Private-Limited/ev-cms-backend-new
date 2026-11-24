@@ -1,5 +1,12 @@
 # AI Changelog
 
+## 2026-11-24 - Pre-CoW Run 4 candidate, durable lifecycle recovery
+
+- Prepared additive migration `000077`, crash-surviving pending-work leases, fenced acknowledgements, and bounded retry scheduling for subscription lifecycle scans.
+- Added deterministic retry-budget unit checks and PostgreSQL-gated crash, failure, and lease-ownership integration tests; source docs now distinguish 260 OpenAPI operations from unverified historical SuperAdmin subtotals.
+- This is a source candidate only. No Windows PostgreSQL runner, migration execution, live database modification, merge, push, deployment, or physical HAL acceptance is claimed.
+
+
 ## 2026-09-23 - Rehost customer-to-CPO support
 
 - Rehosted source commit `ea0f8fe5d5a3c99370be3e86963408b475ee15f7` with

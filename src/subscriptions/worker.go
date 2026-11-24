@@ -60,73 +60,42 @@ const lifecycleScanBatchSize = 500
 
 // Each tick advances a durable keyset cursor, including across failures.
 // Empty tail wraps to the beginning so skipped/failing rows are retried.
+// processLifecycle separates durable discovery/lease from each independently
+// committed subscription transition. Every unacknowledged job survives cursor
+// advancement, process crashes and later arrivals; retries are fenced.
 func (service *Service) processLifecycle(ctx context.Context) error {
 	now := service.now()
-	cutoff := now.Add(7 * 24 * time.Hour)
-	var ids []uuid.UUID
-	err := service.database.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		var cursor lifecycleScanCursor
-		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&cursor, "worker_name = ?", lifecycleWorkerName).Error; err != nil {
-			return fmt.Errorf("lock lifecycle progress: %w", err)
-		}
-		type candidate struct {
-			ID                  uuid.UUID
-			CurrentPeriodEndsAt time.Time
-		}
-		load := func(fromCursor bool) ([]candidate, error) {
-			var rows []candidate
-			query := tx.Model(&models.CPOSubscription{}).Select("id, current_period_ends_at").
-				Where("status IN ? AND current_period_ends_at <= ?", currentStatuses, cutoff)
-			if fromCursor && cursor.CursorEndAt != nil && cursor.CursorID != nil {
-				query = query.Where("(current_period_ends_at, id) > (?, ?)", *cursor.CursorEndAt, *cursor.CursorID)
-			}
-			err := query.Order("current_period_ends_at ASC, id ASC").Limit(lifecycleScanBatchSize).Find(&rows).Error
-			return rows, err
-		}
-		rows, err := load(true)
-		if err != nil {
-			return fmt.Errorf("load lifecycle candidates: %w", err)
-		}
-		if len(rows) == 0 && cursor.CursorEndAt != nil {
-			cursor.CursorEndAt, cursor.CursorID = nil, nil
-			rows, err = load(false)
-			if err != nil {
-				return fmt.Errorf("wrap lifecycle scan: %w", err)
-			}
-		}
-		ids = make([]uuid.UUID, 0, len(rows))
-		for _, row := range rows {
-			ids = append(ids, row.ID)
-		}
-		if len(rows) > 0 {
-			last := rows[len(rows)-1]
-			cursor.CursorEndAt, cursor.CursorID = &last.CurrentPeriodEndsAt, &last.ID
-		}
-		cursor.LastScanAt = &now
-		cursor.UpdatedAt = now
-		return tx.Save(&cursor).Error
-	})
+	jobs, err := service.reserveLifecycleWork(ctx, now)
 	if err != nil {
 		return err
 	}
 	var failures []error
-	var processed int64
-	for _, id := range ids {
+	var processed, failed int64
+	for _, job := range jobs {
 		if err := ctx.Err(); err != nil {
 			failures = append(failures, err)
-			break
+			break // Remaining leases expire and retry on a later tick/restart.
 		}
-		if err := service.processSubscriptionLifecycle(ctx, id, now); err != nil {
-			failures = append(failures, fmt.Errorf("subscription %s: %w", id, err))
+		if err := service.processSubscriptionLifecycle(ctx, job.SubscriptionID, now); err != nil {
+			failed++
+			failures = append(failures, fmt.Errorf("subscription %s: %w", job.SubscriptionID, err))
+			if deferralErr := service.deferLifecycleWork(ctx, job, service.now()); deferralErr != nil {
+				failures = append(failures, fmt.Errorf("reschedule subscription %s: %w", job.SubscriptionID, deferralErr))
+			}
 			continue
+		}
+		if err := service.completeLifecycleWork(ctx, job); err != nil {
+			failed++
+			failures = append(failures, fmt.Errorf("acknowledge subscription %s: %w", job.SubscriptionID, err))
+			continue // Completed transition is idempotent when lease retries.
 		}
 		processed++
 	}
 	if err := service.database.WithContext(ctx).Model(&lifecycleScanCursor{}).
 		Where("worker_name = ?", lifecycleWorkerName).
 		Updates(map[string]any{"processed_total": gorm.Expr("processed_total + ?", processed),
-			"failures_total": gorm.Expr("failures_total + ?", len(failures)), "updated_at": service.now()}).Error; err != nil {
-		failures = append(failures, fmt.Errorf("update lifecycle scan metrics: %w", err))
+			"failures_total": gorm.Expr("failures_total + ?", failed), "updated_at": service.now()}).Error; err != nil {
+		failures = append(failures, fmt.Errorf("update lifecycle scanner counters: %w", err))
 	}
 	return errors.Join(failures...)
 }

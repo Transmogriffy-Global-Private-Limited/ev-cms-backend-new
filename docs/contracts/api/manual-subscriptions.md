@@ -75,6 +75,11 @@ names and safe payloads are documented in
   per subscription period, and attributes automatic expiry to SYSTEM (null
   `actor_user_id`), not a fabricated human. Worker mail enqueue is not proof
   of successful message delivery or payment.
+- Run 4 adds migration `000077` with a durable pending-work queue: discovery
+  and cursor advancement commit atomically with work insertion. Leased work
+  survives a crash; failed items retry with bounded backoff independently of
+  newer arrivals. Claim fencing prevents late workers from discarding newer
+  reservations. These are source contracts pending PostgreSQL acceptance.
 - Subscription collection remains an external, manually attested operation;
   monthly/yearly plan interval math is unchanged. Neither these repairs nor
   an `ACTIVE` subscription constitute verification of a bank transfer.

@@ -39,21 +39,20 @@ or mockup. Only routed operations in OpenAPI are callable.
 
 ## Integration Snapshot
 
-This handoff was reconciled on 2026-08-25 against the current source tree and
-OpenAPI contract. It does not assert which source revision is deployed; verify
-the active deployment independently before enabling an environment.
+This handoff's active API operation count was reconciled against the
+2026-11-24 `fb4e7d2` source OpenAPI. It does not assert which source revision
+is deployed; verify the active deployment independently before enabling an environment.
 
 - Development origin: `https://dev-evcmsnew.transev.site`
 - Local default origin: `http://127.0.0.1:8080`
 - API prefix: `/api/v1`
 - Interactive contract: `/docs/`
 - Raw OpenAPI: `/openapi.yaml`
-- Current source-tree backend contract: 210 HTTP operations across every persona
-- Operations used by the SuperAdmin application: 77 API operations
-  - 12 shared administrative-authentication operations;
-  - 65 `PLATFORM` operations, manually classified in
-    `contracts/api/superadmin-permission-matrix.md`, including 17 manual
-    subscription operations.
+- Current source-tree backend contract: 260 HTTP operations across every persona
+- SuperAdmin uses shared administrative authentication plus the documented
+  `PLATFORM` endpoints. The source OpenAPI and current permission matrix are
+  authoritative; historical SuperAdmin-only endpoint subtotals are not treated
+  as current after additive subscription overview routes.
 
 The CPO application has its own ticket-creation/read/reply support operations
 under an active CPO session and verified `X-CPO-App-ID` header; they are not a
@@ -62,7 +61,7 @@ specified in `guides/workflows/superadmin-support-tickets.md`.
 
 The manual subscription API is platform-superadmin-only, excludes feature-key
 entitlements, and does not activate platform-subscription payment providers.
-The deployed/source-active lifecycle worker queues expiry warnings and marks
+The source-registered lifecycle worker queues expiry warnings and marks
 elapsed periods EXPIRED. This does not collect subscription payments, renew
 subscriptions automatically, or activate/suspend a CPO.
 
@@ -280,7 +279,7 @@ the bearer session. CPO notification list/read requires the verified
 `X-CPO-App-ID` header and derives the tenant from the CPO session. Overview and
 status are bounded aggregates, not tenant business-data exports.
 
-These SuperAdmin routes are present in the current 211-operation source OpenAPI.
+These SuperAdmin routes are present in the canonical source OpenAPI.
 The complete manual API-by-API authority and risk classification is
 `contracts/api/superadmin-permission-matrix.md`. The CPO ADMIN-only charger
 hub-assignment operation is not callable by SuperAdmin. The CPO user

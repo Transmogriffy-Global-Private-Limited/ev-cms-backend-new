@@ -1,5 +1,12 @@
 # Project State
 
+## 2026-11-24 - Pre-CoW Run 4 source candidate (not deployed)
+
+- Work item `docs/work/active/WI-20261124-subscription-lifecycle-durable-recovery.md` targets scanner crash/failure recovery and SuperAdmin handoff count drift.
+- Baseline is `anubhab-work` commit `fb4e7d2`. The candidate adds forward migration `000077` with an upgrade-time eligible-work seed, inserts pending work in the scanner-cursor transaction, leases and fences retries, and synchronizes the 260-operation source count with the documentation verifier.
+- Source verification and actual PostgreSQL/physical HAL acceptance remain separate; no claim of migration execution, deployment or owner-policy approval.
+
+
 ## 2026-09-23 - Customer-to-CPO support rehosted
 
 - Rehosted source commit `ea0f8fe5d5a3c99370be3e86963408b475ee15f7` after
