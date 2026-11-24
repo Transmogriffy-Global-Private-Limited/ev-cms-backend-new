@@ -29,6 +29,7 @@ func RegisterRoutes(group *gin.RouterGroup, authService *auth.Service, service *
 
 	group.POST("/cpos/:cpo_id/subscription", handler.issue)
 	group.GET("/cpos/:cpo_id/subscription", handler.getCurrent)
+	group.GET("/cpos/:cpo_id/subscription/overview", handler.overview)
 	group.POST("/cpos/:cpo_id/subscription/renew", handler.renew)
 	group.POST("/cpos/:cpo_id/subscription/change-plan", handler.changePlan)
 	group.POST("/cpos/:cpo_id/subscription/activate", handler.activate)
@@ -116,6 +117,15 @@ func (handler *Handler) getCurrent(ctx *gin.Context) {
 		return
 	}
 	response, err := handler.service.GetCurrent(ctx.Request.Context(), principal, cpoID)
+	write(ctx, http.StatusOK, response, err)
+}
+
+func (handler *Handler) overview(ctx *gin.Context) {
+	principal, cpoID, ok := principalAndCPO(ctx)
+	if !ok {
+		return
+	}
+	response, err := handler.service.Overview(ctx.Request.Context(), principal, cpoID)
 	write(ctx, http.StatusOK, response, err)
 }
 

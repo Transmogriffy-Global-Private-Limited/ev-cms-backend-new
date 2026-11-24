@@ -29,6 +29,17 @@ type customerContext struct {
 }
 
 func (service *Service) Authenticate() gin.HandlerFunc {
+	return service.authenticateWithCPOPolicy(false)
+}
+
+// AuthenticateContinuation is for the existing physical-session Stop route ONLY.
+// CPO suspension must not invalidate a legitimate Customer safety Stop, while
+// all ordinary paid commands and account routes retain strict active-CPO auth.
+func (service *Service) AuthenticateContinuation() gin.HandlerFunc {
+	return service.authenticateWithCPOPolicy(true)
+}
+
+func (service *Service) authenticateWithCPOPolicy(allowSuspendedCPO bool) gin.HandlerFunc {
 	return func(ctx *gin.Context) {
 		header := strings.TrimSpace(ctx.GetHeader("Authorization"))
 		parts := strings.Fields(header)
@@ -37,7 +48,7 @@ func (service *Service) Authenticate() gin.HandlerFunc {
 			ctx.Abort()
 			return
 		}
-		principal, err := service.ValidateAccess(ctx.Request.Context(), parts[1])
+		principal, err := service.validateAccessWithCPOPolicy(ctx.Request.Context(), parts[1], allowSuspendedCPO)
 		if err != nil {
 			writeError(ctx, err)
 			ctx.Abort()
@@ -113,6 +124,10 @@ func CurrentCPOAppID(ctx *gin.Context) (string, bool) {
 }
 
 func (service *Service) ValidateAccess(ctx context.Context, rawToken string) (Principal, error) {
+	return service.validateAccessWithCPOPolicy(ctx, rawToken, false)
+}
+
+func (service *Service) validateAccessWithCPOPolicy(ctx context.Context, rawToken string, allowSuspendedCPO bool) (Principal, error) {
 	claims, err := service.tokens.Parse(rawToken, service.now())
 	if err != nil || claims.Scope != constants.AuthScopeCustomer || claims.CPOID == nil || claims.Role != nil {
 		return Principal{}, errUnauthorized
@@ -131,7 +146,7 @@ func (service *Service) ValidateAccess(ctx context.Context, rawToken string) (Pr
 		if session.RevokedAt != nil || !now.Before(session.ExpiresAt) || session.CPOID != *claims.CPOID || session.TokenVersion != claims.TokenVersion {
 			return errUnauthorized
 		}
-		context, err := service.loadCustomerContext(tx, customerID, session.CPOID, false)
+		context, err := service.loadCustomerContextWithCPOPolicy(tx, customerID, session.CPOID, false, allowSuspendedCPO)
 		if err != nil {
 			return errUnauthorized
 		}
@@ -212,11 +227,19 @@ func (service *Service) RevokeSession(ctx context.Context, principal Principal, 
 }
 
 func (service *Service) loadCustomerContext(tx *gorm.DB, customerID, cpoID uuid.UUID, allowLocked bool) (customerContext, error) {
+	return service.loadCustomerContextWithCPOPolicy(tx, customerID, cpoID, allowLocked, false)
+}
+
+func (service *Service) loadCustomerContextWithCPOPolicy(tx *gorm.DB, customerID, cpoID uuid.UUID, allowLocked, allowSuspendedCPO bool) (customerContext, error) {
 	if customerID == uuid.Nil || cpoID == uuid.Nil {
 		return customerContext{}, errUnauthorized
 	}
 	var result customerContext
-	if err := tx.Where("id = ? AND status = ?", cpoID, constants.CPOStatusActive).First(&result.CPO).Error; err != nil {
+	allowedCPOStatuses := []constants.CPOStatus{constants.CPOStatusActive}
+	if allowSuspendedCPO {
+		allowedCPOStatuses = append(allowedCPOStatuses, constants.CPOStatusSuspended)
+	}
+	if err := tx.Where("id = ? AND status IN ?", cpoID, allowedCPOStatuses).First(&result.CPO).Error; err != nil {
 		return result, errUnauthorized
 	}
 	if err := tx.Where("id = ? AND cpo_id = ? AND status = ?", customerID, cpoID, constants.CustomerStatusActive).First(&result.Customer).Error; err != nil {

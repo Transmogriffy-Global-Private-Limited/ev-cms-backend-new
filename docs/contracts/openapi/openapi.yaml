@@ -4305,6 +4305,19 @@ paths:
                   message: No subscription found for this CPO.
         "500":
           $ref: "#/components/responses/InternalError"
+  /api/v1/cpo/subscription/overview:
+    get:
+      tags: [CPO Operations - Account & Notifications]
+      operationId: getCPOSubscriptionOverview
+      summary: Read current or last terminal subscription without confusing never-issued
+      security:
+        - BearerAuth: []
+          CPOAppID: []
+      responses:
+        "200": {description: CPO subscription overview, content: {application/json: {schema: {$ref: "#/components/schemas/CPOSubscriptionOverview"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/CPOBusinessForbidden"}
+        "500": {$ref: "#/components/responses/InternalError"}
   /api/v1/cpo/analytics:
     get:
       tags: [CPO Operations - Account & Notifications]
@@ -7110,6 +7123,20 @@ paths:
         "409": {$ref: "#/components/responses/Conflict"}
         "500": {$ref: "#/components/responses/InternalError"}
 
+  /api/v1/platform/cpos/{cpo_id}/subscription/overview:
+    get:
+      tags: [Superadmin - Manual Subscriptions]
+      operationId: getCPOSubscriptionOverviewPlatform
+      summary: Read current or last terminal subscription with never-issued distinguished
+      security: [{BearerAuth: []}]
+      parameters: [{$ref: "#/components/parameters/CPOID"}]
+      responses:
+        "200": {description: Subscription overview, content: {application/json: {schema: {$ref: "#/components/schemas/SubscriptionOverview"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/PlatformForbidden"}
+        "404": {$ref: "#/components/responses/SubscriptionNotFound"}
+        "500": {$ref: "#/components/responses/InternalError"}
+
   /api/v1/platform/cpos/{cpo_id}/subscription/renew:
     post:
       tags: [Superadmin - Manual Subscriptions]
@@ -8548,7 +8575,7 @@ components:
     CPOSubscription:
       type: object
       additionalProperties: false
-      required: [id, cpo_id, plan_version_id, status, starts_at, current_period_starts_at, current_period_ends_at, cancel_at_period_end, created_by, created_at, updated_at]
+      required: [id, cpo_id, plan_version_id, status, starts_at, current_period_starts_at, current_period_ends_at, current_period_sequence, cancel_at_period_end, created_by, created_at, updated_at]
       properties:
         id: {type: string, format: uuid}
         cpo_id: {type: string, format: uuid}
@@ -8558,6 +8585,7 @@ components:
         trial_ends_at: {type: string, format: date-time}
         current_period_starts_at: {type: string, format: date-time}
         current_period_ends_at: {type: string, format: date-time}
+        current_period_sequence: {type: integer, format: int64, minimum: 1, description: Durable subscription-period identity; legacy historical events may have unknown period.}
         cancel_at_period_end: {type: boolean, description: Always false for manually managed subscriptions.}
         pending_plan_version_id: {type: string, format: uuid, description: Always absent; scheduled changes are unsupported.}
         pending_change_at: {type: string, format: date-time}
@@ -8574,6 +8602,13 @@ components:
         subscription: {$ref: "#/components/schemas/CPOSubscription"}
         plan: {$ref: "#/components/schemas/SubscriptionPlan"}
         plan_version: {$ref: "#/components/schemas/SubscriptionPlanVersion"}
+    SubscriptionOverview:
+      type: object
+      additionalProperties: false
+      required: [state]
+      properties:
+        state: {type: string, enum: [NEVER_ISSUED, CURRENT, TERMINAL]}
+        latest: {$ref: "#/components/schemas/SubscriptionView"}
     CPOSubscriptionHistory:
       type: object
       additionalProperties: false
@@ -8586,7 +8621,7 @@ components:
         next_status: {type: string, enum: [TRIAL, ACTIVE, PAUSED, PAST_DUE, CANCELLED, EXPIRED]}
         previous_plan_version_id: {type: string, format: uuid}
         next_plan_version_id: {type: string, format: uuid}
-        actor_user_id: {type: string, format: uuid}
+        actor_user_id: {type: string, format: uuid, nullable: true, description: Null for system-initiated expiry; a real users ID for SuperAdmin mutations.}
         reason: {type: string}
         idempotency_key: {type: string}
         effective_at: {type: string, format: date-time}
@@ -9832,6 +9867,13 @@ components:
           description: The number of trial days for the plan.
           example: 0
 
+    CPOSubscriptionOverview:
+      type: object
+      additionalProperties: false
+      required: [state]
+      properties:
+        state: {type: string, enum: [NEVER_ISSUED, CURRENT, TERMINAL]}
+        latest: {$ref: "#/components/schemas/CPOSubscriptionView"}
     CPOSubscriptionView:
       type: object
       additionalProperties: false

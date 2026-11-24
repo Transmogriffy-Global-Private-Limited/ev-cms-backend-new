@@ -249,11 +249,12 @@ func (service *Service) Issue(ctx context.Context, principal auth.Principal, cpo
 		return SubscriptionView{}, invalid("starts_at", "starts_at cannot be in the future.")
 	}
 	var subscription models.CPOSubscription
+	var frozen SubscriptionView
 	err := service.database.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		if existing, replayed, err := service.idempotentSubscription(tx, principal.UserID, request.IdempotencyKey, "ISSUE", cpoID); err != nil {
+		if existing, replayed, err := service.replaySubscriptionCommand(tx, principal.UserID, request.IdempotencyKey, "ISSUE", cpoID, request); err != nil {
 			return err
 		} else if replayed {
-			subscription = existing
+			frozen = existing
 			return nil
 		}
 		if err := requireCPO(tx, cpoID); err != nil {
@@ -270,11 +271,19 @@ func (service *Service) Issue(ctx context.Context, principal auth.Principal, cpo
 			end := start.AddDate(0, 0, version.TrialDays)
 			trialEnd = &end
 		}
-		subscription = models.CPOSubscription{ID: uuid.New(), CPOID: cpoID, PlanVersionID: version.ID, Status: status, StartsAt: start, TrialEndsAt: trialEnd, CurrentPeriodStartsAt: start, CurrentPeriodEndsAt: addPeriod(start, version), CreatedBy: principal.UserID, CreatedAt: now, UpdatedAt: now}
+		subscription = models.CPOSubscription{ID: uuid.New(), CPOID: cpoID, PlanVersionID: version.ID, Status: status, StartsAt: start, TrialEndsAt: trialEnd, CurrentPeriodStartsAt: start, CurrentPeriodEndsAt: addPeriod(start, version), CurrentPeriodSequence: 1, CreatedBy: principal.UserID, CreatedAt: now, UpdatedAt: now}
 		if err := tx.Create(&subscription).Error; err != nil {
 			return mapWriteError(err, "subscription_conflict")
 		}
 		if err := service.recordTransition(tx, principal.UserID, subscription, nil, nil, request.Reason, request.IdempotencyKey, now, "ISSUE"); err != nil {
+			return err
+		}
+
+		frozen, err = service.subscriptionViewInTx(tx, subscription)
+		if err != nil {
+			return err
+		}
+		if err := service.recordSubscriptionCommandSnapshot(tx, principal.UserID, request.IdempotencyKey, "ISSUE", cpoID, request, frozen); err != nil {
 			return err
 		}
 		if err := writeAudit(tx, principal.UserID, "CPO_SUBSCRIPTION_ISSUED", "CPO_SUBSCRIPTION", subscription.ID, models.JSONB{"cpo_id": cpoID, "status": status, "plan_version_id": version.ID}, now); err != nil {
@@ -285,7 +294,7 @@ func (service *Service) Issue(ctx context.Context, principal auth.Principal, cpo
 	if err != nil {
 		return SubscriptionView{}, err
 	}
-	return service.subscriptionView(ctx, subscription)
+	return frozen, nil
 }
 
 func (service *Service) GetCurrent(ctx context.Context, principal auth.Principal, cpoID uuid.UUID) (SubscriptionView, error) {
@@ -299,6 +308,37 @@ func (service *Service) GetCurrent(ctx context.Context, principal auth.Principal
 	return service.subscriptionView(ctx, subscription)
 }
 
+// Overview is additive: it does not change the existing current-only GET.
+// It distinguishes never-issued, current, and last terminal subscription.
+func (service *Service) Overview(ctx context.Context, principal auth.Principal, cpoID uuid.UUID) (SubscriptionOverview, error) {
+	if err := requirePlatform(principal); err != nil {
+		return SubscriptionOverview{}, err
+	}
+	if err := requireCPO(service.database.WithContext(ctx), cpoID); err != nil {
+		return SubscriptionOverview{}, err
+	}
+	var record models.CPOSubscription
+	err := service.database.WithContext(ctx).
+		Where("cpo_id = ?", cpoID).
+		Order("CASE WHEN status IN ('TRIAL','ACTIVE','PAUSED','PAST_DUE') THEN 0 ELSE 1 END ASC").
+		Order("updated_at DESC, id DESC").First(&record).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return SubscriptionOverview{State: "NEVER_ISSUED"}, nil
+	}
+	if err != nil {
+		return SubscriptionOverview{}, err
+	}
+	view, err := service.subscriptionView(ctx, record)
+	if err != nil {
+		return SubscriptionOverview{}, err
+	}
+	state := "TERMINAL"
+	if containsStatus(record.Status) {
+		state = "CURRENT"
+	}
+	return SubscriptionOverview{State: state, Latest: &view}, nil
+}
+
 func (service *Service) Renew(ctx context.Context, principal auth.Principal, cpoID uuid.UUID, request RenewRequest) (SubscriptionView, error) {
 	start := service.now()
 	if request.StartsAt != nil {
@@ -307,7 +347,7 @@ func (service *Service) Renew(ctx context.Context, principal auth.Principal, cpo
 	if start.After(service.now()) {
 		return SubscriptionView{}, invalid("starts_at", "starts_at cannot be in the future.")
 	}
-	return service.mutateForStatuses(ctx, principal, cpoID, request.Reason, request.IdempotencyKey, "RENEW", append(append([]string{}, currentStatuses...), "EXPIRED"), func(record *models.CPOSubscription, tx *gorm.DB, now time.Time) (string, error) {
+	return service.mutateForStatuses(ctx, principal, cpoID, request.Reason, request.IdempotencyKey, "RENEW", append(append([]string{}, currentStatuses...), "EXPIRED"), request, func(record *models.CPOSubscription, tx *gorm.DB, now time.Time) (string, error) {
 		var version models.SubscriptionPlanVersion
 		if err := tx.First(&version, "id = ?", record.PlanVersionID).Error; err != nil {
 			return "", err
@@ -321,12 +361,13 @@ func (service *Service) ChangePlan(ctx context.Context, principal auth.Principal
 	if request.PlanVersionID == uuid.Nil {
 		return SubscriptionView{}, invalid("plan_version_id", "plan_version_id is required.")
 	}
-	return service.mutate(ctx, principal, cpoID, request.Reason, request.IdempotencyKey, "CHANGE_PLAN", func(record *models.CPOSubscription, tx *gorm.DB, now time.Time) (string, error) {
+	return service.mutate(ctx, principal, cpoID, request.Reason, request.IdempotencyKey, "CHANGE_PLAN", request, func(record *models.CPOSubscription, tx *gorm.DB, now time.Time) (string, error) {
 		version, err := publishedVersion(tx, request.PlanVersionID)
 		if err != nil {
 			return "", err
 		}
 		record.PlanVersionID = version.ID
+		record.CurrentPeriodSequence++
 		record.CurrentPeriodStartsAt, record.CurrentPeriodEndsAt = now, addPeriod(now, version)
 		record.PendingPlanVersionID, record.PendingChangeAt, record.PendingChangeBy = nil, nil, nil
 		return "platform.subscription.plan_changed", nil
@@ -334,7 +375,7 @@ func (service *Service) ChangePlan(ctx context.Context, principal auth.Principal
 }
 
 func (service *Service) Activate(ctx context.Context, principal auth.Principal, cpoID uuid.UUID, request TransitionRequest) (SubscriptionView, error) {
-	return service.mutate(ctx, principal, cpoID, request.Reason, request.IdempotencyKey, "ACTIVATE", func(record *models.CPOSubscription, _ *gorm.DB, _ time.Time) (string, error) {
+	return service.mutate(ctx, principal, cpoID, request.Reason, request.IdempotencyKey, "ACTIVATE", request, func(record *models.CPOSubscription, _ *gorm.DB, _ time.Time) (string, error) {
 		if record.Status != "TRIAL" {
 			return "", conflict("invalid_subscription_transition", "Only a trial subscription can be activated.")
 		}
@@ -344,7 +385,7 @@ func (service *Service) Activate(ctx context.Context, principal auth.Principal, 
 }
 
 func (service *Service) Pause(ctx context.Context, principal auth.Principal, cpoID uuid.UUID, request TransitionRequest) (SubscriptionView, error) {
-	return service.mutate(ctx, principal, cpoID, request.Reason, request.IdempotencyKey, "PAUSE", func(record *models.CPOSubscription, _ *gorm.DB, _ time.Time) (string, error) {
+	return service.mutate(ctx, principal, cpoID, request.Reason, request.IdempotencyKey, "PAUSE", request, func(record *models.CPOSubscription, _ *gorm.DB, _ time.Time) (string, error) {
 		if record.Status == "PAUSED" {
 			return "platform.subscription.paused", nil
 		}
@@ -357,7 +398,7 @@ func (service *Service) Pause(ctx context.Context, principal auth.Principal, cpo
 }
 
 func (service *Service) Resume(ctx context.Context, principal auth.Principal, cpoID uuid.UUID, request TransitionRequest) (SubscriptionView, error) {
-	return service.mutate(ctx, principal, cpoID, request.Reason, request.IdempotencyKey, "RESUME", func(record *models.CPOSubscription, _ *gorm.DB, _ time.Time) (string, error) {
+	return service.mutate(ctx, principal, cpoID, request.Reason, request.IdempotencyKey, "RESUME", request, func(record *models.CPOSubscription, _ *gorm.DB, _ time.Time) (string, error) {
 		if record.Status == "ACTIVE" {
 			return "platform.subscription.resumed", nil
 		}
@@ -370,7 +411,7 @@ func (service *Service) Resume(ctx context.Context, principal auth.Principal, cp
 }
 
 func (service *Service) MarkPastDue(ctx context.Context, principal auth.Principal, cpoID uuid.UUID, request TransitionRequest) (SubscriptionView, error) {
-	return service.mutate(ctx, principal, cpoID, request.Reason, request.IdempotencyKey, "MARK_PAST_DUE", func(record *models.CPOSubscription, _ *gorm.DB, _ time.Time) (string, error) {
+	return service.mutate(ctx, principal, cpoID, request.Reason, request.IdempotencyKey, "MARK_PAST_DUE", request, func(record *models.CPOSubscription, _ *gorm.DB, _ time.Time) (string, error) {
 		if record.Status == "PAST_DUE" {
 			return "platform.subscription.past_due", nil
 		}
@@ -383,7 +424,7 @@ func (service *Service) MarkPastDue(ctx context.Context, principal auth.Principa
 }
 
 func (service *Service) Expire(ctx context.Context, principal auth.Principal, cpoID uuid.UUID, request TransitionRequest) (SubscriptionView, error) {
-	return service.mutate(ctx, principal, cpoID, request.Reason, request.IdempotencyKey, "EXPIRE", func(record *models.CPOSubscription, _ *gorm.DB, now time.Time) (string, error) {
+	return service.mutate(ctx, principal, cpoID, request.Reason, request.IdempotencyKey, "EXPIRE", request, func(record *models.CPOSubscription, _ *gorm.DB, now time.Time) (string, error) {
 		record.Status, record.EndedAt = "EXPIRED", &now
 		record.CancelAtPeriodEnd, record.CancellationScheduledBy = false, nil
 		record.PendingPlanVersionID, record.PendingChangeAt, record.PendingChangeBy = nil, nil, nil
@@ -392,7 +433,7 @@ func (service *Service) Expire(ctx context.Context, principal auth.Principal, cp
 }
 
 func (service *Service) Cancel(ctx context.Context, principal auth.Principal, cpoID uuid.UUID, request TransitionRequest) (SubscriptionView, error) {
-	return service.mutate(ctx, principal, cpoID, request.Reason, request.IdempotencyKey, "CANCEL", func(record *models.CPOSubscription, _ *gorm.DB, now time.Time) (string, error) {
+	return service.mutate(ctx, principal, cpoID, request.Reason, request.IdempotencyKey, "CANCEL", request, func(record *models.CPOSubscription, _ *gorm.DB, now time.Time) (string, error) {
 		record.Status, record.CancelledAt, record.EndedAt = "CANCELLED", &now, &now
 		record.CancelAtPeriodEnd, record.CancellationScheduledBy = false, nil
 		record.PendingPlanVersionID, record.PendingChangeAt, record.PendingChangeBy = nil, nil, nil
@@ -402,11 +443,11 @@ func (service *Service) Cancel(ctx context.Context, principal auth.Principal, cp
 
 type mutation func(*models.CPOSubscription, *gorm.DB, time.Time) (string, error)
 
-func (service *Service) mutate(ctx context.Context, principal auth.Principal, cpoID uuid.UUID, reason, key, operation string, change mutation) (SubscriptionView, error) {
-	return service.mutateForStatuses(ctx, principal, cpoID, reason, key, operation, currentStatuses, change)
+func (service *Service) mutate(ctx context.Context, principal auth.Principal, cpoID uuid.UUID, reason, key, operation string, request any, change mutation) (SubscriptionView, error) {
+	return service.mutateForStatuses(ctx, principal, cpoID, reason, key, operation, currentStatuses, request, change)
 }
 
-func (service *Service) mutateForStatuses(ctx context.Context, principal auth.Principal, cpoID uuid.UUID, reason, key, operation string, statuses []string, change mutation) (SubscriptionView, error) {
+func (service *Service) mutateForStatuses(ctx context.Context, principal auth.Principal, cpoID uuid.UUID, reason, key, operation string, statuses []string, request any, change mutation) (SubscriptionView, error) {
 	if err := requirePlatform(principal); err != nil {
 		return SubscriptionView{}, err
 	}
@@ -414,13 +455,20 @@ func (service *Service) mutateForStatuses(ctx context.Context, principal auth.Pr
 	if !validActionFields(reason, key) {
 		return SubscriptionView{}, invalid("request", "reason and idempotency_key are required and must be within limits.")
 	}
+	// The idempotency fingerprint must match the normalized fields used by
+	// the mutation and persisted history. Other request fields stay intact.
+	canonicalRequest, canonicalErr := canonicalSubscriptionMutationRequest(request, reason, key)
+	if canonicalErr != nil {
+		return SubscriptionView{}, canonicalErr
+	}
 	now := service.now()
 	var record models.CPOSubscription
+	var frozen SubscriptionView
 	err := service.database.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		if existing, replayed, err := service.idempotentSubscription(tx, principal.UserID, key, operation, cpoID); err != nil {
+		if existing, replayed, err := service.replaySubscriptionCommand(tx, principal.UserID, key, operation, cpoID, canonicalRequest); err != nil {
 			return err
 		} else if replayed {
-			record = existing
+			frozen = existing
 			return nil
 		}
 		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("cpo_id = ? AND status IN ?", cpoID, statuses).Order("current_period_ends_at DESC, updated_at DESC").First(&record).Error; err != nil {
@@ -438,6 +486,14 @@ func (service *Service) mutateForStatuses(ctx context.Context, principal auth.Pr
 		if err := service.recordTransition(tx, principal.UserID, record, &previousStatus, &previousVersion, reason, key, now, operation); err != nil {
 			return err
 		}
+
+		frozen, err = service.subscriptionViewInTx(tx, record)
+		if err != nil {
+			return err
+		}
+		if err := service.recordSubscriptionCommandSnapshot(tx, principal.UserID, key, operation, cpoID, canonicalRequest, frozen); err != nil {
+			return err
+		}
 		if err := writeAudit(tx, principal.UserID, "CPO_SUBSCRIPTION_"+operation, "CPO_SUBSCRIPTION", record.ID, models.JSONB{"cpo_id": cpoID, "previous_status": previousStatus, "status": record.Status, "plan_version_id": record.PlanVersionID}, now); err != nil {
 			return err
 		}
@@ -446,16 +502,20 @@ func (service *Service) mutateForStatuses(ctx context.Context, principal auth.Pr
 	if err != nil {
 		return SubscriptionView{}, err
 	}
-	return service.subscriptionView(ctx, record)
+	return frozen, nil
 }
 
 func (service *Service) subscriptionView(ctx context.Context, record models.CPOSubscription) (SubscriptionView, error) {
+	return service.subscriptionViewInTx(service.database.WithContext(ctx), record)
+}
+
+func (service *Service) subscriptionViewInTx(tx *gorm.DB, record models.CPOSubscription) (SubscriptionView, error) {
 	var version models.SubscriptionPlanVersion
-	if err := service.database.WithContext(ctx).First(&version, "id = ?", record.PlanVersionID).Error; err != nil {
+	if err := tx.First(&version, "id = ?", record.PlanVersionID).Error; err != nil {
 		return SubscriptionView{}, err
 	}
 	var plan models.SubscriptionPlan
-	if err := service.database.WithContext(ctx).First(&plan, "id = ?", version.PlanID).Error; err != nil {
+	if err := tx.First(&plan, "id = ?", version.PlanID).Error; err != nil {
 		return SubscriptionView{}, err
 	}
 	return SubscriptionView{Subscription: record, Plan: plan, Version: version}, nil
@@ -516,6 +576,7 @@ func addPeriod(start time.Time, version models.SubscriptionPlanVersion) time.Tim
 }
 
 func renewSubscriptionPeriod(record *models.CPOSubscription, requestedStart, now time.Time, version models.SubscriptionPlanVersion) {
+	record.CurrentPeriodSequence++
 	effectiveStart := requestedStart
 	if record.Status == "EXPIRED" {
 		// An expired period cannot be backdated into another elapsed period.
@@ -553,7 +614,12 @@ func publishedVersion(tx *gorm.DB, id uuid.UUID) (models.SubscriptionPlanVersion
 }
 
 func (service *Service) recordTransition(tx *gorm.DB, actor uuid.UUID, record models.CPOSubscription, previousStatus *string, previousVersion *uuid.UUID, reason, key string, now time.Time, operation string) error {
-	history := models.CPOSubscriptionHistory{ID: uuid.New(), SubscriptionID: record.ID, CPOID: record.CPOID, PreviousStatus: previousStatus, NextStatus: record.Status, PreviousPlanVersionID: previousVersion, NextPlanVersionID: record.PlanVersionID, ActorUserID: actor, Reason: reason, IdempotencyKey: key, EffectiveAt: now, Metadata: models.JSONB{"operation": operation}, CreatedAt: now}
+	// Zero UUID is the worker's SYSTEM marker, never a users(id) identity.
+	var actorUserID *uuid.UUID
+	if actor != uuid.Nil {
+		actorUserID = &actor
+	}
+	history := models.CPOSubscriptionHistory{ID: uuid.New(), SubscriptionID: record.ID, CPOID: record.CPOID, PreviousStatus: previousStatus, NextStatus: record.Status, PreviousPlanVersionID: previousVersion, NextPlanVersionID: record.PlanVersionID, ActorUserID: actorUserID, Reason: reason, IdempotencyKey: key, EffectiveAt: now, Metadata: models.JSONB{"operation": operation, "period_sequence": record.CurrentPeriodSequence, "system_actor": actor == uuid.Nil}, CreatedAt: now}
 	if err := tx.Create(&history).Error; err != nil {
 		return mapWriteError(err, "idempotency_conflict")
 	}

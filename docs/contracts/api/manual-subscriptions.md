@@ -60,3 +60,29 @@ key for a different CPO or operation returns `409 idempotency_conflict`.
 Refresh affected REST resources after platform realtime events. Current event
 names and safe payloads are documented in
 `docs/contracts/realtime/platform-events.md`.
+
+## Foundation corrections (2026-11-24 source candidate, not deployed)
+
+- A terminal-aware, read-only overview is proposed for Platform at
+  `GET /api/v1/platform/cpos/{cpo_id}/subscription/overview` and for CPO at
+  `GET /api/v1/cpo/subscription/overview`. Existing current-only GETs retain
+  their 404 behavior. `NEVER_ISSUED` is distinct from terminal history.
+- Every newly written command history row is also the immutable idempotency
+  receipt: exact request fingerprint plus original response. Historically
+  recorded commands without snapshots cannot truthfully replay the old result;
+  they return a specific conflict and require fresh state inspection.
+- The worker scans in persistent, bounded, ordered batches, records warnings
+  per subscription period, and attributes automatic expiry to SYSTEM (null
+  `actor_user_id`), not a fabricated human. Worker mail enqueue is not proof
+  of successful message delivery or payment.
+- Subscription collection remains an external, manually attested operation;
+  monthly/yearly plan interval math is unchanged. Neither these repairs nor
+  an `ACTIVE` subscription constitute verification of a bank transfer.
+- CANCELLED admission after cancellation, roles with broad customer-finance
+  reads, physical charger controls, and Platform named-customer intelligence
+  remain explicit owner-policy gates. Do not assert a policy change from this
+  technical specification.
+
+**Release note:** This section describes the candidate implementation contract.
+It must not be represented as deployed until the branch has passed tests,
+approved migration rehearsal, and controlled release verification.

@@ -511,6 +511,7 @@ func RegisterCPORoutes(
 	organizationManage.PATCH("/admin/profile", handler.updateAdminProfile)
 	organizationRead.GET("/organization", handler.getOrganization)
 	organizationRead.GET("/subscription", handler.getSubscription)
+	organizationRead.GET("/subscription/overview", handler.getSubscriptionOverview)
 	analyticsRead.GET("/analytics", handler.getAnalytics)
 	operations.GET("/operations/fleet", handler.getFleetOperations)
 	operations.GET("/operations/chargers/:charger_id", handler.getOperationalCharger)
@@ -1979,6 +1980,16 @@ func (handler *Handler) updateHubCustomerVisibility(ctx *gin.Context) {
 func (handler *Handler) getSubscription(ctx *gin.Context) {
 	principal, _ := auth.CurrentPrincipal(ctx)
 	record, err := handler.service.GetSubscription(ctx.Request.Context(), principal)
+	if err != nil {
+		writeError(ctx, err)
+		return
+	}
+	ctx.JSON(http.StatusOK, record)
+}
+
+func (handler *Handler) getSubscriptionOverview(ctx *gin.Context) {
+	principal, _ := auth.CurrentPrincipal(ctx)
+	record, err := handler.service.GetSubscriptionOverview(ctx.Request.Context(), principal)
 	if err != nil {
 		writeError(ctx, err)
 		return

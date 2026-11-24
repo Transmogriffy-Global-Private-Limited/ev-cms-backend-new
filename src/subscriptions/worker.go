@@ -2,6 +2,7 @@ package subscriptions
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
 	"time"
@@ -41,20 +42,93 @@ type WorkerObserver interface {
 	Heartbeat(context.Context, string, string) error
 }
 
+// lifecycleScanCursor is tenant-agnostic scanner progress only. Actual
+// authorization and subscription state remain on each locked domain row.
+type lifecycleScanCursor struct {
+	WorkerName     string `gorm:"primaryKey;type:varchar(60)"`
+	CursorEndAt    *time.Time
+	CursorID       *uuid.UUID `gorm:"type:uuid"`
+	LastScanAt     *time.Time
+	ProcessedTotal int64
+	FailuresTotal  int64
+	UpdatedAt      time.Time
+}
+
+func (lifecycleScanCursor) TableName() string { return "subscription_lifecycle_scan_progress" }
+
+const lifecycleScanBatchSize = 500
+
+// Each tick advances a durable keyset cursor, including across failures.
+// Empty tail wraps to the beginning so skipped/failing rows are retried.
 func (service *Service) processLifecycle(ctx context.Context) error {
 	now := service.now()
+	cutoff := now.Add(7 * 24 * time.Hour)
 	var ids []uuid.UUID
-	if err := service.database.WithContext(ctx).Model(&models.CPOSubscription{}).
-		Where("status IN ? AND current_period_ends_at <= ?", currentStatuses, now.Add(7*24*time.Hour)).
-		Order("current_period_ends_at ASC").Limit(500).Pluck("id", &ids).Error; err != nil {
-		return fmt.Errorf("list subscription lifecycle candidates: %w", err)
-	}
-	for _, id := range ids {
-		if err := service.processSubscriptionLifecycle(ctx, id, now); err != nil {
-			return err
+	err := service.database.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var cursor lifecycleScanCursor
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&cursor, "worker_name = ?", lifecycleWorkerName).Error; err != nil {
+			return fmt.Errorf("lock lifecycle progress: %w", err)
 		}
+		type candidate struct {
+			ID                  uuid.UUID
+			CurrentPeriodEndsAt time.Time
+		}
+		load := func(fromCursor bool) ([]candidate, error) {
+			var rows []candidate
+			query := tx.Model(&models.CPOSubscription{}).Select("id, current_period_ends_at").
+				Where("status IN ? AND current_period_ends_at <= ?", currentStatuses, cutoff)
+			if fromCursor && cursor.CursorEndAt != nil && cursor.CursorID != nil {
+				query = query.Where("(current_period_ends_at, id) > (?, ?)", *cursor.CursorEndAt, *cursor.CursorID)
+			}
+			err := query.Order("current_period_ends_at ASC, id ASC").Limit(lifecycleScanBatchSize).Find(&rows).Error
+			return rows, err
+		}
+		rows, err := load(true)
+		if err != nil {
+			return fmt.Errorf("load lifecycle candidates: %w", err)
+		}
+		if len(rows) == 0 && cursor.CursorEndAt != nil {
+			cursor.CursorEndAt, cursor.CursorID = nil, nil
+			rows, err = load(false)
+			if err != nil {
+				return fmt.Errorf("wrap lifecycle scan: %w", err)
+			}
+		}
+		ids = make([]uuid.UUID, 0, len(rows))
+		for _, row := range rows {
+			ids = append(ids, row.ID)
+		}
+		if len(rows) > 0 {
+			last := rows[len(rows)-1]
+			cursor.CursorEndAt, cursor.CursorID = &last.CurrentPeriodEndsAt, &last.ID
+		}
+		cursor.LastScanAt = &now
+		cursor.UpdatedAt = now
+		return tx.Save(&cursor).Error
+	})
+	if err != nil {
+		return err
 	}
-	return nil
+	var failures []error
+	var processed int64
+	for _, id := range ids {
+		if err := ctx.Err(); err != nil {
+			failures = append(failures, err)
+			break
+		}
+		if err := service.processSubscriptionLifecycle(ctx, id, now); err != nil {
+			failures = append(failures, fmt.Errorf("subscription %s: %w", id, err))
+			continue
+		}
+		processed++
+	}
+	if err := service.database.WithContext(ctx).Model(&lifecycleScanCursor{}).
+		Where("worker_name = ?", lifecycleWorkerName).
+		Updates(map[string]any{"processed_total": gorm.Expr("processed_total + ?", processed),
+			"failures_total": gorm.Expr("failures_total + ?", len(failures)), "updated_at": service.now()}).Error; err != nil {
+		failures = append(failures, fmt.Errorf("update lifecycle scan metrics: %w", err))
+	}
+	return errors.Join(failures...)
 }
 
 func (service *Service) processSubscriptionLifecycle(ctx context.Context, subscriptionID uuid.UUID, now time.Time) error {
@@ -73,7 +147,7 @@ func (service *Service) processSubscriptionLifecycle(ctx context.Context, subscr
 				if err := tx.Model(&models.CPOSubscription{}).Where("id = ?", subscription.ID).Updates(map[string]any{"status": subscription.Status, "ended_at": now, "updated_at": now}).Error; err != nil {
 					return err
 				}
-				return service.recordTransition(tx, uuid.Nil, subscription, &previous, nil, "subscription period elapsed", "system:expiry:"+subscription.ID.String(), now, "SYSTEM_EXPIRE")
+				return service.recordTransition(tx, uuid.Nil, subscription, &previous, nil, "subscription period elapsed", fmt.Sprintf("system:expiry:%s:%d", subscription.ID, subscription.CurrentPeriodSequence), now, "SYSTEM_EXPIRE")
 			})
 		}
 		remaining := subscription.CurrentPeriodEndsAt.Sub(now)
@@ -93,13 +167,65 @@ func (service *Service) processSubscriptionLifecycle(ctx context.Context, subscr
 	})
 }
 
+// legacyLifecycleWindow derives only a conservative temporal association.
+// A legacy event has no period identity, so the timestamp is evidence of
+// whether it belongs to the current period, not proof of historical numbering.
+// EXPIRED is recorded on/after the period end; warnings are recorded before it.
+func legacyLifecycleWindow(subscription models.CPOSubscription, kind string) (time.Time, *time.Time) {
+	if kind == "EXPIRED" {
+		return subscription.CurrentPeriodEndsAt, nil
+	}
+	end := subscription.CurrentPeriodEndsAt
+	return subscription.CurrentPeriodStartsAt, &end
+}
+
+// legacyLifecycleEventAlreadyRecorded limits deduplication to the original
+// period sequence assigned at upgrade. No old lifecycle rows are rewritten.
+// A previous-period legacy event remains eligible for a new periodized event.
+func (service *Service) legacyLifecycleEventAlreadyRecorded(tx *gorm.DB, subscription models.CPOSubscription, kind string, now time.Time) (bool, error) {
+	if subscription.CurrentPeriodSequence != 1 {
+		return false, nil
+	}
+	start, end := legacyLifecycleWindow(subscription, kind)
+	query := tx.Model(&models.CPOSubscriptionLifecycleEvent{}).
+		Where("subscription_id = ? AND kind = ? AND period_sequence IS NULL", subscription.ID, kind).
+		Where("effective_at >= ? AND effective_at <= ?", start, now)
+	if end != nil {
+		query = query.Where("effective_at < ?", *end)
+	}
+	var count int64
+	if err := query.Count(&count).Error; err != nil {
+		return false, fmt.Errorf("read legacy subscription lifecycle event: %w", err)
+	}
+	return count != 0, nil
+}
+
 func (service *Service) recordLifecycleEvent(tx *gorm.DB, subscription models.CPOSubscription, kind string, now time.Time, after func() error) error {
-	event := models.CPOSubscriptionLifecycleEvent{ID: uuid.New(), SubscriptionID: subscription.ID, Kind: kind, EffectiveAt: now, CreatedAt: now}
-	result := tx.Clauses(clause.OnConflict{Columns: []clause.Column{{Name: "subscription_id"}, {Name: "kind"}}, DoNothing: true}).Create(&event)
+	legacyRecorded, err := service.legacyLifecycleEventAlreadyRecorded(tx, subscription, kind, now)
+	if err != nil {
+		return err
+	}
+	if legacyRecorded {
+		// Do not deliver a duplicate legacy warning/expired email. If a
+		// still-current subscription has an existing legacy EXPIRED event,
+		// its state still needs completing, not silently left ACTIVE.
+		if after != nil {
+			return after()
+		}
+		return nil
+	}
+	period := subscription.CurrentPeriodSequence
+	event := models.CPOSubscriptionLifecycleEvent{ID: uuid.New(), SubscriptionID: subscription.ID, Kind: kind, PeriodSequence: &period, EffectiveAt: now, CreatedAt: now}
+	result := tx.Clauses(clause.OnConflict{Columns: []clause.Column{{Name: "subscription_id"}, {Name: "period_sequence"}, {Name: "kind"}}, DoNothing: true}).Create(&event)
 	if result.Error != nil {
 		return fmt.Errorf("record subscription lifecycle event: %w", result.Error)
 	}
 	if result.RowsAffected == 0 {
+		// The delivery is already recorded, but the expiry transition may
+		// still need reconciliation if inconsistent state was encountered.
+		if after != nil {
+			return after()
+		}
 		return nil
 	}
 	if err := service.enqueueLifecycleMail(tx, subscription, kind); err != nil {

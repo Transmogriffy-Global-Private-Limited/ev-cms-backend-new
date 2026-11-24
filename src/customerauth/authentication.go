@@ -207,13 +207,30 @@ func (service *Service) Refresh(ctx context.Context, appID string, request Refre
 			outcome = errInvalidRefresh
 			return nil
 		}
-		customerContext, err := service.loadCustomerContext(tx, session.CustomerID, session.CPOID, false)
+		// Refresh may preserve a valid Customer's safety Stop capability after
+		// CPO suspension, but never restores ordinary commercial admission.
+		customerContext, err := service.loadCustomerContextWithCPOPolicy(tx, session.CustomerID, session.CPOID, false, true)
 		if err != nil {
 			if err := revokeSessionTx(tx, session.ID, "CUSTOMER_AUTHORITY_CHANGED", now); err != nil {
 				return err
 			}
 			outcome = errInvalidRefresh
 			return nil
+		}
+		if customerContext.CPO.Status == constants.CPOStatusSuspended {
+			// Require an already materialized, physically nonterminal transaction.
+			// STOP_PENDING remains eligible for recovery; no new charging is possible.
+			var activeSessions int64
+			if err := tx.Model(&models.ChargingSession{}).
+				Where("cpo_id = ? AND customer_id = ? AND end_time IS NULL AND hal_transaction_id IS NOT NULL AND status IN ?",
+					session.CPOID, session.CustomerID, []string{"ACTIVE", "STOP_PENDING", "RECONCILIATION_REQUIRED"}).
+				Count(&activeSessions).Error; err != nil {
+				return fmt.Errorf("check customer safety continuation eligibility: %w", err)
+			}
+			if activeSessions == 0 {
+				outcome = errInvalidRefresh
+				return nil
+			}
 		}
 		if customerContext.CPO.AppID != appID {
 			outcome = errInvalidRefresh

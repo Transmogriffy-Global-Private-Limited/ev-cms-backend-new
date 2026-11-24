@@ -47,6 +47,7 @@ type CPOSubscription struct {
 	TrialEndsAt             *time.Time `json:"trial_ends_at,omitempty"`
 	CurrentPeriodStartsAt   time.Time  `gorm:"not null" json:"current_period_starts_at"`
 	CurrentPeriodEndsAt     time.Time  `gorm:"not null" json:"current_period_ends_at"`
+	CurrentPeriodSequence   int64      `gorm:"not null;default:1" json:"current_period_sequence"`
 	CancelAtPeriodEnd       bool       `gorm:"not null;default:false" json:"cancel_at_period_end"`
 	PendingPlanVersionID    *uuid.UUID `gorm:"type:uuid" json:"pending_plan_version_id,omitempty"`
 	PendingChangeAt         *time.Time `json:"pending_change_at,omitempty"`
@@ -67,7 +68,7 @@ type CPOSubscriptionHistory struct {
 	NextStatus            string     `gorm:"type:varchar(20);not null" json:"next_status"`
 	PreviousPlanVersionID *uuid.UUID `gorm:"type:uuid" json:"previous_plan_version_id,omitempty"`
 	NextPlanVersionID     uuid.UUID  `gorm:"type:uuid;not null" json:"next_plan_version_id"`
-	ActorUserID           uuid.UUID  `gorm:"type:uuid;not null" json:"actor_user_id"`
+	ActorUserID           *uuid.UUID `gorm:"type:uuid" json:"actor_user_id"`
 	Reason                string     `gorm:"type:varchar(500);not null" json:"reason"`
 	IdempotencyKey        string     `gorm:"type:varchar(120);not null" json:"idempotency_key"`
 	EffectiveAt           time.Time  `gorm:"not null" json:"effective_at"`
@@ -80,8 +81,9 @@ type CPOSubscriptionHistory struct {
 // not a replacement for the manual subscription history.
 type CPOSubscriptionLifecycleEvent struct {
 	ID             uuid.UUID `gorm:"type:uuid;primaryKey;default:gen_random_uuid()" json:"id"`
-	SubscriptionID uuid.UUID `gorm:"type:uuid;not null;uniqueIndex:uq_cpo_subscription_lifecycle_event,priority:1;index" json:"subscription_id"`
-	Kind           string    `gorm:"type:varchar(30);not null;uniqueIndex:uq_cpo_subscription_lifecycle_event,priority:2" json:"kind"`
+	SubscriptionID uuid.UUID `gorm:"type:uuid;not null;index" json:"subscription_id"`
+	Kind           string    `gorm:"type:varchar(30);not null" json:"kind"`
+	PeriodSequence *int64    `gorm:"type:bigint" json:"period_sequence"`
 	EffectiveAt    time.Time `gorm:"not null" json:"effective_at"`
 	CreatedAt      time.Time `gorm:"not null" json:"created_at"`
 }

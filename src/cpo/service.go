@@ -3035,6 +3035,11 @@ func organizationView(record models.CPO) OrganizationView {
 	}
 }
 
+type CPOSubscriptionOverview struct {
+	State  string               `json:"state"`
+	Latest *CPOSubscriptionView `json:"latest,omitempty"`
+}
+
 type subscriptionData struct {
 	models.CPOSubscription
 	PlanName        string
@@ -3096,6 +3101,44 @@ func (service *Service) GetSubscription(
 	}
 
 	return view, nil
+}
+
+// GetSubscriptionOverview is a terminal-aware CPO-local read. It preserves
+// GetSubscription's original current-only API and its 404 semantics.
+func (service *Service) GetSubscriptionOverview(ctx context.Context, principal auth.Principal) (CPOSubscriptionOverview, error) {
+	if err := requireCPOContext(principal); err != nil {
+		return CPOSubscriptionOverview{}, err
+	}
+	var record subscriptionData
+	err := service.database.WithContext(ctx).Model(&models.CPOSubscription{}).
+		Select("cpo_subscriptions.*, p.name as plan_name, p.description as plan_description, pv.currency, pv.price_minor, pv.billing_interval, pv.interval_count, pv.trial_days").
+		Joins("inner join subscription_plan_versions pv on pv.id = cpo_subscriptions.plan_version_id").
+		Joins("inner join subscription_plans p on p.id = pv.plan_id").
+		Where("cpo_subscriptions.cpo_id = ?", *principal.CPOID).
+		Order("CASE WHEN cpo_subscriptions.status IN ('TRIAL','ACTIVE','PAUSED','PAST_DUE') THEN 0 ELSE 1 END ASC").
+		Order("cpo_subscriptions.updated_at DESC, cpo_subscriptions.id DESC").
+		First(&record).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return CPOSubscriptionOverview{State: "NEVER_ISSUED"}, nil
+	}
+	if err != nil {
+		return CPOSubscriptionOverview{}, fmt.Errorf("load subscription overview: %w", err)
+	}
+	view := CPOSubscriptionView{
+		ID: record.ID, Status: record.Status, StartsAt: record.StartsAt,
+		TrialEndsAt: record.TrialEndsAt, CurrentPeriodStartsAt: record.CurrentPeriodStartsAt,
+		CurrentPeriodEndsAt: record.CurrentPeriodEndsAt, CancelAtPeriodEnd: record.CancelAtPeriodEnd,
+		CancelledAt: record.CancelledAt, EndedAt: record.EndedAt,
+		Plan: CPOSubscriptionPlanView{Name: record.PlanName, Description: record.PlanDescription,
+			Currency: record.Currency, PriceMinor: record.PriceMinor,
+			BillingInterval: record.BillingInterval, IntervalCount: record.IntervalCount, TrialDays: record.TrialDays},
+	}
+	state := "TERMINAL"
+	switch record.Status {
+	case "TRIAL", "ACTIVE", "PAUSED", "PAST_DUE":
+		state = "CURRENT"
+	}
+	return CPOSubscriptionOverview{State: state, Latest: &view}, nil
 }
 
 func (service *Service) ListChargersByHub(

@@ -63,3 +63,9 @@ type SubscriptionView struct {
 	Plan         models.SubscriptionPlan        `json:"plan"`
 	Version      models.SubscriptionPlanVersion `json:"plan_version"`
 }
+
+// SubscriptionOverview avoids treating a terminal subscription as never issued.
+type SubscriptionOverview struct {
+	State  string            `json:"state"`
+	Latest *SubscriptionView `json:"latest,omitempty"`
+}

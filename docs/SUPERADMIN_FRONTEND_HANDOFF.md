@@ -61,8 +61,10 @@ platform authority path. The platform-only queue/reply/status workflow is
 specified in `guides/workflows/superadmin-support-tickets.md`.
 
 The manual subscription API is platform-superadmin-only, excludes feature-key
-entitlements, and does not activate provider billing or automatic lifecycle
-behavior.
+entitlements, and does not activate platform-subscription payment providers.
+The deployed/source-active lifecycle worker queues expiry warnings and marks
+elapsed periods EXPIRED. This does not collect subscription payments, renew
+subscriptions automatically, or activate/suspend a CPO.
 
 Configure the origin in the frontend environment. Do not hardcode it in API
 modules:
@@ -106,7 +108,7 @@ approved origin policy and HTTPS.
 | CPO operational projection and customer intelligence | Ready | Bounded platform views; neither grants CPO impersonation nor secret access |
 | Tenant support queue and HAL fact requeue | Ready | Support is a controlled conversation surface; use the complete support-desk workflow, while requeue requires exact-fact confirmation |
 | Manual API authority classification | Ready | All platform routes remain server-enforced as `PLATFORM`; the matrix categories are FE risk groupings, not granular RBAC |
-| Manual subscriptions | Ready | Plans, issue/renew/status, and history; no feature keys, provider, or automatic lifecycle |
+| Manual subscriptions | Ready, with known defects | Plan-derived periods and SuperAdmin issue/renew/status/history; manual external collection, automatic warning/expiry worker; no subscription payment provider or auto-renewal |
 | Platform billing | Intentionally unsupported | No invoice, payment, checkout, or webhook APIs |
 | Tenant business data or secret access | Forbidden boundary | A SuperAdmin is not a CPO ADMIN and cannot impersonate one |
 
@@ -1711,7 +1713,8 @@ invalidate them.
 - [ ] Plan drafts, publishing, archiving, manual issue/renew/change, explicit
   transitions, history, and idempotent retries are implemented.
 - [ ] The FE does not present subscription status as CPO access or introduce
-  feature keys, entitlements, provider billing, or automatic lifecycle.
+  feature keys, entitlements, platform-subscription payment collection, or
+  automatic renewal; it does show the automatic expiry and warning worker.
 
 ### CPO control
 
@@ -1763,7 +1766,10 @@ The FE should raise, not paper over, these gaps:
    `guides/workflows/superadmin-support-tickets.md`.
 4. Manual subscription plans, CPO subscriptions, and history are platform-only.
    Feature keys/entitlements, platform invoices, payments, checkout,
-   webhooks, and automatic lifecycle behavior remain intentionally unsupported.
+   webhooks, and automatic renewal remain intentionally unsupported.
+   The running lifecycle worker does enqueue warning/expiry mail and mark
+   elapsed periods EXPIRED; this does not prove mail delivery. Structured
+   external-collection evidence fields are also not yet implemented.
 
 If the FE generates types from OpenAPI, pin the generator version in the FE
 repository and make regeneration plus type-checking part of its verification.
