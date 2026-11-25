@@ -201,7 +201,7 @@ func createChargingSessionListFixture(t *testing.T, database *gorm.DB, now time.
 	if err := database.Create(&hub).Error; err != nil {
 		t.Fatalf("create hub: %v", err)
 	}
-	charger := models.Charger{ID: uuid.New(), CPOID: cpo.ID, HubID: &hub.ID, ChargerID: "s1t001", OCPPIdentity: "session-list-" + uuid.NewString(), Status: constants.ChargerStatusActive, ChargerName: "Session list charger", NumberOfConnectors: 1, CreatedAt: now, UpdatedAt: now}
+	charger := models.Charger{ID: uuid.New(), CPOID: cpo.ID, HubID: &hub.ID, ChargerID: "s" + uuid.NewString()[:5], OCPPIdentity: "session-list-" + uuid.NewString(), Status: constants.ChargerStatusActive, ChargerName: "Session list charger", NumberOfConnectors: 1, CreatedAt: now, UpdatedAt: now}
 	if err := database.Create(&charger).Error; err != nil {
 		t.Fatalf("create charger: %v", err)
 	}

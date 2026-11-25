@@ -73,7 +73,7 @@ func TestChargingStartAdmissionWithPostgreSQL(t *testing.T) {
 	)
 
 	setChargingAdmissionProjection(t, gormDB, fixture, fixture.connector.ID, "ONLINE", "Available", time.Now().UTC())
-	first, err := service.StartCharging(ctx, fixture.firstPrincipal, ChargingStartRequest{ChargerID: fixture.charger.ChargerID, ConnectorID: fixture.connector.ID}, "admission-first")
+	first, err := service.StartCharging(ctx, fixture.firstPrincipal, ChargingStartRequest{ChargerID: fixture.charger.ChargerID, ConnectorID: fixture.connector.ID}, uuid.NewString())
 	if err != nil || first.Status != constants.StartIntentStatusAcceptedForDelivery {
 		t.Fatalf("available/fresh start response=%+v err=%v", first, err)
 	}
@@ -88,11 +88,11 @@ func TestChargingStartAdmissionWithPostgreSQL(t *testing.T) {
 		t.Fatalf("start intent did not freeze canonical tariff semantics: %#v", intent.TariffSnapshot)
 	}
 	setChargingAdmissionProjection(t, gormDB, fixture, fixture.connector.ID, "ONLINE", "Preparing", time.Now().UTC())
-	replay, err := service.StartCharging(ctx, fixture.firstPrincipal, ChargingStartRequest{ChargerID: fixture.charger.ChargerID, ConnectorID: fixture.connector.ID}, "admission-replay")
+	replay, err := service.StartCharging(ctx, fixture.firstPrincipal, ChargingStartRequest{ChargerID: fixture.charger.ChargerID, ConnectorID: fixture.connector.ID}, uuid.NewString())
 	if err != nil || replay.StartIntentID != first.StartIntentID {
 		t.Fatalf("same-customer replay response=%+v err=%v, want intent %s", replay, err, first.StartIntentID)
 	}
-	otherCustomerResponse, otherCustomerErr := service.StartCharging(ctx, fixture.secondPrincipal, ChargingStartRequest{ChargerID: fixture.charger.ChargerID, ConnectorID: fixture.connector.ID}, "admission-other-customer")
+	otherCustomerResponse, otherCustomerErr := service.StartCharging(ctx, fixture.secondPrincipal, ChargingStartRequest{ChargerID: fixture.charger.ChargerID, ConnectorID: fixture.connector.ID}, uuid.NewString())
 	assertAdmissionUnavailable(t, otherCustomerResponse, otherCustomerErr)
 
 	for _, test := range []struct {
@@ -113,7 +113,7 @@ func TestChargingStartAdmissionWithPostgreSQL(t *testing.T) {
 			connector := fixture.newConnector(t)
 			setChargingAdmissionProjection(t, gormDB, fixture, connector.ID, test.chargerState, test.connectorStatus, test.observedAt)
 			before := chargingAdmissionSideEffects(t, gormDB, fixture.cpo.ID)
-			response, err := service.StartCharging(ctx, fixture.firstPrincipal, ChargingStartRequest{ChargerID: fixture.charger.ChargerID, ConnectorID: connector.ID}, "admission-"+test.name)
+			response, err := service.StartCharging(ctx, fixture.firstPrincipal, ChargingStartRequest{ChargerID: fixture.charger.ChargerID, ConnectorID: connector.ID}, uuid.NewString())
 			assertAdmissionUnavailable(t, response, err)
 			if after := chargingAdmissionSideEffects(t, gormDB, fixture.cpo.ID); after != before {
 				t.Fatalf("live admission failure created durable side effects: before=%v after=%v", before, after)
@@ -133,7 +133,7 @@ func TestChargingStartAdmissionWithPostgreSQL(t *testing.T) {
 		principal := principal
 		go func() {
 			defer start.Done()
-			_, err := service.StartCharging(ctx, principal, ChargingStartRequest{ChargerID: fixture.charger.ChargerID, ConnectorID: racingConnector.ID}, "admission-race")
+			_, err := service.StartCharging(ctx, principal, ChargingStartRequest{ChargerID: fixture.charger.ChargerID, ConnectorID: racingConnector.ID}, uuid.NewString())
 			results <- err
 		}()
 	}
@@ -167,7 +167,7 @@ func TestChargingStartAdmissionWithPostgreSQL(t *testing.T) {
 		t.Fatalf("raise connector capacity for wallet-policy affordability: %v", err)
 	}
 	setChargingAdmissionProjection(t, gormDB, fixture, policyConnector.ID, "ONLINE", "Available", time.Now().UTC())
-	policyStart, err := service.StartCharging(ctx, fixture.firstPrincipal, ChargingStartRequest{ChargerID: fixture.charger.ChargerID, ConnectorID: policyConnector.ID}, "admission-wallet-policy")
+	policyStart, err := service.StartCharging(ctx, fixture.firstPrincipal, ChargingStartRequest{ChargerID: fixture.charger.ChargerID, ConnectorID: policyConnector.ID}, uuid.NewString())
 	if err != nil {
 		t.Fatalf("wallet-policy start=%+v err=%v", policyStart, err)
 	}
@@ -188,7 +188,7 @@ func TestChargingStartAdmissionWithPostgreSQL(t *testing.T) {
 	}
 	minimumConnector := fixture.newConnector(t)
 	setChargingAdmissionProjection(t, gormDB, fixture, minimumConnector.ID, "ONLINE", "Available", time.Now().UTC())
-	_, err = service.StartCharging(ctx, fixture.secondPrincipal, ChargingStartRequest{ChargerID: fixture.charger.ChargerID, ConnectorID: minimumConnector.ID}, "admission-wallet-minimum")
+	_, err = service.StartCharging(ctx, fixture.secondPrincipal, ChargingStartRequest{ChargerID: fixture.charger.ChargerID, ConnectorID: minimumConnector.ID}, uuid.NewString())
 	var apiError *APIError
 	if !errors.As(err, &apiError) || apiError.Code != "wallet_minimum_balance_not_met" {
 		t.Fatalf("below-minimum start error=%v, want wallet_minimum_balance_not_met", err)
@@ -310,11 +310,11 @@ func newChargingAdmissionFixture(t *testing.T, database *gorm.DB) chargingAdmiss
 	t.Helper()
 	now := time.Now().UTC()
 	cpo := createActiveTestCPO(t, database)
-	hub := models.Hub{ID: uuid.New(), CPOID: cpo.ID, Name: "Admission hub", Address: "1 Test Road", State: constants.WestBengal, Latitude: 22.5726, Longitude: 88.3639, CustomerVisible: true, CreatedAt: now, UpdatedAt: now}
+	hub := models.Hub{ID: uuid.New(), CPOID: cpo.ID, Name: "Admission hub", Address: "1 Test Road", State: constants.WestBengal, Latitude: 22.5726, Longitude: 88.3639, CustomerVisible: false, CreatedAt: now, UpdatedAt: now}
 	if err := database.Create(&hub).Error; err != nil {
 		t.Fatalf("create hub: %v", err)
 	}
-	charger := models.Charger{ID: uuid.New(), CPOID: cpo.ID, HubID: &hub.ID, ChargerID: "a1b2c3", OCPPIdentity: "admission-" + uuid.NewString(), Status: constants.ChargerStatusActive, ChargerName: "Admission charger", NumberOfConnectors: 8, CreatedAt: now, UpdatedAt: now}
+	charger := models.Charger{ID: uuid.New(), CPOID: cpo.ID, HubID: &hub.ID, ChargerID: uuid.NewString()[:6], OCPPIdentity: "admission-" + uuid.NewString(), Status: constants.ChargerStatusActive, ChargerName: "Admission charger", NumberOfConnectors: 8, CreatedAt: now, UpdatedAt: now}
 	if err := database.Create(&charger).Error; err != nil {
 		t.Fatalf("create charger: %v", err)
 	}
@@ -332,6 +332,19 @@ func newChargingAdmissionFixture(t *testing.T, database *gorm.DB) chargingAdmiss
 	if err := database.Create(&tariff).Error; err != nil {
 		t.Fatalf("create tariff: %v", err)
 	}
+	// Publish the hub only after its valid, enabled and unbounded root tariff
+	// exists. The DB enforces this for real customers as well as test data.
+	if err := database.Model(&models.Hub{}).Where("id = ?", hub.ID).
+		Update("customer_visible", true).Error; err != nil {
+		t.Fatalf("publish hub with root tariff: %v", err)
+	}
+	// Publishing a hub does not implicitly publish its chargers. Exercise
+	// customer admission against an explicitly customer-visible charger.
+	if err := database.Model(&models.Charger{}).Where("id = ? AND cpo_id = ?", charger.ID, cpo.ID).
+		Update("customer_visibility", true).Error; err != nil {
+		t.Fatalf("publish charger: %v", err)
+	}
+	charger.CustomerVisibility = true
 	firstPrincipal := createChargingAdmissionCustomer(t, database, cpo.ID, now)
 	secondPrincipal := createChargingAdmissionCustomer(t, database, cpo.ID, now)
 	fixture := chargingAdmissionFixture{cpo: cpo, charger: charger, firstPrincipal: firstPrincipal, secondPrincipal: secondPrincipal, database: database}

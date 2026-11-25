@@ -72,14 +72,14 @@ func TestSupportWorkflowWithPostgreSQL(t *testing.T) {
 	if created.Status != "OPEN" || len(created.Messages) != 1 || len(created.Events) != 1 || created.Events[0].EventType != "CREATED" {
 		t.Fatalf("created detail = %#v", created)
 	}
-	if countSupportMailJobs(t, gormDB, "CPO_SUPPORT_TICKET_CREATED") != 2 {
+	if countSupportMailJobs(t, gormDB, firstCPOID, "CPO_SUPPORT_TICKET_CREATED") != 2 {
 		t.Fatal("ticket creation did not enqueue exactly the eligible CPO confirmations")
 	}
-	createdRecipients := supportMailRecipients(t, gormDB, "CPO_SUPPORT_TICKET_CREATED")
+	createdRecipients := supportMailRecipients(t, gormDB, firstCPOID, "CPO_SUPPORT_TICKET_CREATED")
 	if !createdRecipients[eligibleAdmin.Email] || createdRecipients[suspendedAdmin.Email] || createdRecipients[inactiveAdmin.Email] {
 		t.Fatalf("support confirmation recipients were not safely filtered: %#v", createdRecipients)
 	}
-	if countSupportPlatformEvents(t, gormDB, "support.ticket.created") != 1 {
+	if countSupportPlatformEvents(t, gormDB, created.ID, "support.ticket.created") != 1 {
 		t.Fatal("ticket creation did not publish the durable platform support event")
 	}
 
@@ -98,7 +98,7 @@ func TestSupportWorkflowWithPostgreSQL(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CPO reopen reply: %v", err)
 	}
-	if countSupportPlatformEvents(t, gormDB, "support.ticket.cpo_replied") != 1 || countSupportPlatformEvents(t, gormDB, "support.ticket.reopened") != 1 {
+	if countSupportPlatformEvents(t, gormDB, created.ID, "support.ticket.cpo_replied") != 1 || countSupportPlatformEvents(t, gormDB, created.ID, "support.ticket.reopened") != 1 {
 		t.Fatal("CPO reply/reopen did not publish durable platform activity")
 	}
 	if reopened.Status != "OPEN" || reopened.ClosedAt != nil || !hasSupportEvent(reopened.Events, "MESSAGE_ADDED", nil, nil) || !hasSupportEvent(reopened.Events, "STATUS_CHANGED", stringPointer("RESOLVED"), stringPointer("OPEN")) {
@@ -115,13 +115,13 @@ func TestSupportWorkflowWithPostgreSQL(t *testing.T) {
 	if _, err := service.Reply(ctx, platform, created.ID, ReplyRequest{Body: "A private platform response that must not leak by email.", IdempotencyKey: "platform-" + uuid.NewString()}); err != nil {
 		t.Fatalf("platform reply: %v", err)
 	}
-	if countSupportMailJobs(t, gormDB, "CPO_SUPPORT_TICKET_PLATFORM_REPLY") != 2 {
+	if countSupportMailJobs(t, gormDB, firstCPOID, "CPO_SUPPORT_TICKET_PLATFORM_REPLY") != 2 {
 		t.Fatal("platform reply did not enqueue exactly the eligible CPO notifications")
 	}
-	if payload := latestSupportMailPayload(t, gormDB, mailBox, "CPO_SUPPORT_TICKET_PLATFORM_REPLY"); strings.Contains(string(payload), "A private platform response") {
+	if payload := latestSupportMailPayload(t, gormDB, firstCPOID, mailBox, "CPO_SUPPORT_TICKET_PLATFORM_REPLY"); strings.Contains(string(payload), "A private platform response") {
 		t.Fatalf("platform reply body leaked into mail payload: %s", payload)
 	}
-	if payload := latestSupportMailPayload(t, gormDB, mailBox, "CPO_SUPPORT_TICKET_CREATED"); !strings.Contains(string(payload), "https://cms.example.invalid/support/tickets/"+created.ID.String()) {
+	if payload := latestSupportMailPayload(t, gormDB, firstCPOID, mailBox, "CPO_SUPPORT_TICKET_CREATED"); !strings.Contains(string(payload), "https://cms.example.invalid/support/tickets/"+created.ID.String()) {
 		t.Fatalf("ticket mail action URL did not carry ticket context: %s", payload)
 	}
 
@@ -135,7 +135,7 @@ func TestSupportWorkflowWithPostgreSQL(t *testing.T) {
 		t.Fatalf("OPEN -> CLOSED notification: %v", err)
 	}
 	for _, template := range []string{"CPO_SUPPORT_TICKET_RESOLVED", "CPO_SUPPORT_TICKET_REOPENED", "CPO_SUPPORT_TICKET_CLOSED"} {
-		if countSupportMailJobs(t, gormDB, template) == 0 {
+		if countSupportMailJobs(t, gormDB, firstCPOID, template) == 0 {
 			t.Fatalf("%s notification was not queued", template)
 		}
 	}
@@ -148,7 +148,7 @@ func TestSupportWorkflowWithPostgreSQL(t *testing.T) {
 	if err != nil || countSupportMessages(replayed.Messages, "Retry-safe message.") != 1 {
 		t.Fatalf("replayed reply duplicated message: %#v, %v", replayed, err)
 	}
-	if countSupportPlatformEvents(t, gormDB, "support.ticket.cpo_replied") != 3 {
+	if countSupportPlatformEvents(t, gormDB, created.ID, "support.ticket.cpo_replied") != 3 {
 		t.Fatal("idempotent retry duplicated the CPO platform notification intent")
 	}
 
@@ -334,28 +334,28 @@ func countSupportMessages(messages []models.SupportTicketMessage, body string) i
 	return count
 }
 
-func countSupportMailJobs(t *testing.T, database *gorm.DB, template string) int64 {
+func countSupportMailJobs(t *testing.T, database *gorm.DB, cpoID uuid.UUID, template string) int64 {
 	t.Helper()
 	var count int64
-	if err := database.Model(&models.MailOutbox{}).Where("template = ?", template).Count(&count).Error; err != nil {
+	if err := database.Model(&models.MailOutbox{}).Where("cpo_id = ? AND template = ?", cpoID, template).Count(&count).Error; err != nil {
 		t.Fatalf("count %s mail jobs: %v", template, err)
 	}
 	return count
 }
 
-func countSupportPlatformEvents(t *testing.T, database *gorm.DB, eventType string) int64 {
+func countSupportPlatformEvents(t *testing.T, database *gorm.DB, ticketID uuid.UUID, eventType string) int64 {
 	t.Helper()
 	var count int64
-	if err := database.Model(&models.PlatformEvent{}).Where("event_type = ?", eventType).Count(&count).Error; err != nil {
+	if err := database.Model(&models.PlatformEvent{}).Where("event_type = ? AND resource_id = ?", eventType, ticketID.String()).Count(&count).Error; err != nil {
 		t.Fatalf("count %s platform events: %v", eventType, err)
 	}
 	return count
 }
 
-func latestSupportMailPayload(t *testing.T, database *gorm.DB, box *security.SecretBox, template string) []byte {
+func latestSupportMailPayload(t *testing.T, database *gorm.DB, cpoID uuid.UUID, box *security.SecretBox, template string) []byte {
 	t.Helper()
 	var job models.MailOutbox
-	if err := database.Where("template = ?", template).Order("created_at DESC, id DESC").First(&job).Error; err != nil {
+	if err := database.Where("cpo_id = ? AND template = ?", cpoID, template).Order("created_at DESC, id DESC").First(&job).Error; err != nil {
 		t.Fatalf("load %s mail job: %v", template, err)
 	}
 	payload, err := box.Open(job.PayloadCiphertext, []byte("ev-cms-mail:"+job.Template+":"+strings.ToLower(strings.TrimSpace(job.ToEmail))))
@@ -372,10 +372,10 @@ func latestSupportMailPayload(t *testing.T, database *gorm.DB, box *security.Sec
 	return payload
 }
 
-func supportMailRecipients(t *testing.T, database *gorm.DB, template string) map[string]bool {
+func supportMailRecipients(t *testing.T, database *gorm.DB, cpoID uuid.UUID, template string) map[string]bool {
 	t.Helper()
 	var jobs []models.MailOutbox
-	if err := database.Where("template = ?", template).Find(&jobs).Error; err != nil {
+	if err := database.Where("cpo_id = ? AND template = ?", cpoID, template).Find(&jobs).Error; err != nil {
 		t.Fatalf("load %s mail recipients: %v", template, err)
 	}
 	recipients := make(map[string]bool, len(jobs))

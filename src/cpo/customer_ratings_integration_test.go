@@ -59,7 +59,11 @@ func TestListCustomerRatingsRepositoryWithPostgreSQL(t *testing.T) {
 	if len(first.Ratings) != 2 || !first.HasMore || first.Ratings[0].ID != rows[2].ID || first.Ratings[1].ID != rows[1].ID {
 		t.Fatalf("first page order/tenant scope: %+v", first)
 	}
-	if first.Ratings[0].CustomerEmail == "" || first.Ratings[0].ChargerCode != "s1t001" {
+	var fixtureCharger models.Charger
+	if err := database.First(&fixtureCharger, "id = ?", chargerA).Error; err != nil {
+		t.Fatalf("load first fixture charger: %v", err)
+	}
+	if first.Ratings[0].CustomerEmail == "" || first.Ratings[0].ChargerCode != fixtureCharger.ChargerID {
 		t.Fatalf("parent associations not loaded into CPO projection: %+v", first.Ratings[0])
 	}
 	second, err := service.ListCustomerRatings(ctx, principal, CustomerRatingListQuery{

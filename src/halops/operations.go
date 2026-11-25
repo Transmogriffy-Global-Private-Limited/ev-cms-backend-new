@@ -571,7 +571,7 @@ func (service *Service) claimMaterializedSessionReconciliationBatch(ctx context.
 		eligible := func(query *gorm.DB) *gorm.DB {
 			return query.Where("status IN ? AND end_time IS NULL AND hal_transaction_id IS NOT NULL", []string{"ACTIVE", "STOP_PENDING", "RECONCILIATION_REQUIRED"})
 		}
-		first := eligible(tx).Order("id ASC").Limit(limit)
+		first := eligible(tx.Session(&gorm.Session{NewDB: true})).Order("id ASC").Limit(limit)
 		if cursor.LastSessionID != nil {
 			first = first.Where("id > ?", *cursor.LastSessionID)
 		}
@@ -580,7 +580,7 @@ func (service *Service) claimMaterializedSessionReconciliationBatch(ctx context.
 		}
 		if len(sessions) < limit && cursor.LastSessionID != nil {
 			var wrapped []models.ChargingSession
-			if err := eligible(tx).Where("id <= ?", *cursor.LastSessionID).Order("id ASC").Limit(limit - len(sessions)).Find(&wrapped).Error; err != nil {
+			if err := eligible(tx.Session(&gorm.Session{NewDB: true})).Where("id <= ?", *cursor.LastSessionID).Order("id ASC").Limit(limit - len(sessions)).Find(&wrapped).Error; err != nil {
 				return fmt.Errorf("wrap materialized-session reconciliation cursor: %w", err)
 			}
 			sessions = append(sessions, wrapped...)

@@ -3,6 +3,7 @@ package subscriptions
 import (
 	"context"
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -109,16 +110,53 @@ func TestLifecycleQueueFailureRetriesAndFencesExpiredLease(t *testing.T) {
 		t.Fatal(err)
 	}
 	clock = target.CurrentPeriodEndsAt.Add(time.Second)
-	// Intentionally insert the worker's own idempotency identity without
-	// transitioning subscription state, forcing a reproducible transaction failure.
-	key := fmt.Sprintf("system:expiry:%s:%d", target.ID, target.CurrentPeriodSequence)
-	previous := target.Status
-	if err := svc.recordTransition(database, uuid.Nil, target, &previous, nil,
-		"test obstruction", key, clock, "SYSTEM_EXPIRE"); err != nil {
-		t.Fatal(err)
+	// Inject a real, transaction-local-to-the-target failure instead of a
+	// duplicate receipt: duplicate transition receipts are intentionally
+	// idempotent and must NOT cause a worker error.
+	faultName := "transev_test_expiry_" + strings.ReplaceAll(uuid.NewString(), "-", "")
+	faultTrigger := faultName + "_trigger"
+	if err := database.Exec(fmt.Sprintf(`CREATE FUNCTION %s() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+    RAISE EXCEPTION 'injected lifecycle expiry failure';
+END $$`, faultName)).Error; err != nil {
+		t.Fatalf("create test expiry fault: %v", err)
+	}
+	if err := database.Exec(fmt.Sprintf(`CREATE TRIGGER %s BEFORE UPDATE OF status ON cpo_subscriptions
+FOR EACH ROW WHEN (OLD.id = '%s'::uuid AND NEW.status = 'EXPIRED') EXECUTE FUNCTION %s()`,
+		faultTrigger, target.ID, faultName)).Error; err != nil {
+		_ = database.Exec("DROP FUNCTION IF EXISTS " + faultName + "()").Error
+		t.Fatalf("activate test expiry fault: %v", err)
+	}
+	removeFault := func() error {
+		if err := database.Exec("DROP TRIGGER IF EXISTS " + faultTrigger + " ON cpo_subscriptions").Error; err != nil {
+			return err
+		}
+		return database.Exec("DROP FUNCTION IF EXISTS " + faultName + "()").Error
+	}
+	t.Cleanup(func() {
+		if err := removeFault(); err != nil {
+			t.Errorf("cleanup injected expiry fault: %v", err)
+		}
+	})
+	// Prove the trigger actually intercepts the target subscription, not
+	// merely that the CREATE TRIGGER statement succeeded.
+	if err := svc.processSubscriptionLifecycle(ctx, target.ID, clock); err == nil {
+		t.Fatal("injected expiry trigger did not reject the target transition")
+	}
+	// This test exercises the retry queue (not scanner discovery). Ensure
+	// this unique job is already due without affecting any other subscription.
+	if err := database.Exec(`INSERT INTO subscription_lifecycle_pending_work
+		(subscription_id, next_attempt_at, attempts, created_at, updated_at)
+		VALUES (?, ?, 0, ?, ?)
+		ON CONFLICT (subscription_id) DO UPDATE
+		SET next_attempt_at = EXCLUDED.next_attempt_at,
+		    claim_token = NULL,
+		    updated_at = EXCLUDED.updated_at`,
+		target.ID, clock.Add(-time.Hour), clock, clock).Error; err != nil {
+		t.Fatalf("seed due retry test work: %v", err)
 	}
 	if err := svc.processLifecycle(ctx); err == nil {
-		t.Fatal("expected obstructed expiry to fail")
+		t.Fatal("expected injected expiry failure")
 	}
 	var queued lifecyclePendingWork
 	if err := database.First(&queued, "subscription_id = ?", target.ID).Error; err != nil {
@@ -130,8 +168,7 @@ func TestLifecycleQueueFailureRetriesAndFencesExpiredLease(t *testing.T) {
 	if queued.Attempts < 1 || !queued.NextAttemptAt.After(clock) {
 		t.Fatal("failed work has no bounded retry")
 	}
-	if err := database.Where("subscription_id = ? AND idempotency_key = ?", target.ID, key).
-		Delete(&models.CPOSubscriptionHistory{}).Error; err != nil {
+	if err := removeFault(); err != nil {
 		t.Fatal(err)
 	}
 	clock = queued.NextAttemptAt.Add(time.Second)
@@ -165,6 +202,17 @@ func TestLifecycleQueueOldClaimCannotDeleteNewClaim(t *testing.T) {
 		t.Fatal(err)
 	}
 	clock = target.CurrentPeriodEndsAt.Add(time.Second)
+	// This suite shares an isolated database among integration tests. Put
+	// this case's work at the queue head so previous tests cannot mask the
+	// claim-token fencing behavior via the bounded discovery cursor.
+	if err := database.Exec(`INSERT INTO subscription_lifecycle_pending_work
+		(subscription_id, next_attempt_at, attempts, created_at, updated_at)
+		VALUES (?, ?, 0, ?, ?)
+		ON CONFLICT (subscription_id) DO UPDATE
+		SET next_attempt_at = EXCLUDED.next_attempt_at`,
+		target.ID, time.Unix(0, 0).UTC(), clock, clock).Error; err != nil {
+		t.Fatalf("seed due claim for fencing test: %v", err)
+	}
 	first, err := svc.reserveLifecycleWork(ctx, clock)
 	if err != nil {
 		t.Fatal(err)

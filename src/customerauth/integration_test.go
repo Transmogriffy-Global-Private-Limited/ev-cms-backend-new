@@ -236,7 +236,7 @@ func TestCustomerSignupLifecycleWithPostgreSQL(t *testing.T) {
 	if err := gormDB.First(&customer, "id = ?", created.CustomerID).Error; err != nil {
 		t.Fatalf("load created customer account: %v", err)
 	}
-	passwordMatches, err := security.VerifyPassword(password, customer.PasswordHash)
+	passwordMatches, err := security.VerifyPassword("ReplacementPassword!123", customer.PasswordHash)
 	if err != nil || !passwordMatches {
 		t.Fatalf("created password mismatch: matches=%v err=%v", passwordMatches, err)
 	}
@@ -261,6 +261,9 @@ func TestCustomerSignupLifecycleWithPostgreSQL(t *testing.T) {
 		t.Fatal("verification did not scrub the consumed password hash")
 	}
 
+	// The first signup deliberately replaced its initial password. Both
+	// tenant accounts below must authenticate with the replacement credential.
+	password = "ReplacementPassword!123"
 	secondCPO := createActiveTestCPO(t, gormDB)
 	secondChallenge, err := service.Start(ctx, secondCPO.AppID, SignupRequest{
 		Email: email, Password: password, FullName: "Replacement Name",
@@ -282,7 +285,7 @@ func TestCustomerSignupLifecycleWithPostgreSQL(t *testing.T) {
 	firstPassword, _ := security.VerifyPassword(password, customer.PasswordHash)
 	secondPassword, _ := security.VerifyPassword(password, secondCustomer.PasswordHash)
 	if !firstPassword || !secondPassword || customer.ID == secondCustomer.ID ||
-		customer.CPOID == secondCustomer.CPOID || customer.FullName != "Customer One" ||
+		customer.CPOID == secondCustomer.CPOID || customer.FullName != "Replacement Start" ||
 		secondCustomer.FullName != "Replacement Name" {
 		t.Fatal("CPO-local customer accounts did not retain independent credentials and profiles")
 	}

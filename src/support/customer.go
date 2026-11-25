@@ -50,9 +50,9 @@ type CustomerTicketView struct {
 	ClosedAt   *time.Time            `json:"closed_at,omitempty"`
 	CreatedAt  time.Time             `json:"created_at"`
 	UpdatedAt  time.Time             `json:"updated_at"`
-	Customer   *CustomerIdentityView `json:"customer,omitempty"`
-	Messages   []CustomerMessageView `json:"messages"`
-	Events     []CustomerEventView   `json:"events"`
+	Customer   *CustomerIdentityView `json:"customer,omitempty" gorm:"-"`
+	Messages   []CustomerMessageView `json:"messages" gorm:"-"`
+	Events     []CustomerEventView   `json:"events" gorm:"-"`
 }
 type CustomerTicketSummary struct {
 	ID         uuid.UUID             `json:"id"`
@@ -61,7 +61,7 @@ type CustomerTicketSummary struct {
 	Status     string                `json:"status"`
 	UpdatedAt  time.Time             `json:"updated_at"`
 	CreatedAt  time.Time             `json:"created_at"`
-	Customer   *CustomerIdentityView `json:"customer,omitempty"`
+	Customer   *CustomerIdentityView `json:"customer,omitempty" gorm:"-"`
 }
 type CustomerTicketPage struct {
 	Tickets      []CustomerTicketSummary `json:"tickets"`
@@ -260,11 +260,15 @@ func (s *Service) customerReply(ctx context.Context, cpoID, customerID, userID u
 		if t.ID == uuid.Nil {
 			return notFound()
 		}
-		var existing uuid.UUID
-		if err := tx.Table("support_ticket_events").Select("id").Where("ticket_id=? AND idempotency_key=?", id, r.IdempotencyKey).Scan(&existing).Error; err != nil {
+		// A UUID is not a scalar Scan destination in this GORM/driver path;
+		// Count avoids the driver attempting to scan its text form into []byte.
+		var existing int64
+		if err := tx.Table("support_ticket_events").
+			Where("ticket_id = ? AND idempotency_key = ?", id, r.IdempotencyKey).
+			Count(&existing).Error; err != nil {
 			return err
 		}
-		if existing != uuid.Nil {
+		if existing > 0 {
 			return nil
 		}
 		next := t.Status

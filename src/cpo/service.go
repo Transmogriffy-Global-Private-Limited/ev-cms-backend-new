@@ -3693,6 +3693,22 @@ func (service *Service) CreateCharger(
 	return response, nil
 }
 
+// insertTariffWithExplicitState preserves false without GORM's default:true
+// struct-creation callback. This is not a SQL-guard bypass: all database
+// constraints and triggers still execute in the caller's transaction.
+func insertTariffWithExplicitState(tx *gorm.DB, record *models.Tariff) error {
+	return tx.Exec(`INSERT INTO tariffs
+		(id, cpo_id, hub_id, assigned_to, charger_id, user_group_id,
+		 price_per_unit, idle_fee_per_min, currency, is_active, start_date,
+		 end_date, tariff_type, price_type, units, created_at, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		record.ID, record.CPOID, record.HubID, record.AssignedTo,
+		record.ChargerID, record.UserGroupID, record.PricePerUnit,
+		record.IdleFeePerMin, record.Currency, record.IsActive,
+		record.StartDate, record.EndDate, record.TariffType, record.PriceType,
+		record.Units, record.CreatedAt, record.UpdatedAt).Error
+}
+
 func (service *Service) CreateHubTariff(
 	ctx context.Context,
 	principal auth.Principal,
@@ -3747,7 +3763,9 @@ func (service *Service) CreateHubTariff(
 			return err
 		}
 
-		if err := tx.Create(&record).Error; err != nil {
+		// Persist the explicit false value for an initially inactive tariff.
+		// GORM otherwise substitutes the model default:true on Create.
+		if err := insertTariffWithExplicitState(tx, &record); err != nil {
 			return service.handleTariffError("create hub tariff", err)
 		}
 
@@ -3965,7 +3983,9 @@ func (service *Service) CreateChargerTariff(
 			return err
 		}
 
-		if err := tx.Create(&record).Error; err != nil {
+		// Persist the explicit false value for an initially inactive tariff.
+		// GORM otherwise substitutes the model default:true on Create.
+		if err := insertTariffWithExplicitState(tx, &record); err != nil {
 			return service.handleTariffError("create charger tariff", err)
 		}
 
@@ -4186,7 +4206,9 @@ func (service *Service) CreateUserGroupTariff(
 			return err
 		}
 
-		if err := tx.Create(&record).Error; err != nil {
+		// Persist the explicit false value for an initially inactive tariff.
+		// GORM otherwise substitutes the model default:true on Create.
+		if err := insertTariffWithExplicitState(tx, &record); err != nil {
 			return service.handleTariffError("create user group tariff", err)
 		}
 

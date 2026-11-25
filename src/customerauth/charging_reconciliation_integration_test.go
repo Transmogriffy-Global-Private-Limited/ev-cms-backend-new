@@ -102,7 +102,7 @@ func TestChargingStartReconciliationWithPostgreSQL(t *testing.T) {
 	setChargingAdmissionProjection(t, gormDB, fixture, fixture.connector.ID, "ONLINE", "Available", time.Now().UTC())
 	before := chargingAdmissionSideEffects(t, gormDB, fixture.cpo.ID)
 	mappingFails.Store(true)
-	_, err = service.StartCharging(ctx, fixture.firstPrincipal, ChargingStartRequest{ChargerID: fixture.charger.ChargerID, ConnectorID: fixture.connector.ID}, "mapping-failure")
+	_, err = service.StartCharging(ctx, fixture.firstPrincipal, ChargingStartRequest{ChargerID: fixture.charger.ChargerID, ConnectorID: fixture.connector.ID}, uuid.NewString())
 	assertChargingMappingUnavailable(t, err)
 	if after := chargingAdmissionSideEffects(t, gormDB, fixture.cpo.ID); after != before || startRequests.Load() != 0 {
 		t.Fatalf("mapping prerequisite failure created side effects=%+v (before=%+v) or called start=%d", after, before, startRequests.Load())
@@ -110,7 +110,7 @@ func TestChargingStartReconciliationWithPostgreSQL(t *testing.T) {
 
 	mappingFails.Store(false)
 	abortStart.Store(true)
-	response, err := service.StartCharging(ctx, fixture.firstPrincipal, ChargingStartRequest{ChargerID: fixture.charger.ChargerID, ConnectorID: fixture.connector.ID}, "ambiguous-start")
+	response, err := service.StartCharging(ctx, fixture.firstPrincipal, ChargingStartRequest{ChargerID: fixture.charger.ChargerID, ConnectorID: fixture.connector.ID}, uuid.NewString())
 	if err != nil || response.Status != constants.StartIntentStatusReconciliation {
 		t.Fatalf("ambiguous start response=%+v err=%v, want reconciliation", response, err)
 	}
@@ -153,7 +153,7 @@ func TestChargingStartReconciliationWithPostgreSQL(t *testing.T) {
 
 	abortStart.Store(false)
 	lookupStatus.Store(0)
-	retry, err := service.StartCharging(ctx, fixture.firstPrincipal, ChargingStartRequest{ChargerID: fixture.charger.ChargerID, ConnectorID: fixture.connector.ID}, "fresh-retry")
+	retry, err := service.StartCharging(ctx, fixture.firstPrincipal, ChargingStartRequest{ChargerID: fixture.charger.ChargerID, ConnectorID: fixture.connector.ID}, uuid.NewString())
 	if err != nil || retry.StartIntentID == response.StartIntentID || retry.Status != constants.StartIntentStatusAcceptedForDelivery {
 		t.Fatalf("fresh retry response=%+v err=%v, want a new accepted start", retry, err)
 	}
@@ -255,7 +255,7 @@ func TestChargingStartReconciliationWithPostgreSQL(t *testing.T) {
 
 	traceFailureConnector := fixture.newConnector(t)
 	setChargingAdmissionProjection(t, gormDB, fixture, traceFailureConnector.ID, "ONLINE", "Available", time.Now().UTC())
-	traceFailureStart, err := service.StartCharging(ctx, fixture.firstPrincipal, ChargingStartRequest{ChargerID: fixture.charger.ChargerID, ConnectorID: traceFailureConnector.ID}, "trace-enrichment-failure")
+	traceFailureStart, err := service.StartCharging(ctx, fixture.firstPrincipal, ChargingStartRequest{ChargerID: fixture.charger.ChargerID, ConnectorID: traceFailureConnector.ID}, uuid.NewString())
 	if err != nil || traceFailureStart.Status != constants.StartIntentStatusAcceptedForDelivery {
 		t.Fatalf("trace failure start response=%+v err=%v", traceFailureStart, err)
 	}
@@ -283,7 +283,7 @@ func TestChargingStartReconciliationWithPostgreSQL(t *testing.T) {
 	raceConnector := fixture.newConnector(t)
 	setChargingAdmissionProjection(t, gormDB, fixture, raceConnector.ID, "ONLINE", "Available", time.Now().UTC())
 	abortStart.Store(true)
-	race, err := service.StartCharging(ctx, fixture.firstPrincipal, ChargingStartRequest{ChargerID: fixture.charger.ChargerID, ConnectorID: raceConnector.ID}, "fact-race")
+	race, err := service.StartCharging(ctx, fixture.firstPrincipal, ChargingStartRequest{ChargerID: fixture.charger.ChargerID, ConnectorID: raceConnector.ID}, uuid.NewString())
 	if err != nil || race.Status != constants.StartIntentStatusReconciliation {
 		t.Fatalf("fact-race start response=%+v err=%v", race, err)
 	}
@@ -301,7 +301,7 @@ func TestChargingStartReconciliationWithPostgreSQL(t *testing.T) {
 
 	expiredConnector := fixture.newConnector(t)
 	setChargingAdmissionProjection(t, gormDB, fixture, expiredConnector.ID, "ONLINE", "Available", time.Now().UTC())
-	expired, err := service.StartCharging(ctx, fixture.firstPrincipal, ChargingStartRequest{ChargerID: fixture.charger.ChargerID, ConnectorID: expiredConnector.ID}, "expired-absence")
+	expired, err := service.StartCharging(ctx, fixture.firstPrincipal, ChargingStartRequest{ChargerID: fixture.charger.ChargerID, ConnectorID: expiredConnector.ID}, uuid.NewString())
 	if err != nil || expired.Status != constants.StartIntentStatusReconciliation {
 		t.Fatalf("expired start response=%+v err=%v", expired, err)
 	}
@@ -319,7 +319,7 @@ func TestChargingStartReconciliationWithPostgreSQL(t *testing.T) {
 
 	otherConnector := fixture.newConnector(t)
 	setChargingAdmissionProjection(t, gormDB, fixture, otherConnector.ID, "ONLINE", "Available", time.Now().UTC())
-	otherPending, err := service.StartCharging(ctx, fixture.firstPrincipal, ChargingStartRequest{ChargerID: fixture.charger.ChargerID, ConnectorID: otherConnector.ID}, "other-customer-absence")
+	otherPending, err := service.StartCharging(ctx, fixture.firstPrincipal, ChargingStartRequest{ChargerID: fixture.charger.ChargerID, ConnectorID: otherConnector.ID}, uuid.NewString())
 	if err != nil || otherPending.Status != constants.StartIntentStatusReconciliation {
 		t.Fatalf("other-customer pending start response=%+v err=%v", otherPending, err)
 	}
@@ -328,7 +328,7 @@ func TestChargingStartReconciliationWithPostgreSQL(t *testing.T) {
 	}
 	abortStart.Store(false)
 	lookupStatus.Store(0)
-	otherFresh, err := service.StartCharging(ctx, fixture.secondPrincipal, ChargingStartRequest{ChargerID: fixture.charger.ChargerID, ConnectorID: otherConnector.ID}, "other-customer-fresh")
+	otherFresh, err := service.StartCharging(ctx, fixture.secondPrincipal, ChargingStartRequest{ChargerID: fixture.charger.ChargerID, ConnectorID: otherConnector.ID}, uuid.NewString())
 	if err != nil || otherFresh.Status != constants.StartIntentStatusAcceptedForDelivery {
 		t.Fatalf("other customer remained blocked after confirmed absence response=%+v err=%v", otherFresh, err)
 	}
@@ -418,7 +418,7 @@ func TestMaterializedSessionCompletionReconciliationWithPostgreSQL(t *testing.T)
 	service.WithHALOperations(operations, liveops.New(gormDB, config.HAL{MeterStaleAfter: time.Minute, ConnectionStaleAfter: 15 * time.Minute}), config.HAL{MeterStaleAfter: time.Minute, ConnectionStaleAfter: 15 * time.Minute})
 	setChargingAdmissionProjection(t, gormDB, fixture, fixture.connector.ID, "ONLINE", "Available", time.Now().UTC())
 
-	start, err := service.StartCharging(ctx, fixture.firstPrincipal, ChargingStartRequest{ChargerID: fixture.charger.ChargerID, ConnectorID: fixture.connector.ID}, "completion-reconciliation")
+	start, err := service.StartCharging(ctx, fixture.firstPrincipal, ChargingStartRequest{ChargerID: fixture.charger.ChargerID, ConnectorID: fixture.connector.ID}, uuid.NewString())
 	if err != nil || start.Status != constants.StartIntentStatusAcceptedForDelivery {
 		t.Fatalf("start response=%+v err=%v", start, err)
 	}
@@ -594,26 +594,32 @@ func TestMaterializedSessionReconciliationCursorWithPostgreSQL(t *testing.T) {
 		t.Fatal("active HAL transaction must not materialize completion")
 		return nil
 	})
-	if err := operations.ReconcilePending(ctx, 2); err != nil {
-		t.Fatalf("first bounded reconciliation pass: %v", err)
-	}
-	if len(calls) != 2 || calls[0] == calls[1] {
-		t.Fatalf("first reconciliation batch calls=%v", calls)
-	}
-	firstBatch := map[uuid.UUID]bool{calls[0]: true, calls[1]: true}
-	if err := operations.ReconcilePending(ctx, 2); err != nil {
-		t.Fatalf("second bounded reconciliation pass: %v", err)
-	}
-	if len(calls) != 4 {
-		t.Fatalf("reconciliation passes were not bounded to two calls: %v", calls)
+	// The scratch DB contains other test sessions. An eligible global session
+	// can occupy a bounded batch slot without belonging to this HAL mock.
+	// Prove each pass remains bounded and our three sessions eventually get
+	// polled, independent of the shared durable cursor's incoming position.
+	var eligibleCount int64
+	if err := gormDB.Model(&models.ChargingSession{}).
+		Where("status IN ? AND end_time IS NULL AND hal_transaction_id IS NOT NULL", []string{"ACTIVE", "STOP_PENDING", "RECONCILIATION_REQUIRED"}).
+		Count(&eligibleCount).Error; err != nil {
+		t.Fatalf("count eligible HAL sessions: %v", err)
 	}
 	allReached := make(map[uuid.UUID]bool, len(fixtures))
-	for _, id := range calls {
-		allReached[id] = true
+	for round := int64(0); round < eligibleCount+2 && len(allReached) < len(fixtures); round++ {
+		before := len(calls)
+		if err := operations.ReconcilePending(ctx, 2); err != nil {
+			t.Fatalf("bounded reconciliation pass %d: %v", round, err)
+		}
+		if len(calls)-before > 2 {
+			t.Fatalf("pass %d exceeded 2 HAL calls: %v", round, calls[before:])
+		}
+		for _, id := range calls[before:] {
+			allReached[id] = true
+		}
 	}
 	for _, fixture := range fixtures {
 		if !allReached[fixture.halID] {
-			t.Fatalf("later eligible transaction %s starved after wrapped cursor batches; first=%v all=%v", fixture.halID, firstBatch, calls)
+			t.Fatalf("later eligible transaction %s starved after bounded cursor passes: all=%v", fixture.halID, calls)
 		}
 		var stored models.ChargingSession
 		if err := gormDB.First(&stored, "id = ?", fixture.session.ID).Error; err != nil || stored.Status != constants.SessionStatusActive || stored.EndTime != nil {

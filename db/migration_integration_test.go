@@ -23,7 +23,9 @@ func TestMailOutboxTemplateConstraintAcceptsApplicationCatalogueWithPostgreSQL(t
 	if err != nil {
 		t.Fatalf("open test database: %v", err)
 	}
-	defer sqlDB.Close()
+	// Register connection closure before the row cleanup: testing.T.Cleanup
+	// runs in reverse registration order.
+	t.Cleanup(func() { _ = sqlDB.Close() })
 	if err := ApplyMigrations(ctx, sqlDB); err != nil {
 		t.Fatalf("apply migrations: %v", err)
 	}

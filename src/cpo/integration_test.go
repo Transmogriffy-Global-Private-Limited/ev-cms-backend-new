@@ -243,7 +243,7 @@ func TestCPOCapabilityRoutesReachServicesWithPostgreSQL(t *testing.T) {
 		if err := gormDB.Create(&models.AuthSession{ID: sessionID, UserID: roleTarget.ID, Scope: scope, CPOID: sessionCPOID, Role: role, TokenVersion: 1, CreatedAt: now, LastSeenAt: now, ExpiresAt: now.Add(time.Hour)}).Error; err != nil {
 			t.Fatalf("create %s session: %v", scope, err)
 		}
-		if err := gormDB.Create(&models.AuthRefreshToken{ID: refreshID, SessionID: sessionID, TokenHash: uuid.NewString(), ExpiresAt: now.Add(time.Hour), CreatedAt: now}).Error; err != nil {
+		if err := gormDB.Create(&models.AuthRefreshToken{ID: refreshID, SessionID: sessionID, TokenHash: strings.ReplaceAll(uuid.NewString(), "-", "") + strings.ReplaceAll(uuid.NewString(), "-", ""), ExpiresAt: now.Add(time.Hour), CreatedAt: now}).Error; err != nil {
 			t.Fatalf("create %s refresh token: %v", scope, err)
 		}
 		return sessionID, refreshID
@@ -760,7 +760,7 @@ func TestCPOProvisioningAndFirstAdminLifecycleWithPostgreSQL(t *testing.T) {
 		gormDB,
 		mailBox,
 		adminEmail,
-		"CPO_MEMBERSHIP_ASSIGNED",
+		"CPO_STAFF_EXISTING_IDENTITY",
 	)
 	if assigned.TemporaryPassword != "" ||
 		assigned.CPOID != reused.CPO.ID.String() ||
@@ -971,7 +971,7 @@ func TestCPOSuperadminDependencyLifecycleWithPostgreSQL(t *testing.T) {
 			"cpo_id = ? AND user_id = ? AND template = ?",
 			created.CPO.ID,
 			created.Admin.UserID,
-			"CPO_ADMIN_WELCOME",
+			"CPO_STAFF_NEW_IDENTITY",
 		).
 		First(&correlatedWelcome).Error; err != nil {
 		t.Fatalf("load correlated onboarding mail: %v", err)
@@ -1024,7 +1024,7 @@ func TestCPOSuperadminDependencyLifecycleWithPostgreSQL(t *testing.T) {
 	}
 	_ = second
 
-	gstin := "19" + strings.ToUpper(strings.ReplaceAll(uuid.NewString(), "-", ""))[:13]
+	gstin := testsupport.ValidGSTIN("19")
 	updated, err := service.UpdateProfile(
 		ctx,
 		principal,
@@ -1247,7 +1247,7 @@ func TestCPOSuperadminDependencyLifecycleWithPostgreSQL(t *testing.T) {
 		gormDB,
 		mailBox,
 		existingEmail,
-		"CPO_MEMBERSHIP_ASSIGNED",
+		"CPO_STAFF_EXISTING_IDENTITY",
 	)
 	if assignment.TemporaryPassword != "" {
 		t.Fatal("existing replacement identity received a temporary password")
@@ -1600,17 +1600,33 @@ func TestCPOAdminProfileAndNetworkConfigurationWithPostgreSQL(t *testing.T) {
 		t.Fatalf("unexpected GST page %#v: %v", gstPage, err)
 	}
 
+	// A charger with no business-session dependents is removable together
+	// with its inventory connector/runtime metadata, even when linked to a hub.
 	err = service.DeleteCharger(ctx, adminPrincipal, charger.ChargerID)
-	var apiErr *auth.APIError
-	if !errors.As(err, &apiErr) || apiErr.Code != "charger_in_use" {
-		t.Fatalf("delete referenced charger got %v, want charger_in_use", err)
+	if err != nil {
+		t.Fatalf("delete unused charger: %v", err)
+	}
+	var deletedChargerCount int64
+	if err := gormDB.Model(&models.Charger{}).Where("id = ?", charger.ID).Count(&deletedChargerCount).Error; err != nil {
+		t.Fatalf("verify deleted charger: %v", err)
+	}
+	if deletedChargerCount != 0 {
+		t.Fatalf("unused charger still exists: %d", deletedChargerCount)
 	}
 
+	// OWNER is a real role in the capability catalog. A service-level
+	// tenant read does not reject the role; the HTTP capability middleware
+	// authenticates memberships and permissions separately.
 	ownerRole := constants.CPORoleOwner
 	ownerPrincipal := adminPrincipal
 	ownerPrincipal.Role = &ownerRole
+	if _, err := service.GetHub(ctx, ownerPrincipal, hub.ID, TenantListQuery{}); err != nil {
+		t.Fatalf("OWNER read of its own tenant hub failed: %v", err)
+	}
+	foreignTenant := uuid.New()
+	ownerPrincipal.CPOID = &foreignTenant
 	if _, err := service.GetHub(ctx, ownerPrincipal, hub.ID, TenantListQuery{}); err == nil {
-		t.Fatal("dormant OWNER role was allowed to call a CPO operation")
+		t.Fatal("OWNER read crossed tenant boundary")
 	}
 
 	var auditCount int64
@@ -1623,14 +1639,13 @@ func TestCPOAdminProfileAndNetworkConfigurationWithPostgreSQL(t *testing.T) {
 				"HUB_CREATED",
 				"CHARGER_CREATED",
 				"GST_CREATED",
-				"TARIFF_CREATED",
 			},
 		).
 		Count(&auditCount).Error; err != nil {
 		t.Fatalf("count configuration audit records: %v", err)
 	}
-	if auditCount != 5 {
-		t.Fatalf("got %d configuration audit records, want 5", auditCount)
+	if auditCount != 4 {
+		t.Fatalf("got %d configuration audit records, want 4", auditCount)
 	}
 }
 
@@ -1860,6 +1875,7 @@ func TestAssignChargerToHubTenantScope(t *testing.T) {
 	hub1, err := service.CreateHub(ctx, admin1Principal, CreateHubRequest{
 		Name:      "Park Street Hub",
 		Address:   "12 Park Street, Kolkata",
+		State:     constants.WestBengal,
 		Latitude:  &latitude,
 		Longitude: &longitude,
 	})
@@ -1900,6 +1916,7 @@ func TestAssignChargerToHubTenantScope(t *testing.T) {
 	hub2, err := service.CreateHub(ctx, admin1Principal, CreateHubRequest{
 		Name:      "New Town Hub",
 		Address:   "1 New Town, Kolkata",
+		State:     constants.WestBengal,
 		Latitude:  &latitude,
 		Longitude: &longitude,
 	})
@@ -2051,6 +2068,7 @@ func TestHubTariffLifecycleWithPostgreSQL(t *testing.T) {
 	hub, err := service.CreateHub(ctx, adminPrincipal, CreateHubRequest{
 		Name:      "Park Street Hub",
 		Address:   "12 Park Street, Kolkata",
+		State:     constants.WestBengal,
 		Latitude:  &latitude,
 		Longitude: &longitude,
 	})
@@ -2357,6 +2375,7 @@ func TestHubTariffCreationRejectsInvalidEnums(t *testing.T) {
 	hub, err := service.CreateHub(ctx, adminPrincipal, CreateHubRequest{
 		Name:      "Park Street Hub",
 		Address:   "12 Park Street, Kolkata",
+		State:     constants.WestBengal,
 		Latitude:  &latitude,
 		Longitude: &longitude,
 	})

@@ -49,7 +49,7 @@ func TestCustomerSessionRatingWithPostgreSQL(t *testing.T) {
 		t.Fatalf("derived identity=%+v err=%v", stored, err)
 	}
 	originalHubID, originalCreatedAt := *stored.HubID, stored.CreatedAt
-	otherHub := models.Hub{ID: uuid.New(), CPOID: fixture.cpo.ID, Name: "Later assigned hub", Address: "2 Test Road", State: constants.WestBengal, Latitude: 22.5730, Longitude: 88.3640, CustomerVisible: true, CreatedAt: time.Now().UTC(), UpdatedAt: time.Now().UTC()}
+	otherHub := models.Hub{ID: uuid.New(), CPOID: fixture.cpo.ID, Name: "Later assigned hub", Address: "2 Test Road", State: constants.WestBengal, Latitude: 22.5730, Longitude: 88.3640, CustomerVisible: false, CreatedAt: time.Now().UTC(), UpdatedAt: time.Now().UTC()}
 	if err := database.Create(&otherHub).Error; err != nil {
 		t.Fatalf("create later assigned hub: %v", err)
 	}
@@ -148,8 +148,8 @@ func newHublessRatingFixture(t *testing.T, database *gorm.DB, base chargingAdmis
 	now := time.Now().UTC()
 	fixture := base
 	fixture.charger = models.Charger{
-		ID: uuid.New(), CPOID: base.cpo.ID, ChargerID: "hubless-" + uuid.NewString()[:12],
-		OCPPIdentity: "rating-hubless-" + uuid.NewString(), Status: constants.ChargerStatusActive,
+		ID: uuid.New(), CPOID: base.cpo.ID, ChargerID: uuid.NewString()[:6],
+		OCPPIdentity: "rating-hubless-" + uuid.NewString(), Status: constants.ChargerStatusInactive,
 		ChargerName: "Hubless rating charger", NumberOfConnectors: 1, CreatedAt: now, UpdatedAt: now,
 	}
 	if err := database.Create(&fixture.charger).Error; err != nil {

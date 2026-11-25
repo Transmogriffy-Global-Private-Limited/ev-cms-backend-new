@@ -104,20 +104,43 @@ func TestCustomerChargeabilityProjectionWithPostgreSQL(t *testing.T) {
 		t.Fatalf("empty customer wallet: %v", err)
 	}
 	response = requireCustomerChargeability(t, service, fixture.firstPrincipal, fixture.charger.ChargerID)
-	assertCustomerConnectorChargeability(t, response, fixture.connector.ID, false, chargeabilityWalletMinimumBalanceNotMet)
+	// Default CPO minimum is zero. Empty funds mean no positive usable
+	// balance, not a minimum-policy violation.
+	assertCustomerConnectorChargeability(t, response, fixture.connector.ID, false, chargeabilityInsufficientWalletBalance)
 	if err := database.Model(&models.Wallet{}).Where("id = ?", fixture.firstPrincipal.Wallet.ID).Update("balance", decimal.NewFromInt(1000)).Error; err != nil {
 		t.Fatalf("restore customer wallet: %v", err)
 	}
 	response = requireCustomerChargeability(t, service, fixture.firstPrincipal, fixture.charger.ChargerID)
 	assertCustomerConnectorChargeability(t, response, fixture.connector.ID, true, chargeabilityAvailable)
 
-	if err := database.Model(&models.Tariff{}).Where("id = ?", tariff.ID).Update("is_active", false).Error; err != nil {
-		t.Fatalf("deactivate tariff: %v", err)
+	// A published hub MUST retain its enabled root tariff. Prove the
+	// database denies a direct deactivation instead of expecting an
+	// impossible public no-tariff state.
+	if err := database.Model(&models.Tariff{}).Where("id = ?", tariff.ID).
+		Update("is_active", false).Error; err == nil {
+		t.Fatal("published hub accepted disabling its required root tariff")
 	}
-	response = requireCustomerChargeability(t, service, fixture.firstPrincipal, fixture.charger.ChargerID)
-	assertCustomerConnectorChargeability(t, response, fixture.connector.ID, false, chargeabilityNoEligibleTariff)
-	if err := database.Model(&models.Tariff{}).Where("id = ?", tariff.ID).Update("is_active", true).Error; err != nil {
-		t.Fatalf("restore tariff: %v", err)
+	// A private hub may have no eligible tariff, but must not appear in
+	// customer-facing chargeability until the tariff and visibility recover.
+	if err := database.Model(&models.Hub{}).Where("id = ?", *fixture.charger.HubID).
+		Update("customer_visible", false).Error; err != nil {
+		t.Fatalf("unpublish hub: %v", err)
+	}
+	if err := database.Model(&models.Tariff{}).Where("id = ?", tariff.ID).
+		Update("is_active", false).Error; err != nil {
+		t.Fatalf("deactivate private hub tariff: %v", err)
+	}
+	privatePage, err := service.ListCustomerChargerChargeability(ctx, fixture.firstPrincipal, []string{fixture.charger.ChargerID})
+	if err != nil || len(privatePage.Chargers) != 0 {
+		t.Fatalf("private hub leaked into customer chargeability: %+v, %v", privatePage, err)
+	}
+	if err := database.Model(&models.Tariff{}).Where("id = ?", tariff.ID).
+		Update("is_active", true).Error; err != nil {
+		t.Fatalf("restore private hub tariff: %v", err)
+	}
+	if err := database.Model(&models.Hub{}).Where("id = ?", *fixture.charger.HubID).
+		Update("customer_visible", true).Error; err != nil {
+		t.Fatalf("republish restored hub: %v", err)
 	}
 
 	second := fixture.newConnector(t)
@@ -163,7 +186,12 @@ func TestCustomerChargeabilityProjectionWithPostgreSQL(t *testing.T) {
 	}
 
 	otherCPO := createActiveTestCPO(t, database)
-	other := models.Charger{ID: uuid.New(), CPOID: otherCPO.ID, ChargerID: "z9y8x7", ChargerName: "Hidden", Status: constants.ChargerStatusActive, CreatedAt: time.Now().UTC(), UpdatedAt: time.Now().UTC()}
+	otherNow := time.Now().UTC()
+	otherHub := models.Hub{ID: uuid.New(), CPOID: otherCPO.ID, Name: "Foreign private hub", Address: "2 Test Road", State: constants.WestBengal, Latitude: 22.57, Longitude: 88.36, CustomerVisible: false, CreatedAt: otherNow, UpdatedAt: otherNow}
+	if err := database.Create(&otherHub).Error; err != nil {
+		t.Fatalf("create other-CPO hub: %v", err)
+	}
+	other := models.Charger{ID: uuid.New(), CPOID: otherCPO.ID, HubID: &otherHub.ID, ChargerID: "z9y8x7", ChargerName: "Hidden", Status: constants.ChargerStatusActive, CustomerVisibility: true, CreatedAt: otherNow, UpdatedAt: otherNow}
 	if err := database.Create(&other).Error; err != nil {
 		t.Fatalf("create other-CPO charger: %v", err)
 	}

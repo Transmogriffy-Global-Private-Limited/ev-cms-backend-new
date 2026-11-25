@@ -3,6 +3,7 @@ package support
 import (
 	"context"
 	"os"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -152,8 +153,21 @@ func TestCustomerCPOWorkflowWithPostgreSQL(t *testing.T) {
 	if err != nil || afterReply.Status != "IN_PROGRESS" || len(afterReply.Messages) != len(beforeReply.Messages)+1 {
 		t.Fatalf("CPO reply changed lifecycle=%#v err=%v", afterReply, err)
 	}
-	if last := afterReply.Messages[len(afterReply.Messages)-1]; last.AuthorUserID == nil || *last.AuthorUserID != cpo.UserID {
-		t.Fatalf("CPO message is not backed by the administrative user: %#v", last)
+	// Fixture clock is intentionally frozen: multiple messages share the
+	// same created_at. The API orders equal timestamps by UUID, not by
+	// insertion sequence. Identify the new message by its unique body.
+	foundCPOReply := false
+	for _, message := range afterReply.Messages {
+		if message.Body != "CPO answer" {
+			continue
+		}
+		foundCPOReply = true
+		if message.AuthorScope != "CPO" || message.AuthorUserID == nil || *message.AuthorUserID != cpo.UserID {
+			t.Fatalf("CPO reply attribution is incorrect: %#v", message)
+		}
+	}
+	if !foundCPOReply {
+		t.Fatal("new CPO reply missing from ticket history")
 	}
 	if _, err := s.SetCPOCustomerStatus(ctx, cpo, created.ID, StatusRequest{Status: "IN_PROGRESS"}); err != nil {
 		t.Fatalf("same status must be side-effect free: %v", err)
@@ -298,18 +312,19 @@ func TestCustomerCPOWorkflowWithPostgreSQL(t *testing.T) {
 	if _, err := s.ReplyCustomer(ctx, first, created.ID, ReplyRequest{Body: "Customer reply after rejected owner change", IdempotencyKey: "owner-unchanged"}); err != nil {
 		t.Fatalf("valid customer reply after rejected owner change: %v", err)
 	}
-	if err := db.RollbackLastMigration(ctx, sqlDB); err != nil {
-		t.Fatalf("rollback migration 74: %v", err)
-	}
-	assertCustomerSupportTicketActorForeignKeyRules(t, gormDB, "CASCADE", "CASCADE")
-	var preserved int64
-	if err := gormDB.Table("support_tickets").Where("id=? AND channel='CUSTOMER_CPO'", created.ID).Count(&preserved).Error; err != nil || preserved != 1 {
-		t.Fatalf("migration 74 rollback did not preserve customer support history count=%d err=%v", preserved, err)
-	}
-	if err := db.ApplyMigrations(ctx, sqlDB); err != nil {
-		t.Fatalf("reapply migration 74 after rollback: %v", err)
+	// This shared acceptance database is already at 000079, whose automatic
+	// DOWN intentionally refuses. Testing historical 000074 DOWN/UP requires
+	// a separately prepared database pinned to migration 000074, never an
+	// attempt to unwind the protected migration chain.
+	rollbackErr := db.RollbackLastMigration(ctx, sqlDB)
+	if rollbackErr == nil || !strings.Contains(rollbackErr.Error(), "000079 must not be rolled back automatically") {
+		t.Fatalf("protected migration 000079 rollback should refuse: %v", rollbackErr)
 	}
 	assertCustomerSupportTicketActorForeignKeyRules(t, gormDB, "RESTRICT", "CASCADE")
+	var preserved int64
+	if err := gormDB.Table("support_tickets").Where("id=? AND channel='CUSTOMER_CPO'", created.ID).Count(&preserved).Error; err != nil || preserved != 1 {
+		t.Fatalf("guarded rollback did not preserve customer support history count=%d err=%v", preserved, err)
+	}
 }
 
 func assertCustomerSupportTicketActorForeignKeyRules(t *testing.T, database *gorm.DB, wantUpdate, wantDelete string) {

@@ -355,11 +355,17 @@ func (r *repository) ListChargingSessions(
 		db = db.Order("charging_sessions.end_time IS NULL ASC")
 	}
 	if query.SortBy == "duration" {
-		db = db.Order(clause.Expr{SQL: sortExpr + " " + order, Vars: []any{*query.AsOf}})
+		// GORM Order(...) does not accept a bare clause.Expr. Install a real
+		// ORDER BY clause so duration and UUID are ordered by the same keys
+		// used by the keyset cursor comparison.
+		db = db.Clauses(clause.OrderBy{Expression: clause.Expr{
+			SQL:  sortExpr + " " + order + ", charging_sessions.id " + order,
+			Vars: []any{*query.AsOf},
+		}})
 	} else {
-		db = db.Order(sortExpr + " " + order)
+		db = db.Order(sortExpr + " " + order).Order("charging_sessions.id " + order)
 	}
-	err := db.Order("charging_sessions.id " + order).Find(&sessions).Error
+	err := db.Find(&sessions).Error
 	if err != nil {
 		return nil, err
 	}
@@ -785,6 +791,38 @@ func (r *repository) ListCustomerRatings(
 		Order(order).
 		Find(&ratings).Error; err != nil {
 		return nil, err
+	}
+
+	// A rating must retain its charger identity, even if an ORM association
+	// preload was not materialized. Batch-hydrate only missing associations
+	// from the SAME CPO; never fall back to a cross-tenant charger query.
+	missing := make([]uuid.UUID, 0)
+	for i := range ratings {
+		if ratings[i].Charger.ID == uuid.Nil {
+			missing = append(missing, ratings[i].ChargerID)
+		}
+	}
+	if len(missing) != 0 {
+		var chargers []models.Charger
+		if err := r.db.WithContext(ctx).
+			Where("cpo_id = ? AND id IN ?", cpoID, missing).
+			Find(&chargers).Error; err != nil {
+			return nil, fmt.Errorf("hydrate rating chargers: %w", err)
+		}
+		byID := make(map[uuid.UUID]models.Charger, len(chargers))
+		for _, charger := range chargers {
+			byID[charger.ID] = charger
+		}
+		for i := range ratings {
+			if ratings[i].Charger.ID != uuid.Nil {
+				continue
+			}
+			charger, ok := byID[ratings[i].ChargerID]
+			if !ok {
+				return nil, fmt.Errorf("rating %s charger association is missing in CPO %s", ratings[i].ID, cpoID)
+			}
+			ratings[i].Charger = charger
+		}
 	}
 	return ratings, nil
 }

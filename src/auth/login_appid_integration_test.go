@@ -100,8 +100,38 @@ func TestCPOAdministrativeAppIDLoginWithPostgreSQL(t *testing.T) {
 		}
 		return challenge
 	}
+	// Mail for one identity may contain multiple OTPs with equal timestamps.
+	// Match the encrypted message to the exact challenge, never the newest row.
+	codeForChallenge := func(challengeID uuid.UUID) string {
+		var stored models.AuthChallenge
+		if err := database.First(&stored, "id = ?", challengeID).Error; err != nil {
+			t.Fatalf("load expected authentication challenge: %v", err)
+		}
+		var jobs []models.MailOutbox
+		if err := database.Where("to_email = ? AND template = ?", email, loginMailTemplate).
+			Order("created_at DESC, id DESC").Find(&jobs).Error; err != nil {
+			t.Fatalf("list encrypted challenge mail: %v", err)
+		}
+		for _, job := range jobs {
+			plaintext, err := box.Open(job.PayloadCiphertext, []byte("ev-cms-mail:"+loginMailTemplate+":"+email))
+			if err != nil {
+				t.Fatalf("decrypt challenge mail: %v", err)
+			}
+			var payload struct {
+				Code string `json:"code"`
+			}
+			if err := json.Unmarshal(plaintext, &payload); err != nil {
+				t.Fatalf("decode challenge mail: %v", err)
+			}
+			if service.verifyOTP(stored, payload.Code) {
+				return payload.Code
+			}
+		}
+		t.Fatalf("no encrypted OTP belongs to challenge %s", challengeID)
+		return ""
+	}
 	verify := func(challenge ChallengeResponse, header string, status int) TokenResponse {
-		code := readOTPFromOutbox(t, database, box, email, loginMailTemplate)
+		code := codeForChallenge(challenge.ChallengeID)
 		response := call("POST", "/auth/2fa/verify", ChallengeRequest{ChallengeID: challenge.ChallengeID, Code: code}, header, "")
 		if response.Code != status {
 			t.Fatalf("OTP status=%d want=%d", response.Code, status)
