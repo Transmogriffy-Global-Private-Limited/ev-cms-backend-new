@@ -43,7 +43,7 @@ type Definition struct {
 	Description string `json:"description"`
 }
 
-var catalog = []Definition{
+var catalog = append([]Definition{
 	{OrganizationRead, "organization", "View organization", "View the CPO organization and subscription."},
 	{OrganizationManage, "organization", "Manage organization", "Change the CPO administrative profile."},
 	{StaffRead, "staff", "View staff", "View active and historical CPO staff memberships."},
@@ -68,7 +68,7 @@ var catalog = []Definition{
 	{CustomerSupportManage, "customer_support", "Manage customer support", "Change customer-to-CPO support ticket status."},
 	{SettingsRead, "settings", "View settings", "View CPO settings and invoice branding."},
 	{SettingsManage, "settings", "Manage settings", "Change CPO settings and invoice branding."},
-}
+}, cowCatalog...)
 
 var roleDefaults = map[constants.CPORole][]string{
 	constants.CPORoleOwner: allKeys(),
@@ -78,11 +78,13 @@ var roleDefaults = map[constants.CPORole][]string{
 		ChargersOperations, TariffsRead, CustomersRead, ChargingSessionsRead, ChargingTracesRead,
 		AnalyticsRead, SupportRead, SupportCreate, SupportReply, SettingsRead,
 		CustomerSupportRead, CustomerSupportReply, CustomerSupportManage,
+		CowDriversRead, CowFleetRead, CowFleetMaintenance, CowFleetAssign, CowSchedulesRead, CowDispatchRead, CowDispatchManage, CowJobsRead, CowJobsManage, CowJobsReassign, CowChargingRead, CowChargingCommand, CowRatingsRead, CowSupportRead, CowSupportReply, CowIncidentsRead, CowNotificationsRead, CowSystemSettingsRead,
 	},
 	constants.CPORoleViewer: {
 		OrganizationRead, HubsRead, ChargersRead, TariffsRead, CustomersRead,
 		ChargingSessionsRead, AnalyticsRead, SupportRead, SettingsRead,
 		CustomerSupportRead,
+		CowDriversRead, CowFleetRead, CowSchedulesRead, CowDispatchRead, CowJobsRead, CowChargingRead, CowRatingsRead, CowSupportRead, CowIncidentsRead, CowSystemSettingsRead,
 	},
 }
 

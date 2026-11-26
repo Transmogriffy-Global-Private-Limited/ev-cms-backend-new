@@ -48,7 +48,7 @@ is deployed; verify the active deployment independently before enabling an envir
 - API prefix: `/api/v1`
 - Interactive contract: `/docs/`
 - Raw OpenAPI: `/openapi.yaml`
-- Current source-tree backend contract: 260 HTTP operations across every persona
+- Current source-tree backend contract: 263 HTTP operations across every persona
 - SuperAdmin uses shared administrative authentication plus the documented
   `PLATFORM` endpoints. The source OpenAPI and current permission matrix are
   authoritative; historical SuperAdmin-only endpoint subtotals are not treated

@@ -17,6 +17,7 @@ import (
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/auth"
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/constants"
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/cpopermissions"
+	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/cow"
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/invoice"
 	cmsmiddleware "github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/middleware"
 	"github.com/Transmogriffy-Global-Private-Limited/ev-cms-backend-new/src/operationalrealtime"
@@ -60,6 +61,7 @@ func RegisterPlatformRoutes(
 		"/:cpo_id/administrative-sessions/revoke",
 		handler.revokeAdministrativeSessions,
 	)
+	cow.RegisterPlatformRoutes(group, service.database)
 }
 
 func (handler *Handler) slugAvailability(ctx *gin.Context) {
@@ -481,6 +483,7 @@ func RegisterCPORoutes(
 		authService.Authenticate(),
 		auth.RequireCPOAppID(),
 	)
+	cow.RegisterCPORoutes(group, service.database)
 	by := func(permission string) *gin.RouterGroup {
 		return group.Group("", auth.RequireCPOPermission(service.database, permission))
 	}

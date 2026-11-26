@@ -62,6 +62,54 @@ tags:
     description: Authenticated OCPP HAL fact receiver. Not callable with a customer or staff bearer.
 
 paths:
+  /api/v1/platform/cpos/{cpo_id}/modules/cow:
+    get:
+      tags: [Superadmin - Platform CPOs]
+      operationId: getCPOCoWEntitlement
+      summary: Read the CPO's committed CoW entitlement (absent means disabled)
+      security: [{BearerAuth: []}]
+      parameters: [{$ref: "#/components/parameters/CPOID"}]
+      responses:
+        "200": {description: Current entitlement, content: {application/json: {schema: {$ref: "#/components/schemas/CoWEntitlement"}}}}
+        "400": {$ref: "#/components/responses/InvalidCPOID"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/CPONotFound"}
+        "500": {$ref: "#/components/responses/InternalError"}
+    put:
+      tags: [Superadmin - Platform CPOs]
+      operationId: setCPOCoWEntitlement
+      summary: Atomically enable or disable CoW for one CPO
+      description: Requires an active Platform administrator. A stale expected_version is rejected. State changes and audit history commit together. Repeating the same state at the current version is a no-op.
+      security: [{BearerAuth: []}]
+      parameters: [{$ref: "#/components/parameters/CPOID"}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/CoWEntitlementChange"}
+      responses:
+        "200": {description: Committed entitlement, content: {application/json: {schema: {$ref: "#/components/schemas/CoWEntitlement"}}}}
+        "400": {description: "Malformed body, missing version, or invalid reason"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/CPONotFound"}
+        "409": {description: Entitlement version changed; refetch before retrying}
+        "500": {$ref: "#/components/responses/InternalError"}
+
+  /api/v1/cpo/cow/access:
+    get:
+      tags: [CPO Operations - Account & Notifications]
+      operationId: getCPOCoWAccess
+      summary: Discover whether this active CPO membership can use CoW
+      description: Available to active CPO members even when CoW is disabled. Effective CoW permissions are empty unless the module is enabled and the CPO is active. No tenant identifier is accepted from the caller.
+      security: [{BearerAuth: [], CPOAppID: []}]
+      responses:
+        "200": {description: Fresh CPO CoW access projection, content: {application/json: {schema: {$ref: "#/components/schemas/CoWAccess"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "500": {$ref: "#/components/responses/InternalError"}
+
   /api/v1/cpo/support:
     get:
       tags: [CPO Operations - Account & Notifications]
@@ -8122,6 +8170,40 @@ components:
             $ref: "#/components/schemas/ErrorEnvelope"
 
   schemas:
+    CoWEntitlement:
+      type: object
+      additionalProperties: false
+      required: [cpo_id, module, enabled, version]
+      properties:
+        cpo_id: {type: string, format: uuid}
+        module: {type: string, enum: [cow]}
+        enabled: {type: boolean}
+        version: {type: integer, format: int64, minimum: 0}
+        reason: {type: string}
+        changed_by_user_id: {type: string, format: uuid}
+        changed_at: {type: string, format: date-time}
+    CoWEntitlementChange:
+      type: object
+      additionalProperties: false
+      required: [enabled, expected_version, reason]
+      properties:
+        enabled: {type: boolean}
+        expected_version: {type: integer, format: int64, minimum: 0}
+        reason: {type: string, minLength: 3, maxLength: 500}
+    CoWAccess:
+      type: object
+      additionalProperties: false
+      required: [cpo_id, module, enabled, eligible, effective_permissions]
+      properties:
+        cpo_id: {type: string, format: uuid}
+        module: {type: string, enum: [cow]}
+        enabled: {type: boolean}
+        eligible: {type: boolean}
+        effective_permissions:
+          type: array
+          uniqueItems: true
+          items: {type: string, pattern: '^cow\.'}
+
     ChargerOperationResponse:
       description: PERSISTED and DISPATCH_CLAIMED are definitely unattempted. DELIVERY_ATTEMPTED commits before HAL I/O and can only reconcile; it is never replayed. HAL_ACCEPTED means HAL knows this operation.
       type: object
