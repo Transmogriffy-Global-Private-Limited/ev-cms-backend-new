@@ -1,5 +1,13 @@
 # AI Changelog
 
+## 2026-11-26 - VPS2 CoW Run 1/2A populated migration and rehost verified
+
+- Reused the existing `main` checkout, backend binary path `builds/evcmsnew`, PostgreSQL 19 `devevcmsnewdb`, and `rehost-evcmsnew -t 0 --no-tail`. Deployed source commit `2a28228fa04aee365b5a93e7c812419102f84d95`. Full Go source checks and isolated candidate build passed on VPS2 before the release.
+- After preflight and verified backup, stopped the old backend, applied forward migrations `000075`–`000081`: ledger 75 -> 82. Postflight passed 18 validated FKs, five indexes, two enabled triggers and five new relations. Historical-only migration rows retained without replay or deletion.
+- New executable `2f72b0ab063c6468c543cf3ead8622728ed539c24affd367ca312d8f0211b3da` matched installed/running PID `14273`; systemd active, 0 restarts; public health/live, health/ready, Swagger and 269-operation OpenAPI passed.
+- Seven required current workers healthy/fresh; one overdue TRIAL expired, four lifecycle events recorded and no pending lifecycle work remained. No matching startup error lines in the checked window; explicitly do not claim SMTP, HAL/physical charger, authenticated CoW business flow or longer-term recovery acceptance.
+- Earlier custom-format dump and old executable were copied off-VPS and SHA verified. Final *stopped-state* dump was verified on VPS2; its off-VPS copy has **not** been shown verified. Release detail: [development VPS hosting](guides/operations/dev-hosting.md).
+
 ## 2026-11-26 - CoW Run 1 and Run 2A accepted source, documentation reconciliation
 
 - Published Run 1 `f2be703b1d200eb0173c64ba655124496fb2755c`: migration `000080`, default-off CPO module grant, SuperAdmin GET/PUT, CPO access GET, 45 `cow.*` keys, optimistic audit history, DENY precedence. Source and disposable PG17 authorization acceptance passed.

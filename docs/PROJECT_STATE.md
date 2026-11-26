@@ -1,5 +1,13 @@
 # Project State
 
+## 2026-11-26 - VPS2 deployed CoW Run 1 and Run 2A (runtime postflight)
+
+- **Actual deployed source**: `2a28228fa04aee365b5a93e7c812419102f84d95` on VPS2 `main`; existing service, binary path, PostgreSQL 19 database and rehost command retained. New running binary hash `2f72b0ab063c6468c543cf3ead8622728ed539c24affd367ca312d8f0211b3da`, PID `14273`, zero restarts, active/running/success. This supersedes the older *not deployed* status for Run 1/2A in the source record below.
+- Seven forward migrations `000075`–`000081` applied to the existing populated database; ledger 75 -> **82** with three historical-only entries preserved. Postflight checked 18 validated constraints, five indexes, two enabled guards, and five new tables. Existing pre-upgrade and stopped-state backup files were checksum verified on VPS2; earlier database dump and binary copied/verified on Windows. Off-VPS verification of the *final stopped-state* dump is not independently evidenced.
+- Full Go tests, vet, build and migrator build passed on VPS2 before cutover. Installed/running executable SHA-256 matches; liveness, readiness, Swagger, raw OpenAPI public HTTPS passed, with **269** live operations and the expected CoW paths.
+- Seven current required workers healthy/fresh (0–25 seconds); optional billing-maintenance disabled. The one overdue TRIAL became EXPIRED: before TRIAL 3, EXPIRED 1, CANCELLED 1; after TRIAL 2, EXPIRED 2, CANCELLED 1. Four lifecycle events (expiry plus 7/3/1-day warnings) were present, pending work 0. No matching error patterns in the checked new-process journal window.
+- **Not covered**: authenticated CoW endpoint workflows, broader subscription crash/retry stress and long-running stability, SMTP delivery, physical HAL/charger effects, or Run 2B. Detailed [VPS2 release record](guides/operations/dev-hosting.md). Older source-candidate paragraphs below document their earlier state, not this current deployed status.
+
 ## 2026-11-26 - Run 1 and Run 2A CoW source released, not VPS2-deployed
 
 - GitHub `anubhab-work` has Run 1 `f2be703b1d200eb0173c64ba655124496fb2755c` (CPO default-off entitlement, three endpoints, migration `000080`, 45 CoW capability keys) and Run 2A `77d2d85885d2fa4db8559ccbeb7c8049a0d9f974` (customer saved addresses, six endpoints, internal saved/temporary snapshots, migration `000081`). The latter is one commit after Run 1. Neither commit is independent proof that VPS2's binary or populated DB has been upgraded.

@@ -1,5 +1,12 @@
 # WI-20261124: Durable subscription lifecycle work recovery
 
+## 2026-11-26 - Deployed runtime evidence (partial work-item closure only)
+
+- Migration `000077` was applied successfully to the **existing populated VPS2 database** as part of `000075`–`000081`; latest migration ledger is 82/`000081`, source release `2a28228fa04aee365b5a93e7c812419102f84d95`.
+- The new `subscription-lifecycle` worker is one of seven required current workers reporting healthy recent heartbeats. Overdue TRIAL count fell by one, EXPIRED rose by one; one expiry event and 7d/3d/1d warning events were present; pending queue count was zero. No matching lifecycle error or SQLSTATE in the bounded startup journal scan.
+- Source build/test/vet and migrator compilation passed on VPS2, and prior focused Windows/PG source gates were recorded for the release. **Do not infer that every interrupted-lease, retry, fencing, adverse concurrency or long-duration worker scenario was exercised on the populated runtime.** The original work item remains **active** for those outstanding explicit stress gates; physical HAL acceptance is a different domain.
+- The opening source-candidate status and predeployment sections below are historical, superseded by this 2026-11-26 runtime note. See [live release record](../../guides/operations/dev-hosting.md).
+
 Status: Source candidate, awaiting local Go verification and disposable PostgreSQL integration acceptance; not deployed.
 Baseline: `anubhab-work` `fb4e7d2f80b93c242a108371f84d903a11bd56ee`.
 
