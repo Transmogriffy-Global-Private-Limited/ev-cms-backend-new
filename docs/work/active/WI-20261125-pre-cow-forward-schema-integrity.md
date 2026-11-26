@@ -1,7 +1,7 @@
 # WI-20261125: Pre-CoW additive schema integrity repairs
 
-**Status:** Prepared source candidate only. No checkout, branch, DB or deployment changes. Not verified in PostgreSQL.
-**Baseline:** `anubhab-work` at `0f6e8b2648ef51c0c31f00eda9b394d6c5636e96` (2026-11-25).
+**Status (2026-11-26):** Source checkpoint committed/pushed. Fresh disposable PostgreSQL 17 migration-specific acceptance passed; overall PG-backed Go suite remains failing (11 individual tests in last observed run). Not deployed; populated-database upgrades and physical HAL acceptance unverified.
+**Source:** `anubhab-work` at `f4f96cbc5f8e0dc652970981fc3b0c60cdd0e31f` (2026-11-25), direct child of baseline `0f6e8b2648ef51c0c31f00eda9b394d6c5636e96`.
 **Scope:** two forward-only migrations 000078/000079, additive DB-gated regression tests, read-only preflight. Does not create CoW tables or privileges.
 
 ## Causal defects and remedy
@@ -12,7 +12,11 @@
 - Historical `000056` may have lost DENY precedence in one-to-many override conversion; cannot infer lost intent, preserve independent provenance/review gate. Do not add arbitrary bans/revoke all legitimate ALLOW rows.
 - `000055` earlier-version compatibility and `000064` customer EV vs fleet Vehicle are outside scope, by design. This is not blanket CoW completion.
 
-## Before acceptance
+## Historical preparation and remaining release gates
+
+The checklist below was drafted before the actual fresh-database acceptance. Its execution was subsequently demonstrated on an isolated Windows PostgreSQL 17 cluster: all 77 migrations through 000079 applied, 18 targeted FKs validated, read-only pre/post checks, replay, guarded DOWN refusal and both dedicated PG integration tests passed. This does not establish safety on populated historical data, the whole Go suite or physical HAL operation.
+
+## Before any populated-database upgrade
 
 - Confirm no new migrations already exist and that no parallel owner claims these surfaces.
 - Review on real Git checkout; ensure docs and consumers are synchronized with the new server-side invariants.
@@ -28,4 +32,6 @@
 3. Historical permission provenance/`chargers.operations` review and additional financial/trace boundary review either closed with evidence or explicitly deferred as owner blockers.
 4. Source/work-item/Project State/AI Changelog/SCHEMA/FE handoffs and live `schema_migrations` match what is claimed.
 
-**Not achieved by this package:** PostgreSQL execution, data reconciliation, full release, CoW authorization, historical DENY restoration, deploy or physical charger acceptance.
+**Achieved:** migration-specific execution on fresh disposable PostgreSQL 17, with replay, read-only checks, guarded DOWN and the two dedicated integration tests.
+
+**Still open:** realistic populated-database upgrade and data reconciliation, historical `000056` DENY provenance, full PG-backed Go suite (last observed 11 test failures), CoW authorization, deployment and physical charger acceptance. The isolated acceptance evidence does not imply live-schema changes.

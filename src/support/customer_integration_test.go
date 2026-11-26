@@ -3,7 +3,6 @@ package support
 import (
 	"context"
 	"os"
-	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -312,18 +311,13 @@ func TestCustomerCPOWorkflowWithPostgreSQL(t *testing.T) {
 	if _, err := s.ReplyCustomer(ctx, first, created.ID, ReplyRequest{Body: "Customer reply after rejected owner change", IdempotencyKey: "owner-unchanged"}); err != nil {
 		t.Fatalf("valid customer reply after rejected owner change: %v", err)
 	}
-	// This shared acceptance database is already at 000079, whose automatic
-	// DOWN intentionally refuses. Testing historical 000074 DOWN/UP requires
-	// a separately prepared database pinned to migration 000074, never an
-	// attempt to unwind the protected migration chain.
-	rollbackErr := db.RollbackLastMigration(ctx, sqlDB)
-	if rollbackErr == nil || !strings.Contains(rollbackErr.Error(), "000079 must not be rolled back automatically") {
-		t.Fatalf("protected migration 000079 rollback should refuse: %v", rollbackErr)
-	}
+	// This service workflow must never roll back the global migration head.
+	// Guarded 000079 DOWN is verified in the isolated pre-CoW migration test.
+	// Historical 000074 DOWN/UP belongs in a database pinned to version 000074.
 	assertCustomerSupportTicketActorForeignKeyRules(t, gormDB, "RESTRICT", "CASCADE")
 	var preserved int64
 	if err := gormDB.Table("support_tickets").Where("id=? AND channel='CUSTOMER_CPO'", created.ID).Count(&preserved).Error; err != nil || preserved != 1 {
-		t.Fatalf("guarded rollback did not preserve customer support history count=%d err=%v", preserved, err)
+		t.Fatalf("customer support history was not preserved count=%d err=%v", preserved, err)
 	}
 }
 
