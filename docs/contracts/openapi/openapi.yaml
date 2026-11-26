@@ -62,6 +62,103 @@ tags:
     description: Authenticated OCPP HAL fact receiver. Not callable with a customer or staff bearer.
 
 paths:
+  /api/v1/app/addresses:
+    get:
+      tags: [App User CoW Service Addresses]
+      operationId: listCoWSavedAddresses
+      summary: List active saved service addresses of the authenticated CPO-local customer
+      description: Available only while CoW is enabled and the customer/CPO are active. Sort by created_at descending then ID descending. Discard cursors when switching customers.
+      security: [{BearerAuth: []}]
+      parameters:
+        - {$ref: "#/components/parameters/CPOAppIDHeader"}
+        - {name: limit, in: query, schema: {type: integer, minimum: 1, maximum: 100, default: 50}}
+        - {name: before, in: query, description: "RFC3339 timestamp; paired with before_id", schema: {type: string, format: date-time}}
+        - {name: before_id, in: query, description: "Nonzero UUID paired with before", schema: {type: string, format: uuid}}
+      responses:
+        "200": {description: Paginated saved-address projection, content: {application/json: {schema: {$ref: "#/components/schemas/CoWAddressPage"}}}}
+        "400": {$ref: "#/components/responses/InvalidRequest"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/CPOBusinessForbidden"}
+        "500": {$ref: "#/components/responses/InternalError"}
+    post:
+      tags: [App User CoW Service Addresses]
+      operationId: createCoWSavedAddress
+      summary: Save an address, optionally making it the customer's default
+      description: The first saved address becomes the default. Selecting another default atomically clears the old one. Mutations are serialized on the customer row and audited without copying address PII.
+      security: [{BearerAuth: []}]
+      parameters: [{$ref: "#/components/parameters/CPOAppIDHeader"}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/CoWAddressCreate"}}}}
+      responses:
+        "201": {description: Created address, content: {application/json: {schema: {$ref: "#/components/schemas/CoWAddress"}}}}
+        "400": {$ref: "#/components/responses/InvalidRequest"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/CPOBusinessForbidden"}
+        "500": {$ref: "#/components/responses/InternalError"}
+  /api/v1/app/addresses/{address_id}:
+    get:
+      tags: [App User CoW Service Addresses]
+      operationId: getCoWSavedAddress
+      summary: Read a saved address of the authenticated customer
+      security: [{BearerAuth: []}]
+      parameters: [{$ref: "#/components/parameters/CPOAppIDHeader"}, {$ref: "#/components/parameters/CoWAddressID"}]
+      responses:
+        "200": {description: Saved address, content: {application/json: {schema: {$ref: "#/components/schemas/CoWAddress"}}}}
+        "400": {$ref: "#/components/responses/InvalidRequest"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/CPOBusinessForbidden"}
+        "404": {description: Address not found or not owned by this customer, content: {application/json: {schema: {$ref: "#/components/schemas/ErrorEnvelope"}}}}
+        "500": {$ref: "#/components/responses/InternalError"}
+    patch:
+      tags: [App User CoW Service Addresses]
+      operationId: patchCoWSavedAddress
+      summary: Update selected editable address fields using optimistic version matching
+      description: Only supplied editable fields change; optional nullable fields can be cleared with null. An unchanged update is a no-op with no new audit event. Never send is_default or server-owned fields in PATCH.
+      security: [{BearerAuth: []}]
+      parameters: [{$ref: "#/components/parameters/CPOAppIDHeader"}, {$ref: "#/components/parameters/CoWAddressID"}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/CoWAddressPatch"}}}}
+      responses:
+        "200": {description: Updated or unchanged address, content: {application/json: {schema: {$ref: "#/components/schemas/CoWAddress"}}}}
+        "400": {$ref: "#/components/responses/InvalidRequest"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/CPOBusinessForbidden"}
+        "404": {description: Address absent, content: {application/json: {schema: {$ref: "#/components/schemas/ErrorEnvelope"}}}}
+        "409": {description: Address version conflict, content: {application/json: {schema: {$ref: "#/components/schemas/ErrorEnvelope"}}}}
+        "500": {$ref: "#/components/responses/InternalError"}
+    delete:
+      tags: [App User CoW Service Addresses]
+      operationId: deleteCoWSavedAddress
+      summary: Soft-delete one saved address at its current version
+      description: Deleted addresses cannot be listed or resolved. If the default is deleted, the oldest remaining active address becomes default. This does not alter historical ServiceJob snapshots.
+      security: [{BearerAuth: []}]
+      parameters:
+        - {$ref: "#/components/parameters/CPOAppIDHeader"}
+        - {$ref: "#/components/parameters/CoWAddressID"}
+        - {name: expected_version, in: query, required: true, schema: {type: integer, format: int64, minimum: 1}}
+      responses:
+        "204": {description: Address removed from saved list}
+        "400": {$ref: "#/components/responses/InvalidRequest"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/CPOBusinessForbidden"}
+        "404": {description: Address absent, content: {application/json: {schema: {$ref: "#/components/schemas/ErrorEnvelope"}}}}
+        "409": {description: Address version conflict, content: {application/json: {schema: {$ref: "#/components/schemas/ErrorEnvelope"}}}}
+        "500": {$ref: "#/components/responses/InternalError"}
+  /api/v1/app/addresses/{address_id}/make-default:
+    post:
+      tags: [App User CoW Service Addresses]
+      operationId: makeCoWSavedAddressDefault
+      summary: Atomically select the default service address
+      description: This operation serializes all default modifications for this customer. Repeating it with the current version on the already-default address is a no-op.
+      security: [{BearerAuth: []}]
+      parameters: [{$ref: "#/components/parameters/CPOAppIDHeader"}, {$ref: "#/components/parameters/CoWAddressID"}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/CoWAddressVersion"}}}}
+      responses:
+        "200": {description: Selected address and new version, content: {application/json: {schema: {$ref: "#/components/schemas/CoWAddress"}}}}
+        "400": {$ref: "#/components/responses/InvalidRequest"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/CPOBusinessForbidden"}
+        "404": {description: Address absent, content: {application/json: {schema: {$ref: "#/components/schemas/ErrorEnvelope"}}}}
+        "409": {description: Address version conflict, content: {application/json: {schema: {$ref: "#/components/schemas/ErrorEnvelope"}}}}
+        "500": {$ref: "#/components/responses/InternalError"}
   /api/v1/platform/cpos/{cpo_id}/modules/cow:
     get:
       tags: [Superadmin - Platform CPOs]
@@ -7764,6 +7861,12 @@ components:
         routing metadata, not an authentication secret or tenant selector.
 
   parameters:
+    CoWAddressID:
+      name: address_id
+      in: path
+      required: true
+      schema: {type: string, format: uuid}
+      description: Nonzero ID of a saved address owned by the authenticated customer.
     CPOAppIDHeader:
       name: X-CPO-App-ID
       in: header
@@ -8170,6 +8273,80 @@ components:
             $ref: "#/components/schemas/ErrorEnvelope"
 
   schemas:
+    CoWAddressFields:
+      type: object
+      required: [label, line1, city, state, postal_code, country_code]
+      properties:
+        label: {type: string, minLength: 1, maxLength: 80}
+        line1: {type: string, minLength: 1, maxLength: 255}
+        line2: {type: string, maxLength: 255}
+        locality: {type: string, maxLength: 120}
+        city: {type: string, minLength: 1, maxLength: 120}
+        state: {type: string, minLength: 1, maxLength: 120}
+        postal_code: {type: string, minLength: 1, maxLength: 20}
+        country_code: {type: string, pattern: "^[A-Z]{2}$", example: IN}
+        latitude: {type: number, format: double, minimum: -90, maximum: 90, nullable: true}
+        longitude: {type: number, format: double, minimum: -180, maximum: 180, nullable: true}
+        landmark: {type: string, maxLength: 255}
+        building_instructions: {type: string, maxLength: 500}
+        floor: {type: string, maxLength: 40}
+        contact_instructions: {type: string, maxLength: 500}
+        geocode_provider: {type: string, maxLength: 80}
+        geocode_provider_place_id: {type: string, maxLength: 255}
+      description: Coordinates must either both be present and valid or both be absent/null. Client coordinates and geocoder references are unverified customer metadata, not authoritative arrival proof.
+    CoWAddressCreate:
+      allOf:
+        - {$ref: "#/components/schemas/CoWAddressFields"}
+        - {type: object, properties: {is_default: {type: boolean, default: false}}}
+    CoWAddressPatch:
+      type: object
+      required: [expected_version]
+      properties:
+        expected_version: {type: integer, format: int64, minimum: 1}
+        label: {type: string, minLength: 1, maxLength: 80}
+        line1: {type: string, minLength: 1, maxLength: 255}
+        line2: {type: string, maxLength: 255, nullable: true}
+        locality: {type: string, maxLength: 120, nullable: true}
+        city: {type: string, minLength: 1, maxLength: 120}
+        state: {type: string, minLength: 1, maxLength: 120}
+        postal_code: {type: string, minLength: 1, maxLength: 20}
+        country_code: {type: string, pattern: "^[A-Z]{2}$"}
+        latitude: {type: number, format: double, nullable: true}
+        longitude: {type: number, format: double, nullable: true}
+        landmark: {type: string, maxLength: 255, nullable: true}
+        building_instructions: {type: string, maxLength: 500, nullable: true}
+        floor: {type: string, maxLength: 40, nullable: true}
+        contact_instructions: {type: string, maxLength: 500, nullable: true}
+        geocode_provider: {type: string, maxLength: 80, nullable: true}
+        geocode_provider_place_id: {type: string, maxLength: 255, nullable: true}
+      description: Additional properties are rejected. At least one editable field required; null clears optional fields. Required address fields cannot be null/blank.
+      additionalProperties: false
+    CoWAddressVersion:
+      type: object
+      additionalProperties: false
+      required: [expected_version]
+      properties:
+        expected_version: {type: integer, format: int64, minimum: 1}
+    CoWAddress:
+      allOf:
+        - {$ref: "#/components/schemas/CoWAddressFields"}
+        - type: object
+          required: [id, is_default, version, created_at, updated_at]
+          properties:
+            id: {type: string, format: uuid}
+            is_default: {type: boolean}
+            version: {type: integer, format: int64, minimum: 1}
+            created_at: {type: string, format: date-time}
+            updated_at: {type: string, format: date-time}
+    CoWAddressPage:
+      type: object
+      additionalProperties: false
+      required: [addresses, has_more]
+      properties:
+        addresses: {type: array, items: {$ref: "#/components/schemas/CoWAddress"}}
+        has_more: {type: boolean}
+        next_before: {type: string, format: date-time}
+        next_before_id: {type: string, format: uuid}
     CoWEntitlement:
       type: object
       additionalProperties: false

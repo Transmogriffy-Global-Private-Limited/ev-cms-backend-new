@@ -212,8 +212,8 @@ foreach ($route in $retiredRoutes) {
 }
 
 $operationCount = ([regex]::Matches($openAPI, '(?m)^\s{6}operationId:\s+')).Count
-if ($operationCount -ne 263) {
-	throw "OpenAPI contains $operationCount operations; expected 260."
+if ($operationCount -ne 269) {
+	throw "OpenAPI contains $operationCount operations; expected 269."
 }
 # The SuperAdmin handoff must not silently retain an outdated operation count.
 $feOperationMatch = [regex]::Match($superadminFEHandoff,
