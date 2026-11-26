@@ -1,8 +1,16 @@
 # CoW Coding Run 1: default-off module authorization
 
-Status: implementation candidate; user checkout execution not yet shown.
+Status: Source work complete, accepted and archived 2026-11-26. Not a VPS2 deployment.
 
-Authority: `anubhab-work` at `dc006722706333aca403c2101eb868c0cdadeac3`. The September 24 blueprint's role-permission and DENY semantics remain normative; later owner-approved project decision supersedes its standalone CMS repository layout. CoW extends this Go EV-CMS and uses existing CPO identity, active membership, current permission overrides and Platform administration.
+Authority: `anubhab-work` published Run 1 `f2be703b1d200eb0173c64ba655124496fb2755c`; followed by Run 2A `77d2d85885d2fa4db8559ccbeb7c8049a0d9f974`. Original September blueprint role/DENY decision remains; Go-CMS integration supersedes standalone CMS.
+
+## Source completion evidence (supersedes historical candidate text below)
+
+- Source commit `f2be703b1d200eb0173c64ba655124496fb2755c` was pushed; Go source, contract, vet/build and isolated PG17 entitlement/default-off/authorization/audit/concurrency-version/DOWN checks passed. The GSTIN test-fixture checksum issue was fixed before final acceptance.
+- FE handoff complete; canonical repo contract: `docs/contracts/api/cow-module-entitlement.md`.
+- Excluded from closure: VPS2 deployment, populated-database upgrades, historical unrelated PostgreSQL regressions and HAL/physical charger validation.
+
+## Original pre-release scope (historical)
 
 ## Contract and boundaries
 

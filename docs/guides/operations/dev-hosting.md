@@ -1,5 +1,9 @@
 # Development VPS Hosting
 
+## 2026-11-26 source versus VPS2 runtime
+
+The `anubhab-work` source at `77d2d85885d2fa4db8559ccbeb7c8049a0d9f974` contains CoW Run 1 and 2A, migrations `000080` and `000081` and 269 OpenAPI operations. This is **not evidence that the hosted binary or `devevcmsnewdb` has these changes**. Historical release entries below remain dated historical facts. Swagger is `https://dev-evcmsnew.transev.site/docs/`, raw OpenAPI `https://dev-evcmsnew.transev.site/openapi.yaml`, when `API_DOCS_ENABLED=true`. `rehost-evcmsnew -t 0 --no-tail` restarts the already built binary; it does not fetch/build new source. For future migration-bearing deployment: verify on-host revision, validate/source-build, preserve binary and database backups, review populated-DB upgrade, then activate and verify live Swagger/health/readiness/workers/migrations. Disposable PG17 test results must never be treated as a live database upgrade or physical HAL acceptance.
+
 ## Deployment Shape
 
 The development deployment for `dev-evcmsnew.transev.site` uses:

@@ -1,6 +1,14 @@
 # CoW Coding Run 2A: saved service addresses and service-context snapshots
 
-**Source baseline**: `anubhab-work` at `f2be703b1d200eb0173c64ba655124496fb2755c` (Run 1). This is a guarded candidate, not an applied, tested, committed, or deployed source change.
+**Status:** Source work complete, accepted and archived 2026-11-26. Published commit `77d2d85885d2fa4db8559ccbeb7c8049a0d9f974`, parent `f2be703b1d200eb0173c64ba655124496fb2755c`. Not a verified VPS2 release.
+
+## Source completion evidence (supersedes historical candidate text below)
+
+- Source commit `77d2d85885d2fa4db8559ccbeb7c8049a0d9f974` pushed, with four edited and eight added files. The first PG17 attempt failed on a UUID scan of a customer-row lock; focused two-file hotfix corrected it and strengthened the concurrency test.
+- Post-hotfix owner-run full Go tests, vet, build, docs, diff, 79 PG17 migrations/replay, address/default-concurrency tests, independent SQL checks, guarded DOWN and private-cluster cleanup passed.
+- FE contract: `docs/contracts/api/cow-customer-service-addresses.md`. No VPS2 deployment, populated DB, ServiceJob, Run 2B or physical charger completion claimed.
+
+## Original pre-release scope (historical)
 
 ## Purpose and scope
 

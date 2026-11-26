@@ -22,12 +22,11 @@ Content-Type: application/json
 
 Only a current `PLATFORM` session is accepted. Never send `X-CPO-App-ID` on
 this control-plane surface: an app ID is routing metadata, not authority.
-Superadmin CPO administration does not read subscription, invoice, payment, or
-entitlement state.
+Superadmin CPO administration does not disclose tenant invoices or payments. The separately routed CPO CoW module entitlement GET/PUT is a Platform control-plane operation; subscriptions remain a different commercial workflow.
 
 ## Recommended Screen Model
 
-Use four REST-backed regions:
+Use five REST-backed regions:
 
 1. CPO collection: list, search, filters, and cursor.
 2. CPO identity: business profile, lifecycle evidence, and app ID.
@@ -35,9 +34,14 @@ Use four REST-backed regions:
    the latest safe onboarding-delivery metadata.
 4. Recovery actions: resend onboarding, replace/restore the primary
    administrator, or revoke all CPO administrative sessions.
+5. CoW module: read and change CPO-level entitlement with version/reason.
 
 REST is authoritative. Realtime events tell the frontend what to refresh; they
 are not replacement CPO objects.
+
+## CoW module grant (Run 1, source accepted)
+
+`GET /api/v1/platform/cpos/{cpo_id}/modules/cow` returns default-off/version zero when absent. The Platform admin `PUT` to the same path sends `{enabled,expected_version,reason}` (trimmed 3-500 UTF-8 byte reason). A `409 entitlement_version_conflict` requires refetch and new user confirmation; same-state writes at the correct version are no-ops. This is NOT CPO staff impersonation, subscription activation, or permission to operate physical chargers. See [full grant FE contract](contracts/api/cow-module-entitlement.md).
 
 ## Collection
 

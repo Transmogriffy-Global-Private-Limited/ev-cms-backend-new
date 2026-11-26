@@ -1,5 +1,9 @@
 # CPO Frontend Integration Handoff
 
+## 2026-11-26 CoW supplement (source `77d2d85885d2fa4db8559ccbeb7c8049a0d9f974`)
+
+Run 1 adds `GET /api/v1/cpo/cow/access` for the current CPO staff bearer and matching App ID. It returns `{cpo_id,module:"cow",enabled,eligible,effective_permissions}`; disabled/inactive CoW yields `eligible:false` and an empty effective CoW permission list. Existing access/me, permission catalog and staff response shapes are unchanged, but now include 45 `cow.*` catalog keys (24 old + 45 new = 69). Role defaults and explicit ALLOW/DENY overrides remain server-authoritative; **a key does not imply a implemented fleet, driver, job, dispatch or charging route**. Run 2A's six address endpoints are customer-app routes, not CPO staff routes. See [complete CoW module contract](contracts/api/cow-module-entitlement.md) and [customer address FE contract](contracts/api/cow-customer-service-addresses.md). This addendum supersedes old source-baseline assumptions about CoW, not historical hosting observations.
+
 ## Purpose and authority
 
 This is the complete browser-integration guide for the CPO administration

@@ -39,9 +39,9 @@ or mockup. Only routed operations in OpenAPI are callable.
 
 ## Integration Snapshot
 
-This handoff's active API operation count was reconciled against the
-2026-11-24 `fb4e7d2` source OpenAPI. It does not assert which source revision
-is deployed; verify the active deployment independently before enabling an environment.
+The 269-operation source count was reconciled against CoW Run 2A commit
+`77d2d85885d2fa4db8559ccbeb7c8049a0d9f974`. This does not assert the
+VPS2 binary or its schema revision; verify active hosting independently.
 
 - Development origin: `https://dev-evcmsnew.transev.site`
 - Local default origin: `http://127.0.0.1:8080`
@@ -78,6 +78,10 @@ append `/api/v1` twice.
 The current development deployment allows cross-origin browser requests. That
 is a development policy, not a production guarantee. Production requires an
 approved origin policy and HTTPS.
+
+## 2026-11-26 source addendum: CoW CPO module controls
+
+The Platform CPO detail screen can now `GET` and `PUT /api/v1/platform/cpos/{cpo_id}/modules/cow` with the Platform bearer (no App ID header). Display `enabled`, `version` and optional last-change actor/time/reason; default is off/version zero. A toggle requires an explicit reason and current expected version. On 409, refetch and confirm, never blind-retry. This module grant is separate from subscription and current CPO staff permission sets. Run 2A's six address routes belong to the **customer app**, not SuperAdmin. Full TypeScript/wire semantics are in [CoW module entitlement contract](contracts/api/cow-module-entitlement.md). Hosted runtime status is unverified.
 
 ## Readiness Summary
 

@@ -16,7 +16,7 @@ integration handoff,
 CPO access is granted or removed manually by platform superadmins through
 activation and suspension. Platform superadmins also manually manage
 subscription plans and CPO subscription periods/statuses; this does not change
-CPO access automatically. Feature keys/entitlement overrides are not defined.
+CPO access automatically. Platform-subscription feature-key overrides are not defined.
 There is no **platform-subscription** payment provider, platform invoice,
 platform-payment checkout, or platform-payment webhook. Subscription payment
 collection and confirmation are external/manual; the present issue/renew API
@@ -24,7 +24,7 @@ records a reason and actor but has no structured payment-proof fields.
 An automatic subscription **lifecycle worker** does run: it queues expiry
 warnings and marks elapsed periods EXPIRED. It does not collect payments,
 automatically renew a plan, or activate/suspend the CPO.
-The Superadmin CPO surface also provides collection search/filter/cursors,
+CoW separately provides default-off per-CPO module grants and signed-in CPO discovery, plus customer-owned saved service addresses. These are not platform-subscription entitlements. See `docs/contracts/api/cow-module-entitlement.md` and `docs/contracts/api/cow-customer-service-addresses.md`; source commit `77d2d85885d2fa4db8559ccbeb7c8049a0d9f974` does not establish VPS2 deployment. The Superadmin CPO surface also provides collection search/filter/cursors,
 business-profile maintenance, lifecycle decision evidence, primary-admin
 recovery/onboarding status, and scoped CPO administrative-session revocation.
 

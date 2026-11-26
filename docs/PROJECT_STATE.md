@@ -1,5 +1,12 @@
 # Project State
 
+## 2026-11-26 - Run 1 and Run 2A CoW source released, not VPS2-deployed
+
+- GitHub `anubhab-work` has Run 1 `f2be703b1d200eb0173c64ba655124496fb2755c` (CPO default-off entitlement, three endpoints, migration `000080`, 45 CoW capability keys) and Run 2A `77d2d85885d2fa4db8559ccbeb7c8049a0d9f974` (customer saved addresses, six endpoints, internal saved/temporary snapshots, migration `000081`). The latter is one commit after Run 1. Neither commit is independent proof that VPS2's binary or populated DB has been upgraded.
+- Run 1 passed source gates and disposable PostgreSQL 17 grant/authorization/audit acceptance. Run 2A's first PG test failed on a UUID scan of a customer-row lock; a narrowly scoped two-file hotfix corrected the scan and strengthened the concurrency test. The owner subsequently reported passing full Go tests, vet, build, documentation, Git diff, all 79 migrations plus replay, focused address/default-concurrency PG tests, independent SQL assertions, guarded DOWN refusal and verified private cluster deletion.
+- Embedded source OpenAPI now describes **269 operations** (260 pre-CoW + 3 Run 1 + 6 Run 2A). Historical VPS2 rehost evidence below is date-bound; it is not evidence of these commits on the running server. Other open boundaries: realistic populated DB upgrade, historical broad PG regressions, HAL/charger acceptance, and Run 2B EV compatibility.
+- Completed source work items are archived. Contracts: [module grants](contracts/api/cow-module-entitlement.md) and [service addresses](contracts/api/cow-customer-service-addresses.md).
+
 ## 2026-11-24 - Pre-CoW Run 4 source candidate (not deployed)
 
 - Work item `docs/work/active/WI-20261124-subscription-lifecycle-durable-recovery.md` targets scanner crash/failure recovery and SuperAdmin handoff count drift.

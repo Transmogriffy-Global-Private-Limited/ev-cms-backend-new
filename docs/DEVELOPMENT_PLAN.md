@@ -1,5 +1,13 @@
 # Development Plan
 
+## 2026-11-26 - Current CoW source roadmap
+
+- **Run 1 source accepted:** `f2be703b1d200eb0173c64ba655124496fb2755c` (module entitlement + CPO access + CoW permission registry), 3 routes and migration `000080`.
+- **Run 2A source accepted:** `77d2d85885d2fa4db8559ccbeb7c8049a0d9f974` (six customer address routes, default/versions, internal copied-value service context, `000081`); uses pre-existing `/api/v1/app/profile` and `/api/v1/app/vehicles`, not a second identity/vehicle registry.
+- **Run 2B next, NOT implemented:** substantiate the actual EV charging-compatibility metadata needed by CoW, then extend existing vehicle storage/HTTP/snapshot models non-breakingly with tenant isolation and tests. Avoid speculative battery/connector assumptions.
+- Later dependencies: driver onboarding, fleet, scheduling, ServiceJob and dispatch. ServiceJob must freeze validated address/EV snapshots when created. No Run 2A public job/quote, promotion, charger/HAL or payment endpoint exists.
+- Source verification and disposable PG17 integration do not establish VPS2 deployment or physical device behavior. See [current project state](PROJECT_STATE.md) and the archived Run 1/2A work items.
+
 ## 2026-09-23 - Customer-to-own-CPO support deployed
 
 - The CUSTOMER_CPO support source slice and migrations 72, 73, and 74 were

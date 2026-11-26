@@ -1,5 +1,11 @@
 # AI Changelog
 
+## 2026-11-26 - CoW Run 1 and Run 2A accepted source, documentation reconciliation
+
+- Published Run 1 `f2be703b1d200eb0173c64ba655124496fb2755c`: migration `000080`, default-off CPO module grant, SuperAdmin GET/PUT, CPO access GET, 45 `cow.*` keys, optimistic audit history, DENY precedence. Source and disposable PG17 authorization acceptance passed.
+- Published Run 2A `77d2d85885d2fa4db8559ccbeb7c8049a0d9f974`: migration `000081`, tenant/customer-scoped saved address CRUD/default and copied saved/temporary context values, six customer APIs. Fixed UUID locking scan and strengthened concurrency check after the initial PG test failure. Owner-reported post-hotfix Go test/vet/build/docs/diff, PG17 migrations/replay, address lifecycle/concurrency/SQL/DOWN and cleanup all passed.
+- Updated contract-facing and governance documentation and archived both accepted work items. Embedded source Swagger/OpenAPI already listed 269 operations, so no artificial route/schema edit was made. Current VPS2 deployment, populated migrations and physical HAL behavior were **not** verified by this docs pass.
+
 ## 2026-11-24 - Pre-CoW Run 4 candidate, durable lifecycle recovery
 
 - Prepared additive migration `000077`, crash-surviving pending-work leases, fenced acknowledgements, and bounded retry scheduling for subscription lifecycle scans.

@@ -1,5 +1,11 @@
 # CMS Schema
 
+## CoW source schema (migrations 000080 and 000081, through commit `77d2d85885d2fa4db8559ccbeb7c8049a0d9f974`)
+
+- `000080`: `cpo_module_entitlements` stores the CPO-scoped `cow` enabled state, optimistic version, reason/actor/timestamp. Absent row means disabled/version 0. `cpo_module_entitlement_events` preserves real transitions by (CPO,module,version); Platform audit is transactionally coupled. Rollback refuses deletion of recorded grant history.
+- `000081`: `cow_customer_addresses` has composite (CPO,customer) ownership FK, bounded location/instruction fields, optional paired coordinates, `is_active`, `is_default`, positive version, and timestamps. A partial unique index `uq_cow_customer_addresses_active_default` permits **at most one** active default per CPO/customer; serialized customer-row locking supports default promotion on removal. Delete is soft. DOWN refuses destructive loss of saved addresses.
+- The existing `vehicles` table and customer credential system remain authoritative. `BuildCowServiceContext` validates and copies saved/temporary vehicle/address inputs into an internal response; it does not persist jobs or modify saved master data. These migrations passed fresh isolated PG17 tests through `000081` on the owner's machine, but no live VPS2/populated-schema verification is claimed. Details: [grant](contracts/api/cow-module-entitlement.md), [address](contracts/api/cow-customer-service-addresses.md).
+
 ## Customer-to-CPO support (migrations 72, 73, and 74)
 
 Migration `000072_customer_cpo_support` extends the existing durable support

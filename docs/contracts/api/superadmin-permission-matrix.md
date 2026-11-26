@@ -45,6 +45,8 @@ classification.
 | `POST /api/v1/platform/cpos` | `PLATFORM` | CPO provisioning | Validate legal identity; creation remains final authority over advisory availability. |
 | `GET /api/v1/platform/cpos/slug-availability` | `PLATFORM` | CPO provisioning preflight | Advisory only; never reserve a slug. |
 | `GET /api/v1/platform/cpos/{cpo_id}` | `PLATFORM` | CPO observation | Platform CPO record, not tenant impersonation. |
+| `GET /api/v1/platform/cpos/{cpo_id}/modules/cow` | `PLATFORM` with active platform administrator | CoW grant observation | Absence means disabled/version zero. |
+| `PUT /api/v1/platform/cpos/{cpo_id}/modules/cow` | `PLATFORM` with active platform administrator | CoW grant mutation | Explicit reason, optimistic version and confirmation. |
 | `GET /api/v1/platform/cpos/{cpo_id}/operations/fleet` | `PLATFORM` | Platform operational observation | Display projection freshness; no CPO token/header. |
 | `GET /api/v1/platform/cpos/{cpo_id}/operations/chargers/{charger_id}` | `PLATFORM` | Platform operational observation | Use only platform operational detail contract. |
 | `GET /api/v1/platform/cpos/{cpo_id}/operations/events` | `PLATFORM` | Platform operational observation | Replay and dedupe before stream. |
@@ -105,7 +107,7 @@ classification.
 ## Explicitly absent authority
 
 The matrix does not imply access to unrouted/unsupported platform billing,
-payment, checkout, webhook, entitlement-override, CPO impersonation, or tenant
+payment, checkout, webhook, platform-subscription entitlement overrides, CPO impersonation, or tenant
 integration-secret APIs. A future granular platform RBAC model must add server
 enforcement, migration/seed policy, OpenAPI declarations, tests, and a revised
 matrix before the frontend can hide/show actions by a new permission key.

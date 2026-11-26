@@ -1,5 +1,9 @@
 # CPO Backend AI-Agent Handoff
 
+## 2026-11-26 CoW source ownership addendum
+
+CoW extends **this Go EV-CMS** as a tenant-scoped optional module, not an independent CMS. Accepted commits: Run 1 `f2be703b1d200eb0173c64ba655124496fb2755c` grants/membership/45 catalog keys/`000080`; Run 2A `77d2d85885d2fa4db8559ccbeb7c8049a0d9f974` customer saved addresses + internal copied saved/temporary snapshots/`000081`. Reuse existing customer and vehicle identity; tenant grant, current membership, explicit DENY and customer ownership are independent gates. Source interfaces do not create jobs, HAL commands or physical operations. Read [CoW module contract](contracts/api/cow-module-entitlement.md), [address contract](contracts/api/cow-customer-service-addresses.md), [schema](SCHEMA.md) and archived release work items before editing. Do not mistake source acceptance for a deployed VPS2 binary.
+
 ## Durable charger-operation recovery
 
 Charger operations use one fenced dispatcher for HTTP and background recovery. Only definitely unattempted rows may dispatch; attempted rows use exact-ID reconciliation. Read [the recovery contract](integrations/charger-operation-recovery.md) before changing this boundary.

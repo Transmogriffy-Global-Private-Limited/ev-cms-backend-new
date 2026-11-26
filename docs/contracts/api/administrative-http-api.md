@@ -1,5 +1,12 @@
 # Administrative HTTP API: Complete Developer Contract
 
+## 2026-11-26 CoW source contract additions
+
+- Platform: `GET` and `PUT /api/v1/platform/cpos/{cpo_id}/modules/cow`; current Platform administrator controls default-off, versioned CPO grants, with `{enabled,expected_version,reason}` on PUT, 409 stale version, audited real transitions. See [CoW module contract](cow-module-entitlement.md).
+- CPO staff: `GET /api/v1/cpo/cow/access` discovers current eligibility and effectively allowed CoW keys (only current session tenant, no arbitrary CPO selection). Existing access/me, permission-catalog and staff projections carry extra known `cow.*` keys without JSON shape breaks.
+- Customer app: `GET`/`POST /api/v1/app/addresses`, `GET`/`PATCH`/`DELETE /api/v1/app/addresses/{address_id}`, and `POST /api/v1/app/addresses/{address_id}/make-default`. Owner-only, CPO-enabled address data with optimistic version checks; see [complete customer address contract](cow-customer-service-addresses.md).
+- Nine new operations across Run 1/2A, **269** source operations in total. No ServiceJob, booking, driver, payment, charging or HAL CoW operation is exposed by these contracts. VPS2 must be verified separately.
+
 ## CPO staff authority and charging records
 
 `GET /api/v1/cpo/customers` always includes `total_usage_kwh`, including zero.

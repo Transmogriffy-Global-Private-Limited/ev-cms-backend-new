@@ -24,6 +24,10 @@ $requiredFiles = @(
     'docs/integrations/razorpay-credential-storage.md',
     'docs/integrations/ocpp-hal-boundary.md',
     'docs/contracts/api/administrative-http-api.md',
+    'docs/contracts/api/cow-module-entitlement.md',
+    'docs/contracts/api/cow-customer-service-addresses.md',
+    'docs/work/archive/WI-20261126-cow-run1-entitlements.md',
+    'docs/work/archive/WI-20261126-cow-run2a-service-addresses.md',
     'docs/contracts/internal/mail-outbox.md',
     'docs/contracts/internal/http-request-logging.md',
     'docs/contracts/realtime/platform-events.md',
@@ -151,6 +155,11 @@ $requiredRoutes = @(
     '/api/v1/auth/password/change',
     '/api/v1/platform/cpos',
     '/api/v1/platform/cpos/slug-availability',
+    '/api/v1/platform/cpos/{cpo_id}/modules/cow',
+    '/api/v1/cpo/cow/access',
+    '/api/v1/app/addresses',
+    '/api/v1/app/addresses/{address_id}',
+    '/api/v1/app/addresses/{address_id}/make-default',
     '/api/v1/platform/cpos/{cpo_id}/profile',
     '/api/v1/platform/cpos/{cpo_id}/primary-admin',
     '/api/v1/platform/cpos/{cpo_id}/primary-admin/resend-onboarding',
@@ -199,6 +208,16 @@ foreach ($route in $requiredRoutes) {
 $openAPI = Get-Content -Raw -LiteralPath (
     Join-Path $repositoryRoot 'docs/contracts/openapi/openapi.yaml'
 )
+$requiredCoWPaths = @(
+    '/api/v1/platform/cpos/{cpo_id}/modules/cow:',
+    '/api/v1/cpo/cow/access:',
+    '/api/v1/app/addresses:',
+    '/api/v1/app/addresses/{address_id}:',
+    '/api/v1/app/addresses/{address_id}/make-default:'
+)
+foreach ($path in $requiredCoWPaths) {
+    if (-not $openAPI.Contains($path)) { throw "Missing CoW OpenAPI path: $path" }
+}
 $retiredRoutes = @(
     '/billing-account',
     '/invoices',
