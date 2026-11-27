@@ -1,5 +1,19 @@
 # User App Frontend Handoff
 
+## 2026-11-27 CoW customer EV compatibility supplement (source + focused PG17 accepted)
+
+The same five `/api/v1/app/vehicles` customer routes now support optional
+customer-declared battery capacity (Wh), connector labels, AC/DC support and
+AC/DC intake ceilings (W), plus response `version` and optional PATCH
+`expected_version`. Omitted/null is unknown; no plug match, booking, charging
+or HAL action is implied. Existing customer auth/tenant and old vehicle fields
+are retained. The saved/temporary service-context builder copies these
+values internally, but it does not persist a job. Use the standalone
+[Run 2B vehicle compatibility guide]
+(contracts/api/cow-customer-vehicle-compatibility.md) and current OpenAPI;
+VPS2 deployment and authenticated customer E2E are **not verified** by the
+local source/PG17 results.
+
 ## 2026-11-26 CoW saved service addresses supplement (source `77d2d85885d2fa4db8559ccbeb7c8049a0d9f974`)
 
 Six new customer app operations: `GET`/`POST /api/v1/app/addresses`, `GET`/`PATCH`/`DELETE /api/v1/app/addresses/{address_id}`, and `POST /api/v1/app/addresses/{address_id}/make-default`. All require customer bearer + correct `X-CPO-App-ID`, active CPO and CoW grant; `403 cow_unavailable` means the module cannot be used. List returns cursor-paginated addresses; create 201; detail/edit/default 200; soft-remove 204 empty. Mutations require current positive `expected_version`; 409 requires refetch and deliberate reapply. Initial address becomes default; default replacement is serialized and constrained. Create does not have a durable idempotency key, so inspect list before retrying an ambiguous request. The previous profile/vehicle APIs remain unchanged. Saved/temporary service-context snapshots are internal only, not job/quote endpoints. **Implement from the standalone contract** [CoW Run 2A address FE guide](contracts/api/cow-customer-service-addresses.md) rather than inventing fields or workflows. Source Swagger is 269 operations; VPS2 version is not implied.

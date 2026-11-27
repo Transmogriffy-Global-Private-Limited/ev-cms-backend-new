@@ -1,5 +1,14 @@
 # Administrative HTTP API: Complete Developer Contract
 
+## 2026-11-27 - CoW Run 2B local source and focused PostgreSQL 17 acceptance; VPS2 pending
+
+- **Verified by owner on Windows:** exact 16-path CoW Run 2B candidate at base `4ba588c8324bddc3a2f06405eae0eb075d403422` passed Go 1.25.3 full tests (`-p 1 -count=1`), vet, build, PowerShell documentation verifier, Gin/OpenAPI route-parity test and `git diff --check`. The submitted output ended `RUN2B_SOURCE_GATES=PASS`.
+- **Disposable database:** the checked runner reported a new private localhost-only PostgreSQL 17 cluster; all 80 migration records through `000082`, migration replay, four required focused integration tests, checks/tenant FK, legacy nulls and version semantics, invalid direct SQL rejection, guarded DOWN refusal and private-cluster removal all passed. User output ended `COW_RUN2B_PG17_ACCEPTANCE=PASS`. Detailed local `SUMMARY.json`/step logs have not been independently inspected here.
+- The existing `vehicles` table/five customer routes are extended additively with nullable customer-declared EV charging metadata and a positive `version`; saved and temporary CoW vehicle snapshots copy declarations independently. No fabricated charger compatibility, new customer vehicle registry, ServiceJob, HAL action or new HTTP operation. Existing customer/CPO tenant authority preserved.
+- **Not VPS2 verified:** migration `000082` has not run on the populated PostgreSQL 19 development database, the new binary has not been deployed, and authenticated customer HTTP E2E, parallel PATCH-race stress, physical charger/HAL, SMTP and longer-running worker/recovery evidence remain separate. The 26 Nov Run 1/2A VPS2 release remains the last documented live state.
+- Contract: `docs/contracts/api/cow-customer-vehicle-compatibility.md`; source work item: `docs/work/archive/WI-20261127-cow-run2b-vehicle-compatibility.md`. Git publication and VPS2 activation require separate explicit approval and verification.
+
+
 ## 2026-11-26 CoW source contract additions
 
 - Platform: `GET` and `PUT /api/v1/platform/cpos/{cpo_id}/modules/cow`; current Platform administrator controls default-off, versioned CPO grants, with `{enabled,expected_version,reason}` on PUT, 409 stale version, audited real transitions. See [CoW module contract](cow-module-entitlement.md).
@@ -878,17 +887,32 @@ challenge for that account. Errors include
 
 Every vehicle route requires the customer bearer and matching `X-CPO-App-ID`.
 The server derives both CPO and customer from that validated session; clients
-cannot send or filter by either ID. `POST /api/v1/app/vehicles` accepts only
+cannot send or filter by either ID. `POST /api/v1/app/vehicles` continues to accept
 `vehicle_number` (required, trimmed, 1–50 characters), optional
 `vehicle_type` (50), `vehicle_make` (100), and `vehicle_model` (100). Optional
 blank/null values persist as NULL. It returns `201 CustomerVehicleView`, which
-contains only ID, editable metadata, `last_charged`, `date_added`, and server
-timestamps—not CPO/customer IDs.
+contains ID, editable metadata, server-owned positive `version`,
+`last_charged`, `date_added`, and server timestamps—not CPO/customer IDs.
 
 The customer HTTP contract deliberately uses the descriptive `vehicle_type`,
 `vehicle_make`, and `vehicle_model` names. They map directly to the established
 `vehicles.type`, `vehicles.make`, and `vehicles.model` columns; no storage or
 existing CPO vehicle API field is renamed.
+
+Run 2B additionally accepts optional customer-declared `battery_capacity_wh`,
+`connector_types`, `supports_ac`, `supports_dc`, `max_ac_power_w`, and
+`max_dc_power_w` in both create and PATCH. Nullable values mean **unknown**;
+`false` means declared unsupported. Positive Wh/W values, 1-8 distinct
+normalized connector labels, and AC/DC support-power consistency are checked.
+PATCH omission preserves the old field, explicit `null` clears it. PATCH may
+optionally include positive `expected_version`: a stale version returns
+`409 vehicle_version_conflict`, but omitting the guard preserves old clients.
+A semantic change increments `version` once; an actual no-op does not.
+The existing customer-owned vehicle endpoints/tenant scope and hard-delete
+semantics are unchanged. This metadata is **not** HAL-derived physical proof.
+See [the standalone Run 2B customer EV compatibility contract]
+(cow-customer-vehicle-compatibility.md) for input, output, error and snapshot
+semantics. CPO staff vehicle-list projection is unchanged.
 
 `GET /api/v1/app/vehicles` returns `{vehicles, has_more, next_before?,
 next_before_id?}` ordered by `(date_added DESC, id DESC)`. `limit` defaults to

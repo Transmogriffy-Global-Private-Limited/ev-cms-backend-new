@@ -50,7 +50,9 @@ This directory is the durable project memory for the EV CMS backend.
 | Development VPS hosting and activation | `guides/operations/dev-hosting.md` |
 | CoW CPO module grant, permission catalog and FE access contract (Run 1) | `contracts/api/cow-module-entitlement.md` |
 | CoW customer service addresses and snapshot input contract (Run 2A) | `contracts/api/cow-customer-service-addresses.md` |
+| CoW customer-declared EV compatibility and snapshot fields (Run 2B) | `contracts/api/cow-customer-vehicle-compatibility.md` |
 | Accepted CoW source work items | `work/archive/WI-20261126-cow-run1-entitlements.md` and `work/archive/WI-20261126-cow-run2a-service-addresses.md` |
+| CoW Run 2B source review and acceptance | `work/archive/WI-20261127-cow-run2b-vehicle-compatibility.md` |
 
 `contracts/api/administrative-http-api.md` is the complete endpoint index and
 auth/control-plane handoff, including manual CPO activation and suspension.
@@ -85,7 +87,7 @@ from Gin. No generated SDK is currently committed.
 - `contracts/realtime/` records streaming, replay, ordering, and reconnect
   contracts.
 - `contracts/configuration.md` records environment configuration.
-- `contracts/openapi/` owns the embedded OpenAPI source and serving adapter. As of source Run 2A it contains 269 operations; hosted Swagger reflects only the installed binary.
+- `contracts/openapi/` owns the embedded OpenAPI source and serving adapter. As of local Run 2B it still contains 269 operations; hosted Swagger reflects only the installed binary.
 
 ## Verification
 

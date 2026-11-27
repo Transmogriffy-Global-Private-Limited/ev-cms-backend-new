@@ -1,5 +1,17 @@
 # CPO Backend AI-Agent Handoff
 
+## 2026-11-27 CoW Run 2B source-ready addendum (not VPS2 deployed)
+
+The existing CPO/customer-scoped `vehicles` model and five customer vehicle
+routes gain nullable customer-declared EV compatibility metadata and versioned
+PATCH, without a second registry, grant change or new HTTP route. The CPO
+staff vehicle list continues to project its established fields deliberately;
+no physical connector or HAL admission is implied. Windows full source checks
+and focused private PG17 migrations/integration passed per owner output; real
+VPS2 migration 82, binary activation and authenticated HTTP E2E remain pending.
+Use [the Run 2B customer vehicle contract]
+(contracts/api/cow-customer-vehicle-compatibility.md) for precise fields.
+
 ## 2026-11-26 CoW source ownership addendum
 
 CoW extends **this Go EV-CMS** as a tenant-scoped optional module, not an independent CMS. Accepted commits: Run 1 `f2be703b1d200eb0173c64ba655124496fb2755c` grants/membership/45 catalog keys/`000080`; Run 2A `77d2d85885d2fa4db8559ccbeb7c8049a0d9f974` customer saved addresses + internal copied saved/temporary snapshots/`000081`. Reuse existing customer and vehicle identity; tenant grant, current membership, explicit DENY and customer ownership are independent gates. Source interfaces do not create jobs, HAL commands or physical operations. Read [CoW module contract](contracts/api/cow-module-entitlement.md), [address contract](contracts/api/cow-customer-service-addresses.md), [schema](SCHEMA.md) and archived release work items before editing. Do not mistake source acceptance for a deployed VPS2 binary.

@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"net/http"
 	"strconv"
 	"strings"
@@ -15,6 +16,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 const (
@@ -27,6 +29,7 @@ type CreateVehicleRequest struct {
 	VehicleType   *string `json:"vehicle_type,omitempty"`
 	VehicleMake   *string `json:"vehicle_make,omitempty"`
 	VehicleModel  *string `json:"vehicle_model,omitempty"`
+	VehicleCompatibilityFields
 }
 
 // UpdateVehicleRequest records field presence so PATCH can distinguish omitted
@@ -36,11 +39,20 @@ type UpdateVehicleRequest struct {
 	VehicleType   *string `json:"vehicle_type,omitempty"`
 	VehicleMake   *string `json:"vehicle_make,omitempty"`
 	VehicleModel  *string `json:"vehicle_model,omitempty"`
+	VehicleCompatibilityFields
 
-	vehicleNumberSet bool
-	vehicleTypeSet   bool
-	vehicleMakeSet   bool
-	vehicleModelSet  bool
+	vehicleNumberSet     bool
+	vehicleTypeSet       bool
+	vehicleMakeSet       bool
+	vehicleModelSet      bool
+	ExpectedVersion      *int64 `json:"expected_version,omitempty"`
+	expectedVersionSet   bool
+	batteryCapacityWhSet bool
+	connectorTypesSet    bool
+	supportsACSet        bool
+	supportsDCSet        bool
+	maxACPowerWSet       bool
+	maxDCPowerWSet       bool
 }
 
 func (request *UpdateVehicleRequest) UnmarshalJSON(data []byte) error {
@@ -49,6 +61,8 @@ func (request *UpdateVehicleRequest) UnmarshalJSON(data []byte) error {
 		VehicleType   *string `json:"vehicle_type"`
 		VehicleMake   *string `json:"vehicle_make"`
 		VehicleModel  *string `json:"vehicle_model"`
+		VehicleCompatibilityFields
+		ExpectedVersion *int64 `json:"expected_version"`
 	}
 	decoder := json.NewDecoder(bytes.NewReader(data))
 	decoder.DisallowUnknownFields()
@@ -64,23 +78,34 @@ func (request *UpdateVehicleRequest) UnmarshalJSON(data []byte) error {
 	request.VehicleType = wire.VehicleType
 	request.VehicleMake = wire.VehicleMake
 	request.VehicleModel = wire.VehicleModel
+	request.VehicleCompatibilityFields = wire.VehicleCompatibilityFields
+	request.ExpectedVersion = wire.ExpectedVersion
 	_, request.vehicleNumberSet = fields["vehicle_number"]
 	_, request.vehicleTypeSet = fields["vehicle_type"]
 	_, request.vehicleMakeSet = fields["vehicle_make"]
 	_, request.vehicleModelSet = fields["vehicle_model"]
+	_, request.batteryCapacityWhSet = fields["battery_capacity_wh"]
+	_, request.connectorTypesSet = fields["connector_types"]
+	_, request.supportsACSet = fields["supports_ac"]
+	_, request.supportsDCSet = fields["supports_dc"]
+	_, request.maxACPowerWSet = fields["max_ac_power_w"]
+	_, request.maxDCPowerWSet = fields["max_dc_power_w"]
+	_, request.expectedVersionSet = fields["expected_version"]
 	return nil
 }
 
 type CustomerVehicleView struct {
-	ID            uuid.UUID  `json:"id"`
-	VehicleNumber string     `json:"vehicle_number"`
-	VehicleType   *string    `json:"vehicle_type,omitempty"`
-	VehicleMake   *string    `json:"vehicle_make,omitempty"`
-	VehicleModel  *string    `json:"vehicle_model,omitempty"`
-	LastCharged   *time.Time `json:"last_charged,omitempty"`
-	DateAdded     time.Time  `json:"date_added"`
-	CreatedAt     time.Time  `json:"created_at"`
-	UpdatedAt     time.Time  `json:"updated_at"`
+	ID            uuid.UUID `json:"id"`
+	VehicleNumber string    `json:"vehicle_number"`
+	VehicleType   *string   `json:"vehicle_type,omitempty"`
+	VehicleMake   *string   `json:"vehicle_make,omitempty"`
+	VehicleModel  *string   `json:"vehicle_model,omitempty"`
+	VehicleCompatibilityFields
+	LastCharged *time.Time `json:"last_charged,omitempty"`
+	DateAdded   time.Time  `json:"date_added"`
+	Version     int64      `json:"version"`
+	CreatedAt   time.Time  `json:"created_at"`
+	UpdatedAt   time.Time  `json:"updated_at"`
 }
 
 type CustomerVehicleListQuery struct {
@@ -212,8 +237,13 @@ func (service *Service) CreateVehicle(ctx context.Context, principal Principal, 
 	if err != nil {
 		return CustomerVehicleView{}, err
 	}
+	compat, err := normalizeVehicleCompatibility(request.VehicleCompatibilityFields)
+	if err != nil {
+		return CustomerVehicleView{}, err
+	}
 	now := service.now()
-	vehicle := models.Vehicle{ID: uuid.New(), CPOID: principal.CPOID, CustomerID: principal.CustomerID, VehicleNumber: vehicleNumber, Type: vehicleType, Make: vehicleMake, Model: vehicleModel, DateAdded: now, CreatedAt: now, UpdatedAt: now}
+	vehicle := models.Vehicle{ID: uuid.New(), CPOID: principal.CPOID, CustomerID: principal.CustomerID, VehicleNumber: vehicleNumber, Type: vehicleType, Make: vehicleMake, Model: vehicleModel, DateAdded: now, CreatedAt: now, UpdatedAt: now, Version: 1}
+	setVehicleModelCompatibility(&vehicle, compat)
 	if err := service.database.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if err := tx.Create(&vehicle).Error; err != nil {
 			return fmt.Errorf("create customer vehicle: %w", err)
@@ -281,17 +311,24 @@ func (service *Service) UpdateVehicle(ctx context.Context, principal Principal, 
 	if vehicleID == uuid.Nil {
 		return CustomerVehicleView{}, invalidVehicleID()
 	}
-	if !request.vehicleNumberSet && !request.vehicleTypeSet && !request.vehicleMakeSet && !request.vehicleModelSet {
+	if request.expectedVersionSet && (request.ExpectedVersion == nil || *request.ExpectedVersion < 1) {
+		return CustomerVehicleView{}, &APIError{http.StatusBadRequest, "invalid_vehicle_version", "expected_version must be a positive integer."}
+	}
+	if !request.vehicleNumberSet && !request.vehicleTypeSet && !request.vehicleMakeSet && !request.vehicleModelSet &&
+		!request.batteryCapacityWhSet && !request.connectorTypesSet && !request.supportsACSet && !request.supportsDCSet && !request.maxACPowerWSet && !request.maxDCPowerWSet {
 		return CustomerVehicleView{}, &APIError{http.StatusBadRequest, "invalid_vehicle_update", "At least one editable vehicle field is required."}
 	}
 	returnValue := CustomerVehicleView{}
 	err := service.database.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		vehicle, err := service.customerVehicle(ctx, tx, principal, vehicleID)
+		vehicle, err := service.customerVehicle(ctx, tx.Clauses(clause.Locking{Strength: "UPDATE"}), principal, vehicleID)
 		if err != nil {
 			return err
 		}
+		if request.expectedVersionSet && vehicle.Version != *request.ExpectedVersion {
+			return &APIError{http.StatusConflict, "vehicle_version_conflict", "Vehicle changed; reload before updating."}
+		}
 		updates := map[string]any{}
-		changedFields := make([]string, 0, 4)
+		changedFields := make([]string, 0, 10)
 		if request.vehicleNumberSet {
 			if request.VehicleNumber == nil {
 				return invalidVehicleNumber()
@@ -335,12 +372,22 @@ func (service *Service) UpdateVehicle(ctx context.Context, principal Principal, 
 				changedFields = append(changedFields, "vehicle_model")
 			}
 		}
+		beforeCompat := vehicleCompatibilityFromModel(vehicle)
+		afterCompat, err := patchVehicleCompatibility(beforeCompat, request)
+		if err != nil {
+			return err
+		}
+		changedFields = changedVehicleCompatibility(beforeCompat, afterCompat, updates, changedFields)
 		if len(updates) == 0 {
 			returnValue = customerVehicleView(vehicle)
 			return nil
 		}
+		if vehicle.Version >= math.MaxInt64 {
+			return &APIError{http.StatusConflict, "vehicle_version_exhausted", "Vehicle version can no longer advance."}
+		}
 		now := service.now()
 		updates["updated_at"] = now
+		updates["version"] = vehicle.Version + 1
 		if err := tx.Model(&models.Vehicle{}).Where("id = ? AND cpo_id = ? AND customer_id = ?", vehicleID, principal.CPOID, principal.CustomerID).Updates(updates).Error; err != nil {
 			return fmt.Errorf("update customer vehicle: %w", err)
 		}
@@ -461,7 +508,7 @@ func sameVehicleOptional(left, right *string) bool {
 }
 
 func customerVehicleView(vehicle models.Vehicle) CustomerVehicleView {
-	return CustomerVehicleView{ID: vehicle.ID, VehicleNumber: vehicle.VehicleNumber, VehicleType: vehicle.Type, VehicleMake: vehicle.Make, VehicleModel: vehicle.Model, LastCharged: vehicle.LastCharged, DateAdded: vehicle.DateAdded, CreatedAt: vehicle.CreatedAt, UpdatedAt: vehicle.UpdatedAt}
+	return CustomerVehicleView{ID: vehicle.ID, VehicleNumber: vehicle.VehicleNumber, VehicleType: vehicle.Type, VehicleMake: vehicle.Make, VehicleModel: vehicle.Model, VehicleCompatibilityFields: vehicleCompatibilityFromModel(vehicle), Version: vehicle.Version, LastCharged: vehicle.LastCharged, DateAdded: vehicle.DateAdded, CreatedAt: vehicle.CreatedAt, UpdatedAt: vehicle.UpdatedAt}
 }
 
 func invalidVehicleID() *APIError {

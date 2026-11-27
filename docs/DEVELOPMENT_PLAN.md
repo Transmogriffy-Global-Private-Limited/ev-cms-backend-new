@@ -1,10 +1,19 @@
 # Development Plan
 
-## 2026-11-26 - Current CoW source roadmap
+## 2026-11-27 - CoW Run 2B local source and focused PostgreSQL 17 acceptance; VPS2 pending
+
+- **Verified by owner on Windows:** exact 16-path CoW Run 2B candidate at base `4ba588c8324bddc3a2f06405eae0eb075d403422` passed Go 1.25.3 full tests (`-p 1 -count=1`), vet, build, PowerShell documentation verifier, Gin/OpenAPI route-parity test and `git diff --check`. The submitted output ended `RUN2B_SOURCE_GATES=PASS`.
+- **Disposable database:** the checked runner reported a new private localhost-only PostgreSQL 17 cluster; all 80 migration records through `000082`, migration replay, four required focused integration tests, checks/tenant FK, legacy nulls and version semantics, invalid direct SQL rejection, guarded DOWN refusal and private-cluster removal all passed. User output ended `COW_RUN2B_PG17_ACCEPTANCE=PASS`. Detailed local `SUMMARY.json`/step logs have not been independently inspected here.
+- The existing `vehicles` table/five customer routes are extended additively with nullable customer-declared EV charging metadata and a positive `version`; saved and temporary CoW vehicle snapshots copy declarations independently. No fabricated charger compatibility, new customer vehicle registry, ServiceJob, HAL action or new HTTP operation. Existing customer/CPO tenant authority preserved.
+- **Not VPS2 verified:** migration `000082` has not run on the populated PostgreSQL 19 development database, the new binary has not been deployed, and authenticated customer HTTP E2E, parallel PATCH-race stress, physical charger/HAL, SMTP and longer-running worker/recovery evidence remain separate. The 26 Nov Run 1/2A VPS2 release remains the last documented live state.
+- Contract: `docs/contracts/api/cow-customer-vehicle-compatibility.md`; source work item: `docs/work/archive/WI-20261127-cow-run2b-vehicle-compatibility.md`. Git publication and VPS2 activation require separate explicit approval and verification.
+
+
+## 2026-11-26 - Historical CoW source roadmap (superseded by 27 Nov source acceptance)
 
 - **Run 1 source accepted:** `f2be703b1d200eb0173c64ba655124496fb2755c` (module entitlement + CPO access + CoW permission registry), 3 routes and migration `000080`.
 - **Run 2A source accepted:** `77d2d85885d2fa4db8559ccbeb7c8049a0d9f974` (six customer address routes, default/versions, internal copied-value service context, `000081`); uses pre-existing `/api/v1/app/profile` and `/api/v1/app/vehicles`, not a second identity/vehicle registry.
-- **Run 2B next, NOT implemented:** substantiate the actual EV charging-compatibility metadata needed by CoW, then extend existing vehicle storage/HTTP/snapshot models non-breakingly with tenant isolation and tests. Avoid speculative battery/connector assumptions.
+- **Run 2B was not yet implemented at this 26 Nov checkpoint:** substantiate the actual EV charging-compatibility metadata needed by CoW, then extend existing vehicle storage/HTTP/snapshot models non-breakingly with tenant isolation and tests. Avoid speculative battery/connector assumptions.
 - Later dependencies: driver onboarding, fleet, scheduling, ServiceJob and dispatch. ServiceJob must freeze validated address/EV snapshots when created. No Run 2A public job/quote, promotion, charger/HAL or payment endpoint exists.
 - Source verification and disposable PG17 integration do not establish VPS2 deployment or physical device behavior. See [current project state](PROJECT_STATE.md) and the archived Run 1/2A work items.
 

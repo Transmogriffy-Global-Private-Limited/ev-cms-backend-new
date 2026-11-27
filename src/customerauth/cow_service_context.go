@@ -18,6 +18,8 @@ type CowVehicleSnapshot struct {
 	VehicleType    *string    `json:"vehicle_type,omitempty"`
 	VehicleMake    *string    `json:"vehicle_make,omitempty"`
 	VehicleModel   *string    `json:"vehicle_model,omitempty"`
+	VehicleCompatibilityFields
+	SourceVersion *int64 `json:"source_version,omitempty"` // saved master version at capture
 }
 
 type CowAddressSnapshot struct {
@@ -76,7 +78,8 @@ func (service *Service) BuildCowServiceContext(ctx context.Context, p Principal,
 			return CowServiceContextSnapshot{}, err
 		}
 		id := vehicle.ID
-		snapshot.Vehicle = CowVehicleSnapshot{Source: "SAVED", SavedVehicleID: &id, VehicleNumber: vehicle.VehicleNumber, VehicleType: cowOwnCopyString(vehicle.Type), VehicleMake: cowOwnCopyString(vehicle.Make), VehicleModel: cowOwnCopyString(vehicle.Model)}
+		version := vehicle.Version
+		snapshot.Vehicle = CowVehicleSnapshot{Source: "SAVED", SavedVehicleID: &id, VehicleNumber: vehicle.VehicleNumber, VehicleType: cowOwnCopyString(vehicle.Type), VehicleMake: cowOwnCopyString(vehicle.Make), VehicleModel: cowOwnCopyString(vehicle.Model), VehicleCompatibilityFields: vehicleCompatibilityFromModel(vehicle), SourceVersion: &version}
 	} else {
 		v := *input.TemporaryVehicle
 		num, err := normalizeVehicleNumber(v.VehicleNumber)
@@ -95,7 +98,11 @@ func (service *Service) BuildCowServiceContext(ctx context.Context, p Principal,
 		if err != nil {
 			return CowServiceContextSnapshot{}, err
 		}
-		snapshot.Vehicle = CowVehicleSnapshot{Source: "TEMPORARY", VehicleNumber: num, VehicleType: cowOwnCopyString(typ), VehicleMake: cowOwnCopyString(makeName), VehicleModel: cowOwnCopyString(model)}
+		compat, err := normalizeVehicleCompatibility(v.VehicleCompatibilityFields)
+		if err != nil {
+			return CowServiceContextSnapshot{}, err
+		}
+		snapshot.Vehicle = CowVehicleSnapshot{Source: "TEMPORARY", VehicleNumber: num, VehicleType: cowOwnCopyString(typ), VehicleMake: cowOwnCopyString(makeName), VehicleModel: cowOwnCopyString(model), VehicleCompatibilityFields: compat}
 	}
 	if input.SavedAddressID != nil {
 		address, err := service.findCowAddress(ctx, service.database, p, *input.SavedAddressID)

@@ -1,6 +1,15 @@
 # CMS Schema
 
-## CoW source schema (migrations 000080 and 000081, through commit `77d2d85885d2fa4db8559ccbeb7c8049a0d9f974`)
+## 2026-11-27 - CoW Run 2B local source and focused PostgreSQL 17 acceptance; VPS2 pending
+
+- **Verified by owner on Windows:** exact 16-path CoW Run 2B candidate at base `4ba588c8324bddc3a2f06405eae0eb075d403422` passed Go 1.25.3 full tests (`-p 1 -count=1`), vet, build, PowerShell documentation verifier, Gin/OpenAPI route-parity test and `git diff --check`. The submitted output ended `RUN2B_SOURCE_GATES=PASS`.
+- **Disposable database:** the checked runner reported a new private localhost-only PostgreSQL 17 cluster; all 80 migration records through `000082`, migration replay, four required focused integration tests, checks/tenant FK, legacy nulls and version semantics, invalid direct SQL rejection, guarded DOWN refusal and private-cluster removal all passed. User output ended `COW_RUN2B_PG17_ACCEPTANCE=PASS`. Detailed local `SUMMARY.json`/step logs have not been independently inspected here.
+- The existing `vehicles` table/five customer routes are extended additively with nullable customer-declared EV charging metadata and a positive `version`; saved and temporary CoW vehicle snapshots copy declarations independently. No fabricated charger compatibility, new customer vehicle registry, ServiceJob, HAL action or new HTTP operation. Existing customer/CPO tenant authority preserved.
+- **Not VPS2 verified:** migration `000082` has not run on the populated PostgreSQL 19 development database, the new binary has not been deployed, and authenticated customer HTTP E2E, parallel PATCH-race stress, physical charger/HAL, SMTP and longer-running worker/recovery evidence remain separate. The 26 Nov Run 1/2A VPS2 release remains the last documented live state.
+- Contract: `docs/contracts/api/cow-customer-vehicle-compatibility.md`; source work item: `docs/work/archive/WI-20261127-cow-run2b-vehicle-compatibility.md`. Git publication and VPS2 activation require separate explicit approval and verification.
+
+
+## Historical Run 1/2A schema (migrations 000080 and 000081, through commit `77d2d85885d2fa4db8559ccbeb7c8049a0d9f974`)
 
 - `000080`: `cpo_module_entitlements` stores the CPO-scoped `cow` enabled state, optimistic version, reason/actor/timestamp. Absent row means disabled/version 0. `cpo_module_entitlement_events` preserves real transitions by (CPO,module,version); Platform audit is transactionally coupled. Rollback refuses deletion of recorded grant history.
 - `000081`: `cow_customer_addresses` has composite (CPO,customer) ownership FK, bounded location/instruction fields, optional paired coordinates, `is_active`, `is_default`, positive version, and timestamps. A partial unique index `uq_cow_customer_addresses_active_default` permits **at most one** active default per CPO/customer; serialized customer-row locking supports default promotion on removal. Delete is soft. DOWN refuses destructive loss of saved addresses.
